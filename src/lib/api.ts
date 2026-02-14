@@ -1,4 +1,4 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 type FetchOptions = RequestInit & {
   params?: Record<string, string>;
@@ -12,6 +12,14 @@ class ApiClient {
   }
 
   async request<T>(path: string, options: FetchOptions = {}): Promise<T> {
+    if (!this.baseUrl) {
+      throw new ApiError(
+        "CONFIG_ERROR",
+        "NEXT_PUBLIC_API_URL is not configured",
+        0
+      );
+    }
+
     const { params, ...fetchOptions } = options;
 
     let url = `${this.baseUrl}${path}`;
@@ -29,11 +37,22 @@ class ApiClient {
       ...fetchOptions,
     });
 
-    const json = await res.json();
+    let json: Record<string, unknown>;
+    try {
+      json = await res.json();
+    } catch {
+      throw new ApiError(
+        "PARSE_ERROR",
+        `Server returned non-JSON response (${res.status})`,
+        res.status
+      );
+    }
 
     if (!res.ok || !json.ok) {
-      const error = json.error || { message: "Request failed" };
-      throw new ApiError(error.code || "UNKNOWN", error.message, res.status);
+      const error = (json.error as { code?: string; message?: string }) || {
+        message: "Request failed",
+      };
+      throw new ApiError(error.code || "UNKNOWN", error.message || "Request failed", res.status);
     }
 
     return json.data as T;
