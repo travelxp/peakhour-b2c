@@ -132,9 +132,19 @@ export default function PrivacyPolicyPage() {
                 train their models on customer data submitted through their API.
               </li>
               <li>
-                Our proprietary models may be trained on aggregated, anonymized data to
-                improve the Service. Your individual content is never shared with other
-                customers or made publicly available.
+                Our proprietary models may be trained on aggregated, anonymized, and
+                de-identified data to improve the Service. Before any data is used for
+                model training: (a) all personally identifiable information (PII) —
+                including names, email addresses, account identifiers, and any other data
+                that could identify an individual — is permanently stripped; (b) data is
+                aggregated across multiple sources so that no individual user or
+                organization can be identified; (c) the resulting anonymized dataset
+                cannot be reverse-engineered to recover original content or identity.
+              </li>
+              <li>
+                We never use raw customer content, PII, or organization-identifiable data
+                to train any model. Your individual content is never shared with other
+                customers, used in outputs for other accounts, or made publicly available.
               </li>
               <li>AI-generated outputs (tags, creatives, recommendations) are stored in your account.</li>
               <li>You retain ownership of your original content and AI-generated outputs.</li>
