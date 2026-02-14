@@ -13,13 +13,13 @@ const FEATURES = [
     title: "Content Intelligence",
     description:
       "Every piece of content is automatically tagged across 12 dimensions. Know which topics, audiences, and angles drive results.",
-    detail: "Beehiiv sync, 12-dimension auto-tagger, content gap analysis",
+    detail: "Connects to any content platform, 12-dimension auto-tagger, content gap analysis",
   },
   {
     title: "AI Creative Factory",
     description:
       "Turn one newsletter into 10+ platform-native ad creatives in minutes. LinkedIn Lead Gen, Meta, Google — all from your content.",
-    detail: "Claude AI generates headlines, body copy, image briefs",
+    detail: "AI generates headlines, body copy, and image briefs",
   },
   {
     title: "Optimization Engine",
@@ -34,7 +34,7 @@ const STEPS = [
     step: "1",
     title: "Connect your content",
     description:
-      "Link your Beehiiv newsletter (or upload content). We sync and analyze everything automatically.",
+      "Connect your newsletter, blog, or CMS. We integrate with your content platforms and analyze everything automatically.",
   },
   {
     step: "2",
@@ -161,8 +161,18 @@ export default function Home() {
       {/* Footer */}
       <footer className="border-t py-8">
         <div className="mx-auto max-w-5xl px-4 text-center text-sm text-muted-foreground">
-          PeakHour &copy; {new Date().getFullYear()}. AI-powered marketing for
-          growing businesses.
+          <div className="flex justify-center gap-4">
+            <Link href="/privacy-policy" className="underline">
+              Privacy Policy
+            </Link>
+            <Link href="/terms" className="underline">
+              Terms of Service
+            </Link>
+          </div>
+          <p className="mt-2">
+            PeakHour &copy; {new Date().getFullYear()}. AI-powered marketing for
+            growing businesses.
+          </p>
         </div>
       </footer>
     </div>
