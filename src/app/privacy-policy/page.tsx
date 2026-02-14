@@ -182,11 +182,30 @@ export default function PrivacyPolicyPage() {
 
             <h3 className="mt-6 font-medium text-foreground">4.2 Your Control</h3>
             <p className="mt-2">
-              You can opt out of anonymized data contributing to platform improvements at
-              any time from your account settings. Opting out will not affect the quality
-              of the Service you receive — your content will still be processed by our AI
-              to deliver your results. It only means your anonymized usage patterns will
-              not be included in aggregate training data.
+              Your data contribution preference is tied to your chosen plan:
+            </p>
+            <ul className="mt-2 list-disc space-y-1 pl-6">
+              <li>
+                <strong>Community plans</strong> include data contribution and are offered
+                at a reduced price. By choosing a Community plan, you agree that your
+                anonymized, de-identified usage patterns will be included in aggregate
+                training data for the duration of that plan. This is what enables us to
+                offer Community pricing — your participation directly improves the
+                platform for everyone.
+              </li>
+              <li>
+                <strong>Private plans</strong> exclude data contribution entirely. Your
+                anonymized usage patterns will not be included in any aggregate training
+                data. Private plans are offered at standard pricing.
+              </li>
+            </ul>
+            <p className="mt-2">
+              You can switch between Community and Private plans at any time from your
+              account settings. Switching to a Private plan takes effect at your next
+              billing cycle and adjusts your pricing accordingly. Regardless of your plan,
+              the quality and features of the Service remain the same — plan selection
+              only affects whether your anonymized patterns contribute to platform
+              improvements and your corresponding pricing.
             </p>
           </section>
 

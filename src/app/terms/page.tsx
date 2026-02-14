@@ -204,6 +204,39 @@ export default function TermsPage() {
                 These may be modified or discontinued at any time.
               </li>
             </ul>
+
+            <h3 className="mt-4 font-medium text-foreground">8.1 Community and Private Plans</h3>
+            <p className="mt-2">
+              We offer two plan categories that differ in pricing and data contribution:
+            </p>
+            <ul className="mt-2 list-disc space-y-1 pl-6">
+              <li>
+                <strong>Community plans</strong> are offered at reduced pricing. By
+                selecting a Community plan, you agree to contribute anonymized,
+                de-identified usage data to improve the platform, as described in our
+                Privacy Policy (Section 4). Data contribution is a condition of Community
+                plan pricing and cannot be disabled while on a Community plan.
+              </li>
+              <li>
+                <strong>Private plans</strong> are offered at standard pricing and do not
+                include any data contribution. Your anonymized usage patterns are excluded
+                from all aggregate training data.
+              </li>
+              <li>
+                Both plan categories provide identical features and service quality. The
+                pricing difference reflects the value that aggregated data contribution
+                provides to the platform and its users, in compliance with applicable
+                privacy regulations.
+              </li>
+              <li>
+                You may switch between Community and Private plans at any time. Plan
+                changes and corresponding pricing adjustments take effect at the start of
+                your next billing cycle. If you switch from Community to Private, data
+                contribution ceases at the plan change date; previously contributed
+                anonymized data remains part of the aggregate dataset as it cannot be
+                individually identified or extracted.
+              </li>
+            </ul>
           </section>
 
           <section>
