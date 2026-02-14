@@ -1,4 +1,4 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 type FetchOptions = RequestInit & {
   params?: Record<string, string>;
@@ -12,6 +12,14 @@ class ApiClient {
   }
 
   async request<T>(path: string, options: FetchOptions = {}): Promise<T> {
+    if (!this.baseUrl) {
+      throw new ApiError(
+        "CONFIG_ERROR",
+        "NEXT_PUBLIC_API_URL is not configured",
+        0
+      );
+    }
+
     const { params, ...fetchOptions } = options;
 
     let url = `${this.baseUrl}${path}`;
