@@ -180,32 +180,55 @@ export default function PrivacyPolicyPage() {
               </li>
             </ul>
 
-            <h3 className="mt-6 font-medium text-foreground">4.2 Your Control</h3>
+            <h3 className="mt-6 font-medium text-foreground">
+              4.2 Plan Tiers and Data Processing
+            </h3>
             <p className="mt-2">
-              Your data contribution preference is tied to your chosen plan:
+              How your data is processed depends on your chosen plan tier. We offer three
+              tiers, each with different data handling and AI model access:
             </p>
-            <ul className="mt-2 list-disc space-y-1 pl-6">
-              <li>
-                <strong>Community plans</strong> include data contribution and are offered
-                at a reduced price. By choosing a Community plan, you agree that your
-                anonymized, de-identified usage patterns will be included in aggregate
-                training data for the duration of that plan. This is what enables us to
-                offer Community pricing — your participation directly improves the
-                platform for everyone.
-              </li>
-              <li>
-                <strong>Private plans</strong> exclude data contribution entirely. Your
-                anonymized usage patterns will not be included in any aggregate training
-                data. Private plans are offered at standard pricing.
-              </li>
-            </ul>
-            <p className="mt-2">
-              You can switch between Community and Private plans at any time from your
-              account settings. Switching to a Private plan takes effect at your next
-              billing cycle and adjusts your pricing accordingly. Regardless of your plan,
-              the quality and features of the Service remain the same — plan selection
-              only affects whether your anonymized patterns contribute to platform
-              improvements and your corresponding pricing.
+
+            <p className="mt-4 font-medium text-foreground">Community</p>
+            <p className="mt-1">
+              Community plans are offered at the lowest price point. By choosing a
+              Community plan, you agree that your anonymized, de-identified usage patterns
+              will be included in aggregate training data for the shared platform model.
+              This is what enables Community pricing — your participation directly
+              improves the platform for everyone. Data contribution is a condition of
+              Community pricing and cannot be disabled while on a Community plan. You
+              receive access to the shared platform model, which benefits from the
+              collective intelligence of all Community users.
+            </p>
+
+            <p className="mt-4 font-medium text-foreground">Professional</p>
+            <p className="mt-1">
+              Professional plans are offered at standard pricing and exclude data
+              contribution entirely. Your anonymized usage patterns will not be included
+              in any aggregate training data. You still receive access to the shared
+              platform model (trained on Community tier data), but your own data remains
+              completely private.
+            </p>
+
+            <p className="mt-4 font-medium text-foreground">Enterprise</p>
+            <p className="mt-1">
+              Enterprise plans provide the highest level of data privacy and AI
+              customization. Your data does not contribute to the shared model. In
+              addition, you receive a dedicated private AI model that is trained
+              exclusively on your organization&apos;s own data. This private model learns
+              your specific industry patterns, audience behaviors, brand voice, and
+              campaign performance over time — delivering increasingly personalized and
+              accurate results. Your private model data is fully isolated and never
+              mixed with data from other organizations or the shared platform model.
+            </p>
+
+            <p className="mt-4">
+              You can upgrade or change your plan at any time from your account settings.
+              Plan changes take effect at your next billing cycle. If you switch from
+              Community to Professional or Enterprise, data contribution ceases at the
+              plan change date; previously contributed anonymized data remains part of the
+              aggregate dataset as it cannot be individually identified or extracted. If
+              you downgrade from Enterprise, your private model is decommissioned at the
+              end of your billing cycle.
             </p>
           </section>
 

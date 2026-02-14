@@ -205,36 +205,54 @@ export default function TermsPage() {
               </li>
             </ul>
 
-            <h3 className="mt-4 font-medium text-foreground">8.1 Community and Private Plans</h3>
+            <h3 className="mt-4 font-medium text-foreground">8.1 Plan Tiers</h3>
             <p className="mt-2">
-              We offer two plan categories that differ in pricing and data contribution:
+              We offer three plan tiers that differ in pricing, data contribution, and AI
+              model access:
             </p>
             <ul className="mt-2 list-disc space-y-1 pl-6">
               <li>
-                <strong>Community plans</strong> are offered at reduced pricing. By
+                <strong>Community</strong> plans are offered at reduced pricing. By
                 selecting a Community plan, you agree to contribute anonymized,
-                de-identified usage data to improve the platform, as described in our
-                Privacy Policy (Section 4). Data contribution is a condition of Community
-                plan pricing and cannot be disabled while on a Community plan.
+                de-identified usage data to improve the shared platform model, as
+                described in our Privacy Policy (Section 4). Data contribution is a
+                condition of Community plan pricing and cannot be disabled while on a
+                Community plan. You receive access to the shared platform model.
               </li>
               <li>
-                <strong>Private plans</strong> are offered at standard pricing and do not
-                include any data contribution. Your anonymized usage patterns are excluded
-                from all aggregate training data.
+                <strong>Professional</strong> plans are offered at standard pricing and
+                do not include any data contribution. Your anonymized usage patterns are
+                excluded from all aggregate training data. You receive access to the
+                shared platform model without contributing to it.
               </li>
               <li>
-                Both plan categories provide identical features and service quality. The
-                pricing difference reflects the value that aggregated data contribution
-                provides to the platform and its users, in compliance with applicable
-                privacy regulations.
+                <strong>Enterprise</strong> plans are offered at premium pricing and
+                include a dedicated private AI model trained exclusively on your
+                organization&apos;s data. Your data does not contribute to the shared
+                platform model. The private model is isolated to your organization and
+                learns your specific industry patterns, audience behaviors, and campaign
+                performance over time.
+              </li>
+            </ul>
+            <p className="mt-2">
+              All plan tiers provide the same core platform features. The pricing
+              differences reflect: (a) the value that aggregated data contribution
+              provides (Community discount), and (b) the dedicated infrastructure and
+              compute resources required for private models (Enterprise premium), in
+              compliance with applicable privacy regulations.
+            </p>
+            <ul className="mt-2 list-disc space-y-1 pl-6">
+              <li>
+                You may change your plan tier at any time. Changes take effect at the
+                start of your next billing cycle. If you switch from Community to
+                Professional or Enterprise, data contribution ceases at the plan change
+                date; previously contributed anonymized data remains part of the aggregate
+                dataset as it cannot be individually identified or extracted.
               </li>
               <li>
-                You may switch between Community and Private plans at any time. Plan
-                changes and corresponding pricing adjustments take effect at the start of
-                your next billing cycle. If you switch from Community to Private, data
-                contribution ceases at the plan change date; previously contributed
-                anonymized data remains part of the aggregate dataset as it cannot be
-                individually identified or extracted.
+                If you downgrade from Enterprise, your private model is decommissioned
+                at the end of your current billing cycle. Data used to train your private
+                model is deleted within 30 days of decommissioning.
               </li>
             </ul>
           </section>
