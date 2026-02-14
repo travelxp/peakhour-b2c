@@ -241,13 +241,35 @@ export default function TermsPage() {
               compute resources required for private models (Enterprise premium), in
               compliance with applicable privacy regulations.
             </p>
+            <h3 className="mt-4 font-medium text-foreground">8.2 Free Trial</h3>
+            <ul className="mt-2 list-disc space-y-1 pl-6">
+              <li>
+                We may offer a free trial with limited usage. Free trial accounts require
+                data contribution as a condition of the trial — by activating a trial,
+                you agree to contribute anonymized, de-identified usage data to the shared
+                platform model, as described in our Privacy Policy (Section 4.2).
+              </li>
+              <li>
+                Free trials are subject to usage limits (e.g., number of creatives,
+                campaigns, or content items) as described on our pricing page. These
+                limits may be changed at our discretion.
+              </li>
+              <li>
+                At the end of your trial period, you may choose any paid plan tier
+                (Community, Professional, or Enterprise). If you do not select a paid
+                plan, your account will be suspended until a plan is chosen. Your data
+                will be retained for 30 days after trial expiration.
+              </li>
+            </ul>
+
+            <h3 className="mt-4 font-medium text-foreground">8.3 Plan Changes</h3>
             <ul className="mt-2 list-disc space-y-1 pl-6">
               <li>
                 You may change your plan tier at any time. Changes take effect at the
-                start of your next billing cycle. If you switch from Community to
-                Professional or Enterprise, data contribution ceases at the plan change
-                date; previously contributed anonymized data remains part of the aggregate
-                dataset as it cannot be individually identified or extracted.
+                start of your next billing cycle. If you switch from Community or a free
+                trial to Professional or Enterprise, data contribution ceases at the plan
+                change date; previously contributed anonymized data remains part of the
+                aggregate dataset as it cannot be individually identified or extracted.
               </li>
               <li>
                 If you downgrade from Enterprise, your private model is decommissioned

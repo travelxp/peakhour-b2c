@@ -221,14 +221,25 @@ export default function PrivacyPolicyPage() {
               mixed with data from other organizations or the shared platform model.
             </p>
 
+            <p className="mt-4 font-medium text-foreground">Free Trial</p>
+            <p className="mt-1">
+              Free trial accounts include data contribution as a condition of the trial.
+              By activating a free trial, you agree that your anonymized, de-identified
+              usage patterns will be included in aggregate training data during the trial
+              period. This allows us to offer the trial at no cost while improving the
+              platform for all users. Trial accounts are subject to usage limits as
+              described on our pricing page. At the end of your trial, you may choose any
+              paid plan tier.
+            </p>
+
             <p className="mt-4">
               You can upgrade or change your plan at any time from your account settings.
               Plan changes take effect at your next billing cycle. If you switch from
-              Community to Professional or Enterprise, data contribution ceases at the
-              plan change date; previously contributed anonymized data remains part of the
-              aggregate dataset as it cannot be individually identified or extracted. If
-              you downgrade from Enterprise, your private model is decommissioned at the
-              end of your billing cycle.
+              Community or a free trial to Professional or Enterprise, data contribution
+              ceases at the plan change date; previously contributed anonymized data
+              remains part of the aggregate dataset as it cannot be individually
+              identified or extracted. If you downgrade from Enterprise, your private
+              model is decommissioned at the end of your billing cycle.
             </p>
           </section>
 
