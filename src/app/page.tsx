@@ -13,13 +13,13 @@ const FEATURES = [
     title: "Content Intelligence",
     description:
       "Every piece of content is automatically tagged across 12 dimensions. Know which topics, audiences, and angles drive results.",
-    detail: "Beehiiv sync, 12-dimension auto-tagger, content gap analysis",
+    detail: "Connects to any content platform, 12-dimension auto-tagger, content gap analysis",
   },
   {
     title: "AI Creative Factory",
     description:
       "Turn one newsletter into 10+ platform-native ad creatives in minutes. LinkedIn Lead Gen, Meta, Google — all from your content.",
-    detail: "Claude AI generates headlines, body copy, image briefs",
+    detail: "AI generates headlines, body copy, and image briefs",
   },
   {
     title: "Optimization Engine",
@@ -34,7 +34,7 @@ const STEPS = [
     step: "1",
     title: "Connect your content",
     description:
-      "Link your Beehiiv newsletter (or upload content). We sync and analyze everything automatically.",
+      "Connect your newsletter, blog, or CMS. We integrate with your content platforms and analyze everything automatically.",
   },
   {
     step: "2",

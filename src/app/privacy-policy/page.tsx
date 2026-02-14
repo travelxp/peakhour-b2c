@@ -118,9 +118,9 @@ export default function PrivacyPolicyPage() {
           <section>
             <h2 className="text-lg font-semibold text-foreground">4. AI Processing</h2>
             <p className="mt-2">
-              Our Service uses artificial intelligence (powered by third-party AI providers
-              including Anthropic) to analyze your content, generate ad creatives, and
-              optimize campaigns. When processing your content through AI:
+              Our Service uses artificial intelligence (powered by third-party AI providers)
+              to analyze your content, generate ad creatives, and optimize campaigns. When
+              processing your content through AI:
             </p>
             <ul className="mt-2 list-disc space-y-1 pl-6">
               <li>Content is sent to AI providers solely for processing your request.</li>
