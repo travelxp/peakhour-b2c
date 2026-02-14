@@ -161,8 +161,18 @@ export default function Home() {
       {/* Footer */}
       <footer className="border-t py-8">
         <div className="mx-auto max-w-5xl px-4 text-center text-sm text-muted-foreground">
-          PeakHour &copy; {new Date().getFullYear()}. AI-powered marketing for
-          growing businesses.
+          <div className="flex justify-center gap-4">
+            <Link href="/privacy-policy" className="underline">
+              Privacy Policy
+            </Link>
+            <Link href="/terms" className="underline">
+              Terms of Service
+            </Link>
+          </div>
+          <p className="mt-2">
+            PeakHour &copy; {new Date().getFullYear()}. AI-powered marketing for
+            growing businesses.
+          </p>
         </div>
       </footer>
     </div>
