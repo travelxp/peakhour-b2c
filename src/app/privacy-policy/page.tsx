@@ -131,24 +131,63 @@ export default function PrivacyPolicyPage() {
                 Where third-party AI providers are used, we select providers that do not
                 train their models on customer data submitted through their API.
               </li>
-              <li>
-                Our proprietary models may be trained on aggregated, anonymized, and
-                de-identified data to improve the Service. Before any data is used for
-                model training: (a) all personally identifiable information (PII) —
-                including names, email addresses, account identifiers, and any other data
-                that could identify an individual — is permanently stripped; (b) data is
-                aggregated across multiple sources so that no individual user or
-                organization can be identified; (c) the resulting anonymized dataset
-                cannot be reverse-engineered to recover original content or identity.
-              </li>
-              <li>
-                We never use raw customer content, PII, or organization-identifiable data
-                to train any model. Your individual content is never shared with other
-                customers, used in outputs for other accounts, or made publicly available.
-              </li>
               <li>AI-generated outputs (tags, creatives, recommendations) are stored in your account.</li>
               <li>You retain ownership of your original content and AI-generated outputs.</li>
             </ul>
+
+            <h3 className="mt-6 font-medium text-foreground">
+              4.1 How Anonymized Data Improves the Platform for Everyone
+            </h3>
+            <p className="mt-2">
+              PeakHour gets smarter over time. As more campaigns run across the platform,
+              our AI learns which ad angles perform best for different industries, which
+              headlines drive higher engagement, and which optimization patterns deliver
+              the best results. This means every user benefits from the collective
+              intelligence of the platform — better ad scoring, smarter creative
+              suggestions, and more accurate performance predictions from day one.
+            </p>
+            <p className="mt-2">
+              To make this possible, we use aggregated, anonymized, and de-identified
+              data to train and improve our proprietary models. Here is exactly what that
+              means and what protections are in place:
+            </p>
+            <ul className="mt-2 list-disc space-y-1 pl-6">
+              <li>
+                <strong>All PII is permanently removed.</strong> Before any data enters
+                our training pipeline, all personally identifiable information — including
+                names, email addresses, account identifiers, organization names, and any
+                other data that could identify an individual or business — is
+                irreversibly stripped.
+              </li>
+              <li>
+                <strong>Data is aggregated across the platform.</strong> We work with
+                patterns and trends across many accounts, not individual content. For
+                example, we may learn that &quot;question-based headlines outperform
+                statement headlines in B2B SaaS ads&quot; — but we never know which
+                specific account that insight came from.
+              </li>
+              <li>
+                <strong>No reverse-engineering is possible.</strong> The anonymization
+                process is one-way. The resulting dataset cannot be used to recover
+                original content, identify its source, or link it back to any user or
+                organization.
+              </li>
+              <li>
+                <strong>Your content is never shared.</strong> Raw customer content,
+                PII, or organization-identifiable data is never used to train any model.
+                Your individual content is never shown to other customers, used in
+                outputs for other accounts, or made publicly available.
+              </li>
+            </ul>
+
+            <h3 className="mt-6 font-medium text-foreground">4.2 Your Control</h3>
+            <p className="mt-2">
+              You can opt out of anonymized data contributing to platform improvements at
+              any time from your account settings. Opting out will not affect the quality
+              of the Service you receive — your content will still be processed by our AI
+              to deliver your results. It only means your anonymized usage patterns will
+              not be included in aggregate training data.
+            </p>
           </section>
 
           <section>
