@@ -1,13 +1,11 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { SITE } from "@/lib/utils";
 
 export const metadata: Metadata = {
   title: "Terms of Service - PeakHour",
   description: "PeakHour terms of service — the agreement between you and PeakHour.",
 };
-
-const LAST_UPDATED = "February 14, 2026";
-const CONTACT_EMAIL = "legal@peakhour.ai";
 
 export default function TermsPage() {
   return (
@@ -23,7 +21,7 @@ export default function TermsPage() {
       <main className="mx-auto max-w-3xl px-4 py-12">
         <h1 className="text-3xl font-bold">Terms of Service</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Last updated: {LAST_UPDATED}
+          Last updated: {SITE.legalLastUpdated}
         </p>
 
         <div className="mt-8 space-y-8 text-sm leading-relaxed text-muted-foreground">
@@ -432,8 +430,8 @@ export default function TermsPage() {
             </p>
             <p className="mt-2">
               Email:{" "}
-              <a href={`mailto:${CONTACT_EMAIL}`} className="text-foreground underline">
-                {CONTACT_EMAIL}
+              <a href={`mailto:${SITE.contactLegal}`} className="text-foreground underline">
+                {SITE.contactLegal}
               </a>
             </p>
           </section>

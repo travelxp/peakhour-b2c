@@ -1,13 +1,11 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { SITE } from "@/lib/utils";
 
 export const metadata: Metadata = {
   title: "Privacy Policy - PeakHour",
   description: "PeakHour privacy policy — how we collect, use, and protect your data.",
 };
-
-const LAST_UPDATED = "February 14, 2026";
-const CONTACT_EMAIL = "privacy@peakhour.ai";
 
 export default function PrivacyPolicyPage() {
   return (
@@ -23,7 +21,7 @@ export default function PrivacyPolicyPage() {
       <main className="mx-auto max-w-3xl px-4 py-12">
         <h1 className="text-3xl font-bold">Privacy Policy</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Last updated: {LAST_UPDATED}
+          Last updated: {SITE.legalLastUpdated}
         </p>
 
         <div className="mt-8 space-y-8 text-sm leading-relaxed text-muted-foreground">
@@ -355,8 +353,8 @@ export default function PrivacyPolicyPage() {
             </ul>
             <p className="mt-2">
               To exercise any of these rights, contact us at{" "}
-              <a href={`mailto:${CONTACT_EMAIL}`} className="text-foreground underline">
-                {CONTACT_EMAIL}
+              <a href={`mailto:${SITE.contactPrivacy}`} className="text-foreground underline">
+                {SITE.contactPrivacy}
               </a>
               . We will respond within 30 days.
             </p>
@@ -397,8 +395,8 @@ export default function PrivacyPolicyPage() {
             </p>
             <p className="mt-2">
               Email:{" "}
-              <a href={`mailto:${CONTACT_EMAIL}`} className="text-foreground underline">
-                {CONTACT_EMAIL}
+              <a href={`mailto:${SITE.contactPrivacy}`} className="text-foreground underline">
+                {SITE.contactPrivacy}
               </a>
             </p>
           </section>
