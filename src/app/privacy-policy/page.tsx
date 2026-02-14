@@ -118,15 +118,23 @@ export default function PrivacyPolicyPage() {
           <section>
             <h2 className="text-lg font-semibold text-foreground">4. AI Processing</h2>
             <p className="mt-2">
-              Our Service uses artificial intelligence (powered by third-party AI providers)
-              to analyze your content, generate ad creatives, and optimize campaigns. When
-              processing your content through AI:
+              Our Service uses artificial intelligence — including our proprietary AI/ML
+              models and third-party AI providers — to analyze your content, generate ad
+              creatives, and optimize campaigns. When processing your content through AI:
             </p>
             <ul className="mt-2 list-disc space-y-1 pl-6">
-              <li>Content is sent to AI providers solely for processing your request.</li>
               <li>
-                We use AI providers that do not train their models on customer data submitted
-                through their API.
+                Content may be processed by our proprietary models and/or third-party AI
+                providers solely for the purpose of delivering the Service to you.
+              </li>
+              <li>
+                Where third-party AI providers are used, we select providers that do not
+                train their models on customer data submitted through their API.
+              </li>
+              <li>
+                Our proprietary models may be trained on aggregated, anonymized data to
+                improve the Service. Your individual content is never shared with other
+                customers or made publicly available.
               </li>
               <li>AI-generated outputs (tags, creatives, recommendations) are stored in your account.</li>
               <li>You retain ownership of your original content and AI-generated outputs.</li>

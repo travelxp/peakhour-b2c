@@ -109,7 +109,8 @@ export default function TermsPage() {
           <section>
             <h2 className="text-lg font-semibold text-foreground">5. AI-Generated Content</h2>
             <p className="mt-2">
-              The Service uses artificial intelligence to generate ad creatives,
+              The Service uses artificial intelligence — including our proprietary AI/ML
+              models and third-party AI providers — to generate ad creatives,
               recommendations, and other outputs. You acknowledge that:
             </p>
             <ul className="mt-2 list-disc space-y-1 pl-6">
