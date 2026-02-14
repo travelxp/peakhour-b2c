@@ -71,6 +71,7 @@ export default function Home() {
         </div>
       </header>
 
+      <main>
       {/* Hero */}
       <section className="mx-auto max-w-5xl px-4 py-24 text-center">
         <h1 className="text-4xl font-bold tracking-tight sm:text-5xl md:text-6xl">
@@ -154,6 +155,8 @@ export default function Home() {
           </Button>
         </div>
       </section>
+
+      </main>
 
       {/* Footer */}
       <footer className="border-t py-8">
