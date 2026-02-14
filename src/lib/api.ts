@@ -37,11 +37,22 @@ class ApiClient {
       ...fetchOptions,
     });
 
-    const json = await res.json();
+    let json: Record<string, unknown>;
+    try {
+      json = await res.json();
+    } catch {
+      throw new ApiError(
+        "PARSE_ERROR",
+        `Server returned non-JSON response (${res.status})`,
+        res.status
+      );
+    }
 
     if (!res.ok || !json.ok) {
-      const error = json.error || { message: "Request failed" };
-      throw new ApiError(error.code || "UNKNOWN", error.message, res.status);
+      const error = (json.error as { code?: string; message?: string }) || {
+        message: "Request failed",
+      };
+      throw new ApiError(error.code || "UNKNOWN", error.message || "Request failed", res.status);
     }
 
     return json.data as T;
