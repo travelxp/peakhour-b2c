@@ -11,29 +11,24 @@ import { useRouter } from "next/navigation";
 import {
   type AuthUser,
   type AuthOrg,
+  type OrgSummary,
   getMe,
-  login as apiLogin,
-  register as apiRegister,
   logout as apiLogout,
+  switchOrg as apiSwitchOrg,
 } from "@/lib/auth";
 
 interface AuthState {
   user: AuthUser | null;
   org: AuthOrg | null;
+  orgs: OrgSummary[];
   isLoading: boolean;
   isAuthenticated: boolean;
 }
 
 interface AuthContextValue extends AuthState {
-  login: (email: string, password: string) => Promise<void>;
-  register: (data: {
-    email: string;
-    password: string;
-    name: string;
-    orgName: string;
-    businessType: string;
-  }) => Promise<void>;
   logout: () => Promise<void>;
+  refreshUser: () => Promise<void>;
+  switchOrg: (orgId: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -43,68 +38,62 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AuthState>({
     user: null,
     org: null,
+    orgs: [],
     isLoading: true,
     isAuthenticated: false,
   });
 
-  // Check auth on mount
-  useEffect(() => {
-    getMe()
-      .then(({ user, org }) => {
-        setState({
-          user,
-          org,
-          isLoading: false,
-          isAuthenticated: true,
-        });
-      })
-      .catch(() => {
-        setState({
-          user: null,
-          org: null,
-          isLoading: false,
-          isAuthenticated: false,
-        });
+  const refreshUser = useCallback(async () => {
+    try {
+      const { user, org, orgs } = await getMe();
+      setState({
+        user,
+        org,
+        orgs: orgs || [],
+        isLoading: false,
+        isAuthenticated: true,
       });
+    } catch {
+      setState({
+        user: null,
+        org: null,
+        orgs: [],
+        isLoading: false,
+        isAuthenticated: false,
+      });
+    }
   }, []);
 
-  const login = useCallback(
-    async (email: string, password: string) => {
-      const { user, org } = await apiLogin(email, password);
-      setState({ user, org, isLoading: false, isAuthenticated: true });
-      router.push("/dashboard/overview");
-    },
-    [router]
-  );
-
-  const register = useCallback(
-    async (data: {
-      email: string;
-      password: string;
-      name: string;
-      orgName: string;
-      businessType: string;
-    }) => {
-      const { user, org } = await apiRegister(data);
-      setState({ user, org, isLoading: false, isAuthenticated: true });
-      router.push("/dashboard/overview");
-    },
-    [router]
-  );
+  // Check auth on mount
+  useEffect(() => {
+    refreshUser();
+  }, [refreshUser]);
 
   const logout = useCallback(async () => {
     await apiLogout();
     setState({
       user: null,
       org: null,
+      orgs: [],
       isLoading: false,
       isAuthenticated: false,
     });
-    router.push("/auth/login");
+    router.push("/auth");
   }, [router]);
 
+  const switchOrg = useCallback(
+    async (orgId: string) => {
+      const { org } = await apiSwitchOrg(orgId);
+      setState((prev) => ({ ...prev, org: org as AuthOrg }));
+      router.refresh();
+    },
+    [router]
+  );
+
   return (
-    <AuthContext.Provider value={{ ...state, login, register, logout }}>
+    <AuthContext.Provider
+      value={{ ...state, logout, refreshUser, switchOrg }}
+    >
       {children}
     </AuthContext.Provider>
   );
