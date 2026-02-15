@@ -3,43 +3,89 @@ import { api } from "./api";
 export interface AuthUser {
   _id: string;
   email: string;
-  name: string;
-  role: string;
+  name: string | null;
   status?: string;
+  emailVerified: boolean;
+  mobileVerified: boolean;
+  profileCompleted: boolean;
 }
 
 export interface AuthOrg {
   _id: string;
   name: string;
   slug: string;
-  businessType: string;
+  businessCategory?: string | null;
+  businessType?: string | null;
   onboarding?: { completed: boolean };
 }
 
-export interface AuthResponse {
+export interface OrgSummary {
+  _id: string;
+  name: string;
+  slug: string;
+  role: string;
+}
+
+export interface MeResponse {
   user: AuthUser;
   org: AuthOrg | null;
+  orgs: OrgSummary[];
 }
 
-export async function login(
-  email: string,
-  password: string
-): Promise<AuthResponse> {
-  return api.post<AuthResponse>("/v1/auth/login", { email, password });
+export interface VerifyMagicResponse {
+  user: AuthUser;
+  hasOrg: boolean;
+  redirectTo: string;
 }
 
-export async function register(data: {
-  email: string;
-  password: string;
+// ── Magic Link ──────────────────────────────────────────────────
+
+export async function sendMagicLink(
+  email: string
+): Promise<{ message: string }> {
+  return api.post<{ message: string }>("/v1/auth/magic-link", { email });
+}
+
+export async function verifyMagicLink(
+  token: string,
+  uid: string
+): Promise<VerifyMagicResponse> {
+  return api.get<VerifyMagicResponse>(
+    `/v1/auth/verify-magic?token=${encodeURIComponent(token)}&uid=${encodeURIComponent(uid)}`
+  );
+}
+
+// ── Profile ─────────────────────────────────────────────────────
+
+export async function updateProfile(data: {
   name: string;
-  orgName: string;
-  businessType: string;
-}): Promise<AuthResponse> {
-  return api.post<AuthResponse>("/v1/auth/register", data);
+  mobile?: string;
+}): Promise<{ user: { name: string; mobile: string | null; profileCompleted: boolean } }> {
+  return api.put<{ user: { name: string; mobile: string | null; profileCompleted: boolean } }>("/v1/auth/profile", data);
 }
 
-export async function getMe(): Promise<AuthResponse> {
-  return api.get<AuthResponse>("/v1/auth/me");
+// ── OTP ─────────────────────────────────────────────────────────
+
+export async function sendOtp(
+  mobile: string
+): Promise<{ message: string }> {
+  return api.post<{ message: string }>("/v1/auth/otp/send-otp", { mobile });
+}
+
+export async function verifyOtp(
+  mobile: string,
+  otp: string
+): Promise<{ mobileVerified: boolean }> {
+  return api.post<{ mobileVerified: boolean }>("/v1/auth/otp/verify-otp", {
+    mobile,
+    otp,
+  });
+}
+
+// ── Session ─────────────────────────────────────────────────────
+
+export async function getMe(): Promise<MeResponse> {
+  return api.get<MeResponse>("/v1/auth/me");
 }
 
 export async function refreshTokens(): Promise<{ user: AuthUser }> {
@@ -48,4 +94,16 @@ export async function refreshTokens(): Promise<{ user: AuthUser }> {
 
 export async function logout(): Promise<void> {
   await api.post("/v1/auth/logout");
+}
+
+// ── Orgs ────────────────────────────────────────────────────────
+
+export async function getOrgs(): Promise<{ orgs: OrgSummary[] }> {
+  return api.get<{ orgs: OrgSummary[] }>("/v1/auth/orgs");
+}
+
+export async function switchOrg(
+  orgId: string
+): Promise<{ org: AuthOrg }> {
+  return api.post<{ org: AuthOrg }>("/v1/auth/orgs/switch-org", { orgId });
 }

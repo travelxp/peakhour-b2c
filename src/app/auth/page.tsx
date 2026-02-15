@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
-import { useAuth } from "@/providers/auth-provider";
+import { sendMagicLink } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,12 +15,11 @@ import {
 } from "@/components/ui/card";
 import { ApiError } from "@/lib/api";
 
-export default function LoginPage() {
-  const { login } = useAuth();
+export default function AuthPage() {
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [sent, setSent] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -29,24 +27,58 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      await login(email, password);
+      await sendMagicLink(email);
+      setSent(true);
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message);
       } else {
         setError("Something went wrong. Please try again.");
       }
+    } finally {
       setLoading(false);
     }
+  }
+
+  if (sent) {
+    return (
+      <div className="flex min-h-screen items-center justify-center px-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <CardTitle className="text-2xl font-bold">Check your email</CardTitle>
+            <CardDescription>
+              We sent a sign-in link to <strong>{email}</strong>
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4 text-center">
+            <p className="text-sm text-muted-foreground">
+              Click the link in the email to sign in. The link expires in 15 minutes.
+            </p>
+          </CardContent>
+          <CardFooter className="flex flex-col gap-4">
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => {
+                setSent(false);
+                setEmail("");
+              }}
+            >
+              Use a different email
+            </Button>
+          </CardFooter>
+        </Card>
+      </div>
+    );
   }
 
   return (
     <div className="flex min-h-screen items-center justify-center px-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold">Welcome back</CardTitle>
+          <CardTitle className="text-2xl font-bold">Welcome to PeakHour</CardTitle>
           <CardDescription>
-            Sign in to your PeakHour account
+            Enter your email to sign in or create an account
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit} className="flex flex-col gap-6">
@@ -66,33 +98,14 @@ export default function LoginPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 autoComplete="email"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                autoComplete="current-password"
+                autoFocus
               />
             </div>
           </CardContent>
-          <CardFooter className="flex flex-col gap-4">
+          <CardFooter>
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Signing in..." : "Sign in"}
+              {loading ? "Sending link..." : "Continue with email"}
             </Button>
-            <p className="text-sm text-muted-foreground">
-              Don&apos;t have an account?{" "}
-              <Link
-                href="/auth/register"
-                className="font-medium text-primary underline-offset-4 hover:underline"
-              >
-                Create one
-              </Link>
-            </p>
           </CardFooter>
         </form>
       </Card>

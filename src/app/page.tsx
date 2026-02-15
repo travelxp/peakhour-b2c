@@ -59,13 +59,13 @@ export default function Home() {
           <span className="text-lg font-bold">PeakHour</span>
           <nav className="flex items-center gap-4">
             <Link
-              href="/auth/login"
+              href="/auth"
               className="text-sm text-muted-foreground hover:text-foreground"
             >
               Sign in
             </Link>
             <Button asChild size="sm">
-              <Link href="/auth/register">Get started</Link>
+              <Link href="/auth">Get started</Link>
             </Button>
           </nav>
         </div>
@@ -84,7 +84,7 @@ export default function Home() {
         </p>
         <div className="mt-8 flex justify-center gap-4">
           <Button asChild size="lg">
-            <Link href="/auth/register">Start free</Link>
+            <Link href="/auth">Start free</Link>
           </Button>
           <Button asChild variant="outline" size="lg">
             <Link href="#how-it-works">How it works</Link>
@@ -151,7 +151,7 @@ export default function Home() {
             engine that works 24/7.
           </p>
           <Button asChild size="lg" className="mt-8">
-            <Link href="/auth/register">Get started free</Link>
+            <Link href="/auth">Get started free</Link>
           </Button>
         </div>
       </section>

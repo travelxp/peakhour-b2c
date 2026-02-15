@@ -46,7 +46,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         <div className="text-center space-y-4">
           <p className="text-muted-foreground">Please sign in to continue.</p>
           <Button asChild>
-            <Link href="/auth/login">Sign in</Link>
+            <Link href="/auth">Sign in</Link>
           </Button>
         </div>
       </div>
@@ -83,7 +83,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         <Separator />
         <div className="p-4 space-y-2">
           <p className="text-xs text-muted-foreground truncate">
-            {user?.name}
+            {user?.name || user?.email}
           </p>
           <Button
             variant="ghost"
