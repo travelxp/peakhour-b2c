@@ -6,6 +6,7 @@ import { AuthProvider, useAuth } from "@/providers/auth-provider";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
+import { OrgSwitcher } from "@/components/dashboard/org-switcher";
 
 const NAV_ITEMS = [
   { href: "/dashboard/overview", label: "Overview" },
@@ -59,10 +60,8 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       <aside className="w-56 border-r bg-card flex flex-col">
         <div className="p-4">
           <h1 className="text-lg font-bold">PeakHour</h1>
-          {org && (
-            <p className="text-xs text-muted-foreground truncate">{org.name}</p>
-          )}
         </div>
+        <OrgSwitcher />
         <Separator />
         <nav className="flex-1 p-2 space-y-1">
           {NAV_ITEMS.map((item) => (
