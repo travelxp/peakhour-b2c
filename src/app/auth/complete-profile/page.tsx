@@ -62,6 +62,7 @@ export default function CompleteProfilePage() {
 
   async function handleOtpSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!mobile) return;
     setError("");
     setLoading(true);
 
@@ -81,6 +82,7 @@ export default function CompleteProfilePage() {
   }
 
   async function handleResendOtp() {
+    if (!mobile) return;
     setError("");
     try {
       await sendOtp(mobile);

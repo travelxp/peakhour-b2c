@@ -61,7 +61,7 @@ export async function updateProfile(data: {
   name: string;
   mobile?: string;
 }): Promise<{ user: { name: string; mobile: string | null; profileCompleted: boolean } }> {
-  return api.put("/v1/auth/profile", data);
+  return api.put<{ user: { name: string; mobile: string | null; profileCompleted: boolean } }>("/v1/auth/profile", data);
 }
 
 // ── OTP ─────────────────────────────────────────────────────────

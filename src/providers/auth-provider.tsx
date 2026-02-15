@@ -70,7 +70,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [refreshUser]);
 
   const logout = useCallback(async () => {
-    await apiLogout();
+    try {
+      await apiLogout();
+    } catch {
+      // Best-effort — clear local state regardless
+    }
     setState({
       user: null,
       org: null,
@@ -85,9 +89,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     async (orgId: string) => {
       const { org } = await apiSwitchOrg(orgId);
       setState((prev) => ({ ...prev, org: org as AuthOrg }));
-      router.refresh();
+      await refreshUser();
     },
-    [router]
+    [refreshUser]
   );
 
   return (
