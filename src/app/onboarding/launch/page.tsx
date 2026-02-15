@@ -42,7 +42,10 @@ export default function LaunchPage() {
     api
       .get<OnboardingStatus>("/v1/onboarding/status")
       .then(setStatus)
-      .catch(() => {})
+      .catch((err: unknown) => {
+        console.error("[onboarding] status fetch failed:", err);
+        setError("Failed to load onboarding status.");
+      })
       .finally(() => setLoading(false));
   }, []);
 

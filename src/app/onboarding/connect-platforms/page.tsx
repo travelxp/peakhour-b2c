@@ -28,7 +28,9 @@ export default function ConnectPlatformsPage() {
       .then((status) => {
         setLinkedinConnected(status.linkedinConnected);
       })
-      .catch(() => {})
+      .catch((err: unknown) => {
+        console.error("[onboarding] status fetch failed:", err);
+      })
       .finally(() => setLoading(false));
   }, []);
 
