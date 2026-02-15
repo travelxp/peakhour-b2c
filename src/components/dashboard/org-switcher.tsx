@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
+import Link from "next/link";
 import { useAuth } from "@/providers/auth-provider";
 import { cn } from "@/lib/utils";
 
@@ -29,10 +30,23 @@ export function OrgSwitcher() {
     }
   }
 
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [open]);
+
   return (
-    <div className="relative">
+    <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setOpen(!open)}
+        aria-expanded={open}
+        aria-haspopup="listbox"
         className="flex w-full items-center justify-between px-4 py-2 text-sm hover:bg-accent/50 rounded-md transition-colors"
       >
         <span className="font-medium truncate">{org?.name || "Select org"}</span>
@@ -58,10 +72,15 @@ export function OrgSwitcher() {
             onClick={() => setOpen(false)}
           />
           {/* Dropdown */}
-          <div className="absolute left-0 right-0 z-20 mt-1 rounded-md border bg-popover p-1 shadow-md">
+          <div
+            role="listbox"
+            className="absolute left-0 right-0 z-20 mt-1 rounded-md border bg-popover p-1 shadow-md"
+          >
             {orgs.map((o) => (
               <button
                 key={o._id}
+                role="option"
+                aria-selected={o._id === org?._id}
                 onClick={() => handleSwitch(o._id)}
                 className={cn(
                   "flex w-full items-center gap-2 rounded-sm px-3 py-2 text-sm transition-colors",
@@ -78,12 +97,12 @@ export function OrgSwitcher() {
               </button>
             ))}
             <div className="my-1 h-px bg-border" />
-            <a
+            <Link
               href="/onboarding/add-business"
               className="flex w-full items-center gap-2 rounded-sm px-3 py-2 text-sm text-muted-foreground hover:bg-accent/50 transition-colors"
             >
               + Add business
-            </a>
+            </Link>
           </div>
         </>
       )}
