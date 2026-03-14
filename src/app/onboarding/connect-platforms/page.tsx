@@ -16,7 +16,7 @@ import {
 
 export default function ConnectPlatformsPage() {
   const router = useRouter();
-  const { org } = useAuth();
+  const { org } = useAuth(); // org used for OAuth context
   const [linkedinConnected, setLinkedinConnected] = useState(false);
   const [loading, setLoading] = useState(true);
 

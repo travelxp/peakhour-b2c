@@ -41,7 +41,7 @@ export default function OnboardingLayout({
 
 function StepIndicator() {
   const pathname = usePathname();
-  const currentIndex = STEPS.findIndex((s) => pathname.startsWith(s.path));
+  const currentIndex = Math.max(0, STEPS.findIndex((s) => pathname.startsWith(s.path)));
 
   return (
     <div className="flex items-center gap-2">

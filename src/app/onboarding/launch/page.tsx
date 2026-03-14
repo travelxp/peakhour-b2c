@@ -55,8 +55,8 @@ export default function LaunchPage() {
 
     try {
       await api.post("/v1/onboarding/launch");
-      setLaunched(true);
       await refreshUser();
+      setLaunched(true);
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message);
@@ -133,7 +133,7 @@ export default function LaunchPage() {
         <Button
           className="w-full"
           onClick={handleLaunch}
-          disabled={launching || loading}
+          disabled={launching || loading || !status?.onboarding?.steps?.businessDiscovered}
         >
           {launching ? "Launching..." : "Launch"}
         </Button>

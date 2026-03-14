@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,11 @@ export function Header() {
   const pathname = usePathname();
   const isAuth = pathname?.startsWith("/auth");
   const [menuOpen, setMenuOpen] = useState(false);
+
+  // Close mobile menu on route change
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [pathname]);
 
   return (
     <header className="sticky top-0 z-50 border-b bg-background/80 backdrop-blur-md">
@@ -62,6 +67,7 @@ export function Header() {
               className="flex h-9 w-9 items-center justify-center rounded-md border md:hidden"
               aria-label={menuOpen ? "Close menu" : "Open menu"}
               aria-expanded={menuOpen}
+              aria-controls="mobile-nav"
             >
               <svg
                 aria-hidden="true"
@@ -84,7 +90,7 @@ export function Header() {
 
       {/* Mobile nav panel */}
       {!isAuth && menuOpen && (
-        <div className="border-t bg-background px-4 pb-4 pt-2 md:hidden">
+        <div id="mobile-nav" className="border-t bg-background px-4 pb-4 pt-2 md:hidden">
           <nav className="flex flex-col gap-3">
             {NAV_LINKS.map((link) => (
               <Link

@@ -60,12 +60,21 @@ export default function AddBusinessPage() {
     setError("");
     setDiscovering(true);
 
+    let hostname: string;
+    try {
+      hostname = new URL(websiteUrl).hostname.replace(/^www\./, "");
+    } catch {
+      setError("Please enter a valid URL (e.g. https://yourcompany.com)");
+      setDiscovering(false);
+      return;
+    }
+
     try {
       // First create the org so we have an orgId for the discover call
       const orgResult = await api.post<{ org: { _id: string; name: string; slug: string } }>(
         "/v1/onboarding/create-org",
         {
-          name: new URL(websiteUrl).hostname.replace("www.", ""),
+          name: hostname,
           websiteUrl,
         }
       );
