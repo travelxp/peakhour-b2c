@@ -56,16 +56,16 @@ export default function BudgetPage() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Set your budget</CardTitle>
+        <CardTitle>Set your ad budget</CardTitle>
         <CardDescription>
-          How much do you want to spend on ads each month? You can change this
-          anytime.
+          How much would you like to invest in reaching new customers each month?
+          You can adjust this anytime.
         </CardDescription>
       </CardHeader>
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
         <CardContent className="space-y-4">
           {error && (
-            <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+            <div role="alert" className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
               {error}
             </div>
           )}

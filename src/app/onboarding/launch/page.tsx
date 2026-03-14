@@ -55,8 +55,8 @@ export default function LaunchPage() {
 
     try {
       await api.post("/v1/onboarding/launch");
-      setLaunched(true);
       await refreshUser();
+      setLaunched(true);
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message);
@@ -74,8 +74,8 @@ export default function LaunchPage() {
         <CardHeader className="text-center">
           <CardTitle className="text-2xl">You&apos;re all set!</CardTitle>
           <CardDescription>
-            Your AI marketing engine is now active. We&apos;ll start processing
-            your content and creating ads.
+            Your AI marketing engine is now active. We&apos;ll start analyzing
+            your content and creating ads to bring in new customers.
           </CardDescription>
         </CardHeader>
         <CardFooter>
@@ -95,7 +95,7 @@ export default function LaunchPage() {
       <CardHeader>
         <CardTitle>Ready to launch</CardTitle>
         <CardDescription>
-          Review your setup and launch your AI marketing engine
+          Review your setup and let the AI start working for your business
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -106,7 +106,7 @@ export default function LaunchPage() {
         ) : (
           <>
             {error && (
-              <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+              <div role="alert" className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
                 {error}
               </div>
             )}
@@ -133,7 +133,7 @@ export default function LaunchPage() {
         <Button
           className="w-full"
           onClick={handleLaunch}
-          disabled={launching || loading}
+          disabled={launching || loading || !status?.onboarding?.steps?.businessDiscovered}
         >
           {launching ? "Launching..." : "Launch"}
         </Button>

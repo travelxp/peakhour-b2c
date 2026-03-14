@@ -60,12 +60,21 @@ export default function AddBusinessPage() {
     setError("");
     setDiscovering(true);
 
+    let hostname: string;
+    try {
+      hostname = new URL(websiteUrl).hostname.replace(/^www\./, "");
+    } catch {
+      setError("Please enter a valid URL (e.g. https://yourcompany.com)");
+      setDiscovering(false);
+      return;
+    }
+
     try {
       // First create the org so we have an orgId for the discover call
       const orgResult = await api.post<{ org: { _id: string; name: string; slug: string } }>(
         "/v1/onboarding/create-org",
         {
-          name: new URL(websiteUrl).hostname.replace("www.", ""),
+          name: hostname,
           websiteUrl,
         }
       );
@@ -124,7 +133,7 @@ export default function AddBusinessPage() {
         <CardHeader>
           <CardTitle>We found your business</CardTitle>
           <CardDescription>
-            Our AI analyzed your website and identified your business
+            Here&apos;s what we learned from your website
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -165,8 +174,8 @@ export default function AddBusinessPage() {
         <CardTitle>Add your business</CardTitle>
         <CardDescription>
           {mode === "url"
-            ? "Enter your website URL and our AI will identify your business"
-            : "Tell us about your business"}
+            ? "Paste your website link — our AI will learn about your business in seconds"
+            : "Tell us a bit about your business so we can set things up"}
         </CardDescription>
       </CardHeader>
 
@@ -174,7 +183,7 @@ export default function AddBusinessPage() {
         <form onSubmit={handleDiscover} className="flex flex-col gap-6">
           <CardContent className="space-y-4">
             {error && (
-              <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+              <div role="alert" className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
                 {error}
               </div>
             )}
@@ -193,7 +202,7 @@ export default function AddBusinessPage() {
           </CardContent>
           <CardFooter className="flex flex-col gap-3">
             <Button type="submit" className="w-full" disabled={discovering}>
-              {discovering ? "Analyzing..." : "Discover my business"}
+              {discovering ? "Analyzing your website..." : "Discover my business"}
             </Button>
             <button
               type="button"
@@ -208,7 +217,7 @@ export default function AddBusinessPage() {
         <form onSubmit={handleManualSubmit} className="flex flex-col gap-6">
           <CardContent className="space-y-4">
             {error && (
-              <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+              <div role="alert" className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
                 {error}
               </div>
             )}
