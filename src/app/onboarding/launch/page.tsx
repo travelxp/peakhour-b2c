@@ -68,6 +68,13 @@ export default function LaunchPage() {
     }
   }
 
+  // Auto-redirect to dashboard after launch
+  useEffect(() => {
+    if (!launched) return;
+    const timer = setTimeout(() => router.push("/dashboard/overview"), 3000);
+    return () => clearTimeout(timer);
+  }, [launched, router]);
+
   if (launched) {
     return (
       <Card>
@@ -77,13 +84,16 @@ export default function LaunchPage() {
             Your AI marketing engine is now active. We&apos;ll start analyzing
             your content and creating ads to bring in new customers.
           </CardDescription>
+          <p className="text-xs text-muted-foreground mt-2">
+            Redirecting to dashboard...
+          </p>
         </CardHeader>
         <CardFooter>
           <Button
             className="w-full"
             onClick={() => router.push("/dashboard/overview")}
           >
-            Go to dashboard
+            Go to dashboard now
           </Button>
         </CardFooter>
       </Card>
