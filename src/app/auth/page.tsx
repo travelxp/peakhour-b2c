@@ -67,7 +67,7 @@ export default function AuthPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col lg:flex-row">
+    <div className="flex flex-1 flex-col lg:flex-row">
       {/* Left panel — value proposition */}
       <div className="relative hidden flex-col justify-between bg-primary p-10 text-primary-foreground lg:flex lg:w-1/2 xl:w-[55%]">
         {/* Background pattern */}
@@ -76,15 +76,6 @@ export default function AuthPage() {
             backgroundImage: "radial-gradient(circle at 1px 1px, currentColor 1px, transparent 0)",
             backgroundSize: "32px 32px",
           }} />
-        </div>
-
-        <div className="relative z-10">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-foreground">
-              <span className="text-sm font-bold text-primary">P</span>
-            </div>
-            <span className="text-xl font-bold tracking-tight">{SITE.name}</span>
-          </Link>
         </div>
 
         <div className="relative z-10 space-y-10">
@@ -129,16 +120,6 @@ export default function AuthPage() {
 
       {/* Right panel — auth form */}
       <div className="flex flex-1 flex-col">
-        {/* Mobile header */}
-        <div className="flex items-center justify-between p-4 lg:hidden">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-              <span className="text-sm font-bold text-primary-foreground">P</span>
-            </div>
-            <span className="text-lg font-bold">{SITE.name}</span>
-          </Link>
-        </div>
-
         <div className="flex flex-1 items-center justify-center px-4 py-12">
           {sent ? (
             <Card className="w-full max-w-md">

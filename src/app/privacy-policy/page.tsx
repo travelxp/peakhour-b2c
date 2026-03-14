@@ -1,6 +1,8 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { SITE } from "@/lib/utils";
+import { Header } from "@/components/shared/header";
+import { Footer } from "@/components/shared/footer";
 
 export const metadata: Metadata = {
   title: "Privacy Policy - PeakHour",
@@ -10,13 +12,7 @@ export const metadata: Metadata = {
 export default function PrivacyPolicyPage() {
   return (
     <div className="flex min-h-screen flex-col">
-      <header className="border-b">
-        <div className="mx-auto flex h-14 max-w-5xl items-center px-4">
-          <Link href="/" className="text-lg font-bold">
-            PeakHour
-          </Link>
-        </div>
-      </header>
+      <Header />
 
       <main className="mx-auto max-w-3xl px-4 py-12">
         <h1 className="text-3xl font-bold">Privacy Policy</h1>
@@ -403,22 +399,7 @@ export default function PrivacyPolicyPage() {
         </div>
       </main>
 
-      <footer className="border-t py-8">
-        <div className="mx-auto max-w-5xl px-4 text-center text-sm text-muted-foreground">
-          <div className="flex justify-center gap-4">
-            <Link href="/privacy-policy" className="underline">
-              Privacy Policy
-            </Link>
-            <Link href="/terms" className="underline">
-              Terms of Service
-            </Link>
-          </div>
-          <p className="mt-2">
-            PeakHour &copy; {new Date().getFullYear()}. AI-powered marketing for
-            growing businesses.
-          </p>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 }
