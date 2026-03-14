@@ -42,9 +42,9 @@ export default function ConnectPlatformsPage() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Connect your ad platforms</CardTitle>
+        <CardTitle>Connect your ad accounts</CardTitle>
         <CardDescription>
-          Connect the platforms where you want to run ads
+          Link the platforms where you want to reach customers. You can always add more later.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
