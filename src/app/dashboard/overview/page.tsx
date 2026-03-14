@@ -40,9 +40,10 @@ interface DashboardStats {
 export default function OverviewPage() {
   const { org } = useAuth();
 
-  const { data: stats, isLoading } = useQuery({
-    queryKey: ["dashboard-stats"],
+  const { data: stats, isLoading, isError } = useQuery({
+    queryKey: ["dashboard-stats", org?._id],
     queryFn: () => api.get<DashboardStats>("/v1/dashboard/stats"),
+    enabled: !!org,
   });
 
   return (
@@ -53,6 +54,12 @@ export default function OverviewPage() {
           Here&apos;s what&apos;s happening with {org?.name || "your business"}
         </p>
       </div>
+
+      {isError && (
+        <div role="alert" className="rounded-md bg-destructive/10 p-4 text-sm text-destructive">
+          Failed to load dashboard data. Please try refreshing the page.
+        </div>
+      )}
 
       {/* Quick setup banner if onboarding not complete */}
       {stats && !stats.onboarding.completed && (
@@ -189,7 +196,11 @@ function KpiCard({
         <CardDescription>{label}</CardDescription>
         <CardTitle className="text-3xl">
           {loading ? (
-            <span className="inline-block h-9 w-12 animate-pulse rounded bg-muted" />
+            <span
+              role="status"
+              aria-label="Loading"
+              className="inline-block h-9 w-12 animate-pulse rounded bg-muted"
+            />
           ) : (
             (value ?? 0)
           )}
@@ -217,7 +228,11 @@ function ConnectionRow({
     <div className="flex items-center justify-between text-sm">
       <span>{name}</span>
       {loading ? (
-        <span className="inline-block h-5 w-16 animate-pulse rounded bg-muted" />
+        <span
+          role="status"
+          aria-label="Loading"
+          className="inline-block h-5 w-16 animate-pulse rounded bg-muted"
+        />
       ) : connected ? (
         <Badge className="bg-green-600">{label || "Connected"}</Badge>
       ) : (
@@ -240,7 +255,11 @@ function StatusRow({
     <div className="flex items-center justify-between text-sm">
       <span>{label}</span>
       {loading ? (
-        <span className="inline-block h-5 w-12 animate-pulse rounded bg-muted" />
+        <span
+          role="status"
+          aria-label="Loading"
+          className="inline-block h-5 w-12 animate-pulse rounded bg-muted"
+        />
       ) : done ? (
         <span className="text-green-600 font-medium">{"\u2713"} Done</span>
       ) : (

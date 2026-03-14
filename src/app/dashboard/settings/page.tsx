@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/providers/auth-provider";
-import { api } from "@/lib/api";
+import { api, API_BASE_URL } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -14,8 +14,6 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 interface OrgDetails {
   _id: string;
@@ -48,7 +46,7 @@ interface OrgDetails {
   taxonomy?: {
     sectors?: string[];
     generatedAt?: string;
-  };
+  } | null;
   onboarding?: {
     completed?: boolean;
   };
@@ -56,10 +54,27 @@ interface OrgDetails {
 }
 
 export default function SettingsPage() {
+  return (
+    <Suspense fallback={<SettingsLoading />}>
+      <SettingsContent />
+    </Suspense>
+  );
+}
+
+function SettingsLoading() {
+  return (
+    <div className="flex justify-center py-12" role="status" aria-label="Loading settings">
+      <div className="h-8 w-8 animate-spin rounded-full border-4 border-muted border-t-primary" />
+    </div>
+  );
+}
+
+function SettingsContent() {
   const { org } = useAuth();
   const searchParams = useSearchParams();
   const [orgDetails, setOrgDetails] = useState<OrgDetails | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [linkedInJustConnected, setLinkedInJustConnected] = useState(false);
 
   useEffect(() => {
@@ -68,20 +83,20 @@ export default function SettingsPage() {
     }
   }, [searchParams]);
 
+  // Re-fetch when org changes
   useEffect(() => {
+    if (!org?._id) return;
+    setLoading(true);
+    setError("");
     api
       .get<OrgDetails>("/v1/dashboard/org")
       .then(setOrgDetails)
-      .catch(console.error)
+      .catch(() => setError("Failed to load settings. Please try again."))
       .finally(() => setLoading(false));
-  }, []);
+  }, [org?._id]);
 
   if (loading) {
-    return (
-      <div className="flex justify-center py-12">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-muted border-t-primary" />
-      </div>
-    );
+    return <SettingsLoading />;
   }
 
   return (
@@ -96,6 +111,12 @@ export default function SettingsPage() {
       {linkedInJustConnected && (
         <div className="rounded-md bg-green-500/10 border border-green-500/20 p-4 text-sm text-green-700 dark:text-green-400">
           LinkedIn account connected successfully!
+        </div>
+      )}
+
+      {error && (
+        <div role="alert" className="rounded-md bg-destructive/10 p-4 text-sm text-destructive">
+          {error}
         </div>
       )}
 
@@ -175,7 +196,7 @@ export default function SettingsPage() {
                 size="sm"
                 variant="outline"
                 onClick={() => {
-                  window.location.href = `${API_URL}/v1/linkedin/authorize`;
+                  window.location.href = `${API_BASE_URL}/v1/linkedin/authorize`;
                 }}
               >
                 Connect
@@ -227,11 +248,11 @@ export default function SettingsPage() {
             <>
               <SettingRow
                 label="Monthly budget"
-                value={`${orgDetails.budget.currency || "USD"} ${orgDetails.budget.monthly?.toLocaleString() || "--"}`}
+                value={`${orgDetails.budget.currency ?? "USD"} ${orgDetails.budget.monthly?.toLocaleString() ?? "--"}`}
               />
               <SettingRow
                 label="Daily cap"
-                value={`${orgDetails.budget.currency || "USD"} ${orgDetails.budget.dailyCap?.toLocaleString() || "--"}`}
+                value={`${orgDetails.budget.currency ?? "USD"} ${orgDetails.budget.dailyCap?.toLocaleString() ?? "--"}`}
               />
               {orgDetails.guardrails && (
                 <>
@@ -239,15 +260,15 @@ export default function SettingsPage() {
                   <SettingRow
                     label="Max cost per customer"
                     value={
-                      orgDetails.guardrails.maxCAC
-                        ? `${orgDetails.budget.currency || "USD"} ${orgDetails.guardrails.maxCAC}`
+                      orgDetails.guardrails.maxCAC != null
+                        ? `${orgDetails.budget.currency ?? "USD"} ${orgDetails.guardrails.maxCAC}`
                         : "--"
                     }
                   />
                   <SettingRow
                     label="Min AI quality score"
                     value={
-                      orgDetails.guardrails.minAIScore
+                      orgDetails.guardrails.minAIScore != null
                         ? `${orgDetails.guardrails.minAIScore}/10`
                         : "--"
                     }
@@ -277,7 +298,7 @@ function SettingRow({
     <div className="flex items-center justify-between">
       <p className="text-sm text-muted-foreground">{label}</p>
       <p className="text-sm font-medium">
-        {value || <span className="text-muted-foreground">--</span>}
+        {value ?? <span className="text-muted-foreground">--</span>}
       </p>
     </div>
   );
