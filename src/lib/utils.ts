@@ -11,4 +11,5 @@ export const SITE = {
   legalLastUpdated: "February 14, 2026",
   contactPrivacy: "privacy@peakhour.ai",
   contactLegal: "legal@peakhour.ai",
+  contactGeneral: "hello@peakhour.ai",
 } as const;
