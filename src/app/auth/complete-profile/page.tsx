@@ -98,7 +98,7 @@ export default function CompleteProfilePage() {
 
   if (step === "otp") {
     return (
-      <div className="flex min-h-screen items-center justify-center px-4">
+      <div className="flex flex-1 items-center justify-center px-4">
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
             <CardTitle className="text-2xl font-bold">Verify your mobile</CardTitle>
@@ -159,7 +159,7 @@ export default function CompleteProfilePage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4">
+    <div className="flex flex-1 items-center justify-center px-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl font-bold">Complete your profile</CardTitle>
