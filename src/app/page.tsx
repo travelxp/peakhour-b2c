@@ -188,7 +188,7 @@ export default function Home() {
                   className={
                     plan.highlighted
                       ? "relative border-primary shadow-lg"
-                      : ""
+                      : undefined
                   }
                 >
                   {plan.highlighted && (
@@ -215,6 +215,7 @@ export default function Home() {
                       {plan.features.map((feature) => (
                         <li key={feature} className="flex items-start gap-2">
                           <svg
+                            aria-hidden="true"
                             className="mt-0.5 h-4 w-4 shrink-0 text-primary"
                             fill="none"
                             viewBox="0 0 24 24"

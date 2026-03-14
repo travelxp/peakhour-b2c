@@ -144,7 +144,7 @@ export default function AuthPage() {
             <Card className="w-full max-w-md">
               <CardHeader className="text-center">
                 <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
-                  <svg className="h-7 w-7 text-primary" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                  <svg aria-hidden="true" className="h-7 w-7 text-primary" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
                   </svg>
                 </div>
@@ -188,7 +188,7 @@ export default function AuthPage() {
                 <form onSubmit={handleSubmit} className="flex flex-col gap-6">
                   <CardContent className="space-y-4 pt-6">
                     {error && (
-                      <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+                      <div role="alert" className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
                         {error}
                       </div>
                     )}
