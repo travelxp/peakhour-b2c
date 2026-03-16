@@ -13,6 +13,7 @@ import {
   Megaphone,
   TrendingUp,
   Sparkles,
+  Plug,
   Settings,
   LogOut,
   type LucideIcon,
@@ -24,6 +25,7 @@ const NAV_ITEMS: { href: string; label: string; icon: LucideIcon }[] = [
   { href: "/dashboard/ads", label: "Ads", icon: Megaphone },
   { href: "/dashboard/outcomes", label: "Outcomes", icon: TrendingUp },
   { href: "/dashboard/optimizer", label: "Optimizer", icon: Sparkles },
+  { href: "/dashboard/integrations", label: "Integrations", icon: Plug },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ];
 
