@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/providers/auth-provider";
 import { api, ApiError } from "@/lib/api";
@@ -40,7 +40,7 @@ const BUSINESS_CATEGORIES = [
 
 export default function AddBusinessPage() {
   const router = useRouter();
-  const { refreshUser } = useAuth();
+  const { refreshUser, org } = useAuth();
   const [mode, setMode] = useState<Mode>("url");
   const [websiteUrl, setWebsiteUrl] = useState("");
   const [orgName, setOrgName] = useState("");
@@ -49,59 +49,99 @@ export default function AddBusinessPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [discovering, setDiscovering] = useState(false);
+  const [checkingStatus, setCheckingStatus] = useState(true);
   const [discoveryResult, setDiscoveryResult] = useState<{
     businessType: string;
     valueProposition: string;
     confidence: number;
   } | null>(null);
 
-  async function handleDiscover(e: React.FormEvent) {
-    e.preventDefault();
+  // Check onboarding status on mount — auto-run discovery if URL exists but taxonomy is missing
+  useEffect(() => {
+    if (!org) {
+      setCheckingStatus(false);
+      return;
+    }
+    (async () => {
+      try {
+        const status = await api.get<{
+          hasTaxonomy: boolean;
+          websiteUrl: string | null;
+          businessType: string | null;
+        }>("/v1/onboarding/status");
+
+        if (status.hasTaxonomy) {
+          // Discovery already done — skip to next step
+          router.replace("/onboarding/connect-platforms");
+          return;
+        }
+
+        if (status.websiteUrl) {
+          // Org + URL exist but discovery hasn't run — auto-trigger it
+          setWebsiteUrl(status.websiteUrl);
+          setCheckingStatus(false);
+          await runDiscovery(status.websiteUrl);
+          return;
+        }
+      } catch {
+        // Status check failed — show form normally
+      }
+      setCheckingStatus(false);
+    })();
+  }, [org]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function runDiscovery(url: string) {
     setError("");
     setDiscovering(true);
 
-    let hostname: string;
     try {
-      hostname = new URL(websiteUrl).hostname.replace(/^www\./, "");
-    } catch {
-      setError("Please enter a valid URL (e.g. https://yourcompany.com)");
-      setDiscovering(false);
-      return;
-    }
-
-    try {
-      // Create org if it doesn't exist yet; skip if already created (409)
-      try {
-        await api.post<{ org: { _id: string; name: string; slug: string } }>(
-          "/v1/onboarding/create-org",
-          { name: hostname, websiteUrl }
-        );
-        await refreshUser();
-      } catch (err) {
-        if (err instanceof ApiError && err.code === "ORG_EXISTS") {
-          // Org already exists — proceed to discovery
-        } else {
-          throw err;
-        }
-      }
-
-      // Run AI discovery
       const result = await api.post<{
         businessType: string;
         valueProposition: string;
         confidence: number;
-      }>("/v1/onboarding/discover", { websiteUrl });
+      }>("/v1/onboarding/discover", { websiteUrl: url });
 
       setDiscoveryResult(result);
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message);
       } else {
-        setError("Failed to analyze website. Try adding manually instead.");
+        setError("Failed to analyze website. Try again or add manually.");
       }
     } finally {
       setDiscovering(false);
     }
+  }
+
+  async function handleDiscover(e: React.FormEvent) {
+    e.preventDefault();
+
+    let hostname: string;
+    try {
+      hostname = new URL(websiteUrl).hostname.replace(/^www\./, "");
+    } catch {
+      setError("Please enter a valid URL (e.g. https://yourcompany.com)");
+      return;
+    }
+
+    // Create org if it doesn't exist yet; skip if already created (409)
+    try {
+      await api.post<{ org: { _id: string; name: string; slug: string } }>(
+        "/v1/onboarding/create-org",
+        { name: hostname, websiteUrl }
+      );
+      await refreshUser();
+    } catch (err) {
+      if (err instanceof ApiError && err.code === "ORG_EXISTS") {
+        // Org already exists — proceed to discovery
+      } else {
+        if (err instanceof ApiError) setError(err.message);
+        else setError("Something went wrong. Please try again.");
+        return;
+      }
+    }
+
+    await runDiscovery(websiteUrl);
   }
 
   async function handleManualSubmit(e: React.FormEvent) {
@@ -128,6 +168,20 @@ export default function AddBusinessPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  // Loading state while checking onboarding status
+  if (checkingStatus || (discovering && !error)) {
+    return (
+      <Card>
+        <CardContent className="flex flex-col items-center py-12">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-muted border-t-primary mb-4" />
+          <p className="text-sm text-muted-foreground">
+            {checkingStatus ? "Checking your progress..." : "Analyzing your website..."}
+          </p>
+        </CardContent>
+      </Card>
+    );
   }
 
   // After successful discovery, show confirmation
