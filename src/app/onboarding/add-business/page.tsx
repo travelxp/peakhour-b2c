@@ -15,6 +15,15 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Globe,
+  Brain,
+  Users,
+  Megaphone,
+  Sparkles,
+  Tags,
+  CheckCircle,
+} from "lucide-react";
 
 type Mode = "url" | "manual";
 
@@ -171,17 +180,20 @@ export default function AddBusinessPage() {
   }
 
   // Loading state while checking onboarding status
-  if (checkingStatus || (discovering && !error)) {
+  if (checkingStatus) {
     return (
       <Card>
         <CardContent className="flex flex-col items-center py-12">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-muted border-t-primary mb-4" />
-          <p className="text-sm text-muted-foreground">
-            {checkingStatus ? "Checking your progress..." : "Analyzing your website..."}
-          </p>
+          <p className="text-sm text-muted-foreground">Checking your progress...</p>
         </CardContent>
       </Card>
     );
+  }
+
+  // Animated AI discovery loading
+  if (discovering && !error) {
+    return <DiscoveryLoader url={websiteUrl} />;
   }
 
   // After successful discovery, show confirmation
@@ -342,6 +354,95 @@ export default function AddBusinessPage() {
           </CardFooter>
         </form>
       )}
+    </Card>
+  );
+}
+
+const DISCOVERY_STEPS = [
+  { icon: Globe, label: "Scanning your website", duration: 1200 },
+  { icon: Brain, label: "Reading your content", duration: 1000 },
+  { icon: Users, label: "Identifying your audience", duration: 1000 },
+  { icon: Tags, label: "Mapping industry sectors", duration: 800 },
+  { icon: Megaphone, label: "Finding ad angles", duration: 800 },
+  { icon: Sparkles, label: "Crafting your brand voice", duration: 800 },
+  { icon: CheckCircle, label: "Building your marketing DNA", duration: 2400 },
+];
+
+function DiscoveryLoader({ url }: { url: string }) {
+  const [activeStep, setActiveStep] = useState(0);
+
+  useEffect(() => {
+    let timeout: NodeJS.Timeout;
+    function advance(step: number) {
+      if (step >= DISCOVERY_STEPS.length) return;
+      timeout = setTimeout(() => {
+        setActiveStep(step + 1);
+        advance(step + 1);
+      }, DISCOVERY_STEPS[step].duration);
+    }
+    advance(0);
+    return () => clearTimeout(timeout);
+  }, []);
+
+  return (
+    <Card>
+      <CardHeader className="text-center pb-2">
+        <CardTitle className="text-xl">Analyzing your business</CardTitle>
+        <CardDescription className="text-xs truncate max-w-xs mx-auto">
+          {url}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="py-8">
+        <div className="flex flex-col gap-3 max-w-sm mx-auto">
+          {DISCOVERY_STEPS.map((step, i) => {
+            const Icon = step.icon;
+            const isActive = i === activeStep;
+            const isDone = i < activeStep;
+            return (
+              <div
+                key={step.label}
+                className={`flex items-center gap-3 rounded-lg px-4 py-3 transition-all duration-500 ${
+                  isActive
+                    ? "bg-primary/10 border border-primary/20 shadow-sm"
+                    : isDone
+                      ? "opacity-60"
+                      : "opacity-30"
+                }`}
+              >
+                <div
+                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-all duration-500 ${
+                    isActive
+                      ? "bg-primary text-primary-foreground animate-pulse"
+                      : isDone
+                        ? "bg-primary/20 text-primary"
+                        : "bg-muted text-muted-foreground"
+                  }`}
+                >
+                  {isDone ? (
+                    <CheckCircle className="h-4 w-4" />
+                  ) : (
+                    <Icon className="h-4 w-4" />
+                  )}
+                </div>
+                <span
+                  className={`text-sm transition-all duration-500 ${
+                    isActive ? "font-medium text-foreground" : "text-muted-foreground"
+                  }`}
+                >
+                  {step.label}
+                  {isActive && (
+                    <span className="ml-1 inline-flex">
+                      <span className="animate-[pulse_1s_ease-in-out_infinite]">.</span>
+                      <span className="animate-[pulse_1s_ease-in-out_0.2s_infinite]">.</span>
+                      <span className="animate-[pulse_1s_ease-in-out_0.4s_infinite]">.</span>
+                    </span>
+                  )}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </CardContent>
     </Card>
   );
 }
