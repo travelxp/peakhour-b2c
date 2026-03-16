@@ -163,7 +163,7 @@ function UserMenu({
   user,
   onLogout,
 }: {
-  user: { name?: string; email: string };
+  user: { name?: string | null; email: string };
   onLogout: () => void;
 }) {
   const [open, setOpen] = useState(false);
