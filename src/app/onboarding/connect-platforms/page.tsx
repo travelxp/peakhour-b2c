@@ -36,7 +36,8 @@ export default function ConnectPlatformsPage() {
 
   function handleConnectLinkedIn() {
     // Redirect to LinkedIn OAuth flow
-    window.location.href = `${process.env.NEXT_PUBLIC_API_URL}/v1/integrations/linkedin_content/authorize`;
+    // Use ads app (has Share on LinkedIn + Advertising API) until content app is approved
+    window.location.href = `${process.env.NEXT_PUBLIC_API_URL}/v1/integrations/linkedin_ads/authorize`;
   }
 
   return (
