@@ -137,7 +137,7 @@ class ApiClient {
       }
 
       // Auto-refresh on 401: call /auth/refresh to renew access_token, then retry once
-      if (res.status === 401 && !path.includes("/auth/refresh") && !path.includes("/auth/me")) {
+      if (res.status === 401 && !path.includes("/auth/refresh")) {
         const refreshed = await this.tryRefresh();
         if (refreshed) {
           // Retry the original request with fresh access_token cookie
