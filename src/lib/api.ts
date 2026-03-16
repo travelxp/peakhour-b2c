@@ -9,6 +9,7 @@ type FetchOptions = RequestInit & {
 
 let csrfToken: string | null = null;
 let csrfFetchPromise: Promise<string | null> | null = null;
+let refreshPromise: Promise<boolean> | null = null;
 
 class ApiClient {
   private baseUrl: string;
@@ -135,6 +136,27 @@ class ApiClient {
         }
       }
 
+      // Auto-refresh on 401: call /auth/refresh to renew access_token, then retry once
+      if (res.status === 401 && !path.includes("/auth/refresh") && !path.includes("/auth/me")) {
+        const refreshed = await this.tryRefresh();
+        if (refreshed) {
+          // Retry the original request with fresh access_token cookie
+          const retryRes = await fetch(url, {
+            credentials: "include",
+            ...fetchOptions,
+            headers,
+          });
+          try {
+            const retryJson = (await retryRes.json()) as Record<string, unknown>;
+            if (retryRes.ok && retryJson.ok) {
+              return retryJson.data as T;
+            }
+          } catch {
+            // Fall through to original error
+          }
+        }
+      }
+
       throw new ApiError(
         error.code || "UNKNOWN",
         error.message || "Request failed",
@@ -143,6 +165,27 @@ class ApiClient {
     }
 
     return json.data as T;
+  }
+
+  /** Attempt to refresh the access_token using the refresh_token cookie. Deduped. */
+  private async tryRefresh(): Promise<boolean> {
+    if (!refreshPromise) {
+      refreshPromise = (async () => {
+        try {
+          const res = await fetch(`${this.baseUrl}/v1/auth/refresh`, {
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+          });
+          return res.ok;
+        } catch {
+          return false;
+        } finally {
+          refreshPromise = null;
+        }
+      })();
+    }
+    return refreshPromise;
   }
 
   get<T>(path: string, params?: Record<string, string>) {
