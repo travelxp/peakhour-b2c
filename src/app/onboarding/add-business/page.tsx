@@ -70,18 +70,22 @@ export default function AddBusinessPage() {
     }
 
     try {
-      // First create the org so we have an orgId for the discover call
-      const orgResult = await api.post<{ org: { _id: string; name: string; slug: string } }>(
-        "/v1/onboarding/create-org",
-        {
-          name: hostname,
-          websiteUrl,
+      // Create org if it doesn't exist yet; skip if already created (409)
+      try {
+        await api.post<{ org: { _id: string; name: string; slug: string } }>(
+          "/v1/onboarding/create-org",
+          { name: hostname, websiteUrl }
+        );
+        await refreshUser();
+      } catch (err) {
+        if (err instanceof ApiError && err.code === "ORG_EXISTS") {
+          // Org already exists — proceed to discovery
+        } else {
+          throw err;
         }
-      );
+      }
 
-      await refreshUser();
-
-      // Now run AI discovery
+      // Run AI discovery
       const result = await api.post<{
         businessType: string;
         valueProposition: string;
