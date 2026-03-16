@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/providers/auth-provider";
 import { api, ApiError, API_BASE_URL } from "@/lib/api";
@@ -17,14 +18,12 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
   Link2,
-  Linkedin,
-  Facebook,
-  Chrome,
+  Plug,
+  ArrowRight,
   Building2,
   Wallet,
   Shield,
   Tags,
-  ExternalLink,
   CheckCircle2,
   Pencil,
   X,
@@ -282,100 +281,25 @@ function SettingsContent() {
         </CardContent>
       </Card>
 
-      {/* Connected Accounts */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <Link2 className="h-5 w-5 text-muted-foreground" />
-            <CardTitle>Connected Accounts</CardTitle>
-          </div>
-          <CardDescription>
-            Ad platforms and content sources linked to your business
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* LinkedIn */}
-          <div className="flex items-center justify-between rounded-lg border p-4 transition-colors hover:bg-muted/50">
+      {/* Connected Accounts — nudge to Integrations */}
+      <Link href="/dashboard/integrations" className="block group">
+        <Card className="border-primary/20 bg-linear-to-r from-primary/5 to-primary/10 transition-shadow group-hover:shadow-md">
+          <CardContent className="flex items-center justify-between py-5">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#0A66C2] text-white">
-                <Linkedin className="h-5 w-5" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                <Plug className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <p className="text-sm font-medium">LinkedIn Content</p>
+                <p className="text-sm font-medium">Connected Accounts</p>
                 <p className="text-xs text-muted-foreground">
-                  Publish posts to your LinkedIn profile
+                  Manage your ad platforms, content sources, and social accounts
                 </p>
               </div>
             </div>
-            <Button
-              size="sm"
-              variant="outline"
-              className="gap-1.5"
-              onClick={() => {
-                window.location.href = `${API_BASE_URL}/v1/integrations/linkedin_content/authorize`;
-              }}
-            >
-              <ExternalLink className="h-3.5 w-3.5" />
-              Connect
-            </Button>
-          </div>
-
-          {/* LinkedIn Ads */}
-          <div className="flex items-center justify-between rounded-lg border p-4 transition-colors hover:bg-muted/50">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#0A66C2] text-white">
-                <Linkedin className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-sm font-medium">LinkedIn Ads</p>
-                <p className="text-xs text-muted-foreground">
-                  Run ad campaigns on LinkedIn
-                </p>
-              </div>
-            </div>
-            <Button
-              size="sm"
-              variant="outline"
-              className="gap-1.5"
-              onClick={() => {
-                window.location.href = `${API_BASE_URL}/v1/integrations/linkedin_ads/authorize`;
-              }}
-            >
-              <ExternalLink className="h-3.5 w-3.5" />
-              Connect
-            </Button>
-          </div>
-
-          <Separator />
-
-          {/* Placeholder for future platforms */}
-          <div className="flex items-center justify-between rounded-lg border border-dashed p-4 opacity-50">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#1877F2] text-white">
-                <Facebook className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-sm font-medium">Meta Ads</p>
-                <p className="text-xs text-muted-foreground">Coming soon</p>
-              </div>
-            </div>
-            <Badge variant="outline">Soon</Badge>
-          </div>
-
-          <div className="flex items-center justify-between rounded-lg border border-dashed p-4 opacity-50">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#4285F4] text-white">
-                <Chrome className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-sm font-medium">Google Ads</p>
-                <p className="text-xs text-muted-foreground">Coming soon</p>
-              </div>
-            </div>
-            <Badge variant="outline">Soon</Badge>
-          </div>
-        </CardContent>
-      </Card>
+            <ArrowRight className="h-5 w-5 text-primary/60 group-hover:text-primary transition-colors" />
+          </CardContent>
+        </Card>
+      </Link>
 
       {/* Budget & Guardrails */}
       <Card>
