@@ -78,31 +78,48 @@ export default function OverviewPage() {
       )}
 
       {/* Quick setup banner if onboarding not complete */}
-      {stats && !stats.onboarding.completed && (
-        <Card className="border-primary/20 bg-gradient-to-r from-primary/5 to-primary/10">
-          <CardContent className="flex items-center justify-between py-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
-                <Sparkles className="h-5 w-5 text-primary" />
+      {stats && !stats.onboarding.completed && (() => {
+        // Determine next incomplete onboarding step
+        const nextStep = !stats.hasTaxonomy
+          ? "/onboarding/add-business"
+          : !stats.connections.linkedin && !stats.connections.beehiiv
+            ? "/onboarding/connect-platforms"
+            : !stats.hasBudget
+              ? "/onboarding/budget"
+              : "/onboarding/launch";
+        const stepLabel = !stats.hasTaxonomy
+          ? "Add your business"
+          : !stats.connections.linkedin && !stats.connections.beehiiv
+            ? "Connect a platform"
+            : !stats.hasBudget
+              ? "Set your budget"
+              : "Launch your AI engine";
+        return (
+          <Card className="border-primary/20 bg-linear-to-r from-primary/5 to-primary/10">
+            <CardContent className="flex items-center justify-between py-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
+                  <Sparkles className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium">
+                    {stepLabel}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Complete onboarding to activate your AI marketing engine
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm font-medium">
-                  Finish setting up your business
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Complete onboarding to activate your AI marketing engine
-                </p>
-              </div>
-            </div>
-            <Button asChild size="sm">
-              <Link href="/onboarding/add-business">
-                Continue setup
-                <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
-      )}
+              <Button asChild size="sm">
+                <Link href={nextStep}>
+                  Continue setup
+                  <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       {/* KPI Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
