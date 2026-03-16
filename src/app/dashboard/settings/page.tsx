@@ -222,7 +222,7 @@ function SettingsContent() {
                 variant="outline"
                 className="gap-1.5"
                 onClick={() => {
-                  window.location.href = `${API_BASE_URL}/v1/linkedin/authorize`;
+                  window.location.href = `${API_BASE_URL}/v1/integrations/linkedin-ads/authorize`;
                 }}
               >
                 <ExternalLink className="h-3.5 w-3.5" />
