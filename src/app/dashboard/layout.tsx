@@ -7,14 +7,24 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { OrgSwitcher } from "@/components/dashboard/org-switcher";
+import {
+  LayoutDashboard,
+  FileText,
+  Megaphone,
+  TrendingUp,
+  Sparkles,
+  Settings,
+  LogOut,
+  type LucideIcon,
+} from "lucide-react";
 
-const NAV_ITEMS = [
-  { href: "/dashboard/overview", label: "Overview" },
-  { href: "/dashboard/content", label: "Content" },
-  { href: "/dashboard/ads", label: "Ads" },
-  { href: "/dashboard/outcomes", label: "Outcomes" },
-  { href: "/dashboard/optimizer", label: "Optimizer" },
-  { href: "/dashboard/settings", label: "Settings" },
+const NAV_ITEMS: { href: string; label: string; icon: LucideIcon }[] = [
+  { href: "/dashboard/overview", label: "Overview", icon: LayoutDashboard },
+  { href: "/dashboard/content", label: "Content", icon: FileText },
+  { href: "/dashboard/ads", label: "Ads", icon: Megaphone },
+  { href: "/dashboard/outcomes", label: "Outcomes", icon: TrendingUp },
+  { href: "/dashboard/optimizer", label: "Optimizer", icon: Sparkles },
+  { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ];
 
 export default function DashboardLayout({
@@ -56,38 +66,48 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     <div className="flex min-h-screen">
       {/* Sidebar */}
       <aside className="w-56 border-r bg-card flex flex-col">
-        <div className="p-4">
-          <h1 className="text-lg font-bold">PeakHour</h1>
+        <div className="px-5 py-5">
+          <h1 className="text-lg font-bold tracking-tight">PeakHour</h1>
         </div>
         <OrgSwitcher />
         <Separator />
-        <nav className="flex-1 p-2 space-y-1">
-          {NAV_ITEMS.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "block rounded-md px-3 py-2 text-sm transition-colors",
-                pathname === item.href
-                  ? "bg-accent text-accent-foreground font-medium"
-                  : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
-              )}
-            >
-              {item.label}
-            </Link>
-          ))}
+        <nav className="flex-1 px-3 py-3 space-y-0.5">
+          {NAV_ITEMS.map((item) => {
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
+                  pathname === item.href
+                    ? "bg-accent text-accent-foreground font-medium"
+                    : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                )}
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                {item.label}
+              </Link>
+            );
+          })}
         </nav>
         <Separator />
-        <div className="p-4 space-y-2">
-          <p className="text-xs text-muted-foreground truncate">
+        <div className="px-4 py-3">
+          <p className="text-xs font-medium truncate mb-1">
             {user?.name || user?.email}
           </p>
+          {org && (
+            <p className="text-[11px] text-muted-foreground truncate mb-2">
+              {org.name}
+            </p>
+          )}
           <Button
             variant="ghost"
             size="sm"
-            className="w-full justify-start text-xs"
+            className="w-full justify-start gap-2 text-xs text-muted-foreground hover:text-foreground"
             onClick={() => logout()}
           >
+            <LogOut className="h-3.5 w-3.5" />
             Sign out
           </Button>
         </div>
