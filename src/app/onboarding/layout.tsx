@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { AuthProvider } from "@/providers/auth-provider";
 import { cn, SITE } from "@/lib/utils";
 
 const STEPS = [
@@ -18,24 +17,22 @@ export default function OnboardingLayout({
   children: React.ReactNode;
 }) {
   return (
-    <AuthProvider>
-      <div className="flex min-h-screen flex-col">
-        <header className="border-b">
-          <div className="mx-auto flex h-16 max-w-3xl items-center justify-between px-4 sm:px-6">
-            <Link href="/" className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-                <span className="text-sm font-bold text-primary-foreground">P</span>
-              </div>
-              <span className="text-lg font-bold tracking-tight">{SITE.name}</span>
-            </Link>
-            <StepIndicator />
-          </div>
-        </header>
-        <main className="flex-1">
-          <div className="mx-auto max-w-2xl px-4 py-12 sm:px-6">{children}</div>
-        </main>
-      </div>
-    </AuthProvider>
+    <div className="flex min-h-screen flex-col">
+      <header className="border-b">
+        <div className="mx-auto flex h-16 max-w-3xl items-center justify-between px-4 sm:px-6">
+          <Link href="/" className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
+              <span className="text-sm font-bold text-primary-foreground">P</span>
+            </div>
+            <span className="text-lg font-bold tracking-tight">{SITE.name}</span>
+          </Link>
+          <StepIndicator />
+        </div>
+      </header>
+      <main className="flex-1">
+        <div className="mx-auto max-w-2xl px-4 py-12 sm:px-6">{children}</div>
+      </main>
+    </div>
   );
 }
 
