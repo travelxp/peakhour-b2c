@@ -197,38 +197,49 @@ function SettingsContent() {
                 <Linkedin className="h-5 w-5" />
               </div>
               <div>
-                <p className="text-sm font-medium">LinkedIn Ads</p>
-                {orgDetails?.adPlatforms?.linkedin?.connected ? (
-                  <p className="text-xs text-muted-foreground">
-                    {orgDetails.adPlatforms.linkedin.adAccountName ||
-                      orgDetails.adPlatforms.linkedin.linkedInProfileName ||
-                      "Connected"}
-                  </p>
-                ) : (
-                  <p className="text-xs text-muted-foreground">
-                    Not connected
-                  </p>
-                )}
+                <p className="text-sm font-medium">LinkedIn Content</p>
+                <p className="text-xs text-muted-foreground">
+                  Publish posts to your LinkedIn profile
+                </p>
               </div>
             </div>
-            {orgDetails?.adPlatforms?.linkedin?.connected ? (
-              <Badge className="bg-green-600 gap-1">
-                <CheckCircle2 className="h-3 w-3" />
-                Connected
-              </Badge>
-            ) : (
-              <Button
-                size="sm"
-                variant="outline"
-                className="gap-1.5"
-                onClick={() => {
-                  window.location.href = `${API_BASE_URL}/v1/integrations/linkedin_ads/authorize`;
-                }}
-              >
-                <ExternalLink className="h-3.5 w-3.5" />
-                Connect
-              </Button>
-            )}
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5"
+              onClick={() => {
+                window.location.href = `${API_BASE_URL}/v1/integrations/linkedin_content/authorize`;
+              }}
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              Connect
+            </Button>
+          </div>
+
+          {/* LinkedIn Ads */}
+          <div className="flex items-center justify-between rounded-lg border p-4 transition-colors hover:bg-muted/50">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#0A66C2] text-white">
+                <Linkedin className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-sm font-medium">LinkedIn Ads</p>
+                <p className="text-xs text-muted-foreground">
+                  Run ad campaigns on LinkedIn
+                </p>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5"
+              onClick={() => {
+                window.location.href = `${API_BASE_URL}/v1/integrations/linkedin_ads/authorize`;
+              }}
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              Connect
+            </Button>
           </div>
 
           <Separator />
