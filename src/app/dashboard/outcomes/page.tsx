@@ -1,5 +1,7 @@
 "use client";
 
+import { TrendingUp } from "lucide-react";
+
 import {
   Card,
   CardContent,
@@ -28,21 +30,8 @@ export default function OutcomesPage() {
         </CardHeader>
         <CardContent>
           <div className="flex flex-col items-center py-12 text-center">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted mb-4">
-              <svg
-                aria-hidden="true"
-                className="h-8 w-8 text-muted-foreground"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth={1.5}
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M2.25 18 9 11.25l4.306 4.306a11.95 11.95 0 0 1 5.814-5.518l2.74-1.22m0 0-5.94-2.281m5.94 2.28-2.28 5.941"
-                />
-              </svg>
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-linear-to-br from-muted to-muted/60 border border-border/50 shadow-sm mb-4">
+              <TrendingUp className="h-8 w-8 text-muted-foreground" />
             </div>
             <p className="text-sm text-muted-foreground max-w-sm">
               No more confusing dashboards with CTR and ROAS. We&apos;ll show

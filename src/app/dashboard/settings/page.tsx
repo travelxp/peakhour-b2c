@@ -14,6 +14,18 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import {
+  Link2,
+  Linkedin,
+  Facebook,
+  Chrome,
+  Building2,
+  Wallet,
+  Shield,
+  Tags,
+  ExternalLink,
+  CheckCircle2,
+} from "lucide-react";
 
 interface OrgDetails {
   _id: string;
@@ -100,22 +112,23 @@ function SettingsContent() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div>
-        <h2 className="text-2xl font-bold">Settings</h2>
-        <p className="text-muted-foreground">
+        <h2 className="text-2xl font-bold tracking-tight">Settings</h2>
+        <p className="text-muted-foreground mt-1">
           Manage your business configuration and connected accounts
         </p>
       </div>
 
       {linkedInJustConnected && (
-        <div className="rounded-md bg-green-500/10 border border-green-500/20 p-4 text-sm text-green-700 dark:text-green-400">
+        <div className="flex items-center gap-2 rounded-lg bg-green-500/10 border border-green-500/20 p-4 text-sm text-green-700 dark:text-green-400">
+          <CheckCircle2 className="h-4 w-4 shrink-0" />
           LinkedIn account connected successfully!
         </div>
       )}
 
       {error && (
-        <div role="alert" className="rounded-md bg-destructive/10 p-4 text-sm text-destructive">
+        <div role="alert" className="rounded-lg bg-destructive/10 p-4 text-sm text-destructive">
           {error}
         </div>
       )}
@@ -123,7 +136,10 @@ function SettingsContent() {
       {/* Business Details */}
       <Card>
         <CardHeader>
-          <CardTitle>Business Details</CardTitle>
+          <div className="flex items-center gap-2">
+            <Building2 className="h-5 w-5 text-muted-foreground" />
+            <CardTitle>Business Details</CardTitle>
+          </div>
           <CardDescription>
             Your business information used by the AI engine
           </CardDescription>
@@ -144,10 +160,13 @@ function SettingsContent() {
           />
           {orgDetails?.taxonomy?.sectors && (
             <div>
-              <p className="text-sm font-medium text-muted-foreground mb-2">
-                AI-discovered sectors
-              </p>
-              <div className="flex flex-wrap gap-1">
+              <div className="flex items-center gap-1.5 mb-2">
+                <Tags className="h-3.5 w-3.5 text-muted-foreground" />
+                <p className="text-sm font-medium text-muted-foreground">
+                  AI-discovered sectors
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
                 {orgDetails.taxonomy.sectors.map((s) => (
                   <Badge key={s} variant="secondary" className="text-xs">
                     {s}
@@ -162,17 +181,20 @@ function SettingsContent() {
       {/* Connected Accounts */}
       <Card>
         <CardHeader>
-          <CardTitle>Connected Accounts</CardTitle>
+          <div className="flex items-center gap-2">
+            <Link2 className="h-5 w-5 text-muted-foreground" />
+            <CardTitle>Connected Accounts</CardTitle>
+          </div>
           <CardDescription>
             Ad platforms and content sources linked to your business
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {/* LinkedIn */}
-          <div className="flex items-center justify-between rounded-md border p-4">
+          <div className="flex items-center justify-between rounded-lg border p-4 transition-colors hover:bg-muted/50">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-md bg-[#0A66C2] text-white text-sm font-bold">
-                in
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#0A66C2] text-white">
+                <Linkedin className="h-5 w-5" />
               </div>
               <div>
                 <p className="text-sm font-medium">LinkedIn Ads</p>
@@ -190,15 +212,20 @@ function SettingsContent() {
               </div>
             </div>
             {orgDetails?.adPlatforms?.linkedin?.connected ? (
-              <Badge className="bg-green-600">Connected</Badge>
+              <Badge className="bg-green-600 gap-1">
+                <CheckCircle2 className="h-3 w-3" />
+                Connected
+              </Badge>
             ) : (
               <Button
                 size="sm"
                 variant="outline"
+                className="gap-1.5"
                 onClick={() => {
                   window.location.href = `${API_BASE_URL}/v1/linkedin/authorize`;
                 }}
               >
+                <ExternalLink className="h-3.5 w-3.5" />
                 Connect
               </Button>
             )}
@@ -207,10 +234,10 @@ function SettingsContent() {
           <Separator />
 
           {/* Placeholder for future platforms */}
-          <div className="flex items-center justify-between rounded-md border border-dashed p-4 opacity-50">
+          <div className="flex items-center justify-between rounded-lg border border-dashed p-4 opacity-50">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-md bg-[#1877F2] text-white text-sm font-bold">
-                f
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#1877F2] text-white">
+                <Facebook className="h-5 w-5" />
               </div>
               <div>
                 <p className="text-sm font-medium">Meta Ads</p>
@@ -220,10 +247,10 @@ function SettingsContent() {
             <Badge variant="outline">Soon</Badge>
           </div>
 
-          <div className="flex items-center justify-between rounded-md border border-dashed p-4 opacity-50">
+          <div className="flex items-center justify-between rounded-lg border border-dashed p-4 opacity-50">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-md bg-[#4285F4] text-white text-sm font-bold">
-                G
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#4285F4] text-white">
+                <Chrome className="h-5 w-5" />
               </div>
               <div>
                 <p className="text-sm font-medium">Google Ads</p>
@@ -238,7 +265,10 @@ function SettingsContent() {
       {/* Budget & Guardrails */}
       <Card>
         <CardHeader>
-          <CardTitle>Budget & Guardrails</CardTitle>
+          <div className="flex items-center gap-2">
+            <Wallet className="h-5 w-5 text-muted-foreground" />
+            <CardTitle>Budget & Guardrails</CardTitle>
+          </div>
           <CardDescription>
             Your spending limits and AI safety controls
           </CardDescription>
@@ -257,6 +287,10 @@ function SettingsContent() {
               {orgDetails.guardrails && (
                 <>
                   <Separator />
+                  <div className="flex items-center gap-1.5 pt-1">
+                    <Shield className="h-4 w-4 text-muted-foreground" />
+                    <p className="text-sm font-medium text-muted-foreground">Guardrails</p>
+                  </div>
                   <SettingRow
                     label="Max cost per customer"
                     value={

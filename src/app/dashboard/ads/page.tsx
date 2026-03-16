@@ -1,5 +1,7 @@
 "use client";
 
+import { Megaphone } from "lucide-react";
+
 import {
   Card,
   CardContent,
@@ -29,21 +31,8 @@ export default function AdsPage() {
         </CardHeader>
         <CardContent>
           <div className="flex flex-col items-center py-12 text-center">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted mb-4">
-              <svg
-                aria-hidden="true"
-                className="h-8 w-8 text-muted-foreground"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth={1.5}
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M3.75 3v11.25A2.25 2.25 0 0 0 6 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0 1 18 16.5h-2.25m-7.5 0h7.5m-7.5 0-1 3m8.5-3 1 3m0 0 .5 1.5m-.5-1.5h-9.5m0 0-.5 1.5"
-                />
-              </svg>
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-linear-to-br from-muted to-muted/60 border border-border/50 shadow-sm mb-4">
+              <Megaphone className="h-8 w-8 text-muted-foreground" />
             </div>
             <p className="text-sm text-muted-foreground max-w-sm">
               The AI will analyze your best content, generate ad creatives, and
