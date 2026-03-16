@@ -37,7 +37,8 @@ interface DashboardStats {
     total: number;
   };
   connections: {
-    linkedin: boolean;
+    linkedinContent: boolean;
+    linkedinAds: boolean;
     beehiiv: boolean;
   };
   onboarding: {
@@ -82,14 +83,14 @@ export default function OverviewPage() {
         // Determine next incomplete onboarding step
         const nextStep = !stats.hasTaxonomy
           ? "/onboarding/add-business"
-          : !stats.connections.linkedin && !stats.connections.beehiiv
+          : !(stats.connections.linkedinContent || stats.connections.linkedinAds) && !stats.connections.beehiiv
             ? "/onboarding/connect-platforms"
             : !stats.hasBudget
               ? "/onboarding/budget"
               : "/onboarding/launch";
         const stepLabel = !stats.hasTaxonomy
           ? "Add your business"
-          : !stats.connections.linkedin && !stats.connections.beehiiv
+          : !(stats.connections.linkedinContent || stats.connections.linkedinAds) && !stats.connections.beehiiv
             ? "Connect a platform"
             : !stats.hasBudget
               ? "Set your budget"
@@ -181,8 +182,8 @@ export default function OverviewPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             <ConnectionRow
-              name="LinkedIn Ads"
-              connected={stats?.connections.linkedin}
+              name="LinkedIn"
+              connected={stats?.connections.linkedinContent || stats?.connections.linkedinAds}
               loading={isLoading}
             />
             <ConnectionRow
@@ -192,7 +193,7 @@ export default function OverviewPage() {
               label={stats?.connections.beehiiv ? "Synced" : undefined}
             />
             {!isLoading &&
-              !stats?.connections.linkedin &&
+              !(stats?.connections.linkedinContent || stats?.connections.linkedinAds) &&
               !stats?.connections.beehiiv && (
                 <Button asChild size="sm" variant="outline" className="mt-2 w-full">
                   <Link href="/dashboard/settings">

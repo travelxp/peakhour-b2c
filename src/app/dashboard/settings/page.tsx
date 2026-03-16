@@ -134,7 +134,7 @@ function SettingsContent() {
   }
 
   useEffect(() => {
-    if (searchParams?.get("linkedin") === "connected") {
+    if (searchParams?.get("linkedin") === "connected" || searchParams?.get("integration") === "connected") {
       setLinkedInJustConnected(true);
     }
   }, [searchParams]);
