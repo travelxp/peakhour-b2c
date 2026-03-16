@@ -374,7 +374,7 @@ function DiscoveryLoader({ url }: { url: string }) {
   useEffect(() => {
     let timeout: NodeJS.Timeout;
     function advance(step: number) {
-      if (step >= DISCOVERY_STEPS.length) return;
+      if (step >= DISCOVERY_STEPS.length - 1) return; // Keep last step active (pulsing) until API returns
       timeout = setTimeout(() => {
         setActiveStep(step + 1);
         advance(step + 1);
