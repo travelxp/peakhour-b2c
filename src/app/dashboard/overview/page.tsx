@@ -39,6 +39,7 @@ interface DashboardStats {
   connections: {
     linkedinContent: boolean;
     linkedinAds: boolean;
+    linkedinAdsHasAdAccount: boolean;
     beehiiv: boolean;
   };
   onboarding: {
@@ -186,6 +187,24 @@ export default function OverviewPage() {
               connected={stats?.connections.linkedinContent || stats?.connections.linkedinAds}
               loading={isLoading}
             />
+            {/* Warn if LinkedIn Ads connected but no ad account */}
+            {!isLoading && stats?.connections.linkedinAds && !stats?.connections.linkedinAdsHasAdAccount && (
+              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+                <div className="flex items-center gap-1.5">
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                  <span className="font-medium">No Ad Account</span>
+                  <span className="mx-1">—</span>
+                  <a
+                    href="https://www.linkedin.com/campaignmanager/new-advertiser"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline underline-offset-2 hover:no-underline"
+                  >
+                    Create one on LinkedIn
+                  </a>
+                </div>
+              </div>
+            )}
             <ConnectionRow
               name="Content Source"
               connected={stats?.connections.beehiiv}
@@ -196,8 +215,8 @@ export default function OverviewPage() {
               !(stats?.connections.linkedinContent || stats?.connections.linkedinAds) &&
               !stats?.connections.beehiiv && (
                 <Button asChild size="sm" variant="outline" className="mt-2 w-full">
-                  <Link href="/dashboard/settings">
-                    Connect accounts in Settings
+                  <Link href="/dashboard/integrations">
+                    Connect accounts
                   </Link>
                 </Button>
               )}
