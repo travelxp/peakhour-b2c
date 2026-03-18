@@ -202,6 +202,7 @@ export default function IntegrationsPage() {
         importErrors: number;
         tagged: number;
         tagErrors: number;
+        remaining: number;
         message: string;
       }>("/v1/content/backfill-sync", {});
       setBackfillResult({
@@ -607,7 +608,11 @@ function IntegrationCard({
                       onClick={onBackfillSync}
                       disabled={syncing || backfilling}
                     >
-                      <Download className={`h-3 w-3 ${backfilling ? "animate-spin" : ""}`} />
+                      {backfilling ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <Download className="h-3 w-3" />
+                      )}
                       {backfilling ? "Importing & tagging..." : "Import & tag all posts"}
                     </Button>
                   )}
