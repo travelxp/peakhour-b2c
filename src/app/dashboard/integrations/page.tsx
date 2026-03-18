@@ -99,6 +99,7 @@ export default function IntegrationsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [disconnecting, setDisconnecting] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState<string | null>(null);
 
   useEffect(() => {
     if (!org) return;
@@ -120,6 +121,24 @@ export default function IntegrationsPage() {
   async function handleConnect(provider: string, authType: string) {
     if (authType === "oauth2") {
       window.location.href = `${API_BASE_URL}/v1/integrations/${provider}/authorize`;
+    }
+  }
+
+  async function handleRefresh(provider: string) {
+    setRefreshing(provider);
+    try {
+      const result = await api.post<{ account: Integration["account"] }>(
+        `/v1/integrations/${provider}/refresh`
+      );
+      setIntegrations((prev) =>
+        prev.map((i) =>
+          i.provider === provider ? { ...i, account: result.account } : i
+        )
+      );
+    } catch (err) {
+      if (err instanceof ApiError) setError(err.message);
+    } finally {
+      setRefreshing(null);
     }
   }
 
@@ -188,7 +207,9 @@ export default function IntegrationsPage() {
                   integration={item}
                   onConnect={() => handleConnect(item.provider, item.authType)}
                   onDisconnect={() => handleDisconnect(item.provider)}
+                  onRefresh={() => handleRefresh(item.provider)}
                   disconnecting={disconnecting === item.provider}
+                  refreshing={refreshing === item.provider}
                 />
               ))}
             </div>
@@ -203,12 +224,16 @@ function IntegrationCard({
   integration,
   onConnect,
   onDisconnect,
+  onRefresh,
   disconnecting,
+  refreshing,
 }: {
   integration: Integration;
   onConnect: () => void;
   onDisconnect: () => void;
+  onRefresh: () => void;
   disconnecting: boolean;
+  refreshing: boolean;
 }) {
   const Icon = PROVIDER_ICONS[integration.provider] || Plug;
   const colorClass = PROVIDER_COLORS[integration.provider] || "bg-muted";
@@ -277,27 +302,56 @@ function IntegrationCard({
               </p>
             )}
 
-            {/* Warn if LinkedIn Ads connected but no ad account */}
-            {integration.provider === "linkedin_ads" &&
-              integration.account?.extra?.adAccounts?.length === 0 && (
-              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-700 dark:text-amber-400 space-y-1.5">
-                <div className="flex items-center gap-1.5 font-medium">
-                  <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                  No Ad Account found
-                </div>
-                <p className="leading-relaxed">
-                  Your LinkedIn profile is connected but you need an Ad Account to run campaigns.
-                </p>
-                <a
-                  href="https://www.linkedin.com/campaignmanager/new-advertiser"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 font-medium text-amber-800 dark:text-amber-300 underline underline-offset-2 hover:no-underline"
-                >
-                  Create Ad Account on LinkedIn
-                  <ExternalLink className="h-3 w-3" />
-                </a>
-              </div>
+            {/* LinkedIn Ads: show ad accounts or warning */}
+            {integration.provider === "linkedin_ads" && integration.account?.extra && (
+              <>
+                {integration.account.extra.adAccounts?.length > 0 ? (
+                  <div className="space-y-1.5">
+                    <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
+                      Ad Accounts ({integration.account.extra.adAccounts.length})
+                    </p>
+                    {integration.account.extra.adAccounts.map((acc: any) => (
+                      <div key={acc.id} className="flex items-center justify-between rounded-md border px-2.5 py-1.5 text-xs">
+                        <span className="font-medium truncate">{acc.name || acc.id}</span>
+                        <Badge variant="outline" className="text-[10px] shrink-0">
+                          {acc.status || "active"}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-700 dark:text-amber-400 space-y-2">
+                    <div className="flex items-center gap-1.5 font-medium">
+                      <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                      No Ad Account found
+                    </div>
+                    <p className="leading-relaxed">
+                      Create an Ad Account on LinkedIn, then click Refresh to sync.
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <a
+                        href="https://www.linkedin.com/campaignmanager/new-advertiser"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 font-medium text-amber-800 dark:text-amber-300 underline underline-offset-2 hover:no-underline"
+                      >
+                        Create Ad Account
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+                      <span className="text-amber-500/50">|</span>
+                      <button
+                        type="button"
+                        onClick={onRefresh}
+                        disabled={refreshing}
+                        className="inline-flex items-center gap-1 font-medium text-amber-800 dark:text-amber-300 underline underline-offset-2 hover:no-underline disabled:opacity-50"
+                      >
+                        <RefreshCw className={`h-3 w-3 ${refreshing ? "animate-spin" : ""}`} />
+                        {refreshing ? "Refreshing..." : "Refresh"}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
 
             {integration.lastSyncAt && (
