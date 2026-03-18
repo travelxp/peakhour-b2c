@@ -197,28 +197,17 @@ export default function IntegrationsPage() {
     try {
       const result = await api.post<{
         total: number;
-        added: number;
+        imported: number;
         updated: number;
-        errors: number;
+        importErrors: number;
+        tagged: number;
+        tagErrors: number;
         message: string;
       }>("/v1/content/backfill-sync", {});
-      // Build a user-friendly message
-      let msg = "";
-      if (result.errors === 0) {
-        if (result.added > 0 && result.updated === 0) {
-          msg = `All done! ${result.added} newsletters imported successfully.`;
-        } else if (result.added === 0 && result.updated > 0) {
-          msg = `All done! ${result.updated} newsletters refreshed with latest content.`;
-        } else if (result.added > 0 && result.updated > 0) {
-          msg = `All done! ${result.added} new newsletters imported, ${result.updated} existing ones refreshed.`;
-        } else {
-          msg = "All done! Your newsletters are already up to date.";
-        }
-      } else {
-        const succeeded = result.added + result.updated;
-        msg = `Imported ${succeeded} of ${result.total} newsletters. ${result.errors} couldn\u2019t be imported \u2014 try again in a few minutes.`;
-      }
-      setBackfillResult({ message: msg, hasErrors: result.errors > 0 });
+      setBackfillResult({
+        message: result.message,
+        hasErrors: result.importErrors > 0 || result.tagErrors > 0,
+      });
       await loadIntegrations();
     } catch (err) {
       if (err instanceof ApiError) setError(err.message);
@@ -619,7 +608,7 @@ function IntegrationCard({
                       disabled={syncing || backfilling}
                     >
                       <Download className={`h-3 w-3 ${backfilling ? "animate-spin" : ""}`} />
-                      {backfilling ? "Importing..." : "Import all posts"}
+                      {backfilling ? "Importing & tagging..." : "Import & tag all posts"}
                     </Button>
                   )}
                 </div>
