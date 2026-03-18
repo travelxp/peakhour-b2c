@@ -68,7 +68,7 @@ export default function OverviewPage() {
     enabled: !!org,
   });
 
-  const onboardingComplete = stats?.onboarding.completed;
+  const onboardingComplete = stats?.onboarding?.completed;
   const hasContent = (stats?.content.total ?? 0) > 0;
 
   return (
