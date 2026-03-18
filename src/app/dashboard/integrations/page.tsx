@@ -313,14 +313,54 @@ function IntegrationCard({
                     <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
                       Ad Accounts ({integration.account.extra.adAccounts.length})
                     </p>
-                    {integration.account.extra.adAccounts.map((acc: any) => (
-                      <div key={acc.id} className="flex items-center justify-between rounded-md border px-2.5 py-1.5 text-xs">
-                        <span className="font-medium truncate">{acc.name || acc.id}</span>
-                        <Badge variant="outline" className="text-[10px] shrink-0">
-                          {acc.status || "active"}
-                        </Badge>
-                      </div>
-                    ))}
+                    {integration.account.extra.adAccounts.map((acc: any) => {
+                      const serving = acc.servingStatuses || [];
+                      const isRunnable = serving.includes("RUNNABLE");
+                      const alert = !isRunnable ? getServingAlert(serving) : null;
+                      return (
+                        <div key={acc.id} className="rounded-lg border px-3 py-2 text-xs space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="font-medium truncate">{acc.name || acc.id}</span>
+                            {isRunnable ? (
+                              <Badge className="bg-green-600/90 text-[10px] gap-1 shrink-0">
+                                <CheckCircle className="h-2.5 w-2.5" />
+                                Ready
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-400 shrink-0">
+                                Action needed
+                              </Badge>
+                            )}
+                          </div>
+                          {alert && (
+                            <div className="rounded-md bg-amber-500/10 px-2.5 py-2 text-[11px] text-amber-700 dark:text-amber-400 space-y-1">
+                              <p className="font-medium">{alert.title}</p>
+                              <p className="leading-relaxed">{alert.message}</p>
+                              {alert.actionUrl && (
+                                <a
+                                  href={alert.actionUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 font-medium underline underline-offset-2 hover:no-underline"
+                                >
+                                  {alert.actionLabel}
+                                  <ExternalLink className="h-3 w-3" />
+                                </a>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                    <button
+                      type="button"
+                      onClick={onRefresh}
+                      disabled={refreshing}
+                      className="flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                    >
+                      <RefreshCw className={`h-3 w-3 ${refreshing ? "animate-spin" : ""}`} />
+                      {refreshing ? "Refreshing..." : "Refresh status"}
+                    </button>
                   </div>
                 ) : (
                   <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-700 dark:text-amber-400 space-y-2">
@@ -390,4 +430,64 @@ function IntegrationCard({
       </CardContent>
     </Card>
   );
+}
+
+function getServingAlert(statuses: string[]): {
+  title: string;
+  message: string;
+  actionUrl?: string;
+  actionLabel?: string;
+} | null {
+  if (statuses.includes("BILLING_HOLD")) {
+    return {
+      title: "Payment method needed",
+      message: "Add a credit card or payment method to your LinkedIn Ad Account to start running campaigns.",
+      actionUrl: "https://www.linkedin.com/campaignmanager",
+      actionLabel: "Add payment on LinkedIn",
+    };
+  }
+  if (statuses.includes("ACCOUNT_TOTAL_BUDGET_HOLD")) {
+    return {
+      title: "Budget limit reached",
+      message: "Your ad account has reached its total budget limit. Increase the budget to resume campaigns.",
+      actionUrl: "https://www.linkedin.com/campaignmanager",
+      actionLabel: "Update budget on LinkedIn",
+    };
+  }
+  if (statuses.includes("ACCOUNT_END_DATE_HOLD")) {
+    return {
+      title: "Account end date passed",
+      message: "Your ad account's end date has passed. Extend the date to resume campaigns.",
+      actionUrl: "https://www.linkedin.com/campaignmanager",
+      actionLabel: "Update end date on LinkedIn",
+    };
+  }
+  if (statuses.includes("STOPPED")) {
+    return {
+      title: "Account stopped",
+      message: "This ad account has been manually stopped. Reactivate it in LinkedIn Campaign Manager to resume.",
+      actionUrl: "https://www.linkedin.com/campaignmanager",
+      actionLabel: "Reactivate on LinkedIn",
+    };
+  }
+  if (statuses.includes("RESTRICTED_HOLD")) {
+    return {
+      title: "Account restricted",
+      message: "LinkedIn has restricted this ad account. Contact LinkedIn support for more details.",
+      actionUrl: "https://www.linkedin.com/help/lms",
+      actionLabel: "Contact LinkedIn support",
+    };
+  }
+  if (statuses.includes("INTERNAL_HOLD")) {
+    return {
+      title: "Temporarily on hold",
+      message: "LinkedIn has placed a temporary hold on this account. This usually resolves automatically — try refreshing later.",
+    };
+  }
+  return {
+    title: "Not ready to serve",
+    message: "This account isn't ready to run ads yet. Check LinkedIn Campaign Manager for details.",
+    actionUrl: "https://www.linkedin.com/campaignmanager",
+    actionLabel: "Check on LinkedIn",
+  };
 }
