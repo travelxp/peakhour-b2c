@@ -202,11 +202,23 @@ export default function IntegrationsPage() {
         errors: number;
         message: string;
       }>("/v1/content/backfill-sync", {});
-      setBackfillResult({
-        message: `Done! Imported ${result.added} new posts, updated ${result.updated} out of ${result.total} total.` +
-          (result.errors > 0 ? ` (${result.errors} errors)` : ""),
-        hasErrors: result.errors > 0,
-      });
+      // Build a user-friendly message
+      let msg = "";
+      if (result.errors === 0) {
+        if (result.added > 0 && result.updated === 0) {
+          msg = `All done! ${result.added} newsletters imported successfully.`;
+        } else if (result.added === 0 && result.updated > 0) {
+          msg = `All done! ${result.updated} newsletters refreshed with latest content.`;
+        } else if (result.added > 0 && result.updated > 0) {
+          msg = `All done! ${result.added} new newsletters imported, ${result.updated} existing ones refreshed.`;
+        } else {
+          msg = "All done! Your newsletters are already up to date.";
+        }
+      } else {
+        const succeeded = result.added + result.updated;
+        msg = `Imported ${succeeded} of ${result.total} newsletters. ${result.errors} couldn\u2019t be imported \u2014 try again in a few minutes.`;
+      }
+      setBackfillResult({ message: msg, hasErrors: result.errors > 0 });
       await loadIntegrations();
     } catch (err) {
       if (err instanceof ApiError) setError(err.message);
