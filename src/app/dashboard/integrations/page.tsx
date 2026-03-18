@@ -126,9 +126,11 @@ export default function IntegrationsPage() {
 
   async function handleRefresh(provider: string) {
     setRefreshing(provider);
+    setError("");
     try {
       const result = await api.post<{ account: Integration["account"] }>(
-        `/v1/integrations/${provider}/refresh`
+        `/v1/integrations/${provider}/refresh`,
+        {}
       );
       setIntegrations((prev) =>
         prev.map((i) =>
@@ -137,6 +139,7 @@ export default function IntegrationsPage() {
       );
     } catch (err) {
       if (err instanceof ApiError) setError(err.message);
+      else setError("Failed to refresh. Please try again.");
     } finally {
       setRefreshing(null);
     }
@@ -326,27 +329,26 @@ function IntegrationCard({
                       No Ad Account found
                     </div>
                     <p className="leading-relaxed">
-                      Create an Ad Account on LinkedIn, then click Refresh to sync.
+                      You need a LinkedIn Ad Account to run campaigns. Create one, then come back and refresh.
                     </p>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-col gap-2 pt-0.5">
                       <a
                         href="https://www.linkedin.com/campaignmanager/new-advertiser"
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 font-medium text-amber-800 dark:text-amber-300 underline underline-offset-2 hover:no-underline"
+                        className="inline-flex items-center gap-1.5 font-medium text-amber-800 dark:text-amber-300 hover:opacity-80"
                       >
-                        Create Ad Account
-                        <ExternalLink className="h-3 w-3" />
+                        <ExternalLink className="h-3.5 w-3.5" />
+                        Step 1: Create Ad Account on LinkedIn
                       </a>
-                      <span className="text-amber-500/50">|</span>
                       <button
                         type="button"
                         onClick={onRefresh}
                         disabled={refreshing}
-                        className="inline-flex items-center gap-1 font-medium text-amber-800 dark:text-amber-300 underline underline-offset-2 hover:no-underline disabled:opacity-50"
+                        className="inline-flex items-center gap-1.5 font-medium text-amber-800 dark:text-amber-300 hover:opacity-80 disabled:opacity-50"
                       >
-                        <RefreshCw className={`h-3 w-3 ${refreshing ? "animate-spin" : ""}`} />
-                        {refreshing ? "Refreshing..." : "Refresh"}
+                        <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
+                        {refreshing ? "Checking..." : "Step 2: I\u2019ve created it \u2014 Refresh"}
                       </button>
                     </div>
                   </div>
