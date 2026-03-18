@@ -397,8 +397,16 @@ function BeehiivConnectModal({
               disabled={connecting}
             />
             <p className="text-xs text-muted-foreground">
-              Find this in Beehiiv → <strong>Settings</strong> → <strong>Integrations</strong> → <strong>API</strong>.
-              It starts with <code className="rounded bg-muted px-1 py-0.5">pk_</code>
+              <a
+                href="https://app.beehiiv.com/settings/integrations/api"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 font-medium text-primary underline underline-offset-2 hover:no-underline"
+              >
+                Open Beehiiv API Settings
+                <ExternalLink className="h-3 w-3" />
+              </a>
+              {" "}&mdash; copy the key that starts with <code className="rounded bg-muted px-1 py-0.5">pk_</code>
             </p>
           </div>
 
@@ -412,8 +420,16 @@ function BeehiivConnectModal({
               disabled={connecting}
             />
             <p className="text-xs text-muted-foreground">
-              Find this in Beehiiv → <strong>Settings</strong> → <strong>General</strong>.
-              It starts with <code className="rounded bg-muted px-1 py-0.5">pub_</code>
+              <a
+                href="https://app.beehiiv.com/settings/general"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 font-medium text-primary underline underline-offset-2 hover:no-underline"
+              >
+                Open Beehiiv General Settings
+                <ExternalLink className="h-3 w-3" />
+              </a>
+              {" "}&mdash; copy the ID that starts with <code className="rounded bg-muted px-1 py-0.5">pub_</code>
             </p>
           </div>
 
