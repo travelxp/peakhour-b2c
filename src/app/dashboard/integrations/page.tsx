@@ -114,7 +114,7 @@ export default function IntegrationsPage() {
   const [refreshing, setRefreshing] = useState<string | null>(null);
   const [syncing, setSyncing] = useState<string | null>(null);
   const [backfilling, setBackfilling] = useState(false);
-  const [backfillResult, setBackfillResult] = useState<string | null>(null);
+  const [backfillResult, setBackfillResult] = useState<{ message: string; hasErrors: boolean } | null>(null);
   const [connectModal, setConnectModal] = useState<string | null>(null);
 
   useEffect(() => {
@@ -202,10 +202,11 @@ export default function IntegrationsPage() {
         errors: number;
         message: string;
       }>("/v1/content/backfill-sync", {});
-      setBackfillResult(
-        `Done! Imported ${result.added} new posts, updated ${result.updated} out of ${result.total} total.` +
-        (result.errors > 0 ? ` (${result.errors} errors)` : "")
-      );
+      setBackfillResult({
+        message: `Done! Imported ${result.added} new posts, updated ${result.updated} out of ${result.total} total.` +
+          (result.errors > 0 ? ` (${result.errors} errors)` : ""),
+        hasErrors: result.errors > 0,
+      });
       await loadIntegrations();
     } catch (err) {
       if (err instanceof ApiError) setError(err.message);
@@ -479,7 +480,7 @@ function IntegrationCard({
   onRefresh: () => void;
   onSync: () => void;
   onBackfillSync?: () => Promise<void>;
-  backfillResult?: string | null;
+  backfillResult?: { message: string; hasErrors: boolean } | null;
   disconnecting: boolean;
   refreshing: boolean;
   syncing: boolean;
@@ -572,9 +573,17 @@ function IntegrationCard({
 
                 {/* Backfill result banner */}
                 {backfillResult && (
-                  <div className="rounded-lg border border-green-500/30 bg-green-500/10 px-3 py-2 text-xs text-green-700 dark:text-green-400 flex items-center gap-2">
-                    <CheckCircle className="h-3.5 w-3.5 shrink-0" />
-                    {backfillResult}
+                  <div className={`rounded-lg border px-3 py-2 text-xs flex items-center gap-2 ${
+                    backfillResult.hasErrors
+                      ? "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400"
+                      : "border-green-500/30 bg-green-500/10 text-green-700 dark:text-green-400"
+                  }`}>
+                    {backfillResult.hasErrors ? (
+                      <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                    ) : (
+                      <CheckCircle className="h-3.5 w-3.5 shrink-0" />
+                    )}
+                    {backfillResult.message}
                   </div>
                 )}
 
