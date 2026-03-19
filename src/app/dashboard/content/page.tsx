@@ -259,17 +259,17 @@ export default function ContentPage() {
                 onChange={(v) => updateFilter("minAdScore", v)}
                 options={[["5", "5+"], ["6", "6+"], ["7", "7+"], ["8", "8+"], ["9", "9+"]]}
               />
-              <FilterSelect
-                placeholder="Sort"
-                value={filters.sort}
-                onChange={(v) => updateFilter("sort", v)}
-                options={[
-                  ["publishedAt_desc", "Newest first"],
-                  ["publishedAt_asc", "Oldest first"],
-                  ["adScore_desc", "Highest ad score"],
-                  ["title_asc", "Title A-Z"],
-                ]}
-              />
+              <Select value={filters.sort} onValueChange={(v) => updateFilter("sort", v)}>
+                <SelectTrigger className="w-36 h-9 text-xs">
+                  <SelectValue placeholder="Sort" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="publishedAt_desc">Newest first</SelectItem>
+                  <SelectItem value="publishedAt_asc">Oldest first</SelectItem>
+                  <SelectItem value="adScore_desc">Highest ad score</SelectItem>
+                  <SelectItem value="title_asc">Title A-Z</SelectItem>
+                </SelectContent>
+              </Select>
 
               {/* View toggle */}
               <div className="ml-auto flex gap-1">
@@ -644,7 +644,7 @@ function FilterSelect({
   options: [string, string][];
 }) {
   return (
-    <Select value={value || undefined} onValueChange={(v) => onChange(v === "__all__" ? "" : v)}>
+    <Select value={value || "__all__"} onValueChange={(v) => onChange(v === "__all__" ? "" : v)}>
       <SelectTrigger className="w-36 h-9 text-xs">
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
@@ -678,6 +678,7 @@ function ArticleCard({
           <img
             src={draft.thumbnailUrl}
             alt=""
+            loading="lazy"
             className="h-full w-full object-cover"
           />
         </div>
@@ -722,7 +723,7 @@ function ArticleCard({
 }
 
 function AdScoreBar({ score }: { score?: number }) {
-  if (!score)
+  if (score == null)
     return (
       <span className="text-xs text-muted-foreground">Not scored</span>
     );

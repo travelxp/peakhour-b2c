@@ -123,7 +123,7 @@ export default function ArticleDetailPage() {
             variant="ghost"
             size="sm"
             className="mb-2 -ml-2"
-            onClick={() => router.back()}
+            onClick={() => router.push("/dashboard/content")}
           >
             &larr; Back to library
           </Button>
@@ -513,7 +513,7 @@ export default function ArticleDetailPage() {
                     }
                   />
                   <MetaRow label="Shelf Life" value={label(SHELF_LIFE_LABELS, t.shelfLife)} />
-                  {t.urgency && (
+                  {t.urgency != null && (
                     <MetaRow label="Urgency" value={`${t.urgency}/10`} />
                   )}
                   <MetaRow
