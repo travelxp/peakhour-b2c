@@ -49,7 +49,8 @@ const BUSINESS_CATEGORIES = [
 
 export default function AddBusinessPage() {
   const router = useRouter();
-  const { refreshUser, org } = useAuth();
+  const { refreshUser, org, business } = useAuth();
+  const isAddingToExistingOrg = !!org; // true = adding another business, false = first-time onboarding
   const [mode, setMode] = useState<Mode>("url");
   const [websiteUrl, setWebsiteUrl] = useState("");
   const [orgName, setOrgName] = useState("");
@@ -133,16 +134,28 @@ export default function AddBusinessPage() {
       return;
     }
 
-    // Create org if it doesn't exist yet; skip if already created (409)
     try {
-      await api.post<{ org: { _id: string; name: string; slug: string } }>(
-        "/v1/onboarding/create-org",
-        { name: hostname, websiteUrl }
-      );
-      await refreshUser();
+      if (isAddingToExistingOrg) {
+        // Adding a new business to existing org
+        await api.post("/v1/auth/businesses/create", {
+          name: hostname,
+          businessCategory: "other",
+        });
+        await refreshUser();
+      } else {
+        // First-time: create org + default business
+        await api.post<{ org: { _id: string; name: string; slug: string } }>(
+          "/v1/onboarding/create-org",
+          { name: hostname, websiteUrl }
+        );
+        await refreshUser();
+      }
     } catch (err) {
       if (err instanceof ApiError && err.code === "ORG_EXISTS") {
         // Org already exists — proceed to discovery
+      } else if (err instanceof ApiError && err.code === "SLUG_EXISTS") {
+        setError("A business with this name already exists.");
+        return;
       } else {
         if (err instanceof ApiError) setError(err.message);
         else setError("Something went wrong. Please try again.");
@@ -159,12 +172,20 @@ export default function AddBusinessPage() {
     setLoading(true);
 
     try {
-      await api.post("/v1/onboarding/create-org", {
-        name: orgName,
-        businessCategory: businessCategory || undefined,
-        businessType: businessType || undefined,
-        websiteUrl: websiteUrl || undefined,
-      });
+      if (isAddingToExistingOrg) {
+        await api.post("/v1/auth/businesses/create", {
+          name: orgName,
+          businessCategory: businessCategory || undefined,
+          businessType: businessType || undefined,
+        });
+      } else {
+        await api.post("/v1/onboarding/create-org", {
+          name: orgName,
+          businessCategory: businessCategory || undefined,
+          businessType: businessType || undefined,
+          websiteUrl: websiteUrl || undefined,
+        });
+      }
 
       await refreshUser();
       router.push("/onboarding/connect-platforms");
@@ -241,7 +262,7 @@ export default function AddBusinessPage() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Add your business</CardTitle>
+        <CardTitle>{isAddingToExistingOrg ? "Add another business" : "Add your business"}</CardTitle>
         <CardDescription>
           {mode === "url"
             ? "Paste your website link — our AI will learn about your business in seconds"
