@@ -20,8 +20,20 @@ import { label } from "@/lib/content-labels";
 
 // ── Types ────────────────────────────────────────────────────
 
+interface Suggestion {
+  _id: string | null;
+  topic: string;
+  sector?: string;
+  targetAudience?: string;
+  contentType?: string;
+  angle?: string;
+  whyNow?: string;
+  estimatedAdPotential?: number;
+}
+
 interface SuggestResponse {
-  suggestions: string;
+  suggestions: Suggestion[] | null;
+  rawText: string;
   toolsUsed: string[];
   usage: { inputTokens: number; outputTokens: number; totalTokens: number };
 }
@@ -231,11 +243,21 @@ export default function StrategistPage() {
               {(suggestions.usage?.totalTokens ?? 0).toLocaleString()} tokens
             </span>
           </div>
-          <Card>
-            <CardContent className="p-6 prose prose-sm max-w-none">
-              <MarkdownContent content={suggestions.suggestions} />
-            </CardContent>
-          </Card>
+
+          {/* Structured suggestion cards */}
+          {suggestions.suggestions && suggestions.suggestions.length > 0 ? (
+            <div className="space-y-3">
+              {suggestions.suggestions.map((s, i) => (
+                <SuggestionCard key={s._id || i} suggestion={s} index={i} />
+              ))}
+            </div>
+          ) : (
+            <Card>
+              <CardContent className="p-6 prose prose-sm max-w-none">
+                <MarkdownContent content={suggestions.rawText} />
+              </CardContent>
+            </Card>
+          )}
         </div>
       )}
 
@@ -365,6 +387,105 @@ function ToolBadges({ tools }: { tools: string[] }) {
 }
 
 /** Styled markdown renderer */
+function SuggestionCard({ suggestion: s, index }: { suggestion: Suggestion; index: number }) {
+  const [feedbackSent, setFeedbackSent] = useState<string | null>(null);
+  const [feedbackError, setFeedbackError] = useState(false);
+  const [rejecting, setRejecting] = useState(false);
+  const [sending, setSending] = useState(false);
+
+  async function sendFeedback(action: "accepted" | "rejected" | "saved_for_later", reason?: string) {
+    if (!s._id || sending) return;
+    setSending(true);
+    setFeedbackError(false);
+    try {
+      await api.post(`/v1/content/ideas/${s._id}/feedback`, { action, reason });
+      setFeedbackSent(action);
+      setRejecting(false);
+    } catch {
+      setFeedbackError(true);
+    } finally {
+      setSending(false);
+    }
+  }
+
+  const scoreColor = (s.estimatedAdPotential ?? 0) >= 8 ? "text-green-600" :
+    (s.estimatedAdPotential ?? 0) >= 6 ? "text-amber-600" : "text-muted-foreground";
+
+  return (
+    <Card className={feedbackSent === "accepted" ? "border-green-200 bg-green-50/30" : feedbackSent === "rejected" ? "border-red-200 bg-red-50/30 opacity-60" : ""}>
+      <CardContent className="p-4 space-y-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-mono text-muted-foreground">{index + 1}.</span>
+              <h3 className="font-semibold text-sm">{s.topic}</h3>
+            </div>
+            {s.whyNow && (
+              <p className="text-xs text-muted-foreground mt-1">{s.whyNow}</p>
+            )}
+          </div>
+          {s.estimatedAdPotential && (
+            <span className={`text-lg font-bold ${scoreColor}`}>
+              {s.estimatedAdPotential}<span className="text-xs font-normal">/10</span>
+            </span>
+          )}
+        </div>
+
+        <div className="flex flex-wrap gap-1.5">
+          {s.sector && <Badge variant="secondary" className="text-xs">{s.sector}</Badge>}
+          {s.targetAudience && <Badge variant="outline" className="text-xs">{s.targetAudience}</Badge>}
+          {s.contentType && <Badge variant="outline" className="text-xs">{s.contentType}</Badge>}
+          {s.angle && <Badge className="text-xs bg-primary/10 text-primary border-0">{s.angle}</Badge>}
+        </div>
+
+        {/* Feedback buttons */}
+        {!feedbackSent && s._id && (
+          <div className="flex items-center gap-2 pt-1">
+            <Button size="sm" variant="default" disabled={sending} onClick={() => sendFeedback("accepted")}>
+              Accept
+            </Button>
+            <Button size="sm" variant="outline" disabled={sending} onClick={() => setRejecting(!rejecting)}>
+              Reject
+            </Button>
+            <Button size="sm" variant="ghost" disabled={sending} onClick={() => sendFeedback("saved_for_later")}>
+              Save for later
+            </Button>
+          </div>
+        )}
+
+        {/* Reject reasons */}
+        {rejecting && !feedbackSent && (
+          <div className="flex flex-wrap gap-1.5 pt-1">
+            <span className="text-xs text-muted-foreground mr-1">Why?</span>
+            {["not_timely", "wrong_audience", "already_covered", "not_relevant", "too_generic"].map((reason) => (
+              <Button key={reason} size="sm" variant="outline" className="text-xs h-7" disabled={sending}
+                onClick={() => sendFeedback("rejected", reason)}>
+                {label(undefined, reason)}
+              </Button>
+            ))}
+          </div>
+        )}
+
+        {/* Feedback error */}
+        {feedbackError && (
+          <p className="text-xs text-red-600 font-medium">
+            Failed to save feedback. Please try again.
+          </p>
+        )}
+
+        {/* Feedback confirmation */}
+        {feedbackSent && (
+          <p className="text-xs text-muted-foreground">
+            {feedbackSent === "accepted" ? "Accepted — will be scheduled for creation" :
+             feedbackSent === "rejected" ? "Rejected — AI will learn from this" :
+             "Saved for later"}
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function MarkdownContent({ content }: { content: string }) {
   return (
     <ReactMarkdown
