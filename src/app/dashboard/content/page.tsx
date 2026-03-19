@@ -1030,20 +1030,20 @@ function SectorHeatmap({
     return true;
   });
 
-  // Add any unmatched tag data as extra entries
-  const unmatched = data.filter((d) => !usedTagIds.has(d._id));
-
-  const maxCount = Math.max(...data.map((d) => d.count), 1);
-
-  if (uniqueSectors.length === 0 && unmatched.length === 0) {
-    return <p className="text-sm text-muted-foreground">No sectors configured or tagged yet.</p>;
-  }
-
-  // Pre-compute tag data for each taxonomy sector
+  // Pre-compute tag data FIRST — this populates usedTagIds via findTagData calls
   const sectorData = uniqueSectors.map((sector) => ({
     name: sector,
     data: findTagData(sector),
   }));
+
+  // THEN find unmatched — usedTagIds is now populated
+  const unmatched = data.filter((d) => !usedTagIds.has(d._id));
+
+  const maxCount = Math.max(...data.map((d) => d.count), 1);
+
+  if (sectorData.length === 0 && unmatched.length === 0) {
+    return <p className="text-sm text-muted-foreground">No sectors configured or tagged yet.</p>;
+  }
 
   // Append unmatched tag data
   for (const d of unmatched) {
@@ -1123,13 +1123,16 @@ function AudienceBars({
     return true;
   });
 
-  const unmatched = data.filter((d) => !usedTagIds.has(d._id));
-  const maxCount = Math.max(...data.map((d) => d.count), 1);
-
+  // Pre-compute FIRST — populates usedTagIds
   const segmentData = uniqueSegments.map((seg) => ({
     name: seg,
     data: findTagData(seg),
   }));
+
+  // THEN find unmatched
+  const unmatched = data.filter((d) => !usedTagIds.has(d._id));
+  const maxCount = Math.max(...data.map((d) => d.count), 1);
+
   for (const d of unmatched) {
     segmentData.push({ name: d._id, data: { count: d.count, avgRelevance: d.avgRelevance } });
   }
