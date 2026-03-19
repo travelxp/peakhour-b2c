@@ -413,8 +413,8 @@ export default function StrategistPage() {
         </div>
       )}
 
-      {/* Saved ideas — persists across page refreshes */}
-      {savedIdeas && savedIdeas.length > 0 && !loading && (
+      {/* Saved ideas — shows when no fresh suggestions are displayed */}
+      {savedIdeas && savedIdeas.length > 0 && !loading && !suggestions && !plan && (
         <div className="space-y-4">
           <Separator />
           <h3 className="text-lg font-semibold">Your Content Ideas</h3>
@@ -516,10 +516,14 @@ function SuggestionCard({ suggestion: s, index, initialStatus }: { suggestion: S
         </div>
 
         <div className="flex flex-wrap gap-1.5">
-          {s.sector && <Badge variant="secondary" className="text-xs">{s.sector}</Badge>}
-          {s.targetAudience && <Badge variant="outline" className="text-xs">{s.targetAudience}</Badge>}
-          {s.contentType && <Badge variant="outline" className="text-xs">{s.contentType}</Badge>}
-          {s.angle && <Badge className="text-xs bg-primary/10 text-primary border-0">{s.angle}</Badge>}
+          {s.sector && <Badge variant="secondary" className="text-xs max-w-50 truncate">{s.sector}</Badge>}
+          {s.targetAudience && (
+            <Badge variant="outline" className="text-xs max-w-50 truncate" title={s.targetAudience}>
+              {s.targetAudience.length > 40 ? s.targetAudience.split(",")[0].split("(")[0].trim() : s.targetAudience}
+            </Badge>
+          )}
+          {s.contentType && <Badge variant="outline" className="text-xs max-w-50 truncate">{s.contentType}</Badge>}
+          {s.angle && <Badge className="text-xs bg-primary/10 text-primary border-0 max-w-50 truncate">{s.angle}</Badge>}
           {s.channels?.map((ch) => (
             <span key={ch} className="text-xs" title={ch}>
               {CHANNEL_ICONS[ch.toLowerCase()] || "📢"} {ch}
