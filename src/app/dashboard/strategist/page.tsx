@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSearchParams } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import { api } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
@@ -88,10 +89,21 @@ interface SavedIdea {
 
 export default function StrategistPage() {
   const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
   const [mode, setMode] = useState<"suggest" | "brief" | "plan">("suggest");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [topic, setTopic] = useState("");
+
+  // Read URL params (e.g. from "Write Brief" button on suggestion card)
+  useEffect(() => {
+    const urlMode = searchParams.get("mode");
+    const urlTopic = searchParams.get("topic");
+    if (urlMode === "brief" || urlMode === "suggest" || urlMode === "plan") {
+      setMode(urlMode);
+    }
+    if (urlTopic) setTopic(urlTopic);
+  }, [searchParams]);
 
   // Load saved AI suggestions
   const { data: savedIdeas } = useQuery({
@@ -189,21 +201,28 @@ export default function StrategistPage() {
         </p>
       </div>
 
-      {/* Mode selector */}
+      {/* Mode selector — pipeline flow */}
       <div className="flex gap-2">
         <Button
           variant={mode === "suggest" ? "default" : "outline"}
           size="sm"
-          onClick={() => setMode("suggest")}
+          onClick={() => { setMode("suggest"); setTopic(""); }}
         >
-          Get Suggestions
+          💡 Get Ideas
+        </Button>
+        <Button
+          variant={mode === "plan" ? "default" : "outline"}
+          size="sm"
+          onClick={() => { setMode("plan"); setTopic(""); }}
+        >
+          📅 Plan Week
         </Button>
         <Button
           variant={mode === "brief" ? "default" : "outline"}
           size="sm"
           onClick={() => setMode("brief")}
         >
-          Generate Brief
+          📝 Write Brief
         </Button>
         <Button
           variant={mode === "plan" ? "default" : "outline"}
@@ -511,14 +530,34 @@ function SuggestionCard({ suggestion: s, index, initialStatus }: { suggestion: S
         {/* Feedback buttons */}
         {!feedbackSent && s._id && (
           <div className="flex items-center gap-2 pt-1">
-            <Button size="sm" variant="default" disabled={sending} onClick={() => sendFeedback("accepted")}>
+            <Button size="sm" variant="default" disabled={sending} onClick={async () => {
+              await sendFeedback("accepted");
+            }}>
               Accept
             </Button>
             <Button size="sm" variant="outline" disabled={sending} onClick={() => setRejecting(!rejecting)}>
               Reject
             </Button>
             <Button size="sm" variant="ghost" disabled={sending} onClick={() => sendFeedback("saved_for_later")}>
-              Save for later
+              Later
+            </Button>
+          </div>
+        )}
+
+        {/* Write Brief button — shows after accepting */}
+        {feedbackSent === "accepted" && s._id && (
+          <div className="pt-1">
+            <Button size="sm" variant="secondary" onClick={() => {
+              // Navigate to brief generation with pre-filled topic
+              const params = new URLSearchParams({
+                topic: s.topic,
+                ...(s.sector && { sector: s.sector }),
+                ...(s.angle && { angle: s.angle }),
+                ...(s.contentType && { contentType: s.contentType }),
+              });
+              window.location.href = `/dashboard/strategist?mode=brief&${params.toString()}`;
+            }}>
+              📝 Write Brief
             </Button>
           </div>
         )}
