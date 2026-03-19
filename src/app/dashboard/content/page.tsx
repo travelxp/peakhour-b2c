@@ -974,6 +974,18 @@ function SentimentBadge({ value }: { value?: string }) {
   );
 }
 
+/** Normalize a string for comparison: lowercase, strip special chars */
+function normalize(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+}
+
+/** Check if two strings match by normalized form or substring containment */
+function fuzzyMatch(a: string, b: string): boolean {
+  const na = normalize(a);
+  const nb = normalize(b);
+  return na === nb || na.includes(nb) || nb.includes(na);
+}
+
 function SectorHeatmap({
   data,
   allSectors,
@@ -981,25 +993,59 @@ function SectorHeatmap({
   data: { _id: string; count: number; avgWeight: number }[];
   allSectors: string[];
 }) {
+  // Taxonomy is the single source of truth. Match tag data to taxonomy entries
+  // using fuzzy matching (e.g., tag "aviation" matches taxonomy "Airlines & Aviation").
+  // Unmatched tag data gets its own entry at the end.
+  const usedTagIds = new Set<string>();
+
+  function findTagData(taxonomyValue: string) {
+    let total = { count: 0, avgWeight: 0, matched: 0 };
+    for (const d of data) {
+      if (fuzzyMatch(taxonomyValue, d._id)) {
+        total.count += d.count;
+        total.avgWeight += d.avgWeight * d.count;
+        total.matched++;
+        usedTagIds.add(d._id);
+      }
+    }
+    if (total.matched === 0) return null;
+    return { count: total.count, avgWeight: total.avgWeight / total.count };
+  }
+
+  const sectors = allSectors.length > 0 ? allSectors : data.map((d) => d._id);
+
+  // Deduplicate taxonomy entries
+  const seen = new Set<string>();
+  const uniqueSectors = sectors.filter((s) => {
+    const norm = normalize(s);
+    if (seen.has(norm)) return false;
+    seen.add(norm);
+    return true;
+  });
+
+  // Add any unmatched tag data as extra entries
+  const unmatched = data.filter((d) => !usedTagIds.has(d._id));
+
   const maxCount = Math.max(...data.map((d) => d.count), 1);
-  const dataMap = new Map(data.map((d) => [d._id, d]));
 
-  // Merge: show taxonomy sectors + any sectors from tag data not in taxonomy
-  const tagSectors = data.map((d) => d._id);
-  const taxonomySet = new Set(allSectors);
-  const merged = [
-    ...allSectors,
-    ...tagSectors.filter((s) => !taxonomySet.has(s)),
-  ];
-
-  if (merged.length === 0) {
+  if (uniqueSectors.length === 0 && unmatched.length === 0) {
     return <p className="text-sm text-muted-foreground">No sectors configured or tagged yet.</p>;
+  }
+
+  // Pre-compute tag data for each taxonomy sector
+  const sectorData = uniqueSectors.map((sector) => ({
+    name: sector,
+    data: findTagData(sector),
+  }));
+
+  // Append unmatched tag data
+  for (const d of unmatched) {
+    sectorData.push({ name: d._id, data: { count: d.count, avgWeight: d.avgWeight } });
   }
 
   return (
     <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2">
-      {merged.map((sector) => {
-        const d = dataMap.get(sector);
+      {sectorData.map(({ name: sector, data: d }) => {
         const count = d?.count ?? 0;
         const intensity = count > 0 ? Math.max(0.1, count / maxCount) : 0;
         const bg =
@@ -1044,25 +1090,50 @@ function AudienceBars({
   data: { _id: string; count: number; avgRelevance: number }[];
   allAudiences: string[];
 }) {
+  const usedTagIds = new Set<string>();
+
+  function findTagData(taxonomyValue: string) {
+    let total = { count: 0, avgRelevance: 0, matched: 0 };
+    for (const d of data) {
+      if (fuzzyMatch(taxonomyValue, d._id)) {
+        total.count += d.count;
+        total.avgRelevance += d.avgRelevance * d.count;
+        total.matched++;
+        usedTagIds.add(d._id);
+      }
+    }
+    if (total.matched === 0) return null;
+    return { count: total.count, avgRelevance: total.avgRelevance / total.count };
+  }
+
+  const segments = allAudiences.length > 0 ? allAudiences : data.map((d) => d._id);
+
+  const seen = new Set<string>();
+  const uniqueSegments = segments.filter((s) => {
+    const norm = normalize(s);
+    if (seen.has(norm)) return false;
+    seen.add(norm);
+    return true;
+  });
+
+  const unmatched = data.filter((d) => !usedTagIds.has(d._id));
   const maxCount = Math.max(...data.map((d) => d.count), 1);
-  const dataMap = new Map(data.map((d) => [d._id, d]));
 
-  // Merge: show taxonomy audiences + any from tag data not in taxonomy
-  const tagAudiences = data.map((d) => d._id);
-  const taxonomySet = new Set(allAudiences);
-  const merged = [
-    ...allAudiences,
-    ...tagAudiences.filter((a) => !taxonomySet.has(a)),
-  ];
+  const segmentData = uniqueSegments.map((seg) => ({
+    name: seg,
+    data: findTagData(seg),
+  }));
+  for (const d of unmatched) {
+    segmentData.push({ name: d._id, data: { count: d.count, avgRelevance: d.avgRelevance } });
+  }
 
-  if (merged.length === 0) {
+  if (segmentData.length === 0) {
     return <p className="text-sm text-muted-foreground">No audience segments configured or tagged yet.</p>;
   }
 
   return (
     <div className="space-y-3">
-      {merged.map((segment) => {
-        const d = dataMap.get(segment);
+      {segmentData.map(({ name: segment, data: d }) => {
         const count = d?.count ?? 0;
         const pct = maxCount > 0 ? (count / maxCount) * 100 : 0;
         const color =
