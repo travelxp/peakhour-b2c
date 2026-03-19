@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import ReactMarkdown from "react-markdown";
 import { api } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +30,7 @@ interface Suggestion {
   angle?: string;
   whyNow?: string;
   estimatedAdPotential?: number;
+  channels?: string[];
 }
 
 interface SuggestResponse {
@@ -69,11 +71,33 @@ const LOADING_MESSAGES = [
 
 // ── Main Page ────────────────────────────────────────────────
 
+interface SavedIdea {
+  _id: string;
+  title: string;
+  description?: string;
+  status: string;
+  sector?: string;
+  targetAudience?: string;
+  contentType?: string;
+  angle?: string;
+  aiScore?: number;
+  channels?: string[];
+  targetDate?: string;
+  createdAt: string;
+}
+
 export default function StrategistPage() {
+  const queryClient = useQueryClient();
   const [mode, setMode] = useState<"suggest" | "brief" | "plan">("suggest");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [topic, setTopic] = useState("");
+
+  // Load saved AI suggestions
+  const { data: savedIdeas } = useQuery({
+    queryKey: ["content-ideas"],
+    queryFn: () => api.get<SavedIdea[]>("/v1/content/ideas"),
+  });
 
   // Suggest state
   const [suggestions, setSuggestions] = useState<SuggestResponse | null>(null);
@@ -121,7 +145,10 @@ export default function StrategistPage() {
           "/v1/content/suggest",
           topic ? { topic } : {}
         );
-        if (!controller.signal.aborted) setSuggestions(result);
+        if (!controller.signal.aborted) {
+          setSuggestions(result);
+          queryClient.invalidateQueries({ queryKey: ["content-ideas"] });
+        }
       } else if (mode === "brief") {
         const result = await api.post<BriefResponse>(
           "/v1/content/brief",
@@ -132,7 +159,10 @@ export default function StrategistPage() {
         const result = await api.get<{ plan: string; toolsUsed: string[] }>(
           "/v1/content/weekly-plan"
         );
-        if (!controller.signal.aborted) setPlan(result);
+        if (!controller.signal.aborted) {
+          setPlan(result);
+          queryClient.invalidateQueries({ queryKey: ["content-ideas"] });
+        }
       }
     } catch (err: any) {
       if (!controller.signal.aborted) {
@@ -363,6 +393,34 @@ export default function StrategistPage() {
           </Card>
         </div>
       )}
+
+      {/* Saved ideas — persists across page refreshes */}
+      {savedIdeas && savedIdeas.length > 0 && !loading && (
+        <div className="space-y-4">
+          <Separator />
+          <h3 className="text-lg font-semibold">Your Content Ideas</h3>
+          <div className="space-y-3">
+            {savedIdeas.map((idea, i) => (
+              <SuggestionCard
+                key={idea._id}
+                suggestion={{
+                  _id: idea._id,
+                  topic: idea.title,
+                  sector: idea.sector,
+                  targetAudience: idea.targetAudience,
+                  contentType: idea.contentType,
+                  angle: idea.angle,
+                  whyNow: idea.description,
+                  estimatedAdPotential: idea.aiScore,
+                  channels: idea.channels,
+                }}
+                index={i}
+                initialStatus={idea.status !== "brainstorm" ? idea.status : undefined}
+              />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -387,8 +445,15 @@ function ToolBadges({ tools }: { tools: string[] }) {
 }
 
 /** Styled markdown renderer */
-function SuggestionCard({ suggestion: s, index }: { suggestion: Suggestion; index: number }) {
-  const [feedbackSent, setFeedbackSent] = useState<string | null>(null);
+const CHANNEL_ICONS: Record<string, string> = {
+  newsletter: "📧", linkedin: "💼", x: "𝕏", instagram: "📷",
+  blog: "📝", youtube: "▶️", facebook: "📘", tiktok: "🎵",
+};
+
+function SuggestionCard({ suggestion: s, index, initialStatus }: { suggestion: Suggestion; index: number; initialStatus?: string }) {
+  const [feedbackSent, setFeedbackSent] = useState<string | null>(
+    initialStatus === "planned" ? "accepted" : initialStatus === "archived" ? "rejected" : null
+  );
   const [feedbackError, setFeedbackError] = useState(false);
   const [rejecting, setRejecting] = useState(false);
   const [sending, setSending] = useState(false);
@@ -436,6 +501,11 @@ function SuggestionCard({ suggestion: s, index }: { suggestion: Suggestion; inde
           {s.targetAudience && <Badge variant="outline" className="text-xs">{s.targetAudience}</Badge>}
           {s.contentType && <Badge variant="outline" className="text-xs">{s.contentType}</Badge>}
           {s.angle && <Badge className="text-xs bg-primary/10 text-primary border-0">{s.angle}</Badge>}
+          {s.channels?.map((ch) => (
+            <span key={ch} className="text-xs" title={ch}>
+              {CHANNEL_ICONS[ch.toLowerCase()] || "📢"} {ch}
+            </span>
+          ))}
         </div>
 
         {/* Feedback buttons */}
