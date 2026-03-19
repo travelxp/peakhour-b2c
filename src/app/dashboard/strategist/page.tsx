@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
+import ReactMarkdown from "react-markdown";
 import { api } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -225,23 +226,14 @@ export default function StrategistPage() {
         <div className="space-y-4">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <span>Tools used:</span>
-            {(suggestions.toolsUsed ?? []).map((t, i) => (
-              <Badge key={`${t}-${i}`} variant="secondary" className="text-xs">
-                {label(undefined, t)}
-              </Badge>
-            ))}
+            <ToolBadges tools={suggestions.toolsUsed ?? []} />
             <span className="ml-auto">
               {(suggestions.usage?.totalTokens ?? 0).toLocaleString()} tokens
             </span>
           </div>
           <Card>
             <CardContent className="p-6 prose prose-sm max-w-none">
-              <div
-                className="whitespace-pre-wrap text-sm leading-relaxed"
-                dangerouslySetInnerHTML={{
-                  __html: formatMarkdown(suggestions.suggestions),
-                }}
-              />
+              <MarkdownContent content={suggestions.suggestions} />
             </CardContent>
           </Card>
         </div>
@@ -252,11 +244,7 @@ export default function StrategistPage() {
         <div className="space-y-4">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <span>Tools used:</span>
-            {(brief.toolsUsed ?? []).map((t, i) => (
-              <Badge key={`${t}-${i}`} variant="secondary" className="text-xs">
-                {label(undefined, t)}
-              </Badge>
-            ))}
+            <ToolBadges tools={brief.toolsUsed ?? []} />
           </div>
 
           {brief.brief ? (
@@ -332,12 +320,7 @@ export default function StrategistPage() {
           ) : (
             <Card>
               <CardContent className="p-6 prose prose-sm max-w-none">
-                <div
-                  className="whitespace-pre-wrap text-sm leading-relaxed"
-                  dangerouslySetInnerHTML={{
-                    __html: formatMarkdown(brief.reasoning),
-                  }}
-                />
+                <MarkdownContent content={brief.reasoning} />
               </CardContent>
             </Card>
           )}
@@ -349,20 +332,11 @@ export default function StrategistPage() {
         <div className="space-y-4">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <span>Tools used:</span>
-            {(plan.toolsUsed ?? []).map((t, i) => (
-              <Badge key={`${t}-${i}`} variant="secondary" className="text-xs">
-                {label(undefined, t)}
-              </Badge>
-            ))}
+            <ToolBadges tools={plan.toolsUsed ?? []} />
           </div>
           <Card>
             <CardContent className="p-6 prose prose-sm max-w-none">
-              <div
-                className="whitespace-pre-wrap text-sm leading-relaxed"
-                dangerouslySetInnerHTML={{
-                  __html: formatMarkdown(plan.plan),
-                }}
-              />
+              <MarkdownContent content={plan.plan} />
             </CardContent>
           </Card>
         </div>
@@ -372,16 +346,50 @@ export default function StrategistPage() {
 }
 
 /** Simple markdown-to-HTML for headings, bold, lists */
-function formatMarkdown(text: string): string {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/^### (.+)$/gm, '<h3 class="text-base font-semibold mt-4 mb-2">$1</h3>')
-    .replace(/^## (.+)$/gm, '<h2 class="text-lg font-bold mt-6 mb-2">$1</h2>')
-    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-    .replace(/\*(.+?)\*/g, "<em>$1</em>")
-    .replace(/^- (.+)$/gm, '<li class="ml-4">$1</li>')
-    .replace(/^(\d+)\. (.+)$/gm, '<li class="ml-4"><span class="font-mono text-xs text-muted-foreground">$1.</span> $2</li>')
-    .replace(/---/g, '<hr class="my-4 border-border" />');
+/** Deduplicate tool names and show counts */
+function ToolBadges({ tools }: { tools: string[] }) {
+  const counts = new Map<string, number>();
+  for (const t of tools) {
+    counts.set(t, (counts.get(t) || 0) + 1);
+  }
+  return (
+    <>
+      {Array.from(counts.entries()).map(([name, count]) => (
+        <Badge key={name} variant="secondary" className="text-xs">
+          {label(undefined, name)}
+          {count > 1 && <span className="ml-1 text-muted-foreground">×{count}</span>}
+        </Badge>
+      ))}
+    </>
+  );
+}
+
+/** Styled markdown renderer */
+function MarkdownContent({ content }: { content: string }) {
+  return (
+    <ReactMarkdown
+      components={{
+        h1: ({ children }) => <h1 className="text-xl font-bold mt-6 mb-3">{children}</h1>,
+        h2: ({ children }) => <h2 className="text-lg font-bold mt-5 mb-2">{children}</h2>,
+        h3: ({ children }) => <h3 className="text-base font-semibold mt-4 mb-2">{children}</h3>,
+        p: ({ children }) => <p className="text-sm leading-relaxed mb-3">{children}</p>,
+        strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+        em: ({ children }) => <em className="italic">{children}</em>,
+        ul: ({ children }) => <ul className="list-disc pl-5 mb-3 space-y-1">{children}</ul>,
+        ol: ({ children }) => <ol className="list-decimal pl-5 mb-3 space-y-1">{children}</ol>,
+        li: ({ children }) => <li className="text-sm leading-relaxed">{children}</li>,
+        hr: () => <hr className="my-4 border-border" />,
+        blockquote: ({ children }) => (
+          <blockquote className="border-l-2 border-primary/30 pl-4 my-3 italic text-muted-foreground">
+            {children}
+          </blockquote>
+        ),
+        code: ({ children }) => (
+          <code className="bg-muted px-1.5 py-0.5 rounded text-xs font-mono">{children}</code>
+        ),
+      }}
+    >
+      {content}
+    </ReactMarkdown>
+  );
 }
