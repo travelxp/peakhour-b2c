@@ -1,62 +1,31 @@
-/** Human-readable labels for all tag enum values */
+/**
+ * Human-readable labels for universal enums and content categories.
+ *
+ * Sector, audience, content type, and ad angle labels are now DYNAMIC —
+ * they come from the org's taxonomy via the API. The `label()` function's
+ * fallback (title-case the raw value) handles any value gracefully.
+ */
 
-export const SECTOR_LABELS: Record<string, string> = {
-  aviation: "Aviation",
-  hotels_hospitality: "Hotels & Hospitality",
-  tour_operations: "Tour Operations",
-  ota_travel_tech: "OTA & Travel Tech",
-  tourism_policy: "Tourism Policy",
-  cruise_maritime: "Cruise & Maritime",
-  railways_transport: "Railways & Transport",
-  mice_events: "MICE & Events",
-  travel_insurance_forex: "Travel Insurance & Forex",
-  destination_marketing: "Destination Marketing",
-  aviation_infrastructure: "Aviation Infrastructure",
-  food_beverage: "Food & Beverage",
-  luxury_premium: "Luxury & Premium",
-  budget_economy: "Budget & Economy",
-  medical_tourism: "Medical Tourism",
-  adventure_wildlife: "Adventure & Wildlife",
-  spiritual_pilgrimage: "Spiritual & Pilgrimage",
-  wedding_tourism: "Wedding Tourism",
+/** Content category labels (universal, not org-specific) */
+export const CONTENT_CATEGORY_LABELS: Record<string, string> = {
+  newsletter: "Newsletters",
+  blog_post: "Blog Posts",
+  social_post: "Social Posts",
+  video: "Videos",
+  podcast: "Podcasts",
+  press_release: "Press Releases",
+  product_page: "Product Pages",
+  review: "Reviews",
+  case_study: "Case Studies",
+  email_campaign: "Email Campaigns",
+  webpage: "Web Pages",
+  whitepaper: "Whitepapers",
+  webinar: "Webinars",
+  infographic: "Infographics",
+  other: "Other",
 };
 
-export const AUDIENCE_LABELS: Record<string, string> = {
-  airline_exec: "Airline Executives",
-  hotel_leader: "Hotel Leaders",
-  tour_operator: "Tour Operators",
-  ota_tech: "OTA & Tech",
-  policy_maker: "Policy Makers",
-  embassy_foreign: "Embassy & Foreign Affairs",
-  travel_journalist: "Travel Journalists",
-  mice_organizer: "MICE Organizers",
-  travel_educator: "Travel Educators",
-  infrastructure_developer: "Infrastructure Developers",
-};
-
-export const CONTENT_TYPE_LABELS: Record<string, string> = {
-  breaking_news: "Breaking News",
-  analysis: "Analysis",
-  opinion: "Opinion",
-  data_report: "Data Report",
-  policy_explainer: "Policy Explainer",
-  company_profile: "Company Profile",
-  trend_piece: "Trend Piece",
-  competitive_intelligence: "Competitive Intel",
-  prediction: "Prediction",
-  roundup: "Roundup",
-};
-
-export const AD_ANGLE_LABELS: Record<string, string> = {
-  data_led: "Lead with Data",
-  contrarian: "Contrarian Take",
-  story: "Story-Driven",
-  fomo: "FOMO",
-  value_first: "Value First",
-  competitive: "Competitive Edge",
-  urgency: "Urgency",
-};
-
+/** Sentiment config with colors (universal) */
 export const SENTIMENT_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
   bullish: { label: "Bullish", color: "text-green-700", bg: "bg-green-100" },
   bearish: { label: "Bearish", color: "text-red-700", bg: "bg-red-100" },
@@ -65,6 +34,7 @@ export const SENTIMENT_CONFIG: Record<string, { label: string; color: string; bg
   mixed: { label: "Mixed", color: "text-purple-700", bg: "bg-purple-100" },
 };
 
+/** Shelf life labels (universal) */
 export const SHELF_LIFE_LABELS: Record<string, string> = {
   "24h": "24 Hours",
   "1week": "1 Week",
@@ -72,8 +42,13 @@ export const SHELF_LIFE_LABELS: Record<string, string> = {
   evergreen: "Evergreen",
 };
 
-/** Get a label for any enum value, with fallback to title-cased raw value */
-export function label(map: Record<string, string>, key: string | undefined | null): string {
+/**
+ * Get a human-readable label for any taxonomy value.
+ * Works with both static maps and dynamic org taxonomy values.
+ * Falls back to title-casing the raw value (e.g., "hotels_hospitality" → "Hotels Hospitality").
+ */
+export function label(map: Record<string, string> | undefined, key: string | undefined | null): string {
   if (!key) return "—";
-  return map[key] || key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  if (map && map[key]) return map[key];
+  return key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
