@@ -7,12 +7,14 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { OrgSwitcher } from "@/components/dashboard/org-switcher";
+import { BusinessSwitcher } from "@/components/dashboard/business-switcher";
 import {
   LayoutDashboard,
   FileText,
   Megaphone,
   TrendingUp,
   Sparkles,
+  Brain,
   Plug,
   Settings,
   LogOut,
@@ -22,6 +24,7 @@ import {
 const NAV_ITEMS: { href: string; label: string; icon: LucideIcon }[] = [
   { href: "/dashboard/overview", label: "Overview", icon: LayoutDashboard },
   { href: "/dashboard/content", label: "Content", icon: FileText },
+  { href: "/dashboard/strategist", label: "Strategist", icon: Brain },
   { href: "/dashboard/ads", label: "Ads", icon: Megaphone },
   { href: "/dashboard/outcomes", label: "Outcomes", icon: TrendingUp },
   { href: "/dashboard/optimizer", label: "Optimizer", icon: Sparkles },
@@ -72,6 +75,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           <h1 className="text-lg font-bold tracking-tight">PeakHour</h1>
         </div>
         <OrgSwitcher />
+        <BusinessSwitcher />
         <Separator />
         <nav className="flex-1 px-3 py-3 space-y-0.5">
           {NAV_ITEMS.map((item) => {
