@@ -11,16 +11,21 @@ import { useRouter } from "next/navigation";
 import {
   type AuthUser,
   type AuthOrg,
+  type AuthBusiness,
   type OrgSummary,
+  type BusinessSummary,
   getMe,
   logout as apiLogout,
   switchOrg as apiSwitchOrg,
+  switchBusiness as apiSwitchBusiness,
 } from "@/lib/auth";
 
 interface AuthState {
   user: AuthUser | null;
   org: AuthOrg | null;
   orgs: OrgSummary[];
+  business: AuthBusiness | null;
+  businesses: BusinessSummary[];
   isLoading: boolean;
   isAuthenticated: boolean;
 }
@@ -29,6 +34,7 @@ interface AuthContextValue extends AuthState {
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
   switchOrg: (orgId: string) => Promise<void>;
+  switchBusiness: (businessId: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -39,17 +45,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     user: null,
     org: null,
     orgs: [],
+    business: null,
+    businesses: [],
     isLoading: true,
     isAuthenticated: false,
   });
 
   const refreshUser = useCallback(async () => {
     try {
-      const { user, org, orgs } = await getMe();
+      const { user, org, orgs, business, businesses } = await getMe();
       setState({
         user,
         org,
         orgs: orgs || [],
+        business: business || null,
+        businesses: businesses || [],
         isLoading: false,
         isAuthenticated: true,
       });
@@ -58,6 +68,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user: null,
         org: null,
         orgs: [],
+        business: null,
+        businesses: [],
         isLoading: false,
         isAuthenticated: false,
       });
@@ -79,6 +91,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user: null,
       org: null,
       orgs: [],
+      business: null,
+      businesses: [],
       isLoading: false,
       isAuthenticated: false,
     });
@@ -87,8 +101,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const switchOrg = useCallback(
     async (orgId: string) => {
-      const { org } = await apiSwitchOrg(orgId);
-      setState((prev) => ({ ...prev, org: org as AuthOrg }));
+      await apiSwitchOrg(orgId);
+      await refreshUser();
+    },
+    [refreshUser]
+  );
+
+  const switchBusiness = useCallback(
+    async (businessId: string) => {
+      await apiSwitchBusiness(businessId);
       await refreshUser();
     },
     [refreshUser]
@@ -96,7 +117,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ ...state, logout, refreshUser, switchOrg }}
+      value={{ ...state, logout, refreshUser, switchOrg, switchBusiness }}
     >
       {children}
     </AuthContext.Provider>

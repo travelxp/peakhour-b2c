@@ -26,10 +26,28 @@ export interface OrgSummary {
   role: string;
 }
 
+export interface AuthBusiness {
+  _id: string;
+  name: string;
+  slug: string;
+  businessCategory?: string | null;
+  businessType?: string | null;
+  onboarding?: { completed: boolean };
+}
+
+export interface BusinessSummary {
+  _id: string;
+  name: string;
+  slug: string;
+  businessCategory?: string | null;
+}
+
 export interface MeResponse {
   user: AuthUser;
   org: AuthOrg | null;
   orgs: OrgSummary[];
+  business: AuthBusiness | null;
+  businesses: BusinessSummary[];
 }
 
 export interface VerifyMagicResponse {
@@ -106,4 +124,16 @@ export async function switchOrg(
   orgId: string
 ): Promise<{ org: AuthOrg }> {
   return api.post<{ org: AuthOrg }>("/v1/auth/orgs/switch-org", { orgId });
+}
+
+// ── Businesses ─────────────────────────────────────────────────
+
+export async function getBusinesses(): Promise<BusinessSummary[]> {
+  return api.get<BusinessSummary[]>("/v1/auth/businesses");
+}
+
+export async function switchBusiness(
+  businessId: string
+): Promise<{ _id: string; name: string }> {
+  return api.post<{ _id: string; name: string }>("/v1/auth/businesses/switch", { businessId });
 }
