@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useCallback } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { api } from "@/lib/api";
+import { api, API_BASE_URL } from "@/lib/api";
 import {
   SECTOR_LABELS,
   AUDIENCE_LABELS,
@@ -127,11 +127,22 @@ const DEFAULT_FILTERS: Filters = {
 
 // ── Main Page ────────────────────────────────────────────────────
 
+interface AnalyseProgress {
+  current: number;
+  total: number;
+  title: string;
+  status: "tagged" | "skipped" | "error";
+}
+
 export default function ContentPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const [view, setView] = useState<"card" | "table">("card");
   const [page, setPage] = useState(1);
+  const [analysing, setAnalysing] = useState(false);
+  const [analyseProgress, setAnalyseProgress] = useState<AnalyseProgress | null>(null);
+  const [analyseResult, setAnalyseResult] = useState<string | null>(null);
 
   const queryParams: Record<string, string> = {
     page: String(page),
@@ -165,6 +176,76 @@ export default function ContentPage() {
   const hasActiveFilters = Object.entries(filters).some(
     ([k, v]) => v && k !== "sort"
   );
+  const hasUntagged = stats && stats.tagged < stats.total;
+
+  const startAnalysis = useCallback(async () => {
+    setAnalysing(true);
+    setAnalyseProgress(null);
+    setAnalyseResult(null);
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/v1/content/analyse`, {
+        credentials: "include",
+      });
+
+      if (!res.ok) {
+        const json = await res.json().catch(() => null);
+        setAnalyseResult(json?.error?.message || "Failed to start analysis.");
+        setAnalysing(false);
+        return;
+      }
+
+      const reader = res.body?.getReader();
+      const decoder = new TextDecoder();
+      if (!reader) {
+        setAnalyseResult("Streaming not supported.");
+        setAnalysing(false);
+        return;
+      }
+
+      let buffer = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        // Parse SSE events from buffer
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+        let currentEvent = "";
+
+        for (const line of lines) {
+          if (line.startsWith("event: ")) {
+            currentEvent = line.slice(7).trim();
+          } else if (line.startsWith("data: ")) {
+            const data = line.slice(6).trim();
+            try {
+              const parsed = JSON.parse(data);
+              if (currentEvent === "progress") {
+                setAnalyseProgress(parsed);
+              } else if (currentEvent === "complete") {
+                setAnalyseResult(
+                  `Done! ${parsed.tagged} tagged` +
+                  (parsed.skipped > 0 ? `, ${parsed.skipped} skipped` : "") +
+                  (parsed.errors > 0 ? `, ${parsed.errors} errors` : "") +
+                  "."
+                );
+              }
+            } catch { /* ignore parse errors */ }
+          }
+        }
+      }
+
+      // Refresh queries after analysis
+      queryClient.invalidateQueries({ queryKey: ["content-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["content-library"] });
+      queryClient.invalidateQueries({ queryKey: ["content-gaps"] });
+    } catch (err) {
+      setAnalyseResult("Analysis failed. Please try again.");
+    } finally {
+      setAnalysing(false);
+    }
+  }, [queryClient]);
 
   function updateFilter(key: keyof Filters, value: string) {
     setFilters((prev) => ({ ...prev, [key]: value }));
@@ -180,14 +261,54 @@ export default function ContentPage() {
     <TooltipProvider>
       <div className="space-y-6">
         {/* Header */}
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">
-            Content Intelligence
-          </h2>
-          <p className="text-muted-foreground">
-            Your newsletters, AI-tagged and scored for ad potential
-          </p>
+        <div className="flex items-start justify-between">
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight">
+              Content Intelligence
+            </h2>
+            <p className="text-muted-foreground">
+              Your newsletters, AI-tagged and scored for ad potential
+            </p>
+          </div>
+          {hasUntagged && !analysing && (
+            <Button onClick={startAnalysis}>
+              Analyse {stats.total - stats.tagged} untagged
+            </Button>
+          )}
+          {analysing && (
+            <Button disabled>Analysing...</Button>
+          )}
         </div>
+
+        {/* Analysis progress */}
+        {(analysing || analyseResult) && (
+          <Card className={analyseResult ? "border-green-200 bg-green-50/50" : "border-blue-200 bg-blue-50/50"}>
+            <CardContent className="py-3 px-4">
+              {analysing && analyseProgress ? (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span>
+                      Analysing: <span className="font-medium">{analyseProgress.title}</span>
+                    </span>
+                    <span className="text-muted-foreground">
+                      {analyseProgress.current} / {analyseProgress.total}
+                    </span>
+                  </div>
+                  <Progress value={(analyseProgress.current / analyseProgress.total) * 100} className="h-2" />
+                </div>
+              ) : analysing ? (
+                <p className="text-sm">Starting analysis...</p>
+              ) : analyseResult ? (
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium">{analyseResult}</p>
+                  <Button variant="ghost" size="sm" onClick={() => setAnalyseResult(null)}>
+                    Dismiss
+                  </Button>
+                </div>
+              ) : null}
+            </CardContent>
+          </Card>
+        )}
 
         {/* KPI Strip */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
