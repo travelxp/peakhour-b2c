@@ -132,6 +132,8 @@ interface AnalyseProgress {
   total: number;
   remaining: number;
   batchNum: number;
+  currentTitle: string;
+  currentStatus: "tagged" | "partial" | "error";
 }
 
 export default function ContentPage() {
@@ -208,6 +210,7 @@ export default function ContentPage() {
           errors: number;
           remaining: number;
           done: boolean;
+          processed: { title: string; status: "tagged" | "partial" | "error" }[];
           message: string;
         }>("/v1/content/backfill-tags", isFirstCall && force ? { force: true } : {});
         isFirstCall = false;
@@ -218,12 +221,19 @@ export default function ContentPage() {
         // Capture initial total on first response for stable progress bar
         if (initialTotal === null) initialTotal = result.total;
 
-        setAnalyseProgress({
-          tagged: totalTagged,
-          total: initialTotal,
-          remaining: result.remaining,
-          batchNum,
-        });
+        // Animate through processed titles one by one
+        for (const item of result.processed || []) {
+          setAnalyseProgress({
+            tagged: totalTagged - (result.processed.length - result.processed.indexOf(item) - 1),
+            total: initialTotal,
+            remaining: result.remaining + (result.processed.length - result.processed.indexOf(item) - 1),
+            batchNum,
+            currentTitle: item.title,
+            currentStatus: item.status,
+          });
+          // Brief pause so user can see each title
+          await new Promise((r) => setTimeout(r, 150));
+        }
 
         if (result.done) {
           setAnalyseResult(
@@ -301,15 +311,16 @@ export default function ContentPage() {
               {analysing && analyseProgress ? (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-sm">
-                    <span>
-                      AI tagging in progress (batch {analyseProgress.batchNum})...
+                    <span className="truncate max-w-md">
+                      {analyseProgress.currentStatus === "tagged" ? "✓" : analyseProgress.currentStatus === "partial" ? "◐" : "✗"}{" "}
+                      <span className="font-medium">{analyseProgress.currentTitle}</span>
                     </span>
-                    <span className="text-muted-foreground font-medium">
-                      {analyseProgress.tagged} tagged, {analyseProgress.remaining} remaining
+                    <span className="text-muted-foreground font-medium shrink-0 ml-2">
+                      {analyseProgress.tagged} / {analyseProgress.total}
                     </span>
                   </div>
                   <Progress
-                    value={analyseProgress.total > 0 ? ((analyseProgress.tagged) / analyseProgress.total) * 100 : 0}
+                    value={analyseProgress.total > 0 ? (analyseProgress.tagged / analyseProgress.total) * 100 : 0}
                     className="h-2"
                   />
                 </div>
