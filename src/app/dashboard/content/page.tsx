@@ -138,7 +138,7 @@ export default function ContentPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
-  const [view, setView] = useState<"card" | "table">("card");
+  const [view, setView] = useState<"card" | "table">("table");
   const [page, setPage] = useState(1);
   const [analysing, setAnalysing] = useState(false);
   const [analyseProgress, setAnalyseProgress] = useState<AnalyseProgress | null>(null);
