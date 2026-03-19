@@ -933,14 +933,21 @@ function AdScoreBar({ score }: { score?: number }) {
   );
 }
 
+// ~12s per AI call (Gemini 2.0 Flash) for first chunk of 5.
+// 12 messages × 2.5s = 30s coverage (12s + 150% buffer) before first result streams.
 const LOADING_MESSAGES = [
   "Warming up AI engines...",
-  "Reading your newsletters...",
-  "Identifying sectors and companies...",
-  "Scoring ad potential...",
-  "Mapping audience relevance...",
-  "Extracting key metrics...",
+  "Reading your content library...",
+  "Sending content to AI for analysis...",
+  "Identifying industry sectors...",
+  "Mapping companies and people mentioned...",
+  "Extracting key metrics and data points...",
+  "Scoring ad potential for each article...",
+  "Mapping audience relevance per segment...",
   "Analysing sentiment and urgency...",
+  "Cross-referencing with your taxonomy...",
+  "Finalising 12-dimension analysis...",
+  "Almost there — first results coming...",
 ];
 
 function AnalysingPlaceholder() {
