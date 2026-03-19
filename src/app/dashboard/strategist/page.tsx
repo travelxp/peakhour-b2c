@@ -464,10 +464,7 @@ function ToolBadges({ tools }: { tools: string[] }) {
 }
 
 /** Styled markdown renderer */
-const CHANNEL_ICONS: Record<string, string> = {
-  newsletter: "📧", linkedin: "💼", x: "𝕏", instagram: "📷",
-  blog: "📝", youtube: "▶️", facebook: "📘", tiktok: "🎵",
-};
+import { ChannelIcon } from "@/components/ui/channel-icon";
 
 function SuggestionCard({ suggestion: s, index, initialStatus }: { suggestion: Suggestion; index: number; initialStatus?: string }) {
   const [feedbackSent, setFeedbackSent] = useState<string | null>(
@@ -525,9 +522,7 @@ function SuggestionCard({ suggestion: s, index, initialStatus }: { suggestion: S
           {s.contentType && <Badge variant="outline" className="text-xs max-w-50 truncate">{s.contentType}</Badge>}
           {s.angle && <Badge className="text-xs bg-primary/10 text-primary border-0 max-w-50 truncate">{s.angle}</Badge>}
           {s.channels?.map((ch) => (
-            <span key={ch} className="text-xs" title={ch}>
-              {CHANNEL_ICONS[ch.toLowerCase()] || "📢"} {ch}
-            </span>
+            <ChannelIcon key={ch} channel={ch} size={14} />
           ))}
         </div>
 

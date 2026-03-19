@@ -29,10 +29,7 @@ interface CalendarIdea {
   createdAt: string;
 }
 
-const CHANNEL_ICONS: Record<string, string> = {
-  newsletter: "📧", linkedin: "💼", x: "𝕏", instagram: "📷",
-  blog: "📝", youtube: "▶️", facebook: "📘", tiktok: "🎵",
-};
+import { ChannelIconCompact } from "@/components/ui/channel-icon";
 
 const STATUS_COLORS: Record<string, string> = {
   brainstorm: "bg-slate-100 border-slate-200",
@@ -198,9 +195,7 @@ function CalendarCard({ idea, compact }: { idea: CalendarIdea; compact?: boolean
 
       <div className="flex flex-wrap items-center gap-1 mt-1.5">
         {idea.channels?.map((ch) => (
-          <span key={ch} className="text-xs" title={ch}>
-            {CHANNEL_ICONS[ch.toLowerCase()] || "📢"}
-          </span>
+          <ChannelIconCompact key={ch} channel={ch} size={12} />
         ))}
         {idea.aiScore && (
           <span className={`text-xs font-bold ml-auto ${
@@ -263,7 +258,7 @@ function MonthView({ ideas, ideasByDate, today }: { ideas: CalendarIdea[]; ideas
                   <p className="text-[10px] leading-tight line-clamp-1 font-medium">{idea.title}</p>
                   <div className="flex gap-0.5">
                     {idea.channels?.slice(0, 3).map((ch) => (
-                      <span key={ch} className="text-[9px]">{CHANNEL_ICONS[ch.toLowerCase()] || ""}</span>
+                      <ChannelIconCompact key={ch} channel={ch} size={10} />
                     ))}
                   </div>
                 </div>
