@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { api } from "@/lib/api";
+import { api, API_BASE_URL } from "@/lib/api";
 import {
   SECTOR_LABELS,
   AUDIENCE_LABELS,
@@ -181,7 +181,7 @@ export default function ContentPage() {
   const hasUntagged = stats && stats.tagged < stats.total;
   const cancelRef = useRef(false);
 
-  const startAnalysis = useCallback(async (force: boolean) => {
+  const startAnalysis = useCallback((force: boolean) => {
     if (force) {
       const confirmed = window.confirm(
         "This will delete all existing AI tags and re-analyse every newsletter from scratch. Continue?"
@@ -194,72 +194,89 @@ export default function ContentPage() {
     setAnalyseResult(null);
     cancelRef.current = false;
 
-    let totalTagged = 0;
-    let totalErrors = 0;
-    let batchNum = 0;
-    let initialTotal: number | null = null;
-    let isFirstCall = true;
+    const url = `${API_BASE_URL}/v1/content/analyse${force ? "?force=true" : ""}`;
 
-    try {
-      while (!cancelRef.current) {
-        batchNum++;
-        const result = await api.post<{
-          total: number;
-          tagged: number;
-          skipped: number;
-          errors: number;
-          remaining: number;
-          done: boolean;
-          processed: { title: string; status: "tagged" | "partial" | "error" }[];
-          message: string;
-        }>("/v1/content/backfill-tags", isFirstCall && force ? { force: true } : {});
-        isFirstCall = false;
-
-        totalTagged += result.tagged;
-        totalErrors += result.errors;
-
-        // Capture initial total on first response for stable progress bar
-        if (initialTotal === null) initialTotal = result.total;
-
-        // Animate through processed titles one by one
-        for (const item of result.processed || []) {
-          setAnalyseProgress({
-            tagged: totalTagged - (result.processed.length - result.processed.indexOf(item) - 1),
-            total: initialTotal,
-            remaining: result.remaining + (result.processed.length - result.processed.indexOf(item) - 1),
-            batchNum,
-            currentTitle: item.title,
-            currentStatus: item.status,
-          });
-          // Brief pause so user can see each title
-          await new Promise((r) => setTimeout(r, 150));
+    // Use fetch with ReadableStream for SSE (EventSource doesn't send cookies)
+    fetch(url, { credentials: "include" })
+      .then(async (res) => {
+        if (!res.ok) {
+          const json = await res.json().catch(() => null);
+          setAnalyseResult(json?.error?.message || "Failed to start analysis.");
+          setAnalysing(false);
+          return;
         }
 
-        if (result.done) {
-          setAnalyseResult(
-            `All done! ${totalTagged} newsletters tagged with AI insights.` +
-            (totalErrors > 0 ? ` ${totalErrors} had issues (marked for retry).` : "")
-          );
-          break;
+        const reader = res.body?.getReader();
+        if (!reader) {
+          setAnalyseResult("Streaming not supported.");
+          setAnalysing(false);
+          return;
         }
-      }
 
-      if (cancelRef.current) {
-        setAnalyseResult(`Paused after ${totalTagged} tagged. Click Analyse to continue.`);
-      }
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let eventType = "";
 
-      // Refresh all queries
-      queryClient.invalidateQueries({ queryKey: ["content-stats"] });
-      queryClient.invalidateQueries({ queryKey: ["content-library"] });
-      queryClient.invalidateQueries({ queryKey: ["content-gaps"] });
-    } catch (err) {
-      const msg = totalTagged > 0
-        ? `Tagged ${totalTagged} so far. Paused — click Analyse to continue.`
-        : "Analysis failed. Please try again.";
-      setAnalyseResult(msg);
-    } finally {
-      setAnalysing(false);
-    }
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (cancelRef.current) {
+            reader.cancel();
+            break;
+          }
+
+          buffer += decoder.decode(value, { stream: true });
+
+          // SSE format: "event: X\ndata: Y\nid: Z\n\n"
+          // Split on double newline to get complete events
+          const events = buffer.split("\n\n");
+          buffer = events.pop() || ""; // Last element is incomplete
+
+          for (const event of events) {
+            const lines = event.split("\n");
+            let data = "";
+            for (const line of lines) {
+              if (line.startsWith("event:")) eventType = line.slice(6).trim();
+              else if (line.startsWith("data:")) data = line.slice(5).trim();
+            }
+
+            if (!data) continue;
+            try {
+              const parsed = JSON.parse(data);
+
+              if (eventType === "progress") {
+                setAnalyseProgress({
+                  tagged: parsed.tagged,
+                  total: parsed.total,
+                  remaining: parsed.remaining,
+                  batchNum: 0,
+                  currentTitle: parsed.title,
+                  currentStatus: parsed.status,
+                });
+              } else if (eventType === "complete") {
+                setAnalyseResult(
+                  `All done! ${parsed.tagged} newsletters tagged with AI insights.` +
+                  (parsed.skipped > 0 ? ` ${parsed.skipped} partially tagged.` : "") +
+                  (parsed.errors > 0 ? ` ${parsed.errors} failed.` : "")
+                );
+              }
+            } catch { /* skip malformed events */ }
+          }
+        }
+
+        if (cancelRef.current) {
+          setAnalyseResult("Analysis cancelled. Click Analyse to continue with remaining.");
+        }
+
+        queryClient.invalidateQueries({ queryKey: ["content-stats"] });
+        queryClient.invalidateQueries({ queryKey: ["content-library"] });
+        queryClient.invalidateQueries({ queryKey: ["content-gaps"] });
+        setAnalysing(false);
+      })
+      .catch(() => {
+        setAnalyseResult("Analysis failed. Please try again.");
+        setAnalysing(false);
+      });
   }, [queryClient]);
 
   function updateFilter(key: keyof Filters, value: string) {
@@ -325,7 +342,7 @@ export default function ContentPage() {
                   />
                 </div>
               ) : analysing ? (
-                <p className="text-sm">Starting AI analysis...</p>
+                <AnalysingPlaceholder />
               ) : analyseResult ? (
                 <div className="flex items-center justify-between">
                   <p className="text-sm font-medium">{analyseResult}</p>
@@ -903,6 +920,36 @@ function AdScoreBar({ score }: { score?: number }) {
         <p>Ad Potential Score: {score}/10</p>
       </TooltipContent>
     </Tooltip>
+  );
+}
+
+const LOADING_MESSAGES = [
+  "Warming up AI engines...",
+  "Reading your newsletters...",
+  "Identifying sectors and companies...",
+  "Scoring ad potential...",
+  "Mapping audience relevance...",
+  "Extracting key metrics...",
+  "Analysing sentiment and urgency...",
+];
+
+function AnalysingPlaceholder() {
+  const [msgIndex, setMsgIndex] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setMsgIndex((i) => (i + 1) % LOADING_MESSAGES.length);
+    }, 2500);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className="space-y-2">
+      <p className="text-sm animate-pulse">{LOADING_MESSAGES[msgIndex]}</p>
+      <div className="h-2 rounded-full bg-muted overflow-hidden">
+        <div className="h-full w-1/3 rounded-full bg-primary/40 animate-[shimmer_2s_ease-in-out_infinite]" />
+      </div>
+    </div>
   );
 }
 
