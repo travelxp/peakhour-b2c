@@ -63,7 +63,7 @@ export function BusinessSwitcher() {
 
       {open && (
         <>
-          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="fixed inset-0 z-10" aria-hidden="true" tabIndex={-1} onClick={() => setOpen(false)} />
           <div
             role="listbox"
             className="absolute left-0 right-0 z-20 mt-1 rounded-md border bg-popover p-1 shadow-md"
