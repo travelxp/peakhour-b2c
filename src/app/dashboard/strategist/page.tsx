@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import React, { useState, useCallback, useRef, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import ReactMarkdown from "react-markdown";
@@ -465,6 +465,7 @@ function ToolBadges({ tools }: { tools: string[] }) {
 
 /** Styled markdown renderer */
 import { ChannelIcon } from "@/components/ui/channel-icon";
+import { ContentLinkedText } from "@/components/ui/content-ref";
 
 function SuggestionCard({ suggestion: s, index, initialStatus }: { suggestion: Suggestion; index: number; initialStatus?: string }) {
   const [feedbackSent, setFeedbackSent] = useState<string | null>(
@@ -521,10 +522,17 @@ function SuggestionCard({ suggestion: s, index, initialStatus }: { suggestion: S
           )}
           {s.contentType && <Badge variant="outline" className="text-xs max-w-50 truncate">{s.contentType}</Badge>}
           {s.angle && <Badge className="text-xs bg-primary/10 text-primary border-0 max-w-50 truncate">{s.angle}</Badge>}
-          {s.channels?.map((ch) => (
-            <ChannelIcon key={ch} channel={ch} size={14} />
-          ))}
         </div>
+
+        {/* Channels — separate line */}
+        {s.channels && s.channels.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs text-muted-foreground">Publish on:</span>
+            {s.channels.map((ch) => (
+              <ChannelIcon key={ch} channel={ch} size={14} />
+            ))}
+          </div>
+        )}
 
         {/* Feedback buttons */}
         {!feedbackSent && s._id && (
@@ -594,19 +602,43 @@ function SuggestionCard({ suggestion: s, index, initialStatus }: { suggestion: S
   );
 }
 
+/** Walk React children, find text nodes with #\d+ patterns, wrap with ContentLinkedText */
+function LinkifyContentRefs({ children }: { children: React.ReactNode }) {
+  return (
+    <>
+      {React.Children.map(children, (child) => {
+        if (typeof child === "string" && /#\d+/.test(child)) {
+          return <ContentLinkedText text={child} />;
+        }
+        return child;
+      })}
+    </>
+  );
+}
+
 function MarkdownContent({ content }: { content: string }) {
+  // Pre-process: apply content reference linking to the raw text
+  // ContentLinkedText will parse #24 patterns into hoverable links
   return (
     <ReactMarkdown
       components={{
         h1: ({ children }) => <h1 className="text-xl font-bold mt-6 mb-3">{children}</h1>,
         h2: ({ children }) => <h2 className="text-lg font-bold mt-5 mb-2">{children}</h2>,
         h3: ({ children }) => <h3 className="text-base font-semibold mt-4 mb-2">{children}</h3>,
-        p: ({ children }) => <p className="text-sm leading-relaxed mb-3">{children}</p>,
+        p: ({ children }) => (
+          <p className="text-sm leading-relaxed mb-3">
+            <LinkifyContentRefs>{children}</LinkifyContentRefs>
+          </p>
+        ),
         strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
         em: ({ children }) => <em className="italic">{children}</em>,
         ul: ({ children }) => <ul className="list-disc pl-5 mb-3 space-y-1">{children}</ul>,
         ol: ({ children }) => <ol className="list-decimal pl-5 mb-3 space-y-1">{children}</ol>,
-        li: ({ children }) => <li className="text-sm leading-relaxed">{children}</li>,
+        li: ({ children }) => (
+          <li className="text-sm leading-relaxed">
+            <LinkifyContentRefs>{children}</LinkifyContentRefs>
+          </li>
+        ),
         hr: () => <hr className="my-4 border-border" />,
         blockquote: ({ children }) => (
           <blockquote className="border-l-2 border-primary/30 pl-4 my-3 italic text-muted-foreground">
