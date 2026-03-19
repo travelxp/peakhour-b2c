@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import { api, API_BASE_URL } from "@/lib/api";
+import { useState, useCallback, useRef } from "react";
+import { api } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -44,6 +44,16 @@ interface BriefResponse {
   usage: { inputTokens: number; outputTokens: number; totalTokens: number };
 }
 
+const LOADING_MESSAGES = [
+  "Analysing your content library...",
+  "Checking audience gaps...",
+  "Scanning seasonal events...",
+  "Scoring content ideas...",
+  "Generating data-driven suggestions...",
+  "Evaluating ad potential...",
+  "Building your strategy...",
+];
+
 // ── Main Page ────────────────────────────────────────────────
 
 export default function StrategistPage() {
@@ -62,18 +72,20 @@ export default function StrategistPage() {
   const [plan, setPlan] = useState<{ plan: string; toolsUsed: string[] } | null>(null);
 
   const [loadingMessage, setLoadingMessage] = useState("");
-
-  const LOADING_MESSAGES = [
-    "Analysing your content library...",
-    "Checking audience gaps...",
-    "Scanning seasonal events...",
-    "Scoring content ideas...",
-    "Generating data-driven suggestions...",
-    "Evaluating ad potential...",
-    "Building your strategy...",
-  ];
+  const abortRef = useRef<AbortController | null>(null);
 
   const runAgent = useCallback(async () => {
+    // Validate before starting (prevents loading flicker)
+    if (mode === "brief" && !topic.trim()) {
+      setError("Enter a topic for the brief.");
+      return;
+    }
+
+    // Abort any in-flight request
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     setLoading(true);
     setError("");
     setSuggestions(null);
@@ -89,34 +101,36 @@ export default function StrategistPage() {
     }, 3000);
 
     try {
+      if (controller.signal.aborted) return;
+
       if (mode === "suggest") {
         const result = await api.post<SuggestResponse>(
           "/v1/content/suggest",
           topic ? { topic } : {}
         );
-        setSuggestions(result);
+        if (!controller.signal.aborted) setSuggestions(result);
       } else if (mode === "brief") {
-        if (!topic.trim()) {
-          setError("Enter a topic for the brief.");
-          return;
-        }
         const result = await api.post<BriefResponse>(
           "/v1/content/brief",
           { topic }
         );
-        setBrief(result);
+        if (!controller.signal.aborted) setBrief(result);
       } else if (mode === "plan") {
         const result = await api.get<{ plan: string; toolsUsed: string[] }>(
           "/v1/content/weekly-plan"
         );
-        setPlan(result);
+        if (!controller.signal.aborted) setPlan(result);
       }
     } catch (err: any) {
-      setError(err.message || "Failed to get AI response. Please try again.");
+      if (!controller.signal.aborted) {
+        setError(err.message || "Failed to get AI response. Please try again.");
+      }
     } finally {
       clearInterval(interval);
-      setLoading(false);
-      setLoadingMessage("");
+      if (!controller.signal.aborted) {
+        setLoading(false);
+        setLoadingMessage("");
+      }
     }
   }, [mode, topic]);
 
@@ -211,13 +225,13 @@ export default function StrategistPage() {
         <div className="space-y-4">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <span>Tools used:</span>
-            {suggestions.toolsUsed.map((t, i) => (
+            {(suggestions.toolsUsed ?? []).map((t, i) => (
               <Badge key={`${t}-${i}`} variant="secondary" className="text-xs">
                 {label(undefined, t)}
               </Badge>
             ))}
             <span className="ml-auto">
-              {suggestions.usage.totalTokens.toLocaleString()} tokens
+              {(suggestions.usage?.totalTokens ?? 0).toLocaleString()} tokens
             </span>
           </div>
           <Card>
@@ -238,7 +252,7 @@ export default function StrategistPage() {
         <div className="space-y-4">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <span>Tools used:</span>
-            {brief.toolsUsed.map((t, i) => (
+            {(brief.toolsUsed ?? []).map((t, i) => (
               <Badge key={`${t}-${i}`} variant="secondary" className="text-xs">
                 {label(undefined, t)}
               </Badge>
@@ -281,7 +295,7 @@ export default function StrategistPage() {
                 <div>
                   <p className="text-xs font-medium text-muted-foreground uppercase mb-2">Key Data Points</p>
                   <ul className="space-y-1">
-                    {brief.brief.keyDataPoints.map((dp, i) => (
+                    {(brief.brief.keyDataPoints ?? []).map((dp, i) => (
                       <li key={i} className="text-sm flex gap-2">
                         <span className="text-muted-foreground">•</span>
                         {dp}
@@ -293,7 +307,7 @@ export default function StrategistPage() {
                 <div>
                   <p className="text-xs font-medium text-muted-foreground uppercase mb-2">Outline</p>
                   <ol className="space-y-1">
-                    {brief.brief.outline.map((section, i) => (
+                    {(brief.brief.outline ?? []).map((section, i) => (
                       <li key={i} className="text-sm flex gap-2">
                         <span className="text-muted-foreground font-mono text-xs">{i + 1}.</span>
                         {section}
@@ -335,7 +349,7 @@ export default function StrategistPage() {
         <div className="space-y-4">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <span>Tools used:</span>
-            {plan.toolsUsed.map((t, i) => (
+            {(plan.toolsUsed ?? []).map((t, i) => (
               <Badge key={`${t}-${i}`} variant="secondary" className="text-xs">
                 {label(undefined, t)}
               </Badge>
