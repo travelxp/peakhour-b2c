@@ -1,8 +1,20 @@
 "use client";
 
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import {
+  SECTOR_LABELS,
+  AUDIENCE_LABELS,
+  CONTENT_TYPE_LABELS,
+  SENTIMENT_CONFIG,
+  SHELF_LIFE_LABELS,
+  AD_ANGLE_LABELS,
+  label,
+} from "@/lib/content-labels";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -10,6 +22,16 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -19,25 +41,51 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+
+// ── Types ────────────────────────────────────────────────────────
+
+interface TagSummary {
+  sectors: { name: string; weight: number }[];
+  companies: { name: string; role: string; sentiment?: string }[];
+  contentType: string;
+  sentiment: string;
+  shelfLife: string;
+  adPotentialScore: number;
+  adPotentialAngle?: string;
+  topKeywords: string[];
+  audienceRelevance: { segment: string; relevance: number }[];
+}
 
 interface Draft {
   _id: string;
   title: string;
+  subtitle?: string;
   source: string;
   status: string;
   publishedAt: string;
-  autoTags?: {
-    sectors?: string[];
-    companies?: string[];
-    contentType?: string;
-    sentiment?: string;
-    adPotentialScore?: number;
-    topKeywords?: string[];
-  };
-  beehiivMeta?: {
-    webUrl?: string;
-    thumbnailUrl?: string;
-  };
+  webUrl?: string;
+  thumbnailUrl?: string;
+  readingTimeMin?: number;
+  tags: TagSummary | null;
+}
+
+interface ContentStats {
+  total: number;
+  tagged: number;
+  taggedPercent: number;
+  highPotential: number;
+  avgAdScore: number;
+  evergreenPercent: number;
+  sectorDiversity: number;
+  contentReadinessScore: number;
+  shelfLifeDistribution: Record<string, number>;
+  sentimentDistribution: Record<string, number>;
 }
 
 interface GapAnalysis {
@@ -46,22 +94,66 @@ interface GapAnalysis {
   highPotentialUnused: {
     newsletterId: string;
     newsletterTitle: string;
-    adPotential: { score: number };
+    adPotential: { score: number; bestAngle?: string; bestHook?: string };
+    sectors: { name: string; weight: number }[];
   }[];
+  keywordFrequency: { _id: string; count: number }[];
+  contentTypeDistribution: { _id: string; count: number }[];
+  shelfLifeDistribution: { _id: string; count: number }[];
+  recommendations: string[];
 }
 
-function AdScoreBadge({ score }: { score?: number }) {
-  if (!score) return <Badge variant="outline">Untagged</Badge>;
-  if (score >= 8) return <Badge className="bg-green-600">Ad Score: {score}</Badge>;
-  if (score >= 5) return <Badge className="bg-yellow-600">Ad Score: {score}</Badge>;
-  return <Badge variant="secondary">Ad Score: {score}</Badge>;
+// ── Filters ──────────────────────────────────────────────────────
+
+interface Filters {
+  search: string;
+  sector: string;
+  contentType: string;
+  sentiment: string;
+  shelfLife: string;
+  minAdScore: string;
+  sort: string;
 }
+
+const DEFAULT_FILTERS: Filters = {
+  search: "",
+  sector: "",
+  contentType: "",
+  sentiment: "",
+  shelfLife: "",
+  minAdScore: "",
+  sort: "publishedAt_desc",
+};
+
+// ── Main Page ────────────────────────────────────────────────────
 
 export default function ContentPage() {
-  const { data: library, isLoading } = useQuery({
-    queryKey: ["content-library"],
+  const router = useRouter();
+  const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
+  const [view, setView] = useState<"card" | "table">("card");
+  const [page, setPage] = useState(1);
+
+  const queryParams: Record<string, string> = {
+    page: String(page),
+    limit: view === "card" ? "12" : "20",
+  };
+  if (filters.search) queryParams.search = filters.search;
+  if (filters.sector) queryParams.sector = filters.sector;
+  if (filters.contentType) queryParams.contentType = filters.contentType;
+  if (filters.sentiment) queryParams.sentiment = filters.sentiment;
+  if (filters.shelfLife) queryParams.shelfLife = filters.shelfLife;
+  if (filters.minAdScore) queryParams.minAdScore = filters.minAdScore;
+  if (filters.sort) queryParams.sort = filters.sort;
+
+  const { data: stats, isLoading: statsLoading } = useQuery({
+    queryKey: ["content-stats"],
+    queryFn: () => api.get<ContentStats>("/v1/content/stats"),
+  });
+
+  const { data: libraryRes, isLoading: libraryLoading } = useQuery({
+    queryKey: ["content-library", queryParams],
     queryFn: () =>
-      api.get<Draft[]>("/v1/content/library", { limit: "50" }),
+      api.get<Draft[]>("/v1/content/library", queryParams),
   });
 
   const { data: gaps } = useQuery({
@@ -69,133 +161,342 @@ export default function ContentPage() {
     queryFn: () => api.get<GapAnalysis>("/v1/content/gaps"),
   });
 
+  const library = libraryRes || [];
+  const hasActiveFilters = Object.entries(filters).some(
+    ([k, v]) => v && k !== "sort"
+  );
+
+  function updateFilter(key: keyof Filters, value: string) {
+    setFilters((prev) => ({ ...prev, [key]: value }));
+    setPage(1);
+  }
+
+  function clearFilters() {
+    setFilters(DEFAULT_FILTERS);
+    setPage(1);
+  }
+
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold">Content Intelligence</h2>
-        <p className="text-muted-foreground">
-          Your newsletters, automatically tagged and analyzed for ad potential
-        </p>
-      </div>
+    <TooltipProvider>
+      <div className="space-y-6">
+        {/* Header */}
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">
+            Content Intelligence
+          </h2>
+          <p className="text-muted-foreground">
+            Your newsletters, AI-tagged and scored for ad potential
+          </p>
+        </div>
 
-      <Tabs defaultValue="library">
-        <TabsList>
-          <TabsTrigger value="library">Library</TabsTrigger>
-          <TabsTrigger value="gaps">Content Gaps</TabsTrigger>
-        </TabsList>
+        {/* KPI Strip */}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <KpiCard
+            title="Content Library"
+            value={stats?.total}
+            subtitle={stats ? `from ${stats.total > 0 ? "Beehiiv" : "no source"}` : undefined}
+            loading={statsLoading}
+          />
+          <KpiCard
+            title="AI Tagged"
+            value={stats ? `${stats.taggedPercent}%` : undefined}
+            subtitle={stats ? `${stats.tagged} of ${stats.total} articles` : undefined}
+            loading={statsLoading}
+          />
+          <KpiCard
+            title="Content Readiness"
+            value={stats ? `${stats.contentReadinessScore}` : undefined}
+            subtitle="Weighted score (0-100)"
+            loading={statsLoading}
+            progress={stats?.contentReadinessScore}
+          />
+          <KpiCard
+            title="Ad-Ready"
+            value={stats?.highPotential}
+            subtitle={`Score 7+ (avg ${stats?.avgAdScore ?? "—"})`}
+            loading={statsLoading}
+          />
+        </div>
 
-        <TabsContent value="library" className="mt-4">
-          {isLoading ? (
-            <p className="text-muted-foreground">Loading content...</p>
-          ) : !library?.length ? (
-            <Card>
-              <CardContent className="py-12 text-center">
-                <p className="text-muted-foreground">
-                  No content synced yet. Connect your Beehiiv account in
-                  Settings to get started.
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            <Card>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[45%]">Title</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Sectors</TableHead>
-                    <TableHead>Ad Score</TableHead>
-                    <TableHead>Published</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {library.map((draft) => (
-                    <TableRow key={draft._id}>
-                      <TableCell className="font-medium">
-                        {draft.beehiivMeta?.webUrl ? (
-                          <a
-                            href={draft.beehiivMeta.webUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="hover:underline"
-                          >
-                            {draft.title}
-                          </a>
-                        ) : (
-                          draft.title
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {draft.autoTags?.contentType ? (
-                          <Badge variant="outline">
-                            {draft.autoTags.contentType}
-                          </Badge>
-                        ) : (
-                          <span className="text-muted-foreground">--</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap gap-1">
-                          {draft.autoTags?.sectors?.slice(0, 2).map((s) => (
-                            <Badge key={s} variant="secondary" className="text-xs">
-                              {s}
-                            </Badge>
-                          )) || (
-                            <span className="text-muted-foreground">--</span>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <AdScoreBadge score={draft.autoTags?.adPotentialScore} />
-                      </TableCell>
-                      <TableCell className="text-muted-foreground text-sm">
-                        {draft.publishedAt
-                          ? new Date(draft.publishedAt).toLocaleDateString()
-                          : "--"}
-                      </TableCell>
+        {/* Tabs */}
+        <Tabs defaultValue="library">
+          <TabsList>
+            <TabsTrigger value="library">Library</TabsTrigger>
+            <TabsTrigger value="intelligence">Intelligence</TabsTrigger>
+          </TabsList>
+
+          {/* ── Library Tab ─────────────────────────────────── */}
+          <TabsContent value="library" className="mt-4 space-y-4">
+            {/* Filter Bar */}
+            <div className="flex flex-wrap items-center gap-2">
+              <Input
+                placeholder="Search articles..."
+                value={filters.search}
+                onChange={(e) => updateFilter("search", e.target.value)}
+                className="w-48"
+              />
+              <FilterSelect
+                placeholder="Sector"
+                value={filters.sector}
+                onChange={(v) => updateFilter("sector", v)}
+                options={Object.entries(SECTOR_LABELS)}
+              />
+              <FilterSelect
+                placeholder="Type"
+                value={filters.contentType}
+                onChange={(v) => updateFilter("contentType", v)}
+                options={Object.entries(CONTENT_TYPE_LABELS)}
+              />
+              <FilterSelect
+                placeholder="Sentiment"
+                value={filters.sentiment}
+                onChange={(v) => updateFilter("sentiment", v)}
+                options={Object.entries(SENTIMENT_CONFIG).map(([k, v]) => [k, v.label])}
+              />
+              <FilterSelect
+                placeholder="Min Ad Score"
+                value={filters.minAdScore}
+                onChange={(v) => updateFilter("minAdScore", v)}
+                options={[["5", "5+"], ["6", "6+"], ["7", "7+"], ["8", "8+"], ["9", "9+"]]}
+              />
+              <FilterSelect
+                placeholder="Sort"
+                value={filters.sort}
+                onChange={(v) => updateFilter("sort", v)}
+                options={[
+                  ["publishedAt_desc", "Newest first"],
+                  ["publishedAt_asc", "Oldest first"],
+                  ["adScore_desc", "Highest ad score"],
+                  ["title_asc", "Title A-Z"],
+                ]}
+              />
+
+              {/* View toggle */}
+              <div className="ml-auto flex gap-1">
+                <Button
+                  variant={view === "card" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setView("card")}
+                >
+                  Cards
+                </Button>
+                <Button
+                  variant={view === "table" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setView("table")}
+                >
+                  Table
+                </Button>
+              </div>
+            </div>
+
+            {hasActiveFilters && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">
+                  Active filters:
+                </span>
+                <Button variant="ghost" size="sm" onClick={clearFilters}>
+                  Clear all
+                </Button>
+              </div>
+            )}
+
+            {/* Loading skeleton */}
+            {libraryLoading ? (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <Card key={i}>
+                    <CardContent className="p-4 space-y-3">
+                      <Skeleton className="h-4 w-3/4" />
+                      <Skeleton className="h-3 w-1/2" />
+                      <div className="flex gap-2">
+                        <Skeleton className="h-5 w-16" />
+                        <Skeleton className="h-5 w-16" />
+                      </div>
+                      <Skeleton className="h-2 w-full" />
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : library.length === 0 ? (
+              <Card>
+                <CardContent className="py-16 text-center">
+                  <p className="text-lg font-medium mb-2">
+                    {hasActiveFilters
+                      ? "No articles match your filters"
+                      : "No content synced yet"}
+                  </p>
+                  <p className="text-muted-foreground text-sm mb-4">
+                    {hasActiveFilters
+                      ? "Try adjusting your filters or clearing them."
+                      : "Connect your Beehiiv account in Settings to get started."}
+                  </p>
+                  {hasActiveFilters && (
+                    <Button variant="outline" onClick={clearFilters}>
+                      Clear filters
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
+            ) : view === "card" ? (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {library.map((draft) => (
+                  <ArticleCard
+                    key={draft._id}
+                    draft={draft}
+                    onClick={() =>
+                      router.push(`/dashboard/content/${draft._id}`)
+                    }
+                  />
+                ))}
+              </div>
+            ) : (
+              <Card>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[35%]">Title</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Sectors</TableHead>
+                      <TableHead>Sentiment</TableHead>
+                      <TableHead>Ad Score</TableHead>
+                      <TableHead>Shelf Life</TableHead>
+                      <TableHead>Published</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </Card>
-          )}
-        </TabsContent>
+                  </TableHeader>
+                  <TableBody>
+                    {library.map((draft) => (
+                      <TableRow
+                        key={draft._id}
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() =>
+                          router.push(`/dashboard/content/${draft._id}`)
+                        }
+                      >
+                        <TableCell className="font-medium">
+                          {draft.title}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="text-xs">
+                            {label(CONTENT_TYPE_LABELS, draft.tags?.contentType)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap gap-1">
+                            {draft.tags?.sectors?.slice(0, 2).map((s) => (
+                              <Badge
+                                key={s.name}
+                                variant="secondary"
+                                className="text-xs"
+                              >
+                                {label(SECTOR_LABELS, s.name)}
+                              </Badge>
+                            )) ?? (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <SentimentBadge value={draft.tags?.sentiment} />
+                        </TableCell>
+                        <TableCell>
+                          <AdScoreBar score={draft.tags?.adPotentialScore} />
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {label(SHELF_LIFE_LABELS, draft.tags?.shelfLife)}
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {draft.publishedAt
+                            ? new Date(draft.publishedAt).toLocaleDateString()
+                            : "—"}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </Card>
+            )}
 
-        <TabsContent value="gaps" className="mt-4 space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
+            {/* Pagination */}
+            {library.length > 0 && (
+              <div className="flex items-center justify-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => p - 1)}
+                >
+                  Previous
+                </Button>
+                <span className="text-sm text-muted-foreground">
+                  Page {page}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={library.length < (view === "card" ? 12 : 20)}
+                  onClick={() => setPage((p) => p + 1)}
+                >
+                  Next
+                </Button>
+              </div>
+            )}
+          </TabsContent>
+
+          {/* ── Intelligence Tab ──────────────────────────── */}
+          <TabsContent value="intelligence" className="mt-4 space-y-6">
+            {/* Recommendations */}
+            {gaps?.recommendations && gaps.recommendations.length > 0 && (
+              <Card className="border-amber-200 bg-amber-50/50">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg">Recommendations</CardTitle>
+                  <CardDescription>
+                    AI-generated suggestions to improve your content coverage
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ul className="space-y-2">
+                    {gaps.recommendations.map((r, i) => (
+                      <li
+                        key={i}
+                        className="flex items-start gap-2 text-sm"
+                      >
+                        <span className="mt-0.5 h-5 w-5 rounded-full bg-amber-200 text-amber-800 flex items-center justify-center text-xs font-bold shrink-0">
+                          {i + 1}
+                        </span>
+                        <span>{r}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Sector Heatmap */}
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg">Sector Coverage</CardTitle>
                 <CardDescription>
-                  Topics you cover most and least
+                  How your content covers each industry sector
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 {!gaps?.sectorCoverage?.length ? (
                   <p className="text-sm text-muted-foreground">
-                    No tag data yet
+                    No tag data yet. Import and tag your newsletters first.
                   </p>
                 ) : (
-                  <div className="space-y-2">
-                    {gaps.sectorCoverage.map((s) => (
-                      <div
-                        key={s._id}
-                        className="flex items-center justify-between text-sm"
-                      >
-                        <span>{s._id}</span>
-                        <Badge variant="outline">{s.count} articles</Badge>
-                      </div>
-                    ))}
-                  </div>
+                  <SectorHeatmap data={gaps.sectorCoverage} />
                 )}
               </CardContent>
             </Card>
 
+            {/* Audience Coverage */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Audience Coverage</CardTitle>
+                <CardTitle className="text-lg">Audience Reach</CardTitle>
                 <CardDescription>
-                  Segments you reach most and least
+                  Which audience segments your content serves
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -204,57 +505,361 @@ export default function ContentPage() {
                     No tag data yet
                   </p>
                 ) : (
-                  <div className="space-y-2">
-                    {gaps.audienceCoverage.map((a) => (
-                      <div
-                        key={a._id}
-                        className="flex items-center justify-between text-sm"
-                      >
-                        <span>{a._id}</span>
-                        <Badge variant="outline">{a.count} articles</Badge>
-                      </div>
-                    ))}
-                  </div>
+                  <AudienceBars data={gaps.audienceCoverage} />
                 )}
               </CardContent>
             </Card>
-          </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">
-                High Ad-Potential Content
-              </CardTitle>
-              <CardDescription>
-                Content scoring 7+ that could become great ads
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {!gaps?.highPotentialUnused?.length ? (
-                <p className="text-sm text-muted-foreground">
-                  No high-potential content found yet
-                </p>
-              ) : (
-                <div className="space-y-2">
-                  {gaps.highPotentialUnused.map((item) => (
-                    <div
-                      key={item.newsletterId}
-                      className="flex items-center justify-between text-sm"
-                    >
-                      <span className="truncate max-w-md">
-                        {item.newsletterTitle}
-                      </span>
-                      <Badge className="bg-green-600">
-                        Score: {item.adPotential.score}
-                      </Badge>
+            <div className="grid gap-4 md:grid-cols-2">
+              {/* Keyword Trends */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Top Keywords</CardTitle>
+                  <CardDescription>
+                    Most frequent keywords across your content
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {!gaps?.keywordFrequency?.length ? (
+                    <p className="text-sm text-muted-foreground">
+                      No keyword data yet
+                    </p>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {gaps.keywordFrequency.map((kw) => (
+                        <Badge
+                          key={kw._id}
+                          variant="secondary"
+                          className="text-xs"
+                        >
+                          {kw._id}{" "}
+                          <span className="ml-1 text-muted-foreground">
+                            ({kw.count})
+                          </span>
+                        </Badge>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* High Ad-Potential */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">
+                    Top Ad-Ready Content
+                  </CardTitle>
+                  <CardDescription>
+                    Articles scoring 7+ that could become great ads
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {!gaps?.highPotentialUnused?.length ? (
+                    <p className="text-sm text-muted-foreground">
+                      No high-potential content found yet
+                    </p>
+                  ) : (
+                    <div className="space-y-3">
+                      {gaps.highPotentialUnused.map((item) => (
+                        <div
+                          key={item.newsletterId}
+                          className="flex items-center justify-between gap-2"
+                        >
+                          <span className="text-sm truncate max-w-xs">
+                            {item.newsletterTitle}
+                          </span>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <AdScoreBar
+                              score={item.adPotential.score}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+        </Tabs>
+      </div>
+    </TooltipProvider>
+  );
+}
+
+// ── Sub-Components ───────────────────────────────────────────────
+
+function KpiCard({
+  title,
+  value,
+  subtitle,
+  loading,
+  progress: progressValue,
+}: {
+  title: string;
+  value?: string | number;
+  subtitle?: string;
+  loading?: boolean;
+  progress?: number;
+}) {
+  return (
+    <Card>
+      <CardContent className="p-5">
+        {loading ? (
+          <div className="space-y-2">
+            <Skeleton className="h-3 w-24" />
+            <Skeleton className="h-8 w-16" />
+            <Skeleton className="h-3 w-32" />
+          </div>
+        ) : (
+          <>
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              {title}
+            </p>
+            <p className="text-2xl font-bold mt-1">{value ?? "—"}</p>
+            {progressValue !== undefined && (
+              <Progress value={progressValue} className="h-1.5 mt-2" />
+            )}
+            {subtitle && (
+              <p className="text-xs text-muted-foreground mt-1">
+                {subtitle}
+              </p>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function FilterSelect({
+  placeholder,
+  value,
+  onChange,
+  options,
+}: {
+  placeholder: string;
+  value: string;
+  onChange: (v: string) => void;
+  options: [string, string][];
+}) {
+  return (
+    <Select value={value || undefined} onValueChange={(v) => onChange(v === "__all__" ? "" : v)}>
+      <SelectTrigger className="w-36 h-9 text-xs">
+        <SelectValue placeholder={placeholder} />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="__all__">All</SelectItem>
+        {options.map(([k, v]) => (
+          <SelectItem key={k} value={k}>
+            {v}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+function ArticleCard({
+  draft,
+  onClick,
+}: {
+  draft: Draft;
+  onClick: () => void;
+}) {
+  const t = draft.tags;
+  return (
+    <Card
+      className="cursor-pointer transition-shadow hover:shadow-md"
+      onClick={onClick}
+    >
+      {draft.thumbnailUrl && (
+        <div className="h-32 overflow-hidden rounded-t-lg">
+          <img
+            src={draft.thumbnailUrl}
+            alt=""
+            className="h-full w-full object-cover"
+          />
+        </div>
+      )}
+      <CardContent className="p-4 space-y-2">
+        <h3 className="font-semibold text-sm line-clamp-2 leading-snug">
+          {draft.title}
+        </h3>
+        {draft.subtitle && (
+          <p className="text-xs text-muted-foreground line-clamp-1">
+            {draft.subtitle}
+          </p>
+        )}
+
+        {/* Tags row */}
+        <div className="flex flex-wrap gap-1">
+          {t?.contentType && (
+            <Badge variant="outline" className="text-xs">
+              {label(CONTENT_TYPE_LABELS, t.contentType)}
+            </Badge>
+          )}
+          <SentimentBadge value={t?.sentiment} />
+          {t?.sectors?.slice(0, 2).map((s) => (
+            <Badge key={s.name} variant="secondary" className="text-xs">
+              {label(SECTOR_LABELS, s.name)}
+            </Badge>
+          ))}
+        </div>
+
+        {/* Ad score bar */}
+        <div className="flex items-center justify-between">
+          <AdScoreBar score={t?.adPotentialScore} />
+          <span className="text-xs text-muted-foreground">
+            {draft.publishedAt
+              ? new Date(draft.publishedAt).toLocaleDateString()
+              : ""}
+          </span>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function AdScoreBar({ score }: { score?: number }) {
+  if (!score)
+    return (
+      <span className="text-xs text-muted-foreground">Not scored</span>
+    );
+
+  const color =
+    score >= 8
+      ? "bg-green-500"
+      : score >= 6
+        ? "bg-amber-500"
+        : score >= 4
+          ? "bg-orange-400"
+          : "bg-red-400";
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div className="flex items-center gap-2">
+          <div className="w-16 h-1.5 rounded-full bg-muted overflow-hidden">
+            <div
+              className={`h-full rounded-full ${color}`}
+              style={{ width: `${score * 10}%` }}
+            />
+          </div>
+          <span className="text-xs font-medium">{score}</span>
+        </div>
+      </TooltipTrigger>
+      <TooltipContent>
+        <p>Ad Potential Score: {score}/10</p>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+function SentimentBadge({ value }: { value?: string }) {
+  if (!value) return null;
+  const config = SENTIMENT_CONFIG[value];
+  if (!config) return <Badge variant="outline" className="text-xs">{value}</Badge>;
+  return (
+    <Badge className={`text-xs ${config.bg} ${config.color} border-0`}>
+      {config.label}
+    </Badge>
+  );
+}
+
+function SectorHeatmap({
+  data,
+}: {
+  data: { _id: string; count: number; avgWeight: number }[];
+}) {
+  const maxCount = Math.max(...data.map((d) => d.count), 1);
+  const allSectors = Object.keys(SECTOR_LABELS);
+  const dataMap = new Map(data.map((d) => [d._id, d]));
+
+  return (
+    <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2">
+      {allSectors.map((sector) => {
+        const d = dataMap.get(sector);
+        const count = d?.count ?? 0;
+        const intensity = count > 0 ? Math.max(0.1, count / maxCount) : 0;
+        const bg =
+          count === 0
+            ? "bg-red-50 border-red-200"
+            : intensity > 0.6
+              ? "bg-green-100 border-green-300"
+              : intensity > 0.3
+                ? "bg-amber-50 border-amber-200"
+                : "bg-orange-50 border-orange-200";
+
+        return (
+          <Tooltip key={sector}>
+            <TooltipTrigger asChild>
+              <div
+                className={`rounded-lg border p-2 text-center transition-colors ${bg}`}
+              >
+                <p className="text-xs font-medium leading-tight">
+                  {label(SECTOR_LABELS, sector)}
+                </p>
+                <p className="text-lg font-bold mt-0.5">{count}</p>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>
+                {label(SECTOR_LABELS, sector)}: {count} article
+                {count !== 1 ? "s" : ""}
+                {d ? `, avg weight ${(d.avgWeight * 100).toFixed(0)}%` : ""}
+              </p>
+            </TooltipContent>
+          </Tooltip>
+        );
+      })}
+    </div>
+  );
+}
+
+function AudienceBars({
+  data,
+}: {
+  data: { _id: string; count: number; avgRelevance: number }[];
+}) {
+  const maxCount = Math.max(...data.map((d) => d.count), 1);
+  const allAudiences = Object.keys(AUDIENCE_LABELS);
+  const dataMap = new Map(data.map((d) => [d._id, d]));
+
+  return (
+    <div className="space-y-3">
+      {allAudiences.map((segment) => {
+        const d = dataMap.get(segment);
+        const count = d?.count ?? 0;
+        const pct = maxCount > 0 ? (count / maxCount) * 100 : 0;
+        const color =
+          count === 0
+            ? "bg-red-400"
+            : pct > 60
+              ? "bg-green-500"
+              : pct > 30
+                ? "bg-amber-500"
+                : "bg-orange-400";
+
+        return (
+          <div key={segment} className="space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium">
+                {label(AUDIENCE_LABELS, segment)}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {count} article{count !== 1 ? "s" : ""}
+              </span>
+            </div>
+            <div className="h-2 rounded-full bg-muted overflow-hidden">
+              <div
+                className={`h-full rounded-full ${color} transition-all`}
+                style={{ width: `${Math.max(pct, count > 0 ? 4 : 0)}%` }}
+              />
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
