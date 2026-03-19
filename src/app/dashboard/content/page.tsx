@@ -984,9 +984,21 @@ function SectorHeatmap({
   const maxCount = Math.max(...data.map((d) => d.count), 1);
   const dataMap = new Map(data.map((d) => [d._id, d]));
 
+  // Merge: show taxonomy sectors + any sectors from tag data not in taxonomy
+  const tagSectors = data.map((d) => d._id);
+  const taxonomySet = new Set(allSectors);
+  const merged = [
+    ...allSectors,
+    ...tagSectors.filter((s) => !taxonomySet.has(s)),
+  ];
+
+  if (merged.length === 0) {
+    return <p className="text-sm text-muted-foreground">No sectors configured or tagged yet.</p>;
+  }
+
   return (
     <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2">
-      {allSectors.map((sector) => {
+      {merged.map((sector) => {
         const d = dataMap.get(sector);
         const count = d?.count ?? 0;
         const intensity = count > 0 ? Math.max(0.1, count / maxCount) : 0;
@@ -1035,9 +1047,21 @@ function AudienceBars({
   const maxCount = Math.max(...data.map((d) => d.count), 1);
   const dataMap = new Map(data.map((d) => [d._id, d]));
 
+  // Merge: show taxonomy audiences + any from tag data not in taxonomy
+  const tagAudiences = data.map((d) => d._id);
+  const taxonomySet = new Set(allAudiences);
+  const merged = [
+    ...allAudiences,
+    ...tagAudiences.filter((a) => !taxonomySet.has(a)),
+  ];
+
+  if (merged.length === 0) {
+    return <p className="text-sm text-muted-foreground">No audience segments configured or tagged yet.</p>;
+  }
+
   return (
     <div className="space-y-3">
-      {allAudiences.map((segment) => {
+      {merged.map((segment) => {
         const d = dataMap.get(segment);
         const count = d?.count ?? 0;
         const pct = maxCount > 0 ? (count / maxCount) * 100 : 0;
