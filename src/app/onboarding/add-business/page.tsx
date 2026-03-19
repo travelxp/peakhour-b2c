@@ -66,9 +66,11 @@ export default function AddBusinessPage() {
     confidence: number;
   } | null>(null);
 
-  // Check onboarding status on mount — auto-run discovery if URL exists but taxonomy is missing
+  // Check onboarding status on mount — only for first-time onboarding
+  // Skip when adding a second business (isAddingToExistingOrg) — the status
+  // would check the OLD business and redirect away before the form loads.
   useEffect(() => {
-    if (!org) {
+    if (!org || isAddingToExistingOrg) {
       setCheckingStatus(false);
       return;
     }
@@ -136,10 +138,10 @@ export default function AddBusinessPage() {
 
     try {
       if (isAddingToExistingOrg) {
-        // Adding a new business to existing org
+        // Adding a new business to existing org — use domain as initial name
+        const displayName = hostname.replace(/\.(com|io|co|org|net|ai)$/i, "").replace(/[.-]/g, " ").replace(/\b\w/g, c => c.toUpperCase());
         await api.post("/v1/auth/businesses/create", {
-          name: hostname,
-          businessCategory: "other",
+          name: displayName || hostname,
         });
         await refreshUser();
       } else {
@@ -188,7 +190,14 @@ export default function AddBusinessPage() {
       }
 
       await refreshUser();
-      router.push("/onboarding/connect-platforms");
+
+      // If URL was provided, run discovery before proceeding
+      if (websiteUrl.trim()) {
+        await runDiscovery(websiteUrl);
+        return;
+      }
+
+      router.push("/dashboard/overview");
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message);
