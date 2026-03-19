@@ -4,12 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import {
-  SECTOR_LABELS,
-  AUDIENCE_LABELS,
-  CONTENT_TYPE_LABELS,
   SENTIMENT_CONFIG,
   SHELF_LIFE_LABELS,
-  AD_ANGLE_LABELS,
   label,
 } from "@/lib/content-labels";
 import { Badge } from "@/components/ui/badge";
@@ -70,7 +66,7 @@ interface FullArticle {
       longTail?: string[];
       negative?: string[];
     } | null;
-    relatedNewsletterIds: string[];
+    relatedContentIds: string[];
     seriesName?: string;
   } | null;
 }
@@ -180,7 +176,7 @@ export default function ArticleDetailPage() {
                     <Tooltip key={s.name}>
                       <TooltipTrigger asChild>
                         <Badge variant="secondary" className="text-sm">
-                          {label(SECTOR_LABELS, s.name)}
+                          {label(undefined,s.name)}
                           <span className="ml-1.5 text-muted-foreground">
                             {Math.round(s.weight * 100)}%
                           </span>
@@ -214,7 +210,7 @@ export default function ArticleDetailPage() {
                       <div key={ar.segment} className="space-y-1">
                         <div className="flex items-center justify-between">
                           <span className="text-sm font-medium">
-                            {label(AUDIENCE_LABELS, ar.segment)}
+                            {label(undefined,ar.segment)}
                           </span>
                           <span className="text-xs text-muted-foreground">
                             {Math.round(ar.relevance * 100)}%
@@ -443,7 +439,7 @@ export default function ArticleDetailPage() {
                         Best Angle
                       </p>
                       <p className="text-sm font-medium mt-0.5">
-                        {label(AD_ANGLE_LABELS, t.adPotential.bestAngle)}
+                        {label(undefined,t.adPotential.bestAngle)}
                       </p>
                     </div>
                   )}
@@ -505,7 +501,7 @@ export default function ArticleDetailPage() {
               {/* Meta info */}
               <Card>
                 <CardContent className="p-4 space-y-3">
-                  <MetaRow label="Content Type" value={label(CONTENT_TYPE_LABELS, t.contentType)} />
+                  <MetaRow label="Content Type" value={label(undefined,t.contentType)} />
                   <MetaRow
                     label="Sentiment"
                     value={

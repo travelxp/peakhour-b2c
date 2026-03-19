@@ -5,12 +5,9 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { api, API_BASE_URL } from "@/lib/api";
 import {
-  SECTOR_LABELS,
-  AUDIENCE_LABELS,
-  CONTENT_TYPE_LABELS,
+  CONTENT_CATEGORY_LABELS,
   SENTIMENT_CONFIG,
   SHELF_LIFE_LABELS,
-  AD_ANGLE_LABELS,
   label,
 } from "@/lib/content-labels";
 import { Badge } from "@/components/ui/badge";
@@ -92,8 +89,8 @@ interface GapAnalysis {
   sectorCoverage: { _id: string; count: number; avgWeight: number }[];
   audienceCoverage: { _id: string; count: number; avgRelevance: number }[];
   highPotentialUnused: {
-    newsletterId: string;
-    newsletterTitle: string;
+    contentId: string;
+    contentTitle: string;
     adPotential: { score: number; bestAngle?: string; bestHook?: string };
     sectors: { name: string; weight: number }[];
   }[];
@@ -162,6 +159,19 @@ export default function ContentPage() {
     queryKey: ["content-stats"],
     queryFn: () => api.get<ContentStats>("/v1/content/stats"),
   });
+
+  // Fetch org taxonomy for dynamic sector/audience labels
+  const { data: orgData } = useQuery({
+    queryKey: ["dashboard-org"],
+    queryFn: () => api.get<{ taxonomy?: { sectors?: string[]; audienceSegments?: { name: string }[]; contentTypes?: string[]; adAngles?: string[] } }>("/v1/dashboard/org"),
+    staleTime: 300_000,
+  });
+  const taxonomySectors = orgData?.taxonomy?.sectors || [];
+  const taxonomyAudiences = (orgData?.taxonomy?.audienceSegments || []).map((a) => typeof a === "string" ? a : a.name);
+  const taxonomyContentTypes = orgData?.taxonomy?.contentTypes || [];
+  // Build dynamic label maps from taxonomy
+  const sectorOptions: [string, string][] = taxonomySectors.map((s) => [s, label(undefined, s)]);
+  const contentTypeOptions: [string, string][] = taxonomyContentTypes.map((t) => [t, label(undefined, t)]);
 
   const { data: libraryRes, isLoading: libraryLoading } = useQuery({
     queryKey: ["content-library", queryParams],
@@ -405,13 +415,13 @@ export default function ContentPage() {
                 placeholder="Sector"
                 value={filters.sector}
                 onChange={(v) => updateFilter("sector", v)}
-                options={Object.entries(SECTOR_LABELS)}
+                options={sectorOptions}
               />
               <FilterSelect
                 placeholder="Type"
                 value={filters.contentType}
                 onChange={(v) => updateFilter("contentType", v)}
-                options={Object.entries(CONTENT_TYPE_LABELS)}
+                options={contentTypeOptions}
               />
               <FilterSelect
                 placeholder="Sentiment"
@@ -544,7 +554,7 @@ export default function ContentPage() {
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline" className="text-xs">
-                            {label(CONTENT_TYPE_LABELS, draft.tags?.contentType)}
+                            {label(undefined,draft.tags?.contentType)}
                           </Badge>
                         </TableCell>
                         <TableCell>
@@ -555,7 +565,7 @@ export default function ContentPage() {
                                 variant="secondary"
                                 className="text-xs"
                               >
-                                {label(SECTOR_LABELS, s.name)}
+                                {label(undefined,s.name)}
                               </Badge>
                             )) ?? (
                               <span className="text-muted-foreground">—</span>
@@ -652,7 +662,7 @@ export default function ContentPage() {
                     No tag data yet. Import and tag your newsletters first.
                   </p>
                 ) : (
-                  <SectorHeatmap data={gaps.sectorCoverage} />
+                  <SectorHeatmap data={gaps.sectorCoverage} allSectors={taxonomySectors} />
                 )}
               </CardContent>
             </Card>
@@ -671,7 +681,7 @@ export default function ContentPage() {
                     No tag data yet
                   </p>
                 ) : (
-                  <AudienceBars data={gaps.audienceCoverage} />
+                  <AudienceBars data={gaps.audienceCoverage} allAudiences={taxonomyAudiences} />
                 )}
               </CardContent>
             </Card>
@@ -728,11 +738,11 @@ export default function ContentPage() {
                     <div className="space-y-3">
                       {gaps.highPotentialUnused.map((item) => (
                         <div
-                          key={item.newsletterId}
+                          key={item.contentId}
                           className="flex items-center justify-between gap-2"
                         >
                           <span className="text-sm truncate max-w-xs">
-                            {item.newsletterTitle}
+                            {item.contentTitle}
                           </span>
                           <div className="flex items-center gap-2 shrink-0">
                             <AdScoreBar
@@ -863,13 +873,13 @@ function ArticleCard({
         <div className="flex flex-wrap gap-1">
           {t?.contentType && (
             <Badge variant="outline" className="text-xs">
-              {label(CONTENT_TYPE_LABELS, t.contentType)}
+              {label(undefined,t.contentType)}
             </Badge>
           )}
           <SentimentBadge value={t?.sentiment} />
           {t?.sectors?.slice(0, 2).map((s) => (
             <Badge key={s.name} variant="secondary" className="text-xs">
-              {label(SECTOR_LABELS, s.name)}
+              {label(undefined,s.name)}
             </Badge>
           ))}
         </div>
@@ -966,11 +976,12 @@ function SentimentBadge({ value }: { value?: string }) {
 
 function SectorHeatmap({
   data,
+  allSectors,
 }: {
   data: { _id: string; count: number; avgWeight: number }[];
+  allSectors: string[];
 }) {
   const maxCount = Math.max(...data.map((d) => d.count), 1);
-  const allSectors = Object.keys(SECTOR_LABELS);
   const dataMap = new Map(data.map((d) => [d._id, d]));
 
   return (
@@ -995,14 +1006,14 @@ function SectorHeatmap({
                 className={`rounded-lg border p-2 text-center transition-colors ${bg}`}
               >
                 <p className="text-xs font-medium leading-tight">
-                  {label(SECTOR_LABELS, sector)}
+                  {label(undefined,sector)}
                 </p>
                 <p className="text-lg font-bold mt-0.5">{count}</p>
               </div>
             </TooltipTrigger>
             <TooltipContent>
               <p>
-                {label(SECTOR_LABELS, sector)}: {count} article
+                {label(undefined,sector)}: {count} article
                 {count !== 1 ? "s" : ""}
                 {d ? `, avg weight ${(d.avgWeight * 100).toFixed(0)}%` : ""}
               </p>
@@ -1016,11 +1027,12 @@ function SectorHeatmap({
 
 function AudienceBars({
   data,
+  allAudiences,
 }: {
   data: { _id: string; count: number; avgRelevance: number }[];
+  allAudiences: string[];
 }) {
   const maxCount = Math.max(...data.map((d) => d.count), 1);
-  const allAudiences = Object.keys(AUDIENCE_LABELS);
   const dataMap = new Map(data.map((d) => [d._id, d]));
 
   return (
@@ -1042,7 +1054,7 @@ function AudienceBars({
           <div key={segment} className="space-y-1">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium">
-                {label(AUDIENCE_LABELS, segment)}
+                {label(undefined, segment)}
               </span>
               <span className="text-xs text-muted-foreground">
                 {count} article{count !== 1 ? "s" : ""}
