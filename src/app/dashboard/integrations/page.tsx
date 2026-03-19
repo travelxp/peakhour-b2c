@@ -205,8 +205,36 @@ export default function IntegrationsPage() {
         remaining: number;
         message: string;
       }>("/v1/content/backfill-sync", {});
+
+      // Auto-tag remaining posts in batches (5 at a time)
+      let taggedSoFar = result.tagged;
+      let tagRemaining = result.remaining;
+      while (tagRemaining > 0) {
+        setBackfillResult({
+          message: `Imported ${result.imported} newsletters. AI tagging: ${taggedSoFar} done, ${tagRemaining} remaining...`,
+          hasErrors: false,
+        });
+        try {
+          const tagResult = await api.post<{
+            total: number;
+            tagged: number;
+            remaining: number;
+            done: boolean;
+            message: string;
+          }>("/v1/content/backfill-tags", {});
+          taggedSoFar += tagResult.tagged;
+          tagRemaining = tagResult.remaining;
+          if (tagResult.done) break;
+        } catch {
+          // If tagging fails, stop gracefully — cron will catch up
+          break;
+        }
+      }
+
       setBackfillResult({
-        message: result.message,
+        message: tagRemaining === 0
+          ? `${result.imported} newsletters imported, all ${taggedSoFar} tagged with AI insights.`
+          : result.message,
         hasErrors: result.importErrors > 0 || result.tagErrors > 0,
       });
       await loadIntegrations();
