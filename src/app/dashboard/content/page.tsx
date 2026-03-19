@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { api, API_BASE_URL } from "@/lib/api";
+import { api } from "@/lib/api";
 import {
   SECTOR_LABELS,
   AUDIENCE_LABELS,
@@ -128,10 +128,10 @@ const DEFAULT_FILTERS: Filters = {
 // ── Main Page ────────────────────────────────────────────────────
 
 interface AnalyseProgress {
-  current: number;
+  tagged: number;
   total: number;
-  title: string;
-  status: "tagged" | "skipped" | "error";
+  remaining: number;
+  batchNum: number;
 }
 
 export default function ContentPage() {
@@ -177,71 +177,76 @@ export default function ContentPage() {
     ([k, v]) => v && k !== "sort"
   );
   const hasUntagged = stats && stats.tagged < stats.total;
+  const cancelRef = useRef(false);
 
-  const startAnalysis = useCallback(async () => {
+  const startAnalysis = useCallback(async (force: boolean) => {
+    if (force) {
+      const confirmed = window.confirm(
+        "This will delete all existing AI tags and re-analyse every newsletter from scratch. Continue?"
+      );
+      if (!confirmed) return;
+    }
+
     setAnalysing(true);
     setAnalyseProgress(null);
     setAnalyseResult(null);
+    cancelRef.current = false;
+
+    let totalTagged = 0;
+    let totalErrors = 0;
+    let batchNum = 0;
+    let initialTotal: number | null = null;
+    let isFirstCall = true;
 
     try {
-      const res = await fetch(`${API_BASE_URL}/v1/content/analyse`, {
-        credentials: "include",
-      });
+      while (!cancelRef.current) {
+        batchNum++;
+        const result = await api.post<{
+          total: number;
+          tagged: number;
+          skipped: number;
+          errors: number;
+          remaining: number;
+          done: boolean;
+          message: string;
+        }>("/v1/content/backfill-tags", isFirstCall && force ? { force: true } : {});
+        isFirstCall = false;
 
-      if (!res.ok) {
-        const json = await res.json().catch(() => null);
-        setAnalyseResult(json?.error?.message || "Failed to start analysis.");
-        setAnalysing(false);
-        return;
-      }
+        totalTagged += result.tagged;
+        totalErrors += result.errors;
 
-      const reader = res.body?.getReader();
-      const decoder = new TextDecoder();
-      if (!reader) {
-        setAnalyseResult("Streaming not supported.");
-        setAnalysing(false);
-        return;
-      }
+        // Capture initial total on first response for stable progress bar
+        if (initialTotal === null) initialTotal = result.total;
 
-      let buffer = "";
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
+        setAnalyseProgress({
+          tagged: totalTagged,
+          total: initialTotal,
+          remaining: result.remaining,
+          batchNum,
+        });
 
-        // Parse SSE events from buffer
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
-        let currentEvent = "";
-
-        for (const line of lines) {
-          if (line.startsWith("event: ")) {
-            currentEvent = line.slice(7).trim();
-          } else if (line.startsWith("data: ")) {
-            const data = line.slice(6).trim();
-            try {
-              const parsed = JSON.parse(data);
-              if (currentEvent === "progress") {
-                setAnalyseProgress(parsed);
-              } else if (currentEvent === "complete") {
-                setAnalyseResult(
-                  `Done! ${parsed.tagged} tagged` +
-                  (parsed.skipped > 0 ? `, ${parsed.skipped} skipped` : "") +
-                  (parsed.errors > 0 ? `, ${parsed.errors} errors` : "") +
-                  "."
-                );
-              }
-            } catch { /* ignore parse errors */ }
-          }
+        if (result.done) {
+          setAnalyseResult(
+            `All done! ${totalTagged} newsletters tagged with AI insights.` +
+            (totalErrors > 0 ? ` ${totalErrors} had issues (marked for retry).` : "")
+          );
+          break;
         }
       }
 
-      // Refresh queries after analysis
+      if (cancelRef.current) {
+        setAnalyseResult(`Paused after ${totalTagged} tagged. Click Analyse to continue.`);
+      }
+
+      // Refresh all queries
       queryClient.invalidateQueries({ queryKey: ["content-stats"] });
       queryClient.invalidateQueries({ queryKey: ["content-library"] });
       queryClient.invalidateQueries({ queryKey: ["content-gaps"] });
     } catch (err) {
-      setAnalyseResult("Analysis failed. Please try again.");
+      const msg = totalTagged > 0
+        ? `Tagged ${totalTagged} so far. Paused — click Analyse to continue.`
+        : "Analysis failed. Please try again.";
+      setAnalyseResult(msg);
     } finally {
       setAnalysing(false);
     }
@@ -270,14 +275,23 @@ export default function ContentPage() {
               Your newsletters, AI-tagged and scored for ad potential
             </p>
           </div>
-          {hasUntagged && !analysing && (
-            <Button onClick={startAnalysis}>
-              Analyse {stats.total - stats.tagged} untagged
-            </Button>
-          )}
-          {analysing && (
-            <Button disabled>Analysing...</Button>
-          )}
+          <div className="flex gap-2">
+            {hasUntagged && !analysing && (
+              <Button onClick={() => startAnalysis(false)}>
+                Analyse {stats.total - stats.tagged} untagged
+              </Button>
+            )}
+            {!analysing && stats && stats.tagged > 0 && (
+              <Button variant="outline" onClick={() => startAnalysis(true)}>
+                Re-analyse all
+              </Button>
+            )}
+            {analysing && (
+              <Button variant="outline" onClick={() => { cancelRef.current = true; }}>
+                Cancel
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* Analysis progress */}
@@ -288,16 +302,19 @@ export default function ContentPage() {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-sm">
                     <span>
-                      Analysing: <span className="font-medium">{analyseProgress.title}</span>
+                      AI tagging in progress (batch {analyseProgress.batchNum})...
                     </span>
-                    <span className="text-muted-foreground">
-                      {analyseProgress.current} / {analyseProgress.total}
+                    <span className="text-muted-foreground font-medium">
+                      {analyseProgress.tagged} tagged, {analyseProgress.remaining} remaining
                     </span>
                   </div>
-                  <Progress value={(analyseProgress.current / analyseProgress.total) * 100} className="h-2" />
+                  <Progress
+                    value={analyseProgress.total > 0 ? ((analyseProgress.tagged) / analyseProgress.total) * 100 : 0}
+                    className="h-2"
+                  />
                 </div>
               ) : analysing ? (
-                <p className="text-sm">Starting analysis...</p>
+                <p className="text-sm">Starting AI analysis...</p>
               ) : analyseResult ? (
                 <div className="flex items-center justify-between">
                   <p className="text-sm font-medium">{analyseResult}</p>
