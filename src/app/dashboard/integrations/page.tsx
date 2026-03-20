@@ -818,6 +818,23 @@ function MetaCapabilities({
 }) {
   const [toggling, setToggling] = useState<string | null>(null);
 
+  // Capability enabled state from backend config (default: enabled if resources exist)
+  const capabilitiesConfig = (extra.capabilities || {}) as Record<
+    string,
+    { enabled?: boolean; activeResourceId?: string }
+  >;
+
+  function isCapabilityEnabled(key: string, hasResources: boolean): boolean {
+    const cfg = capabilitiesConfig[key];
+    // Default: enabled if resources exist and not explicitly disabled
+    if (!cfg || cfg.enabled === undefined) return hasResources;
+    return cfg.enabled;
+  }
+
+  function getActiveResourceId(key: string, fallbackId?: string): string | undefined {
+    return capabilitiesConfig[key]?.activeResourceId || fallbackId;
+  }
+
   async function handleToggle(capability: string, enabled: boolean) {
     setToggling(capability);
     try {
@@ -836,18 +853,39 @@ function MetaCapabilities({
     }
   }
 
+  const hasAnyResources = META_CAPABILITIES.some(
+    (cap) => cap.getResources(extra).length > 0
+  );
+
   return (
     <div className="space-y-2">
+      {!hasAnyResources && (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-700 dark:text-amber-400 space-y-1">
+          <div className="flex items-center gap-1.5 font-medium">
+            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+            No accounts found
+          </div>
+          <p className="leading-relaxed">
+            No Facebook Pages, Instagram accounts, or Ad accounts were found.
+            Make sure you have admin access to at least one Facebook Page, then refresh.
+          </p>
+        </div>
+      )}
+
       {META_CAPABILITIES.map((cap) => {
         const resources = cap.getResources(extra);
         const hasResources = resources.length > 0;
-        const activeId = cap.getActiveId(extra);
+        const enabled = isCapabilityEnabled(cap.key, hasResources);
+        const activeId = getActiveResourceId(cap.key, cap.getActiveId(extra));
+        const isToggling = toggling === cap.key;
         const CapIcon = cap.icon;
 
         return (
           <div
             key={cap.key}
-            className="rounded-lg border px-3 py-2.5 text-xs space-y-2"
+            className={`rounded-lg border px-3 py-2.5 text-xs space-y-2 transition-opacity ${
+              !enabled && hasResources ? "opacity-60" : ""
+            }`}
           >
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 min-w-0">
@@ -863,20 +901,26 @@ function MetaCapabilities({
                   </Badge>
                 )}
               </div>
-              <Switch
-                checked={hasResources}
-                disabled={!hasResources || toggling === cap.key}
-                onCheckedChange={(checked) => handleToggle(cap.key, checked)}
-                className="scale-75"
-              />
+              <div className="flex items-center gap-1.5 shrink-0">
+                {isToggling && (
+                  <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                )}
+                <Switch
+                  checked={enabled}
+                  disabled={!hasResources || isToggling}
+                  onCheckedChange={(checked) => handleToggle(cap.key, checked)}
+                  aria-label={`Toggle ${cap.label}`}
+                  className="scale-75"
+                />
+              </div>
             </div>
 
-            {/* Resource selector — show when there are multiple resources */}
-            {hasResources && resources.length > 1 && (
+            {/* Resource selector — show when enabled and multiple resources */}
+            {enabled && hasResources && resources.length > 1 && (
               <Select
                 value={activeId || resources[0]?.id}
                 onValueChange={(value) => handleResourceChange(cap.key, value)}
-                disabled={toggling === cap.key}
+                disabled={isToggling}
               >
                 <SelectTrigger size="sm" className="w-full text-[11px] h-7">
                   <SelectValue placeholder={`Select ${cap.resourceLabel}`} />
@@ -892,8 +936,8 @@ function MetaCapabilities({
             )}
 
             {/* Single resource — just show the name */}
-            {hasResources && resources.length === 1 && (
-              <p className="text-[11px] text-muted-foreground truncate pl-5.5">
+            {enabled && hasResources && resources.length === 1 && (
+              <p className="text-[11px] text-muted-foreground truncate pl-6">
                 {resources[0].label}
               </p>
             )}
