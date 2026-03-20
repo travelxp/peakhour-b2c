@@ -529,28 +529,28 @@ export default function ContentPage() {
               </div>
             ) : (
               <div className="overflow-x-auto rounded-xl border border-border/10">
-                <Table>
-                  <TableHeader className="bg-[--ph-bg-shell] border-b border-border/15">
-                    <TableRow>
-                      <TableHead className="px-6 py-4 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/60">Title</TableHead>
-                      <TableHead className="px-6 py-4 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/60">Type</TableHead>
-                      <TableHead className="px-6 py-4 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/60">Sectors</TableHead>
-                      <TableHead className="px-6 py-4 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/60">Sentiment</TableHead>
-                      <TableHead className="px-6 py-4 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/60">Ad Score</TableHead>
-                      <TableHead className="px-6 py-4 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/60">Shelf Life</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody className="divide-y divide-border/5">
+                <table className="w-full text-left border-collapse">
+                  <thead className="bg-[--ph-bg-shell] border-b border-border/15">
+                    <tr>
+                      <th className="w-[35%] px-6 py-4 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/60">Title</th>
+                      <th className="w-[12%] px-6 py-4 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/60">Type</th>
+                      <th className="w-[20%] px-6 py-4 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/60">Sectors</th>
+                      <th className="w-[10%] px-6 py-4 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/60">Sentiment</th>
+                      <th className="w-[13%] px-6 py-4 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/60">Ad Score</th>
+                      <th className="w-[10%] px-6 py-4 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/60">Shelf Life</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/5">
                     {library.map((draft) => (
-                      <TableRow
+                      <tr
                         key={draft._id}
                         className="group cursor-pointer transition-colors hover:bg-[--ph-surface-200]/40"
                         onClick={() =>
                           router.push(`/dashboard/content/${draft._id}`)
                         }
                       >
-                        <TableCell className="max-w-xs px-6 py-6">
-                          <h4 className="font-display font-bold text-base transition-colors group-hover:text-primary">
+                        <td className="px-6 py-6">
+                          <h4 className="font-display font-bold text-base transition-colors group-hover:text-primary line-clamp-2">
                             {draft.title}
                           </h4>
                           <p className="mt-1 text-xs text-muted-foreground opacity-60">
@@ -559,18 +559,18 @@ export default function ContentPage() {
                               : "—"}
                             {draft.readingTimeMin ? ` • ${draft.readingTimeMin} min read` : ""}
                           </p>
-                        </TableCell>
-                        <TableCell className="px-6 py-6">
-                          <span className="rounded bg-[--ph-surface-250] px-2 py-1 font-mono text-xs">
+                        </td>
+                        <td className="px-6 py-6">
+                          <span className="inline-block rounded bg-[--ph-surface-250] px-2 py-1 font-mono text-xs whitespace-nowrap">
                             {label(undefined,draft.tags?.contentType)}
                           </span>
-                        </TableCell>
-                        <TableCell className="px-6 py-6">
+                        </td>
+                        <td className="px-6 py-6">
                           <div className="flex flex-wrap gap-2">
                             {draft.tags?.sectors?.slice(0, 2).map((s) => (
                               <span
                                 key={s.name}
-                                className="rounded-full border border-border/30 px-2 py-0.5 text-[10px] uppercase"
+                                className="rounded-full border border-border/30 px-2 py-0.5 text-[10px] uppercase whitespace-nowrap"
                               >
                                 {label(undefined,s.name)}
                               </span>
@@ -578,20 +578,20 @@ export default function ContentPage() {
                               <span className="text-muted-foreground">—</span>
                             )}
                           </div>
-                        </TableCell>
-                        <TableCell className="px-6 py-6">
+                        </td>
+                        <td className="px-6 py-6">
                           <SentimentBadge value={draft.tags?.sentiment} />
-                        </TableCell>
-                        <TableCell className="px-6 py-6">
+                        </td>
+                        <td className="px-6 py-6">
                           <AdScoreBar score={draft.tags?.adPotentialScore} />
-                        </TableCell>
-                        <TableCell className="px-6 py-6 font-mono text-xs text-muted-foreground">
+                        </td>
+                        <td className="px-6 py-6 font-mono text-xs text-muted-foreground whitespace-nowrap">
                           {label(SHELF_LIFE_LABELS, draft.tags?.shelfLife)}
-                        </TableCell>
-                      </TableRow>
+                        </td>
+                      </tr>
                     ))}
-                  </TableBody>
-                </Table>
+                  </tbody>
+                </table>
               </div>
             )}
 
