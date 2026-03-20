@@ -76,6 +76,7 @@ export default function TeamPage() {
   const { orgs, org } = useAuth();
   const currentRole = orgs.find((o) => o._id === org?._id)?.role || "viewer";
   const isOwner = currentRole === "owner";
+  const isAdmin = currentRole === "admin" || isOwner;
 
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [invites, setInvites] = useState<PendingInvite[]>([]);
@@ -91,7 +92,7 @@ export default function TeamPage() {
     try {
       const [membersRes, invitesRes] = await Promise.all([
         getTeamMembers(),
-        isOwner ? getPendingInvites() : Promise.resolve({ invites: [] }),
+        isAdmin ? getPendingInvites() : Promise.resolve({ invites: [] }),
       ]);
       setMembers(membersRes.members);
       setInvites(invitesRes.invites);
@@ -100,7 +101,7 @@ export default function TeamPage() {
     } finally {
       setLoading(false);
     }
-  }, [isOwner]);
+  }, [isAdmin]);
 
   useEffect(() => {
     loadData();
@@ -188,7 +189,7 @@ export default function TeamPage() {
           </div>
         </div>
 
-        {isOwner && (
+        {isAdmin && (
           <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
             <DialogTrigger asChild>
               <Button size="sm" className="gap-2">
@@ -363,7 +364,7 @@ export default function TeamPage() {
       </Card>
 
       {/* Pending Invites */}
-      {isOwner && invites.length > 0 && (
+      {isAdmin && invites.length > 0 && (
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
