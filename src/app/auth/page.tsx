@@ -6,7 +6,6 @@ import { sendMagicLink } from "@/lib/auth";
 import { ApiError } from "@/lib/api";
 import { ArrowRight, Mail } from "lucide-react";
 import { GlassPanel } from "@/components/ui/glass-panel";
-import { GradientButton } from "@/components/ui/gradient-button";
 import { PulsingStatusBadge } from "@/components/ui/pulsing-status-badge";
 import { DividerWithLabel } from "@/components/ui/divider-with-label";
 import { MonoLabel } from "@/components/ui/mono-label";
@@ -145,14 +144,16 @@ export default function AuthPage() {
                   </div>
                 </div>
 
-                <GradientButton
+                <button
                   type="submit"
-                  loading={loading}
-                  icon={<ArrowRight className="h-5 w-5" />}
-                  className="w-full"
+                  disabled={loading}
+                  className="group flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-6 py-4 font-display font-bold text-primary-foreground transition-all duration-200 hover:brightness-110 hover:scale-[0.98] active:scale-[0.95] disabled:opacity-50"
                 >
-                  Continue with Email
-                </GradientButton>
+                  {loading ? "Sending link..." : "Continue with Email"}
+                  {!loading && (
+                    <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
+                  )}
+                </button>
 
                 <DividerWithLabel label="Neural Auth Sync" />
 
@@ -160,7 +161,7 @@ export default function AuthPage() {
                 <button
                   type="button"
                   disabled
-                  className="group flex w-full items-center justify-center gap-3 rounded-md border border-border/15 bg-background px-6 py-3.5 opacity-50 cursor-not-allowed"
+                  className="group flex w-full items-center justify-center gap-3 rounded-lg border border-[--ph-surface-400] bg-[--ph-surface-100] px-6 py-3.5 opacity-50 cursor-not-allowed"
                 >
                   <svg
                     className="h-5 w-5 opacity-80"
