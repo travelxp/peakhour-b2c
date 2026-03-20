@@ -160,7 +160,7 @@ export default function Home() {
         </section>
 
         {/* ─── FEATURES: ASYMMETRIC GRID ─── */}
-        <section id="engines" className="mx-auto max-w-360 px-12 py-24">
+        <section id="engines" className="mx-auto max-w-360 px-6 py-16 md:px-12 md:py-24">
           <div className="grid gap-16 md:grid-cols-3">
             {FEATURES.map((f) => (
               <div key={f.title} className={`group space-y-8 ${f.stagger}`}>
@@ -181,7 +181,7 @@ export default function Home() {
         </section>
 
         {/* ─── INTELLIGENCE LIFECYCLE ─── */}
-        <section id="lifecycle" className="bg-[--ph-bg-shell]/30 px-12 py-32">
+        <section id="lifecycle" className="bg-[--ph-bg-shell]/30 px-6 py-20 md:px-12 md:py-32">
           <div className="mx-auto max-w-360">
             <div className="mb-24 flex flex-col justify-between gap-8 md:flex-row md:items-end">
               <h2 className="max-w-lg font-display text-5xl font-extrabold uppercase leading-none">
@@ -237,7 +237,7 @@ export default function Home() {
         </section>
 
         {/* ─── CHARACTER SHOWCASE ─── */}
-        <section className="overflow-hidden px-12 py-32">
+        <section className="overflow-hidden px-6 py-20 md:px-12 md:py-32">
           <div className="mx-auto max-w-360">
             <div className="mb-24 text-center">
               <h2 className="font-display text-5xl font-extrabold uppercase tracking-tighter md:text-6xl">
@@ -259,7 +259,7 @@ export default function Home() {
         </section>
 
         {/* ─── ENTERPRISE SECTION ─── */}
-        <section className="border-t border-border/10 px-12 py-32">
+        <section className="border-t border-border/10 px-6 py-20 md:px-12 md:py-32">
           <div className="mx-auto max-w-360 text-center">
             <MonoLabel size="md" color="faint" className="mb-16 block tracking-[0.4em]">
               Trusted by the Future-First
@@ -293,7 +293,7 @@ export default function Home() {
         </section>
 
         {/* ─── FINAL CTA ─── */}
-        <section className="relative overflow-hidden px-12 py-48">
+        <section className="relative overflow-hidden px-6 py-24 md:px-12 md:py-48">
           <div className="pointer-events-none absolute inset-0 -z-10 bg-primary/5 blur-[150px]" />
           <div className="mx-auto max-w-4xl space-y-12 text-center">
             <h2 className="font-display text-5xl font-extrabold uppercase leading-none tracking-tighter md:text-7xl">

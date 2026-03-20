@@ -7,7 +7,7 @@ interface MonoLabelProps extends React.HTMLAttributes<HTMLSpanElement> {
 }
 
 const sizeClasses = {
-  xs: "text-[10px] tracking-widest",
+  xs: "text-[11px] tracking-widest",
   sm: "text-xs tracking-[0.2em]",
   md: "text-sm tracking-widest",
 };
@@ -15,7 +15,7 @@ const sizeClasses = {
 const colorClasses = {
   primary: "text-primary",
   muted: "text-muted-foreground",
-  faint: "text-foreground/40",
+  faint: "text-foreground/50",
   info: "text-[--ph-info]",
 };
 

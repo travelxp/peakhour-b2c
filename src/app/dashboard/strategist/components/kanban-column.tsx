@@ -42,7 +42,12 @@ export function KanbanColumn({
         strategy={verticalListSortingStrategy}
       >
         <div className="flex flex-1 flex-col gap-2">
-          {ideas.map((idea) => (
+          {ideas.length === 0 && (
+            <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed border-foreground/5 py-8">
+              <p className="text-xs text-muted-foreground/50">Drop here</p>
+            </div>
+          )}
+          {ideas.map((idea, i) => (
             <KanbanCard key={idea._id} idea={idea} />
           ))}
         </div>

@@ -27,7 +27,7 @@ function GlassPanel({
   return (
     <div
       className={cn(
-        "glass-panel rounded-xl border border-border/15",
+        "glass-panel rounded-xl border border-foreground/10",
         shadowClasses[shadow],
         paddingClasses[padding],
         className
