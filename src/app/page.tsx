@@ -1,13 +1,10 @@
 import Link from "next/link";
-import { Brain, Rocket, BarChart2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { GradientButton } from "@/components/ui/gradient-button";
+import { Brain, Rocket, BarChart2, PlayCircle, Shield, Zap } from "lucide-react";
 import { MonoLabel } from "@/components/ui/mono-label";
 import { CharacterFloatCard } from "@/components/ui/character-float-card";
 import { CharacterShowcaseCard } from "@/components/ui/character-showcase-card";
 import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
-import { UrlHeroInput } from "@/components/home/url-hero-input";
 
 const FEATURES = [
   {
@@ -39,7 +36,7 @@ const LIFECYCLE = [
     label: "Train",
     title: "Claude API Reasoning",
     description:
-      "Inject your brand DNA. Our characters utilize advanced Claude reasoning to understand complex market nuances and human psychology.",
+      "Inject your brand DNA. Our characters utilize advanced Claude-3-Opus reasoning to understand complex market nuances and human psychology.",
     tags: ["Context Injection", "Mood Mapping"],
   },
   {
@@ -47,7 +44,7 @@ const LIFECYCLE = [
     label: "Generate",
     title: "Suno & ElevenLabs Media",
     description:
-      "Full-stack content production. From cinematic visuals to mastered voiceovers — automatically compiled and brand-aligned.",
+      "Full-stack content production. From Runway-powered cinematic visuals to ElevenLabs-mastered voiceovers — automatically compiled.",
     tags: ["Neural Video", "Audio Synth"],
   },
   {
@@ -64,25 +61,25 @@ const CHARACTERS = [
   {
     initials: "LR",
     name: "Luna Rivers",
-    role: "Indie Architect",
+    role: "The Indie Architect",
     quote:
-      "Creating bridges between underground culture and mainstream consciousness.",
+      "Creating resonance in the noise through aesthetic precision and acoustic storytelling.",
     stats: [
-      { label: "Followers", value: "42.1K" },
-      { label: "ER Rate", value: "8.4%" },
-      { label: "Uptime", value: "99.2%" },
+      { label: "Followers", value: "1.2M" },
+      { label: "ER Rate", value: "4.8%" },
+      { label: "Uptime", value: "24/7" },
     ],
   },
   {
     initials: "DC",
     name: "Devon Code",
-    role: "Tech Sentinel",
+    role: "The Tech Sentinel",
     quote:
-      "Translating complex innovation into actionable intelligence for the next generation.",
+      "Synthesizing complex technical paradigms into actionable future-forward narratives.",
     stats: [
-      { label: "Followers", value: "156K" },
-      { label: "ER Rate", value: "6.1%" },
-      { label: "Uptime", value: "99.8%" },
+      { label: "Subscribers", value: "890K" },
+      { label: "Trust Index", value: "High" },
+      { label: "Logic Grade", value: "A+" },
     ],
   },
 ] as const;
@@ -92,42 +89,53 @@ export default function Home() {
     <div className="flex min-h-screen flex-col overflow-x-hidden">
       <Header />
 
-      <main className="pt-24">
+      <main>
         {/* ─── HERO ─── */}
-        <section className="relative flex min-h-[calc(100vh-6rem)] items-center justify-center overflow-hidden px-6 lg:px-24">
+        <section className="relative flex h-screen min-h-[600px] items-center justify-center overflow-hidden px-6 lg:px-24">
           <div className="pointer-events-none absolute left-1/2 top-1/2 h-[800px] w-[800px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/10 blur-[120px]" />
 
-          <div className="relative z-10 grid w-full max-w-360 items-center gap-24 lg:grid-cols-2">
-            <div className="space-y-12">
-              <div className="space-y-6">
-                <MonoLabel size="md" color="primary" className="tracking-[0.3em]">
-                  Zero Friction Onboarding
+          <div className="relative z-10 grid w-full max-w-360 items-center gap-12 lg:grid-cols-2">
+            <div className="space-y-8">
+              <div className="space-y-4">
+                <MonoLabel size="xs" color="primary" className="tracking-[0.3em]">
+                  Autonomous Marketing 2.0
                 </MonoLabel>
-                <h1 className="font-display text-6xl font-extrabold uppercase leading-[1.05] tracking-[-0.04em] md:text-8xl">
-                  Wake Your <br />
+                <h1 className="font-display text-4xl font-extrabold uppercase leading-[1.1] tracking-[-0.04em] md:text-6xl">
+                  The Entire <br />
                   <span className="text-primary text-glow-amber">
-                    Digital Empire
-                  </span>{" "}
-                  With One URL.
+                    Marketing Lifecycle
+                  </span>
+                  , <br />
+                  Powered by One URL.
                 </h1>
-                <p className="max-w-xl text-xl leading-relaxed text-[--ph-text-secondary]">
-                  Paste your website or social profile. Our AI instantly learns
-                  your brand DNA and deploys your autonomous marketing team.
+                <p className="max-w-xl text-lg leading-relaxed text-[--ph-text-secondary] opacity-90">
+                  From social and newsletters to high-performance ads. Deploy
+                  autonomous AI characters that learn your brand, create your
+                  content, and grow your business across every channel 24/7.
                 </p>
               </div>
 
-              <div className="max-w-xl space-y-4">
-                <UrlHeroInput />
-                <MonoLabel size="xs" color="faint">
-                  * Instant Analysis &amp; Character Mapping Enabled
-                </MonoLabel>
+              <div className="flex flex-wrap gap-4">
+                <Link
+                  href="/auth"
+                  className="rounded bg-linear-to-br from-primary to-[--ph-amber-600] px-8 py-3.5 text-base font-bold text-primary-foreground shadow-lg transition-all duration-200 hover:brightness-110"
+                >
+                  Deploy Your First Character
+                </Link>
+                <Link
+                  href="#lifecycle"
+                  className="flex items-center gap-3 rounded border border-border/30 px-8 py-3.5 text-base font-bold transition-all duration-200 hover:bg-[--ph-surface-250]"
+                >
+                  <PlayCircle className="h-5 w-5 fill-current" />
+                  Watch the Demo
+                </Link>
               </div>
             </div>
 
             {/* Right: Monolith + Floating Cards */}
-            <div className="relative hidden h-[600px] lg:block">
+            <div className="relative hidden h-[500px] lg:block">
               <div
-                className="absolute bottom-0 left-1/2 h-96 w-64 -translate-x-1/2 rounded-t-full border-x border-t border-primary/20 backdrop-blur-sm shadow-[0_-40px_100px_rgba(245,158,11,0.1)]"
+                className="absolute bottom-0 left-1/2 h-80 w-56 -translate-x-1/2 rounded-t-full border-x border-t border-primary/20 backdrop-blur-sm shadow-[0_-40px_100px_rgba(245,158,11,0.1)]"
                 style={{
                   background:
                     "linear-gradient(180deg, rgba(245,158,11,0.1) 0%, rgba(245,158,11,0) 100%)",
@@ -138,21 +146,21 @@ export default function Home() {
                 name="Luna Rivers"
                 role="Indie Artist"
                 progressValue={92}
-                className="absolute left-0 top-10 -rotate-6 translate-y-12"
+                className="absolute left-0 top-10 w-56 -rotate-6 translate-y-8"
               />
               <CharacterFloatCard
                 initials="DC"
                 name="Devon Code"
                 role="Tech Influencer"
                 progressValue={88}
-                className="absolute right-0 top-40 rotate-3 -translate-y-8"
+                className="absolute right-0 top-32 w-56 rotate-3 -translate-y-4"
               />
             </div>
           </div>
         </section>
 
         {/* ─── FEATURES: ASYMMETRIC GRID ─── */}
-        <section id="engines" className="mx-auto max-w-360 px-12 py-32">
+        <section id="engines" className="mx-auto max-w-360 px-12 py-24">
           <div className="grid gap-16 md:grid-cols-3">
             {FEATURES.map((f) => (
               <div key={f.title} className={`group space-y-8 ${f.stagger}`}>
@@ -250,53 +258,66 @@ export default function Home() {
           </div>
         </section>
 
-        {/* ─── SOCIAL PROOF ─── */}
-        <section className="border-t border-border px-12 py-20">
+        {/* ─── ENTERPRISE SECTION ─── */}
+        <section className="border-t border-border/10 px-12 py-32">
           <div className="mx-auto max-w-360 text-center">
-            <MonoLabel size="xs" color="faint" className="mb-12 block">
-              Built for modern marketing teams
+            <MonoLabel size="md" color="faint" className="mb-16 block tracking-[0.4em]">
+              Trusted by the Future-First
             </MonoLabel>
-            <div className="grid grid-cols-2 gap-8 md:grid-cols-4">
-              {[
-                { value: "12", label: "Content Dimensions" },
-                { value: "24/7", label: "Autonomous Optimization" },
-                { value: "10x", label: "Creative Output" },
-                { value: "90%+", label: "Hands-Free Ops" },
-              ].map((stat) => (
-                <div key={stat.label} className="text-center">
-                  <p className="font-display text-4xl font-extrabold tracking-tight">
-                    {stat.value}
-                  </p>
-                  <MonoLabel size="xs" color="faint" className="mt-2">
-                    {stat.label}
-                  </MonoLabel>
-                </div>
-              ))}
+
+            <div className="mx-auto mb-24 grid max-w-4xl gap-12 md:grid-cols-2">
+              <div className="rounded-xl border border-white/5 bg-[--ph-bg-shell] p-10 text-left">
+                <Shield className="mb-6 h-6 w-6 text-primary" />
+                <h4 className="mb-4 font-display text-xl font-bold">
+                  Enterprise Security
+                </h4>
+                <p className="text-sm leading-relaxed text-foreground/50">
+                  SOC-2 Type II compliant with end-to-end data encryption. Your
+                  character&apos;s unique identity is your IP, protected by
+                  neural-vault technology.
+                </p>
+              </div>
+              <div className="rounded-xl border border-white/5 bg-[--ph-bg-shell] p-10 text-left">
+                <Zap className="mb-6 h-6 w-6 text-primary" />
+                <h4 className="mb-4 font-display text-xl font-bold">
+                  Vercel-Native Performance
+                </h4>
+                <p className="text-sm leading-relaxed text-foreground/50">
+                  Edge-computed responses ensuring zero latency across global
+                  delivery networks. Built for high-availability marketing
+                  demands.
+                </p>
+              </div>
             </div>
           </div>
         </section>
 
         {/* ─── FINAL CTA ─── */}
         <section className="relative overflow-hidden px-12 py-48">
-          <div className="pointer-events-none absolute inset-0 bg-primary/5 blur-[150px]" />
-          <div className="relative z-10 mx-auto max-w-3xl text-center">
-            <h2 className="font-display text-4xl font-extrabold uppercase tracking-tight md:text-5xl">
-              Ready to wake your empire?
+          <div className="pointer-events-none absolute inset-0 -z-10 bg-primary/5 blur-[150px]" />
+          <div className="mx-auto max-w-4xl space-y-12 text-center">
+            <h2 className="font-display text-5xl font-extrabold uppercase leading-none tracking-tighter md:text-7xl">
+              Your Empire is <br />
+              <span className="text-primary text-glow-amber">
+                Waiting to Wake.
+              </span>
             </h2>
-            <p className="mx-auto mt-6 max-w-md text-lg text-[--ph-text-secondary]">
-              Join businesses that replaced their marketing busywork with an AI
-              engine that works 24/7.
+            <p className="text-xl text-[--ph-text-secondary]/60">
+              Join the waitlist for private beta access or deploy your first
+              autonomous agent today.
             </p>
-            <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
+            <div className="flex flex-col items-center justify-center gap-6 pt-8 md:flex-row">
+              <input
+                type="email"
+                placeholder="Enter your work email"
+                className="w-full rounded border border-border/30 bg-[--ph-surface-100] px-8 py-4 outline-none transition-all placeholder:text-foreground/30 focus:border-transparent focus:ring-2 focus:ring-primary md:w-96"
+              />
               <Link
                 href="/auth"
-                className="inline-flex items-center justify-center gap-2 rounded-md bg-linear-to-br from-primary to-[--ph-amber-600] px-8 py-4 text-lg font-display font-bold text-primary-foreground shadow-[0_8px_16px_rgba(245,158,11,0.2)] transition-all duration-200 hover:brightness-110 hover:scale-[0.98] active:scale-[0.95]"
+                className="rounded bg-primary px-10 py-4 font-bold text-primary-foreground transition-all hover:brightness-110"
               >
-                Get Started Free
+                Get Early Access
               </Link>
-              <Button asChild variant="outline" size="lg" className="text-lg">
-                <Link href="/pricing">View Pricing</Link>
-              </Button>
             </div>
           </div>
         </section>

@@ -1,7 +1,5 @@
-import { ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MonoLabel } from "./mono-label";
-import { StatBlock } from "./stat-block";
 
 interface CharacterShowcaseCardProps {
   initials: string;
@@ -28,41 +26,47 @@ function CharacterShowcaseCard({
       )}
     >
       <div className="h-full overflow-hidden rounded-lg bg-background">
-        {/* Avatar area */}
-        <div className="relative h-48 overflow-hidden bg-[--ph-surface-150]">
+        {/* Image / avatar area with name overlay */}
+        <div className="relative h-75 overflow-hidden bg-[--ph-surface-150]">
           <div className="absolute inset-0 bg-linear-to-t from-background to-transparent" />
           <div className="flex h-full items-center justify-center">
             <span className="font-display text-6xl font-bold text-[--ph-surface-300]">
               {initials}
             </span>
           </div>
+          <div className="absolute bottom-6 left-6">
+            <h3 className="font-display text-3xl font-bold">{name}</h3>
+            <MonoLabel size="xs" color="primary" className="tracking-widest">
+              {role}
+            </MonoLabel>
+          </div>
         </div>
 
         {/* Content */}
-        <div className="p-8">
-          <h3 className="font-display text-2xl font-bold">{name}</h3>
-          <MonoLabel size="xs" color="primary" className="mt-1 tracking-widest">
-            {role}
-          </MonoLabel>
-          <p className="mt-4 text-sm italic text-foreground/50">
-            &ldquo;{quote}&rdquo;
-          </p>
-
-          {/* Stats grid */}
-          <div className="mt-6 grid grid-cols-3 gap-4 border-t border-border pt-6">
+        <div className="space-y-6 p-8">
+          {/* Stats grid with background boxes */}
+          <div className="grid grid-cols-3 gap-4">
             {stats.map((stat) => (
-              <StatBlock
+              <div
                 key={stat.label}
-                label={stat.label}
-                value={stat.value}
-                valueSize="md"
-              />
+                className="rounded bg-[--ph-bg-shell] p-3 text-center"
+              >
+                <div className="font-display text-xl font-bold">
+                  {stat.value}
+                </div>
+                <MonoLabel size="xs" color="faint">
+                  {stat.label}
+                </MonoLabel>
+              </div>
             ))}
           </div>
 
-          <button className="mt-6 flex w-full items-center justify-center gap-2 rounded-md border border-border py-3 text-sm font-medium transition-colors hover:border-primary hover:text-primary">
+          <p className="text-sm italic leading-relaxed text-foreground/60">
+            &ldquo;{quote}&rdquo;
+          </p>
+
+          <button className="w-full border border-border/30 py-4 text-xs font-bold uppercase tracking-[0.2em] transition-all group-hover:border-primary group-hover:text-primary">
             View Analytics Stack
-            <ArrowRight className="h-4 w-4" />
           </button>
         </div>
       </div>
