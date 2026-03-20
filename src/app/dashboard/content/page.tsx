@@ -303,23 +303,23 @@ export default function ContentPage() {
     <TooltipProvider>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-end justify-between">
+        <div className="flex items-start justify-between">
           <div>
-            <h2 className="font-display text-5xl font-extrabold tracking-tighter mb-2">
+            <h2 className="text-2xl font-bold tracking-tight">
               Content Intelligence
             </h2>
-            <p className="text-lg text-muted-foreground opacity-80">
+            <p className="text-muted-foreground">
               Your newsletters, AI-tagged and scored for ad potential
             </p>
           </div>
           <div className="flex gap-2">
             {hasUntagged && !analysing && (
-              <Button onClick={() => startAnalysis(false)} className="bg-primary text-primary-foreground font-bold px-8 py-3 rounded-lg shadow-lg shadow-primary/20 hover:opacity-90 active:scale-95">
+              <Button onClick={() => startAnalysis(false)}>
                 Analyse {stats.total - stats.tagged} untagged
               </Button>
             )}
             {!analysing && stats && stats.tagged > 0 && (
-              <Button onClick={() => startAnalysis(true)} className="bg-primary text-primary-foreground font-bold px-8 py-3 rounded-lg shadow-lg shadow-primary/20 hover:opacity-90 active:scale-95">
+              <Button variant="outline" onClick={() => startAnalysis(true)}>
                 Re-analyse all
               </Button>
             )}
@@ -396,24 +396,21 @@ export default function ContentPage() {
 
         {/* Tabs */}
         <Tabs defaultValue="library">
-          <TabsList className="border-b border-border/15 bg-transparent p-0 gap-8 rounded-none">
-            <TabsTrigger value="library" className="rounded-none border-b-2 border-transparent px-0 pb-4 text-lg font-bold text-muted-foreground/50 shadow-none data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none">Library</TabsTrigger>
-            <TabsTrigger value="intelligence" className="rounded-none border-b-2 border-transparent px-0 pb-4 text-lg font-bold text-muted-foreground/50 shadow-none data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none">Intelligence</TabsTrigger>
+          <TabsList>
+            <TabsTrigger value="library">Library</TabsTrigger>
+            <TabsTrigger value="intelligence">Intelligence</TabsTrigger>
           </TabsList>
 
           {/* ── Library Tab ─────────────────────────────────── */}
           <TabsContent value="library" className="mt-4 space-y-4">
             {/* Filter Bar */}
-            <div className="flex flex-wrap items-center gap-4">
-              <div className="flex grow items-center gap-3 rounded-lg border border-border/15 bg-[--ph-bg-shell] px-4 py-2 max-w-xs">
-                <svg className="h-5 w-5 text-muted-foreground/50" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                <input
-                  placeholder="Search articles..."
-                  value={filters.search}
-                  onChange={(e) => updateFilter("search", e.target.value)}
-                  className="w-full border-none bg-transparent text-sm outline-none focus:ring-0"
-                />
-              </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Input
+                placeholder="Search articles..."
+                value={filters.search}
+                onChange={(e) => updateFilter("search", e.target.value)}
+                className="w-48"
+              />
               <FilterSelect
                 placeholder="Sector"
                 value={filters.sector}
@@ -451,19 +448,21 @@ export default function ContentPage() {
               </Select>
 
               {/* View toggle */}
-              <div className="ml-auto flex rounded-lg border border-border/15 bg-[--ph-bg-shell] p-1">
-                <button
-                  className={`rounded p-1.5 ${view === "table" ? "bg-[--ph-surface-250] text-primary" : "text-muted-foreground/50 hover:text-foreground"}`}
-                  onClick={() => setView("table")}
-                >
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg>
-                </button>
-                <button
-                  className={`rounded p-1.5 ${view === "card" ? "bg-[--ph-surface-250] text-primary" : "text-muted-foreground/50 hover:text-foreground"}`}
+              <div className="ml-auto flex gap-1">
+                <Button
+                  variant={view === "card" ? "default" : "outline"}
+                  size="sm"
                   onClick={() => setView("card")}
                 >
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm10 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zm10 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" /></svg>
-                </button>
+                  Cards
+                </Button>
+                <Button
+                  variant={view === "table" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setView("table")}
+                >
+                  Table
+                </Button>
               </div>
             </div>
 
@@ -528,83 +527,94 @@ export default function ContentPage() {
                 ))}
               </div>
             ) : (
-              <div className="overflow-x-auto rounded-xl border border-border/10">
-                <table className="w-full text-left border-collapse">
-                  <thead className="bg-[--ph-bg-shell] border-b border-border/15">
-                    <tr>
-                      <th className="w-[35%] px-6 py-4 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/60">Title</th>
-                      <th className="w-[12%] px-6 py-4 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/60">Type</th>
-                      <th className="w-[20%] px-6 py-4 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/60">Sectors</th>
-                      <th className="w-[10%] px-6 py-4 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/60">Sentiment</th>
-                      <th className="w-[13%] px-6 py-4 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/60">Ad Score</th>
-                      <th className="w-[10%] px-6 py-4 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/60">Shelf Life</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/5">
+              <Card>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[35%]">Title</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Sectors</TableHead>
+                      <TableHead>Sentiment</TableHead>
+                      <TableHead>Ad Score</TableHead>
+                      <TableHead>Shelf Life</TableHead>
+                      <TableHead>Published</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                     {library.map((draft) => (
-                      <tr
+                      <TableRow
                         key={draft._id}
-                        className="group cursor-pointer transition-colors hover:bg-[--ph-surface-200]/40"
+                        className="cursor-pointer hover:bg-muted/50"
                         onClick={() =>
                           router.push(`/dashboard/content/${draft._id}`)
                         }
                       >
-                        <td className="px-6 py-6">
-                          <h4 className="font-display font-bold text-base transition-colors group-hover:text-primary line-clamp-2">
-                            {draft.title}
-                          </h4>
-                          <p className="mt-1 text-xs text-muted-foreground opacity-60">
-                            {draft.publishedAt
-                              ? new Date(draft.publishedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
-                              : "—"}
-                            {draft.readingTimeMin ? ` • ${draft.readingTimeMin} min read` : ""}
-                          </p>
-                        </td>
-                        <td className="px-6 py-6">
-                          <span className="inline-block rounded bg-[--ph-surface-250] px-2 py-1 font-mono text-xs whitespace-nowrap">
+                        <TableCell className="font-medium">
+                          {draft.title}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="text-xs">
                             {label(undefined,draft.tags?.contentType)}
-                          </span>
-                        </td>
-                        <td className="px-6 py-6">
-                          <div className="flex flex-wrap gap-2">
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap gap-1">
                             {draft.tags?.sectors?.slice(0, 2).map((s) => (
-                              <span
+                              <Badge
                                 key={s.name}
-                                className="rounded-full border border-border/30 px-2 py-0.5 text-[10px] uppercase whitespace-nowrap"
+                                variant="secondary"
+                                className="text-xs"
                               >
                                 {label(undefined,s.name)}
-                              </span>
+                              </Badge>
                             )) ?? (
                               <span className="text-muted-foreground">—</span>
                             )}
                           </div>
-                        </td>
-                        <td className="px-6 py-6">
+                        </TableCell>
+                        <TableCell>
                           <SentimentBadge value={draft.tags?.sentiment} />
-                        </td>
-                        <td className="px-6 py-6">
+                        </TableCell>
+                        <TableCell>
                           <AdScoreBar score={draft.tags?.adPotentialScore} />
-                        </td>
-                        <td className="px-6 py-6 font-mono text-xs text-muted-foreground whitespace-nowrap">
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
                           {label(SHELF_LIFE_LABELS, draft.tags?.shelfLife)}
-                        </td>
-                      </tr>
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {draft.publishedAt
+                            ? new Date(draft.publishedAt).toLocaleDateString()
+                            : "—"}
+                        </TableCell>
+                      </TableRow>
                     ))}
-                  </tbody>
-                </table>
-              </div>
+                  </TableBody>
+                </Table>
+              </Card>
             )}
 
             {/* Pagination */}
-            {library.length > 0 && library.length >= (view === "card" ? 12 : 20) && (
-              <div className="flex justify-center pt-6">
-                <button
-                  className="group flex items-center gap-2 font-mono text-[11px] uppercase tracking-widest text-muted-foreground/70 transition-colors hover:text-primary"
+            {library.length > 0 && (
+              <div className="flex items-center justify-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => p - 1)}
+                >
+                  Previous
+                </Button>
+                <span className="text-sm text-muted-foreground">
+                  Page {page}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={library.length < (view === "card" ? 12 : 20)}
                   onClick={() => setPage((p) => p + 1)}
                 >
-                  Load more intelligence
-                  <svg className="h-4 w-4 transition-transform group-hover:translate-y-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
-                </button>
+                  Next
+                </Button>
               </div>
             )}
           </TabsContent>
@@ -769,32 +779,32 @@ function KpiCard({
   progress?: number;
 }) {
   return (
-    <div className="rounded-xl bg-[--ph-surface-200] p-6 space-y-4">
-      {loading ? (
-        <div className="space-y-2">
-          <Skeleton className="h-3 w-24" />
-          <Skeleton className="h-8 w-16" />
-          <Skeleton className="h-3 w-32" />
-        </div>
-      ) : (
-        <>
-          <p className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground/60">
-            {title}
-          </p>
-          <div className="flex items-baseline gap-2">
-            <span className="font-display text-3xl font-bold">{value ?? "—"}</span>
-            {subtitle && (
-              <span className="text-sm text-muted-foreground opacity-70">{subtitle}</span>
-            )}
+    <Card>
+      <CardContent className="p-5">
+        {loading ? (
+          <div className="space-y-2">
+            <Skeleton className="h-3 w-24" />
+            <Skeleton className="h-8 w-16" />
+            <Skeleton className="h-3 w-32" />
           </div>
-          {progressValue !== undefined && (
-            <div className="mt-2 h-1 w-full bg-[--ph-surface-250]">
-              <div className="h-full bg-primary" style={{ width: `${progressValue}%` }} />
-            </div>
-          )}
-        </>
-      )}
-    </div>
+        ) : (
+          <>
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              {title}
+            </p>
+            <p className="text-2xl font-bold mt-1">{value ?? "—"}</p>
+            {progressValue !== undefined && (
+              <Progress value={progressValue} className="h-1.5 mt-2" />
+            )}
+            {subtitle && (
+              <p className="text-xs text-muted-foreground mt-1">
+                {subtitle}
+              </p>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -811,7 +821,7 @@ function FilterSelect({
 }) {
   return (
     <Select value={value || "__all__"} onValueChange={(v) => onChange(v === "__all__" ? "" : v)}>
-      <SelectTrigger className="w-36 h-9 text-sm rounded-lg border-border/15 bg-[--ph-bg-shell] outline-none">
+      <SelectTrigger className="w-36 h-9 text-xs">
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent>
@@ -906,14 +916,14 @@ function AdScoreBar({ score }: { score?: number }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <div className="flex items-center gap-3">
-          <span className="font-mono text-lg font-bold text-primary">{score}</span>
-          <div className="h-1 w-16 overflow-hidden rounded-full bg-[--ph-surface-250]">
+        <div className="flex items-center gap-2">
+          <div className="w-16 h-1.5 rounded-full bg-muted overflow-hidden">
             <div
               className={`h-full rounded-full ${color}`}
               style={{ width: `${score * 10}%` }}
             />
           </div>
+          <span className="text-xs font-medium">{score}</span>
         </div>
       </TooltipTrigger>
       <TooltipContent>
@@ -963,32 +973,11 @@ function AnalysingPlaceholder() {
 function SentimentBadge({ value }: { value?: string }) {
   if (!value) return null;
   const config = SENTIMENT_CONFIG[value];
-  if (!config) return <span className="font-mono text-xs text-muted-foreground">{value}</span>;
-
-  const dotColorMap: Record<string, string> = {
-    "text-green-700": "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]",
-    "text-amber-700": "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]",
-    "text-red-700": "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]",
-    "text-blue-700": "bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]",
-    "text-gray-700": "bg-gray-400",
-  };
-
-  const textColorMap: Record<string, string> = {
-    "text-green-700": "text-emerald-400",
-    "text-amber-700": "text-amber-400",
-    "text-red-700": "text-red-400",
-    "text-blue-700": "text-blue-400",
-    "text-gray-700": "text-gray-400",
-  };
-
-  const dotClass = dotColorMap[config.color] || "bg-gray-400";
-  const textClass = textColorMap[config.color] || "text-muted-foreground";
-
+  if (!config) return <Badge variant="outline" className="text-xs">{value}</Badge>;
   return (
-    <div className="flex items-center gap-2">
-      <span className={`h-2 w-2 rounded-full ${dotClass}`} />
-      <span className={`font-mono text-xs ${textClass}`}>{config.label}</span>
-    </div>
+    <Badge className={`text-xs ${config.bg} ${config.color} border-0`}>
+      {config.label}
+    </Badge>
   );
 }
 

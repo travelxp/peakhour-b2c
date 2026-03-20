@@ -5,11 +5,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/providers/auth-provider";
+import { SITE } from "@/lib/utils";
 
 const NAV_LINKS = [
-  { href: "/#engines", label: "Solutions" },
-  { href: "/#lifecycle", label: "Neural Engine" },
-  { href: "/pricing", label: "Pricing" },
+  { href: "/#features", label: "Features" },
+  { href: "/#how-it-works", label: "How it works" },
+  { href: "/#pricing", label: "Pricing" },
 ] as const;
 
 export function Header() {
@@ -20,52 +21,61 @@ export function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
   const { user, isAuthenticated, isLoading, logout } = useAuth();
 
+  // Close mobile menu on route change
   useEffect(() => {
     setMenuOpen(false);
   }, [pathname]);
 
+  // Don't render header on dashboard (has its own sidebar) or onboarding (has step indicator)
   if (isDashboard || isOnboarding) return null;
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-xl">
-      <div className="mx-auto flex items-center justify-between px-12 py-6 w-full max-w-360">
+    <header className="sticky top-0 z-50 border-b bg-background/80 backdrop-blur-md">
+      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
         <Link href="/" className="flex items-center gap-2">
-          <span className="font-display text-2xl font-bold tracking-tighter text-foreground">
-            peakhour.ai
-          </span>
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
+            <span className="text-sm font-bold text-primary-foreground">P</span>
+          </div>
+          <span className="text-lg font-bold tracking-tight">{SITE.name}</span>
         </Link>
 
         {!isAuthPage && (
-          <nav className="hidden items-center gap-12 md:flex">
-            {NAV_LINKS.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className="text-sm uppercase tracking-widest text-foreground transition-colors duration-200 hover:text-primary"
-              >
-                {link.label}
-              </Link>
-            ))}
-          </nav>
+          <>
+            {/* Desktop nav */}
+            <nav className="hidden items-center gap-6 md:flex">
+              {NAV_LINKS.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  {link.label}
+                </Link>
+              ))}
+            </nav>
+          </>
         )}
 
+        {/* Right side: auth-aware */}
         <div className="flex items-center gap-3">
           {!isLoading && isAuthenticated && user ? (
             <UserMenu user={user} onLogout={logout} />
           ) : !isAuthPage ? (
             <>
-              <div className="hidden items-center gap-4 md:flex">
+              {/* Desktop CTA */}
+              <div className="hidden items-center gap-3 md:flex">
                 <Link
                   href="/auth"
-                  className="text-sm text-muted-foreground transition-colors duration-200 hover:text-foreground"
+                  className="text-sm text-muted-foreground transition-colors hover:text-foreground"
                 >
-                  Log in
+                  Sign in
                 </Link>
-                <Button asChild size="sm" className="bg-primary text-primary-foreground font-bold hover:scale-95 transition-all duration-200 ease-out">
-                  <Link href="/auth">Get Started</Link>
+                <Button asChild size="sm">
+                  <Link href="/auth">Get started free</Link>
                 </Button>
               </div>
 
+              {/* Mobile menu button */}
               <button
                 type="button"
                 onClick={() => setMenuOpen(!menuOpen)}
@@ -94,8 +104,9 @@ export function Header() {
         </div>
       </div>
 
+      {/* Mobile nav panel */}
       {!isAuthPage && menuOpen && (
-        <div id="mobile-nav" className="border-t border-border bg-background px-6 pb-4 pt-2 md:hidden">
+        <div id="mobile-nav" className="border-t bg-background px-4 pb-4 pt-2 md:hidden">
           <nav className="flex flex-col gap-3">
             {NAV_LINKS.map((link) => (
               <Link
@@ -131,11 +142,11 @@ export function Header() {
                     onClick={() => setMenuOpen(false)}
                     className="text-sm text-muted-foreground transition-colors hover:text-foreground"
                   >
-                    Log in
+                    Sign in
                   </Link>
-                  <Button asChild size="sm" className="bg-primary text-primary-foreground hover:bg-[--ph-amber-400]">
+                  <Button asChild size="sm">
                     <Link href="/auth" onClick={() => setMenuOpen(false)}>
-                      Get Started
+                      Get started free
                     </Link>
                   </Button>
                 </>
@@ -158,6 +169,7 @@ function UserMenu({
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
+  // Close on outside click or Escape
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) {

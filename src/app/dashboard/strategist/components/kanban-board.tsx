@@ -103,7 +103,6 @@ export function KanbanBoard({ data, onRefresh }: KanbanBoardProps) {
             key={col.key}
             id={col.key}
             label={col.label}
-            color={col.color}
             ideas={localData[col.key] || []}
           />
         ))}

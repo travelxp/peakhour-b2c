@@ -1,324 +1,264 @@
 import Link from "next/link";
-import { Brain, Rocket, BarChart2, PlayCircle, Shield, Zap } from "lucide-react";
-import { MonoLabel } from "@/components/ui/mono-label";
-import { CharacterFloatCard } from "@/components/ui/character-float-card";
-import { CharacterShowcaseCard } from "@/components/ui/character-showcase-card";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
 
 const FEATURES = [
   {
-    icon: Brain,
-    title: "Prime Time",
+    title: "Content Intelligence",
     description:
-      "Broadcast at the perfect biological window. Our intelligence engine predicts global engagement peaks with 99.4% accuracy.",
-    stagger: "",
+      "Every piece of content is automatically tagged across 12 dimensions. Know which topics, audiences, and angles drive results.",
+    detail:
+      "Connects to any content platform, 12-dimension auto-tagger, content gap analysis",
   },
   {
-    icon: BarChart2,
-    title: "Signal Clarity",
+    title: "AI Creative Factory",
     description:
-      "Zero noise. Pure precision. Deep dark surfaces reveal high-fidelity insights into every micro-interaction across your network.",
-    stagger: "md:mt-24",
+      "Turn one newsletter into 10+ platform-native ad creatives in minutes. LinkedIn Lead Gen, Meta, Google — all from your content.",
+    detail: "AI generates headlines, body copy, and image briefs",
   },
   {
-    icon: Rocket,
-    title: "Character at Scale",
+    title: "Optimization Engine",
     description:
-      "Scale individual identity without diluting soul. Deploy hundreds of unique characters that maintain perfect brand alignment.",
-    stagger: "md:mt-48",
+      "AI monitors performance hourly. Underperformers get paused, winners get boosted, budgets get rebalanced automatically.",
+    detail: "Daily optimization, weekly strategy, monthly pattern mining",
   },
 ] as const;
 
-const LIFECYCLE = [
+const STEPS = [
   {
-    step: "01",
-    label: "Train",
-    title: "Claude API Reasoning",
+    step: "1",
+    title: "Add your business",
     description:
-      "Inject your brand DNA. Our characters utilize advanced Claude-3-Opus reasoning to understand complex market nuances and human psychology.",
-    tags: ["Context Injection", "Mood Mapping"],
+      "Paste your website URL or describe what you do. AI discovers your brand, audience, and builds a strategy in minutes.",
   },
   {
-    step: "02",
-    label: "Generate",
-    title: "Suno & ElevenLabs Media",
+    step: "2",
+    title: "AI tags and creates ads",
     description:
-      "Full-stack content production. From Runway-powered cinematic visuals to ElevenLabs-mastered voiceovers — automatically compiled.",
-    tags: ["Neural Video", "Audio Synth"],
+      "Our AI reads every piece of content, tags it across 12 dimensions, scores ad potential, and generates platform-native creatives.",
   },
   {
-    step: "03",
-    label: "Publish",
-    title: "Omni-Channel Auto-Post",
+    step: "3",
+    title: "Launch and grow on autopilot",
     description:
-      "One click to global presence. Auto-posting to YouTube, TikTok, and Instagram with real-time feedback loop integration.",
-    tags: ["API Hooks", "Analytics Sync"],
+      "Deploy to LinkedIn, Google, or Meta. The AI monitors hourly, pauses losers, boosts winners, and rebalances budgets — all hands-free.",
   },
 ] as const;
 
-const CHARACTERS = [
+const PLANS = [
   {
-    initials: "LR",
-    name: "Luna Rivers",
-    role: "The Indie Architect",
-    quote:
-      "Creating resonance in the noise through aesthetic precision and acoustic storytelling.",
-    stats: [
-      { label: "Followers", value: "1.2M" },
-      { label: "ER Rate", value: "4.8%" },
-      { label: "Uptime", value: "24/7" },
+    name: "Free",
+    price: "0",
+    description: "See what AI can do with your content",
+    features: [
+      "50 content pieces tagged",
+      "Ad creative preview",
+      "Content gap analysis",
     ],
+    cta: "Start free",
+    highlighted: false,
   },
   {
-    initials: "DC",
-    name: "Devon Code",
-    role: "The Tech Sentinel",
-    quote:
-      "Synthesizing complex technical paradigms into actionable future-forward narratives.",
-    stats: [
-      { label: "Subscribers", value: "890K" },
-      { label: "Trust Index", value: "High" },
-      { label: "Logic Grade", value: "A+" },
+    name: "Growth",
+    price: "7,499",
+    description: "Full AI marketing engine for growing businesses",
+    features: [
+      "Unlimited content tagging",
+      "2 ad platforms",
+      "Full optimization engine",
+      "Pattern mining & insights",
+      "Lead tracking",
     ],
+    cta: "Get started",
+    highlighted: true,
+  },
+  {
+    name: "Pro",
+    price: "19,999",
+    description: "For businesses ready to scale aggressively",
+    features: [
+      "Everything in Growth",
+      "All ad platforms",
+      "Subscriber enrichment",
+      "Custom taxonomy",
+      "API access",
+    ],
+    cta: "Get started",
+    highlighted: false,
   },
 ] as const;
 
 export default function Home() {
   return (
-    <div className="flex min-h-screen flex-col overflow-x-hidden">
+    <div className="flex min-h-screen flex-col">
       <Header />
 
       <main>
-        {/* ─── HERO ─── */}
-        <section className="relative flex h-screen min-h-[600px] items-center justify-center overflow-hidden px-6 lg:px-24">
-          <div className="pointer-events-none absolute left-1/2 top-1/2 h-[800px] w-[800px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/10 blur-[120px]" />
-
-          <div className="relative z-10 grid w-full max-w-360 items-center gap-12 lg:grid-cols-2">
-            <div className="space-y-8">
-              <div className="space-y-4">
-                <MonoLabel size="xs" color="primary" className="tracking-[0.3em]">
-                  Autonomous Marketing 2.0
-                </MonoLabel>
-                <h1 className="font-display text-4xl font-extrabold uppercase leading-[1.1] tracking-[-0.04em] md:text-6xl">
-                  The Entire <br />
-                  <span className="text-primary text-glow-amber">
-                    Marketing Lifecycle
-                  </span>
-                  , <br />
-                  Powered by One URL.
-                </h1>
-                <p className="max-w-xl text-lg leading-relaxed text-[--ph-text-secondary] opacity-90">
-                  From social and newsletters to high-performance ads. Deploy
-                  autonomous AI characters that learn your brand, create your
-                  content, and grow your business across every channel 24/7.
-                </p>
-              </div>
-
-              <div className="flex flex-wrap gap-4">
-                <Link
-                  href="/auth"
-                  className="rounded-lg bg-primary px-8 py-3.5 text-base font-bold text-primary-foreground transition-all duration-200 ease-out hover:brightness-110 hover:scale-95"
-                >
-                  Deploy Your First Character
-                </Link>
-                <Link
-                  href="#lifecycle"
-                  className="flex items-center gap-3 rounded-lg border border-[--ph-surface-400] bg-[--ph-surface-100] px-8 py-3.5 text-base font-bold text-foreground transition-all duration-200 hover:bg-[--ph-surface-250]"
-                >
-                  <PlayCircle className="h-5 w-5 fill-current" />
-                  Watch the Demo
-                </Link>
-              </div>
-            </div>
-
-            {/* Right: Monolith + Floating Cards */}
-            <div className="relative hidden h-[500px] lg:block">
-              <div
-                className="absolute bottom-0 left-1/2 h-80 w-56 -translate-x-1/2 rounded-t-full border-x border-t border-primary/20 backdrop-blur-sm shadow-[0_-40px_100px_rgba(245,158,11,0.1)]"
-                style={{
-                  background:
-                    "linear-gradient(180deg, rgba(245,158,11,0.1) 0%, rgba(245,158,11,0) 100%)",
-                }}
-              />
-              <CharacterFloatCard
-                initials="LR"
-                name="Luna Rivers"
-                role="Indie Artist"
-                progressValue={92}
-                className="absolute left-0 top-10 w-56 -rotate-6 translate-y-8"
-              />
-              <CharacterFloatCard
-                initials="DC"
-                name="Devon Code"
-                role="Tech Influencer"
-                progressValue={88}
-                className="absolute right-0 top-32 w-56 rotate-3 -translate-y-4"
-              />
+        {/* Hero */}
+        <section className="mx-auto max-w-6xl px-4 py-24 text-center sm:px-6 sm:py-32">
+          <div className="mx-auto max-w-3xl">
+            <h1 className="text-4xl font-bold tracking-tight sm:text-5xl md:text-6xl">
+              Your AI Marketing Department
+            </h1>
+            <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
+              PeakHour turns your content into high-performing ads across every
+              platform. Content intelligence, creative factory, and optimization
+              engine — all powered by AI, all on autopilot.
+            </p>
+            <div className="mt-8 flex justify-center gap-4">
+              <Button asChild size="lg">
+                <Link href="/auth">Start free</Link>
+              </Button>
+              <Button asChild variant="outline" size="lg">
+                <Link href="#how-it-works">How it works</Link>
+              </Button>
             </div>
           </div>
         </section>
 
-        {/* ─── FEATURES: ASYMMETRIC GRID ─── */}
-        <section id="engines" className="mx-auto max-w-360 px-12 py-24">
-          <div className="grid gap-16 md:grid-cols-3">
-            {FEATURES.map((f) => (
-              <div key={f.title} className={`group space-y-8 ${f.stagger}`}>
-                <div className="flex h-16 w-16 items-center justify-center rounded-lg border border-primary/10 bg-[--ph-surface-200] transition-colors group-hover:bg-[--ph-accent-muted]">
-                  <f.icon className="h-8 w-8 text-primary" />
-                </div>
-                <div>
-                  <h3 className="mb-4 font-display text-3xl font-bold">
-                    {f.title}
-                  </h3>
-                  <p className="leading-relaxed text-foreground/60">
-                    {f.description}
+        {/* Features */}
+        <section id="features" className="border-t bg-muted/40 py-20">
+          <div className="mx-auto max-w-6xl px-4 sm:px-6">
+            <h2 className="text-center text-3xl font-bold">
+              Three engines, one platform
+            </h2>
+            <p className="mx-auto mt-3 max-w-xl text-center text-muted-foreground">
+              Everything your marketing team does — content analysis, ad
+              creation, performance optimization — automated by AI.
+            </p>
+            <div className="mt-12 grid gap-6 md:grid-cols-3">
+              {FEATURES.map((f) => (
+                <Card key={f.title}>
+                  <CardHeader>
+                    <CardTitle className="text-lg">{f.title}</CardTitle>
+                    <CardDescription>{f.description}</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-xs text-muted-foreground">{f.detail}</p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* How it works */}
+        <section id="how-it-works" className="py-20">
+          <div className="mx-auto max-w-6xl px-4 sm:px-6">
+            <h2 className="text-center text-3xl font-bold">
+              Up and running in 3 steps
+            </h2>
+            <div className="mt-12 grid gap-8 md:grid-cols-3">
+              {STEPS.map((s) => (
+                <div key={s.step} className="text-center">
+                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary text-xl font-bold text-primary-foreground">
+                    {s.step}
+                  </div>
+                  <h3 className="mt-4 text-lg font-semibold">{s.title}</h3>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    {s.description}
                   </p>
                 </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* ─── INTELLIGENCE LIFECYCLE ─── */}
-        <section id="lifecycle" className="bg-[--ph-bg-shell]/30 px-12 py-32">
-          <div className="mx-auto max-w-360">
-            <div className="mb-24 flex flex-col justify-between gap-8 md:flex-row md:items-end">
-              <h2 className="max-w-lg font-display text-5xl font-extrabold uppercase leading-none">
-                The Intelligence <br /> Lifecycle
-              </h2>
-              <MonoLabel
-                size="md"
-                color="info"
-                className="border-b border-[--ph-info]/30 pb-2"
-              >
-                Process v3.0
-              </MonoLabel>
-            </div>
-
-            <div className="grid gap-0 lg:grid-cols-3">
-              {LIFECYCLE.map((phase, i) => (
-                <div
-                  key={phase.step}
-                  className={`group relative overflow-hidden border-l border-border/10 p-12 ${i === LIFECYCLE.length - 1 ? "border-r" : ""}`}
-                >
-                  <span className="pointer-events-none absolute -left-6 -top-10 select-none font-display text-[10rem] font-black leading-none opacity-5">
-                    {phase.step}
-                  </span>
-                  <div className="relative z-10">
-                    <MonoLabel
-                      size="md"
-                      color="primary"
-                      className="mb-6 block"
-                    >
-                      {phase.label}
-                    </MonoLabel>
-                    <h3 className="mb-6 font-display text-3xl font-bold">
-                      {phase.title}
-                    </h3>
-                    <p className="mb-8 text-foreground/60">
-                      {phase.description}
-                    </p>
-                    <div className="flex gap-2">
-                      {phase.tags.map((tag) => (
-                        <span
-                          key={tag}
-                          className="rounded-sm bg-[--ph-surface-250] px-3 py-1 font-mono text-[10px] uppercase"
-                        >
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
               ))}
             </div>
           </div>
         </section>
 
-        {/* ─── CHARACTER SHOWCASE ─── */}
-        <section className="overflow-hidden px-12 py-32">
-          <div className="mx-auto max-w-360">
-            <div className="mb-24 text-center">
-              <h2 className="font-display text-5xl font-extrabold uppercase tracking-tighter md:text-6xl">
-                Engineered For{" "}
-                <span className="text-primary">Connection</span>
-              </h2>
-              <p className="mx-auto mt-6 max-w-2xl text-lg text-[--ph-text-secondary]/70">
-                Meet the digital architects of your new empire. Each character
-                is a self-sustaining entity with unique goals and values.
-              </p>
-            </div>
-
-            <div className="flex flex-col justify-center gap-8 md:flex-row">
-              {CHARACTERS.map((char) => (
-                <CharacterShowcaseCard key={char.initials} {...char} />
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* ─── ENTERPRISE SECTION ─── */}
-        <section className="border-t border-border/10 px-12 py-32">
-          <div className="mx-auto max-w-360 text-center">
-            <MonoLabel size="md" color="faint" className="mb-16 block tracking-[0.4em]">
-              Trusted by the Future-First
-            </MonoLabel>
-
-            <div className="mx-auto mb-24 grid max-w-4xl gap-12 md:grid-cols-2">
-              <div className="rounded-xl border border-white/5 bg-[--ph-bg-shell] p-10 text-left">
-                <Shield className="mb-6 h-6 w-6 text-primary" />
-                <h4 className="mb-4 font-display text-xl font-bold">
-                  Enterprise Security
-                </h4>
-                <p className="text-sm leading-relaxed text-foreground/50">
-                  SOC-2 Type II compliant with end-to-end data encryption. Your
-                  character&apos;s unique identity is your IP, protected by
-                  neural-vault technology.
-                </p>
-              </div>
-              <div className="rounded-xl border border-white/5 bg-[--ph-bg-shell] p-10 text-left">
-                <Zap className="mb-6 h-6 w-6 text-primary" />
-                <h4 className="mb-4 font-display text-xl font-bold">
-                  Vercel-Native Performance
-                </h4>
-                <p className="text-sm leading-relaxed text-foreground/50">
-                  Edge-computed responses ensuring zero latency across global
-                  delivery networks. Built for high-availability marketing
-                  demands.
-                </p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* ─── FINAL CTA ─── */}
-        <section className="relative overflow-hidden px-12 py-48">
-          <div className="pointer-events-none absolute inset-0 -z-10 bg-primary/5 blur-[150px]" />
-          <div className="mx-auto max-w-4xl space-y-12 text-center">
-            <h2 className="font-display text-5xl font-extrabold uppercase leading-none tracking-tighter md:text-7xl">
-              Your Empire is <br />
-              <span className="text-primary text-glow-amber">
-                Waiting to Wake.
-              </span>
+        {/* Pricing */}
+        <section id="pricing" className="border-t bg-muted/40 py-20">
+          <div className="mx-auto max-w-6xl px-4 sm:px-6">
+            <h2 className="text-center text-3xl font-bold">
+              Simple, transparent pricing
             </h2>
-            <p className="text-xl text-[--ph-text-secondary]/60">
-              Join the waitlist for private beta access or deploy your first
-              autonomous agent today.
+            <p className="mx-auto mt-3 max-w-xl text-center text-muted-foreground">
+              Start free. Upgrade when you&apos;re ready to launch ads.
             </p>
-            <div className="flex flex-col items-center justify-center gap-6 pt-8 md:flex-row">
-              <input
-                type="email"
-                placeholder="Enter your work email"
-                className="w-full rounded border border-border/30 bg-[--ph-surface-100] px-8 py-4 outline-none transition-all placeholder:text-foreground/30 focus:border-transparent focus:ring-2 focus:ring-primary md:w-96"
-              />
-              <Link
-                href="/auth"
-                className="rounded bg-primary px-10 py-4 font-bold text-primary-foreground transition-all hover:brightness-110"
-              >
-                Get Early Access
-              </Link>
+            <div className="mt-12 grid gap-6 md:grid-cols-3">
+              {PLANS.map((plan) => (
+                <Card
+                  key={plan.name}
+                  className={
+                    plan.highlighted
+                      ? "relative border-primary shadow-lg"
+                      : undefined
+                  }
+                >
+                  {plan.highlighted && (
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-primary px-3 py-0.5 text-xs font-medium text-primary-foreground">
+                      Most popular
+                    </div>
+                  )}
+                  <CardHeader>
+                    <CardTitle className="text-lg">{plan.name}</CardTitle>
+                    <div className="mt-2 flex items-baseline gap-1">
+                      <span className="text-3xl font-bold">
+                        &#8377;{plan.price}
+                      </span>
+                      {plan.price !== "0" && (
+                        <span className="text-sm text-muted-foreground">
+                          /month
+                        </span>
+                      )}
+                    </div>
+                    <CardDescription>{plan.description}</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <ul className="space-y-2 text-sm">
+                      {plan.features.map((feature) => (
+                        <li key={feature} className="flex items-start gap-2">
+                          <svg
+                            aria-hidden="true"
+                            className="mt-0.5 h-4 w-4 shrink-0 text-primary"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            strokeWidth={2}
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M4.5 12.75l6 6 9-13.5"
+                            />
+                          </svg>
+                          {feature}
+                        </li>
+                      ))}
+                    </ul>
+                    <Button
+                      asChild
+                      className="w-full"
+                      variant={plan.highlighted ? "default" : "outline"}
+                    >
+                      <Link href="/auth">{plan.cta}</Link>
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
+          </div>
+        </section>
+
+        {/* CTA */}
+        <section className="py-20">
+          <div className="mx-auto max-w-xl px-4 text-center sm:px-6">
+            <h2 className="text-3xl font-bold">
+              Stop doing marketing. Start growing.
+            </h2>
+            <p className="mt-4 text-muted-foreground">
+              Join businesses that replaced their marketing busywork with an AI
+              engine that works 24/7.
+            </p>
+            <Button asChild size="lg" className="mt-8">
+              <Link href="/auth">Get started free</Link>
+            </Button>
           </div>
         </section>
       </main>
