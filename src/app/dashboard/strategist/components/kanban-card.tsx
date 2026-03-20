@@ -3,7 +3,6 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useRouter } from "next/navigation";
-import { MonoLabel } from "@/components/ui/mono-label";
 import { cn } from "@/lib/utils";
 
 export interface PipelineIdea {
@@ -53,46 +52,47 @@ export function KanbanCard({ idea }: { idea: PipelineIdea }) {
       {...listeners}
       onClick={() => router.push(`/dashboard/strategist/${idea._id}`)}
       className={cn(
-        "cursor-pointer rounded-lg border border-border/10 bg-[--ph-bg-card] p-4 transition-all duration-200 hover:border-primary/25 hover:shadow-md",
-        isDragging && "opacity-50 shadow-xl"
+        "cursor-pointer rounded-lg border bg-card p-3 transition-all duration-150 hover:shadow-md hover:border-primary/30",
+        isDragging && "opacity-50 shadow-lg"
       )}
     >
-      <h4 className="font-display text-sm font-bold leading-snug line-clamp-2">
+      <h4 className="text-sm font-medium leading-snug line-clamp-2">
         {idea.title}
       </h4>
 
       {idea.description && (
-        <p className="mt-1.5 text-xs text-muted-foreground line-clamp-2">
+        <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
           {idea.description}
         </p>
       )}
 
-      <div className="mt-3 flex flex-wrap gap-1.5">
+      <div className="mt-2 flex flex-wrap gap-1">
         {idea.sector && (
-          <span className="rounded-full border border-border/30 px-2 py-0.5 text-[9px] uppercase text-muted-foreground">
+          <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
             {idea.sector}
           </span>
         )}
         {idea.contentType && (
-          <span className="rounded bg-[--ph-surface-250] px-1.5 py-0.5 font-mono text-[9px]">
+          <span className="rounded bg-muted px-1.5 py-0.5 text-[10px]">
             {idea.contentType}
           </span>
         )}
       </div>
 
-      <div className="mt-3 flex items-center justify-between">
+      <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
         {idea.aiScore != null && (
-          <div className="flex items-center gap-1.5">
-            <span className="font-mono text-xs font-bold text-primary">{idea.aiScore}</span>
-            <div className="h-1 w-8 overflow-hidden rounded-full bg-[--ph-surface-250]">
-              <div className="h-full bg-primary" style={{ width: `${idea.aiScore * 10}%` }} />
+          <div className="flex items-center gap-1">
+            <span className="font-medium text-foreground">{idea.aiScore}</span>
+            <div className="h-1 w-8 rounded-full bg-muted overflow-hidden">
+              <div
+                className="h-full bg-primary rounded-full"
+                style={{ width: `${idea.aiScore * 10}%` }}
+              />
             </div>
           </div>
         )}
         {idea.content?.wordCount && (
-          <MonoLabel size="xs" color="faint">
-            {idea.content.wordCount}w
-          </MonoLabel>
+          <span>{idea.content.wordCount}w</span>
         )}
       </div>
     </div>

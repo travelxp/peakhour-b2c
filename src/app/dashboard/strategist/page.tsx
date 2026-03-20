@@ -3,7 +3,9 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { MonoLabel } from "@/components/ui/mono-label";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { KanbanBoard } from "./components/kanban-board";
 import { Sparkles, CalendarDays, Plus, Loader2 } from "lucide-react";
 import type { PipelineIdea } from "./components/kanban-card";
@@ -25,9 +27,7 @@ export default function StrategistPage() {
     try {
       await api.post("/v1/content/suggest", {});
       queryClient.invalidateQueries({ queryKey: ["pipeline-ideas"] });
-    } catch {
-      // error handled by UI
-    }
+    } catch { /* error */ }
     setGenerating(null);
   }
 
@@ -36,9 +36,7 @@ export default function StrategistPage() {
     try {
       await api.get("/v1/content/weekly-plan");
       queryClient.invalidateQueries({ queryKey: ["pipeline-ideas"] });
-    } catch {
-      // error handled by UI
-    }
+    } catch { /* error */ }
     setGenerating(null);
   }
 
@@ -49,108 +47,78 @@ export default function StrategistPage() {
       setNewIdeaTitle("");
       setShowNewIdea(false);
       queryClient.invalidateQueries({ queryKey: ["pipeline-ideas"] });
-    } catch {
-      // error
-    }
+    } catch { /* error */ }
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-end justify-between">
+      <div className="flex items-start justify-between">
         <div>
-          <h2 className="mb-2 font-display text-5xl font-extrabold tracking-tighter">
-            Content Pipeline
-          </h2>
-          <p className="text-lg text-muted-foreground opacity-80">
+          <h2 className="text-2xl font-bold tracking-tight">Content Pipeline</h2>
+          <p className="text-muted-foreground">
             From idea to published — drag cards to move through stages
           </p>
         </div>
-
-        {/* Actions */}
-        <div className="flex gap-3">
-          <button
-            onClick={() => setShowNewIdea(!showNewIdea)}
-            className="flex items-center gap-2 rounded-lg border border-border/30 bg-[--ph-surface-100] px-4 py-2.5 text-sm font-bold transition-all hover:bg-[--ph-surface-200]"
-          >
-            <Plus className="h-4 w-4" />
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => setShowNewIdea(!showNewIdea)}>
+            <Plus className="mr-1.5 h-4 w-4" />
             New Idea
-          </button>
-          <button
-            onClick={handleGetIdeas}
-            disabled={generating === "ideas"}
-            className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground transition-all hover:brightness-110 disabled:opacity-50"
-          >
-            {generating === "ideas" ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Sparkles className="h-4 w-4" />
-            )}
+          </Button>
+          <Button size="sm" onClick={handleGetIdeas} disabled={generating === "ideas"}>
+            {generating === "ideas" ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1.5 h-4 w-4" />}
             Get Ideas
-          </button>
-          <button
-            onClick={handlePlanWeek}
-            disabled={generating === "plan"}
-            className="flex items-center gap-2 rounded-lg border border-border/30 bg-[--ph-surface-100] px-4 py-2.5 text-sm font-bold transition-all hover:bg-[--ph-surface-200] disabled:opacity-50"
-          >
-            {generating === "plan" ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <CalendarDays className="h-4 w-4" />
-            )}
+          </Button>
+          <Button variant="outline" size="sm" onClick={handlePlanWeek} disabled={generating === "plan"}>
+            {generating === "plan" ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <CalendarDays className="mr-1.5 h-4 w-4" />}
             Plan Week
-          </button>
+          </Button>
         </div>
       </div>
 
       {/* New idea inline form */}
       {showNewIdea && (
-        <div className="flex gap-3">
-          <input
+        <div className="flex gap-2">
+          <Input
             autoFocus
             value={newIdeaTitle}
             onChange={(e) => setNewIdeaTitle(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleNewIdea()}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleNewIdea();
+              if (e.key === "Escape") { setShowNewIdea(false); setNewIdeaTitle(""); }
+            }}
             placeholder="What's the idea?"
-            className="flex-1 rounded-lg border border-border/15 bg-[--ph-bg-input] px-4 py-3 text-sm outline-none focus:border-primary"
+            className="flex-1"
           />
-          <button
-            onClick={handleNewIdea}
-            className="rounded-lg bg-primary px-6 py-3 text-sm font-bold text-primary-foreground transition-all hover:brightness-110"
-          >
-            Add
-          </button>
-          <button
-            onClick={() => { setShowNewIdea(false); setNewIdeaTitle(""); }}
-            className="rounded-lg border border-border/30 px-4 py-3 text-sm transition-all hover:bg-[--ph-surface-200]"
-          >
-            Cancel
-          </button>
+          <Button size="sm" onClick={handleNewIdea}>Add</Button>
+          <Button variant="ghost" size="sm" onClick={() => { setShowNewIdea(false); setNewIdeaTitle(""); }}>Cancel</Button>
         </div>
       )}
 
-      {/* Loading */}
+      {/* Kanban board */}
       {isLoading ? (
-        <div className="flex items-center justify-center py-32">
-          <div className="space-y-4 text-center">
-            <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
-            <MonoLabel size="xs" color="muted">
-              Loading pipeline...
-            </MonoLabel>
-          </div>
+        <div className="flex gap-3 overflow-x-auto pb-4">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="w-60 shrink-0 rounded-lg border bg-muted/30 p-2">
+              <Skeleton className="mb-2 h-3 w-16" />
+              {Array.from({ length: 2 - (i % 2) }).map((_, j) => (
+                <div key={j} className="mb-1.5 rounded-lg border bg-card p-3">
+                  <Skeleton className="h-3.5 w-full" />
+                  <Skeleton className="mt-1.5 h-2.5 w-2/3" />
+                </div>
+              ))}
+            </div>
+          ))}
         </div>
       ) : data ? (
         <KanbanBoard
           data={data}
-          onRefresh={() =>
-            queryClient.invalidateQueries({ queryKey: ["pipeline-ideas"] })
-          }
+          onRefresh={() => queryClient.invalidateQueries({ queryKey: ["pipeline-ideas"] })}
         />
       ) : (
-        <div className="py-32 text-center">
+        <div className="py-16 text-center">
           <p className="text-muted-foreground">
-            No ideas yet. Click &ldquo;Get Ideas&rdquo; to generate AI
-            suggestions.
+            No ideas yet. Click &ldquo;Get Ideas&rdquo; to generate AI suggestions.
           </p>
         </div>
       )}

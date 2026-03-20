@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/providers/auth-provider";
 import { Button } from "@/components/ui/button";
-import { MonoLabel } from "@/components/ui/mono-label";
+import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { OrgSwitcher } from "@/components/dashboard/org-switcher";
 import { BusinessSwitcher } from "@/components/dashboard/business-switcher";
@@ -19,7 +19,6 @@ import {
   Plug,
   Settings,
   LogOut,
-  UserCircle,
   type LucideIcon,
 } from "lucide-react";
 
@@ -71,32 +70,14 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen">
       {/* Sidebar */}
-      <aside className="fixed left-0 top-0 z-60 flex h-screen w-64 flex-col gap-2 overflow-y-auto border-r border-foreground/15 bg-[#1b1c1e] py-6">
-        {/* Logo */}
-        <div className="px-6 mb-8">
-          <h1 className="font-display text-xl font-extrabold tracking-tighter">
-            Peakhour.ai
-          </h1>
-          <div className="mt-4 flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-[--ph-surface-250]">
-              <UserCircle className="h-5 w-5 text-foreground/60" />
-            </div>
-            <div>
-              <MonoLabel size="xs" color="muted" className="text-[11px] tracking-widest text-foreground">
-                Intelligence Hub
-              </MonoLabel>
-              <MonoLabel size="xs" color="primary" className="text-[9px]">
-                Precision Mode
-              </MonoLabel>
-            </div>
-          </div>
+      <aside className="w-56 border-r bg-card flex flex-col">
+        <div className="px-5 py-5">
+          <h1 className="text-lg font-bold tracking-tight">PeakHour</h1>
         </div>
-
         <OrgSwitcher />
         <BusinessSwitcher />
-
-        {/* Navigation */}
-        <nav className="flex flex-1 flex-col gap-1">
+        <Separator />
+        <nav className="flex-1 px-3 py-3 space-y-0.5">
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href || pathname?.startsWith(item.href + "/");
@@ -105,28 +86,25 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "flex items-center gap-3 px-6 py-3 transition-colors duration-200 ease-out",
+                  "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
                   isActive
-                    ? "border-l-2 border-primary bg-[#1f2022] text-primary"
-                    : "text-foreground opacity-50 hover:bg-[#292a2c] hover:opacity-100"
+                    ? "bg-accent text-accent-foreground font-medium"
+                    : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
                 )}
               >
                 <Icon className="h-4 w-4 shrink-0" />
-                <MonoLabel size="xs" className="text-[11px] tracking-widest text-current">
-                  {item.label}
-                </MonoLabel>
+                {item.label}
               </Link>
             );
           })}
         </nav>
-
-        {/* User footer */}
-        <div className="border-t border-foreground/10 px-6 pt-4">
-          <p className="mb-1 truncate text-xs font-medium">
+        <Separator />
+        <div className="px-4 py-3">
+          <p className="text-xs font-medium truncate mb-1">
             {user?.name || user?.email}
           </p>
           {org && (
-            <p className="mb-2 truncate text-[11px] text-muted-foreground">
+            <p className="text-[11px] text-muted-foreground truncate mb-2">
               {org.name}
             </p>
           )}
@@ -143,15 +121,8 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Main content */}
-      <main className="ml-64 min-h-screen flex-1">
-        {/* Page content */}
-        <div className="space-y-10 px-8 py-8">
-          {children}
-        </div>
-
-        {/* Background decoratives */}
-        <div className="pointer-events-none fixed right-0 top-0 -z-10 h-125 w-125 rounded-full bg-primary/5 blur-[120px]" />
-        <div className="pointer-events-none fixed bottom-0 left-64 -z-10 h-75 w-75 rounded-full bg-[--ph-info]/5 blur-[100px]" />
+      <main className="flex-1 overflow-auto">
+        <div className="p-6">{children}</div>
       </main>
     </div>
   );
