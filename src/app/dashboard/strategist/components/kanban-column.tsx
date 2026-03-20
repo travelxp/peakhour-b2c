@@ -8,12 +8,10 @@ import { cn } from "@/lib/utils";
 export function KanbanColumn({
   id,
   label,
-  color,
   ideas,
 }: {
   id: string;
   label: string;
-  color: string;
   ideas: PipelineIdea[];
 }) {
   const { setNodeRef, isOver } = useDroppable({ id });
