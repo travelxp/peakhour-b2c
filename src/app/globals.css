@@ -170,11 +170,11 @@
   --secondary: var(--ph-surface-200);
   --secondary-foreground: var(--ph-surface-800);
   --muted: var(--ph-surface-200);
-  --muted-foreground: var(--ph-surface-500);
+  --muted-foreground: var(--ph-surface-600);
   --accent: var(--ph-surface-250);
   --accent-foreground: var(--ph-surface-900);
   --destructive: var(--ph-error);
-  --border: var(--ph-surface-300);
+  --border: var(--ph-surface-400);
   --input: var(--ph-surface-200);
   --ring: var(--ph-amber-500);
 
@@ -228,12 +228,14 @@
 
 @layer utilities {
   .glass-panel {
-    background: rgba(18, 21, 26, 0.8);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
+    background: rgba(18, 21, 26, 0.85);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.03);
   }
   .light .glass-panel {
-    background: rgba(255, 255, 255, 0.8);
+    background: rgba(255, 255, 255, 0.85);
+    box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.5);
   }
   .text-gradient-amber {
     background: linear-gradient(135deg, #f59e0b, #ffc174);
@@ -244,4 +246,22 @@
   .text-glow-amber {
     text-shadow: 0 0 40px rgba(245, 158, 11, 0.4), 0 0 80px rgba(245, 158, 11, 0.2);
   }
+  /* Page enter animation */
+  .animate-page-in {
+    animation: pageIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  /* Card enter with stagger support via --delay */
+  .animate-card-in {
+    animation: cardIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation-delay: var(--delay, 0ms);
+  }
+}
+
+@keyframes pageIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes cardIn {
+  from { opacity: 0; transform: translateY(12px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }

@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 import { MonoLabel } from "@/components/ui/mono-label";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { PipelineStatusBadge } from "../components/status-badge";
+import { ContentEditor } from "../components/content-editor";
 import {
   ArrowLeft,
   Loader2,
@@ -453,7 +454,7 @@ function WriteTab({
         />
       </div>
 
-      {/* Content editor (textarea for now — TipTap can be added later) */}
+      {/* Rich text editor */}
       <div>
         <div className="mb-2 flex items-center justify-between">
           <MonoLabel size="xs" color="muted">Content</MonoLabel>
@@ -470,12 +471,10 @@ function WriteTab({
             )}
           </div>
         </div>
-        <textarea
-          value={html}
-          onChange={(e) => setHtml(e.target.value)}
-          rows={20}
-          className="w-full rounded-lg border border-border/15 bg-[--ph-bg-input] p-4 font-mono text-sm outline-none focus:border-primary"
-          placeholder="Newsletter content (HTML)..."
+        <ContentEditor
+          content={html}
+          onChange={setHtml}
+          placeholder="Start writing your newsletter..."
         />
       </div>
 

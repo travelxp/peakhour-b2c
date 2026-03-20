@@ -53,8 +53,8 @@ export function KanbanCard({ idea }: { idea: PipelineIdea }) {
       {...listeners}
       onClick={() => router.push(`/dashboard/strategist/${idea._id}`)}
       className={cn(
-        "cursor-pointer rounded-lg border border-border/10 bg-[--ph-bg-card] p-4 transition-all duration-200 hover:border-primary/25 hover:shadow-md",
-        isDragging && "opacity-50 shadow-xl"
+        "animate-card-in cursor-pointer rounded-lg border border-foreground/6 bg-[--ph-bg-card] p-4 transition-all duration-200 hover:border-primary/25 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(0,0,0,0.3)]",
+        isDragging && "opacity-50 shadow-xl rotate-2 scale-105"
       )}
     >
       <h4 className="font-display text-sm font-bold leading-snug line-clamp-2">

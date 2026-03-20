@@ -129,15 +129,27 @@ export default function StrategistPage() {
         </div>
       )}
 
-      {/* Loading */}
+      {/* Loading skeleton */}
       {isLoading ? (
-        <div className="flex items-center justify-center py-32">
-          <div className="space-y-4 text-center">
-            <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
-            <MonoLabel size="xs" color="muted">
-              Loading pipeline...
-            </MonoLabel>
-          </div>
+        <div className="flex gap-4 overflow-x-auto pb-4">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div
+              key={i}
+              className="w-64 shrink-0 rounded-xl border-t-2 border-foreground/5 bg-[--ph-bg-shell]/50 p-3"
+            >
+              <div className="mb-3 h-3 w-20 animate-pulse rounded bg-[--ph-surface-250]" />
+              {Array.from({ length: 2 - (i % 2) }).map((_, j) => (
+                <div key={j} className="mb-2 rounded-lg border border-foreground/5 bg-[--ph-bg-card] p-4">
+                  <div className="h-3.5 w-full animate-pulse rounded bg-[--ph-surface-250]" />
+                  <div className="mt-2 h-2.5 w-2/3 animate-pulse rounded bg-[--ph-surface-200]" />
+                  <div className="mt-3 flex gap-2">
+                    <div className="h-4 w-14 animate-pulse rounded-full bg-[--ph-surface-200]" />
+                    <div className="h-4 w-10 animate-pulse rounded bg-[--ph-surface-200]" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ))}
         </div>
       ) : data ? (
         <KanbanBoard

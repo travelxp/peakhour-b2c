@@ -145,7 +145,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       {/* Main content */}
       <main className="ml-64 min-h-screen flex-1">
         {/* Page content */}
-        <div className="space-y-10 px-8 py-8">
+        <div className="animate-page-in space-y-10 px-8 py-8">
           {children}
         </div>
 
