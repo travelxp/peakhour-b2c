@@ -118,13 +118,13 @@ export default function Home() {
               <div className="flex flex-wrap gap-4">
                 <Link
                   href="/auth"
-                  className="rounded bg-primary px-8 py-3.5 text-base font-bold text-primary-foreground shadow-lg transition-all duration-200 ease-out hover:scale-95"
+                  className="rounded-lg bg-primary px-8 py-3.5 text-base font-bold text-primary-foreground transition-all duration-200 ease-out hover:brightness-110 hover:scale-95"
                 >
-                  Get Started Free
+                  Deploy Your First Character
                 </Link>
                 <Link
                   href="#lifecycle"
-                  className="flex items-center gap-3 rounded border border-border/30 px-8 py-3.5 text-base font-bold transition-all duration-200 hover:bg-[--ph-surface-250]"
+                  className="flex items-center gap-3 rounded-lg border border-[--ph-surface-400] bg-[--ph-surface-100] px-8 py-3.5 text-base font-bold text-foreground transition-all duration-200 hover:bg-[--ph-surface-250]"
                 >
                   <PlayCircle className="h-5 w-5 fill-current" />
                   Watch the Demo
