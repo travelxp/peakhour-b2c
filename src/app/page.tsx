@@ -94,7 +94,7 @@ export default function Home() {
 
       <main className="pt-24">
         {/* ─── HERO ─── */}
-        <section className="relative flex min-h-screen items-center justify-center overflow-hidden px-6 lg:px-24">
+        <section className="relative flex min-h-[calc(100vh-6rem)] items-center justify-center overflow-hidden px-6 lg:px-24">
           <div className="pointer-events-none absolute left-1/2 top-1/2 h-[800px] w-[800px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/10 blur-[120px]" />
 
           <div className="relative z-10 grid w-full max-w-360 items-center gap-24 lg:grid-cols-2">

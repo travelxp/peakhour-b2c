@@ -29,7 +29,7 @@ function CharacterShowcaseCard({
     >
       <div className="h-full overflow-hidden rounded-lg bg-background">
         {/* Avatar area */}
-        <div className="relative h-75 overflow-hidden bg-[--ph-surface-150]">
+        <div className="relative h-48 overflow-hidden bg-[--ph-surface-150]">
           <div className="absolute inset-0 bg-linear-to-t from-background to-transparent" />
           <div className="flex h-full items-center justify-center">
             <span className="font-display text-6xl font-bold text-[--ph-surface-300]">
