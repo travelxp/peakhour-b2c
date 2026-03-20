@@ -179,15 +179,16 @@ export default function PricingPage() {
                   ))}
                 </ul>
 
-                <button
-                  className={`w-full rounded-md py-4 font-bold transition-colors ${
+                <Link
+                  href="/auth"
+                  className={`block w-full rounded-md py-4 text-center font-bold transition-colors ${
                     plan.highlighted
                       ? "bg-linear-to-r from-primary to-[--ph-amber-600] text-primary-foreground hover:opacity-90"
                       : "border border-border hover:bg-foreground hover:text-background"
                   }`}
                 >
-                  <Link href="/auth">{plan.cta}</Link>
-                </button>
+                  {plan.cta}
+                </Link>
               </div>
             ))}
           </div>
@@ -198,7 +199,7 @@ export default function PricingPage() {
           <h2 className="mb-12 font-display text-4xl font-bold tracking-tight">
             Autonomous Feature Comparison
           </h2>
-          <div className="overflow-hidden rounded-xl border border-border/10 bg-[--ph-bg-card] shadow-sm">
+          <div className="overflow-x-auto rounded-xl border border-border/10 bg-[--ph-bg-card] shadow-sm">
             <table className="w-full border-collapse text-left">
               <thead>
                 <tr className="border-b border-border/20 bg-[--ph-bg-shell]">

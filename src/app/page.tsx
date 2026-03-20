@@ -3,7 +3,6 @@ import { Brain, Rocket, BarChart2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { GradientButton } from "@/components/ui/gradient-button";
 import { MonoLabel } from "@/components/ui/mono-label";
-import { StatBlock } from "@/components/ui/stat-block";
 import { CharacterFloatCard } from "@/components/ui/character-float-card";
 import { CharacterShowcaseCard } from "@/components/ui/character-showcase-card";
 import { Header } from "@/components/shared/header";
@@ -153,7 +152,7 @@ export default function Home() {
         </section>
 
         {/* ─── FEATURES: ASYMMETRIC GRID ─── */}
-        <section className="mx-auto max-w-360 px-12 py-32">
+        <section id="engines" className="mx-auto max-w-360 px-12 py-32">
           <div className="grid gap-16 md:grid-cols-3">
             {FEATURES.map((f) => (
               <div key={f.title} className={`group space-y-8 ${f.stagger}`}>
@@ -174,7 +173,7 @@ export default function Home() {
         </section>
 
         {/* ─── INTELLIGENCE LIFECYCLE ─── */}
-        <section className="bg-[--ph-bg-shell]/30 px-12 py-32">
+        <section id="lifecycle" className="bg-[--ph-bg-shell]/30 px-12 py-32">
           <div className="mx-auto max-w-360">
             <div className="mb-24 flex flex-col justify-between gap-8 md:flex-row md:items-end">
               <h2 className="max-w-lg font-display text-5xl font-extrabold uppercase leading-none">
@@ -251,20 +250,27 @@ export default function Home() {
           </div>
         </section>
 
-        {/* ─── ENTERPRISE / PARTNER LOGOS ─── */}
+        {/* ─── SOCIAL PROOF ─── */}
         <section className="border-t border-border px-12 py-20">
           <div className="mx-auto max-w-360 text-center">
             <MonoLabel size="xs" color="faint" className="mb-12 block">
-              Trusted by forward-thinking teams
+              Built for modern marketing teams
             </MonoLabel>
-            <div className="flex flex-wrap items-center justify-center gap-16 opacity-30 grayscale">
-              {["Microsoft", "LinkedIn", "Google", "OpenAI"].map((name) => (
-                <span
-                  key={name}
-                  className="font-display text-2xl font-bold tracking-tight"
-                >
-                  {name}
-                </span>
+            <div className="grid grid-cols-2 gap-8 md:grid-cols-4">
+              {[
+                { value: "12", label: "Content Dimensions" },
+                { value: "24/7", label: "Autonomous Optimization" },
+                { value: "10x", label: "Creative Output" },
+                { value: "90%+", label: "Hands-Free Ops" },
+              ].map((stat) => (
+                <div key={stat.label} className="text-center">
+                  <p className="font-display text-4xl font-extrabold tracking-tight">
+                    {stat.value}
+                  </p>
+                  <MonoLabel size="xs" color="faint" className="mt-2">
+                    {stat.label}
+                  </MonoLabel>
+                </div>
               ))}
             </div>
           </div>
@@ -282,8 +288,11 @@ export default function Home() {
               engine that works 24/7.
             </p>
             <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
-              <Link href="/auth">
-                <GradientButton size="lg">Get Started Free</GradientButton>
+              <Link
+                href="/auth"
+                className="inline-flex items-center justify-center gap-2 rounded-md bg-linear-to-br from-primary to-[--ph-amber-600] px-8 py-4 text-lg font-display font-bold text-primary-foreground shadow-[0_8px_16px_rgba(245,158,11,0.2)] transition-all duration-200 hover:brightness-110 hover:scale-[0.98] active:scale-[0.95]"
+              >
+                Get Started Free
               </Link>
               <Button asChild variant="outline" size="lg" className="text-lg">
                 <Link href="/pricing">View Pricing</Link>

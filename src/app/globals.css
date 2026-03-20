@@ -227,9 +227,6 @@
 }
 
 @layer utilities {
-  .font-display {
-    font-family: var(--font-syne), sans-serif;
-  }
   .glass-panel {
     background: rgba(18, 21, 26, 0.8);
     backdrop-filter: blur(20px);
