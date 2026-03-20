@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import {
   DndContext,
   type DragEndEvent,
@@ -34,7 +34,6 @@ interface KanbanBoardProps {
 
 export function KanbanBoard({ data, onRefresh }: KanbanBoardProps) {
   const [localData, setLocalData] = useState(data);
-  const snapshotRef = useRef(data);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   );
@@ -42,7 +41,6 @@ export function KanbanBoard({ data, onRefresh }: KanbanBoardProps) {
   // Sync when parent data changes
   useEffect(() => {
     setLocalData(data);
-    snapshotRef.current = data;
   }, [data]);
 
   async function handleDragEnd(event: DragEndEvent) {
