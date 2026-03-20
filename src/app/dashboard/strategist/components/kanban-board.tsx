@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   DndContext,
   type DragEndEvent,
@@ -14,6 +14,19 @@ import { KanbanColumn } from "./kanban-column";
 import { PIPELINE_COLUMNS } from "./status-badge";
 import type { PipelineIdea } from "./kanban-card";
 
+// Client-side state machine matching the API
+const VALID_TRANSITIONS: Record<string, string[]> = {
+  brainstorm: ["planned", "archived"],
+  planned: ["brief_ready", "brainstorm", "archived"],
+  brief_ready: ["writing", "planned", "archived"],
+  writing: ["review", "brief_ready", "archived"],
+  in_progress: ["review", "brief_ready", "archived"],
+  review: ["approved", "writing", "archived"],
+  approved: ["scheduled", "writing", "archived"],
+  scheduled: ["published", "approved", "archived"],
+  published: ["archived"],
+};
+
 interface KanbanBoardProps {
   data: Record<string, PipelineIdea[]>;
   onRefresh: () => void;
@@ -21,14 +34,16 @@ interface KanbanBoardProps {
 
 export function KanbanBoard({ data, onRefresh }: KanbanBoardProps) {
   const [localData, setLocalData] = useState(data);
+  const snapshotRef = useRef(data);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   );
 
   // Sync when parent data changes
-  if (data !== localData && JSON.stringify(data) !== JSON.stringify(localData)) {
+  useEffect(() => {
     setLocalData(data);
-  }
+    snapshotRef.current = data;
+  }, [data]);
 
   async function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
@@ -48,10 +63,20 @@ export function KanbanBoard({ data, onRefresh }: KanbanBoardProps) {
 
     if (!currentStatus || currentStatus === newStatus) return;
 
-    // Optimistic update
+    // Client-side transition validation
+    const allowed = VALID_TRANSITIONS[currentStatus];
+    if (!allowed || !allowed.includes(newStatus)) return;
+
+    // Snapshot before optimistic update
+    const preSnapshot = { ...localData };
+    for (const key of Object.keys(preSnapshot)) {
+      preSnapshot[key] = [...preSnapshot[key]];
+    }
+
     const idea = localData[currentStatus].find((i) => i._id === ideaId);
     if (!idea) return;
 
+    // Optimistic update
     setLocalData((prev) => {
       const next = { ...prev };
       next[currentStatus] = prev[currentStatus].filter((i) => i._id !== ideaId);
@@ -63,8 +88,8 @@ export function KanbanBoard({ data, onRefresh }: KanbanBoardProps) {
       await api.patch(`/v1/content/ideas/${ideaId}/status`, { status: newStatus });
       onRefresh();
     } catch {
-      // Revert on failure
-      setLocalData(data);
+      // Revert to pre-drag snapshot
+      setLocalData(preSnapshot);
     }
   }
 

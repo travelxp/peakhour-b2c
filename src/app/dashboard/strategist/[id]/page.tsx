@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -112,8 +112,6 @@ export default function IdeaDetailPage() {
       </div>
     );
   }
-
-  const statusIndex = ["brainstorm", "planned", "brief_ready", "writing", "review", "approved", "scheduled", "published"].indexOf(idea.status);
 
   return (
     <div className="space-y-8">
@@ -391,6 +389,12 @@ function WriteTab({
   const [subject, setSubject] = useState(idea.content?.subject || "");
   const [saving, setSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<string | null>(null);
+
+  // Re-sync when server data changes (e.g., after regenerate)
+  useEffect(() => {
+    if (idea.content?.html) setHtml(idea.content.html);
+    if (idea.content?.subject) setSubject(idea.content.subject);
+  }, [idea.content?.html, idea.content?.subject]);
 
   if (!idea.brief) {
     return (
