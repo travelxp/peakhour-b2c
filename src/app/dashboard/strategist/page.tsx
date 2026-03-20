@@ -11,6 +11,8 @@ import type { PipelineIdea } from "./components/kanban-card";
 export default function StrategistPage() {
   const queryClient = useQueryClient();
   const [generating, setGenerating] = useState<string | null>(null);
+  const [showNewIdea, setShowNewIdea] = useState(false);
+  const [newIdeaTitle, setNewIdeaTitle] = useState("");
 
   const { data, isLoading } = useQuery({
     queryKey: ["pipeline-ideas"],
@@ -41,10 +43,11 @@ export default function StrategistPage() {
   }
 
   async function handleNewIdea() {
-    const title = window.prompt("Idea title:");
-    if (!title?.trim()) return;
+    if (!newIdeaTitle.trim()) return;
     try {
-      await api.post("/v1/content/ideas", { title: title.trim() });
+      await api.post("/v1/content/ideas", { title: newIdeaTitle.trim() });
+      setNewIdeaTitle("");
+      setShowNewIdea(false);
       queryClient.invalidateQueries({ queryKey: ["pipeline-ideas"] });
     } catch {
       // error
@@ -67,7 +70,7 @@ export default function StrategistPage() {
         {/* Actions */}
         <div className="flex gap-3">
           <button
-            onClick={handleNewIdea}
+            onClick={() => setShowNewIdea(!showNewIdea)}
             className="flex items-center gap-2 rounded-lg border border-border/30 bg-[--ph-surface-100] px-4 py-2.5 text-sm font-bold transition-all hover:bg-[--ph-surface-200]"
           >
             <Plus className="h-4 w-4" />
@@ -99,6 +102,32 @@ export default function StrategistPage() {
           </button>
         </div>
       </div>
+
+      {/* New idea inline form */}
+      {showNewIdea && (
+        <div className="flex gap-3">
+          <input
+            autoFocus
+            value={newIdeaTitle}
+            onChange={(e) => setNewIdeaTitle(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleNewIdea()}
+            placeholder="What's the idea?"
+            className="flex-1 rounded-lg border border-border/15 bg-[--ph-bg-input] px-4 py-3 text-sm outline-none focus:border-primary"
+          />
+          <button
+            onClick={handleNewIdea}
+            className="rounded-lg bg-primary px-6 py-3 text-sm font-bold text-primary-foreground transition-all hover:brightness-110"
+          >
+            Add
+          </button>
+          <button
+            onClick={() => { setShowNewIdea(false); setNewIdeaTitle(""); }}
+            className="rounded-lg border border-border/30 px-4 py-3 text-sm transition-all hover:bg-[--ph-surface-200]"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
 
       {/* Loading */}
       {isLoading ? (
