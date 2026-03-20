@@ -303,23 +303,23 @@ export default function ContentPage() {
     <TooltipProvider>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-start justify-between">
+        <div className="flex items-end justify-between">
           <div>
-            <h2 className="text-2xl font-bold tracking-tight">
+            <h2 className="font-display text-5xl font-extrabold tracking-tighter mb-2">
               Content Intelligence
             </h2>
-            <p className="text-muted-foreground">
+            <p className="text-lg text-muted-foreground opacity-80">
               Your newsletters, AI-tagged and scored for ad potential
             </p>
           </div>
           <div className="flex gap-2">
             {hasUntagged && !analysing && (
-              <Button onClick={() => startAnalysis(false)}>
+              <Button onClick={() => startAnalysis(false)} className="bg-primary text-primary-foreground font-bold px-8 py-3 rounded-lg shadow-lg shadow-primary/20 hover:opacity-90 active:scale-95">
                 Analyse {stats.total - stats.tagged} untagged
               </Button>
             )}
             {!analysing && stats && stats.tagged > 0 && (
-              <Button variant="outline" onClick={() => startAnalysis(true)}>
+              <Button onClick={() => startAnalysis(true)} className="bg-primary text-primary-foreground font-bold px-8 py-3 rounded-lg shadow-lg shadow-primary/20 hover:opacity-90 active:scale-95">
                 Re-analyse all
               </Button>
             )}
@@ -396,21 +396,24 @@ export default function ContentPage() {
 
         {/* Tabs */}
         <Tabs defaultValue="library">
-          <TabsList>
-            <TabsTrigger value="library">Library</TabsTrigger>
-            <TabsTrigger value="intelligence">Intelligence</TabsTrigger>
+          <TabsList className="border-b border-border/15 bg-transparent p-0 gap-8 rounded-none">
+            <TabsTrigger value="library" className="rounded-none border-b-2 border-transparent px-0 pb-4 text-lg font-bold text-muted-foreground/50 shadow-none data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none">Library</TabsTrigger>
+            <TabsTrigger value="intelligence" className="rounded-none border-b-2 border-transparent px-0 pb-4 text-lg font-bold text-muted-foreground/50 shadow-none data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none">Intelligence</TabsTrigger>
           </TabsList>
 
           {/* ── Library Tab ─────────────────────────────────── */}
           <TabsContent value="library" className="mt-4 space-y-4">
             {/* Filter Bar */}
-            <div className="flex flex-wrap items-center gap-2">
-              <Input
-                placeholder="Search articles..."
-                value={filters.search}
-                onChange={(e) => updateFilter("search", e.target.value)}
-                className="w-48"
-              />
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="flex grow items-center gap-3 rounded-lg border border-border/15 bg-[--ph-bg-shell] px-4 py-2 max-w-xs">
+                <svg className="h-5 w-5 text-muted-foreground/50" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                <input
+                  placeholder="Search articles..."
+                  value={filters.search}
+                  onChange={(e) => updateFilter("search", e.target.value)}
+                  className="w-full border-none bg-transparent text-sm outline-none focus:ring-0"
+                />
+              </div>
               <FilterSelect
                 placeholder="Sector"
                 value={filters.sector}
@@ -448,21 +451,19 @@ export default function ContentPage() {
               </Select>
 
               {/* View toggle */}
-              <div className="ml-auto flex gap-1">
-                <Button
-                  variant={view === "card" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setView("card")}
-                >
-                  Cards
-                </Button>
-                <Button
-                  variant={view === "table" ? "default" : "outline"}
-                  size="sm"
+              <div className="ml-auto flex rounded-lg border border-border/15 bg-[--ph-bg-shell] p-1">
+                <button
+                  className={`rounded p-1.5 ${view === "table" ? "bg-[--ph-surface-250] text-primary" : "text-muted-foreground/50 hover:text-foreground"}`}
                   onClick={() => setView("table")}
                 >
-                  Table
-                </Button>
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg>
+                </button>
+                <button
+                  className={`rounded p-1.5 ${view === "card" ? "bg-[--ph-surface-250] text-primary" : "text-muted-foreground/50 hover:text-foreground"}`}
+                  onClick={() => setView("card")}
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm10 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zm10 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" /></svg>
+                </button>
               </div>
             </div>
 
@@ -527,94 +528,83 @@ export default function ContentPage() {
                 ))}
               </div>
             ) : (
-              <Card>
+              <div className="overflow-x-auto rounded-xl border border-border/10">
                 <Table>
-                  <TableHeader>
+                  <TableHeader className="bg-[--ph-bg-shell] border-b border-border/15">
                     <TableRow>
-                      <TableHead className="w-[35%]">Title</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Sectors</TableHead>
-                      <TableHead>Sentiment</TableHead>
-                      <TableHead>Ad Score</TableHead>
-                      <TableHead>Shelf Life</TableHead>
-                      <TableHead>Published</TableHead>
+                      <TableHead className="px-6 py-4 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/60">Title</TableHead>
+                      <TableHead className="px-6 py-4 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/60">Type</TableHead>
+                      <TableHead className="px-6 py-4 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/60">Sectors</TableHead>
+                      <TableHead className="px-6 py-4 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/60">Sentiment</TableHead>
+                      <TableHead className="px-6 py-4 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/60">Ad Score</TableHead>
+                      <TableHead className="px-6 py-4 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/60">Shelf Life</TableHead>
                     </TableRow>
                   </TableHeader>
-                  <TableBody>
+                  <TableBody className="divide-y divide-border/5">
                     {library.map((draft) => (
                       <TableRow
                         key={draft._id}
-                        className="cursor-pointer hover:bg-muted/50"
+                        className="group cursor-pointer transition-colors hover:bg-[--ph-surface-200]/40"
                         onClick={() =>
                           router.push(`/dashboard/content/${draft._id}`)
                         }
                       >
-                        <TableCell className="font-medium">
-                          {draft.title}
+                        <TableCell className="max-w-xs px-6 py-6">
+                          <h4 className="font-display font-bold text-base transition-colors group-hover:text-primary">
+                            {draft.title}
+                          </h4>
+                          <p className="mt-1 text-xs text-muted-foreground opacity-60">
+                            {draft.publishedAt
+                              ? new Date(draft.publishedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+                              : "—"}
+                            {draft.readingTimeMin ? ` • ${draft.readingTimeMin} min read` : ""}
+                          </p>
                         </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="text-xs">
+                        <TableCell className="px-6 py-6">
+                          <span className="rounded bg-[--ph-surface-250] px-2 py-1 font-mono text-xs">
                             {label(undefined,draft.tags?.contentType)}
-                          </Badge>
+                          </span>
                         </TableCell>
-                        <TableCell>
-                          <div className="flex flex-wrap gap-1">
+                        <TableCell className="px-6 py-6">
+                          <div className="flex flex-wrap gap-2">
                             {draft.tags?.sectors?.slice(0, 2).map((s) => (
-                              <Badge
+                              <span
                                 key={s.name}
-                                variant="secondary"
-                                className="text-xs"
+                                className="rounded-full border border-border/30 px-2 py-0.5 text-[10px] uppercase"
                               >
                                 {label(undefined,s.name)}
-                              </Badge>
+                              </span>
                             )) ?? (
                               <span className="text-muted-foreground">—</span>
                             )}
                           </div>
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="px-6 py-6">
                           <SentimentBadge value={draft.tags?.sentiment} />
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="px-6 py-6">
                           <AdScoreBar score={draft.tags?.adPotentialScore} />
                         </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
+                        <TableCell className="px-6 py-6 font-mono text-xs text-muted-foreground">
                           {label(SHELF_LIFE_LABELS, draft.tags?.shelfLife)}
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
-                          {draft.publishedAt
-                            ? new Date(draft.publishedAt).toLocaleDateString()
-                            : "—"}
                         </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
-              </Card>
+              </div>
             )}
 
             {/* Pagination */}
-            {library.length > 0 && (
-              <div className="flex items-center justify-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={page <= 1}
-                  onClick={() => setPage((p) => p - 1)}
-                >
-                  Previous
-                </Button>
-                <span className="text-sm text-muted-foreground">
-                  Page {page}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={library.length < (view === "card" ? 12 : 20)}
+            {library.length > 0 && library.length >= (view === "card" ? 12 : 20) && (
+              <div className="flex justify-center pt-6">
+                <button
+                  className="group flex items-center gap-2 font-mono text-[11px] uppercase tracking-widest text-muted-foreground/70 transition-colors hover:text-primary"
                   onClick={() => setPage((p) => p + 1)}
                 >
-                  Next
-                </Button>
+                  Load more intelligence
+                  <svg className="h-4 w-4 transition-transform group-hover:translate-y-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                </button>
               </div>
             )}
           </TabsContent>
@@ -779,32 +769,32 @@ function KpiCard({
   progress?: number;
 }) {
   return (
-    <Card>
-      <CardContent className="p-5">
-        {loading ? (
-          <div className="space-y-2">
-            <Skeleton className="h-3 w-24" />
-            <Skeleton className="h-8 w-16" />
-            <Skeleton className="h-3 w-32" />
-          </div>
-        ) : (
-          <>
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              {title}
-            </p>
-            <p className="text-2xl font-bold mt-1">{value ?? "—"}</p>
-            {progressValue !== undefined && (
-              <Progress value={progressValue} className="h-1.5 mt-2" />
-            )}
+    <div className="rounded-xl bg-[--ph-surface-200] p-6 space-y-4">
+      {loading ? (
+        <div className="space-y-2">
+          <Skeleton className="h-3 w-24" />
+          <Skeleton className="h-8 w-16" />
+          <Skeleton className="h-3 w-32" />
+        </div>
+      ) : (
+        <>
+          <p className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground/60">
+            {title}
+          </p>
+          <div className="flex items-baseline gap-2">
+            <span className="font-display text-3xl font-bold">{value ?? "—"}</span>
             {subtitle && (
-              <p className="text-xs text-muted-foreground mt-1">
-                {subtitle}
-              </p>
+              <span className="text-sm text-muted-foreground opacity-70">{subtitle}</span>
             )}
-          </>
-        )}
-      </CardContent>
-    </Card>
+          </div>
+          {progressValue !== undefined && (
+            <div className="mt-2 h-1 w-full bg-[--ph-surface-250]">
+              <div className="h-full bg-primary" style={{ width: `${progressValue}%` }} />
+            </div>
+          )}
+        </>
+      )}
+    </div>
   );
 }
 
@@ -821,7 +811,7 @@ function FilterSelect({
 }) {
   return (
     <Select value={value || "__all__"} onValueChange={(v) => onChange(v === "__all__" ? "" : v)}>
-      <SelectTrigger className="w-36 h-9 text-xs">
+      <SelectTrigger className="w-36 h-9 text-sm rounded-lg border-border/15 bg-[--ph-bg-shell] outline-none">
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent>
@@ -916,14 +906,14 @@ function AdScoreBar({ score }: { score?: number }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <div className="flex items-center gap-2">
-          <div className="w-16 h-1.5 rounded-full bg-muted overflow-hidden">
+        <div className="flex items-center gap-3">
+          <span className="font-mono text-lg font-bold text-primary">{score}</span>
+          <div className="h-1 w-16 overflow-hidden rounded-full bg-[--ph-surface-250]">
             <div
               className={`h-full rounded-full ${color}`}
               style={{ width: `${score * 10}%` }}
             />
           </div>
-          <span className="text-xs font-medium">{score}</span>
         </div>
       </TooltipTrigger>
       <TooltipContent>
@@ -973,11 +963,32 @@ function AnalysingPlaceholder() {
 function SentimentBadge({ value }: { value?: string }) {
   if (!value) return null;
   const config = SENTIMENT_CONFIG[value];
-  if (!config) return <Badge variant="outline" className="text-xs">{value}</Badge>;
+  if (!config) return <span className="font-mono text-xs text-muted-foreground">{value}</span>;
+
+  const dotColorMap: Record<string, string> = {
+    "text-green-700": "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]",
+    "text-amber-700": "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]",
+    "text-red-700": "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]",
+    "text-blue-700": "bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]",
+    "text-gray-700": "bg-gray-400",
+  };
+
+  const textColorMap: Record<string, string> = {
+    "text-green-700": "text-emerald-400",
+    "text-amber-700": "text-amber-400",
+    "text-red-700": "text-red-400",
+    "text-blue-700": "text-blue-400",
+    "text-gray-700": "text-gray-400",
+  };
+
+  const dotClass = dotColorMap[config.color] || "bg-gray-400";
+  const textClass = textColorMap[config.color] || "text-muted-foreground";
+
   return (
-    <Badge className={`text-xs ${config.bg} ${config.color} border-0`}>
-      {config.label}
-    </Badge>
+    <div className="flex items-center gap-2">
+      <span className={`h-2 w-2 rounded-full ${dotClass}`} />
+      <span className={`font-mono text-xs ${textClass}`}>{config.label}</span>
+    </div>
   );
 }
 
