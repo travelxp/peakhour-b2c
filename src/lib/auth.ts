@@ -137,3 +137,65 @@ export async function switchBusiness(
 ): Promise<{ _id: string; name: string }> {
   return api.post<{ _id: string; name: string }>("/v1/auth/businesses/switch", { businessId });
 }
+
+// ── Team Management ─────────────────────────────────────────
+
+export interface TeamMember {
+  userId: string;
+  email: string;
+  name: string | null;
+  role: string;
+  lastLoginAt: string | null;
+  isOwner: boolean;
+}
+
+export interface PendingInvite {
+  email: string;
+  role: string;
+  invitedBy: string;
+  createdAt: string;
+  expiresAt: string;
+}
+
+export async function getTeamMembers(): Promise<{ members: TeamMember[] }> {
+  return api.get<{ members: TeamMember[] }>("/v1/auth/team/members");
+}
+
+export async function inviteTeamMember(
+  email: string,
+  role: string
+): Promise<{ message: string; email: string; role: string }> {
+  return api.post("/v1/auth/team/invite", { email, role });
+}
+
+export async function getPendingInvites(): Promise<{ invites: PendingInvite[] }> {
+  return api.get<{ invites: PendingInvite[] }>("/v1/auth/team/pending-invites");
+}
+
+export async function revokeInvite(email: string): Promise<{ message: string }> {
+  return api.delete<{ message: string }>(
+    `/v1/auth/team/invite/${encodeURIComponent(email)}`
+  );
+}
+
+export async function updateMemberRole(
+  userId: string,
+  role: string
+): Promise<{ message: string }> {
+  return api.put<{ message: string }>(`/v1/auth/team/members/${userId}/role`, {
+    role,
+  });
+}
+
+export async function removeMember(
+  userId: string
+): Promise<{ message: string }> {
+  return api.delete<{ message: string }>(`/v1/auth/team/members/${userId}`);
+}
+
+export async function acceptInvite(
+  token: string,
+  email: string
+): Promise<{ status: string; message: string; orgId?: string; email?: string; orgName?: string }> {
+  return api.post("/v1/auth/team/accept-invite", { token, email });
+}

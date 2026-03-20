@@ -281,6 +281,26 @@ function SettingsContent() {
         </CardContent>
       </Card>
 
+      {/* Team & Permissions */}
+      <Link href="/dashboard/settings/team" className="block group">
+        <Card className="transition-shadow group-hover:shadow-md">
+          <CardContent className="flex items-center justify-between py-5">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-lg bg-blue-50 flex items-center justify-center">
+                <Shield className="h-5 w-5 text-blue-600" />
+              </div>
+              <div>
+                <h3 className="font-medium text-sm">Team & Permissions</h3>
+                <p className="text-xs text-muted-foreground">
+                  Invite members, manage roles and access
+                </p>
+              </div>
+            </div>
+            <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
+          </CardContent>
+        </Card>
+      </Link>
+
       {/* Connected Accounts — nudge to Integrations */}
       <Link href="/dashboard/integrations" className="block group">
         <Card className="border-primary/20 bg-linear-to-r from-primary/5 to-primary/10 transition-shadow group-hover:shadow-md">
