@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { acceptInvite, sendMagicLink } from "@/lib/auth";
 import { useAuth } from "@/providers/auth-provider";
@@ -22,13 +22,19 @@ export default function AcceptInvitePage() {
   const [message, setMessage] = useState("");
   const [orgName, setOrgName] = useState("");
   const [magicLinkSent, setMagicLinkSent] = useState(false);
+  const calledRef = useRef(false);
 
   useEffect(() => {
+    if (calledRef.current) return;
+    calledRef.current = true;
+
     if (!token || !email) {
       setStatus("error");
       setMessage("Invalid invitation link. Please ask for a new invite.");
       return;
     }
+
+    let redirectTimer: ReturnType<typeof setTimeout>;
 
     (async () => {
       try {
@@ -36,9 +42,8 @@ export default function AcceptInvitePage() {
         if (res.status === "joined") {
           setStatus("joined");
           setMessage(res.message);
-          // Refresh auth context then redirect
           await refreshUser();
-          setTimeout(() => router.push("/dashboard/overview"), 2000);
+          redirectTimer = setTimeout(() => router.push("/dashboard/overview"), 2000);
         } else if (res.status === "signup_required") {
           setStatus("signup");
           setMessage(res.message);
@@ -54,6 +59,8 @@ export default function AcceptInvitePage() {
         );
       }
     })();
+
+    return () => clearTimeout(redirectTimer);
   }, [token, email, refreshUser, router]);
 
   const handleSignup = async () => {
