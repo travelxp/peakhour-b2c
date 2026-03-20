@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/providers/auth-provider";
 import { api, ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -48,11 +48,20 @@ const BUSINESS_CATEGORIES = [
 ];
 
 export default function AddBusinessPage() {
+  return (
+    <Suspense>
+      <AddBusinessContent />
+    </Suspense>
+  );
+}
+
+function AddBusinessContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { refreshUser, org, business } = useAuth();
   const isAddingToExistingOrg = !!org; // true = adding another business, false = first-time onboarding
   const [mode, setMode] = useState<Mode>("url");
-  const [websiteUrl, setWebsiteUrl] = useState("");
+  const [websiteUrl, setWebsiteUrl] = useState(searchParams.get("url") ?? "");
   const [orgName, setOrgName] = useState("");
   const [businessCategory, setBusinessCategory] = useState("");
   const [businessType, setBusinessType] = useState("");
