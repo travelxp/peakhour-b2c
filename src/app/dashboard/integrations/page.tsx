@@ -22,6 +22,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Plug,
   CheckCircle,
@@ -30,6 +38,7 @@ import {
   Unplug,
   Linkedin,
   Facebook,
+  Instagram,
   Chrome,
   Mail,
   ShoppingBag,
@@ -37,6 +46,8 @@ import {
   RefreshCw,
   Loader2,
   Download,
+  Megaphone,
+  MessageSquare,
   type LucideIcon,
 } from "lucide-react";
 
@@ -68,7 +79,6 @@ const PROVIDER_ICONS: Record<string, LucideIcon> = {
   linkedin_content: Linkedin,
   linkedin_ads: Linkedin,
   facebook: Facebook,
-  instagram: Facebook,
   google_ads: Chrome,
   youtube: Chrome,
   beehiiv: Mail,
@@ -83,8 +93,7 @@ const PROVIDER_ICONS: Record<string, LucideIcon> = {
 const PROVIDER_COLORS: Record<string, string> = {
   linkedin_content: "bg-[#0A66C2]",
   linkedin_ads: "bg-[#0A66C2]",
-  facebook: "bg-[#1877F2]",
-  instagram: "bg-gradient-to-br from-[#833AB4] via-[#FD1D1D] to-[#F77737]",
+  facebook: "bg-[#0668E1]",
   google_ads: "bg-[#4285F4]",
   youtube: "bg-[#FF0000]",
   beehiiv: "bg-[#FFD100] text-black",
@@ -95,6 +104,74 @@ const PROVIDER_COLORS: Record<string, string> = {
   ghost: "bg-[#15171A]",
   x: "bg-black",
 };
+
+// ── Meta capability definitions ──────────────────────────────
+
+interface MetaCapabilityDef {
+  key: string;
+  label: string;
+  icon: LucideIcon;
+  iconColor: string;
+  resourceLabel: string;
+  getResources: (extra: Record<string, any>) => Array<{ id: string; label: string }>;
+  getActiveId: (extra: Record<string, any>) => string | undefined;
+}
+
+const META_CAPABILITIES: MetaCapabilityDef[] = [
+  {
+    key: "pages",
+    label: "Facebook Pages",
+    icon: Facebook,
+    iconColor: "text-[#1877F2]",
+    resourceLabel: "Active Page",
+    getResources: (extra) =>
+      (extra.pages || []).map((p: any) => ({ id: p.pageId, label: p.pageName })),
+    getActiveId: (extra) => extra.primaryPageId,
+  },
+  {
+    key: "instagram",
+    label: "Instagram",
+    icon: Instagram,
+    iconColor: "text-[#E4405F]",
+    resourceLabel: "Account",
+    getResources: (extra) =>
+      (extra.pages || [])
+        .filter((p: any) => p.instagramAccountId)
+        .map((p: any) => ({
+          id: p.instagramAccountId,
+          label: `@${p.instagramUsername}` + (p.instagramFollowers ? ` (${p.instagramFollowers})` : ""),
+        })),
+    getActiveId: (extra) => extra.instagramAccountId,
+  },
+  {
+    key: "ads",
+    label: "Ads Manager",
+    icon: Megaphone,
+    iconColor: "text-[#0668E1]",
+    resourceLabel: "Ad Account",
+    getResources: (extra) =>
+      (extra.adAccounts || []).map((a: any) => ({
+        id: a.id,
+        label: `${a.name} (${a.currency})`,
+      })),
+    getActiveId: (extra) => extra.primaryAdAccountId,
+  },
+  {
+    key: "whatsapp",
+    label: "WhatsApp Business",
+    icon: MessageSquare,
+    iconColor: "text-[#25D366]",
+    resourceLabel: "Phone Number",
+    getResources: (extra) =>
+      (extra.whatsappAccounts || []).flatMap((w: any) =>
+        (w.phoneNumbers || []).map((p: any) => ({
+          id: p.id,
+          label: `${p.displayPhoneNumber} (${p.verifiedName})`,
+        }))
+      ),
+    getActiveId: (extra) => extra.primaryWhatsAppId,
+  },
+];
 
 const CATEGORY_LABELS: Record<string, string> = {
   social: "Social Media",
@@ -246,6 +323,25 @@ export default function IntegrationsPage() {
     }
   }
 
+  async function handleCapabilityToggle(
+    provider: string,
+    capability: string,
+    enabled: boolean,
+    activeResourceId?: string
+  ) {
+    try {
+      await api.patch(`/v1/integrations/${provider}/capabilities`, {
+        capability,
+        enabled,
+        activeResourceId,
+      });
+      await loadIntegrations();
+    } catch (err) {
+      if (err instanceof ApiError) setError(err.message);
+      else setError("Failed to update capability");
+    }
+  }
+
   async function handleDisconnect(provider: string) {
     setDisconnecting(provider);
     try {
@@ -316,6 +412,9 @@ export default function IntegrationsPage() {
                   onDisconnect={() => handleDisconnect(item.provider)}
                   onRefresh={() => handleRefresh(item.provider)}
                   onSync={() => handleSync(item.provider)}
+                  onCapabilityToggle={(capability, enabled, activeResourceId) =>
+                    handleCapabilityToggle(item.provider, capability, enabled, activeResourceId)
+                  }
                   onBackfillSync={item.provider === "beehiiv" ? handleBackfillSync : undefined}
                   backfillResult={item.provider === "beehiiv" ? backfillResult : null}
                   disconnecting={disconnecting === item.provider}
@@ -497,6 +596,7 @@ function IntegrationCard({
   onDisconnect,
   onRefresh,
   onSync,
+  onCapabilityToggle,
   onBackfillSync,
   backfillResult,
   disconnecting,
@@ -509,6 +609,7 @@ function IntegrationCard({
   onDisconnect: () => void;
   onRefresh: () => void;
   onSync: () => void;
+  onCapabilityToggle?: (capability: string, enabled: boolean, activeResourceId?: string) => Promise<void>;
   onBackfillSync?: () => Promise<void>;
   backfillResult?: { message: string; hasErrors: boolean } | null;
   disconnecting: boolean;
@@ -587,6 +688,16 @@ function IntegrationCard({
             {integration.provider === "linkedin_ads" && integration.account?.extra && (
               <LinkedInAdAccounts
                 extra={integration.account.extra}
+                onRefresh={onRefresh}
+                refreshing={refreshing}
+              />
+            )}
+
+            {/* Meta: show capability toggles + resource selectors */}
+            {integration.provider === "facebook" && integration.account?.extra && onCapabilityToggle && (
+              <MetaCapabilities
+                extra={integration.account.extra}
+                onToggle={onCapabilityToggle}
                 onRefresh={onRefresh}
                 refreshing={refreshing}
               />
@@ -689,6 +800,161 @@ function IntegrationCard({
         )}
       </CardContent>
     </Card>
+  );
+}
+
+// ── Meta Capabilities sub-component ─────────────────────────────────
+
+function MetaCapabilities({
+  extra,
+  onToggle,
+  onRefresh,
+  refreshing,
+}: {
+  extra: Record<string, any>;
+  onToggle: (capability: string, enabled: boolean, activeResourceId?: string) => Promise<void>;
+  onRefresh: () => void;
+  refreshing: boolean;
+}) {
+  const [toggling, setToggling] = useState<string | null>(null);
+
+  // Capability enabled state from backend config (default: enabled if resources exist)
+  const capabilitiesConfig = (extra.capabilities || {}) as Record<
+    string,
+    { enabled?: boolean; activeResourceId?: string }
+  >;
+
+  function isCapabilityEnabled(key: string, hasResources: boolean): boolean {
+    const cfg = capabilitiesConfig[key];
+    // Default: enabled if resources exist and not explicitly disabled
+    if (!cfg || cfg.enabled === undefined) return hasResources;
+    return cfg.enabled;
+  }
+
+  function getActiveResourceId(key: string, fallbackId?: string): string | undefined {
+    return capabilitiesConfig[key]?.activeResourceId || fallbackId;
+  }
+
+  async function handleToggle(capability: string, enabled: boolean) {
+    setToggling(capability);
+    try {
+      await onToggle(capability, enabled);
+    } finally {
+      setToggling(null);
+    }
+  }
+
+  async function handleResourceChange(capability: string, resourceId: string) {
+    setToggling(capability);
+    try {
+      await onToggle(capability, true, resourceId);
+    } finally {
+      setToggling(null);
+    }
+  }
+
+  const hasAnyResources = META_CAPABILITIES.some(
+    (cap) => cap.getResources(extra).length > 0
+  );
+
+  return (
+    <div className="space-y-2">
+      {!hasAnyResources && (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-700 dark:text-amber-400 space-y-1">
+          <div className="flex items-center gap-1.5 font-medium">
+            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+            No accounts found
+          </div>
+          <p className="leading-relaxed">
+            No Facebook Pages, Instagram accounts, or Ad accounts were found.
+            Make sure you have admin access to at least one Facebook Page, then refresh.
+          </p>
+        </div>
+      )}
+
+      {META_CAPABILITIES.map((cap) => {
+        const resources = cap.getResources(extra);
+        const hasResources = resources.length > 0;
+        const enabled = isCapabilityEnabled(cap.key, hasResources);
+        const activeId = getActiveResourceId(cap.key, cap.getActiveId(extra));
+        const isToggling = toggling === cap.key;
+        const CapIcon = cap.icon;
+
+        return (
+          <div
+            key={cap.key}
+            className={`rounded-lg border px-3 py-2.5 text-xs space-y-2 transition-opacity ${
+              !enabled && hasResources ? "opacity-60" : ""
+            }`}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <CapIcon className={`h-3.5 w-3.5 shrink-0 ${cap.iconColor}`} />
+                <span className="font-medium truncate">{cap.label}</span>
+                {hasResources ? (
+                  <Badge className="bg-green-600/90 text-[10px] gap-0.5 shrink-0">
+                    {resources.length}
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="text-[10px] text-muted-foreground shrink-0">
+                    None
+                  </Badge>
+                )}
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                {isToggling && (
+                  <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                )}
+                <Switch
+                  checked={enabled}
+                  disabled={!hasResources || isToggling}
+                  onCheckedChange={(checked) => handleToggle(cap.key, checked)}
+                  aria-label={`Toggle ${cap.label}`}
+                  className="scale-75"
+                />
+              </div>
+            </div>
+
+            {/* Resource selector — show when enabled and multiple resources */}
+            {enabled && hasResources && resources.length > 1 && (
+              <Select
+                value={activeId || resources[0]?.id}
+                onValueChange={(value) => handleResourceChange(cap.key, value)}
+                disabled={isToggling}
+              >
+                <SelectTrigger size="sm" className="w-full text-[11px] h-7">
+                  <SelectValue placeholder={`Select ${cap.resourceLabel}`} />
+                </SelectTrigger>
+                <SelectContent>
+                  {resources.map((r) => (
+                    <SelectItem key={r.id} value={r.id} className="text-xs">
+                      {r.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
+            {/* Single resource — just show the name */}
+            {enabled && hasResources && resources.length === 1 && (
+              <p className="text-[11px] text-muted-foreground truncate pl-6">
+                {resources[0].label}
+              </p>
+            )}
+          </div>
+        );
+      })}
+
+      <button
+        type="button"
+        onClick={onRefresh}
+        disabled={refreshing}
+        className="flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+      >
+        <RefreshCw className={`h-3 w-3 ${refreshing ? "animate-spin" : ""}`} />
+        {refreshing ? "Refreshing..." : "Refresh accounts"}
+      </button>
+    </div>
   );
 }
 
