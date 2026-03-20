@@ -118,9 +118,9 @@ export default function Home() {
               <div className="flex flex-wrap gap-4">
                 <Link
                   href="/auth"
-                  className="rounded bg-linear-to-br from-primary to-[--ph-amber-600] px-8 py-3.5 text-base font-bold text-primary-foreground shadow-lg transition-all duration-200 hover:brightness-110"
+                  className="rounded bg-primary px-8 py-3.5 text-base font-bold text-primary-foreground shadow-lg transition-all duration-200 ease-out hover:scale-95"
                 >
-                  Deploy Your First Character
+                  Get Started Free
                 </Link>
                 <Link
                   href="#lifecycle"

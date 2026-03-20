@@ -24,7 +24,7 @@ const dmMono = DM_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "peakhour.ai — Your AI Marketing Department",
+  title: "peakhour.ai | Your Autonomous Marketing Empire",
   description:
     "Deploy autonomous AI personas that generate and publish social media content at scale. Content intelligence, creative factory, and optimization engine — all in one platform.",
 };
