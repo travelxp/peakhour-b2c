@@ -19,9 +19,7 @@ import {
   Plug,
   Settings,
   LogOut,
-  Bell,
   UserCircle,
-  Search,
   type LucideIcon,
 } from "lucide-react";
 
@@ -146,30 +144,8 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
       {/* Main content */}
       <main className="ml-64 min-h-screen flex-1">
-        {/* Top bar */}
-        <header className="sticky top-0 z-50 flex items-center justify-between bg-background px-10 py-4">
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-3 rounded-lg border border-border/15 bg-[--ph-bg-shell] px-4 py-2">
-              <Search className="h-4 w-4 text-muted-foreground/50" />
-              <input
-                className="w-64 border-none bg-transparent text-sm outline-none placeholder:opacity-50 focus:ring-0"
-                placeholder="Search insights..."
-                type="text"
-              />
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <button className="rounded-full p-2 text-foreground opacity-70 transition-all duration-200 hover:bg-[#1f2022] hover:opacity-100">
-              <Bell className="h-5 w-5" />
-            </button>
-            <button className="rounded-full p-2 text-foreground opacity-70 transition-all duration-200 hover:bg-[#1f2022] hover:opacity-100">
-              <UserCircle className="h-5 w-5" />
-            </button>
-          </div>
-        </header>
-
         {/* Page content */}
-        <div className="mx-auto max-w-7xl space-y-12 px-10 py-10">
+        <div className="space-y-10 px-8 py-8">
           {children}
         </div>
 
