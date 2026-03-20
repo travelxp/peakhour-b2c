@@ -26,7 +26,7 @@ import {
 const NAV_ITEMS: { href: string; label: string; icon: LucideIcon }[] = [
   { href: "/dashboard/overview", label: "Overview", icon: LayoutDashboard },
   { href: "/dashboard/content", label: "Content", icon: FileText },
-  { href: "/dashboard/strategist", label: "Strategist", icon: Brain },
+  { href: "/dashboard/strategist", label: "Pipeline", icon: Brain },
   { href: "/dashboard/calendar", label: "Calendar", icon: Calendar },
   { href: "/dashboard/ads", label: "Ads", icon: Megaphone },
   { href: "/dashboard/outcomes", label: "Outcomes", icon: TrendingUp },
