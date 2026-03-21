@@ -6,7 +6,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { PIPELINE_COLUMNS, STATUS_CONFIG } from "./status-badge";
+import { PIPELINE_COLUMNS } from "./status-badge";
 
 const STAGE_COLORS: Record<string, string> = {
   brainstorm: "rgb(115 115 115)",       // secondary/neutral
@@ -43,14 +43,14 @@ export function PipelineStepper({ currentStatus }: { currentStatus: string }) {
                       isCompleted
                         ? "text-white"
                         : isCurrent
-                          ? "ring-2 ring-offset-2 ring-offset-background"
+                          ? ""
                           : "border-2 border-muted-foreground/25 text-muted-foreground/40"
                     }`}
                     style={
                       isCompleted
                         ? { backgroundColor: color }
                         : isCurrent
-                          ? { borderColor: color, color, borderWidth: 2, borderStyle: "solid", ["--tw-ring-color" as any]: color }
+                          ? { border: `2px solid ${color}`, color, boxShadow: `0 0 0 3px color-mix(in srgb, ${color} 20%, transparent)` }
                           : undefined
                     }
                   >

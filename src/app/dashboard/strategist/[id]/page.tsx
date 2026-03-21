@@ -77,6 +77,7 @@ const STATUS_TAB_MAP: Record<string, Tab> = {
   approved: "publish",
   scheduled: "publish",
   published: "publish",
+  in_progress: "write",
 };
 
 const ACTION_LABELS: Record<string, string> = {
