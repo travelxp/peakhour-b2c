@@ -417,7 +417,7 @@ function WriteTab({ idea, ideaId, loading, onGenerate, onRefresh }: { idea: Idea
         <div className="mb-1.5 flex items-center justify-between">
           <label className="text-xs font-medium text-muted-foreground">Content</label>
           <div className="flex items-center gap-3 text-xs text-muted-foreground">
-            {idea.content?.wordCount && <span>{idea.content.wordCount} words • v{idea.content.version}</span>}
+            {idea.content?.wordCount != null && <span>{idea.content.wordCount} words • v{idea.content.version}</span>}
           </div>
         </div>
         <textarea value={html} onChange={(e) => setHtml(e.target.value)} rows={20} className="w-full rounded-md border bg-background p-4 font-mono text-sm outline-none focus:ring-1 focus:ring-ring" placeholder="Newsletter content (HTML)..." />
@@ -437,7 +437,7 @@ function WriteTab({ idea, ideaId, loading, onGenerate, onRefresh }: { idea: Idea
 function ReviewTab({ idea, loading, onSubmitReview, onApprove, onReject }: { idea: IdeaDetail; loading: string | null; onSubmitReview: () => void; onApprove: () => void; onReject: (n: string) => void }) {
   const [rejectNotes, setRejectNotes] = useState("");
 
-  if (idea.status === "writing" || idea.status === "brief_ready") {
+  if (["brainstorm", "planned", "writing", "brief_ready"].includes(idea.status)) {
     return (
       <Card>
         <CardContent className="py-12 text-center">
