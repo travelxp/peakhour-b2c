@@ -3,12 +3,17 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { ChannelIcon } from "@/components/ui/channel-icon";
 import { PipelineStatusBadge } from "../components/status-badge";
+import { PipelineStepper } from "../components/pipeline-stepper";
 import {
   ArrowLeft,
   Loader2,
@@ -20,6 +25,11 @@ import {
   XCircle,
   Calendar,
   ExternalLink,
+  Eye,
+  ClipboardList,
+  Check,
+  Star,
+  StickyNote,
 } from "lucide-react";
 
 interface IdeaDetail {
@@ -58,6 +68,28 @@ interface IdeaDetail {
 const TABS = ["overview", "brief", "write", "review", "publish"] as const;
 type Tab = (typeof TABS)[number];
 
+const STATUS_TAB_MAP: Record<string, Tab> = {
+  brainstorm: "overview",
+  planned: "overview",
+  brief_ready: "brief",
+  writing: "write",
+  review: "review",
+  approved: "publish",
+  scheduled: "publish",
+  published: "publish",
+  in_progress: "write",
+};
+
+const ACTION_LABELS: Record<string, string> = {
+  "generate-brief": "Brief generated",
+  "generate-content": "Draft generated",
+  "submit-review": "Submitted for review",
+  approve: "Content approved",
+  "reject-review": "Revision requested",
+  schedule: "Scheduled",
+  publish: "Pushed to Beehiiv",
+};
+
 export default function IdeaDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -71,6 +103,12 @@ export default function IdeaDetailPage() {
     queryFn: () => api.get<IdeaDetail>(`/v1/content/ideas/${ideaId}`),
   });
 
+  useEffect(() => {
+    if (idea?.status) {
+      setActiveTab(STATUS_TAB_MAP[idea.status] || "overview");
+    }
+  }, [idea?.status]);
+
   function refresh() {
     queryClient.invalidateQueries({ queryKey: ["idea-detail", ideaId] });
     queryClient.invalidateQueries({ queryKey: ["pipeline-ideas"] });
@@ -81,8 +119,9 @@ export default function IdeaDetailPage() {
     try {
       await api.post(`/v1/content/ideas/${ideaId}/${path}`, body || {});
       refresh();
+      toast.success(ACTION_LABELS[path] || "Done");
     } catch (err: any) {
-      alert(err?.message || "Action failed");
+      toast.error(err?.message || "Action failed");
     }
     setLoading(null);
   }
@@ -96,85 +135,185 @@ export default function IdeaDetailPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Back + Header */}
-      <div>
-        <button
-          onClick={() => router.push("/dashboard/strategist")}
-          className="mb-4 flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to Pipeline
-        </button>
+    <TooltipProvider>
+      <div className="space-y-6">
+        {/* Back + Header */}
+        <div>
+          <button
+            onClick={() => router.push("/dashboard/strategist")}
+            className="mb-4 flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to Pipeline
+          </button>
 
-        <div className="flex items-start justify-between">
-          <div>
-            <div className="mb-2 flex items-center gap-2">
-              <PipelineStatusBadge status={idea.status} />
-              {idea.aiScore != null && (
-                <Badge variant="secondary" className="text-xs">Score: {idea.aiScore}</Badge>
+          <div className="flex items-start justify-between">
+            <div>
+              <div className="mb-2 flex items-center gap-2">
+                <PipelineStatusBadge status={idea.status} />
+                {idea.aiScore != null && (
+                  <Badge variant="secondary" className="text-xs">Score: {idea.aiScore}</Badge>
+                )}
+              </div>
+              <h1 className="text-2xl font-bold tracking-tight">{idea.title}</h1>
+              {idea.description && (
+                <p className="mt-1 max-w-2xl text-muted-foreground">{idea.description}</p>
               )}
             </div>
-            <h1 className="text-2xl font-bold tracking-tight">{idea.title}</h1>
-            {idea.description && (
-              <p className="mt-1 max-w-2xl text-muted-foreground">{idea.description}</p>
-            )}
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {idea.sector && <Badge variant="outline">{idea.sector}</Badge>}
-            {idea.contentType && <Badge variant="secondary">{idea.contentType}</Badge>}
+            <div className="flex flex-wrap gap-2">
+              {idea.sector && <Badge variant="outline">{idea.sector}</Badge>}
+              {idea.contentType && <Badge variant="secondary">{idea.contentType}</Badge>}
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Tabs */}
-      <div className="flex gap-4 border-b">
-        {TABS.map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`border-b-2 px-1 pb-3 text-sm font-medium capitalize transition-colors ${
-              activeTab === tab
-                ? "border-primary text-foreground"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {tab}
-          </button>
-        ))}
-      </div>
+        {/* Pipeline Stepper */}
+        <PipelineStepper currentStatus={idea.status} />
 
-      {/* Tab content */}
-      {activeTab === "overview" && <OverviewTab idea={idea} />}
-      {activeTab === "brief" && <BriefTab idea={idea} loading={loading} onGenerate={() => action("generate-brief")} />}
-      {activeTab === "write" && <WriteTab idea={idea} ideaId={ideaId} loading={loading} onGenerate={() => action("generate-content")} onRefresh={refresh} />}
-      {activeTab === "review" && <ReviewTab idea={idea} loading={loading} onSubmitReview={() => action("submit-review")} onApprove={() => action("approve")} onReject={(notes: string) => action("reject-review", { notes })} />}
-      {activeTab === "publish" && <PublishTab idea={idea} loading={loading} onSchedule={(date: string) => action("schedule", { scheduledAt: date })} onPublish={() => action("publish")} />}
-    </div>
+        {/* Tabs */}
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as Tab)}>
+          <TabsList variant="line">
+            <TabsTrigger value="overview">
+              <Eye className="h-3.5 w-3.5" />
+              Overview
+            </TabsTrigger>
+            <TabsTrigger value="brief">
+              <ClipboardList className="h-3.5 w-3.5" />
+              Brief
+              {idea.brief && <Check className="h-3 w-3 text-emerald-500" />}
+            </TabsTrigger>
+            <TabsTrigger value="write">
+              <Pen className="h-3.5 w-3.5" />
+              Write
+              {idea.content?.html && <Check className="h-3 w-3 text-emerald-500" />}
+            </TabsTrigger>
+            <TabsTrigger value="review">
+              <Send className="h-3.5 w-3.5" />
+              Review
+              {idea.review?.verdict === "approved" && <Check className="h-3 w-3 text-emerald-500" />}
+            </TabsTrigger>
+            <TabsTrigger value="publish">
+              <ExternalLink className="h-3.5 w-3.5" />
+              Publish
+              {idea.publishing?.beehiivPostId && <Check className="h-3 w-3 text-emerald-500" />}
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="overview">
+            <OverviewTab idea={idea} />
+          </TabsContent>
+          <TabsContent value="brief">
+            <BriefTab idea={idea} loading={loading} onGenerate={() => action("generate-brief")} />
+          </TabsContent>
+          <TabsContent value="write">
+            <WriteTab idea={idea} ideaId={ideaId} loading={loading} onGenerate={() => action("generate-content")} onRefresh={refresh} />
+          </TabsContent>
+          <TabsContent value="review">
+            <ReviewTab idea={idea} loading={loading} onSubmitReview={() => action("submit-review")} onApprove={() => action("approve")} onReject={(notes: string) => action("reject-review", { notes })} />
+          </TabsContent>
+          <TabsContent value="publish">
+            <PublishTab idea={idea} loading={loading} onSchedule={(date: string) => action("schedule", { scheduledAt: date })} onPublish={() => action("publish")} />
+          </TabsContent>
+        </Tabs>
+      </div>
+    </TooltipProvider>
   );
 }
 
 function OverviewTab({ idea }: { idea: IdeaDetail }) {
   return (
-    <div className="grid gap-4 md:grid-cols-2">
+    <div className="space-y-4">
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader><CardTitle className="text-sm">Metadata</CardTitle></CardHeader>
+          <CardContent>
+            <dl className="space-y-2 text-sm">
+              {[
+                ["Source", idea.source],
+                ["Sector", idea.sector],
+                ["Audience", idea.targetAudience],
+                ["Type", idea.contentType],
+                ["Angle", idea.angle],
+              ].map(([l, v]) =>
+                v ? <div key={l as string} className="flex justify-between"><dt className="text-muted-foreground">{l}</dt><dd>{v}</dd></div> : null
+              )}
+              {/* Priority */}
+              <div className="flex justify-between">
+                <dt className="text-muted-foreground">Priority</dt>
+                <dd className="flex gap-0.5">
+                  {idea.priority
+                    ? Array.from({ length: 5 }, (_, i) => (
+                        <Star
+                          key={i}
+                          className={`h-3.5 w-3.5 ${
+                            i < idea.priority!
+                              ? "fill-amber-400 text-amber-400"
+                              : "text-muted-foreground/25"
+                          }`}
+                        />
+                      ))
+                    : <span className="text-muted-foreground/50">Not set</span>
+                  }
+                </dd>
+              </div>
+              {/* Channels */}
+              {idea.channels && idea.channels.length > 0 && (
+                <div className="flex justify-between">
+                  <dt className="text-muted-foreground">Channels</dt>
+                  <dd className="flex flex-wrap gap-2">
+                    {idea.channels.map((ch) => (
+                      <ChannelIcon key={ch} channel={ch} size={14} />
+                    ))}
+                  </dd>
+                </div>
+              )}
+            </dl>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader><CardTitle className="text-sm">Timeline</CardTitle></CardHeader>
+          <CardContent>
+            <dl className="space-y-2 text-sm">
+              {[
+                ["Created", idea.createdAt ? new Date(idea.createdAt).toLocaleString() : null],
+                ["Updated", idea.updatedAt ? new Date(idea.updatedAt).toLocaleString() : null],
+                ["Target", idea.targetDate ? new Date(idea.targetDate).toLocaleDateString() : null],
+                ["Scheduled", idea.scheduledAt ? new Date(idea.scheduledAt).toLocaleString() : null],
+              ].map(([l, v]) =>
+                v ? <div key={l as string} className="flex justify-between"><dt className="text-muted-foreground">{l}</dt><dd>{v}</dd></div> : null
+              )}
+            </dl>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Tags */}
+      {idea.tags && idea.tags.length > 0 && (
+        <Card>
+          <CardHeader><CardTitle className="text-sm">Tags</CardTitle></CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-1.5">
+              {idea.tags.map((tag) => (
+                <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Notes */}
       <Card>
-        <CardHeader><CardTitle className="text-sm">Metadata</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle className="text-sm flex items-center gap-1.5">
+            <StickyNote className="h-3.5 w-3.5" />
+            Notes
+          </CardTitle>
+        </CardHeader>
         <CardContent>
-          <dl className="space-y-2 text-sm">
-            {[["Source", idea.source], ["Sector", idea.sector], ["Audience", idea.targetAudience], ["Type", idea.contentType], ["Angle", idea.angle], ["Channels", idea.channels?.join(", ")]].map(([l, v]) =>
-              v ? <div key={l as string} className="flex justify-between"><dt className="text-muted-foreground">{l}</dt><dd>{v}</dd></div> : null
-            )}
-          </dl>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader><CardTitle className="text-sm">Timeline</CardTitle></CardHeader>
-        <CardContent>
-          <dl className="space-y-2 text-sm">
-            {[["Created", idea.createdAt ? new Date(idea.createdAt).toLocaleString() : null], ["Updated", idea.updatedAt ? new Date(idea.updatedAt).toLocaleString() : null], ["Target", idea.targetDate ? new Date(idea.targetDate).toLocaleDateString() : null], ["Scheduled", idea.scheduledAt ? new Date(idea.scheduledAt).toLocaleString() : null]].map(([l, v]) =>
-              v ? <div key={l as string} className="flex justify-between"><dt className="text-muted-foreground">{l}</dt><dd>{v}</dd></div> : null
-            )}
-          </dl>
+          {idea.notes
+            ? <p className="text-sm whitespace-pre-wrap">{idea.notes}</p>
+            : <p className="text-sm text-muted-foreground/50">No notes added.</p>
+          }
         </CardContent>
       </Card>
     </div>
@@ -233,7 +372,6 @@ function WriteTab({ idea, ideaId, loading, onGenerate, onRefresh }: { idea: Idea
   const [html, setHtml] = useState(idea.content?.html || "");
   const [subject, setSubject] = useState(idea.content?.subject || "");
   const [saving, setSaving] = useState(false);
-  const [lastSaved, setLastSaved] = useState<string | null>(null);
 
   useEffect(() => {
     if (idea.content?.html) setHtml(idea.content.html);
@@ -261,9 +399,11 @@ function WriteTab({ idea, ideaId, loading, onGenerate, onRefresh }: { idea: Idea
     setSaving(true);
     try {
       await api.put(`/v1/content/ideas/${ideaId}/content`, { html, subject });
-      setLastSaved(new Date().toLocaleTimeString());
+      toast.success("Content saved");
       onRefresh();
-    } catch { alert("Save failed"); }
+    } catch {
+      toast.error("Save failed");
+    }
     setSaving(false);
   }
 
@@ -277,8 +417,7 @@ function WriteTab({ idea, ideaId, loading, onGenerate, onRefresh }: { idea: Idea
         <div className="mb-1.5 flex items-center justify-between">
           <label className="text-xs font-medium text-muted-foreground">Content</label>
           <div className="flex items-center gap-3 text-xs text-muted-foreground">
-            {lastSaved && <span>Saved {lastSaved}</span>}
-            {idea.content?.wordCount && <span>{idea.content.wordCount} words • v{idea.content.version}</span>}
+            {idea.content?.wordCount != null && <span>{idea.content.wordCount} words • v{idea.content.version}</span>}
           </div>
         </div>
         <textarea value={html} onChange={(e) => setHtml(e.target.value)} rows={20} className="w-full rounded-md border bg-background p-4 font-mono text-sm outline-none focus:ring-1 focus:ring-ring" placeholder="Newsletter content (HTML)..." />
@@ -298,7 +437,7 @@ function WriteTab({ idea, ideaId, loading, onGenerate, onRefresh }: { idea: Idea
 function ReviewTab({ idea, loading, onSubmitReview, onApprove, onReject }: { idea: IdeaDetail; loading: string | null; onSubmitReview: () => void; onApprove: () => void; onReject: (n: string) => void }) {
   const [rejectNotes, setRejectNotes] = useState("");
 
-  if (idea.status === "writing" || idea.status === "brief_ready") {
+  if (["brainstorm", "planned", "writing", "brief_ready"].includes(idea.status)) {
     return (
       <Card>
         <CardContent className="py-12 text-center">
@@ -326,7 +465,7 @@ function ReviewTab({ idea, loading, onSubmitReview, onApprove, onReject }: { ide
               {loading === "approve" ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-1.5 h-4 w-4" />}Approve
             </Button>
             <Input value={rejectNotes} onChange={(e) => setRejectNotes(e.target.value)} placeholder="Revision notes..." className="flex-1" />
-            <Button variant="outline" onClick={() => { if (!rejectNotes.trim()) return alert("Add notes"); onReject(rejectNotes); }} disabled={loading === "reject-review"} className="text-destructive border-destructive/30">
+            <Button variant="outline" onClick={() => { if (!rejectNotes.trim()) { toast.warning("Add revision notes before rejecting"); return; } onReject(rejectNotes); }} disabled={loading === "reject-review"} className="text-destructive border-destructive/30">
               <XCircle className="mr-1.5 h-4 w-4" />Revise
             </Button>
           </div>
@@ -369,7 +508,7 @@ function PublishTab({ idea, loading, onSchedule, onPublish }: { idea: IdeaDetail
             <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Schedule Date</label>
             <Input type="datetime-local" value={scheduleDate} onChange={(e) => setScheduleDate(e.target.value)} />
           </div>
-          <Button variant="outline" onClick={() => { if (!scheduleDate) return alert("Select a date"); onSchedule(new Date(scheduleDate).toISOString()); }} disabled={loading === "schedule"}>
+          <Button variant="outline" onClick={() => { if (!scheduleDate) { toast.warning("Select a date first"); return; } onSchedule(new Date(scheduleDate).toISOString()); }} disabled={loading === "schedule"}>
             <Calendar className="mr-1.5 h-4 w-4" />Schedule
           </Button>
         </div>

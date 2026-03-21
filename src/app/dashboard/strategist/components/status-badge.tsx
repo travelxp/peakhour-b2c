@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 
-const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secondary" | "outline" | "destructive"; className?: string }> = {
+export const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secondary" | "outline" | "destructive"; className?: string }> = {
   brainstorm: { label: "Brainstorm", variant: "secondary" },
   planned: { label: "Planned", variant: "outline", className: "border-blue-500/30 text-blue-500" },
   brief_ready: { label: "Brief Ready", variant: "outline", className: "border-indigo-500/30 text-indigo-500" },
