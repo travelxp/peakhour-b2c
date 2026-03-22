@@ -1,34 +1,40 @@
 "use client";
 
 import { Check } from "lucide-react";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { PIPELINE_COLUMNS } from "./status-badge";
 
-const STAGE_COLORS: Record<string, string> = {
-  brainstorm: "rgb(115 115 115)",       // secondary/neutral
-  planned: "rgb(59 130 246)",           // blue-500
-  brief_ready: "rgb(99 102 241)",       // indigo-500
-  writing: "rgb(245 158 11)",           // amber-500
-  review: "rgb(168 85 247)",            // purple-500
-  approved: "rgb(16 185 129)",          // emerald-500
-  scheduled: "rgb(6 182 212)",          // cyan-500
-  published: "rgb(34 197 94)",          // green-500
-};
+/** 5 visual steps — each maps to a content panel */
+const STEPS = [
+  { key: "overview", label: "Ideate", color: "rgb(59 130 246)" },     // blue
+  { key: "brief", label: "Brief", color: "rgb(99 102 241)" },         // indigo
+  { key: "write", label: "Write", color: "rgb(245 158 11)" },         // amber
+  { key: "review", label: "Review", color: "rgb(168 85 247)" },       // purple
+  { key: "publish", label: "Publish", color: "rgb(34 197 94)" },      // green
+] as const;
 
-/** Maps each pipeline stage to its content panel */
+/** Maps each DB status → step panel key */
 export const STAGE_PANEL_MAP: Record<string, string> = {
   brainstorm: "overview",
   planned: "overview",
   brief_ready: "brief",
   writing: "write",
+  in_progress: "write",
   review: "review",
-  approved: "publish",
+  approved: "review",
   scheduled: "publish",
   published: "publish",
+};
+
+/** Maps DB status → step index (0-4) for progress tracking */
+const STATUS_STEP_INDEX: Record<string, number> = {
+  brainstorm: 0,
+  planned: 0,
+  brief_ready: 1,
+  writing: 2,
+  in_progress: 2,
+  review: 3,
+  approved: 3,
+  scheduled: 4,
+  published: 4,
 };
 
 export function PipelineStepper({
@@ -40,91 +46,81 @@ export function PipelineStepper({
   activePanel?: string;
   onStepClick?: (panel: string) => void;
 }) {
-  const currentIndex = PIPELINE_COLUMNS.findIndex(
-    (col) => col.key === currentStatus
-  );
-  const resolvedIndex = currentIndex === -1 ? 0 : currentIndex;
+  const currentStepIndex = STATUS_STEP_INDEX[currentStatus] ?? 0;
 
   return (
     <div className="flex items-center w-full">
-      {PIPELINE_COLUMNS.map((stage, i) => {
-        const isCompleted = i < resolvedIndex;
-        const isCurrent = i === resolvedIndex;
-        const isClickable = i <= resolvedIndex && onStepClick;
-        const panel = STAGE_PANEL_MAP[stage.key] || "overview";
-        const isActivePanel = activePanel === panel;
-        const color = STAGE_COLORS[stage.key] || "rgb(115 115 115)";
+      {STEPS.map((step, i) => {
+        const isCompleted = i < currentStepIndex;
+        const isCurrent = i === currentStepIndex;
+        const isNext = i === currentStepIndex + 1;
+        const isClickable = (i <= currentStepIndex + 1) && !!onStepClick;
+        const isActivePanel = activePanel === step.key;
 
         return (
-          <div key={stage.key} className="flex items-center flex-1 last:flex-none">
-            {/* Step circle + label */}
+          <div key={step.key} className="flex items-center flex-1 last:flex-none">
             <button
               type="button"
               disabled={!isClickable}
-              onClick={() => isClickable && onStepClick(panel)}
+              onClick={() => isClickable && onStepClick!(step.key)}
               className={`flex flex-col items-center gap-1.5 ${isClickable ? "cursor-pointer" : "cursor-default"}`}
             >
-              <Tooltip>
-                <TooltipTrigger asChild>
+              <div
+                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-medium transition-all ${
+                  isCompleted
+                    ? "text-white"
+                    : isCurrent
+                      ? ""
+                      : isNext
+                        ? "border-2 border-dashed border-muted-foreground/30 text-muted-foreground/50"
+                        : "border-2 border-muted-foreground/20 text-muted-foreground/30"
+                }`}
+                style={
+                  isCompleted
+                    ? { backgroundColor: step.color }
+                    : isCurrent
+                      ? { border: `2px solid ${step.color}`, color: step.color, boxShadow: `0 0 0 3px color-mix(in srgb, ${step.color} 20%, transparent)` }
+                      : undefined
+                }
+              >
+                {isCompleted ? (
+                  <Check className="h-4 w-4" />
+                ) : isCurrent ? (
                   <div
-                    className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-medium transition-all ${
-                      isCompleted
-                        ? "text-white"
-                        : isCurrent
-                          ? ""
-                          : "border-2 border-muted-foreground/25 text-muted-foreground/40"
-                    }`}
-                    style={
-                      isCompleted
-                        ? { backgroundColor: color }
-                        : isCurrent
-                          ? { border: `2px solid ${color}`, color, boxShadow: `0 0 0 3px color-mix(in srgb, ${color} 20%, transparent)` }
-                          : undefined
-                    }
-                  >
-                    {isCompleted ? (
-                      <Check className="h-3.5 w-3.5" />
-                    ) : isCurrent ? (
-                      <div
-                        className="h-2 w-2 rounded-full animate-pulse"
-                        style={{ backgroundColor: color }}
-                      />
-                    ) : (
-                      <div className="h-1.5 w-1.5 rounded-full bg-muted-foreground/25" />
-                    )}
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent side="bottom" className="text-xs">
-                  {stage.label}
-                </TooltipContent>
-              </Tooltip>
+                    className="h-2.5 w-2.5 rounded-full animate-pulse"
+                    style={{ backgroundColor: step.color }}
+                  />
+                ) : (
+                  <span className="text-[11px]">{i + 1}</span>
+                )}
+              </div>
               <span
-                className={`text-[10px] leading-tight hidden sm:block transition-colors ${
-                  isActivePanel && (isCompleted || isCurrent)
+                className={`text-xs leading-tight transition-colors ${
+                  isActivePanel
                     ? "font-bold"
                     : isCurrent
                       ? "font-semibold text-foreground"
                       : isCompleted
-                        ? "text-muted-foreground"
-                        : "text-muted-foreground/50"
+                        ? "font-medium text-muted-foreground"
+                        : "text-muted-foreground/40"
                 }`}
-                style={isActivePanel && (isCompleted || isCurrent) ? { color } : undefined}
+                style={isActivePanel ? { color: step.color } : undefined}
               >
-                {stage.label}
+                {step.label}
               </span>
             </button>
 
             {/* Connector line */}
-            {i < PIPELINE_COLUMNS.length - 1 && (
+            {i < STEPS.length - 1 && (
               <div
-                className={`h-0.5 flex-1 mx-1 rounded-full ${
-                  i < resolvedIndex
-                    ? "bg-muted-foreground/30"
+                className={`h-0.5 flex-1 mx-2 rounded-full transition-colors ${
+                  i < currentStepIndex
+                    ? ""
                     : "bg-muted-foreground/10"
                 }`}
                 style={
-                  i < resolvedIndex
-                    ? { backgroundColor: `color-mix(in srgb, ${color} 40%, transparent)` }
+                  i < currentStepIndex
+                    ? { backgroundColor: `color-mix(in srgb, ${step.color} 40%, transparent)` }
                     : undefined
                 }
               />
