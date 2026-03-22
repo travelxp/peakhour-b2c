@@ -23,6 +23,7 @@ import {
   XCircle,
   Calendar,
   ExternalLink,
+  Eye,
   Check,
   Star,
   StickyNote,
@@ -484,6 +485,8 @@ function WriteTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: strin
     setSaving(false);
   }
 
+  const [preview, setPreview] = useState(false);
+
   return (
     <div className="space-y-4">
       <div>
@@ -492,12 +495,34 @@ function WriteTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: strin
       </div>
       <div>
         <div className="mb-1.5 flex items-center justify-between">
-          <label className="text-xs font-medium text-muted-foreground">Content</label>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPreview(false)}
+              className={`text-xs font-medium px-2 py-1 rounded transition-colors ${!preview ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              <Pen className="mr-1 inline h-3 w-3" />Edit
+            </button>
+            <button
+              type="button"
+              onClick={() => setPreview(true)}
+              className={`text-xs font-medium px-2 py-1 rounded transition-colors ${preview ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              <Eye className="mr-1 inline h-3 w-3" />Preview
+            </button>
+          </div>
           <div className="flex items-center gap-3 text-xs text-muted-foreground">
             {idea.content?.wordCount != null && <span>{idea.content.wordCount} words · v{idea.content.version}</span>}
           </div>
         </div>
-        <textarea value={html} onChange={(e) => setHtml(e.target.value)} rows={20} className="w-full rounded-md border bg-background p-4 font-mono text-sm outline-none focus:ring-1 focus:ring-ring" placeholder="Newsletter content (HTML)..." />
+        {preview ? (
+          <div
+            className="w-full min-h-[30rem] rounded-md border bg-background p-6 prose prose-sm dark:prose-invert max-w-none overflow-auto"
+            dangerouslySetInnerHTML={{ __html: html }}
+          />
+        ) : (
+          <textarea value={html} onChange={(e) => setHtml(e.target.value)} rows={20} className="w-full rounded-md border bg-background p-4 font-mono text-sm outline-none focus:ring-1 focus:ring-ring" placeholder="Newsletter content (HTML)..." />
+        )}
       </div>
       <div className="flex gap-2">
         <Button onClick={handleSave} disabled={saving}>
@@ -534,24 +559,42 @@ function ReviewTab({ idea, loading, onSubmitReview, onApprove, onReject }: { ide
 
   if (idea.status === "review") {
     return (
-      <Card>
-        <CardHeader><CardTitle>Review Content</CardTitle><CardDescription>Approve or request revisions.</CardDescription></CardHeader>
-        <CardContent className="space-y-4">
-          {idea.content?.subject && <div className="rounded-md bg-muted p-3"><p className="text-xs text-muted-foreground">Subject</p><p className="font-medium">{idea.content.subject}</p></div>}
-          <div className="flex gap-2">
-            <Button onClick={onApprove} disabled={loading === "approve"} className="bg-emerald-600 hover:bg-emerald-500">
-              {loading === "approve" ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-1.5 h-4 w-4" />}Approve
-            </Button>
-            <Input value={rejectNotes} onChange={(e) => setRejectNotes(e.target.value)} placeholder="Revision notes..." className="flex-1" />
-            <Button variant="outline" onClick={() => { if (!rejectNotes.trim()) { toast.warning("Add revision notes before rejecting"); return; } onReject(rejectNotes); }} disabled={loading === "reject-review"} className="text-destructive border-destructive/30">
-              <XCircle className="mr-1.5 h-4 w-4" />Revise
-            </Button>
-          </div>
-          {idea.review?.verdict === "revision_requested" && idea.review.notes && (
-            <div className="rounded-md border-destructive/20 bg-destructive/5 p-3 text-sm"><p className="text-xs text-muted-foreground mb-1">Previous notes</p>{idea.review.notes}</div>
-          )}
-        </CardContent>
-      </Card>
+      <div className="space-y-4">
+        {/* Content preview */}
+        {idea.content?.html && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">Content Preview</CardTitle>
+              {idea.content.subject && <CardDescription>{idea.content.subject}</CardDescription>}
+            </CardHeader>
+            <CardContent>
+              <div
+                className="prose prose-sm dark:prose-invert max-w-none max-h-96 overflow-auto"
+                dangerouslySetInnerHTML={{ __html: idea.content.html }}
+              />
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Approval actions */}
+        <Card>
+          <CardHeader><CardTitle>Verdict</CardTitle><CardDescription>Approve or request revisions.</CardDescription></CardHeader>
+          <CardContent className="space-y-4">
+            {idea.review?.verdict === "revision_requested" && idea.review.notes && (
+              <div className="rounded-md border-destructive/20 bg-destructive/5 p-3 text-sm"><p className="text-xs text-muted-foreground mb-1">Previous revision notes</p>{idea.review.notes}</div>
+            )}
+            <div className="flex gap-2">
+              <Button onClick={onApprove} disabled={loading === "approve"} className="bg-emerald-600 hover:bg-emerald-500">
+                {loading === "approve" ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-1.5 h-4 w-4" />}Approve
+              </Button>
+              <Input value={rejectNotes} onChange={(e) => setRejectNotes(e.target.value)} placeholder="Revision notes..." className="flex-1" />
+              <Button variant="outline" onClick={() => { if (!rejectNotes.trim()) { toast.warning("Add revision notes before rejecting"); return; } onReject(rejectNotes); }} disabled={loading === "reject-review"} className="text-destructive border-destructive/30">
+                <XCircle className="mr-1.5 h-4 w-4" />Revise
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
