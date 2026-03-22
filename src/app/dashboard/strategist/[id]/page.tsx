@@ -50,6 +50,12 @@ async function consumeSSE(
   res: Response,
   onStep: (p: StreamProgress) => void,
 ): Promise<{ event: string; data: any }> {
+  const ct = res.headers.get("content-type") || "";
+  if (!ct.includes("text/event-stream")) {
+    const json = await res.json().catch(() => null);
+    throw new Error((json as any)?.error?.message || "Unexpected response format");
+  }
+
   const reader = res.body?.getReader();
   if (!reader) throw new Error("Streaming not supported");
 
@@ -165,10 +171,10 @@ export default function IdeaDetailPage() {
     }
   }, [idea?.status]);
 
-  function refresh() {
+  const refresh = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["idea-detail", ideaId] });
     queryClient.invalidateQueries({ queryKey: ["pipeline-ideas"] });
-  }
+  }, [queryClient, ideaId]);
 
   async function action(path: string, body?: any) {
     setLoading(path);

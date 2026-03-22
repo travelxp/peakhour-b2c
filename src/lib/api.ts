@@ -230,12 +230,22 @@ class ApiClient {
     const token = await this.getCsrfToken();
     if (token) headers["X-CSRF-Token"] = token;
 
-    const res = await fetch(`${this.baseUrl}${path}`, {
+    const fetchOpts: RequestInit = {
       method,
       credentials: "include",
       headers,
       body: body ? JSON.stringify(body) : undefined,
-    });
+    };
+
+    let res = await fetch(`${this.baseUrl}${path}`, fetchOpts);
+
+    // Auto-refresh on 401 (same as request())
+    if (res.status === 401) {
+      const refreshed = await this.tryRefresh();
+      if (refreshed) {
+        res = await fetch(`${this.baseUrl}${path}`, fetchOpts);
+      }
+    }
 
     if (!res.ok) {
       const json = await res.json().catch(() => null);
