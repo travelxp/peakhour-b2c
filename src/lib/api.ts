@@ -239,6 +239,20 @@ class ApiClient {
 
     let res = await fetch(`${this.baseUrl}${path}`, fetchOpts);
 
+    // Retry on CSRF rejection (same as request())
+    if (res.status === 403) {
+      const errJson = await res.clone().json().catch(() => null);
+      const code = (errJson as any)?.error?.code;
+      if (code === "CSRF_INVALID" || code === "CSRF_MISSING") {
+        csrfToken = null;
+        const retryToken = await this.getCsrfToken();
+        if (retryToken) {
+          (fetchOpts.headers as Record<string, string>)["X-CSRF-Token"] = retryToken;
+          res = await fetch(`${this.baseUrl}${path}`, fetchOpts);
+        }
+      }
+    }
+
     // Auto-refresh on 401 (same as request())
     if (res.status === 401) {
       const refreshed = await this.tryRefresh();
