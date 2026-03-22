@@ -216,6 +216,63 @@ class ApiClient {
   delete<T>(path: string) {
     return this.request<T>(path, { method: "DELETE" });
   }
+
+  /**
+   * POST that returns a raw Response for SSE streaming.
+   * Handles CSRF + credentials like other methods, but
+   * does NOT parse JSON — caller reads the stream.
+   */
+  async streamPost(path: string, body?: unknown): Promise<Response> {
+    const method = "POST";
+    const headers: Record<string, string> = {};
+    if (body) headers["Content-Type"] = "application/json";
+
+    const token = await this.getCsrfToken();
+    if (token) headers["X-CSRF-Token"] = token;
+
+    const fetchOpts: RequestInit = {
+      method,
+      credentials: "include",
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
+    };
+
+    let res = await fetch(`${this.baseUrl}${path}`, fetchOpts);
+
+    // Retry on CSRF rejection (same as request())
+    if (res.status === 403) {
+      const errJson = await res.clone().json().catch(() => null);
+      const code = (errJson as any)?.error?.code;
+      if (code === "CSRF_INVALID" || code === "CSRF_MISSING") {
+        csrfToken = null;
+        const retryToken = await this.getCsrfToken();
+        if (retryToken) {
+          (fetchOpts.headers as Record<string, string>)["X-CSRF-Token"] = retryToken;
+          res = await fetch(`${this.baseUrl}${path}`, fetchOpts);
+        }
+      }
+    }
+
+    // Auto-refresh on 401 (same as request())
+    if (res.status === 401) {
+      const refreshed = await this.tryRefresh();
+      if (refreshed) {
+        res = await fetch(`${this.baseUrl}${path}`, fetchOpts);
+      }
+    }
+
+    if (!res.ok) {
+      const json = await res.json().catch(() => null);
+      const error = (json as any)?.error;
+      throw new ApiError(
+        error?.code || "STREAM_ERROR",
+        error?.message || `Request failed (${res.status})`,
+        res.status
+      );
+    }
+
+    return res;
+  }
 }
 
 export class ApiError extends Error {

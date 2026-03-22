@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -31,6 +31,70 @@ import {
   Star,
   StickyNote,
 } from "lucide-react";
+
+/* ── SSE stream reader (reusable for any streaming action) ── */
+
+const SKILL_LABELS: Record<string, string> = {
+  analyse_library: "Analysing content library",
+  check_seasonality: "Checking seasonality",
+  check_news: "Checking latest news",
+  score_idea: "Scoring idea",
+  generate_brief: "Generating brief",
+  write_newsletter: "Writing newsletter",
+  audience_insights: "Getting audience insights",
+};
+
+interface StreamProgress { step: number; tools: string[]; label: string }
+
+async function consumeSSE(
+  res: Response,
+  onStep: (p: StreamProgress) => void,
+): Promise<{ event: string; data: any }> {
+  const ct = res.headers.get("content-type") || "";
+  if (!ct.includes("text/event-stream")) {
+    const json = await res.json().catch(() => null);
+    throw new Error((json as any)?.error?.message || "Unexpected response format");
+  }
+
+  const reader = res.body?.getReader();
+  if (!reader) throw new Error("Streaming not supported");
+
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let lastEvent: { event: string; data: any } | null = null;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const events = buffer.split("\n\n");
+    buffer = events.pop() || "";
+
+    for (const raw of events) {
+      const lines = raw.split("\n");
+      let eventType = "";
+      let data = "";
+      for (const line of lines) {
+        if (line.startsWith("event:")) eventType = line.slice(6).trim();
+        else if (line.startsWith("data:")) data = line.slice(5).trim();
+      }
+      if (!data) continue;
+      try {
+        const parsed = JSON.parse(data);
+        if (eventType === "step") {
+          const toolName = parsed.tools?.[0] || "";
+          onStep({ step: parsed.step, tools: parsed.tools, label: SKILL_LABELS[toolName] || toolName });
+        }
+        lastEvent = { event: eventType, data: parsed };
+      } catch { /* skip malformed */ }
+    }
+  }
+
+  if (!lastEvent) throw new Error("Stream ended without a result");
+  if (lastEvent.event === "error") throw new Error(lastEvent.data.message || "Generation failed");
+  return lastEvent;
+}
 
 interface IdeaDetail {
   _id: string;
@@ -81,8 +145,6 @@ const STATUS_TAB_MAP: Record<string, Tab> = {
 };
 
 const ACTION_LABELS: Record<string, string> = {
-  "generate-brief": "Brief generated",
-  "generate-content": "Draft generated",
   "submit-review": "Submitted for review",
   approve: "Content approved",
   "reject-review": "Revision requested",
@@ -109,10 +171,10 @@ export default function IdeaDetailPage() {
     }
   }, [idea?.status]);
 
-  function refresh() {
+  const refresh = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["idea-detail", ideaId] });
     queryClient.invalidateQueries({ queryKey: ["pipeline-ideas"] });
-  }
+  }, [queryClient, ideaId]);
 
   async function action(path: string, body?: any) {
     setLoading(path);
@@ -203,10 +265,10 @@ export default function IdeaDetailPage() {
             <OverviewTab idea={idea} />
           </TabsContent>
           <TabsContent value="brief">
-            <BriefTab idea={idea} loading={loading} onGenerate={() => action("generate-brief")} />
+            <BriefTab idea={idea} ideaId={ideaId} onRefresh={refresh} />
           </TabsContent>
           <TabsContent value="write">
-            <WriteTab idea={idea} ideaId={ideaId} loading={loading} onGenerate={() => action("generate-content")} onRefresh={refresh} />
+            <WriteTab idea={idea} ideaId={ideaId} onRefresh={refresh} />
           </TabsContent>
           <TabsContent value="review">
             <ReviewTab idea={idea} loading={loading} onSubmitReview={() => action("submit-review")} onApprove={() => action("approve")} onReject={(notes: string) => action("reject-review", { notes })} />
@@ -320,17 +382,51 @@ function OverviewTab({ idea }: { idea: IdeaDetail }) {
   );
 }
 
-function BriefTab({ idea, loading, onGenerate }: { idea: IdeaDetail; loading: string | null; onGenerate: () => void }) {
+function BriefTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: string; onRefresh: () => void }) {
+  const [generating, setGenerating] = useState(false);
+  const [progress, setProgress] = useState<StreamProgress | null>(null);
+
+  const generate = useCallback(async () => {
+    setGenerating(true);
+    setProgress(null);
+    try {
+      const res = await api.streamPost(`/v1/content/ideas/${ideaId}/generate-brief`);
+      const result = await consumeSSE(res, setProgress);
+      if (result.event === "complete") {
+        toast.success("Brief generated");
+        onRefresh();
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "Brief generation failed");
+    }
+    setGenerating(false);
+    setProgress(null);
+  }, [ideaId, onRefresh]);
+
   if (!idea.brief) {
     return (
       <Card>
         <CardContent className="py-12 text-center">
-          <FileText className="mx-auto mb-3 h-10 w-10 text-muted-foreground/30" />
-          <p className="mb-4 text-muted-foreground">No brief generated yet.</p>
-          <Button onClick={onGenerate} disabled={loading === "generate-brief"}>
-            {loading === "generate-brief" ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1.5 h-4 w-4" />}
-            Generate Brief
-          </Button>
+          {generating ? (
+            <>
+              <Loader2 className="mx-auto mb-3 h-10 w-10 animate-spin text-primary" />
+              <p className="mb-1 font-medium">Generating brief...</p>
+              {progress && (
+                <p className="text-sm text-muted-foreground animate-pulse">
+                  Step {progress.step}: {progress.label}
+                </p>
+              )}
+            </>
+          ) : (
+            <>
+              <FileText className="mx-auto mb-3 h-10 w-10 text-muted-foreground/30" />
+              <p className="mb-4 text-muted-foreground">No brief generated yet.</p>
+              <Button onClick={generate}>
+                <Sparkles className="mr-1.5 h-4 w-4" />
+                Generate Brief
+              </Button>
+            </>
+          )}
         </CardContent>
       </Card>
     );
@@ -368,15 +464,34 @@ function BriefTab({ idea, loading, onGenerate }: { idea: IdeaDetail; loading: st
   );
 }
 
-function WriteTab({ idea, ideaId, loading, onGenerate, onRefresh }: { idea: IdeaDetail; ideaId: string; loading: string | null; onGenerate: () => void; onRefresh: () => void }) {
+function WriteTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: string; onRefresh: () => void }) {
   const [html, setHtml] = useState(idea.content?.html || "");
   const [subject, setSubject] = useState(idea.content?.subject || "");
   const [saving, setSaving] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [progress, setProgress] = useState<StreamProgress | null>(null);
 
   useEffect(() => {
     if (idea.content?.html) setHtml(idea.content.html);
     if (idea.content?.subject) setSubject(idea.content.subject);
   }, [idea.content?.html, idea.content?.subject]);
+
+  const generate = useCallback(async () => {
+    setGenerating(true);
+    setProgress(null);
+    try {
+      const res = await api.streamPost(`/v1/content/ideas/${ideaId}/generate-content`);
+      const result = await consumeSSE(res, setProgress);
+      if (result.event === "complete") {
+        toast.success("Draft generated");
+        onRefresh();
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "Content generation failed");
+    }
+    setGenerating(false);
+    setProgress(null);
+  }, [ideaId, onRefresh]);
 
   if (!idea.brief) return <Card><CardContent className="py-12 text-center text-muted-foreground">Generate a brief first.</CardContent></Card>;
 
@@ -384,12 +499,26 @@ function WriteTab({ idea, ideaId, loading, onGenerate, onRefresh }: { idea: Idea
     return (
       <Card>
         <CardContent className="py-12 text-center">
-          <Pen className="mx-auto mb-3 h-10 w-10 text-muted-foreground/30" />
-          <p className="mb-4 text-muted-foreground">AI will write the first draft from your brief.</p>
-          <Button onClick={onGenerate} disabled={loading === "generate-content"}>
-            {loading === "generate-content" ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1.5 h-4 w-4" />}
-            Generate First Draft
-          </Button>
+          {generating ? (
+            <>
+              <Loader2 className="mx-auto mb-3 h-10 w-10 animate-spin text-primary" />
+              <p className="mb-1 font-medium">Writing first draft...</p>
+              {progress && (
+                <p className="text-sm text-muted-foreground animate-pulse">
+                  Step {progress.step}: {progress.label}
+                </p>
+              )}
+            </>
+          ) : (
+            <>
+              <Pen className="mx-auto mb-3 h-10 w-10 text-muted-foreground/30" />
+              <p className="mb-4 text-muted-foreground">AI will write the first draft from your brief.</p>
+              <Button onClick={generate}>
+                <Sparkles className="mr-1.5 h-4 w-4" />
+                Generate First Draft
+              </Button>
+            </>
+          )}
         </CardContent>
       </Card>
     );
@@ -417,7 +546,7 @@ function WriteTab({ idea, ideaId, loading, onGenerate, onRefresh }: { idea: Idea
         <div className="mb-1.5 flex items-center justify-between">
           <label className="text-xs font-medium text-muted-foreground">Content</label>
           <div className="flex items-center gap-3 text-xs text-muted-foreground">
-            {idea.content?.wordCount != null && <span>{idea.content.wordCount} words • v{idea.content.version}</span>}
+            {idea.content?.wordCount != null && <span>{idea.content.wordCount} words · v{idea.content.version}</span>}
           </div>
         </div>
         <textarea value={html} onChange={(e) => setHtml(e.target.value)} rows={20} className="w-full rounded-md border bg-background p-4 font-mono text-sm outline-none focus:ring-1 focus:ring-ring" placeholder="Newsletter content (HTML)..." />
@@ -426,8 +555,9 @@ function WriteTab({ idea, ideaId, loading, onGenerate, onRefresh }: { idea: Idea
         <Button onClick={handleSave} disabled={saving}>
           {saving && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}Save
         </Button>
-        <Button variant="outline" onClick={onGenerate} disabled={loading === "generate-content"}>
-          <Sparkles className="mr-1.5 h-4 w-4" />Regenerate
+        <Button variant="outline" onClick={generate} disabled={generating}>
+          {generating ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1.5 h-4 w-4" />}
+          Regenerate
         </Button>
       </div>
     </div>
