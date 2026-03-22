@@ -216,6 +216,39 @@ class ApiClient {
   delete<T>(path: string) {
     return this.request<T>(path, { method: "DELETE" });
   }
+
+  /**
+   * POST that returns a raw Response for SSE streaming.
+   * Handles CSRF + credentials like other methods, but
+   * does NOT parse JSON — caller reads the stream.
+   */
+  async streamPost(path: string, body?: unknown): Promise<Response> {
+    const method = "POST";
+    const headers: Record<string, string> = {};
+    if (body) headers["Content-Type"] = "application/json";
+
+    const token = await this.getCsrfToken();
+    if (token) headers["X-CSRF-Token"] = token;
+
+    const res = await fetch(`${this.baseUrl}${path}`, {
+      method,
+      credentials: "include",
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+
+    if (!res.ok) {
+      const json = await res.json().catch(() => null);
+      const error = (json as any)?.error;
+      throw new ApiError(
+        error?.code || "STREAM_ERROR",
+        error?.message || `Request failed (${res.status})`,
+        res.status
+      );
+    }
+
+    return res;
+  }
 }
 
 export class ApiError extends Error {
