@@ -9,7 +9,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { TooltipProvider } from "@/components/ui/tooltip";
 import { ChannelIcon } from "@/components/ui/channel-icon";
 import { PipelineStatusBadge } from "../components/status-badge";
 import { PipelineStepper, STAGE_PANEL_MAP } from "../components/pipeline-stepper";
@@ -181,55 +180,53 @@ export default function IdeaDetailPage() {
   }
 
   return (
-    <TooltipProvider>
-      <div className="space-y-6">
-        {/* Back + Header */}
-        <div>
-          <button
-            onClick={() => router.push("/dashboard/strategist")}
-            className="mb-4 flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back to Pipeline
-          </button>
+    <div className="space-y-6">
+      {/* Back + Header */}
+      <div>
+        <button
+          onClick={() => router.push("/dashboard/strategist")}
+          className="mb-4 flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to Pipeline
+        </button>
 
-          <div className="flex items-start justify-between">
-            <div>
-              <div className="mb-2 flex items-center gap-2">
-                <PipelineStatusBadge status={idea.status} />
-                {idea.aiScore != null && (
-                  <Badge variant="secondary" className="text-xs">Score: {idea.aiScore}</Badge>
-                )}
-              </div>
-              <h1 className="text-2xl font-bold tracking-tight">{idea.title}</h1>
-              {idea.description && (
-                <p className="mt-1 max-w-2xl text-muted-foreground">{idea.description}</p>
+        <div className="flex items-start justify-between">
+          <div>
+            <div className="mb-2 flex items-center gap-2">
+              <PipelineStatusBadge status={idea.status} />
+              {idea.aiScore != null && (
+                <Badge variant="secondary" className="text-xs">Score: {idea.aiScore}</Badge>
               )}
             </div>
-            <div className="flex flex-wrap gap-2">
-              {idea.sector && <Badge variant="outline">{idea.sector}</Badge>}
-              {idea.contentType && <Badge variant="secondary">{idea.contentType}</Badge>}
-            </div>
+            <h1 className="text-2xl font-bold tracking-tight">{idea.title}</h1>
+            {idea.description && (
+              <p className="mt-1 max-w-2xl text-muted-foreground">{idea.description}</p>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {idea.sector && <Badge variant="outline">{idea.sector}</Badge>}
+            {idea.contentType && <Badge variant="secondary">{idea.contentType}</Badge>}
           </div>
         </div>
-
-        {/* Pipeline Stepper — clickable, replaces tabs */}
-        <PipelineStepper
-          currentStatus={idea.status}
-          activePanel={activePanel}
-          onStepClick={(panel) => setActivePanel(panel as Panel)}
-        />
-
-        {/* Content panel for active step */}
-        <div>
-          {activePanel === "overview" && <OverviewTab idea={idea} />}
-          {activePanel === "brief" && <BriefTab idea={idea} ideaId={ideaId} onRefresh={refresh} />}
-          {activePanel === "write" && <WriteTab idea={idea} ideaId={ideaId} onRefresh={refresh} />}
-          {activePanel === "review" && <ReviewTab idea={idea} loading={loading} onSubmitReview={() => action("submit-review")} onApprove={() => action("approve")} onReject={(notes: string) => action("reject-review", { notes })} />}
-          {activePanel === "publish" && <PublishTab idea={idea} loading={loading} onSchedule={(date: string) => action("schedule", { scheduledAt: date })} onPublish={() => action("publish")} />}
-        </div>
       </div>
-    </TooltipProvider>
+
+      {/* Pipeline Stepper — clickable, replaces tabs */}
+      <PipelineStepper
+        currentStatus={idea.status}
+        activePanel={activePanel}
+        onStepClick={(panel) => setActivePanel(panel as Panel)}
+      />
+
+      {/* Content panel for active step */}
+      <div>
+        {activePanel === "overview" && <OverviewTab idea={idea} />}
+        {activePanel === "brief" && <BriefTab idea={idea} ideaId={ideaId} onRefresh={refresh} />}
+        {activePanel === "write" && <WriteTab idea={idea} ideaId={ideaId} onRefresh={refresh} />}
+        {activePanel === "review" && <ReviewTab idea={idea} loading={loading} onSubmitReview={() => action("submit-review")} onApprove={() => action("approve")} onReject={(notes: string) => action("reject-review", { notes })} />}
+        {activePanel === "publish" && <PublishTab idea={idea} loading={loading} onSchedule={(date: string) => action("schedule", { scheduledAt: date })} onPublish={() => action("publish")} />}
+      </div>
+    </div>
   );
 }
 
