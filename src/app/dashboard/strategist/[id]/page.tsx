@@ -9,11 +9,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ChannelIcon } from "@/components/ui/channel-icon";
 import { PipelineStatusBadge } from "../components/status-badge";
-import { PipelineStepper } from "../components/pipeline-stepper";
+import { PipelineStepper, STAGE_PANEL_MAP } from "../components/pipeline-stepper";
 import {
   ArrowLeft,
   Loader2,
@@ -25,8 +24,6 @@ import {
   XCircle,
   Calendar,
   ExternalLink,
-  Eye,
-  ClipboardList,
   Check,
   Star,
   StickyNote,
@@ -129,20 +126,7 @@ interface IdeaDetail {
   updatedAt?: string;
 }
 
-const TABS = ["overview", "brief", "write", "review", "publish"] as const;
-type Tab = (typeof TABS)[number];
-
-const STATUS_TAB_MAP: Record<string, Tab> = {
-  brainstorm: "overview",
-  planned: "overview",
-  brief_ready: "brief",
-  writing: "write",
-  review: "review",
-  approved: "publish",
-  scheduled: "publish",
-  published: "publish",
-  in_progress: "write",
-};
+type Panel = "overview" | "brief" | "write" | "review" | "publish";
 
 const ACTION_LABELS: Record<string, string> = {
   "submit-review": "Submitted for review",
@@ -157,7 +141,7 @@ export default function IdeaDetailPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const ideaId = params.id as string;
-  const [activeTab, setActiveTab] = useState<Tab>("overview");
+  const [activePanel, setActivePanel] = useState<Panel>("overview");
   const [loading, setLoading] = useState<string | null>(null);
 
   const { data: idea, isLoading } = useQuery({
@@ -167,7 +151,7 @@ export default function IdeaDetailPage() {
 
   useEffect(() => {
     if (idea?.status) {
-      setActiveTab(STATUS_TAB_MAP[idea.status] || "overview");
+      setActivePanel((STAGE_PANEL_MAP[idea.status] || "overview") as Panel);
     }
   }, [idea?.status]);
 
@@ -229,54 +213,21 @@ export default function IdeaDetailPage() {
           </div>
         </div>
 
-        {/* Pipeline Stepper */}
-        <PipelineStepper currentStatus={idea.status} />
+        {/* Pipeline Stepper — clickable, replaces tabs */}
+        <PipelineStepper
+          currentStatus={idea.status}
+          activePanel={activePanel}
+          onStepClick={(panel) => setActivePanel(panel as Panel)}
+        />
 
-        {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as Tab)}>
-          <TabsList variant="line">
-            <TabsTrigger value="overview">
-              <Eye className="h-3.5 w-3.5" />
-              Overview
-            </TabsTrigger>
-            <TabsTrigger value="brief">
-              <ClipboardList className="h-3.5 w-3.5" />
-              Brief
-              {idea.brief && <Check className="h-3 w-3 text-emerald-500" />}
-            </TabsTrigger>
-            <TabsTrigger value="write">
-              <Pen className="h-3.5 w-3.5" />
-              Write
-              {idea.content?.html && <Check className="h-3 w-3 text-emerald-500" />}
-            </TabsTrigger>
-            <TabsTrigger value="review">
-              <Send className="h-3.5 w-3.5" />
-              Review
-              {idea.review?.verdict === "approved" && <Check className="h-3 w-3 text-emerald-500" />}
-            </TabsTrigger>
-            <TabsTrigger value="publish">
-              <ExternalLink className="h-3.5 w-3.5" />
-              Publish
-              {idea.publishing?.beehiivPostId && <Check className="h-3 w-3 text-emerald-500" />}
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="overview">
-            <OverviewTab idea={idea} />
-          </TabsContent>
-          <TabsContent value="brief">
-            <BriefTab idea={idea} ideaId={ideaId} onRefresh={refresh} />
-          </TabsContent>
-          <TabsContent value="write">
-            <WriteTab idea={idea} ideaId={ideaId} onRefresh={refresh} />
-          </TabsContent>
-          <TabsContent value="review">
-            <ReviewTab idea={idea} loading={loading} onSubmitReview={() => action("submit-review")} onApprove={() => action("approve")} onReject={(notes: string) => action("reject-review", { notes })} />
-          </TabsContent>
-          <TabsContent value="publish">
-            <PublishTab idea={idea} loading={loading} onSchedule={(date: string) => action("schedule", { scheduledAt: date })} onPublish={() => action("publish")} />
-          </TabsContent>
-        </Tabs>
+        {/* Content panel for active step */}
+        <div>
+          {activePanel === "overview" && <OverviewTab idea={idea} />}
+          {activePanel === "brief" && <BriefTab idea={idea} ideaId={ideaId} onRefresh={refresh} />}
+          {activePanel === "write" && <WriteTab idea={idea} ideaId={ideaId} onRefresh={refresh} />}
+          {activePanel === "review" && <ReviewTab idea={idea} loading={loading} onSubmitReview={() => action("submit-review")} onApprove={() => action("approve")} onReject={(notes: string) => action("reject-review", { notes })} />}
+          {activePanel === "publish" && <PublishTab idea={idea} loading={loading} onSchedule={(date: string) => action("schedule", { scheduledAt: date })} onPublish={() => action("publish")} />}
+        </div>
       </div>
     </TooltipProvider>
   );

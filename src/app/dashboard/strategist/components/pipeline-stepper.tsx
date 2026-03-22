@@ -19,7 +19,27 @@ const STAGE_COLORS: Record<string, string> = {
   published: "rgb(34 197 94)",          // green-500
 };
 
-export function PipelineStepper({ currentStatus }: { currentStatus: string }) {
+/** Maps each pipeline stage to its content panel */
+export const STAGE_PANEL_MAP: Record<string, string> = {
+  brainstorm: "overview",
+  planned: "overview",
+  brief_ready: "brief",
+  writing: "write",
+  review: "review",
+  approved: "publish",
+  scheduled: "publish",
+  published: "publish",
+};
+
+export function PipelineStepper({
+  currentStatus,
+  activePanel,
+  onStepClick,
+}: {
+  currentStatus: string;
+  activePanel?: string;
+  onStepClick?: (panel: string) => void;
+}) {
   const currentIndex = PIPELINE_COLUMNS.findIndex(
     (col) => col.key === currentStatus
   );
@@ -30,12 +50,20 @@ export function PipelineStepper({ currentStatus }: { currentStatus: string }) {
       {PIPELINE_COLUMNS.map((stage, i) => {
         const isCompleted = i < resolvedIndex;
         const isCurrent = i === resolvedIndex;
+        const isClickable = i <= resolvedIndex && onStepClick;
+        const panel = STAGE_PANEL_MAP[stage.key] || "overview";
+        const isActivePanel = activePanel === panel;
         const color = STAGE_COLORS[stage.key] || "rgb(115 115 115)";
 
         return (
           <div key={stage.key} className="flex items-center flex-1 last:flex-none">
             {/* Step circle + label */}
-            <div className="flex flex-col items-center gap-1.5">
+            <button
+              type="button"
+              disabled={!isClickable}
+              onClick={() => isClickable && onStepClick(panel)}
+              className={`flex flex-col items-center gap-1.5 ${isClickable ? "cursor-pointer" : "cursor-default"}`}
+            >
               <Tooltip>
                 <TooltipTrigger asChild>
                   <div
@@ -71,17 +99,20 @@ export function PipelineStepper({ currentStatus }: { currentStatus: string }) {
                 </TooltipContent>
               </Tooltip>
               <span
-                className={`text-[10px] leading-tight hidden sm:block ${
-                  isCurrent
-                    ? "font-semibold text-foreground"
-                    : isCompleted
-                      ? "text-muted-foreground"
-                      : "text-muted-foreground/50"
+                className={`text-[10px] leading-tight hidden sm:block transition-colors ${
+                  isActivePanel && (isCompleted || isCurrent)
+                    ? "font-bold"
+                    : isCurrent
+                      ? "font-semibold text-foreground"
+                      : isCompleted
+                        ? "text-muted-foreground"
+                        : "text-muted-foreground/50"
                 }`}
+                style={isActivePanel && (isCompleted || isCurrent) ? { color } : undefined}
               >
                 {stage.label}
               </span>
-            </div>
+            </button>
 
             {/* Connector line */}
             {i < PIPELINE_COLUMNS.length - 1 && (
