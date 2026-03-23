@@ -4,6 +4,7 @@ import { useState, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
+import { API_BASE_URL } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -20,9 +21,67 @@ const SKILL_LABELS: Record<string, string> = {
   audience_insights: "Getting audience insights",
 };
 
+/** Shared SSE reader for both Get Ideas and Plan Week */
+async function readSSEStream(
+  res: Response,
+  onStep: (p: { step: number; label: string }) => void,
+  onComplete: (data: { count: number; ideas: { topic: string }[] }) => void,
+  onError: (msg: string) => void,
+) {
+  const ct = res.headers.get("content-type") || "";
+  if (!ct.includes("text/event-stream")) {
+    // Non-SSE response — try to parse as JSON
+    const json = await res.json().catch(() => null);
+    if (json?.data?.suggestions) {
+      onComplete({ count: json.data.suggestions.length, ideas: json.data.suggestions });
+    } else if (json?.error) {
+      onError(json.error.message || "Failed");
+    }
+    return;
+  }
+
+  const reader = res.body?.getReader();
+  if (!reader) return;
+
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const events = buffer.split("\n\n");
+    buffer = events.pop() || "";
+
+    for (const raw of events) {
+      const lines = raw.split("\n");
+      let eventType = "";
+      let data = "";
+      for (const line of lines) {
+        if (line.startsWith("event:")) eventType = line.slice(6).trim();
+        else if (line.startsWith("data:")) data = line.slice(5).trim();
+      }
+      if (!data) continue;
+      try {
+        const parsed = JSON.parse(data);
+        if (eventType === "step") {
+          const toolName = parsed.tools?.[0] || "";
+          onStep({ step: parsed.step, label: parsed.label || SKILL_LABELS[toolName] || toolName || `Step ${parsed.step}` });
+        } else if (eventType === "complete") {
+          onComplete({ count: parsed.count ?? 0, ideas: parsed.ideas || [] });
+        } else if (eventType === "error") {
+          onError(parsed.message || "Failed");
+        }
+      } catch { /* skip malformed */ }
+    }
+  }
+}
+
 export default function StrategistPage() {
   const queryClient = useQueryClient();
   const [generating, setGenerating] = useState(false);
+  const [genMode, setGenMode] = useState<"ideas" | "plan" | null>(null);
   const [genProgress, setGenProgress] = useState<{ step: number; label: string } | null>(null);
   const [genResult, setGenResult] = useState<{ count: number; ideas: { topic: string }[] } | null>(null);
   const [showNewIdea, setShowNewIdea] = useState(false);
@@ -36,63 +95,13 @@ export default function StrategistPage() {
 
   const handleGetIdeas = useCallback(async () => {
     setGenerating(true);
+    setGenMode("ideas");
     setGenProgress({ step: 0, label: "Starting..." });
     setGenResult(null);
 
     try {
       const res = await api.streamPost("/v1/content/suggest");
-      const ct = res.headers.get("content-type") || "";
-
-      if (!ct.includes("text/event-stream")) {
-        // Fallback: non-streaming response
-        const json = await res.json().catch(() => null);
-        if (json?.data?.suggestions) {
-          setGenResult({ count: json.data.suggestions.length, ideas: json.data.suggestions });
-        }
-        queryClient.invalidateQueries({ queryKey: ["pipeline-ideas"] });
-        setGenerating(false);
-        setGenProgress(null);
-        return;
-      }
-
-      const reader = res.body?.getReader();
-      if (!reader) { setGenerating(false); return; }
-
-      const decoder = new TextDecoder();
-      let buffer = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const events = buffer.split("\n\n");
-        buffer = events.pop() || "";
-
-        for (const raw of events) {
-          const lines = raw.split("\n");
-          let eventType = "";
-          let data = "";
-          for (const line of lines) {
-            if (line.startsWith("event:")) eventType = line.slice(6).trim();
-            else if (line.startsWith("data:")) data = line.slice(5).trim();
-          }
-          if (!data) continue;
-          try {
-            const parsed = JSON.parse(data);
-            if (eventType === "step") {
-              const toolName = parsed.tools?.[0] || "";
-              const label = parsed.label || SKILL_LABELS[toolName] || toolName || `Step ${parsed.step}`;
-              setGenProgress({ step: parsed.step, label });
-            } else if (eventType === "complete") {
-              setGenResult({ count: parsed.count, ideas: parsed.ideas || [] });
-            } else if (eventType === "error") {
-              toast.error(parsed.message || "Failed to generate ideas");
-            }
-          } catch { /* skip malformed */ }
-        }
-      }
-
+      await readSSEStream(res, setGenProgress, setGenResult, (msg) => toast.error(msg));
       queryClient.invalidateQueries({ queryKey: ["pipeline-ideas"] });
     } catch (err: any) {
       toast.error(err?.message || "Failed to generate ideas");
@@ -100,60 +109,28 @@ export default function StrategistPage() {
 
     setGenerating(false);
     setGenProgress(null);
+    setGenMode(null);
   }, [queryClient]);
 
-  async function handlePlanWeek() {
+  const handlePlanWeek = useCallback(async () => {
     setGenerating(true);
+    setGenMode("plan");
     setGenProgress({ step: 0, label: "Planning your week..." });
     setGenResult(null);
-    try {
-      // weekly-plan is a GET SSE endpoint
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/v1/content/weekly-plan`, { credentials: "include" });
-      if (!res.ok) { toast.error("Failed to plan week"); setGenerating(false); setGenProgress(null); return; }
 
-      const ct = res.headers.get("content-type") || "";
-      if (ct.includes("text/event-stream")) {
-        const reader = res.body?.getReader();
-        if (reader) {
-          const decoder = new TextDecoder();
-          let buffer = "";
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            buffer += decoder.decode(value, { stream: true });
-            const events = buffer.split("\n\n");
-            buffer = events.pop() || "";
-            for (const raw of events) {
-              const lines = raw.split("\n");
-              let eventType = "";
-              let data = "";
-              for (const line of lines) {
-                if (line.startsWith("event:")) eventType = line.slice(6).trim();
-                else if (line.startsWith("data:")) data = line.slice(5).trim();
-              }
-              if (!data) continue;
-              try {
-                const parsed = JSON.parse(data);
-                if (eventType === "step") {
-                  const toolName = parsed.tools?.[0] || "";
-                  setGenProgress({ step: parsed.step, label: parsed.label || SKILL_LABELS[toolName] || toolName || `Step ${parsed.step}` });
-                } else if (eventType === "complete") {
-                  setGenResult({ count: parsed.count || 0, ideas: parsed.ideas || [] });
-                } else if (eventType === "error") {
-                  toast.error(parsed.message || "Plan week failed");
-                }
-              } catch { /* skip */ }
-            }
-          }
-        }
-      }
+    try {
+      const res = await fetch(`${API_BASE_URL}/v1/content/weekly-plan`, { credentials: "include" });
+      if (!res.ok) { toast.error("Failed to plan week"); setGenerating(false); setGenProgress(null); setGenMode(null); return; }
+      await readSSEStream(res, setGenProgress, setGenResult, (msg) => toast.error(msg));
       queryClient.invalidateQueries({ queryKey: ["pipeline-ideas"] });
     } catch (err: any) {
       toast.error(err?.message || "Failed to plan week");
     }
+
     setGenerating(false);
     setGenProgress(null);
-  }
+    setGenMode(null);
+  }, [queryClient]);
 
   async function handleNewIdea() {
     if (!newIdeaTitle.trim()) return;
@@ -164,6 +141,8 @@ export default function StrategistPage() {
       queryClient.invalidateQueries({ queryKey: ["pipeline-ideas"] });
     } catch { /* error */ }
   }
+
+  const progressLabel = genMode === "plan" ? "Planning your week..." : "Generating content ideas...";
 
   return (
     <div className="space-y-6">
@@ -181,11 +160,11 @@ export default function StrategistPage() {
             New Idea
           </Button>
           <Button size="sm" onClick={handleGetIdeas} disabled={generating}>
-            {generating ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1.5 h-4 w-4" />}
+            {genMode === "ideas" ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1.5 h-4 w-4" />}
             Get Ideas
           </Button>
           <Button variant="outline" size="sm" onClick={handlePlanWeek} disabled={generating}>
-            <CalendarDays className="mr-1.5 h-4 w-4" />
+            {genMode === "plan" ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <CalendarDays className="mr-1.5 h-4 w-4" />}
             Plan Week
           </Button>
         </div>
@@ -210,14 +189,14 @@ export default function StrategistPage() {
         </div>
       )}
 
-      {/* Generation progress dialog (overlays kanban) */}
+      {/* Generation progress card */}
       {(generating || genResult) && (
         <div className="rounded-lg border bg-card p-6 shadow-sm">
           {generating ? (
             <div className="flex items-center gap-4">
               <Loader2 className="h-6 w-6 animate-spin text-primary shrink-0" />
               <div>
-                <p className="font-medium">Generating content ideas...</p>
+                <p className="font-medium">{progressLabel}</p>
                 {genProgress && (
                   <p className="text-sm text-muted-foreground animate-pulse">
                     {genProgress.label}
@@ -232,11 +211,13 @@ export default function StrategistPage() {
                 <p className="font-medium">{genResult.count} ideas generated</p>
                 <Button variant="ghost" size="sm" className="ml-auto text-xs" onClick={() => setGenResult(null)}>Dismiss</Button>
               </div>
-              <ul className="space-y-1 pl-8">
-                {genResult.ideas.map((idea, i) => (
-                  <li key={i} className="text-sm text-muted-foreground">• {idea.topic}</li>
-                ))}
-              </ul>
+              {genResult.ideas.length > 0 && (
+                <ul className="space-y-1 pl-8">
+                  {genResult.ideas.map((idea, i) => (
+                    <li key={i} className="text-sm text-muted-foreground">{idea.topic}</li>
+                  ))}
+                </ul>
+              )}
             </div>
           ) : null}
         </div>
