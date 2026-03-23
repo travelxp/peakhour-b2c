@@ -102,6 +102,59 @@ export default function StrategistPage() {
     setGenProgress(null);
   }, [queryClient]);
 
+  async function handlePlanWeek() {
+    setGenerating(true);
+    setGenProgress({ step: 0, label: "Planning your week..." });
+    setGenResult(null);
+    try {
+      // weekly-plan is a GET SSE endpoint
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/v1/content/weekly-plan`, { credentials: "include" });
+      if (!res.ok) { toast.error("Failed to plan week"); setGenerating(false); setGenProgress(null); return; }
+
+      const ct = res.headers.get("content-type") || "";
+      if (ct.includes("text/event-stream")) {
+        const reader = res.body?.getReader();
+        if (reader) {
+          const decoder = new TextDecoder();
+          let buffer = "";
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const events = buffer.split("\n\n");
+            buffer = events.pop() || "";
+            for (const raw of events) {
+              const lines = raw.split("\n");
+              let eventType = "";
+              let data = "";
+              for (const line of lines) {
+                if (line.startsWith("event:")) eventType = line.slice(6).trim();
+                else if (line.startsWith("data:")) data = line.slice(5).trim();
+              }
+              if (!data) continue;
+              try {
+                const parsed = JSON.parse(data);
+                if (eventType === "step") {
+                  const toolName = parsed.tools?.[0] || "";
+                  setGenProgress({ step: parsed.step, label: parsed.label || SKILL_LABELS[toolName] || toolName || `Step ${parsed.step}` });
+                } else if (eventType === "complete") {
+                  setGenResult({ count: parsed.count || 0, ideas: parsed.ideas || [] });
+                } else if (eventType === "error") {
+                  toast.error(parsed.message || "Plan week failed");
+                }
+              } catch { /* skip */ }
+            }
+          }
+        }
+      }
+      queryClient.invalidateQueries({ queryKey: ["pipeline-ideas"] });
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to plan week");
+    }
+    setGenerating(false);
+    setGenProgress(null);
+  }
+
   async function handleNewIdea() {
     if (!newIdeaTitle.trim()) return;
     try {
@@ -130,6 +183,10 @@ export default function StrategistPage() {
           <Button size="sm" onClick={handleGetIdeas} disabled={generating}>
             {generating ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1.5 h-4 w-4" />}
             Get Ideas
+          </Button>
+          <Button variant="outline" size="sm" onClick={handlePlanWeek} disabled={generating}>
+            <CalendarDays className="mr-1.5 h-4 w-4" />
+            Plan Week
           </Button>
         </div>
       </div>
