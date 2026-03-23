@@ -39,6 +39,7 @@ const SKILL_LABELS: Record<string, string> = {
   generate_brief: "Generating brief",
   write_newsletter: "Writing newsletter",
   audience_insights: "Getting audience insights",
+  extract_content: "Reading article content",
 };
 
 interface StreamProgress { step: number; tools: string[]; label: string }
