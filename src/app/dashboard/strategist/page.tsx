@@ -1,18 +1,30 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { KanbanBoard } from "./components/kanban-board";
-import { Sparkles, CalendarDays, Plus, Loader2 } from "lucide-react";
+import { Sparkles, CalendarDays, Plus, Loader2, CheckCircle } from "lucide-react";
 import type { PipelineIdea } from "./components/kanban-card";
+
+const SKILL_LABELS: Record<string, string> = {
+  analyse_library: "Analysing content library",
+  check_seasonality: "Checking seasonality",
+  check_news: "Checking latest news",
+  score_idea: "Scoring ideas",
+  extract_content: "Reading articles",
+  audience_insights: "Getting audience insights",
+};
 
 export default function StrategistPage() {
   const queryClient = useQueryClient();
-  const [generating, setGenerating] = useState<string | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [genProgress, setGenProgress] = useState<{ step: number; label: string } | null>(null);
+  const [genResult, setGenResult] = useState<{ count: number; ideas: { topic: string }[] } | null>(null);
   const [showNewIdea, setShowNewIdea] = useState(false);
   const [newIdeaTitle, setNewIdeaTitle] = useState("");
 
@@ -22,23 +34,73 @@ export default function StrategistPage() {
       api.get<Record<string, PipelineIdea[]>>("/v1/content/ideas?grouped=true"),
   });
 
-  async function handleGetIdeas() {
-    setGenerating("ideas");
-    try {
-      await api.post("/v1/content/suggest", {});
-      queryClient.invalidateQueries({ queryKey: ["pipeline-ideas"] });
-    } catch { /* error */ }
-    setGenerating(null);
-  }
+  const handleGetIdeas = useCallback(async () => {
+    setGenerating(true);
+    setGenProgress({ step: 0, label: "Starting..." });
+    setGenResult(null);
 
-  async function handlePlanWeek() {
-    setGenerating("plan");
     try {
-      await api.get("/v1/content/weekly-plan");
+      const res = await api.streamPost("/v1/content/suggest");
+      const ct = res.headers.get("content-type") || "";
+
+      if (!ct.includes("text/event-stream")) {
+        // Fallback: non-streaming response
+        const json = await res.json().catch(() => null);
+        if (json?.data?.suggestions) {
+          setGenResult({ count: json.data.suggestions.length, ideas: json.data.suggestions });
+        }
+        queryClient.invalidateQueries({ queryKey: ["pipeline-ideas"] });
+        setGenerating(false);
+        setGenProgress(null);
+        return;
+      }
+
+      const reader = res.body?.getReader();
+      if (!reader) { setGenerating(false); return; }
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const events = buffer.split("\n\n");
+        buffer = events.pop() || "";
+
+        for (const raw of events) {
+          const lines = raw.split("\n");
+          let eventType = "";
+          let data = "";
+          for (const line of lines) {
+            if (line.startsWith("event:")) eventType = line.slice(6).trim();
+            else if (line.startsWith("data:")) data = line.slice(5).trim();
+          }
+          if (!data) continue;
+          try {
+            const parsed = JSON.parse(data);
+            if (eventType === "step") {
+              const toolName = parsed.tools?.[0] || "";
+              const label = parsed.label || SKILL_LABELS[toolName] || toolName || `Step ${parsed.step}`;
+              setGenProgress({ step: parsed.step, label });
+            } else if (eventType === "complete") {
+              setGenResult({ count: parsed.count, ideas: parsed.ideas || [] });
+            } else if (eventType === "error") {
+              toast.error(parsed.message || "Failed to generate ideas");
+            }
+          } catch { /* skip malformed */ }
+        }
+      }
+
       queryClient.invalidateQueries({ queryKey: ["pipeline-ideas"] });
-    } catch { /* error */ }
-    setGenerating(null);
-  }
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to generate ideas");
+    }
+
+    setGenerating(false);
+    setGenProgress(null);
+  }, [queryClient]);
 
   async function handleNewIdea() {
     if (!newIdeaTitle.trim()) return;
@@ -65,13 +127,9 @@ export default function StrategistPage() {
             <Plus className="mr-1.5 h-4 w-4" />
             New Idea
           </Button>
-          <Button size="sm" onClick={handleGetIdeas} disabled={generating === "ideas"}>
-            {generating === "ideas" ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1.5 h-4 w-4" />}
+          <Button size="sm" onClick={handleGetIdeas} disabled={generating}>
+            {generating ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1.5 h-4 w-4" />}
             Get Ideas
-          </Button>
-          <Button variant="outline" size="sm" onClick={handlePlanWeek} disabled={generating === "plan"}>
-            {generating === "plan" ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <CalendarDays className="mr-1.5 h-4 w-4" />}
-            Plan Week
           </Button>
         </div>
       </div>
@@ -92,6 +150,38 @@ export default function StrategistPage() {
           />
           <Button size="sm" onClick={handleNewIdea}>Add</Button>
           <Button variant="ghost" size="sm" onClick={() => { setShowNewIdea(false); setNewIdeaTitle(""); }}>Cancel</Button>
+        </div>
+      )}
+
+      {/* Generation progress dialog (overlays kanban) */}
+      {(generating || genResult) && (
+        <div className="rounded-lg border bg-card p-6 shadow-sm">
+          {generating ? (
+            <div className="flex items-center gap-4">
+              <Loader2 className="h-6 w-6 animate-spin text-primary shrink-0" />
+              <div>
+                <p className="font-medium">Generating content ideas...</p>
+                {genProgress && (
+                  <p className="text-sm text-muted-foreground animate-pulse">
+                    {genProgress.label}
+                  </p>
+                )}
+              </div>
+            </div>
+          ) : genResult ? (
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <CheckCircle className="h-5 w-5 text-emerald-500 shrink-0" />
+                <p className="font-medium">{genResult.count} ideas generated</p>
+                <Button variant="ghost" size="sm" className="ml-auto text-xs" onClick={() => setGenResult(null)}>Dismiss</Button>
+              </div>
+              <ul className="space-y-1 pl-8">
+                {genResult.ideas.map((idea, i) => (
+                  <li key={i} className="text-sm text-muted-foreground">• {idea.topic}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </div>
       )}
 
