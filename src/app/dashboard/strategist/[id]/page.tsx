@@ -112,13 +112,16 @@ interface IdeaDetail {
   notes?: string;
   brief?: {
     title: string; hook: string; angle: string; targetAudience: string;
-    contentType?: string; keyDataPoints: string[]; outline: string[];
+    contentType?: string;
+    keyDataPoints: (string | { claim: string; source?: string; sourceUrl?: string; confidence: "verified" | "inferred" | "ai_estimated" })[];
+    outline: string[];
     estimatedLength: string; toneGuidance: string;
     suggestedPublishDay?: string; whyNow: string; generatedAt: string;
   };
   content?: {
     html: string; subject: string; previewText?: string;
     wordCount: number; version: number; lastEditedAt?: string;
+    dataCitations?: { claim: string; source?: string; sourceUrl?: string; confidence: "verified" | "inferred" | "ai_estimated" }[];
   };
   review?: { submittedAt?: string; verdict?: string; notes?: string };
   publishing?: { beehiivPostId?: string; beehiivUrl?: string; publishedAt?: string };
@@ -402,7 +405,30 @@ function BriefTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: strin
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader><CardTitle className="text-sm">Key Data Points</CardTitle></CardHeader>
-          <CardContent><ul className="space-y-1.5">{b.keyDataPoints.map((p, i) => <li key={i} className="flex items-start gap-2 text-sm"><span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />{p}</li>)}</ul></CardContent>
+          <CardContent><ul className="space-y-3">{b.keyDataPoints.map((p, i) => {
+            const isObj = typeof p !== "string";
+            const claim = isObj ? p.claim : p;
+            const confidence = isObj ? p.confidence : undefined;
+            const dotColor = confidence === "verified" ? "bg-emerald-500" : confidence === "inferred" ? "bg-amber-500" : confidence === "ai_estimated" ? "bg-red-400" : "bg-primary";
+            return (
+              <li key={i} className="text-sm">
+                <div className="flex items-start gap-2">
+                  <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${dotColor}`} />
+                  <span>{claim}</span>
+                </div>
+                {isObj && (
+                  <div className="ml-4 mt-1 flex items-center gap-2">
+                    <Badge variant={confidence === "verified" ? "default" : confidence === "inferred" ? "secondary" : "destructive"} className="text-[10px]">{confidence}</Badge>
+                    {p.source && p.sourceUrl ? (
+                      <a href={p.sourceUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline flex items-center gap-1">{p.source} <ExternalLink className="h-3 w-3" /></a>
+                    ) : p.source ? (
+                      <span className="text-xs text-muted-foreground">{p.source}</span>
+                    ) : null}
+                  </div>
+                )}
+              </li>
+            );
+          })}</ul></CardContent>
         </Card>
         <Card>
           <CardHeader><CardTitle className="text-sm">Outline</CardTitle></CardHeader>
@@ -487,52 +513,57 @@ function WriteTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: strin
 
   const [preview, setPreview] = useState(false);
 
+  const citations = idea.content?.dataCitations;
+
   return (
-    <div className="space-y-4">
-      <div>
-        <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Subject Line</label>
-        <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Email subject line..." />
-      </div>
-      <div>
-        <div className="mb-1.5 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setPreview(false)}
-              className={`text-xs font-medium px-2 py-1 rounded transition-colors ${!preview ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground"}`}
-            >
-              <Pen className="mr-1 inline h-3 w-3" />Edit
-            </button>
-            <button
-              type="button"
-              onClick={() => setPreview(true)}
-              className={`text-xs font-medium px-2 py-1 rounded transition-colors ${preview ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground"}`}
-            >
-              <Eye className="mr-1 inline h-3 w-3" />Preview
-            </button>
-          </div>
-          <div className="flex items-center gap-3 text-xs text-muted-foreground">
-            {idea.content?.wordCount != null && <span>{idea.content.wordCount} words · v{idea.content.version}</span>}
-          </div>
+    <div className={citations?.length ? "grid gap-4 lg:grid-cols-[1fr_320px]" : ""}>
+      <div className="space-y-4">
+        <div>
+          <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Subject Line</label>
+          <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Email subject line..." />
         </div>
-        {preview ? (
-          <div
-            className="w-full min-h-[30rem] rounded-md border bg-background p-6 prose prose-sm dark:prose-invert max-w-none overflow-auto"
-            dangerouslySetInnerHTML={{ __html: html }}
-          />
-        ) : (
-          <textarea value={html} onChange={(e) => setHtml(e.target.value)} rows={20} className="w-full rounded-md border bg-background p-4 font-mono text-sm outline-none focus:ring-1 focus:ring-ring" placeholder="Newsletter content (HTML)..." />
-        )}
+        <div>
+          <div className="mb-1.5 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setPreview(false)}
+                className={`text-xs font-medium px-2 py-1 rounded transition-colors ${!preview ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                <Pen className="mr-1 inline h-3 w-3" />Edit
+              </button>
+              <button
+                type="button"
+                onClick={() => setPreview(true)}
+                className={`text-xs font-medium px-2 py-1 rounded transition-colors ${preview ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                <Eye className="mr-1 inline h-3 w-3" />Preview
+              </button>
+            </div>
+            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+              {idea.content?.wordCount != null && <span>{idea.content.wordCount} words · v{idea.content.version}</span>}
+            </div>
+          </div>
+          {preview ? (
+            <div
+              className="w-full min-h-[30rem] rounded-md border bg-background p-6 prose prose-sm dark:prose-invert max-w-none overflow-auto"
+              dangerouslySetInnerHTML={{ __html: html }}
+            />
+          ) : (
+            <textarea value={html} onChange={(e) => setHtml(e.target.value)} rows={20} className="w-full rounded-md border bg-background p-4 font-mono text-sm outline-none focus:ring-1 focus:ring-ring" placeholder="Newsletter content (HTML)..." />
+          )}
+        </div>
+        <div className="flex gap-2">
+          <Button onClick={handleSave} disabled={saving}>
+            {saving && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}Save
+          </Button>
+          <Button variant="outline" onClick={generate} disabled={generating}>
+            {generating ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1.5 h-4 w-4" />}
+            Regenerate
+          </Button>
+        </div>
       </div>
-      <div className="flex gap-2">
-        <Button onClick={handleSave} disabled={saving}>
-          {saving && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}Save
-        </Button>
-        <Button variant="outline" onClick={generate} disabled={generating}>
-          {generating ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1.5 h-4 w-4" />}
-          Regenerate
-        </Button>
-      </div>
+      {citations?.length ? <DataCitationsPanel citations={citations} /> : null}
     </div>
   );
 }
@@ -576,6 +607,9 @@ function ReviewTab({ idea, loading, onSubmitReview, onApprove, onReject }: { ide
           </Card>
         )}
 
+        {/* Data citations for review */}
+        {idea.content?.dataCitations?.length ? <DataCitationsPanel citations={idea.content.dataCitations} /> : null}
+
         {/* Approval actions */}
         <Card>
           <CardHeader><CardTitle>Verdict</CardTitle><CardDescription>Approve or request revisions.</CardDescription></CardHeader>
@@ -599,6 +633,48 @@ function ReviewTab({ idea, loading, onSubmitReview, onApprove, onReject }: { ide
   }
 
   return <Card><CardContent className="py-8"><div className="flex items-center gap-2"><CheckCircle className="h-5 w-5 text-emerald-500" /><span className="font-medium">{idea.review?.verdict === "approved" ? "Approved" : "Reviewed"}</span></div>{idea.review?.notes && <p className="mt-2 text-sm text-muted-foreground">{idea.review.notes}</p>}</CardContent></Card>;
+}
+
+function DataCitationsPanel({ citations }: { citations: NonNullable<IdeaDetail["content"]>["dataCitations"] }) {
+  if (!citations?.length) return null;
+
+  const verified = citations.filter((c) => c.confidence === "verified").length;
+  const inferred = citations.filter((c) => c.confidence === "inferred").length;
+  const estimated = citations.filter((c) => c.confidence === "ai_estimated").length;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-sm flex items-center gap-2">
+          Data Sources
+          <Badge variant={estimated === 0 ? "default" : "secondary"} className="text-[10px]">
+            {verified} verified · {inferred} inferred · {estimated} unverified
+          </Badge>
+        </CardTitle>
+        <CardDescription>Review each data point before publishing</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <ul className="space-y-3">
+          {citations.map((c, i) => {
+            const borderColor = c.confidence === "verified" ? "border-emerald-500" : c.confidence === "inferred" ? "border-amber-500" : "border-red-400";
+            return (
+              <li key={i} className={`border-l-2 pl-3 text-sm ${borderColor}`}>
+                <p>{c.claim}</p>
+                <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+                  <Badge variant={c.confidence === "verified" ? "default" : c.confidence === "inferred" ? "secondary" : "destructive"} className="text-[10px]">{c.confidence}</Badge>
+                  {c.source && c.sourceUrl ? (
+                    <a href={c.sourceUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1">{c.source} <ExternalLink className="h-3 w-3" /></a>
+                  ) : c.source ? (
+                    <span>{c.source}</span>
+                  ) : null}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      </CardContent>
+    </Card>
+  );
 }
 
 function PublishTab({ idea, loading, onSchedule, onPublish }: { idea: IdeaDetail; loading: string | null; onSchedule: (d: string) => void; onPublish: () => void }) {
