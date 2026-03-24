@@ -105,7 +105,7 @@ export function KanbanBoard({ data, onRefresh }: KanbanBoardProps) {
       collisionDetection={closestCorners}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex gap-4 overflow-x-auto pb-4">
+      <div className="flex gap-3">
         {PIPELINE_COLUMNS.map((col) => {
           // Merge ideas from all statuses that belong to this column group
           const ideas = col.statuses.flatMap((s) => localData[s] || []);

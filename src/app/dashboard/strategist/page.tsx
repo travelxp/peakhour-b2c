@@ -264,9 +264,9 @@ export default function StrategistPage() {
 
       {/* Kanban board */}
       {isLoading ? (
-        <div className="flex gap-3 overflow-x-auto pb-4">
+        <div className="flex gap-3">
           {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="w-52 shrink-0 rounded-lg border bg-muted/30 p-2">
+            <div key={i} className="flex-1 rounded-xl bg-muted/40 p-3">
               <Skeleton className="mb-2 h-3 w-16" />
               {Array.from({ length: 2 - (i % 2) }).map((_, j) => (
                 <div key={j} className="mb-1.5 rounded-lg border bg-card p-3">
