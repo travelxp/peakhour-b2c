@@ -4,6 +4,8 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
+import { Sparkles, GripVertical } from "lucide-react";
 
 export interface PipelineIdea {
   _id: string;
@@ -44,57 +46,87 @@ export function KanbanCard({ idea }: { idea: PipelineIdea }) {
     transition,
   };
 
+  const scoreColor =
+    (idea.aiScore ?? 0) >= 8
+      ? "bg-emerald-500"
+      : (idea.aiScore ?? 0) >= 6
+        ? "bg-amber-500"
+        : (idea.aiScore ?? 0) >= 4
+          ? "bg-orange-400"
+          : "bg-muted";
+
   return (
     <div
       ref={setNodeRef}
       style={style}
-      {...attributes}
-      {...listeners}
-      onClick={() => router.push(`/dashboard/strategist/${idea._id}`)}
       className={cn(
-        "cursor-pointer rounded-lg border bg-card p-3 transition-all duration-150 hover:shadow-md hover:border-primary/30",
-        isDragging && "opacity-50 shadow-lg"
+        "group cursor-pointer rounded-lg border bg-card p-3 shadow-sm transition-all duration-150",
+        "hover:shadow-md hover:border-primary/20",
+        isDragging && "opacity-50 shadow-lg ring-2 ring-primary/20",
       )}
+      onClick={() => router.push(`/dashboard/strategist/${idea._id}`)}
     >
-      <h4 className="text-sm font-medium leading-snug line-clamp-2">
-        {idea.title}
-      </h4>
+      {/* Drag handle + source indicator */}
+      <div className="flex items-start gap-2">
+        <button
+          {...attributes}
+          {...listeners}
+          className="mt-0.5 cursor-grab text-muted-foreground/40 opacity-0 transition-opacity group-hover:opacity-100 active:cursor-grabbing"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <GripVertical className="size-3.5" />
+        </button>
+        <div className="flex-1 min-w-0">
+          <h4 className="text-sm font-medium leading-snug line-clamp-2">
+            {idea.title}
+          </h4>
+        </div>
+        {idea.source === "ai_suggested" && (
+          <Sparkles className="size-3 shrink-0 text-amber-500" />
+        )}
+      </div>
 
       {idea.description && (
-        <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
+        <p className="mt-1 ml-5.5 text-xs text-muted-foreground line-clamp-1">
           {idea.description}
         </p>
       )}
 
-      <div className="mt-2 flex flex-wrap gap-1">
-        {idea.sector && (
-          <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
-            {idea.sector}
-          </span>
-        )}
-        {idea.contentType && (
-          <span className="rounded bg-muted px-1.5 py-0.5 text-[10px]">
-            {idea.contentType}
-          </span>
-        )}
-      </div>
+      {/* Tags */}
+      {(idea.sector || idea.contentType) && (
+        <div className="mt-2 ml-5.5 flex flex-wrap gap-1">
+          {idea.sector && (
+            <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+              {idea.sector}
+            </Badge>
+          )}
+          {idea.contentType && (
+            <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
+              {idea.contentType}
+            </Badge>
+          )}
+        </div>
+      )}
 
-      <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
-        {idea.aiScore != null && (
-          <div className="flex items-center gap-1">
-            <span className="font-medium text-foreground">{idea.aiScore}</span>
-            <div className="h-1 w-8 rounded-full bg-muted overflow-hidden">
-              <div
-                className="h-full bg-primary rounded-full"
-                style={{ width: `${idea.aiScore * 10}%` }}
-              />
+      {/* Footer: score + word count */}
+      {(idea.aiScore != null || idea.content?.wordCount) && (
+        <div className="mt-2 ml-5.5 flex items-center justify-between text-xs text-muted-foreground">
+          {idea.aiScore != null && (
+            <div className="flex items-center gap-1.5">
+              <div className="h-1.5 w-10 rounded-full bg-muted overflow-hidden">
+                <div
+                  className={cn("h-full rounded-full", scoreColor)}
+                  style={{ width: `${idea.aiScore * 10}%` }}
+                />
+              </div>
+              <span className="font-medium text-foreground text-[11px]">{idea.aiScore}</span>
             </div>
-          </div>
-        )}
-        {idea.content?.wordCount && (
-          <span>{idea.content.wordCount}w</span>
-        )}
-      </div>
+          )}
+          {idea.content?.wordCount ? (
+            <span className="text-[11px]">{idea.content.wordCount}w</span>
+          ) : null}
+        </div>
+      )}
     </div>
   );
 }
