@@ -104,6 +104,7 @@ const VALID_TABS = ["general", "preferences", "team", "billing"];
 
 function SettingsContent() {
   const { org, refreshUser } = useAuth();
+  const { formatDate } = useLocale();
   const searchParams = useSearchParams();
   const [orgDetails, setOrgDetails] = useState<OrgDetails | null>(null);
   const [loading, setLoading] = useState(true);
@@ -442,7 +443,7 @@ function SettingsContent() {
               <div>
                 <p className="text-xs text-muted-foreground">Member since</p>
                 <p className="text-sm font-medium">
-                  {orgDetails?.createdAt ? new Date(orgDetails.createdAt).toLocaleDateString() : "—"}
+                  {formatDate(orgDetails?.createdAt)}
                 </p>
               </div>
               <div>
