@@ -48,7 +48,11 @@ export function KanbanBoard({ data, onRefresh }: KanbanBoardProps) {
     if (!over) return;
 
     const ideaId = active.id as string;
-    const newStatus = over.id as string;
+    const dropColumnKey = over.id as string;
+
+    // Map column key to the first status in that group (drop target)
+    const targetCol = PIPELINE_COLUMNS.find((c) => c.key === dropColumnKey);
+    if (!targetCol) return;
 
     // Find the idea's current status
     let currentStatus = "";
@@ -59,11 +63,15 @@ export function KanbanBoard({ data, onRefresh }: KanbanBoardProps) {
       }
     }
 
-    if (!currentStatus || currentStatus === newStatus) return;
+    if (!currentStatus) return;
 
-    // Client-side transition validation
-    const allowed = VALID_TRANSITIONS[currentStatus];
-    if (!allowed || !allowed.includes(newStatus)) return;
+    // If already in this column group, do nothing
+    if ((targetCol.statuses as readonly string[]).includes(currentStatus)) return;
+
+    // Find the first valid target status from this column's statuses
+    const allowed = VALID_TRANSITIONS[currentStatus] || [];
+    const newStatus = (targetCol.statuses as readonly string[]).find((s) => allowed.includes(s));
+    if (!newStatus) return;
 
     // Snapshot before optimistic update
     const preSnapshot = { ...localData };
@@ -98,14 +106,18 @@ export function KanbanBoard({ data, onRefresh }: KanbanBoardProps) {
       onDragEnd={handleDragEnd}
     >
       <div className="flex gap-4 overflow-x-auto pb-4">
-        {PIPELINE_COLUMNS.map((col) => (
-          <KanbanColumn
-            key={col.key}
-            id={col.key}
-            label={col.label}
-            ideas={localData[col.key] || []}
-          />
-        ))}
+        {PIPELINE_COLUMNS.map((col) => {
+          // Merge ideas from all statuses that belong to this column group
+          const ideas = col.statuses.flatMap((s) => localData[s] || []);
+          return (
+            <KanbanColumn
+              key={col.key}
+              id={col.key}
+              label={col.label}
+              ideas={ideas}
+            />
+          );
+        })}
       </div>
     </DndContext>
   );
