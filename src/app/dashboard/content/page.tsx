@@ -4,6 +4,7 @@ import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { api, API_BASE_URL } from "@/lib/api";
+import { useAuth } from "@/providers/auth-provider";
 import {
   CONTENT_CATEGORY_LABELS,
   SENTIMENT_CONFIG,
@@ -21,7 +22,7 @@ import {
   DataTableColumnHeader,
 } from "@/components/molecules/data-table";
 import type { FacetedFilterOption } from "@/components/molecules/data-table";
-import { contentColumns, type Draft } from "./columns";
+import { getContentColumns, type Draft } from "./columns";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -100,6 +101,9 @@ interface AnalyseProgress {
 export default function ContentPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const prefs = user?.preferences ?? null;
+  const contentColumns = useMemo(() => getContentColumns(prefs), [prefs]);
   const [view, setView] = useState<"card" | "table">("table");
   const [analysing, setAnalysing] = useState(false);
   const [analyseProgress, setAnalyseProgress] = useState<AnalyseProgress | null>(null);
