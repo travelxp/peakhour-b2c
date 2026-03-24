@@ -100,6 +100,8 @@ function SettingsLoading() {
   );
 }
 
+const VALID_TABS = ["general", "preferences", "team", "billing"];
+
 function SettingsContent() {
   const { org, refreshUser } = useAuth();
   const searchParams = useSearchParams();
@@ -107,6 +109,13 @@ function SettingsContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [linkedInJustConnected, setLinkedInJustConnected] = useState(false);
+
+  // Hash-based tab routing
+  const [activeTab, setActiveTab] = useState(() => {
+    if (typeof window === "undefined") return "general";
+    const hash = window.location.hash.replace("#", "");
+    return VALID_TABS.includes(hash) ? hash : "general";
+  });
 
   // Edit state
   const [editingBusiness, setEditingBusiness] = useState(false);
@@ -191,7 +200,13 @@ function SettingsContent() {
         </div>
       )}
 
-      <Tabs defaultValue="general">
+      <Tabs
+        value={activeTab}
+        onValueChange={(v) => {
+          setActiveTab(v);
+          window.history.replaceState(null, "", `#${v}`);
+        }}
+      >
         <TabsList>
           <TabsTrigger value="general" className="gap-1.5">
             <Building2 className="size-4" />
