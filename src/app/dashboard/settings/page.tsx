@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/providers/auth-provider";
 import { updateProfile, type UserPreferences } from "@/lib/auth";
 import { useLocale } from "@/hooks/use-locale";
+import { toast } from "sonner";
 import { api, ApiError, API_BASE_URL } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -559,8 +560,9 @@ function UserPreferencesCard() {
         },
       });
       await refreshUser();
+      toast.success("Preferences saved");
     } catch {
-      // toast error would go here
+      toast.error("Failed to save preferences");
     } finally {
       setSaving(false);
     }
