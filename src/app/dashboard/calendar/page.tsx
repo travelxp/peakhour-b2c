@@ -11,7 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { label } from "@/lib/content-labels";
+import { StatusBadge } from "@/components/molecules";
 
 interface CalendarIdea {
   _id: string;
@@ -210,7 +210,7 @@ function CalendarCard({ idea, compact }: { idea: CalendarIdea; compact?: boolean
         <div className="flex flex-wrap gap-1 mt-1.5">
           {idea.sector && <Badge variant="secondary" className="text-[10px] h-5">{idea.sector}</Badge>}
           {idea.contentType && <Badge variant="outline" className="text-[10px] h-5">{idea.contentType}</Badge>}
-          <Badge variant="outline" className="text-[10px] h-5">{label(undefined, idea.status)}</Badge>
+          <StatusBadge status={idea.status} className="text-[10px] h-5" />
         </div>
       )}
     </div>
