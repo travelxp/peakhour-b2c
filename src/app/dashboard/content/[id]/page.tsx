@@ -75,7 +75,7 @@ interface FullArticle {
 export default function ArticleDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const { formatDate } = useLocale();
+  const { formatDate, formatDateTime } = useLocale();
   const id = params.id as string;
 
   const { data: article, isLoading } = useQuery({
@@ -516,7 +516,7 @@ export default function ArticleDetailPage() {
                   />
                   <MetaRow
                     label="Tagged At"
-                    value={new Date(t.taggedAt).toLocaleString()}
+                    value={formatDateTime(t.taggedAt)}
                   />
                   {t.seriesName && (
                     <MetaRow label="Series" value={t.seriesName} />
