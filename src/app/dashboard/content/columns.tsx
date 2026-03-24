@@ -8,6 +8,7 @@ import {
   SHELF_LIFE_LABELS,
   label,
 } from "@/lib/content-labels";
+import { formatDate } from "@/lib/locale";
 import {
   Tooltip,
   TooltipContent,
@@ -187,9 +188,7 @@ export const contentColumns: ColumnDef<Draft, unknown>[] = [
     ),
     cell: ({ row }) => (
       <span className="text-xs text-muted-foreground">
-        {row.original.publishedAt
-          ? new Date(row.original.publishedAt).toLocaleDateString()
-          : "—"}
+        {formatDate(row.original.publishedAt, null)}
       </span>
     ),
   },

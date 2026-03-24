@@ -51,6 +51,7 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import Link from "next/link";
+import { useLocale } from "@/hooks/use-locale";
 
 const ROLE_LABELS: Record<string, string> = {
   owner: "Owner",
@@ -75,6 +76,7 @@ const ROLE_ICONS: Record<string, typeof Crown> = {
 
 export default function TeamPage() {
   const { orgs, org } = useAuth();
+  const { formatDate } = useLocale();
   const currentRole = orgs.find((o) => o._id === org?._id)?.role || "viewer";
   const isOwner = currentRole === "owner";
   const isAdmin = currentRole === "admin" || isOwner;
@@ -395,7 +397,7 @@ export default function TeamPage() {
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <Clock className="h-3 w-3" />
                       Expires{" "}
-                      {new Date(inv.expiresAt).toLocaleDateString()}
+                      {formatDate(inv.expiresAt)}
                     </div>
                   </div>
                   <span

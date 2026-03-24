@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
+import { useLocale } from "@/hooks/use-locale";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -144,6 +145,7 @@ export default function IdeaDetailPage() {
   const params = useParams();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { formatDate } = useLocale();
   const ideaId = params.id as string;
   const [activePanel, setActivePanel] = useState<Panel>("overview");
   const [loading, setLoading] = useState<string | null>(null);
@@ -236,6 +238,7 @@ export default function IdeaDetailPage() {
 }
 
 function OverviewTab({ idea }: { idea: IdeaDetail }) {
+  const { formatDate, formatDateTime } = useLocale();
   return (
     <div className="space-y-4">
       <div className="grid gap-4 md:grid-cols-2">
@@ -290,10 +293,10 @@ function OverviewTab({ idea }: { idea: IdeaDetail }) {
           <CardContent>
             <dl className="space-y-2 text-sm">
               {[
-                ["Created", idea.createdAt ? new Date(idea.createdAt).toLocaleString() : null],
-                ["Updated", idea.updatedAt ? new Date(idea.updatedAt).toLocaleString() : null],
-                ["Target", idea.targetDate ? new Date(idea.targetDate).toLocaleDateString() : null],
-                ["Scheduled", idea.scheduledAt ? new Date(idea.scheduledAt).toLocaleString() : null],
+                ["Created", idea.createdAt ? formatDate(idea.createdAt) : null],
+                ["Updated", idea.updatedAt ? formatDate(idea.updatedAt) : null],
+                ["Target", idea.targetDate ? formatDate(idea.targetDate) : null],
+                ["Scheduled", idea.scheduledAt ? formatDateTime(idea.scheduledAt) : null],
               ].map(([l, v]) =>
                 v ? <div key={l as string} className="flex justify-between"><dt className="text-muted-foreground">{l}</dt><dd>{v}</dd></div> : null
               )}

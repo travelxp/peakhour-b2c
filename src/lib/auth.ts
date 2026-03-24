@@ -1,5 +1,13 @@
 import { api } from "./api";
 
+export interface UserPreferences {
+  dateFormat?: "DD/MM/YYYY" | "MM/DD/YYYY" | "YYYY-MM-DD" | "DD-MM-YY ddd";
+  timezone?: string;
+  currency?: string;
+  language?: string;
+  numberFormat?: string;
+}
+
 export interface AuthUser {
   _id: string;
   email: string;
@@ -8,6 +16,7 @@ export interface AuthUser {
   emailVerified: boolean;
   mobileVerified: boolean;
   profileCompleted: boolean;
+  preferences: UserPreferences | null;
 }
 
 export interface AuthOrg {
@@ -17,6 +26,7 @@ export interface AuthOrg {
   businessCategory?: string | null;
   businessType?: string | null;
   onboarding?: { completed: boolean };
+  currency?: string | null;
 }
 
 export interface OrgSummary {

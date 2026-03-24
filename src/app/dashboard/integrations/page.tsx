@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/providers/auth-provider";
+import { useLocale } from "@/hooks/use-locale";
 import { api, ApiError, API_BASE_URL } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -621,6 +622,7 @@ function IntegrationCard({
   syncing: boolean;
   backfilling: boolean;
 }) {
+  const { formatDate, formatDateTime } = useLocale();
   const Icon = PROVIDER_ICONS[integration.provider] || Plug;
   const colorClass = PROVIDER_COLORS[integration.provider] || "bg-muted";
   const isComingSoon = integration.availability === "coming_soon";
@@ -684,7 +686,7 @@ function IntegrationCard({
             {/* Connected timestamp */}
             {integration.connectedAt && (
               <p className="text-[11px] text-muted-foreground">
-                Connected {new Date(integration.connectedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+                Connected {formatDate(integration.connectedAt, { month: "short", day: "numeric", year: "numeric" })}
               </p>
             )}
 
@@ -712,7 +714,7 @@ function IntegrationCard({
               <div className="space-y-2">
                 {integration.lastSyncAt && (
                   <p className="text-[11px] text-muted-foreground">
-                    Last synced {new Date(integration.lastSyncAt).toLocaleDateString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                    Last synced {formatDateTime(integration.lastSyncAt)}
                   </p>
                 )}
 
@@ -771,7 +773,7 @@ function IntegrationCard({
             {/* Last sync for non-beehiiv */}
             {integration.provider !== "beehiiv" && integration.lastSyncAt && (
               <p className="text-[11px] text-muted-foreground">
-                Last synced {new Date(integration.lastSyncAt).toLocaleDateString()}
+                Last synced {formatDate(integration.lastSyncAt)}
               </p>
             )}
 

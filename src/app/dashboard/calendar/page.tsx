@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { useLocale } from "@/hooks/use-locale";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -40,6 +41,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function CalendarPage() {
+  const { formatDate } = useLocale();
   const [view, setView] = useState<"week" | "month">("week");
   const [weekOffset, setWeekOffset] = useState(0);
 
@@ -103,9 +105,9 @@ export default function CalendarPage() {
           ← Previous
         </Button>
         <span className="text-sm font-medium">
-          {weekDays[0].toLocaleDateString("en-US", { month: "long", day: "numeric" })}
+          {formatDate(weekDays[0], { month: "long", day: "numeric" })}
           {" — "}
-          {weekDays[6].toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+          {formatDate(weekDays[6], { month: "long", day: "numeric", year: "numeric" })}
         </span>
         <div className="flex gap-2">
           {weekOffset !== 0 && (
@@ -125,7 +127,7 @@ export default function CalendarPage() {
           {weekDays.map((day) => {
             const dateKey = day.toDateString();
             const dayIdeas = ideasByDate.get(dateKey) || [];
-            const dayName = day.toLocaleDateString("en-US", { weekday: "short" });
+            const dayName = formatDate(day, { weekday: "short" });
             const dayNum = day.getDate();
 
             return (
@@ -218,6 +220,7 @@ function CalendarCard({ idea, compact }: { idea: CalendarIdea; compact?: boolean
 }
 
 function MonthView({ ideas, ideasByDate, today }: { ideas: CalendarIdea[]; ideasByDate: Map<string, CalendarIdea[]>; today: Date }) {
+  const { formatDate } = useLocale();
   const year = today.getFullYear();
   const month = today.getMonth();
   const firstDay = new Date(year, month, 1);
@@ -231,7 +234,7 @@ function MonthView({ ideas, ideasByDate, today }: { ideas: CalendarIdea[]; ideas
   return (
     <div>
       <h3 className="text-base font-semibold mb-3">
-        {today.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+        {formatDate(today, { month: "long", year: "numeric" })}
       </h3>
       <div className="grid grid-cols-7 gap-1">
         {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
