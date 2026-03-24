@@ -30,12 +30,9 @@ export function PipelineStatusBadge({
 }
 
 export const PIPELINE_COLUMNS = [
-  { key: "brainstorm", label: "Brainstorm" },
-  { key: "planned", label: "Planned" },
-  { key: "brief_ready", label: "Brief Ready" },
-  { key: "writing", label: "Writing" },
-  { key: "review", label: "Review" },
-  { key: "approved", label: "Approved" },
-  { key: "scheduled", label: "Scheduled" },
-  { key: "published", label: "Published" },
+  { key: "ideate", label: "Ideate", statuses: ["brainstorm", "planned"] },
+  { key: "brief", label: "Brief", statuses: ["brief_ready"] },
+  { key: "write", label: "Write", statuses: ["writing", "in_progress"] },
+  { key: "review", label: "Review", statuses: ["review", "approved"] },
+  { key: "publish", label: "Publish", statuses: ["scheduled", "published"] },
 ] as const;
