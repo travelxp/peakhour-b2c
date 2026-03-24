@@ -32,7 +32,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FileX } from "lucide-react";
+import { FileX, LayoutGrid, List } from "lucide-react";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
@@ -397,24 +398,19 @@ export default function ContentPage() {
               )}
 
               {/* View toggle */}
-              <div className="ml-auto flex gap-1">
-                <Button
-                  variant={view === "card" ? "default" : "outline"}
-                  size="sm"
-                  className="h-8"
-                  onClick={() => setView("card")}
-                >
-                  Cards
-                </Button>
-                <Button
-                  variant={view === "table" ? "default" : "outline"}
-                  size="sm"
-                  className="h-8"
-                  onClick={() => setView("table")}
-                >
-                  Table
-                </Button>
-              </div>
+              <ToggleGroup
+                type="single"
+                value={view}
+                onValueChange={(v) => v && setView(v as "card" | "table")}
+                className="ml-auto"
+              >
+                <ToggleGroupItem value="card" aria-label="Card view" className="h-8 w-8 p-0">
+                  <LayoutGrid className="size-4" />
+                </ToggleGroupItem>
+                <ToggleGroupItem value="table" aria-label="Table view" className="h-8 w-8 p-0">
+                  <List className="size-4" />
+                </ToggleGroupItem>
+              </ToggleGroup>
             </div>
 
             {/* Loading skeleton */}
