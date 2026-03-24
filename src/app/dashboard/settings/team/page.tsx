@@ -35,6 +35,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ConfirmDialog } from "@/components/molecules/confirm-dialog";
 import {
   UserPlus,
   MoreVertical,
@@ -126,7 +127,6 @@ export default function TeamPage() {
   };
 
   const handleRevoke = async (email: string) => {
-    if (!confirm(`Revoke invitation for ${email}?`)) return;
     try {
       await revokeInvite(email);
       await loadData();
@@ -148,8 +148,7 @@ export default function TeamPage() {
     }
   };
 
-  const handleRemove = async (userId: string, name: string) => {
-    if (!confirm(`Remove ${name || "this member"} from the team?`)) return;
+  const handleRemove = async (userId: string) => {
     try {
       await removeMember(userId);
       await loadData();
@@ -344,15 +343,22 @@ export default function TeamPage() {
                               Change to {ROLE_LABELS[r]}
                             </DropdownMenuItem>
                           ))}
-                        <DropdownMenuItem
-                          className="text-red-600"
-                          onClick={() =>
-                            handleRemove(m.userId, m.name || m.email)
+                        <ConfirmDialog
+                          trigger={
+                            <DropdownMenuItem
+                              onSelect={(e) => e.preventDefault()}
+                              className="text-red-600"
+                            >
+                              <Trash2 className="h-3.5 w-3.5 mr-2" />
+                              Remove
+                            </DropdownMenuItem>
                           }
-                        >
-                          <Trash2 className="h-3.5 w-3.5 mr-2" />
-                          Remove
-                        </DropdownMenuItem>
+                          title="Remove team member"
+                          description={`Are you sure you want to remove ${m.name || m.email} from the team? They will lose access immediately.`}
+                          confirmLabel="Remove"
+                          variant="destructive"
+                          onConfirm={() => handleRemove(m.userId)}
+                        />
                       </DropdownMenuContent>
                     </DropdownMenu>
                   )}
@@ -399,14 +405,22 @@ export default function TeamPage() {
                   >
                     {ROLE_LABELS[inv.role] || inv.role}
                   </span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-muted-foreground hover:text-red-600"
-                    onClick={() => handleRevoke(inv.email)}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
+                  <ConfirmDialog
+                    trigger={
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-red-600"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    }
+                    title="Revoke invitation"
+                    description={`Are you sure you want to revoke the invitation for ${inv.email}?`}
+                    confirmLabel="Revoke"
+                    variant="destructive"
+                    onConfirm={() => handleRevoke(inv.email)}
+                  />
                 </div>
               ))}
             </div>
