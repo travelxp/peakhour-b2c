@@ -88,8 +88,9 @@ export async function verifyMagicLink(
 export async function updateProfile(data: {
   name: string;
   mobile?: string;
-}): Promise<{ user: { name: string; mobile: string | null; profileCompleted: boolean } }> {
-  return api.put<{ user: { name: string; mobile: string | null; profileCompleted: boolean } }>("/v1/auth/profile", data);
+  preferences?: Partial<UserPreferences>;
+}): Promise<{ user: { name: string; mobile: string | null; profileCompleted: boolean; preferences: UserPreferences | null } }> {
+  return api.put<{ user: { name: string; mobile: string | null; profileCompleted: boolean; preferences: UserPreferences | null } }>("/v1/auth/profile", data);
 }
 
 // ── OTP ─────────────────────────────────────────────────────────
