@@ -212,7 +212,7 @@ function SettingsContent() {
         </TabsList>
 
         {/* ── General Tab ──────────────────────────────────── */}
-        <TabsContent value="general" className="mt-6 space-y-6">
+        <TabsContent value="general" className="mt-6 max-w-3xl space-y-6">
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -395,17 +395,17 @@ function SettingsContent() {
         </TabsContent>
 
         {/* ── Preferences Tab ──────────────────────────────── */}
-        <TabsContent value="preferences" className="mt-6">
+        <TabsContent value="preferences" className="mt-6 max-w-3xl">
           <UserPreferencesCard />
         </TabsContent>
 
         {/* ── Team Tab ─────────────────────────────────────── */}
-        <TabsContent value="team" className="mt-6">
+        <TabsContent value="team" className="mt-6 max-w-3xl">
           <TeamSection />
         </TabsContent>
 
         {/* ── Billing Tab ──────────────────────────────────── */}
-        <TabsContent value="billing" className="mt-6 space-y-6">
+        <TabsContent value="billing" className="mt-6 max-w-3xl space-y-6">
           {/* Current plan card */}
           <div className="rounded-2xl border bg-muted/30 px-5 pt-4 pb-5">
             <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center mb-4">
