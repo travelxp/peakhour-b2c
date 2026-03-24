@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/sidebar";
 import { OrgSwitcher } from "@/components/dashboard/org-switcher";
 import { BusinessSwitcher } from "@/components/dashboard/business-switcher";
+import { CommandMenu } from "@/components/molecules/command-menu";
 import {
   LayoutDashboard,
   FileText,
@@ -268,6 +269,9 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
         <SidebarRail />
       </Sidebar>
+
+      {/* ── Cmd+K Command Menu ─────────────────────────────── */}
+      <CommandMenu />
 
       {/* ── Main Content ──────────────────────────────────── */}
       <SidebarInset>
