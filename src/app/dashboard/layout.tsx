@@ -127,6 +127,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const initials = user?.name
     ? user.name
         .split(" ")
+        .filter(Boolean)
         .map((n) => n[0])
         .join("")
         .slice(0, 2)
