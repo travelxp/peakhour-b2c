@@ -5,6 +5,8 @@ import { useAuth } from "@/providers/auth-provider";
 import { api, ApiError, API_BASE_URL } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/molecules/status-badge";
+import { ConfirmDialog } from "@/components/molecules/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -777,16 +779,24 @@ function IntegrationCard({
               <p className="text-xs text-destructive truncate">{integration.lastError}</p>
             )}
 
-            <Button
-              size="sm"
-              variant="outline"
-              className="w-full gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive"
-              onClick={onDisconnect}
-              disabled={disconnecting}
-            >
-              <Unplug className="h-3.5 w-3.5" />
-              {disconnecting ? "Disconnecting..." : "Disconnect"}
-            </Button>
+            <ConfirmDialog
+              trigger={
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  disabled={disconnecting}
+                >
+                  <Unplug className="h-3.5 w-3.5" />
+                  {disconnecting ? "Disconnecting..." : "Disconnect"}
+                </Button>
+              }
+              title="Disconnect integration"
+              description={`Are you sure you want to disconnect ${integration.name}? You'll need to reconnect to sync data again.`}
+              confirmLabel="Disconnect"
+              variant="destructive"
+              onConfirm={onDisconnect}
+            />
           </div>
         ) : isComingSoon ? (
           <Badge variant="outline" className="text-xs">Coming soon</Badge>
@@ -986,10 +996,7 @@ function LinkedInAdAccounts({
               <div className="flex items-center justify-between">
                 <span className="font-medium truncate">{acc.name || acc.id}</span>
                 {isRunnable ? (
-                  <Badge className="bg-green-600/90 text-[10px] gap-1 shrink-0">
-                    <CheckCircle className="h-2.5 w-2.5" />
-                    Ready
-                  </Badge>
+                  <StatusBadge status="ready" dot className="text-[10px] shrink-0" />
                 ) : (
                   <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-400 shrink-0">
                     Action needed
