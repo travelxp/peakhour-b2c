@@ -32,7 +32,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FileX, LayoutGrid, List } from "lucide-react";
+import { FileX, LayoutGrid, List, Library, BrainCircuit } from "lucide-react";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -359,8 +359,14 @@ export default function ContentPage() {
         {/* Tabs */}
         <Tabs defaultValue="library">
           <TabsList>
-            <TabsTrigger value="library">Library</TabsTrigger>
-            <TabsTrigger value="intelligence">Intelligence</TabsTrigger>
+            <TabsTrigger value="library" className="gap-1.5">
+              <Library className="size-4" />
+              Library
+            </TabsTrigger>
+            <TabsTrigger value="intelligence" className="gap-1.5">
+              <BrainCircuit className="size-4" />
+              Intelligence
+            </TabsTrigger>
           </TabsList>
 
           {/* ── Library Tab ─────────────────────────────────── */}
