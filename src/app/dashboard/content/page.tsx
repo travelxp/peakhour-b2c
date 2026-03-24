@@ -11,6 +11,7 @@ import {
   label,
 } from "@/lib/content-labels";
 import { Badge } from "@/components/ui/badge";
+import { ConfirmDialog } from "@/components/molecules/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -192,13 +193,6 @@ export default function ContentPage() {
   const cancelRef = useRef(false);
 
   const startAnalysis = useCallback((force: boolean) => {
-    if (force) {
-      const confirmed = window.confirm(
-        "This will delete all existing AI tags and re-analyse every newsletter from scratch. Continue?"
-      );
-      if (!confirmed) return;
-    }
-
     setAnalysing(true);
     setAnalyseProgress(null);
     setAnalyseResult(null);
@@ -319,9 +313,16 @@ export default function ContentPage() {
               </Button>
             )}
             {!analysing && stats && stats.tagged > 0 && (
-              <Button variant="outline" onClick={() => startAnalysis(true)}>
-                Re-analyse all
-              </Button>
+              <ConfirmDialog
+                trigger={
+                  <Button variant="outline">Re-analyse all</Button>
+                }
+                title="Re-analyse all content"
+                description="This will delete all existing AI tags and re-analyse every newsletter from scratch. This may take a while."
+                confirmLabel="Re-analyse"
+                variant="destructive"
+                onConfirm={() => startAnalysis(true)}
+              />
             )}
             {analysing && (
               <Button variant="outline" onClick={() => { cancelRef.current = true; }}>
