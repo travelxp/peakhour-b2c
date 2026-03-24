@@ -27,6 +27,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Link2,
   Plug,
@@ -168,11 +169,11 @@ function SettingsContent() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold tracking-tight">Settings</h2>
         <p className="text-muted-foreground mt-1">
-          Manage your business configuration and connected accounts
+          Manage your business, preferences, and team
         </p>
       </div>
 
@@ -189,7 +190,28 @@ function SettingsContent() {
         </div>
       )}
 
-      {/* Business Details */}
+      <Tabs defaultValue="general">
+        <TabsList>
+          <TabsTrigger value="general" className="gap-1.5">
+            <Building2 className="size-4" />
+            General
+          </TabsTrigger>
+          <TabsTrigger value="preferences" className="gap-1.5">
+            <Globe className="size-4" />
+            Preferences
+          </TabsTrigger>
+          <TabsTrigger value="team" className="gap-1.5">
+            <Shield className="size-4" />
+            Team
+          </TabsTrigger>
+          <TabsTrigger value="billing" className="gap-1.5">
+            <Wallet className="size-4" />
+            Billing
+          </TabsTrigger>
+        </TabsList>
+
+        {/* ── General Tab ──────────────────────────────────── */}
+        <TabsContent value="general" className="mt-6 space-y-6">
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -294,49 +316,6 @@ function SettingsContent() {
         </CardContent>
       </Card>
 
-      {/* User Preferences */}
-      <UserPreferencesCard />
-
-      {/* Team & Permissions */}
-      <Link href="/dashboard/settings/team" className="block group">
-        <Card className="transition-shadow group-hover:shadow-md">
-          <CardContent className="flex items-center justify-between py-5">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-lg bg-blue-50 flex items-center justify-center">
-                <Shield className="h-5 w-5 text-blue-600" />
-              </div>
-              <div>
-                <h3 className="font-medium text-sm">Team & Permissions</h3>
-                <p className="text-xs text-muted-foreground">
-                  Invite members, manage roles and access
-                </p>
-              </div>
-            </div>
-            <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
-          </CardContent>
-        </Card>
-      </Link>
-
-      {/* Connected Accounts — nudge to Integrations */}
-      <Link href="/dashboard/integrations" className="block group">
-        <Card className="border-primary/20 bg-linear-to-r from-primary/5 to-primary/10 transition-shadow group-hover:shadow-md">
-          <CardContent className="flex items-center justify-between py-5">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                <Plug className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm font-medium">Connected Accounts</p>
-                <p className="text-xs text-muted-foreground">
-                  Manage your ad platforms, content sources, and social accounts
-                </p>
-              </div>
-            </div>
-            <ArrowRight className="h-5 w-5 text-primary/60 group-hover:text-primary transition-colors" />
-          </CardContent>
-        </Card>
-      </Link>
-
       {/* Budget & Guardrails */}
       <Card>
         <CardHeader>
@@ -392,6 +371,92 @@ function SettingsContent() {
           )}
         </CardContent>
       </Card>
+
+      {/* Connected Accounts link */}
+      <Link href="/dashboard/integrations" className="block group">
+        <Card className="border-primary/20 bg-linear-to-r from-primary/5 to-primary/10 transition-shadow group-hover:shadow-md">
+          <CardContent className="flex items-center justify-between py-5">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                <Plug className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <p className="text-sm font-medium">Connected Accounts</p>
+                <p className="text-xs text-muted-foreground">
+                  Manage your ad platforms, content sources, and social accounts
+                </p>
+              </div>
+            </div>
+            <ArrowRight className="h-5 w-5 text-primary/60 group-hover:text-primary transition-colors" />
+          </CardContent>
+        </Card>
+      </Link>
+        </TabsContent>
+
+        {/* ── Preferences Tab ──────────────────────────────── */}
+        <TabsContent value="preferences" className="mt-6">
+          <UserPreferencesCard />
+        </TabsContent>
+
+        {/* ── Team Tab ─────────────────────────────────────── */}
+        <TabsContent value="team" className="mt-6">
+          <Card>
+            <CardContent className="flex items-center justify-between py-5">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-lg bg-blue-50 dark:bg-blue-950 flex items-center justify-center">
+                  <Shield className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                </div>
+                <div>
+                  <h3 className="font-medium text-sm">Team & Permissions</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Invite members, manage roles and access
+                  </p>
+                </div>
+              </div>
+              <Button asChild variant="outline" size="sm" className="gap-1.5">
+                <Link href="/dashboard/settings/team">
+                  Manage team
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ── Billing Tab ──────────────────────────────────── */}
+        <TabsContent value="billing" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Plan & Billing</CardTitle>
+              <CardDescription>
+                Your current subscription and payment details
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <SettingRow
+                label="Current plan"
+                value={
+                  <Badge variant="outline" className="capitalize">
+                    {orgDetails?.billing?.plan || "free"}
+                  </Badge>
+                }
+              />
+              <SettingRow label="Organization" value={orgDetails?.name} />
+              <SettingRow
+                label="Member since"
+                value={orgDetails?.createdAt ? new Date(orgDetails.createdAt).toLocaleDateString() : "--"}
+              />
+              <Separator />
+              <p className="text-sm text-muted-foreground">
+                Contact us to upgrade your plan or manage billing.
+              </p>
+              <Button variant="outline" size="sm" asChild>
+                <a href="mailto:hello@peakhour.ai">Contact support</a>
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
