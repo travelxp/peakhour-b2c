@@ -9,7 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { KanbanBoard } from "./components/kanban-board";
-import { Sparkles, CalendarDays, Plus, Loader2, CheckCircle } from "lucide-react";
+import { Sparkles, CalendarDays, Plus, Loader2, CheckCircle, Send } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 import type { PipelineIdea } from "./components/kanban-card";
 
 const SKILL_LABELS: Record<string, string> = {
@@ -86,6 +87,8 @@ export default function StrategistPage() {
   const [genResult, setGenResult] = useState<{ count: number; ideas: { topic: string }[] } | null>(null);
   const [showNewIdea, setShowNewIdea] = useState(false);
   const [newIdeaTitle, setNewIdeaTitle] = useState("");
+  const [showTopicInput, setShowTopicInput] = useState(false);
+  const [ideaTopic, setIdeaTopic] = useState("");
 
   const { data, isLoading } = useQuery({
     queryKey: ["pipeline-ideas"],
@@ -93,14 +96,16 @@ export default function StrategistPage() {
       api.get<Record<string, PipelineIdea[]>>("/v1/content/ideas?grouped=true"),
   });
 
-  const handleGetIdeas = useCallback(async () => {
+  const handleGetIdeas = useCallback(async (topic?: string) => {
     setGenerating(true);
     setGenMode("ideas");
     setGenProgress({ step: 0, label: "Starting..." });
     setGenResult(null);
+    setShowTopicInput(false);
 
     try {
-      const res = await api.streamPost("/v1/content/suggest");
+      const body = topic?.trim() ? { topic: topic.trim() } : undefined;
+      const res = await api.streamPost("/v1/content/suggest", body);
       await readSSEStream(res, setGenProgress, setGenResult, (msg) => toast.error(msg));
       queryClient.invalidateQueries({ queryKey: ["pipeline-ideas"] });
     } catch (err: any) {
@@ -110,6 +115,7 @@ export default function StrategistPage() {
     setGenerating(false);
     setGenProgress(null);
     setGenMode(null);
+    setIdeaTopic("");
   }, [queryClient]);
 
   const handlePlanWeek = useCallback(async () => {
@@ -155,11 +161,11 @@ export default function StrategistPage() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => setShowNewIdea(!showNewIdea)}>
+          <Button variant="outline" size="sm" onClick={() => { setShowNewIdea(!showNewIdea); setShowTopicInput(false); }}>
             <Plus className="mr-1.5 h-4 w-4" />
             New Idea
           </Button>
-          <Button size="sm" onClick={handleGetIdeas} disabled={generating}>
+          <Button size="sm" onClick={() => { setShowTopicInput(!showTopicInput); setShowNewIdea(false); }} disabled={generating}>
             {genMode === "ideas" ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1.5 h-4 w-4" />}
             Get Ideas
           </Button>
@@ -186,6 +192,39 @@ export default function StrategistPage() {
           />
           <Button size="sm" onClick={handleNewIdea}>Add</Button>
           <Button variant="ghost" size="sm" onClick={() => { setShowNewIdea(false); setNewIdeaTitle(""); }}>Cancel</Button>
+        </div>
+      )}
+
+      {/* Topic input for AI idea generation */}
+      {showTopicInput && !generating && (
+        <div className="rounded-lg border bg-card p-4 shadow-sm space-y-3">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-primary" />
+            <p className="text-sm font-medium">Generate content ideas</p>
+          </div>
+          <Textarea
+            autoFocus
+            value={ideaTopic}
+            onChange={(e) => setIdeaTopic(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleGetIdeas(ideaTopic); }
+              if (e.key === "Escape") { setShowTopicInput(false); setIdeaTopic(""); }
+            }}
+            placeholder="Optional: describe a topic, angle, or trend to focus on... (leave empty for AI to decide based on your content + latest news)"
+            className="min-h-16 resize-none text-sm"
+          />
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-muted-foreground">
+              AI will check latest news, analyse your library, and suggest 7 prioritised ideas
+            </p>
+            <div className="flex gap-2">
+              <Button variant="ghost" size="sm" onClick={() => { setShowTopicInput(false); setIdeaTopic(""); }}>Cancel</Button>
+              <Button size="sm" onClick={() => handleGetIdeas(ideaTopic)} className="gap-1.5">
+                <Send className="h-3.5 w-3.5" />
+                Generate
+              </Button>
+            </div>
+          </div>
         </div>
       )}
 
