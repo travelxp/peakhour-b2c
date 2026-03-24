@@ -1,4 +1,5 @@
-export { DataTable, DataTableColumnHeader, DataTablePagination, DataTableToolbar } from "./data-table";
+export { DataTable, DataTableColumnHeader, DataTablePagination, DataTableToolbar, FacetedFilter, useDataTable } from "./data-table";
+export type { FacetedFilterOption, UseDataTableOptions } from "./data-table";
 export { CommandMenu } from "./command-menu";
 export { KpiCard } from "./kpi-card";
 export { EmptyState } from "./empty-state";
