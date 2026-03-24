@@ -13,6 +13,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { ConfirmDialog } from "@/components/molecules/confirm-dialog";
 import { EmptyState } from "@/components/molecules/empty-state";
+import { formatDate } from "@/lib/locale";
 import {
   useDataTable,
   FacetedFilter,
@@ -746,9 +747,7 @@ function ArticleCard({
         <div className="flex items-center justify-between">
           <AdScoreBar score={t?.adPotentialScore} />
           <span className="text-xs text-muted-foreground">
-            {draft.publishedAt
-              ? new Date(draft.publishedAt).toLocaleDateString()
-              : ""}
+            {formatDate(draft.publishedAt, null)}
           </span>
         </div>
       </CardContent>

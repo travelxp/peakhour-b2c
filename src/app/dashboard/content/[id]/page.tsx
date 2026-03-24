@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import { useLocale } from "@/hooks/use-locale";
 import {
   SENTIMENT_CONFIG,
   SHELF_LIFE_LABELS,
@@ -74,6 +75,7 @@ interface FullArticle {
 export default function ArticleDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const { formatDate } = useLocale();
   const id = params.id as string;
 
   const { data: article, isLoading } = useQuery({
@@ -132,11 +134,7 @@ export default function ArticleDetailPage() {
           <div className="flex flex-wrap items-center gap-3 mt-3 text-sm text-muted-foreground">
             {article.publishedAt && (
               <span>
-                {new Date(article.publishedAt).toLocaleDateString("en-US", {
-                  year: "numeric",
-                  month: "long",
-                  day: "numeric",
-                })}
+                {formatDate(article.publishedAt, { year: "numeric", month: "long", day: "numeric" })}
               </span>
             )}
             {article.readingTimeMin && (
