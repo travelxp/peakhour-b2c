@@ -104,7 +104,7 @@ const VALID_TABS = ["general", "preferences", "team", "billing"];
 
 function SettingsContent() {
   const { org, refreshUser } = useAuth();
-  const { formatDate } = useLocale();
+  const { formatDate, formatCurrency } = useLocale();
   const searchParams = useSearchParams();
   const [orgDetails, setOrgDetails] = useState<OrgDetails | null>(null);
   const [loading, setLoading] = useState(true);
@@ -349,11 +349,11 @@ function SettingsContent() {
             <>
               <SettingRow
                 label="Monthly budget"
-                value={`${orgDetails.budget.currency ?? "USD"} ${orgDetails.budget.monthly?.toLocaleString() ?? "--"}`}
+                value={orgDetails.budget.monthly != null ? formatCurrency(orgDetails.budget.monthly) : "--"}
               />
               <SettingRow
                 label="Daily cap"
-                value={`${orgDetails.budget.currency ?? "USD"} ${orgDetails.budget.dailyCap?.toLocaleString() ?? "--"}`}
+                value={orgDetails.budget.dailyCap != null ? formatCurrency(orgDetails.budget.dailyCap) : "--"}
               />
               {orgDetails.guardrails && (
                 <>

@@ -682,6 +682,7 @@ function DataCitationsPanel({ citations }: { citations: NonNullable<IdeaDetail["
 }
 
 function PublishTab({ idea, loading, onSchedule, onPublish }: { idea: IdeaDetail; loading: string | null; onSchedule: (d: string) => void; onPublish: () => void }) {
+  const { formatDateTime } = useLocale();
   const [scheduleDate, setScheduleDate] = useState("");
 
   if (idea.publishing?.beehiivPostId) {
@@ -689,7 +690,7 @@ function PublishTab({ idea, loading, onSchedule, onPublish }: { idea: IdeaDetail
       <Card>
         <CardContent className="py-8">
           <div className="flex items-center gap-2"><CheckCircle className="h-5 w-5 text-green-500" /><span className="font-medium">Published to Beehiiv</span></div>
-          {idea.publishing.publishedAt && <p className="mt-1 text-sm text-muted-foreground">Published {new Date(idea.publishing.publishedAt).toLocaleString()}</p>}
+          {idea.publishing.publishedAt && <p className="mt-1 text-sm text-muted-foreground">Published {formatDateTime(idea.publishing.publishedAt)}</p>}
           {idea.publishing.beehiivUrl && <a href={idea.publishing.beehiivUrl} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex items-center gap-1.5 text-sm text-primary hover:underline"><ExternalLink className="h-3.5 w-3.5" />View on Beehiiv</a>}
         </CardContent>
       </Card>
