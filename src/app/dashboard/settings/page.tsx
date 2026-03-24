@@ -8,6 +8,7 @@ import { updateProfile, type UserPreferences } from "@/lib/auth";
 import { useLocale } from "@/hooks/use-locale";
 import { toast } from "sonner";
 import { api, ApiError, API_BASE_URL } from "@/lib/api";
+import { TeamSection } from "@/components/dashboard/team-section";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
@@ -400,57 +401,82 @@ function SettingsContent() {
 
         {/* ── Team Tab ─────────────────────────────────────── */}
         <TabsContent value="team" className="mt-6">
-          <Card>
-            <CardContent className="flex items-center justify-between py-5">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-blue-50 dark:bg-blue-950 flex items-center justify-center">
-                  <Shield className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                </div>
-                <div>
-                  <h3 className="font-medium text-sm">Team & Permissions</h3>
-                  <p className="text-xs text-muted-foreground">
-                    Invite members, manage roles and access
-                  </p>
-                </div>
-              </div>
-              <Button asChild variant="outline" size="sm" className="gap-1.5">
-                <Link href="/dashboard/settings/team">
-                  Manage team
-                  <ArrowRight className="h-3.5 w-3.5" />
-                </Link>
-              </Button>
-            </CardContent>
-          </Card>
+          <TeamSection />
         </TabsContent>
 
         {/* ── Billing Tab ──────────────────────────────────── */}
-        <TabsContent value="billing" className="mt-6">
+        <TabsContent value="billing" className="mt-6 space-y-6">
+          {/* Current plan card */}
+          <div className="rounded-2xl border bg-muted/30 px-5 pt-4 pb-5">
+            <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center mb-4">
+              <div className="flex items-center gap-2">
+                <h3 className="font-semibold">Current Plan</h3>
+                <Badge variant="secondary" className="bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400">
+                  {orgDetails?.billing?.plan || "Free"}
+                </Badge>
+              </div>
+              <Button variant="outline" size="sm" asChild>
+                <a href="mailto:hello@peakhour.ai">Upgrade plan</a>
+              </Button>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div>
+                <p className="text-xs text-muted-foreground">Organization</p>
+                <p className="text-sm font-medium">{orgDetails?.name || "—"}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Member since</p>
+                <p className="text-sm font-medium">
+                  {orgDetails?.createdAt ? new Date(orgDetails.createdAt).toLocaleDateString() : "—"}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Billing cycle</p>
+                <p className="text-sm font-medium">Monthly</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Usage cards */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="rounded-2xl border bg-muted/30 px-4 pt-3 pb-5">
+              <p className="font-semibold mb-1">Content pieces</p>
+              <p className="text-sm text-muted-foreground">
+                <span className="text-foreground font-medium">
+                  {orgDetails?.billing?.plan === "free" ? "50" : "Unlimited"}
+                </span>
+                {orgDetails?.billing?.plan === "free" ? " / 50 included" : " included"}
+              </p>
+              {orgDetails?.billing?.plan === "free" && (
+                <div className="relative mt-2 h-1 w-full rounded-full bg-muted">
+                  <span className="absolute top-0 left-0 h-full w-1/2 rounded-full bg-amber-500" />
+                </div>
+              )}
+            </div>
+            <div className="rounded-2xl border bg-muted/30 px-4 pt-3 pb-5">
+              <p className="font-semibold mb-1">Ad platforms</p>
+              <p className="text-sm text-muted-foreground">
+                <span className="text-foreground font-medium">
+                  {orgDetails?.billing?.plan === "pro" ? "All" : orgDetails?.billing?.plan === "growth" ? "2" : "Preview only"}
+                </span>
+                {" "}included
+              </p>
+            </div>
+          </div>
+
+          {/* Payment method */}
           <Card>
             <CardHeader>
-              <CardTitle>Plan & Billing</CardTitle>
+              <CardTitle className="text-base">Payment Method</CardTitle>
               <CardDescription>
-                Your current subscription and payment details
+                Manage your payment details and billing address
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <SettingRow
-                label="Current plan"
-                value={
-                  <Badge variant="outline" className="capitalize">
-                    {orgDetails?.billing?.plan || "free"}
-                  </Badge>
-                }
-              />
-              <SettingRow label="Organization" value={orgDetails?.name} />
-              <SettingRow
-                label="Member since"
-                value={orgDetails?.createdAt ? new Date(orgDetails.createdAt).toLocaleDateString() : "--"}
-              />
-              <Separator />
+            <CardContent>
               <p className="text-sm text-muted-foreground">
-                Contact us to upgrade your plan or manage billing.
+                No payment method on file. Contact us to set up billing.
               </p>
-              <Button variant="outline" size="sm" asChild>
+              <Button variant="outline" size="sm" className="mt-3" asChild>
                 <a href="mailto:hello@peakhour.ai">Contact support</a>
               </Button>
             </CardContent>
