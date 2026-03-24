@@ -3,6 +3,8 @@
 import {
   type ColumnDef,
   type ColumnFiltersState,
+  type OnChangeFn,
+  type PaginationState,
   type SortingState,
   type VisibilityState,
   flexRender,
@@ -22,6 +24,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { DataTablePagination } from "./pagination";
+import { cn } from "@/lib/utils";
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -29,7 +32,17 @@ interface DataTableProps<TData, TValue> {
   pageSize?: number;
   showPagination?: boolean;
   toolbar?: React.ReactNode;
-  emptyMessage?: string;
+  emptyMessage?: string | React.ReactNode;
+  onRowClick?: (row: TData) => void;
+  /** Server-side pagination: total page count (enables manual mode) */
+  pageCount?: number;
+  /** Server-side pagination: controlled page index (0-based) */
+  pageIndex?: number;
+  /** Server-side pagination: callback when page changes */
+  onPaginationChange?: OnChangeFn<PaginationState>;
+  /** Pass false to disable client-side sorting (for server-side sort) */
+  enableSorting?: boolean;
+  className?: string;
 }
 
 export function DataTable<TData, TValue>({
@@ -39,29 +52,52 @@ export function DataTable<TData, TValue>({
   showPagination = true,
   toolbar,
   emptyMessage = "No results.",
+  onRowClick,
+  pageCount,
+  pageIndex,
+  onPaginationChange,
+  enableSorting = true,
+  className,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [rowSelection, setRowSelection] = useState({});
 
+  const isManualPagination = pageCount !== undefined;
+
   const table = useReactTable({
     data,
     columns,
     getCoreRowModel: getCoreRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    getSortedRowModel: getSortedRowModel(),
+    ...(isManualPagination
+      ? { manualPagination: true, pageCount }
+      : { getPaginationRowModel: getPaginationRowModel() }),
+    ...(enableSorting
+      ? { getSortedRowModel: getSortedRowModel() }
+      : { manualSorting: true }),
     getFilteredRowModel: getFilteredRowModel(),
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
     onRowSelectionChange: setRowSelection,
-    state: { sorting, columnFilters, columnVisibility, rowSelection },
-    initialState: { pagination: { pageSize } },
+    ...(onPaginationChange ? { onPaginationChange } : {}),
+    state: {
+      sorting,
+      columnFilters,
+      columnVisibility,
+      rowSelection,
+      ...(isManualPagination
+        ? { pagination: { pageIndex: pageIndex ?? 0, pageSize } }
+        : {}),
+    },
+    initialState: isManualPagination
+      ? undefined
+      : { pagination: { pageSize } },
   });
 
   return (
-    <div className="space-y-4">
+    <div className={cn("space-y-4", className)}>
       {toolbar}
       <div className="rounded-md border">
         <Table>
@@ -87,6 +123,12 @@ export function DataTable<TData, TValue>({
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
+                  className={onRowClick ? "cursor-pointer" : undefined}
+                  onClick={
+                    onRowClick
+                      ? () => onRowClick(row.original)
+                      : undefined
+                  }
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>

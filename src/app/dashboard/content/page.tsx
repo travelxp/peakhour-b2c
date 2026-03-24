@@ -10,8 +10,11 @@ import {
   SHELF_LIFE_LABELS,
   label,
 } from "@/lib/content-labels";
+import type { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
 import { ConfirmDialog } from "@/components/molecules/confirm-dialog";
+import { DataTable } from "@/components/molecules/data-table";
+import { EmptyState } from "@/components/molecules/empty-state";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -30,14 +33,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { FileX } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Tooltip,
@@ -122,6 +118,78 @@ const DEFAULT_FILTERS: Filters = {
   minAdScore: "",
   sort: "publishedAt_desc",
 };
+
+// ── Column Definitions (TanStack Table) ─────────────────────────
+
+const contentColumns: ColumnDef<Draft>[] = [
+  {
+    accessorKey: "title",
+    header: "Title",
+    cell: ({ row }) => (
+      <span className="font-medium">{row.getValue("title")}</span>
+    ),
+    size: 350,
+  },
+  {
+    id: "contentType",
+    header: "Type",
+    cell: ({ row }) => {
+      const ct = row.original.tags?.contentType;
+      return ct ? (
+        <Badge variant="outline" className="text-xs">
+          {label(undefined, ct)}
+        </Badge>
+      ) : null;
+    },
+  },
+  {
+    id: "sectors",
+    header: "Sectors",
+    cell: ({ row }) => {
+      const sectors = row.original.tags?.sectors;
+      if (!sectors?.length) return <span className="text-muted-foreground">—</span>;
+      return (
+        <div className="flex flex-wrap gap-1">
+          {sectors.slice(0, 2).map((s) => (
+            <Badge key={s.name} variant="secondary" className="text-xs">
+              {label(undefined, s.name)}
+            </Badge>
+          ))}
+        </div>
+      );
+    },
+  },
+  {
+    id: "sentiment",
+    header: "Sentiment",
+    cell: ({ row }) => <SentimentBadge value={row.original.tags?.sentiment} />,
+  },
+  {
+    id: "adScore",
+    header: "Ad Score",
+    cell: ({ row }) => <AdScoreBar score={row.original.tags?.adPotentialScore} />,
+  },
+  {
+    id: "shelfLife",
+    header: "Shelf Life",
+    cell: ({ row }) => (
+      <span className="text-xs text-muted-foreground">
+        {label(SHELF_LIFE_LABELS, row.original.tags?.shelfLife)}
+      </span>
+    ),
+  },
+  {
+    accessorKey: "publishedAt",
+    header: "Published",
+    cell: ({ row }) => (
+      <span className="text-xs text-muted-foreground">
+        {row.original.publishedAt
+          ? new Date(row.original.publishedAt).toLocaleDateString()
+          : "—"}
+      </span>
+    ),
+  },
+];
 
 // ── Main Page ────────────────────────────────────────────────────
 
@@ -496,25 +564,14 @@ export default function ContentPage() {
                 ))}
               </div>
             ) : library.length === 0 ? (
-              <Card>
-                <CardContent className="py-16 text-center">
-                  <p className="text-lg font-medium mb-2">
-                    {hasActiveFilters
-                      ? "No articles match your filters"
-                      : "No content synced yet"}
-                  </p>
-                  <p className="text-muted-foreground text-sm mb-4">
-                    {hasActiveFilters
-                      ? "Try adjusting your filters or clearing them."
-                      : "Connect your Beehiiv account in Settings to get started."}
-                  </p>
-                  {hasActiveFilters && (
-                    <Button variant="outline" onClick={clearFilters}>
-                      Clear filters
-                    </Button>
-                  )}
-                </CardContent>
-              </Card>
+              <EmptyState
+                icon={FileX}
+                title={hasActiveFilters ? "No articles match your filters" : "No content synced yet"}
+                description={hasActiveFilters
+                  ? "Try adjusting your filters or clearing them."
+                  : "Connect your Beehiiv account in Settings to get started."}
+                action={hasActiveFilters ? { label: "Clear filters", onClick: clearFilters } : { label: "Connect integration", href: "/dashboard/integrations" }}
+              />
             ) : view === "card" ? (
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {library.map((draft) => (
@@ -528,70 +585,13 @@ export default function ContentPage() {
                 ))}
               </div>
             ) : (
-              <Card>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[35%]">Title</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Sectors</TableHead>
-                      <TableHead>Sentiment</TableHead>
-                      <TableHead>Ad Score</TableHead>
-                      <TableHead>Shelf Life</TableHead>
-                      <TableHead>Published</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {library.map((draft) => (
-                      <TableRow
-                        key={draft._id}
-                        className="cursor-pointer hover:bg-muted/50"
-                        onClick={() =>
-                          router.push(`/dashboard/content/${draft._id}`)
-                        }
-                      >
-                        <TableCell className="font-medium">
-                          {draft.title}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="text-xs">
-                            {label(undefined,draft.tags?.contentType)}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex flex-wrap gap-1">
-                            {draft.tags?.sectors?.slice(0, 2).map((s) => (
-                              <Badge
-                                key={s.name}
-                                variant="secondary"
-                                className="text-xs"
-                              >
-                                {label(undefined,s.name)}
-                              </Badge>
-                            )) ?? (
-                              <span className="text-muted-foreground">—</span>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <SentimentBadge value={draft.tags?.sentiment} />
-                        </TableCell>
-                        <TableCell>
-                          <AdScoreBar score={draft.tags?.adPotentialScore} />
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
-                          {label(SHELF_LIFE_LABELS, draft.tags?.shelfLife)}
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
-                          {draft.publishedAt
-                            ? new Date(draft.publishedAt).toLocaleDateString()
-                            : "—"}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </Card>
+              <DataTable
+                columns={contentColumns}
+                data={library}
+                showPagination={false}
+                enableSorting={false}
+                onRowClick={(draft) => router.push(`/dashboard/content/${draft._id}`)}
+              />
             )}
 
             {/* Pagination */}
