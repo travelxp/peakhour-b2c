@@ -4,8 +4,31 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/providers/auth-provider";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
-import { cn } from "@/lib/utils";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarRail,
+  SidebarSeparator,
+  SidebarTrigger,
+} from "@/components/ui/sidebar";
 import { OrgSwitcher } from "@/components/dashboard/org-switcher";
 import { BusinessSwitcher } from "@/components/dashboard/business-switcher";
 import {
@@ -19,11 +42,20 @@ import {
   Plug,
   Settings,
   LogOut,
+  ChevronsUpDown,
   type LucideIcon,
 } from "lucide-react";
 
-interface NavItem { href: string; label: string; icon: LucideIcon }
-interface NavGroup { label: string; items: NavItem[] }
+interface NavItem {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+}
+
+interface NavGroup {
+  label: string;
+  items: NavItem[];
+}
 
 const NAV_GROUPS: NavGroup[] = [
   {
@@ -72,7 +104,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <p className="text-muted-foreground">Loading...</p>
+        <p className="text-sm text-muted-foreground">Loading...</p>
       </div>
     );
   }
@@ -81,7 +113,9 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="space-y-4 text-center">
-          <p className="text-muted-foreground">Please sign in to continue.</p>
+          <p className="text-sm text-muted-foreground">
+            Please sign in to continue.
+          </p>
           <Button asChild>
             <Link href="/auth">Sign in</Link>
           </Button>
@@ -90,74 +124,158 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     );
   }
 
-  return (
-    <div className="flex min-h-screen">
-      {/* Sidebar */}
-      <aside className="w-56 border-r bg-card flex flex-col">
-        <div className="px-5 py-5">
-          <h1 className="text-lg font-bold tracking-tight">PeakHour</h1>
-        </div>
-        <OrgSwitcher />
-        <BusinessSwitcher />
-        <Separator />
-        <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-4">
-          {NAV_GROUPS.map((group) => (
-            <div key={group.label || "ungrouped-" + group.items[0]?.href}>
-              {group.label && (
-                <p className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
-                  {group.label}
-                </p>
-              )}
-              <div className="space-y-0.5">
-                {group.items.map((item) => {
-                  const Icon = item.icon;
-                  const isActive = pathname === item.href || pathname?.startsWith(item.href + "/");
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className={cn(
-                        "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
-                        isActive
-                          ? "bg-accent text-accent-foreground font-medium"
-                          : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
-                      )}
-                    >
-                      <Icon className="h-4 w-4 shrink-0" />
-                      {item.label}
-                    </Link>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </nav>
-        <Separator />
-        <div className="px-4 py-3">
-          <p className="text-xs font-medium truncate mb-1">
-            {user?.name || user?.email}
-          </p>
-          {org && (
-            <p className="text-[11px] text-muted-foreground truncate mb-2">
-              {org.name}
-            </p>
-          )}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="w-full justify-start gap-2 text-xs text-muted-foreground hover:text-foreground"
-            onClick={() => logout()}
-          >
-            <LogOut className="h-3.5 w-3.5" />
-            Sign out
-          </Button>
-        </div>
-      </aside>
+  const initials = user?.name
+    ? user.name
+        .split(" ")
+        .filter(Boolean)
+        .map((n) => n[0])
+        .join("")
+        .slice(0, 2)
+        .toUpperCase()
+    : user?.email?.[0]?.toUpperCase() || "?";
 
-      {/* Main content */}
-      <main className="flex-1 overflow-auto">
-        <div className="p-6">{children}</div>
-      </main>
-    </div>
+  return (
+    <SidebarProvider>
+      <Sidebar collapsible="icon" variant="sidebar">
+        {/* ── Header: Logo + Switchers ──────────────────────── */}
+        <SidebarHeader>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton size="lg" asChild>
+                <Link href="/dashboard/overview">
+                  <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                    <span className="text-sm font-bold">P</span>
+                  </div>
+                  <div className="grid flex-1 text-left leading-tight">
+                    <span className="truncate text-sm font-semibold">
+                      PeakHour
+                    </span>
+                    <span className="truncate text-xs text-muted-foreground">
+                      AI Marketing
+                    </span>
+                  </div>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+          <div className="group-data-[collapsible=icon]:hidden">
+            <OrgSwitcher />
+            <BusinessSwitcher />
+          </div>
+        </SidebarHeader>
+
+        <SidebarSeparator />
+
+        {/* ── Navigation ────────────────────────────────────── */}
+        <SidebarContent>
+          {NAV_GROUPS.map((group, idx) => (
+            <SidebarGroup key={group.label || `group-${idx}`}>
+              {group.label && (
+                <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
+              )}
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {group.items.map((item) => {
+                    const Icon = item.icon;
+                    const isActive =
+                      pathname === item.href ||
+                      pathname?.startsWith(item.href + "/");
+                    return (
+                      <SidebarMenuItem key={item.href}>
+                        <SidebarMenuButton
+                          asChild
+                          isActive={isActive}
+                          tooltip={item.label}
+                        >
+                          <Link href={item.href}>
+                            <Icon />
+                            <span>{item.label}</span>
+                          </Link>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    );
+                  })}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          ))}
+        </SidebarContent>
+
+        {/* ── Footer: User ──────────────────────────────────── */}
+        <SidebarFooter>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <SidebarMenuButton
+                    size="lg"
+                    className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+                  >
+                    <Avatar className="size-8 rounded-lg">
+                      <AvatarFallback className="rounded-lg text-xs">
+                        {initials}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="grid flex-1 text-left leading-tight">
+                      <span className="truncate text-sm font-medium">
+                        {user?.name || "User"}
+                      </span>
+                      <span className="truncate text-xs text-muted-foreground">
+                        {user?.email}
+                      </span>
+                    </div>
+                    <ChevronsUpDown className="ml-auto size-4" />
+                  </SidebarMenuButton>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg"
+                  side="bottom"
+                  align="end"
+                  sideOffset={4}
+                >
+                  <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
+                    <Avatar className="size-8 rounded-lg">
+                      <AvatarFallback className="rounded-lg text-xs">
+                        {initials}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="grid flex-1 text-left leading-tight">
+                      <span className="truncate text-sm font-semibold">
+                        {user?.name || "User"}
+                      </span>
+                      <span className="truncate text-xs text-muted-foreground">
+                        {org?.name}
+                      </span>
+                    </div>
+                  </div>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link href="/dashboard/settings">
+                      <Settings className="mr-2 size-4" />
+                      Settings
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => logout()}>
+                    <LogOut className="mr-2 size-4" />
+                    Sign out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarFooter>
+
+        <SidebarRail />
+      </Sidebar>
+
+      {/* ── Main Content ──────────────────────────────────── */}
+      <SidebarInset>
+        <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
+          <SidebarTrigger className="-ml-1" />
+        </header>
+        <div className="flex-1 overflow-auto p-6">{children}</div>
+      </SidebarInset>
+    </SidebarProvider>
   );
 }
