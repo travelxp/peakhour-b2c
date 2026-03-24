@@ -9,6 +9,7 @@ import {
   label,
 } from "@/lib/content-labels";
 import { formatDate } from "@/lib/locale";
+import type { UserPreferences } from "@/lib/auth";
 import {
   Tooltip,
   TooltipContent,
@@ -38,7 +39,8 @@ export interface Draft {
   } | null;
 }
 
-export const contentColumns: ColumnDef<Draft, unknown>[] = [
+export function getContentColumns(prefs: UserPreferences | null): ColumnDef<Draft, unknown>[] {
+  return [
   {
     accessorKey: "title",
     header: ({ column }) => (
@@ -188,8 +190,9 @@ export const contentColumns: ColumnDef<Draft, unknown>[] = [
     ),
     cell: ({ row }) => (
       <span className="text-xs text-muted-foreground">
-        {formatDate(row.original.publishedAt, null)}
+        {formatDate(row.original.publishedAt, prefs)}
       </span>
     ),
   },
-];
+  ];
+}
