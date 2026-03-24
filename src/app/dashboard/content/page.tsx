@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { api, API_BASE_URL } from "@/lib/api";
@@ -10,11 +10,17 @@ import {
   SHELF_LIFE_LABELS,
   label,
 } from "@/lib/content-labels";
-import type { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
 import { ConfirmDialog } from "@/components/molecules/confirm-dialog";
-import { DataTable } from "@/components/molecules/data-table";
 import { EmptyState } from "@/components/molecules/empty-state";
+import {
+  useDataTable,
+  FacetedFilter,
+  DataTablePagination,
+  DataTableColumnHeader,
+} from "@/components/molecules/data-table";
+import type { FacetedFilterOption } from "@/components/molecules/data-table";
+import { contentColumns, type Draft } from "./columns";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -25,16 +31,18 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FileX } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { flexRender } from "@tanstack/react-table";
 import {
   Tooltip,
   TooltipContent,
@@ -43,31 +51,6 @@ import {
 } from "@/components/ui/tooltip";
 
 // ── Types ────────────────────────────────────────────────────────
-
-interface TagSummary {
-  sectors: { name: string; weight: number }[];
-  companies: { name: string; role: string; sentiment?: string }[];
-  contentType: string;
-  sentiment: string;
-  shelfLife: string;
-  adPotentialScore: number;
-  adPotentialAngle?: string;
-  topKeywords: string[];
-  audienceRelevance: { segment: string; relevance: number }[];
-}
-
-interface Draft {
-  _id: string;
-  title: string;
-  subtitle?: string;
-  source: string;
-  status: string;
-  publishedAt: string;
-  webUrl?: string;
-  thumbnailUrl?: string;
-  readingTimeMin?: number;
-  tags: TagSummary | null;
-}
 
 interface ContentStats {
   total: number;
@@ -97,99 +80,9 @@ interface GapAnalysis {
   recommendations: string[];
 }
 
-// ── Filters ──────────────────────────────────────────────────────
+// ── Constants ────────────────────────────────────────────────────
 
-interface Filters {
-  search: string;
-  sector: string;
-  contentType: string;
-  sentiment: string;
-  shelfLife: string;
-  minAdScore: string;
-  sort: string;
-}
-
-const DEFAULT_FILTERS: Filters = {
-  search: "",
-  sector: "",
-  contentType: "",
-  sentiment: "",
-  shelfLife: "",
-  minAdScore: "",
-  sort: "publishedAt_desc",
-};
-
-// ── Column Definitions (TanStack Table) ─────────────────────────
-
-const contentColumns: ColumnDef<Draft>[] = [
-  {
-    accessorKey: "title",
-    header: "Title",
-    cell: ({ row }) => (
-      <span className="font-medium">{row.getValue("title")}</span>
-    ),
-    size: 350,
-  },
-  {
-    id: "contentType",
-    header: "Type",
-    cell: ({ row }) => {
-      const ct = row.original.tags?.contentType;
-      return ct ? (
-        <Badge variant="outline" className="text-xs">
-          {label(undefined, ct)}
-        </Badge>
-      ) : null;
-    },
-  },
-  {
-    id: "sectors",
-    header: "Sectors",
-    cell: ({ row }) => {
-      const sectors = row.original.tags?.sectors;
-      if (!sectors?.length) return <span className="text-muted-foreground">—</span>;
-      return (
-        <div className="flex flex-wrap gap-1">
-          {sectors.slice(0, 2).map((s) => (
-            <Badge key={s.name} variant="secondary" className="text-xs">
-              {label(undefined, s.name)}
-            </Badge>
-          ))}
-        </div>
-      );
-    },
-  },
-  {
-    id: "sentiment",
-    header: "Sentiment",
-    cell: ({ row }) => <SentimentBadge value={row.original.tags?.sentiment} />,
-  },
-  {
-    id: "adScore",
-    header: "Ad Score",
-    cell: ({ row }) => <AdScoreBar score={row.original.tags?.adPotentialScore} />,
-  },
-  {
-    id: "shelfLife",
-    header: "Shelf Life",
-    cell: ({ row }) => (
-      <span className="text-xs text-muted-foreground">
-        {label(SHELF_LIFE_LABELS, row.original.tags?.shelfLife)}
-      </span>
-    ),
-  },
-  {
-    accessorKey: "publishedAt",
-    header: "Published",
-    cell: ({ row }) => (
-      <span className="text-xs text-muted-foreground">
-        {row.original.publishedAt
-          ? new Date(row.original.publishedAt).toLocaleDateString()
-          : "—"}
-      </span>
-    ),
-  },
-];
+const CONTENT_FETCH_LIMIT = 500;
 
 // ── Main Page ────────────────────────────────────────────────────
 
@@ -205,24 +98,10 @@ interface AnalyseProgress {
 export default function ContentPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const [view, setView] = useState<"card" | "table">("table");
-  const [page, setPage] = useState(1);
   const [analysing, setAnalysing] = useState(false);
   const [analyseProgress, setAnalyseProgress] = useState<AnalyseProgress | null>(null);
   const [analyseResult, setAnalyseResult] = useState<string | null>(null);
-
-  const queryParams: Record<string, string> = {
-    page: String(page),
-    limit: view === "card" ? "12" : "20",
-  };
-  if (filters.search) queryParams.search = filters.search;
-  if (filters.sector) queryParams.sector = filters.sector;
-  if (filters.contentType) queryParams.contentType = filters.contentType;
-  if (filters.sentiment) queryParams.sentiment = filters.sentiment;
-  if (filters.shelfLife) queryParams.shelfLife = filters.shelfLife;
-  if (filters.minAdScore) queryParams.minAdScore = filters.minAdScore;
-  if (filters.sort) queryParams.sort = filters.sort;
 
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ["content-stats"],
@@ -238,14 +117,34 @@ export default function ContentPage() {
   const taxonomySectors = orgData?.taxonomy?.sectors || [];
   const taxonomyAudiences = (orgData?.taxonomy?.audienceSegments || []).map((a) => typeof a === "string" ? a : a.name);
   const taxonomyContentTypes = orgData?.taxonomy?.contentTypes || [];
-  // Build dynamic label maps from taxonomy
-  const sectorOptions: [string, string][] = taxonomySectors.map((s) => [s, label(undefined, s)]);
-  const contentTypeOptions: [string, string][] = taxonomyContentTypes.map((t) => [t, label(undefined, t)]);
 
+  // Client-side: fetch last 500 content pieces in one call
   const { data: libraryRes, isLoading: libraryLoading } = useQuery({
-    queryKey: ["content-library", queryParams],
+    queryKey: ["content-library-all"],
     queryFn: () =>
-      api.get<Draft[]>("/v1/content/library", queryParams),
+      api.get<Draft[]>("/v1/content/library", { limit: String(CONTENT_FETCH_LIMIT), sort: "publishedAt_desc" }),
+  });
+
+  // Build faceted filter options from taxonomy
+  const sentimentOptions: FacetedFilterOption[] = useMemo(
+    () => Object.entries(SENTIMENT_CONFIG).map(([k, v]) => ({ value: k, label: v.label })),
+    [],
+  );
+  const contentTypeFilterOptions: FacetedFilterOption[] = useMemo(
+    () => taxonomyContentTypes.map((t) => ({ value: t, label: label(undefined, t) })),
+    [taxonomyContentTypes],
+  );
+  const shelfLifeFilterOptions: FacetedFilterOption[] = useMemo(
+    () => Object.entries(SHELF_LIFE_LABELS).map(([k, v]) => ({ value: k, label: v })),
+    [],
+  );
+
+  // useDataTable — client-side sorting, filtering, pagination, faceted counts
+  const { table, globalFilter, setGlobalFilter } = useDataTable({
+    data: libraryRes || [],
+    columns: contentColumns,
+    getRowId: (row) => row._id,
+    pageSize: 20,
   });
 
   const { data: gaps } = useQuery({
@@ -254,9 +153,7 @@ export default function ContentPage() {
   });
 
   const library = libraryRes || [];
-  const hasActiveFilters = Object.entries(filters).some(
-    ([k, v]) => v && k !== "sort"
-  );
+  const hasActiveFilters = table.getState().columnFilters.length > 0 || !!globalFilter;
   const hasUntagged = stats && stats.tagged < stats.total;
   const cancelRef = useRef(false);
 
@@ -351,14 +248,9 @@ export default function ContentPage() {
       });
   }, [queryClient]);
 
-  function updateFilter(key: keyof Filters, value: string) {
-    setFilters((prev) => ({ ...prev, [key]: value }));
-    setPage(1);
-  }
-
   function clearFilters() {
-    setFilters(DEFAULT_FILTERS);
-    setPage(1);
+    table.resetColumnFilters();
+    setGlobalFilter("");
   }
 
   return (
@@ -472,55 +364,44 @@ export default function ContentPage() {
 
           {/* ── Library Tab ─────────────────────────────────── */}
           <TabsContent value="library" className="mt-4 space-y-4">
-            {/* Filter Bar */}
+            {/* Toolbar: Search + Faceted Filters + View Toggle */}
             <div className="flex flex-wrap items-center gap-2">
               <Input
                 placeholder="Search articles..."
-                value={filters.search}
-                onChange={(e) => updateFilter("search", e.target.value)}
-                className="w-48"
+                value={globalFilter}
+                onChange={(e) => setGlobalFilter(e.target.value)}
+                className="h-8 w-full lg:w-64"
               />
-              <FilterSelect
-                placeholder="Sector"
-                value={filters.sector}
-                onChange={(v) => updateFilter("sector", v)}
-                options={sectorOptions}
+              <FacetedFilter
+                column={table.getColumn("contentType")}
+                title="Type"
+                options={contentTypeFilterOptions}
+                align="start"
               />
-              <FilterSelect
-                placeholder="Type"
-                value={filters.contentType}
-                onChange={(v) => updateFilter("contentType", v)}
-                options={contentTypeOptions}
+              <FacetedFilter
+                column={table.getColumn("sentiment")}
+                title="Sentiment"
+                options={sentimentOptions}
+                align="start"
               />
-              <FilterSelect
-                placeholder="Sentiment"
-                value={filters.sentiment}
-                onChange={(v) => updateFilter("sentiment", v)}
-                options={Object.entries(SENTIMENT_CONFIG).map(([k, v]) => [k, v.label])}
+              <FacetedFilter
+                column={table.getColumn("shelfLife")}
+                title="Shelf Life"
+                options={shelfLifeFilterOptions}
+                align="start"
               />
-              <FilterSelect
-                placeholder="Min Ad Score"
-                value={filters.minAdScore}
-                onChange={(v) => updateFilter("minAdScore", v)}
-                options={[["5", "5+"], ["6", "6+"], ["7", "7+"], ["8", "8+"], ["9", "9+"]]}
-              />
-              <Select value={filters.sort} onValueChange={(v) => updateFilter("sort", v)}>
-                <SelectTrigger className="w-36 h-9 text-xs">
-                  <SelectValue placeholder="Sort" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="publishedAt_desc">Newest first</SelectItem>
-                  <SelectItem value="publishedAt_asc">Oldest first</SelectItem>
-                  <SelectItem value="adScore_desc">Highest ad score</SelectItem>
-                  <SelectItem value="title_asc">Title A-Z</SelectItem>
-                </SelectContent>
-              </Select>
+              {hasActiveFilters && (
+                <Button variant="ghost" size="sm" onClick={clearFilters} className="h-8">
+                  Clear all
+                </Button>
+              )}
 
               {/* View toggle */}
               <div className="ml-auto flex gap-1">
                 <Button
                   variant={view === "card" ? "default" : "outline"}
                   size="sm"
+                  className="h-8"
                   onClick={() => setView("card")}
                 >
                   Cards
@@ -528,23 +409,13 @@ export default function ContentPage() {
                 <Button
                   variant={view === "table" ? "default" : "outline"}
                   size="sm"
+                  className="h-8"
                   onClick={() => setView("table")}
                 >
                   Table
                 </Button>
               </div>
             </div>
-
-            {hasActiveFilters && (
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">
-                  Active filters:
-                </span>
-                <Button variant="ghost" size="sm" onClick={clearFilters}>
-                  Clear all
-                </Button>
-              </div>
-            )}
 
             {/* Loading skeleton */}
             {libraryLoading ? (
@@ -566,57 +437,68 @@ export default function ContentPage() {
             ) : library.length === 0 ? (
               <EmptyState
                 icon={FileX}
-                title={hasActiveFilters ? "No articles match your filters" : "No content synced yet"}
-                description={hasActiveFilters
-                  ? "Try adjusting your filters or clearing them."
-                  : "Connect your Beehiiv account in Settings to get started."}
-                action={hasActiveFilters ? { label: "Clear filters", onClick: clearFilters } : { label: "Connect integration", href: "/dashboard/integrations" }}
+                title="No content synced yet"
+                description="Connect your Beehiiv account in Settings to get started."
+                action={{ label: "Connect integration", href: "/dashboard/integrations" }}
               />
             ) : view === "card" ? (
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {library.map((draft) => (
+                {table.getRowModel().rows.map((row) => (
                   <ArticleCard
-                    key={draft._id}
-                    draft={draft}
+                    key={row.original._id}
+                    draft={row.original}
                     onClick={() =>
-                      router.push(`/dashboard/content/${draft._id}`)
+                      router.push(`/dashboard/content/${row.original._id}`)
                     }
                   />
                 ))}
               </div>
             ) : (
-              <DataTable
-                columns={contentColumns}
-                data={library}
-                showPagination={false}
-                enableSorting={false}
-                onRowClick={(draft) => router.push(`/dashboard/content/${draft._id}`)}
-              />
+              <div className="overflow-hidden rounded-md border">
+                <Table>
+                  <TableHeader>
+                    {table.getHeaderGroups().map((headerGroup) => (
+                      <TableRow key={headerGroup.id}>
+                        {headerGroup.headers.map((header) => (
+                          <TableHead key={header.id}>
+                            {header.isPlaceholder
+                              ? null
+                              : flexRender(header.column.columnDef.header, header.getContext())}
+                          </TableHead>
+                        ))}
+                      </TableRow>
+                    ))}
+                  </TableHeader>
+                  <TableBody>
+                    {table.getRowModel().rows.length ? (
+                      table.getRowModel().rows.map((row) => (
+                        <TableRow
+                          key={row.id}
+                          className="cursor-pointer hover:bg-muted/50"
+                          onClick={() => router.push(`/dashboard/content/${row.original._id}`)}
+                        >
+                          {row.getVisibleCells().map((cell) => (
+                            <TableCell key={cell.id}>
+                              {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                            </TableCell>
+                          ))}
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={contentColumns.length} className="h-24 text-center text-muted-foreground">
+                          No articles match your filters.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
             )}
 
-            {/* Pagination */}
-            {library.length > 0 && (
-              <div className="flex items-center justify-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={page <= 1}
-                  onClick={() => setPage((p) => p - 1)}
-                >
-                  Previous
-                </Button>
-                <span className="text-sm text-muted-foreground">
-                  Page {page}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={library.length < (view === "card" ? 12 : 20)}
-                  onClick={() => setPage((p) => p + 1)}
-                >
-                  Next
-                </Button>
-              </div>
+            {/* Client-side pagination */}
+            {table.getRowModel().rows.length > 0 && (
+              <DataTablePagination table={table} />
             )}
           </TabsContent>
 
@@ -809,33 +691,6 @@ function KpiCard({
   );
 }
 
-function FilterSelect({
-  placeholder,
-  value,
-  onChange,
-  options,
-}: {
-  placeholder: string;
-  value: string;
-  onChange: (v: string) => void;
-  options: [string, string][];
-}) {
-  return (
-    <Select value={value || "__all__"} onValueChange={(v) => onChange(v === "__all__" ? "" : v)}>
-      <SelectTrigger className="w-36 h-9 text-xs">
-        <SelectValue placeholder={placeholder} />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value="__all__">All</SelectItem>
-        {options.map(([k, v]) => (
-          <SelectItem key={k} value={k}>
-            {v}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
-}
 
 function ArticleCard({
   draft,
