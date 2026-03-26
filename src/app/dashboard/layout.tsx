@@ -24,6 +24,9 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
   SidebarProvider,
   SidebarRail,
   SidebarSeparator,
@@ -46,13 +49,23 @@ import {
   LogOut,
   ChevronsUpDown,
   ArrowLeftRight,
+  ChevronRight,
+  TicketCheck,
+  Users,
   type LucideIcon,
 } from "lucide-react";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import { useMyTickets } from "@/hooks/use-feedback";
 
 interface NavItem {
   href: string;
   label: string;
   icon: LucideIcon;
+  subItems?: { href: string; label: string; badge?: () => React.ReactNode }[];
 }
 
 interface NavGroup {
@@ -87,10 +100,33 @@ const NAV_GROUPS: NavGroup[] = [
     label: "",
     items: [
       { href: "/dashboard/integrations", label: "Integrations", icon: Plug },
-      { href: "/dashboard/settings", label: "Settings", icon: Settings },
+      {
+        href: "/dashboard/settings",
+        label: "Settings",
+        icon: Settings,
+        subItems: [
+          { href: "/dashboard/settings", label: "General" },
+          { href: "/dashboard/settings/team", label: "Team" },
+          { href: "/dashboard/settings/tickets", label: "Tickets", badge: () => <OpenTicketBadge /> },
+        ],
+      },
     ],
   },
 ];
+
+/** Badge showing count of open tickets — fetches lazily */
+function OpenTicketBadge() {
+  const { data: tickets } = useMyTickets();
+  const openCount = tickets?.filter(
+    (t) => t.status !== "resolved" && t.status !== "closed"
+  ).length;
+  if (!openCount) return null;
+  return (
+    <span className="ml-auto flex size-5 items-center justify-center rounded-full bg-primary text-[10px] font-medium text-primary-foreground">
+      {openCount > 9 ? "9+" : openCount}
+    </span>
+  );
+}
 
 export default function DashboardLayout({
   children,
@@ -183,6 +219,40 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                     const isActive =
                       pathname === item.href ||
                       pathname?.startsWith(item.href + "/");
+
+                    if (item.subItems) {
+                      return (
+                        <Collapsible key={item.href} asChild defaultOpen={isActive} className="group/collapsible">
+                          <SidebarMenuItem>
+                            <CollapsibleTrigger asChild>
+                              <SidebarMenuButton tooltip={item.label} isActive={isActive}>
+                                <Icon />
+                                <span>{item.label}</span>
+                                <ChevronRight className="ml-auto size-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                              </SidebarMenuButton>
+                            </CollapsibleTrigger>
+                            <CollapsibleContent>
+                              <SidebarMenuSub>
+                                {item.subItems.map((sub) => {
+                                  const subActive = pathname === sub.href;
+                                  return (
+                                    <SidebarMenuSubItem key={sub.href}>
+                                      <SidebarMenuSubButton asChild isActive={subActive}>
+                                        <Link href={sub.href}>
+                                          <span>{sub.label}</span>
+                                          {sub.badge?.()}
+                                        </Link>
+                                      </SidebarMenuSubButton>
+                                    </SidebarMenuSubItem>
+                                  );
+                                })}
+                              </SidebarMenuSub>
+                            </CollapsibleContent>
+                          </SidebarMenuItem>
+                        </Collapsible>
+                      );
+                    }
+
                     return (
                       <SidebarMenuItem key={item.href}>
                         <SidebarMenuButton
