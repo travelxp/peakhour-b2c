@@ -36,6 +36,7 @@ import {
   LayoutDashboard,
   TicketCheck,
   Users,
+  Brain,
   Settings2,
   LogOut,
   ChevronsUpDown,
@@ -65,6 +66,7 @@ const CMS_NAV_GROUPS: NavGroup[] = [
     label: "Operations",
     items: [
       { href: "/cms/feedback", label: "Feedback Tickets", icon: TicketCheck },
+      { href: "/cms/ai-usage", label: "AI Usage", icon: Brain },
       { href: "/cms/team", label: "CMS Team", icon: Users },
     ],
   },
