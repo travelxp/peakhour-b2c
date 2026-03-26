@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect } from "react";
 import { useAuth } from "@/providers/auth-provider";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -31,18 +32,10 @@ import {
 } from "@/components/ui/sidebar";
 import { OrgSwitcher } from "@/components/dashboard/org-switcher";
 import { BusinessSwitcher } from "@/components/dashboard/business-switcher";
-import { CommandMenu } from "@/components/molecules/command-menu";
-import { FeedbackWidget } from "@/components/molecules/feedback-widget";
 import {
   LayoutDashboard,
-  FileText,
-  Megaphone,
-  TrendingUp,
-  Sparkles,
-  Brain,
-  Calendar,
-  Plug,
-  Settings,
+  TicketCheck,
+  Settings2,
   LogOut,
   ChevronsUpDown,
   ArrowLeftRight,
@@ -60,49 +53,49 @@ interface NavGroup {
   items: NavItem[];
 }
 
-const NAV_GROUPS: NavGroup[] = [
+const CMS_NAV_GROUPS: NavGroup[] = [
   {
     label: "",
     items: [
-      { href: "/dashboard/overview", label: "Overview", icon: LayoutDashboard },
+      { href: "/cms/overview", label: "Overview", icon: LayoutDashboard },
     ],
   },
   {
-    label: "Content Cockpit",
+    label: "Operations",
     items: [
-      { href: "/dashboard/content", label: "Library", icon: FileText },
-      { href: "/dashboard/strategist", label: "Strategist", icon: Brain },
-      { href: "/dashboard/calendar", label: "Calendar", icon: Calendar },
-    ],
-  },
-  {
-    label: "Growth",
-    items: [
-      { href: "/dashboard/ads", label: "Ads", icon: Megaphone },
-      { href: "/dashboard/outcomes", label: "Outcomes", icon: TrendingUp },
-      { href: "/dashboard/optimizer", label: "Optimizer", icon: Sparkles },
+      { href: "/cms/feedback", label: "Feedback Tickets", icon: TicketCheck },
     ],
   },
   {
     label: "",
     items: [
-      { href: "/dashboard/integrations", label: "Integrations", icon: Plug },
-      { href: "/dashboard/settings", label: "Settings", icon: Settings },
+      { href: "/cms/settings", label: "CMS Settings", icon: Settings2 },
     ],
   },
 ];
 
-export default function DashboardLayout({
+export default function CmsLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return <DashboardShell>{children}</DashboardShell>;
+  return <CmsShell>{children}</CmsShell>;
 }
 
-function DashboardShell({ children }: { children: React.ReactNode }) {
+function CmsShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const { user, org, logout, isLoading, isAuthenticated } = useAuth();
+
+  // Guard: redirect non-CMS users
+  useEffect(() => {
+    if (!isLoading && isAuthenticated && !user?.cmsUser) {
+      router.replace("/dashboard/overview");
+    }
+    if (!isLoading && !isAuthenticated) {
+      router.replace("/auth");
+    }
+  }, [isLoading, isAuthenticated, user?.cmsUser, router]);
 
   if (isLoading) {
     return (
@@ -112,17 +105,12 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated || !user?.cmsUser) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <div className="space-y-4 text-center">
-          <p className="text-sm text-muted-foreground">
-            Please sign in to continue.
-          </p>
-          <Button asChild>
-            <Link href="/auth">Sign in</Link>
-          </Button>
-        </div>
+        <p className="text-sm text-muted-foreground">
+          Access denied. CMS access required.
+        </p>
       </div>
     );
   }
@@ -140,21 +128,21 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   return (
     <SidebarProvider>
       <Sidebar collapsible="icon" variant="sidebar">
-        {/* ── Header: Logo + Switchers ──────────────────────── */}
+        {/* ── Header: CMS branding + Switchers ──────────── */}
         <SidebarHeader>
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton size="lg" asChild>
-                <Link href="/dashboard/overview">
-                  <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                    <span className="text-sm font-bold">P</span>
+                <Link href="/cms/overview">
+                  <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-orange-600 text-white">
+                    <span className="text-sm font-bold">C</span>
                   </div>
                   <div className="grid flex-1 text-left leading-tight">
                     <span className="truncate text-sm font-semibold">
-                      PeakHour
+                      PeakHour CMS
                     </span>
                     <span className="truncate text-xs text-muted-foreground">
-                      AI Marketing
+                      Internal Admin
                     </span>
                   </div>
                 </Link>
@@ -169,9 +157,9 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
         <SidebarSeparator />
 
-        {/* ── Navigation ────────────────────────────────────── */}
+        {/* ── Navigation ────────────────────────────────── */}
         <SidebarContent>
-          {NAV_GROUPS.map((group, idx) => (
+          {CMS_NAV_GROUPS.map((group, idx) => (
             <SidebarGroup key={group.label || `group-${idx}`}>
               {group.label && (
                 <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
@@ -202,9 +190,25 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
               </SidebarGroupContent>
             </SidebarGroup>
           ))}
+
+          {/* Switch to Dashboard link */}
+          <SidebarGroup>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild tooltip="Switch to Dashboard">
+                    <Link href="/dashboard/overview">
+                      <ArrowLeftRight />
+                      <span>Switch to Dashboard</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
         </SidebarContent>
 
-        {/* ── Footer: User ──────────────────────────────────── */}
+        {/* ── Footer: User ──────────────────────────────── */}
         <SidebarFooter>
           <SidebarMenu>
             <SidebarMenuItem>
@@ -253,19 +257,11 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                   </div>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
-                    <Link href="/dashboard/settings">
-                      <Settings className="mr-2 size-4" />
-                      Settings
+                    <Link href="/dashboard/overview">
+                      <ArrowLeftRight className="mr-2 size-4" />
+                      Switch to Dashboard
                     </Link>
                   </DropdownMenuItem>
-                  {user?.cmsUser && (
-                    <DropdownMenuItem asChild>
-                      <Link href="/cms/overview">
-                        <ArrowLeftRight className="mr-2 size-4" />
-                        Switch to CMS
-                      </Link>
-                    </DropdownMenuItem>
-                  )}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={() => logout()}>
                     <LogOut className="mr-2 size-4" />
@@ -280,15 +276,14 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         <SidebarRail />
       </Sidebar>
 
-      {/* ── Cmd+K Command Menu ─────────────────────────────── */}
-      <CommandMenu />
-
-      {/* ── Main Content ──────────────────────────────────── */}
+      {/* ── Main Content ──────────────────────────────── */}
       <SidebarInset>
         <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
           <SidebarTrigger className="-ml-1" />
-          <div className="ml-auto">
-            <FeedbackWidget />
+          <div className="ml-auto flex items-center gap-2">
+            <span className="rounded-md bg-orange-600/10 px-2 py-0.5 text-xs font-medium text-orange-600">
+              CMS
+            </span>
           </div>
         </header>
         <div className="flex-1 overflow-auto p-6">{children}</div>

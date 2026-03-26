@@ -17,6 +17,7 @@ export interface AuthUser {
   mobileVerified: boolean;
   profileCompleted: boolean;
   preferences: UserPreferences | null;
+  cmsUser?: boolean;
 }
 
 export interface AuthOrg {

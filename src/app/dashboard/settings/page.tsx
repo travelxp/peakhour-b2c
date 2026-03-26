@@ -44,6 +44,8 @@ import {
   Plus,
   Globe,
   CalendarDays,
+  MessageSquare,
+  TicketCheck,
 } from "lucide-react";
 
 interface OrgDetails {
@@ -103,7 +105,7 @@ function SettingsLoading() {
 const VALID_TABS = ["general", "preferences", "team", "billing"];
 
 function SettingsContent() {
-  const { org, refreshUser } = useAuth();
+  const { user, org, refreshUser } = useAuth();
   const { formatDate, formatCurrency } = useLocale();
   const searchParams = useSearchParams();
   const [orgDetails, setOrgDetails] = useState<OrgDetails | null>(null);
@@ -499,6 +501,41 @@ function SettingsContent() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* ── Feedback Quick Links ──────────────────────────── */}
+      <Separator />
+      <div className="grid gap-4 sm:grid-cols-2 max-w-3xl">
+        <Link href="/dashboard/settings/tickets">
+          <Card className="transition-colors hover:bg-muted/50 cursor-pointer">
+            <CardContent className="flex items-center gap-3 py-4">
+              <MessageSquare className="size-5 text-muted-foreground" />
+              <div>
+                <p className="text-sm font-medium">My Tickets</p>
+                <p className="text-xs text-muted-foreground">
+                  Track your feedback submissions
+                </p>
+              </div>
+              <ArrowRight className="ml-auto size-4 text-muted-foreground" />
+            </CardContent>
+          </Card>
+        </Link>
+        {user?.cmsUser && (
+          <Link href="/cms/feedback">
+            <Card className="transition-colors hover:bg-muted/50 cursor-pointer">
+              <CardContent className="flex items-center gap-3 py-4">
+                <TicketCheck className="size-5 text-muted-foreground" />
+                <div>
+                  <p className="text-sm font-medium">Feedback Admin</p>
+                  <p className="text-xs text-muted-foreground">
+                    Review and triage all tickets (CMS)
+                  </p>
+                </div>
+                <ArrowRight className="ml-auto size-4 text-muted-foreground" />
+              </CardContent>
+            </Card>
+          </Link>
+        )}
+      </div>
     </div>
   );
 }
