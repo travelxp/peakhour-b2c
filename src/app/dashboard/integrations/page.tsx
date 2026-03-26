@@ -51,6 +51,10 @@ import {
   Download,
   Megaphone,
   MessageSquare,
+  MessageCircle,
+  Hash,
+  Send,
+  Users,
   type LucideIcon,
 } from "lucide-react";
 
@@ -92,6 +96,11 @@ const PROVIDER_ICONS: Record<string, LucideIcon> = {
   wordpress: Rss,
   ghost: Rss,
   x: Rss,
+  // Messaging channels
+  slack: Hash,
+  discord: MessageCircle,
+  telegram: Send,
+  teams: Users,
 };
 
 const PROVIDER_COLORS: Record<string, string> = {
@@ -108,6 +117,11 @@ const PROVIDER_COLORS: Record<string, string> = {
   wordpress: "bg-[#21759B]",
   ghost: "bg-[#15171A]",
   x: "bg-black",
+  // Messaging channels
+  slack: "bg-[#4A154B]",
+  discord: "bg-[#5865F2]",
+  telegram: "bg-[#26A5E4]",
+  teams: "bg-[#6264A7]",
 };
 
 // ── Meta capability definitions ──────────────────────────────
@@ -185,6 +199,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   ecommerce: "E-Commerce",
   cms: "Content Management",
   analytics: "Analytics",
+  messaging: "Messaging & Chat",
 };
 
 export default function IntegrationsPage() {
