@@ -35,6 +35,7 @@ import { BusinessSwitcher } from "@/components/dashboard/business-switcher";
 import {
   LayoutDashboard,
   TicketCheck,
+  Users,
   Settings2,
   LogOut,
   ChevronsUpDown,
@@ -64,6 +65,7 @@ const CMS_NAV_GROUPS: NavGroup[] = [
     label: "Operations",
     items: [
       { href: "/cms/feedback", label: "Feedback Tickets", icon: TicketCheck },
+      { href: "/cms/team", label: "CMS Team", icon: Users },
     ],
   },
   {
