@@ -39,10 +39,7 @@ import {
   AlertCircle,
   ExternalLink,
   Unplug,
-  Linkedin,
-  Facebook,
-  Instagram,
-  Chrome,
+  Globe,
   Mail,
   ShoppingBag,
   Rss,
@@ -57,6 +54,24 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
+import {
+  LinkedinIcon,
+  FacebookIcon,
+  InstagramIcon,
+  GoogleIcon,
+  YoutubeIcon,
+  BeehiivIcon,
+  SubstackIcon,
+  MailchimpIcon,
+  ShopifyIcon,
+  WordPressIcon,
+  GhostIcon,
+  TwitterIcon,
+  SlackIcon,
+  DiscordIcon,
+  TelegramIcon,
+  TeamsIcon,
+} from "@/components/ui/brand-icons";
 
 interface Integration {
   provider: string;
@@ -82,25 +97,25 @@ interface Integration {
   lastError?: string;
 }
 
-const PROVIDER_ICONS: Record<string, LucideIcon> = {
-  linkedin_content: Linkedin,
-  linkedin_ads: Linkedin,
-  facebook: Facebook,
-  google_ads: Chrome,
-  youtube: Chrome,
-  beehiiv: Mail,
-  substack: Mail,
-  mailchimp: Mail,
+const PROVIDER_ICONS: Record<string, any> = {
+  linkedin_content: LinkedinIcon,
+  linkedin_ads: LinkedinIcon,
+  facebook: FacebookIcon,
+  google_ads: GoogleIcon,
+  youtube: YoutubeIcon,
+  beehiiv: BeehiivIcon,
+  substack: SubstackIcon,
+  mailchimp: MailchimpIcon,
   kit: Mail,
-  shopify: ShoppingBag,
-  wordpress: Rss,
-  ghost: Rss,
-  x: Rss,
+  shopify: ShopifyIcon,
+  wordpress: WordPressIcon,
+  ghost: GhostIcon,
+  x: TwitterIcon,
   // Messaging channels
-  slack: Hash,
-  discord: MessageCircle,
-  telegram: Send,
-  teams: Users,
+  slack: SlackIcon,
+  discord: DiscordIcon,
+  telegram: TelegramIcon,
+  teams: TeamsIcon,
 };
 
 const PROVIDER_COLORS: Record<string, string> = {
@@ -129,7 +144,7 @@ const PROVIDER_COLORS: Record<string, string> = {
 interface MetaCapabilityDef {
   key: string;
   label: string;
-  icon: LucideIcon;
+  icon: any;
   iconColor: string;
   resourceLabel: string;
   getResources: (extra: Record<string, any>) => Array<{ id: string; label: string }>;
@@ -140,7 +155,7 @@ const META_CAPABILITIES: MetaCapabilityDef[] = [
   {
     key: "pages",
     label: "Facebook Pages",
-    icon: Facebook,
+    icon: FacebookIcon,
     iconColor: "text-[#1877F2]",
     resourceLabel: "Active Page",
     getResources: (extra) =>
@@ -150,7 +165,7 @@ const META_CAPABILITIES: MetaCapabilityDef[] = [
   {
     key: "instagram",
     label: "Instagram",
-    icon: Instagram,
+    icon: InstagramIcon,
     iconColor: "text-[#E4405F]",
     resourceLabel: "Account",
     getResources: (extra) =>

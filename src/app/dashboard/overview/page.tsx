@@ -27,8 +27,8 @@ import {
   Zap,
   Globe,
   Mail,
-  Linkedin,
 } from "lucide-react";
+import { LinkedinIcon } from "@/components/ui/brand-icons";
 
 interface DashboardStats {
   content: {
@@ -174,7 +174,7 @@ export default function OverviewPage() {
             <IntegrationRow
               name="LinkedIn Content"
               description="Publish posts to your company page"
-              icon={<Linkedin className="h-4 w-4" />}
+              icon={<LinkedinIcon className="h-4 w-4" />}
               iconBg="bg-[#0A66C2]"
               connected={stats?.connections.linkedinContent}
               loading={isLoading}
@@ -182,7 +182,7 @@ export default function OverviewPage() {
             <IntegrationRow
               name="LinkedIn Ads"
               description="Run campaigns and track analytics"
-              icon={<Linkedin className="h-4 w-4" />}
+              icon={<LinkedinIcon className="h-4 w-4" />}
               iconBg="bg-[#0A66C2]"
               connected={stats?.connections.linkedinAds}
               loading={isLoading}
