@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/providers/auth-provider";
 import { useLocale } from "@/hooks/use-locale";
 import { api, ApiError, API_BASE_URL } from "@/lib/api";
@@ -33,26 +33,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Plug,
   CheckCircle,
   AlertCircle,
   ExternalLink,
   Unplug,
-  Globe,
   Mail,
-  ShoppingBag,
-  Rss,
   RefreshCw,
   Loader2,
   Download,
   Megaphone,
   MessageSquare,
-  MessageCircle,
-  Hash,
-  Send,
-  Users,
-  type LucideIcon,
+  Search,
 } from "lucide-react";
 import {
   LinkedinIcon,
@@ -67,6 +61,7 @@ import {
   WordPressIcon,
   GhostIcon,
   TwitterIcon,
+  WhatsAppIcon,
   SlackIcon,
   DiscordIcon,
   TelegramIcon,
@@ -101,6 +96,11 @@ const PROVIDER_ICONS: Record<string, any> = {
   linkedin_content: LinkedinIcon,
   linkedin_ads: LinkedinIcon,
   facebook: FacebookIcon,
+  // Meta virtual providers (flattened from single facebook connection)
+  facebook_pages: FacebookIcon,
+  instagram: InstagramIcon,
+  meta_ads: Megaphone,
+  whatsapp: WhatsAppIcon,
   google_ads: GoogleIcon,
   youtube: YoutubeIcon,
   beehiiv: BeehiivIcon,
@@ -111,7 +111,6 @@ const PROVIDER_ICONS: Record<string, any> = {
   wordpress: WordPressIcon,
   ghost: GhostIcon,
   x: TwitterIcon,
-  // Messaging channels
   slack: SlackIcon,
   discord: DiscordIcon,
   telegram: TelegramIcon,
@@ -122,6 +121,10 @@ const PROVIDER_COLORS: Record<string, string> = {
   linkedin_content: "bg-[#0A66C2]",
   linkedin_ads: "bg-[#0A66C2]",
   facebook: "bg-[#0668E1]",
+  facebook_pages: "bg-[#1877F2]",
+  instagram: "bg-[#E4405F]",
+  meta_ads: "bg-[#0668E1]",
+  whatsapp: "bg-[#25D366]",
   google_ads: "bg-[#4285F4]",
   youtube: "bg-[#FF0000]",
   beehiiv: "bg-[#FFD100] text-black",
@@ -132,7 +135,6 @@ const PROVIDER_COLORS: Record<string, string> = {
   wordpress: "bg-[#21759B]",
   ghost: "bg-[#15171A]",
   x: "bg-black",
-  // Messaging channels
   slack: "bg-[#4A154B]",
   discord: "bg-[#5865F2]",
   telegram: "bg-[#26A5E4]",
@@ -217,6 +219,141 @@ const CATEGORY_LABELS: Record<string, string> = {
   messaging: "Messaging & Chat",
 };
 
+const CATEGORY_ORDER = ["social", "advertising", "newsletter", "cms", "ecommerce", "analytics", "messaging"];
+
+// ── Flatten Meta into virtual cards ──────────────────────────
+// The API returns one "facebook" provider with capabilities for Pages,
+// Instagram, Ads, WhatsApp. We split it into 4 individually searchable cards
+// that share the same OAuth connection.
+
+interface MetaVirtualCard {
+  virtualProvider: string;
+  name: string;
+  description: string;
+  category: string;
+  capabilityKey: string;
+  hasResources: (extra: Record<string, any>) => boolean;
+  getResourceSummary: (extra: Record<string, any>) => string | null;
+}
+
+const META_VIRTUAL_CARDS: MetaVirtualCard[] = [
+  {
+    virtualProvider: "facebook_pages",
+    name: "Facebook Pages",
+    description: "Publish posts, manage engagement, and track page insights",
+    category: "social",
+    capabilityKey: "pages",
+    hasResources: (extra) => (extra.pages || []).length > 0,
+    getResourceSummary: (extra) => {
+      const pages = extra.pages || [];
+      if (pages.length === 0) return null;
+      return pages.length === 1 ? pages[0].pageName : `${pages.length} pages`;
+    },
+  },
+  {
+    virtualProvider: "instagram",
+    name: "Instagram",
+    description: "Business account, content publishing, and audience insights",
+    category: "social",
+    capabilityKey: "instagram",
+    hasResources: (extra) =>
+      (extra.pages || []).some((p: any) => p.instagramAccountId),
+    getResourceSummary: (extra) => {
+      const page = (extra.pages || []).find((p: any) => p.instagramAccountId);
+      return page ? `@${page.instagramUsername}` : null;
+    },
+  },
+  {
+    virtualProvider: "meta_ads",
+    name: "Meta Ads",
+    description: "Facebook & Instagram ad campaigns, audiences, and reporting",
+    category: "advertising",
+    capabilityKey: "ads",
+    hasResources: (extra) => (extra.adAccounts || []).length > 0,
+    getResourceSummary: (extra) => {
+      const accs = extra.adAccounts || [];
+      if (accs.length === 0) return null;
+      return accs.length === 1 ? accs[0].name : `${accs.length} ad accounts`;
+    },
+  },
+  {
+    virtualProvider: "whatsapp",
+    name: "WhatsApp Business",
+    description: "Automated messaging, customer support, and notifications",
+    category: "messaging",
+    capabilityKey: "whatsapp",
+    hasResources: (extra) => (extra.whatsappAccounts || []).length > 0,
+    getResourceSummary: (extra) => {
+      const accs = extra.whatsappAccounts || [];
+      if (accs.length === 0) return null;
+      const phones = accs.flatMap((w: any) => w.phoneNumbers || []);
+      return phones.length > 0 ? phones[0].displayPhoneNumber : accs[0].name;
+    },
+  },
+];
+
+function flattenMetaIntegration(integrations: Integration[]): Integration[] {
+  const result: Integration[] = [];
+
+  for (const item of integrations) {
+    if (item.provider !== "facebook") {
+      result.push(item);
+      continue;
+    }
+
+    // Split facebook into virtual cards
+    const extra = item.account?.extra || {};
+    const capabilities = (extra.capabilities || {}) as Record<
+      string,
+      { enabled?: boolean }
+    >;
+
+    for (const card of META_VIRTUAL_CARDS) {
+      const hasRes = item.connected && card.hasResources(extra);
+      const capConfig = capabilities[card.capabilityKey];
+      const isEnabled = capConfig?.enabled !== false; // default enabled
+
+      result.push({
+        ...item,
+        provider: card.virtualProvider,
+        name: card.name,
+        description: card.description,
+        category: card.category,
+        // Show as connected only if Meta is connected AND this capability has resources
+        connected: item.connected && hasRes && isEnabled,
+        // Carry forward the parent connection info
+        account: item.connected
+          ? {
+              ...item.account!,
+              // Override name with the resource summary for this capability
+              name: card.getResourceSummary(extra) || item.account!.name,
+            }
+          : undefined,
+        // Tag so the card knows it's a virtual Meta sub-provider
+        group: "meta",
+        groupDisplayName: "Meta",
+        subLabel: null,
+      });
+    }
+  }
+
+  return result;
+}
+
+const META_VIRTUAL_PROVIDERS = new Set(META_VIRTUAL_CARDS.map((c) => c.virtualProvider));
+
+/** Resolve virtual Meta providers back to the real "facebook" provider for API calls */
+function resolveProvider(provider: string): string {
+  return META_VIRTUAL_PROVIDERS.has(provider) ? "facebook" : provider;
+}
+
+/** Check if a provider is a virtual Meta sub-card */
+function isMetaVirtual(provider: string): boolean {
+  return META_VIRTUAL_PROVIDERS.has(provider);
+}
+
+type ConnectionTab = "all" | "connected" | "disconnected";
+
 export default function IntegrationsPage() {
   const { org } = useAuth();
   const [integrations, setIntegrations] = useState<Integration[]>([]);
@@ -229,6 +366,11 @@ export default function IntegrationsPage() {
   const [backfillResult, setBackfillResult] = useState<{ message: string; hasErrors: boolean } | null>(null);
   const [connectModal, setConnectModal] = useState<string | null>(null);
 
+  // Filter state
+  const [search, setSearch] = useState("");
+  const [connectionTab, setConnectionTab] = useState<ConnectionTab>("all");
+  const [activeCategory, setActiveCategory] = useState<string>("all");
+
   useEffect(() => {
     if (!org) return;
     loadIntegrations();
@@ -237,7 +379,7 @@ export default function IntegrationsPage() {
   async function loadIntegrations() {
     try {
       const data = await api.get<{ integrations: Integration[] }>("/v1/integrations");
-      setIntegrations(data.integrations);
+      setIntegrations(flattenMetaIntegration(data.integrations));
     } catch (err) {
       if (err instanceof ApiError) setError(err.message);
       else setError("Failed to load integrations");
@@ -247,10 +389,11 @@ export default function IntegrationsPage() {
   }
 
   async function handleConnect(provider: string, authType: string) {
+    const realProvider = resolveProvider(provider);
     if (authType === "oauth2") {
-      window.location.href = `${API_BASE_URL}/v1/integrations/${provider}/authorize`;
+      window.location.href = `${API_BASE_URL}/v1/integrations/${realProvider}/authorize`;
     } else if (authType === "api_key") {
-      setConnectModal(provider);
+      setConnectModal(realProvider);
     }
   }
 
@@ -260,26 +403,22 @@ export default function IntegrationsPage() {
       status: string;
       account: { externalId: string; name: string };
     }>(`/v1/integrations/${provider}/connect`, { apiKey, config });
-
-    // Refresh the full list to get updated state
     await loadIntegrations();
     setConnectModal(null);
     return result;
   }
 
   async function handleRefresh(provider: string) {
+    const realProvider = resolveProvider(provider);
     setRefreshing(provider);
     setError("");
     try {
-      const result = await api.post<{ account: Integration["account"] }>(
-        `/v1/integrations/${provider}/refresh`,
+      await api.post<{ account: Integration["account"] }>(
+        `/v1/integrations/${realProvider}/refresh`,
         {}
       );
-      setIntegrations((prev) =>
-        prev.map((i) =>
-          i.provider === provider ? { ...i, account: result.account } : i
-        )
-      );
+      // Reload all integrations so virtual Meta cards update correctly
+      await loadIntegrations();
     } catch (err) {
       if (err instanceof ApiError) setError(err.message);
       else setError("Failed to refresh. Please try again.");
@@ -289,10 +428,11 @@ export default function IntegrationsPage() {
   }
 
   async function handleSync(provider: string) {
+    const realProvider = resolveProvider(provider);
     setSyncing(provider);
     setError("");
     try {
-      await api.post(`/v1/integrations/${provider}/sync`, {});
+      await api.post(`/v1/integrations/${realProvider}/sync`, {});
       await loadIntegrations();
     } catch (err) {
       if (err instanceof ApiError) setError(err.message);
@@ -318,7 +458,6 @@ export default function IntegrationsPage() {
         message: string;
       }>("/v1/content/backfill-sync", {});
 
-      // Auto-tag remaining posts in batches (5 at a time)
       let taggedSoFar = result.tagged;
       let tagRemaining = result.remaining;
       while (tagRemaining > 0) {
@@ -338,7 +477,6 @@ export default function IntegrationsPage() {
           tagRemaining = tagResult.remaining;
           if (tagResult.done) break;
         } catch {
-          // If tagging fails, stop gracefully — cron will catch up
           break;
         }
       }
@@ -364,8 +502,9 @@ export default function IntegrationsPage() {
     enabled: boolean,
     activeResourceId?: string
   ) {
+    const realProvider = resolveProvider(provider);
     try {
-      await api.patch(`/v1/integrations/${provider}/capabilities`, {
+      await api.patch(`/v1/integrations/${realProvider}/capabilities`, {
         capability,
         enabled,
         activeResourceId,
@@ -378,12 +517,14 @@ export default function IntegrationsPage() {
   }
 
   async function handleDisconnect(provider: string) {
+    const realProvider = resolveProvider(provider);
     setDisconnecting(provider);
     try {
-      await api.delete(`/v1/integrations/${provider}`);
+      await api.delete(`/v1/integrations/${realProvider}`);
+      // Disconnecting facebook removes all virtual Meta cards too
       setIntegrations((prev) =>
         prev.map((i) =>
-          i.provider === provider
+          resolveProvider(i.provider) === realProvider
             ? { ...i, connected: false, status: "disconnected", account: undefined }
             : i
         )
@@ -395,23 +536,134 @@ export default function IntegrationsPage() {
     }
   }
 
-  // Group by category
-  const grouped = integrations.reduce<Record<string, Integration[]>>((acc, item) => {
-    const cat = item.category;
-    if (!acc[cat]) acc[cat] = [];
-    acc[cat].push(item);
-    return acc;
-  }, {});
+  // ── Filtering logic ──────────────────────────────────────────
+  const filtered = useMemo(() => {
+    let items = integrations;
+
+    // Connection tab filter
+    if (connectionTab === "connected") items = items.filter((i) => i.connected);
+    if (connectionTab === "disconnected") items = items.filter((i) => !i.connected);
+
+    // Category filter
+    if (activeCategory !== "all") items = items.filter((i) => i.category === activeCategory);
+
+    // Search filter (fuzzy on name, description, category, provider)
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      items = items.filter(
+        (i) =>
+          i.name.toLowerCase().includes(q) ||
+          i.provider.toLowerCase().includes(q) ||
+          (i.description || "").toLowerCase().includes(q) ||
+          (CATEGORY_LABELS[i.category] || i.category).toLowerCase().includes(q)
+      );
+    }
+
+    return items;
+  }, [integrations, connectionTab, activeCategory, search]);
+
+  // Get categories present in current integrations (for chips)
+  const availableCategories = useMemo(() => {
+    const cats = new Set(integrations.map((i) => i.category));
+    return CATEGORY_ORDER.filter((c) => cats.has(c));
+  }, [integrations]);
+
+  // Group filtered results by category
+  const grouped = useMemo(() => {
+    const groups: Record<string, Integration[]> = {};
+    for (const cat of CATEGORY_ORDER) {
+      const items = filtered.filter((i) => i.category === cat);
+      if (items.length > 0) groups[cat] = items;
+    }
+    // Any categories not in CATEGORY_ORDER
+    for (const item of filtered) {
+      if (!CATEGORY_ORDER.includes(item.category)) {
+        if (!groups[item.category]) groups[item.category] = [];
+        groups[item.category].push(item);
+      }
+    }
+    return groups;
+  }, [filtered]);
+
+  const connectedCount = integrations.filter((i) => i.connected).length;
+  const disconnectedCount = integrations.filter((i) => !i.connected).length;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
+      {/* Header */}
       <div>
         <h2 className="text-2xl font-bold tracking-tight">Integrations</h2>
         <p className="text-muted-foreground mt-1">
-          Connect your ad platforms, content sources, and social accounts
+          Connect your platforms to power AI-driven content and ads
         </p>
       </div>
 
+      {/* Search + Tabs bar */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="relative max-w-sm flex-1">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Search integrations..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <Tabs
+          value={connectionTab}
+          onValueChange={(v) => setConnectionTab(v as ConnectionTab)}
+        >
+          <TabsList>
+            <TabsTrigger value="all">
+              All
+              <Badge variant="secondary" className="ml-1.5 text-[10px] px-1.5 py-0">
+                {integrations.length}
+              </Badge>
+            </TabsTrigger>
+            <TabsTrigger value="connected">
+              Connected
+              <Badge variant="secondary" className="ml-1.5 text-[10px] px-1.5 py-0 bg-green-500/15 text-green-700 dark:text-green-400">
+                {connectedCount}
+              </Badge>
+            </TabsTrigger>
+            <TabsTrigger value="disconnected">
+              Available
+              <Badge variant="secondary" className="ml-1.5 text-[10px] px-1.5 py-0">
+                {disconnectedCount}
+              </Badge>
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </div>
+
+      {/* Category chips */}
+      <div className="flex flex-wrap gap-2">
+        <button
+          onClick={() => setActiveCategory("all")}
+          className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+            activeCategory === "all"
+              ? "border-primary bg-primary text-primary-foreground"
+              : "border-border bg-background text-muted-foreground hover:border-primary/50 hover:text-foreground"
+          }`}
+        >
+          All Categories
+        </button>
+        {availableCategories.map((cat) => (
+          <button
+            key={cat}
+            onClick={() => setActiveCategory(activeCategory === cat ? "all" : cat)}
+            className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+              activeCategory === cat
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-border bg-background text-muted-foreground hover:border-primary/50 hover:text-foreground"
+            }`}
+          >
+            {CATEGORY_LABELS[cat] || cat}
+          </button>
+        ))}
+      </div>
+
+      {/* Error banner */}
       {error && (
         <div className="flex items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           <AlertCircle className="h-4 w-4 shrink-0" />
@@ -422,23 +674,41 @@ export default function IntegrationsPage() {
         </div>
       )}
 
+      {/* Loading skeleton */}
       {loading ? (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Card key={i}>
-              <CardContent className="py-8">
-                <div className="h-20 animate-pulse rounded-lg bg-muted" />
-              </CardContent>
-            </Card>
+        <div className="space-y-6">
+          {Array.from({ length: 2 }).map((_, gi) => (
+            <div key={gi} className="space-y-3">
+              <div className="h-4 w-32 animate-pulse rounded bg-muted" />
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="h-28 animate-pulse rounded-xl border bg-muted/30" />
+                ))}
+              </div>
+            </div>
           ))}
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-16 text-center">
+          <Search className="mb-3 h-10 w-10 text-muted-foreground/40" />
+          <p className="text-sm font-medium text-muted-foreground">No integrations found</p>
+          <p className="mt-1 text-xs text-muted-foreground/70">
+            Try adjusting your search or filters
+          </p>
         </div>
       ) : (
         Object.entries(grouped).map(([category, items]) => (
-          <div key={category} className="space-y-4">
-            <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-              {CATEGORY_LABELS[category] || category}
-            </h3>
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div key={category} className="space-y-3">
+            <div className="flex items-center gap-3">
+              <h3 className="text-sm font-semibold text-foreground">
+                {CATEGORY_LABELS[category] || category}
+              </h3>
+              <div className="h-px flex-1 bg-border" />
+              <span className="text-xs text-muted-foreground">
+                {items.filter((i) => i.connected).length}/{items.length} connected
+              </span>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {items.map((item) => (
                 <IntegrationCard
                   key={item.provider}
@@ -533,7 +803,7 @@ function BeehiivConnectModal({
         <DialogHeader>
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#FFD100] text-black">
-              <Mail className="h-5 w-5" />
+              <BeehiivIcon className="h-5 w-5" />
             </div>
             <div>
               <DialogTitle>Connect Beehiiv</DialogTitle>
@@ -658,69 +928,74 @@ function IntegrationCard({
   const isComingSoon = integration.availability === "coming_soon";
 
   return (
-    <Card className={`transition-shadow hover:shadow-md ${isComingSoon ? "opacity-60" : ""}`}>
-      <CardHeader className="flex flex-row items-start gap-4 space-y-0 pb-3">
-        <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-white ${colorClass}`}>
+    <Card className={`group relative overflow-hidden transition-all hover:shadow-md ${
+      isComingSoon ? "opacity-50" : ""
+    } ${integration.connected ? "ring-1 ring-green-500/20" : ""}`}>
+      {/* Connected indicator stripe */}
+      {integration.connected && (
+        <div className="absolute inset-x-0 top-0 h-0.5 bg-green-500" />
+      )}
+
+      <CardHeader className="flex flex-row items-start gap-3 space-y-0 pb-2">
+        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-white ${colorClass}`}>
           <Icon className="h-5 w-5" />
         </div>
         <div className="flex-1 min-w-0">
-          <CardTitle className="text-base leading-snug">
-            {integration.name}
-            {integration.subLabel && (
-              <span className="ml-1.5 text-xs font-normal text-muted-foreground">
-                ({integration.subLabel})
-              </span>
+          <div className="flex items-center gap-2">
+            <CardTitle className="text-sm font-semibold leading-snug">
+              {integration.name}
+            </CardTitle>
+            {integration.connected && (
+              <Badge className="bg-green-600/90 gap-0.5 text-[10px] px-1.5 py-0 shrink-0">
+                <CheckCircle className="h-2.5 w-2.5" />
+                Live
+              </Badge>
             )}
-          </CardTitle>
+            {isComingSoon && (
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">
+                Soon
+              </Badge>
+            )}
+          </div>
           {integration.description && (
-            <CardDescription className="mt-0.5 text-xs line-clamp-2">
+            <CardDescription className="mt-0.5 text-[11px] leading-snug line-clamp-2">
               {integration.description}
             </CardDescription>
           )}
         </div>
       </CardHeader>
+
       <CardContent className="pt-0">
         {integration.connected ? (
-          <div className="space-y-3">
-            {/* Account card */}
+          <div className="space-y-2.5">
+            {/* Account info — compact */}
             {integration.account && (
-              <div className="flex items-center gap-3 rounded-lg bg-muted/50 border px-3 py-2.5">
+              <div className="flex items-center gap-2.5 rounded-md bg-muted/50 px-2.5 py-2">
                 {integration.account.avatarUrl ? (
                   <img
                     src={integration.account.avatarUrl}
                     alt=""
-                    className="h-9 w-9 rounded-full ring-2 ring-green-500/30 shrink-0"
+                    className="h-7 w-7 rounded-full ring-1 ring-green-500/30 shrink-0"
                   />
                 ) : (
-                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 ring-2 ring-green-500/30 shrink-0">
-                    <span className="text-xs font-medium text-primary">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 ring-1 ring-green-500/30 shrink-0">
+                    <span className="text-[10px] font-medium text-primary">
                       {integration.account.name?.[0]?.toUpperCase() || "?"}
                     </span>
                   </div>
                 )}
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium truncate">{integration.account.name}</p>
+                  <p className="text-xs font-medium truncate">{integration.account.name}</p>
                   {integration.account.extra?.email && (
-                    <p className="text-[11px] text-muted-foreground truncate">
+                    <p className="text-[10px] text-muted-foreground truncate">
                       {integration.account.extra.email}
                     </p>
                   )}
                 </div>
-                <Badge className="bg-green-600/90 gap-1 text-[10px] shrink-0">
-                  <CheckCircle className="h-2.5 w-2.5" />
-                  Live
-                </Badge>
               </div>
             )}
 
-            {/* Connected timestamp */}
-            {integration.connectedAt && (
-              <p className="text-[11px] text-muted-foreground">
-                Connected {formatDate(integration.connectedAt, { month: "short", day: "numeric", year: "numeric" })}
-              </p>
-            )}
-
-            {/* LinkedIn Ads: show ad accounts or warning */}
+            {/* LinkedIn Ads */}
             {integration.provider === "linkedin_ads" && integration.account?.extra && (
               <LinkedInAdAccounts
                 extra={integration.account.extra}
@@ -729,7 +1004,7 @@ function IntegrationCard({
               />
             )}
 
-            {/* Meta: show capability toggles + resource selectors */}
+            {/* Meta capabilities */}
             {integration.provider === "facebook" && integration.account?.extra && onCapabilityToggle && (
               <MetaCapabilities
                 extra={integration.account.extra}
@@ -739,111 +1014,154 @@ function IntegrationCard({
               />
             )}
 
-            {/* Sync controls for Beehiiv */}
+            {/* Beehiiv sync controls */}
             {integration.provider === "beehiiv" && (
-              <div className="space-y-2">
-                {integration.lastSyncAt && (
-                  <p className="text-[11px] text-muted-foreground">
-                    Last synced {formatDateTime(integration.lastSyncAt)}
-                  </p>
-                )}
-
-                {/* Backfill result banner */}
-                {backfillResult && (
-                  <div className={`rounded-lg border px-3 py-2 text-xs flex items-center gap-2 ${
-                    backfillResult.hasErrors
-                      ? "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400"
-                      : "border-green-500/30 bg-green-500/10 text-green-700 dark:text-green-400"
-                  }`}>
-                    {backfillResult.hasErrors ? (
-                      <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                    ) : (
-                      <CheckCircle className="h-3.5 w-3.5 shrink-0" />
-                    )}
-                    {backfillResult.message}
-                  </div>
-                )}
-
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="flex-1 gap-1.5 text-xs"
-                    onClick={onSync}
-                    disabled={syncing || backfilling}
-                  >
-                    <RefreshCw className={`h-3 w-3 ${syncing ? "animate-spin" : ""}`} />
-                    {syncing ? "Syncing..." : "Sync new posts"}
-                  </Button>
-                  {onBackfillSync && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="flex-1 gap-1.5 text-xs"
-                      onClick={onBackfillSync}
-                      disabled={syncing || backfilling}
-                    >
-                      {backfilling ? (
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                      ) : (
-                        <Download className="h-3 w-3" />
-                      )}
-                      {backfilling ? "Importing & tagging..." : "Import & tag all posts"}
-                    </Button>
-                  )}
-                </div>
-                {backfilling && (
-                  <p className="text-[11px] text-muted-foreground">
-                    This may take a minute for large newsletters. Please don&apos;t close this page.
-                  </p>
-                )}
-              </div>
+              <BeehiivSyncControls
+                integration={integration}
+                onSync={onSync}
+                onBackfillSync={onBackfillSync}
+                backfillResult={backfillResult}
+                syncing={syncing}
+                backfilling={backfilling}
+                formatDateTime={formatDateTime}
+              />
             )}
 
             {/* Last sync for non-beehiiv */}
             {integration.provider !== "beehiiv" && integration.lastSyncAt && (
-              <p className="text-[11px] text-muted-foreground">
-                Last synced {formatDate(integration.lastSyncAt)}
+              <p className="text-[10px] text-muted-foreground">
+                Synced {formatDate(integration.lastSyncAt, { month: "short", day: "numeric" })}
               </p>
             )}
 
             {integration.lastError && (
-              <p className="text-xs text-destructive truncate">{integration.lastError}</p>
+              <p className="text-[10px] text-destructive truncate">{integration.lastError}</p>
             )}
 
+            {/* Disconnect */}
             <ConfirmDialog
               trigger={
                 <Button
                   size="sm"
-                  variant="outline"
-                  className="w-full gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  variant="ghost"
+                  className="w-full gap-1.5 text-[11px] text-muted-foreground hover:text-destructive hover:bg-destructive/10 h-7"
                   disabled={disconnecting}
                 >
-                  <Unplug className="h-3.5 w-3.5" />
+                  <Unplug className="h-3 w-3" />
                   {disconnecting ? "Disconnecting..." : "Disconnect"}
                 </Button>
               }
-              title="Disconnect integration"
-              description={`Are you sure you want to disconnect ${integration.name}? You'll need to reconnect to sync data again.`}
+              title={isMetaVirtual(integration.provider) ? "Disconnect Meta" : "Disconnect integration"}
+              description={
+                isMetaVirtual(integration.provider)
+                  ? "This will disconnect all Meta services (Facebook Pages, Instagram, Meta Ads, WhatsApp). You'll need to reconnect to sync data again."
+                  : `Are you sure you want to disconnect ${integration.name}? You'll need to reconnect to sync data again.`
+              }
               confirmLabel="Disconnect"
               variant="destructive"
               onConfirm={onDisconnect}
             />
           </div>
         ) : isComingSoon ? (
-          <Badge variant="outline" className="text-xs">Coming soon</Badge>
+          <p className="text-[11px] text-muted-foreground">Coming soon</p>
         ) : (
-          <Button
-            size="sm"
-            className="w-full gap-1.5"
-            onClick={onConnect}
-          >
-            <ExternalLink className="h-3.5 w-3.5" />
-            Connect
-          </Button>
+          <div className="space-y-1.5">
+            <Button
+              size="sm"
+              className="w-full gap-1.5 h-8 text-xs"
+              onClick={onConnect}
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              {isMetaVirtual(integration.provider) ? "Connect with Meta" : "Connect"}
+            </Button>
+            {isMetaVirtual(integration.provider) && (
+              <p className="text-[10px] text-center text-muted-foreground">
+                One login connects all Meta services
+              </p>
+            )}
+          </div>
         )}
       </CardContent>
     </Card>
+  );
+}
+
+// ── Beehiiv Sync Controls ───────────────────────────────────────────
+
+function BeehiivSyncControls({
+  integration,
+  onSync,
+  onBackfillSync,
+  backfillResult,
+  syncing,
+  backfilling,
+  formatDateTime,
+}: {
+  integration: Integration;
+  onSync: () => void;
+  onBackfillSync?: () => Promise<void>;
+  backfillResult?: { message: string; hasErrors: boolean } | null;
+  syncing: boolean;
+  backfilling: boolean;
+  formatDateTime: (d: string) => string;
+}) {
+  return (
+    <div className="space-y-2">
+      {integration.lastSyncAt && (
+        <p className="text-[10px] text-muted-foreground">
+          Last synced {formatDateTime(integration.lastSyncAt)}
+        </p>
+      )}
+
+      {backfillResult && (
+        <div className={`rounded-md border px-2.5 py-1.5 text-[10px] flex items-center gap-1.5 ${
+          backfillResult.hasErrors
+            ? "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400"
+            : "border-green-500/30 bg-green-500/10 text-green-700 dark:text-green-400"
+        }`}>
+          {backfillResult.hasErrors ? (
+            <AlertCircle className="h-3 w-3 shrink-0" />
+          ) : (
+            <CheckCircle className="h-3 w-3 shrink-0" />
+          )}
+          <span className="truncate">{backfillResult.message}</span>
+        </div>
+      )}
+
+      <div className="flex gap-1.5">
+        <Button
+          size="sm"
+          variant="outline"
+          className="flex-1 gap-1 text-[10px] h-7"
+          onClick={onSync}
+          disabled={syncing || backfilling}
+        >
+          <RefreshCw className={`h-3 w-3 ${syncing ? "animate-spin" : ""}`} />
+          {syncing ? "Syncing..." : "Sync"}
+        </Button>
+        {onBackfillSync && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="flex-1 gap-1 text-[10px] h-7"
+            onClick={onBackfillSync}
+            disabled={syncing || backfilling}
+          >
+            {backfilling ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <Download className="h-3 w-3" />
+            )}
+            {backfilling ? "Importing..." : "Import all"}
+          </Button>
+        )}
+      </div>
+      {backfilling && (
+        <p className="text-[10px] text-muted-foreground">
+          This may take a minute. Please don&apos;t close this page.
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -862,7 +1180,6 @@ function MetaCapabilities({
 }) {
   const [toggling, setToggling] = useState<string | null>(null);
 
-  // Capability enabled state from backend config (default: enabled if resources exist)
   const capabilitiesConfig = (extra.capabilities || {}) as Record<
     string,
     { enabled?: boolean; activeResourceId?: string }
@@ -870,7 +1187,6 @@ function MetaCapabilities({
 
   function isCapabilityEnabled(key: string, hasResources: boolean): boolean {
     const cfg = capabilitiesConfig[key];
-    // Default: enabled if resources exist and not explicitly disabled
     if (!cfg || cfg.enabled === undefined) return hasResources;
     return cfg.enabled;
   }
@@ -902,16 +1218,16 @@ function MetaCapabilities({
   );
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-1.5">
       {!hasAnyResources && (
-        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-700 dark:text-amber-400 space-y-1">
+        <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-2 text-[10px] text-amber-700 dark:text-amber-400 space-y-1">
           <div className="flex items-center gap-1.5 font-medium">
-            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+            <AlertCircle className="h-3 w-3 shrink-0" />
             No accounts found
           </div>
           <p className="leading-relaxed">
             No Facebook Pages, Instagram accounts, or Ad accounts were found.
-            Make sure you have admin access to at least one Facebook Page, then refresh.
+            Make sure you have admin access, then refresh.
           </p>
         </div>
       )}
@@ -927,51 +1243,50 @@ function MetaCapabilities({
         return (
           <div
             key={cap.key}
-            className={`rounded-lg border px-3 py-2.5 text-xs space-y-2 transition-opacity ${
-              !enabled && hasResources ? "opacity-60" : ""
+            className={`rounded-md border px-2.5 py-2 text-[11px] space-y-1.5 transition-opacity ${
+              !enabled && hasResources ? "opacity-50" : ""
             }`}
           >
             <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 min-w-0">
-                <CapIcon className={`h-3.5 w-3.5 shrink-0 ${cap.iconColor}`} />
-                <span className="font-medium truncate">{cap.label}</span>
+              <div className="flex items-center gap-1.5 min-w-0">
+                <CapIcon className={`h-3 w-3 shrink-0 ${cap.iconColor}`} />
+                <span className="font-medium truncate text-[11px]">{cap.label}</span>
                 {hasResources ? (
-                  <Badge className="bg-green-600/90 text-[10px] gap-0.5 shrink-0">
+                  <Badge className="bg-green-600/90 text-[9px] gap-0.5 px-1 py-0 shrink-0">
                     {resources.length}
                   </Badge>
                 ) : (
-                  <Badge variant="outline" className="text-[10px] text-muted-foreground shrink-0">
+                  <Badge variant="outline" className="text-[9px] text-muted-foreground px-1 py-0 shrink-0">
                     None
                   </Badge>
                 )}
               </div>
-              <div className="flex items-center gap-1.5 shrink-0">
+              <div className="flex items-center gap-1 shrink-0">
                 {isToggling && (
-                  <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                  <Loader2 className="h-2.5 w-2.5 animate-spin text-muted-foreground" />
                 )}
                 <Switch
                   checked={enabled}
                   disabled={!hasResources || isToggling}
                   onCheckedChange={(checked) => handleToggle(cap.key, checked)}
                   aria-label={`Toggle ${cap.label}`}
-                  className="scale-75"
+                  className="scale-[0.65]"
                 />
               </div>
             </div>
 
-            {/* Resource selector — show when enabled and multiple resources */}
             {enabled && hasResources && resources.length > 1 && (
               <Select
                 value={activeId || resources[0]?.id}
                 onValueChange={(value) => handleResourceChange(cap.key, value)}
                 disabled={isToggling}
               >
-                <SelectTrigger size="sm" className="w-full text-[11px] h-7">
+                <SelectTrigger size="sm" className="w-full text-[10px] h-6">
                   <SelectValue placeholder={`Select ${cap.resourceLabel}`} />
                 </SelectTrigger>
                 <SelectContent>
                   {resources.map((r) => (
-                    <SelectItem key={r.id} value={r.id} className="text-xs">
+                    <SelectItem key={r.id} value={r.id} className="text-[11px]">
                       {r.label}
                     </SelectItem>
                   ))}
@@ -979,9 +1294,8 @@ function MetaCapabilities({
               </Select>
             )}
 
-            {/* Single resource — just show the name */}
             {enabled && hasResources && resources.length === 1 && (
-              <p className="text-[11px] text-muted-foreground truncate pl-6">
+              <p className="text-[10px] text-muted-foreground truncate pl-4">
                 {resources[0].label}
               </p>
             )}
@@ -993,9 +1307,9 @@ function MetaCapabilities({
         type="button"
         onClick={onRefresh}
         disabled={refreshing}
-        className="flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+        className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
       >
-        <RefreshCw className={`h-3 w-3 ${refreshing ? "animate-spin" : ""}`} />
+        <RefreshCw className={`h-2.5 w-2.5 ${refreshing ? "animate-spin" : ""}`} />
         {refreshing ? "Refreshing..." : "Refresh accounts"}
       </button>
     </div>
@@ -1016,7 +1330,7 @@ function LinkedInAdAccounts({
   if (extra.adAccounts?.length > 0) {
     return (
       <div className="space-y-1.5">
-        <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
+        <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
           Ad Accounts ({extra.adAccounts.length})
         </p>
         {extra.adAccounts.map((acc: any) => {
@@ -1024,19 +1338,19 @@ function LinkedInAdAccounts({
           const isRunnable = serving.includes("RUNNABLE");
           const alert = !isRunnable ? getServingAlert(serving) : null;
           return (
-            <div key={acc.id} className="rounded-lg border px-3 py-2 text-xs space-y-1.5">
+            <div key={acc.id} className="rounded-md border px-2.5 py-2 text-[11px] space-y-1.5">
               <div className="flex items-center justify-between">
                 <span className="font-medium truncate">{acc.name || acc.id}</span>
                 {isRunnable ? (
-                  <StatusBadge status="ready" dot className="text-[10px] shrink-0" />
+                  <StatusBadge status="ready" dot className="text-[9px] shrink-0" />
                 ) : (
-                  <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-400 shrink-0">
+                  <Badge variant="outline" className="text-[9px] text-amber-600 border-amber-400 px-1 py-0 shrink-0">
                     Action needed
                   </Badge>
                 )}
               </div>
               {alert && (
-                <div className="rounded-md bg-amber-500/10 px-2.5 py-2 text-[11px] text-amber-700 dark:text-amber-400 space-y-1">
+                <div className="rounded bg-amber-500/10 px-2 py-1.5 text-[10px] text-amber-700 dark:text-amber-400 space-y-0.5">
                   <p className="font-medium">{alert.title}</p>
                   <p className="leading-relaxed">{alert.message}</p>
                   {alert.actionUrl && (
@@ -1047,7 +1361,7 @@ function LinkedInAdAccounts({
                       className="inline-flex items-center gap-1 font-medium underline underline-offset-2 hover:no-underline"
                     >
                       {alert.actionLabel}
-                      <ExternalLink className="h-3 w-3" />
+                      <ExternalLink className="h-2.5 w-2.5" />
                     </a>
                   )}
                 </div>
@@ -1059,9 +1373,9 @@ function LinkedInAdAccounts({
           type="button"
           onClick={onRefresh}
           disabled={refreshing}
-          className="flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+          className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
         >
-          <RefreshCw className={`h-3 w-3 ${refreshing ? "animate-spin" : ""}`} />
+          <RefreshCw className={`h-2.5 w-2.5 ${refreshing ? "animate-spin" : ""}`} />
           {refreshing ? "Refreshing..." : "Refresh status"}
         </button>
       </div>
@@ -1069,32 +1383,32 @@ function LinkedInAdAccounts({
   }
 
   return (
-    <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-700 dark:text-amber-400 space-y-2">
+    <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-2 text-[10px] text-amber-700 dark:text-amber-400 space-y-1.5">
       <div className="flex items-center gap-1.5 font-medium">
-        <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+        <AlertCircle className="h-3 w-3 shrink-0" />
         No Ad Account found
       </div>
       <p className="leading-relaxed">
-        You need a LinkedIn Ad Account to run campaigns. Create one, then come back and refresh.
+        You need a LinkedIn Ad Account to run campaigns. Create one, then refresh.
       </p>
-      <div className="flex flex-col gap-2 pt-0.5">
+      <div className="flex flex-col gap-1.5 pt-0.5">
         <a
           href="https://www.linkedin.com/campaignmanager/new-advertiser"
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 font-medium text-amber-800 dark:text-amber-300 hover:opacity-80"
+          className="inline-flex items-center gap-1 font-medium text-amber-800 dark:text-amber-300 hover:opacity-80"
         >
-          <ExternalLink className="h-3.5 w-3.5" />
-          Step 1: Create Ad Account on LinkedIn
+          <ExternalLink className="h-3 w-3" />
+          Create Ad Account on LinkedIn
         </a>
         <button
           type="button"
           onClick={onRefresh}
           disabled={refreshing}
-          className="inline-flex items-center gap-1.5 font-medium text-amber-800 dark:text-amber-300 hover:opacity-80 disabled:opacity-50"
+          className="inline-flex items-center gap-1 font-medium text-amber-800 dark:text-amber-300 hover:opacity-80 disabled:opacity-50"
         >
-          <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
-          {refreshing ? "Checking..." : "Step 2: I\u2019ve created it \u2014 Refresh"}
+          <RefreshCw className={`h-3 w-3 ${refreshing ? "animate-spin" : ""}`} />
+          {refreshing ? "Checking..." : "I\u2019ve created it \u2014 Refresh"}
         </button>
       </div>
     </div>
