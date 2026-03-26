@@ -78,27 +78,26 @@ const NAV_GROUPS: NavGroup[] = [
     label: "",
     items: [
       { href: "/dashboard/overview", label: "Overview", icon: LayoutDashboard },
-    ],
-  },
-  {
-    label: "Content Cockpit",
-    items: [
-      { href: "/dashboard/content", label: "Library", icon: FileText },
-      { href: "/dashboard/strategist", label: "Strategist", icon: Brain },
-      { href: "/dashboard/calendar", label: "Calendar", icon: Calendar },
-    ],
-  },
-  {
-    label: "Growth",
-    items: [
-      { href: "/dashboard/ads", label: "Ads", icon: Megaphone },
-      { href: "/dashboard/outcomes", label: "Outcomes", icon: TrendingUp },
-      { href: "/dashboard/optimizer", label: "Optimizer", icon: Sparkles },
-    ],
-  },
-  {
-    label: "",
-    items: [
+      {
+        href: "/dashboard/content",
+        label: "Content",
+        icon: FileText,
+        subItems: [
+          { href: "/dashboard/content", label: "Library" },
+          { href: "/dashboard/strategist", label: "Strategist" },
+          { href: "/dashboard/calendar", label: "Calendar" },
+        ],
+      },
+      {
+        href: "/dashboard/ads",
+        label: "Growth",
+        icon: TrendingUp,
+        subItems: [
+          { href: "/dashboard/ads", label: "Ads" },
+          { href: "/dashboard/outcomes", label: "Outcomes" },
+          { href: "/dashboard/optimizer", label: "Optimizer" },
+        ],
+      },
       { href: "/dashboard/integrations", label: "Integrations", icon: Plug },
       {
         href: "/dashboard/settings",
@@ -216,9 +215,9 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                 <SidebarMenu>
                   {group.items.map((item) => {
                     const Icon = item.icon;
-                    const isActive =
-                      pathname === item.href ||
-                      pathname?.startsWith(item.href + "/");
+                    const isActive = item.subItems
+                      ? item.subItems.some((s) => pathname === s.href || pathname?.startsWith(s.href + "/"))
+                      : pathname === item.href || pathname?.startsWith(item.href + "/");
 
                     if (item.subItems) {
                       return (
