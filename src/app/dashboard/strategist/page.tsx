@@ -12,6 +12,7 @@ import { KanbanBoard } from "./components/kanban-board";
 import { Sparkles, CalendarDays, Plus, Loader2, CheckCircle, Send } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import type { PipelineIdea } from "./components/kanban-card";
+import { ElapsedTimer } from "@/components/molecules/elapsed-timer";
 
 const SKILL_LABELS: Record<string, string> = {
   analyse_library: "Analysing content library",
@@ -25,7 +26,7 @@ const SKILL_LABELS: Record<string, string> = {
 /** Shared SSE reader for both Get Ideas and Plan Week */
 async function readSSEStream(
   res: Response,
-  onStep: (p: { step: number; label: string }) => void,
+  onStep: (p: { step: number; label: string; hint?: string }) => void,
   onComplete: (data: { count: number; ideas: { topic: string }[] }) => void,
   onError: (msg: string) => void,
 ) {
@@ -68,7 +69,7 @@ async function readSSEStream(
         const parsed = JSON.parse(data);
         if (eventType === "step") {
           const toolName = parsed.tools?.[0] || "";
-          onStep({ step: parsed.step, label: parsed.label || SKILL_LABELS[toolName] || toolName || `Step ${parsed.step}` });
+          onStep({ step: parsed.step, label: parsed.label || SKILL_LABELS[toolName] || toolName || `Step ${parsed.step}`, hint: parsed.hint });
         } else if (eventType === "complete") {
           onComplete({ count: parsed.count ?? 0, ideas: parsed.ideas || [] });
         } else if (eventType === "error") {
@@ -83,7 +84,7 @@ export default function StrategistPage() {
   const queryClient = useQueryClient();
   const [generating, setGenerating] = useState(false);
   const [genMode, setGenMode] = useState<"ideas" | "plan" | null>(null);
-  const [genProgress, setGenProgress] = useState<{ step: number; label: string } | null>(null);
+  const [genProgress, setGenProgress] = useState<{ step: number; label: string; hint?: string } | null>(null);
   const [genResult, setGenResult] = useState<{ count: number; ideas: { topic: string }[] } | null>(null);
   const [showNewIdea, setShowNewIdea] = useState(false);
   const [newIdeaTitle, setNewIdeaTitle] = useState("");
@@ -234,11 +235,19 @@ export default function StrategistPage() {
           {generating ? (
             <div className="flex items-center gap-4">
               <Loader2 className="h-6 w-6 animate-spin text-primary shrink-0" />
-              <div>
-                <p className="font-medium">{progressLabel}</p>
+              <div className="flex-1">
+                <div className="flex items-center gap-3">
+                  <p className="font-medium">{progressLabel}</p>
+                  <ElapsedTimer running={generating} estimatedSeconds={20} />
+                </div>
                 {genProgress && (
                   <p className="text-sm text-muted-foreground animate-pulse">
                     {genProgress.label}
+                  </p>
+                )}
+                {genProgress?.hint && (
+                  <p className="mt-1 text-xs text-muted-foreground/70">
+                    {genProgress.hint}
                   </p>
                 )}
               </div>
