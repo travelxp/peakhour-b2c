@@ -105,7 +105,9 @@ const NAV_GROUPS: NavGroup[] = [
         icon: Settings,
         subItems: [
           { href: "/dashboard/settings", label: "General" },
+          { href: "/dashboard/settings/preferences", label: "Preferences" },
           { href: "/dashboard/settings/team", label: "Team" },
+          { href: "/dashboard/settings/billing", label: "Billing" },
           { href: "/dashboard/settings/tickets", label: "Tickets", badge: () => <OpenTicketBadge /> },
         ],
       },
