@@ -36,6 +36,7 @@ import { OrgSwitcher } from "@/components/dashboard/org-switcher";
 import { BusinessSwitcher } from "@/components/dashboard/business-switcher";
 import { CommandMenu } from "@/components/molecules/command-menu";
 import { FeedbackWidget } from "@/components/molecules/feedback-widget";
+import { ChatPanel } from "@/components/molecules/chat-panel";
 import {
   LayoutDashboard,
   FileText,
@@ -364,6 +365,9 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         </header>
         <div className="flex-1 overflow-auto p-6">{children}</div>
       </SidebarInset>
+
+      {/* ── AI Chat FAB ──────────────────────────────────── */}
+      <ChatPanel />
     </SidebarProvider>
   );
 }
