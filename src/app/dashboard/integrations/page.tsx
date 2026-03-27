@@ -894,9 +894,9 @@ function IntegrationCard({
               </div>
             )}
 
-            {/* LinkedIn Ads */}
+            {/* LinkedIn Ads — compact status badge + detail dialog */}
             {integration.provider === "linkedin_ads" && integration.account?.extra && (
-              <LinkedInAdAccounts
+              <LinkedInAdsStatus
                 extra={integration.account.extra}
                 onRefresh={onRefresh}
                 refreshing={refreshing}
@@ -1054,9 +1054,9 @@ function BeehiivSyncControls({
   );
 }
 
-// ── LinkedIn Ad Accounts sub-component ─────────────────────────────
+// ── LinkedIn Ads Status — compact badge + detail dialog ─────────────
 
-function LinkedInAdAccounts({
+function LinkedInAdsStatus({
   extra,
   onRefresh,
   refreshing,
@@ -1065,91 +1065,154 @@ function LinkedInAdAccounts({
   onRefresh: () => void;
   refreshing: boolean;
 }) {
-  if (extra.adAccounts?.length > 0) {
+  const [open, setOpen] = useState(false);
+  const adAccounts: any[] = extra.adAccounts || [];
+
+  // Compute issues
+  const issues: Array<{
+    accountName: string;
+    alert: { title: string; message: string; actionUrl?: string; actionLabel?: string };
+  }> = [];
+
+  if (adAccounts.length === 0) {
+    issues.push({
+      accountName: "LinkedIn Ads",
+      alert: {
+        title: "No Ad Account found",
+        message:
+          "You need a LinkedIn Ad Account to run campaigns. Create one, then come back and refresh.",
+        actionUrl: "https://www.linkedin.com/campaignmanager/new-advertiser",
+        actionLabel: "Create Ad Account on LinkedIn",
+      },
+    });
+  } else {
+    for (const acc of adAccounts) {
+      const serving = acc.servingStatuses || [];
+      if (!serving.includes("RUNNABLE")) {
+        const alert = getServingAlert(serving);
+        if (alert) {
+          issues.push({ accountName: acc.name || acc.id, alert });
+        }
+      }
+    }
+  }
+
+  const readyCount = adAccounts.filter((a: any) =>
+    (a.servingStatuses || []).includes("RUNNABLE")
+  ).length;
+
+  // All good — compact green summary
+  if (issues.length === 0) {
     return (
-      <div className="space-y-1.5">
-        <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
-          Ad Accounts ({extra.adAccounts.length})
-        </p>
-        {extra.adAccounts.map((acc: any) => {
-          const serving = acc.servingStatuses || [];
-          const isRunnable = serving.includes("RUNNABLE");
-          const alert = !isRunnable ? getServingAlert(serving) : null;
-          return (
-            <div key={acc.id} className="rounded-md border px-2.5 py-2 text-[11px] space-y-1.5">
-              <div className="flex items-center justify-between">
-                <span className="font-medium truncate">{acc.name || acc.id}</span>
-                {isRunnable ? (
-                  <StatusBadge status="ready" dot className="text-[9px] shrink-0" />
-                ) : (
-                  <Badge variant="outline" className="text-[9px] text-amber-600 border-amber-400 px-1 py-0 shrink-0">
-                    Action needed
-                  </Badge>
-                )}
-              </div>
-              {alert && (
-                <div className="rounded bg-amber-500/10 px-2 py-1.5 text-[10px] text-amber-700 dark:text-amber-400 space-y-0.5">
-                  <p className="font-medium">{alert.title}</p>
-                  <p className="leading-relaxed">{alert.message}</p>
-                  {alert.actionUrl && (
-                    <a
-                      href={alert.actionUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 font-medium underline underline-offset-2 hover:no-underline"
-                    >
-                      {alert.actionLabel}
-                      <ExternalLink className="h-2.5 w-2.5" />
-                    </a>
-                  )}
-                </div>
-              )}
-            </div>
-          );
-        })}
-        <button
-          type="button"
-          onClick={onRefresh}
-          disabled={refreshing}
-          className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-        >
-          <RefreshCw className={`h-2.5 w-2.5 ${refreshing ? "animate-spin" : ""}`} />
-          {refreshing ? "Refreshing..." : "Refresh status"}
-        </button>
+      <div className="flex items-center gap-1.5 text-[10px] text-green-700 dark:text-green-400">
+        <CheckCircle className="h-3 w-3 shrink-0" />
+        <span>{adAccounts.length} ad account{adAccounts.length !== 1 ? "s" : ""} ready</span>
       </div>
     );
   }
 
+  // Has issues — compact amber badge that opens dialog
   return (
-    <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-2 text-[10px] text-amber-700 dark:text-amber-400 space-y-1.5">
-      <div className="flex items-center gap-1.5 font-medium">
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="flex w-full items-center gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-[10px] text-amber-700 dark:text-amber-400 transition-colors hover:bg-amber-500/20"
+      >
         <AlertCircle className="h-3 w-3 shrink-0" />
-        No Ad Account found
-      </div>
-      <p className="leading-relaxed">
-        You need a LinkedIn Ad Account to run campaigns. Create one, then refresh.
-      </p>
-      <div className="flex flex-col gap-1.5 pt-0.5">
-        <a
-          href="https://www.linkedin.com/campaignmanager/new-advertiser"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 font-medium text-amber-800 dark:text-amber-300 hover:opacity-80"
-        >
-          <ExternalLink className="h-3 w-3" />
-          Create Ad Account on LinkedIn
-        </a>
-        <button
-          type="button"
-          onClick={onRefresh}
-          disabled={refreshing}
-          className="inline-flex items-center gap-1 font-medium text-amber-800 dark:text-amber-300 hover:opacity-80 disabled:opacity-50"
-        >
-          <RefreshCw className={`h-3 w-3 ${refreshing ? "animate-spin" : ""}`} />
-          {refreshing ? "Checking..." : "I\u2019ve created it \u2014 Refresh"}
-        </button>
-      </div>
-    </div>
+        <span className="flex-1 text-left font-medium">
+          {issues.length} issue{issues.length !== 1 ? "s" : ""} pending action
+        </span>
+        {readyCount > 0 && (
+          <Badge className="bg-green-600/90 text-[9px] px-1 py-0 shrink-0">
+            {readyCount} ready
+          </Badge>
+        )}
+      </button>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <LinkedinIcon className="h-5 w-5 text-[#0A66C2]" />
+              LinkedIn Ad Accounts
+            </DialogTitle>
+            <DialogDescription>
+              {adAccounts.length} account{adAccounts.length !== 1 ? "s" : ""} found
+              {issues.length > 0 && ` · ${issues.length} need${issues.length === 1 ? "s" : ""} attention`}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 max-h-80 overflow-y-auto">
+            {/* Ready accounts */}
+            {adAccounts
+              .filter((a: any) => (a.servingStatuses || []).includes("RUNNABLE"))
+              .map((acc: any) => (
+                <div
+                  key={acc.id}
+                  className="flex items-center justify-between rounded-lg border px-3 py-2.5 text-sm"
+                >
+                  <span className="font-medium truncate">{acc.name || acc.id}</span>
+                  <StatusBadge status="ready" dot className="text-xs shrink-0" />
+                </div>
+              ))}
+
+            {/* Issues */}
+            {issues.map((issue, i) => (
+              <div
+                key={i}
+                className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2.5 text-sm space-y-2"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-medium truncate">{issue.accountName}</span>
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] text-amber-600 border-amber-400 px-1.5 py-0 shrink-0"
+                  >
+                    Action needed
+                  </Badge>
+                </div>
+                <div className="text-xs text-amber-700 dark:text-amber-400 space-y-1">
+                  <p className="font-medium">{issue.alert.title}</p>
+                  <p className="leading-relaxed text-muted-foreground">
+                    {issue.alert.message}
+                  </p>
+                  {issue.alert.actionUrl && (
+                    <a
+                      href={issue.alert.actionUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 font-medium text-primary underline underline-offset-2 hover:no-underline"
+                    >
+                      {issue.alert.actionLabel}
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <DialogFooter className="flex-row gap-2 sm:justify-between">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => {
+                onRefresh();
+              }}
+              disabled={refreshing}
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
+              {refreshing ? "Refreshing..." : "Refresh status"}
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setOpen(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
