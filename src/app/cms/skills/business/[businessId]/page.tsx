@@ -19,34 +19,11 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { CheckCircle, TrendingUp, ArrowLeft } from "lucide-react";
+import { CheckCircle, TrendingUp, ArrowLeft, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-
-interface BizSkill {
-  _id: string;
-  skillId: string;
-  templateId: string;
-  businessContext?: { businessName?: string };
-  effectiveness: {
-    score: number;
-    totalUses: number;
-    accepted: number;
-    rejected: number;
-    edited: number;
-  };
-  learnings: {
-    whatWorks: string[];
-    whatDoesntWork: string[];
-  };
-  status: "active" | "paused" | "deprecated";
-}
-
-interface BusinessSkillsResponse {
-  business: { name: string; type: string };
-  skills: Array<BizSkill & { agent: string; platform: string; displayName: string }>;
-  autonomyScore: number;
-}
+import type { BusinessSkillsResponse } from "@/types/skills";
+import { humanize } from "@/types/skills";
 
 function getEffectivenessColor(score: number): string {
   if (score >= 0.8) return "[&>div]:bg-green-500";
@@ -58,7 +35,7 @@ export default function BusinessSkillsPage() {
   const params = useParams();
   const businessId = params.businessId as string;
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error } = useQuery({
     queryKey: ["cms", "business-skills", businessId],
     queryFn: () =>
       api.get<BusinessSkillsResponse>(`/v1/cms/skill-templates/business/${businessId}`),
@@ -75,8 +52,18 @@ export default function BusinessSkillsPage() {
     );
   }
 
-  if (!data) {
-    return <div className="text-muted-foreground">Business not found</div>;
+  if (isError || !data) {
+    return (
+      <div className="flex items-center gap-3 p-6 rounded-lg border border-destructive/50 bg-destructive/5">
+        <AlertCircle className="h-5 w-5 text-destructive" />
+        <div>
+          <p className="font-medium">Failed to load business skills</p>
+          <p className="text-sm text-muted-foreground">
+            {error instanceof Error ? error.message : "Business not found"}
+          </p>
+        </div>
+      </div>
+    );
   }
 
   const { skills, autonomyScore, business } = data;
@@ -103,7 +90,7 @@ export default function BusinessSkillsPage() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <Link href="/cms/skills">
+        <Link href="/cms/skills" aria-label="Back to skills list">
           <Button variant="ghost" size="icon">
             <ArrowLeft className="h-4 w-4" />
           </Button>
@@ -242,7 +229,7 @@ export default function BusinessSkillsPage() {
           .map(([agent, agentSkills]) => (
             <AccordionItem key={agent} value={agent}>
               <AccordionTrigger className="capitalize">
-                {agent.replace("_", " ")} ({agentSkills.length} skills)
+                {agent.replace(/_/g, " ")} ({agentSkills.length} skills)
               </AccordionTrigger>
               <AccordionContent>
                 <div className="space-y-2">
