@@ -41,6 +41,7 @@ import {
   LogOut,
   ChevronsUpDown,
   ArrowLeftRight,
+  Zap,
   type LucideIcon,
 } from "lucide-react";
 
@@ -66,6 +67,7 @@ const CMS_NAV_GROUPS: NavGroup[] = [
     label: "Operations",
     items: [
       { href: "/cms/feedback", label: "Feedback Tickets", icon: TicketCheck },
+      { href: "/cms/skills", label: "Skills", icon: Zap },
       { href: "/cms/ai-usage", label: "AI Usage", icon: Brain },
       { href: "/cms/team", label: "CMS Team", icon: Users },
     ],
