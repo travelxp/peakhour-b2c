@@ -12,7 +12,6 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Progress } from "@/components/ui/progress";
 import {
   Select,
   SelectContent,
@@ -29,29 +28,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Zap,
-  Search,
-  Shield,
-  type LucideIcon,
-} from "lucide-react";
-
-interface SkillTemplate {
-  _id: string;
-  skillId: string;
-  displayName: string;
-  description: string;
-  category: string;
-  agent: string;
-  platform: string;
-  role: string;
-  trustLevel: number;
-  executionType: "ai" | "code" | "hybrid";
-  defaultEffectiveness: number;
-  tags: string[];
-  version: number;
-  status: "active" | "draft" | "deprecated";
-}
+import { Search, Shield, AlertCircle } from "lucide-react";
+import type { SkillTemplate } from "@/types/skills";
+import { humanize } from "@/types/skills";
 
 const AGENT_COLORS: Record<string, string> = {
   strategist: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300",
@@ -74,7 +53,7 @@ export default function SkillsPage() {
   const [platformFilter, setPlatformFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error } = useQuery({
     queryKey: ["cms", "skill-templates"],
     queryFn: () => api.get<SkillTemplate[]>("/v1/cms/skill-templates"),
   });
@@ -95,7 +74,6 @@ export default function SkillsPage() {
     return true;
   });
 
-  // Stats
   const agentCounts = skills.reduce(
     (acc, s) => {
       acc[s.agent] = (acc[s.agent] || 0) + 1;
@@ -106,6 +84,20 @@ export default function SkillsPage() {
 
   const uniqueAgents = [...new Set(skills.map((s) => s.agent))].sort();
   const uniquePlatforms = [...new Set(skills.map((s) => s.platform))].sort();
+
+  if (isError) {
+    return (
+      <div className="flex items-center gap-3 p-6 rounded-lg border border-destructive/50 bg-destructive/5">
+        <AlertCircle className="h-5 w-5 text-destructive" />
+        <div>
+          <p className="font-medium">Failed to load skill templates</p>
+          <p className="text-sm text-muted-foreground">
+            {error instanceof Error ? error.message : "Unknown error"}
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -122,7 +114,7 @@ export default function SkillsPage() {
           <Card key={agent}>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium capitalize">
-                {agent.replace("_", " ")}
+                {humanize(agent)}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -134,31 +126,32 @@ export default function SkillsPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex items-center gap-3">
-        <div className="relative flex-1 max-w-sm">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 min-w-50 max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Search skills..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-9"
+            aria-label="Search skill templates"
           />
         </div>
         <Select value={agentFilter} onValueChange={setAgentFilter}>
-          <SelectTrigger className="w-[160px]">
+          <SelectTrigger className="w-40" aria-label="Filter by agent">
             <SelectValue placeholder="Agent" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All agents</SelectItem>
             {uniqueAgents.map((a) => (
               <SelectItem key={a} value={a}>
-                {a.replace("_", " ")}
+                {humanize(a)}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
         <Select value={platformFilter} onValueChange={setPlatformFilter}>
-          <SelectTrigger className="w-[160px]">
+          <SelectTrigger className="w-40" aria-label="Filter by platform">
             <SelectValue placeholder="Platform" />
           </SelectTrigger>
           <SelectContent>
@@ -200,6 +193,7 @@ export default function SkillsPage() {
                     <Link
                       href={`/cms/skills/${skill._id}`}
                       className="hover:underline"
+                      aria-label={`Edit skill: ${skill.displayName}`}
                     >
                       <div className="font-medium">{skill.displayName}</div>
                       <div className="text-xs text-muted-foreground font-mono">
@@ -212,12 +206,12 @@ export default function SkillsPage() {
                       variant="secondary"
                       className={AGENT_COLORS[skill.agent] || ""}
                     >
-                      {skill.agent.replace("_", " ")}
+                      {humanize(skill.agent)}
                     </Badge>
                   </TableCell>
                   <TableCell className="capitalize">{skill.platform}</TableCell>
                   <TableCell className="capitalize text-sm">
-                    {skill.role.replace("_", " ")}
+                    {humanize(skill.role)}
                   </TableCell>
                   <TableCell>
                     <Badge

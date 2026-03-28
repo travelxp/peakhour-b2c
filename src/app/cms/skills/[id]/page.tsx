@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { toast } from "sonner";
 import {
   Card,
   CardContent,
@@ -22,67 +23,18 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Save, Shield, Loader2 } from "lucide-react";
+import { ArrowLeft, Save, Shield, Loader2, AlertCircle } from "lucide-react";
 import Link from "next/link";
-
-interface SkillTemplate {
-  _id: string;
-  skillId: string;
-  displayName: string;
-  description: string;
-  category: string;
-  agent: string;
-  platform: string;
-  role: string;
-  trustLevel: number;
-  executionType: "ai" | "code" | "hybrid";
-  systemPrompt?: string;
-  userPromptTemplate?: string;
-  inputSchema?: Record<string, unknown>;
-  outputSchema?: Record<string, unknown>;
-  constraints?: {
-    maxOutputChars?: number;
-    requiredElements?: string[];
-    forbiddenPatterns?: string[];
-  };
-  defaultEffectiveness: number;
-  tags: string[];
-  triggerPhrases?: string[];
-  codeHandler?: string;
-  version: number;
-  status: "active" | "draft" | "deprecated";
-}
-
-interface BizSkill {
-  _id: string;
-  businessId: string;
-  skillId: string;
-  businessContext?: { businessName?: string };
-  effectiveness: {
-    score: number;
-    totalUses: number;
-    accepted: number;
-    rejected: number;
-    edited: number;
-  };
-  status: string;
-}
+import type { SkillTemplate, BizSkill } from "@/types/skills";
+import { humanize } from "@/types/skills";
 
 export default function SkillEditorPage() {
   const params = useParams();
-  const router = useRouter();
   const queryClient = useQueryClient();
   const id = params.id as string;
 
-  const { data: skill, isLoading } = useQuery({
+  const { data: skill, isLoading, isError, error } = useQuery({
     queryKey: ["cms", "skill-template", id],
     queryFn: () => api.get<SkillTemplate>(`/v1/cms/skill-templates/${id}`),
     enabled: !!id,
@@ -97,9 +49,7 @@ export default function SkillEditorPage() {
   const [systemPrompt, setSystemPrompt] = useState<string | null>(null);
   const [userPromptTemplate, setUserPromptTemplate] = useState<string | null>(null);
   const [maxOutputChars, setMaxOutputChars] = useState<string>("");
-  const [saving, setSaving] = useState(false);
 
-  // Initialize form values when data loads
   const effectiveSystemPrompt = systemPrompt ?? skill?.systemPrompt ?? "";
   const effectiveUserPrompt = userPromptTemplate ?? skill?.userPromptTemplate ?? "";
   const effectiveMaxChars = maxOutputChars || String(skill?.constraints?.maxOutputChars || "");
@@ -117,6 +67,12 @@ export default function SkillEditorPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["cms", "skill-template", id] });
+      toast.success("Skill template saved");
+    },
+    onError: (err) => {
+      toast.error("Failed to save", {
+        description: err instanceof Error ? err.message : "Unknown error",
+      });
     },
   });
 
@@ -129,25 +85,35 @@ export default function SkillEditorPage() {
     );
   }
 
-  if (!skill) {
-    return <div className="text-muted-foreground">Skill not found</div>;
+  if (isError || !skill) {
+    return (
+      <div className="flex items-center gap-3 p-6 rounded-lg border border-destructive/50 bg-destructive/5">
+        <AlertCircle className="h-5 w-5 text-destructive" />
+        <div>
+          <p className="font-medium">Failed to load skill template</p>
+          <p className="text-sm text-muted-foreground">
+            {error instanceof Error ? error.message : "Skill not found"}
+          </p>
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <Link href="/cms/skills">
+      <div className="flex items-start gap-4">
+        <Link href="/cms/skills" aria-label="Back to skills list">
           <Button variant="ghost" size="icon">
             <ArrowLeft className="h-4 w-4" />
           </Button>
         </Link>
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <h1 className="text-2xl font-bold">{skill.displayName}</h1>
           <p className="text-sm text-muted-foreground font-mono">{skill.skillId}</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Badge variant="secondary">{skill.agent.replace("_", " ")}</Badge>
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="secondary">{humanize(skill.agent)}</Badge>
           <Badge variant="outline">{skill.platform}</Badge>
           <Badge variant="outline">{skill.executionType}</Badge>
           <div className="flex items-center gap-1 text-sm text-muted-foreground">
@@ -199,6 +165,7 @@ export default function SkillEditorPage() {
                 onChange={(e) => setSystemPrompt(e.target.value)}
                 className="min-h-[200px] font-mono text-sm"
                 placeholder="No system prompt defined (code-only skill)"
+                aria-label="System prompt"
               />
             </CardContent>
           </Card>
@@ -216,6 +183,7 @@ export default function SkillEditorPage() {
                 onChange={(e) => setUserPromptTemplate(e.target.value)}
                 className="min-h-[200px] font-mono text-sm"
                 placeholder="No user prompt template defined"
+                aria-label="User prompt template"
               />
             </CardContent>
           </Card>
@@ -241,8 +209,9 @@ export default function SkillEditorPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <label className="text-sm font-medium">Max Output Characters</label>
+                <label className="text-sm font-medium" htmlFor="maxOutputChars">Max Output Characters</label>
                 <Input
+                  id="maxOutputChars"
                   type="number"
                   value={effectiveMaxChars}
                   onChange={(e) => setMaxOutputChars(e.target.value)}
@@ -252,7 +221,7 @@ export default function SkillEditorPage() {
               </div>
               {skill.constraints?.requiredElements?.length ? (
                 <div>
-                  <label className="text-sm font-medium">Required Elements</label>
+                  <span className="text-sm font-medium">Required Elements</span>
                   <div className="flex flex-wrap gap-1 mt-1">
                     {skill.constraints.requiredElements.map((el) => (
                       <Badge key={el} variant="outline">{el}</Badge>
@@ -262,7 +231,7 @@ export default function SkillEditorPage() {
               ) : null}
               {skill.constraints?.forbiddenPatterns?.length ? (
                 <div>
-                  <label className="text-sm font-medium">Forbidden Patterns</label>
+                  <span className="text-sm font-medium">Forbidden Patterns</span>
                   <div className="flex flex-wrap gap-1 mt-1">
                     {skill.constraints.forbiddenPatterns.map((p) => (
                       <Badge key={p} variant="destructive">{p}</Badge>
@@ -280,11 +249,11 @@ export default function SkillEditorPage() {
             <CardContent className="grid grid-cols-2 gap-4 text-sm">
               <div>
                 <span className="text-muted-foreground">Category:</span>{" "}
-                <span className="capitalize">{skill.category.replace("_", " ")}</span>
+                <span className="capitalize">{humanize(skill.category)}</span>
               </div>
               <div>
                 <span className="text-muted-foreground">Role:</span>{" "}
-                <span className="capitalize">{skill.role.replace("_", " ")}</span>
+                <span className="capitalize">{humanize(skill.role)}</span>
               </div>
               <div>
                 <span className="text-muted-foreground">Version:</span> {skill.version}
@@ -321,7 +290,7 @@ export default function SkillEditorPage() {
                 <CardTitle className="text-base">Input Schema</CardTitle>
               </CardHeader>
               <CardContent>
-                <pre className="text-xs bg-muted p-4 rounded-md overflow-auto max-h-[400px]">
+                <pre className="text-xs bg-muted p-4 rounded-md overflow-auto max-h-96">
                   {JSON.stringify(skill.inputSchema, null, 2)}
                 </pre>
               </CardContent>
@@ -333,7 +302,7 @@ export default function SkillEditorPage() {
                 <CardTitle className="text-base">Output Schema</CardTitle>
               </CardHeader>
               <CardContent>
-                <pre className="text-xs bg-muted p-4 rounded-md overflow-auto max-h-[400px]">
+                <pre className="text-xs bg-muted p-4 rounded-md overflow-auto max-h-96">
                   {JSON.stringify(skill.outputSchema, null, 2)}
                 </pre>
               </CardContent>
