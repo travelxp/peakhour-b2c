@@ -229,7 +229,7 @@ export default function BusinessSkillsPage() {
           .map(([agent, agentSkills]) => (
             <AccordionItem key={agent} value={agent}>
               <AccordionTrigger className="capitalize">
-                {agent.replace(/_/g, " ")} ({agentSkills.length} skills)
+                {humanize(agent)} ({agentSkills.length} skills)
               </AccordionTrigger>
               <AccordionContent>
                 <div className="space-y-2">
