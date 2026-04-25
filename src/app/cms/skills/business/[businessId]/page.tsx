@@ -240,7 +240,7 @@ export default function BusinessSkillsPage() {
                           {s.displayName}
                         </div>
                         <div className="text-xs text-muted-foreground">
-                          {s.platform} | {s.effectiveness.totalUses} uses
+                          {(s.platforms || []).join(", ") || s.platform || "all"} | {s.effectiveness.totalUses} uses
                         </div>
                       </div>
                       <div className="w-24">

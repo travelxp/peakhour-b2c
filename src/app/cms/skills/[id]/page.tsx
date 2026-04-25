@@ -114,7 +114,12 @@ export default function SkillEditorPage() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="secondary">{humanize(skill.agent)}</Badge>
-          <Badge variant="outline">{skill.platform}</Badge>
+          {(skill.platforms || []).map((p) => (
+            <Badge key={p} variant="outline" className="capitalize">{p}</Badge>
+          ))}
+          {skill.subCategory && (
+            <Badge variant="secondary" className="text-xs">{humanize(skill.subCategory)}</Badge>
+          )}
           <Badge variant="outline">{skill.executionType}</Badge>
           <div className="flex items-center gap-1 text-sm text-muted-foreground">
             <Shield className="h-3 w-3" />

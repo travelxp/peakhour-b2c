@@ -51,6 +51,7 @@ const EXECUTION_BADGES: Record<string, string> = {
 export default function SkillsPage() {
   const [agentFilter, setAgentFilter] = useState<string>("all");
   const [platformFilter, setPlatformFilter] = useState<string>("all");
+  const [subCategoryFilter, setSubCategoryFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
 
   const { data, isLoading, isError, error } = useQuery({
@@ -62,13 +63,19 @@ export default function SkillsPage() {
 
   const filtered = skills.filter((s) => {
     if (agentFilter !== "all" && s.agent !== agentFilter) return false;
-    if (platformFilter !== "all" && s.platform !== platformFilter) return false;
+    if (platformFilter !== "all") {
+      const targets = s.platforms || [];
+      // 'all' templates should match any specific platform filter.
+      if (!targets.includes(platformFilter) && !targets.includes("all")) return false;
+    }
+    if (subCategoryFilter !== "all" && (s.subCategory || "") !== subCategoryFilter) return false;
     if (search) {
       const q = search.toLowerCase();
       return (
         s.skillId.toLowerCase().includes(q) ||
         s.displayName.toLowerCase().includes(q) ||
-        s.description.toLowerCase().includes(q)
+        s.description.toLowerCase().includes(q) ||
+        (s.subCategory || "").toLowerCase().includes(q)
       );
     }
     return true;
@@ -83,7 +90,12 @@ export default function SkillsPage() {
   );
 
   const uniqueAgents = [...new Set(skills.map((s) => s.agent))].sort();
-  const uniquePlatforms = [...new Set(skills.map((s) => s.platform))].sort();
+  const uniquePlatforms = [
+    ...new Set(skills.flatMap((s) => s.platforms || [])),
+  ].sort();
+  const uniqueSubCategories = [
+    ...new Set(skills.map((s) => s.subCategory).filter((sc): sc is string => !!sc)),
+  ].sort();
 
   if (isError) {
     return (
@@ -163,6 +175,21 @@ export default function SkillsPage() {
             ))}
           </SelectContent>
         </Select>
+        {uniqueSubCategories.length > 0 && (
+          <Select value={subCategoryFilter} onValueChange={setSubCategoryFilter}>
+            <SelectTrigger className="w-40" aria-label="Filter by sub-category">
+              <SelectValue placeholder="Sub-category" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All sub-categories</SelectItem>
+              {uniqueSubCategories.map((sc) => (
+                <SelectItem key={sc} value={sc}>
+                  {humanize(sc)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
 
       {/* Table */}
@@ -179,7 +206,8 @@ export default function SkillsPage() {
               <TableRow>
                 <TableHead>Skill</TableHead>
                 <TableHead>Agent</TableHead>
-                <TableHead>Platform</TableHead>
+                <TableHead>Platforms</TableHead>
+                <TableHead>Sub-category</TableHead>
                 <TableHead>Role</TableHead>
                 <TableHead>Type</TableHead>
                 <TableHead className="text-center">Trust</TableHead>
@@ -209,7 +237,18 @@ export default function SkillsPage() {
                       {humanize(skill.agent)}
                     </Badge>
                   </TableCell>
-                  <TableCell className="capitalize">{skill.platform}</TableCell>
+                  <TableCell>
+                    <div className="flex flex-wrap gap-1">
+                      {(skill.platforms || []).map((p) => (
+                        <Badge key={p} variant="outline" className="text-[10px] capitalize">
+                          {p}
+                        </Badge>
+                      ))}
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground">
+                    {skill.subCategory ? humanize(skill.subCategory) : "—"}
+                  </TableCell>
                   <TableCell className="capitalize text-sm">
                     {humanize(skill.role)}
                   </TableCell>
@@ -238,7 +277,7 @@ export default function SkillsPage() {
               ))}
               {filtered.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                     No skills match your filters
                   </TableCell>
                 </TableRow>
