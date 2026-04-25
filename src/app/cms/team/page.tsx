@@ -78,7 +78,7 @@ export default function CmsTeamPage() {
   const [showInvite, setShowInvite] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("support");
-  const isSuperAdmin = (user as { cmsRole?: string } | null)?.cmsRole === "superadmin";
+  const isSuperAdmin = user?.cmsRole === "superadmin";
 
   const { data: members, isLoading } = useQuery({
     queryKey: ["cms-team"],
