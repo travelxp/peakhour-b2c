@@ -29,7 +29,6 @@ export default function CompleteProfilePage() {
   const [otp, setOtp] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [otpSent, setOtpSent] = useState(false);
 
   async function handleProfileSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -43,7 +42,6 @@ export default function CompleteProfilePage() {
       if (mobile) {
         // Send OTP for mobile verification
         await sendOtp(mobile);
-        setOtpSent(true);
         setStep("otp");
       } else {
         // Skip mobile verification, go to onboarding
@@ -86,7 +84,6 @@ export default function CompleteProfilePage() {
     setError("");
     try {
       await sendOtp(mobile);
-      setOtpSent(true);
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message);

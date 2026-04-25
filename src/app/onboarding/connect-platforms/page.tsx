@@ -2,8 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@/providers/auth-provider";
-import { api, ApiError } from "@/lib/api";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -16,7 +15,6 @@ import {
 
 export default function ConnectPlatformsPage() {
   const router = useRouter();
-  const { org } = useAuth(); // org used for OAuth context
   const [linkedinConnected, setLinkedinConnected] = useState(false);
   const [loading, setLoading] = useState(true);
 

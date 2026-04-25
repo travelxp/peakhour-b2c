@@ -1,6 +1,7 @@
 "use client";
 
 import { CornerDownLeft, MoreHorizontalIcon, Search } from "lucide-react";
+import Image from "next/image";
 import { useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -207,9 +208,11 @@ const UserCard = ({ user }: UserCardProps) => {
       <div className="flex items-center gap-2 sm:flex-2/3">
         <div className="flex size-10 items-center justify-center overflow-hidden rounded-full bg-muted">
           {user.image ? (
-            <img
+            <Image
               src={user.image}
               alt={user.name}
+              width={40}
+              height={40}
               className="size-full object-cover"
             />
           ) : (

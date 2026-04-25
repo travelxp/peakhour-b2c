@@ -6,12 +6,6 @@ import { api } from "@/lib/api";
 import { useLocale } from "@/hooks/use-locale";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { StatusBadge } from "@/components/molecules";
 
 interface CalendarIdea {
@@ -162,7 +156,7 @@ export default function CalendarPage() {
 
       {/* Month view */}
       {view === "month" && (
-        <MonthView ideas={ideas || []} ideasByDate={ideasByDate} today={today} />
+        <MonthView ideasByDate={ideasByDate} today={today} />
       )}
 
       {/* Unscheduled ideas */}
@@ -219,7 +213,7 @@ function CalendarCard({ idea, compact }: { idea: CalendarIdea; compact?: boolean
   );
 }
 
-function MonthView({ ideas, ideasByDate, today }: { ideas: CalendarIdea[]; ideasByDate: Map<string, CalendarIdea[]>; today: Date }) {
+function MonthView({ ideasByDate, today }: { ideasByDate: Map<string, CalendarIdea[]>; today: Date }) {
   const { formatDate } = useLocale();
   const year = today.getFullYear();
   const month = today.getMonth();

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -25,7 +25,6 @@ import {
   Calendar,
   ExternalLink,
   Eye,
-  Check,
   Star,
   StickyNote,
 } from "lucide-react";
@@ -48,11 +47,13 @@ interface StreamProgress { step: number; tools: string[]; label: string }
 async function consumeSSE(
   res: Response,
   onStep: (p: StreamProgress) => void,
-): Promise<{ event: string; data: any }> {
+): Promise<{ event: string; data: Record<string, unknown> }> {
   const ct = res.headers.get("content-type") || "";
   if (!ct.includes("text/event-stream")) {
-    const json = await res.json().catch(() => null);
-    throw new Error((json as any)?.error?.message || "Unexpected response format");
+    const json = (await res.json().catch(() => null)) as
+      | { error?: { message?: string } }
+      | null;
+    throw new Error(json?.error?.message || "Unexpected response format");
   }
 
   const reader = res.body?.getReader();
@@ -60,7 +61,7 @@ async function consumeSSE(
 
   const decoder = new TextDecoder();
   let buffer = "";
-  let lastEvent: { event: string; data: any } | null = null;
+  let lastEvent: { event: string; data: Record<string, unknown> } | null = null;
 
   while (true) {
     const { done, value } = await reader.read();
@@ -80,10 +81,11 @@ async function consumeSSE(
       }
       if (!data) continue;
       try {
-        const parsed = JSON.parse(data);
+        const parsed = JSON.parse(data) as Record<string, unknown>;
         if (eventType === "step") {
-          const toolName = parsed.tools?.[0] || "";
-          onStep({ step: parsed.step, tools: parsed.tools, label: SKILL_LABELS[toolName] || toolName });
+          const tools = (parsed.tools as string[] | undefined) || [];
+          const toolName = tools[0] || "";
+          onStep({ step: parsed.step as number, tools, label: SKILL_LABELS[toolName] || toolName });
         }
         lastEvent = { event: eventType, data: parsed };
       } catch { /* skip malformed */ }
@@ -91,7 +93,7 @@ async function consumeSSE(
   }
 
   if (!lastEvent) throw new Error("Stream ended without a result");
-  if (lastEvent.event === "error") throw new Error(lastEvent.data.message || "Generation failed");
+  if (lastEvent.event === "error") throw new Error((lastEvent.data.message as string) || "Generation failed");
   return lastEvent;
 }
 
@@ -145,7 +147,6 @@ export default function IdeaDetailPage() {
   const params = useParams();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { formatDate } = useLocale();
   const ideaId = params.id as string;
   const [activePanel, setActivePanel] = useState<Panel>("overview");
   const [loading, setLoading] = useState<string | null>(null);
@@ -155,25 +156,27 @@ export default function IdeaDetailPage() {
     queryFn: () => api.get<IdeaDetail>(`/v1/content/ideas/${ideaId}`),
   });
 
-  useEffect(() => {
-    if (idea?.status) {
-      setActivePanel((STAGE_PANEL_MAP[idea.status] || "overview") as Panel);
-    }
-  }, [idea?.status]);
+  // Sync activePanel with idea.status when status changes (without setState-in-effect).
+  // Track the last seen status; when it changes, derive the new panel during render.
+  const [lastSyncedStatus, setLastSyncedStatus] = useState<string | undefined>(undefined);
+  if (idea?.status && idea.status !== lastSyncedStatus) {
+    setLastSyncedStatus(idea.status);
+    setActivePanel((STAGE_PANEL_MAP[idea.status] || "overview") as Panel);
+  }
 
   const refresh = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["idea-detail", ideaId] });
     queryClient.invalidateQueries({ queryKey: ["pipeline-ideas"] });
   }, [queryClient, ideaId]);
 
-  async function action(path: string, body?: any) {
+  async function action(path: string, body?: Record<string, unknown>) {
     setLoading(path);
     try {
       await api.post(`/v1/content/ideas/${ideaId}/${path}`, body || {});
       refresh();
       toast.success(ACTION_LABELS[path] || "Done");
-    } catch (err: any) {
-      toast.error(err?.message || "Action failed");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Action failed");
     }
     setLoading(null);
   }
@@ -352,8 +355,8 @@ function BriefTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: strin
         toast.success("Brief generated");
         onRefresh();
       }
-    } catch (err: any) {
-      toast.error(err?.message || "Brief generation failed");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Brief generation failed");
     }
     setGenerating(false);
     setProgress(null);
@@ -449,11 +452,20 @@ function WriteTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: strin
   const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [progress, setProgress] = useState<StreamProgress | null>(null);
+  const [preview, setPreview] = useState(false);
 
-  useEffect(() => {
-    if (idea.content?.html) setHtml(idea.content.html);
-    if (idea.content?.subject) setSubject(idea.content.subject);
-  }, [idea.content?.html, idea.content?.subject]);
+  // Sync local edit state when the upstream idea.content changes
+  // (e.g. after generation/save). Track last-seen values; reset on change.
+  const [lastSyncedHtml, setLastSyncedHtml] = useState(idea.content?.html || "");
+  const [lastSyncedSubject, setLastSyncedSubject] = useState(idea.content?.subject || "");
+  if (idea.content?.html && idea.content.html !== lastSyncedHtml) {
+    setLastSyncedHtml(idea.content.html);
+    setHtml(idea.content.html);
+  }
+  if (idea.content?.subject && idea.content.subject !== lastSyncedSubject) {
+    setLastSyncedSubject(idea.content.subject);
+    setSubject(idea.content.subject);
+  }
 
   const generate = useCallback(async () => {
     setGenerating(true);
@@ -465,8 +477,8 @@ function WriteTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: strin
         toast.success("Draft generated");
         onRefresh();
       }
-    } catch (err: any) {
-      toast.error(err?.message || "Content generation failed");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Content generation failed");
     }
     setGenerating(false);
     setProgress(null);
@@ -514,8 +526,6 @@ function WriteTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: strin
     }
     setSaving(false);
   }
-
-  const [preview, setPreview] = useState(false);
 
   const citations = idea.content?.dataCitations;
 

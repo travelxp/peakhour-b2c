@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { api, API_BASE_URL } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
 import {
-  CONTENT_CATEGORY_LABELS,
   SENTIMENT_CONFIG,
   SHELF_LIFE_LABELS,
   label,
@@ -19,7 +18,6 @@ import {
   useDataTable,
   FacetedFilter,
   DataTablePagination,
-  DataTableColumnHeader,
 } from "@/components/molecules/data-table";
 import type { FacetedFilterOption } from "@/components/molecules/data-table";
 import { getContentColumns, type Draft } from "./columns";
@@ -120,9 +118,12 @@ export default function ContentPage() {
     queryFn: () => api.get<{ taxonomy?: { sectors?: string[]; audienceSegments?: { name: string }[]; contentTypes?: string[]; adAngles?: string[] } }>("/v1/dashboard/org"),
     staleTime: 300_000,
   });
-  const taxonomySectors = orgData?.taxonomy?.sectors || [];
-  const taxonomyAudiences = (orgData?.taxonomy?.audienceSegments || []).map((a) => typeof a === "string" ? a : a.name);
-  const taxonomyContentTypes = orgData?.taxonomy?.contentTypes || [];
+  const taxonomySectors = useMemo(() => orgData?.taxonomy?.sectors || [], [orgData]);
+  const taxonomyAudiences = useMemo(
+    () => (orgData?.taxonomy?.audienceSegments || []).map((a) => typeof a === "string" ? a : a.name),
+    [orgData],
+  );
+  const taxonomyContentTypes = useMemo(() => orgData?.taxonomy?.contentTypes || [], [orgData]);
 
   // Client-side: fetch last 500 content pieces in one call
   const { data: libraryRes, isLoading: libraryLoading } = useQuery({
@@ -714,6 +715,7 @@ function ArticleCard({
     >
       {draft.thumbnailUrl && (
         <div className="h-32 overflow-hidden rounded-t-lg">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={draft.thumbnailUrl}
             alt=""
@@ -867,7 +869,7 @@ function SectorHeatmap({
   const usedTagIds = new Set<string>();
 
   function findTagData(taxonomyValue: string) {
-    let total = { count: 0, avgWeight: 0, matched: 0 };
+    const total = { count: 0, avgWeight: 0, matched: 0 };
     for (const d of data) {
       if (fuzzyMatch(taxonomyValue, d._id)) {
         total.count += d.count;
@@ -961,7 +963,7 @@ function AudienceBars({
   const usedTagIds = new Set<string>();
 
   function findTagData(taxonomyValue: string) {
-    let total = { count: 0, avgRelevance: 0, matched: 0 };
+    const total = { count: 0, avgRelevance: 0, matched: 0 };
     for (const d of data) {
       if (fuzzyMatch(taxonomyValue, d._id)) {
         total.count += d.count;

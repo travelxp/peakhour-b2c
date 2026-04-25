@@ -37,7 +37,6 @@ import {
   Loader2,
   Download,
   Megaphone,
-  MessageSquare,
   Search,
 } from "lucide-react";
 import {
@@ -77,14 +76,15 @@ interface Integration {
     name: string;
     profileUrl?: string;
     avatarUrl?: string;
-    extra?: Record<string, any>;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    extra?: Record<string, any>; // TODO: type provider-specific extras (pages, adAccounts, capabilities, etc.)
   };
   connectedAt?: string;
   lastSyncAt?: string;
   lastError?: string;
 }
 
-const PROVIDER_ICONS: Record<string, any> = {
+const PROVIDER_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   linkedin_content: LinkedinIcon,
   linkedin_ads: LinkedinIcon,
   facebook: FacebookIcon,
@@ -156,8 +156,10 @@ interface MetaVirtualCard {
   description: string;
   category: string;
   capabilityKey: string;
-  hasResources: (extra: Record<string, any>) => boolean;
-  getResourceSummary: (extra: Record<string, any>) => string | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  hasResources: (extra: Record<string, any>) => boolean; // TODO: type Meta extras
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  getResourceSummary: (extra: Record<string, any>) => string | null; // TODO: type Meta extras
 }
 
 const META_VIRTUAL_CARDS: MetaVirtualCard[] = [
@@ -181,8 +183,10 @@ const META_VIRTUAL_CARDS: MetaVirtualCard[] = [
     category: "social",
     capabilityKey: "instagram",
     hasResources: (extra) =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (extra.pages || []).some((p: any) => p.instagramAccountId),
     getResourceSummary: (extra) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const page = (extra.pages || []).find((p: any) => p.instagramAccountId);
       return page ? `@${page.instagramUsername}` : null;
     },
@@ -210,6 +214,7 @@ const META_VIRTUAL_CARDS: MetaVirtualCard[] = [
     getResourceSummary: (extra) => {
       const accs = extra.whatsappAccounts || [];
       if (accs.length === 0) return null;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const phones = accs.flatMap((w: any) => w.phoneNumbers || []);
       return phones.length > 0 ? phones[0].displayPhoneNumber : accs[0].name;
     },
@@ -655,7 +660,7 @@ function BeehiivConnectModal({
 }: {
   open: boolean;
   onClose: () => void;
-  onConnect: (apiKey: string, publicationId: string) => Promise<any>;
+  onConnect: (apiKey: string, publicationId: string) => Promise<unknown>;
 }) {
   const [apiKey, setApiKey] = useState("");
   const [publicationId, setPublicationId] = useState("");
@@ -871,6 +876,7 @@ function IntegrationCard({
             {integration.account && (
               <div className="flex items-center gap-2.5 rounded-md bg-muted/50 px-2.5 py-2">
                 {integration.account.avatarUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={integration.account.avatarUrl}
                     alt=""
@@ -1061,12 +1067,14 @@ function LinkedInAdsStatus({
   onRefresh,
   refreshing,
 }: {
-  extra: Record<string, any>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  extra: Record<string, any>; // TODO: type LinkedIn ads extras
   onRefresh: () => void;
   refreshing: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  const adAccounts: any[] = extra.adAccounts || [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const adAccounts: any[] = extra.adAccounts || []; // TODO: type LinkedIn ad accounts
 
   // Compute issues
   const issues: Array<{
@@ -1097,8 +1105,9 @@ function LinkedInAdsStatus({
     }
   }
 
-  const readyCount = adAccounts.filter((a: any) =>
-    (a.servingStatuses || []).includes("RUNNABLE")
+  const readyCount = adAccounts.filter(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (a: any) => (a.servingStatuses || []).includes("RUNNABLE"),
   ).length;
 
   // All good — compact green summary
@@ -1146,7 +1155,9 @@ function LinkedInAdsStatus({
           <div className="space-y-3 max-h-80 overflow-y-auto">
             {/* Ready accounts */}
             {adAccounts
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               .filter((a: any) => (a.servingStatuses || []).includes("RUNNABLE"))
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               .map((acc: any) => (
                 <div
                   key={acc.id}
