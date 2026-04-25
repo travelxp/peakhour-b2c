@@ -310,7 +310,7 @@ function IngestHealthPanel() {
   const staleNoEventsCount = useMemo(
     () =>
       data?.connections.filter((c) => c.flags.includes("NO_EVENTS_24H")).length ?? 0,
-    [data],
+    [data?.connections],
   );
 
   if (error) {
@@ -420,16 +420,28 @@ function IngestHealthPanel() {
                           {conn.flags.length === 0 ? (
                             <span className="text-xs text-muted-foreground">—</span>
                           ) : (
-                            <div className="flex flex-wrap gap-1">
-                              {conn.flags.map((f) => (
-                                <Badge
-                                  key={f}
-                                  variant="outline"
-                                  className="text-[10px]"
+                            <div className="flex flex-col gap-1">
+                              <div className="flex flex-wrap gap-1">
+                                {conn.flags.map((f) => (
+                                  <Badge
+                                    key={f}
+                                    variant="outline"
+                                    className="text-[10px]"
+                                  >
+                                    {f}
+                                  </Badge>
+                                ))}
+                              </div>
+                              {conn.lastError && (
+                                <span
+                                  className="text-[10px] text-muted-foreground"
+                                  title={conn.lastError}
                                 >
-                                  {f}
-                                </Badge>
-                              ))}
+                                  {conn.lastError.length > 80
+                                    ? conn.lastError.slice(0, 80) + "…"
+                                    : conn.lastError}
+                                </span>
+                              )}
                             </div>
                           )}
                         </td>
