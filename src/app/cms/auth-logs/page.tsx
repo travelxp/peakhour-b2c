@@ -60,7 +60,7 @@ export default function AuthLogsPage() {
   const [page, setPage] = useState(0);
   const limit = 50;
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ["cms-auth-logs", days, event, success, userId, page],
     queryFn: () => {
       const params: Record<string, string> = {
@@ -87,6 +87,12 @@ export default function AuthLogsPage() {
           Combined view of routine (90d) and security (730d) auth events.
         </p>
       </div>
+
+      {error && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+          Failed to load logs: {(error as Error).message}
+        </div>
+      )}
 
       <Card>
         <CardContent className="pt-6 grid grid-cols-1 md:grid-cols-5 gap-3">

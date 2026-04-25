@@ -55,7 +55,12 @@ export default function AiEvaluatorPage() {
   const apply = useMutation({
     mutationFn: (input: { runId: string; useCase: string; candidateModelId: string }) =>
       api.post(`/v1/cms/ai-evaluator/apply`, input),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["cms-ai-evaluator-history"] }),
+    onSuccess: () => {
+      // /apply mutates cfg_ai_models — invalidate the config view too so
+      // the new modelId shows up immediately on the AI Config page.
+      qc.invalidateQueries({ queryKey: ["cms-ai-evaluator-history"] });
+      qc.invalidateQueries({ queryKey: ["cms-ai-config"] });
+    },
   });
 
   const latest = history.data?.rows?.[0];

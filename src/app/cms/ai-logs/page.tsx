@@ -73,7 +73,7 @@ export default function AiLogsPage() {
   const [selected, setSelected] = useState<LogRow | null>(null);
   const limit = 50;
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ["cms-ai-logs", days, status, useCase, modelId, page],
     queryFn: () => {
       const params: Record<string, string> = {
@@ -100,6 +100,12 @@ export default function AiLogsPage() {
           Drill into individual ts_ai_usage rows. Click any row to inspect the prompt/response.
         </p>
       </div>
+
+      {error && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+          Failed to load logs: {(error as Error).message}
+        </div>
+      )}
 
       {/* Filters */}
       <Card>
@@ -245,12 +251,12 @@ export default function AiLogsPage() {
                 )}
                 {selected.promptContent && (
                   <Field label="Prompt">
-                    <pre className="text-xs whitespace-pre-wrap rounded bg-muted p-3 max-h-[300px] overflow-auto">{selected.promptContent}</pre>
+                    <pre className="text-xs whitespace-pre-wrap rounded bg-muted p-3 max-h-75 overflow-auto">{selected.promptContent}</pre>
                   </Field>
                 )}
                 {selected.responseContent && (
                   <Field label="Response">
-                    <pre className="text-xs whitespace-pre-wrap rounded bg-muted p-3 max-h-[300px] overflow-auto">{selected.responseContent}</pre>
+                    <pre className="text-xs whitespace-pre-wrap rounded bg-muted p-3 max-h-75 overflow-auto">{selected.responseContent}</pre>
                   </Field>
                 )}
               </div>

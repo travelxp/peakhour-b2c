@@ -74,7 +74,7 @@ export default function ApiLogsPage() {
   const [selected, setSelected] = useState<LogRow | null>(null);
   const limit = 50;
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ["cms-api-logs", days, method, path, errorsOnly, page],
     queryFn: () => {
       const params: Record<string, string> = {
@@ -101,6 +101,12 @@ export default function ApiLogsPage() {
           peakhour-api request stream (30-day retention). Click a row for full details.
         </p>
       </div>
+
+      {error && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+          Failed to load logs: {(error as Error).message}
+        </div>
+      )}
 
       <Card>
         <CardContent className="pt-6 grid grid-cols-1 md:grid-cols-5 gap-3">

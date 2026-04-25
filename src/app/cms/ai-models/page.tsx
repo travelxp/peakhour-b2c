@@ -42,7 +42,11 @@ export default function AiModelsPage() {
   const sync = useMutation({
     mutationFn: () =>
       api.post<{ synced: number; totalReceived: number }>("/v1/cms/ai-models/sync"),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["cms-ai-models"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["cms-ai-models"] });
+      // ai-health checklist depends on registry rows existing.
+      qc.invalidateQueries({ queryKey: ["cms-ai-health"] });
+    },
   });
 
   const rows = data?.rows ?? [];

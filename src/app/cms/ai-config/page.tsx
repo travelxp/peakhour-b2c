@@ -85,6 +85,9 @@ export default function AiConfigPage() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["cms-ai-config"] });
+      if (editing) {
+        qc.invalidateQueries({ queryKey: ["cms-ai-config-audit", editing.useCase] });
+      }
       setSheetOpen(false);
     },
   });
@@ -240,8 +243,8 @@ export default function AiConfigPage() {
                 <FormRow label="Max tokens">
                   <Input
                     type="number"
-                    value={form.maxOutputTokens || ""}
-                    onChange={(e) => setForm({ ...form, maxOutputTokens: Number(e.target.value) || undefined })}
+                    value={form.maxOutputTokens ?? ""}
+                    onChange={(e) => setForm({ ...form, maxOutputTokens: parseNumberInput(e.target.value, true) })}
                   />
                 </FormRow>
                 <FormRow label="Temperature">
@@ -249,7 +252,7 @@ export default function AiConfigPage() {
                     type="number"
                     step="0.1"
                     value={form.temperature ?? ""}
-                    onChange={(e) => setForm({ ...form, temperature: Number(e.target.value) })}
+                    onChange={(e) => setForm({ ...form, temperature: parseNumberInput(e.target.value) })}
                   />
                 </FormRow>
                 <FormRow label="topP">
@@ -257,7 +260,7 @@ export default function AiConfigPage() {
                     type="number"
                     step="0.05"
                     value={form.topP ?? ""}
-                    onChange={(e) => setForm({ ...form, topP: Number(e.target.value) })}
+                    onChange={(e) => setForm({ ...form, topP: parseNumberInput(e.target.value) })}
                   />
                 </FormRow>
               </div>
@@ -306,6 +309,19 @@ export default function AiConfigPage() {
       </Sheet>
     </div>
   );
+}
+
+/**
+ * Parse a numeric input value, returning undefined for empty / partial /
+ * non-numeric input so we never serialize NaN to the wire (the Zod schema
+ * rejects NaN). When `integer` is true, fractional input is also rejected.
+ */
+function parseNumberInput(raw: string, integer = false): number | undefined {
+  if (raw === "" || raw === "-" || raw === "." || raw === "-.") return undefined;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return undefined;
+  if (integer && !Number.isInteger(n)) return undefined;
+  return n;
 }
 
 function FormRow({ label, children }: { label: string; children: React.ReactNode }) {

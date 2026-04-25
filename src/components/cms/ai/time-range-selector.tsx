@@ -26,7 +26,7 @@ export function TimeRangeSelector({
 }: TimeRangeSelectorProps) {
   return (
     <Select value={value} onValueChange={onChange}>
-      <SelectTrigger className="w-[180px]">
+      <SelectTrigger className="w-45">
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
