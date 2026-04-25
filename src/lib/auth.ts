@@ -18,6 +18,7 @@ export interface AuthUser {
   profileCompleted: boolean;
   preferences: UserPreferences | null;
   cmsUser?: boolean;
+  cmsRole?: "viewer" | "support" | "ops" | "superadmin";
 }
 
 export interface AuthOrg {

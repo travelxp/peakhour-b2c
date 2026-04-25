@@ -104,6 +104,8 @@ export function useDataTable<TData>(options: UseDataTableOptions<TData>) {
   const [rowSelection, setRowSelection] =
     React.useState<RowSelectionState>(initialSelection);
 
+  // TODO: @tanstack/react-table — useReactTable returns unmemoizable functions; React Compiler must skip.
+  // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     data,
     columns,
@@ -469,7 +471,6 @@ interface DataTableTabbarProps<TData> extends React.ComponentProps<"div"> {
   filter?: React.ReactNode;
 }
 export function DataTableTabbar<TData>({
-  _table,
   children,
   search,
   filter,

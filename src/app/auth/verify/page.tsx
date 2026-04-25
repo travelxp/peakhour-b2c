@@ -26,6 +26,7 @@ function VerifyContent() {
     const uid = searchParams.get("uid");
 
     if (!token || !uid) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time validation of URL search params on mount; necessary to surface the error UI
       setError("Invalid verification link. Please request a new one.");
       setVerifying(false);
       return;

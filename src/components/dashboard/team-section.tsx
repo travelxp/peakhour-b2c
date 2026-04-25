@@ -114,8 +114,8 @@ export function TeamSection() {
       await updateMemberRole(userId, newRole);
       await loadData();
       toast.success("Role updated");
-    } catch (err: any) {
-      toast.error(err.message || "Failed to update role");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to update role");
     }
   };
 
@@ -124,8 +124,8 @@ export function TeamSection() {
       await removeMember(userId);
       await loadData();
       toast.success("Member removed");
-    } catch (err: any) {
-      toast.error(err.message || "Failed to remove member");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to remove member");
     }
   };
 
@@ -134,8 +134,8 @@ export function TeamSection() {
       await revokeInvite(email);
       await loadData();
       toast.success("Invitation revoked");
-    } catch (err: any) {
-      toast.error(err.message || "Failed to revoke");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to revoke");
     }
   };
 
@@ -325,8 +325,8 @@ function InviteDialog({ onInvited }: { onInvited: () => Promise<void> }) {
       setEmail("");
       setOpen(false);
       await onInvited();
-    } catch (err: any) {
-      toast.error(err.message || "Failed to send invitation");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to send invitation");
     } finally {
       setInviting(false);
     }

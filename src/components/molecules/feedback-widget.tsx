@@ -23,7 +23,6 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { Separator } from "@/components/ui/separator";
 import { useFeedbackContext } from "@/hooks/use-feedback-context";
 import { useCreateTicket, useMyTickets } from "@/hooks/use-feedback";
 

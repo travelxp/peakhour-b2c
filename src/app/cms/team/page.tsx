@@ -39,7 +39,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/providers/auth-provider";
 import {
-  Shield,
   UserPlus,
   MoreHorizontal,
   Loader2,
@@ -79,7 +78,7 @@ export default function CmsTeamPage() {
   const [showInvite, setShowInvite] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("support");
-  const isSuperAdmin = (user as any)?.cmsRole === "superadmin";
+  const isSuperAdmin = user?.cmsRole === "superadmin";
 
   const { data: members, isLoading } = useQuery({
     queryKey: ["cms-team"],
@@ -96,7 +95,7 @@ export default function CmsTeamPage() {
       setInviteEmail("");
       setInviteRole("support");
     },
-    onError: (err: any) => toast.error(err?.message || "Failed to add member"),
+    onError: (err: Error) => toast.error(err?.message || "Failed to add member"),
   });
 
   const updateMember = useMutation({

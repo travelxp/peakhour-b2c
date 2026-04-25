@@ -109,8 +109,8 @@ export default function StrategistPage() {
       const res = await api.streamPost("/v1/content/suggest", body);
       await readSSEStream(res, setGenProgress, setGenResult, (msg) => toast.error(msg));
       queryClient.invalidateQueries({ queryKey: ["pipeline-ideas"] });
-    } catch (err: any) {
-      toast.error(err?.message || "Failed to generate ideas");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to generate ideas");
     }
 
     setGenerating(false);
@@ -130,8 +130,8 @@ export default function StrategistPage() {
       if (!res.ok) { toast.error("Failed to plan week"); setGenerating(false); setGenProgress(null); setGenMode(null); return; }
       await readSSEStream(res, setGenProgress, setGenResult, (msg) => toast.error(msg));
       queryClient.invalidateQueries({ queryKey: ["pipeline-ideas"] });
-    } catch (err: any) {
-      toast.error(err?.message || "Failed to plan week");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to plan week");
     }
 
     setGenerating(false);

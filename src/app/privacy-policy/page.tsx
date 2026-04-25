@@ -1,4 +1,3 @@
-import Link from "next/link";
 import type { Metadata } from "next";
 import { SITE } from "@/lib/utils";
 import { Header } from "@/components/shared/header";

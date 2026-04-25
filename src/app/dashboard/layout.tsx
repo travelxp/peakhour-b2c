@@ -40,19 +40,13 @@ import { ChatPanel } from "@/components/molecules/chat-panel";
 import {
   LayoutDashboard,
   FileText,
-  Megaphone,
   TrendingUp,
-  Sparkles,
-  Brain,
-  Calendar,
   Plug,
   Settings,
   LogOut,
   ChevronsUpDown,
   ArrowLeftRight,
   ChevronRight,
-  TicketCheck,
-  Users,
   type LucideIcon,
 } from "lucide-react";
 import {

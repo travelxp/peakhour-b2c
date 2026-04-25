@@ -48,7 +48,7 @@ export function useFeedbackContext(): FeedbackContext {
     const segments = pathname.split("/").filter(Boolean);
     const dashIdx = segments.indexOf("dashboard");
 
-    let module = "other";
+    let moduleName = "other";
     let entityType: string | undefined;
     let entityId: string | undefined;
 
@@ -56,7 +56,7 @@ export function useFeedbackContext(): FeedbackContext {
       const moduleSegment = segments[dashIdx + 1];
       const mapped = MODULE_MAP[moduleSegment];
       if (mapped) {
-        module = mapped.module;
+        moduleName = mapped.module;
 
         // Check for entity ID in the next segment
         const possibleId = segments[dashIdx + 2];
@@ -67,6 +67,6 @@ export function useFeedbackContext(): FeedbackContext {
       }
     }
 
-    return { url, module, entityType, entityId, userAgent, viewport };
+    return { url, module: moduleName, entityType, entityId, userAgent, viewport };
   }, [pathname]);
 }

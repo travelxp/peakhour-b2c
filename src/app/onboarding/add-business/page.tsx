@@ -58,7 +58,7 @@ export default function AddBusinessPage() {
 function AddBusinessContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { refreshUser, org, business } = useAuth();
+  const { refreshUser, org } = useAuth();
   const isAddingToExistingOrg = !!org; // true = adding another business, false = first-time onboarding
   const [mode, setMode] = useState<Mode>("url");
   const [websiteUrl, setWebsiteUrl] = useState(searchParams.get("url") ?? "");

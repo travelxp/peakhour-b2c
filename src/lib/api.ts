@@ -241,8 +241,10 @@ class ApiClient {
 
     // Retry on CSRF rejection (same as request())
     if (res.status === 403) {
-      const errJson = await res.clone().json().catch(() => null);
-      const code = (errJson as any)?.error?.code;
+      const errJson = (await res.clone().json().catch(() => null)) as
+        | { error?: { code?: string } }
+        | null;
+      const code = errJson?.error?.code;
       if (code === "CSRF_INVALID" || code === "CSRF_MISSING") {
         csrfToken = null;
         const retryToken = await this.getCsrfToken();
@@ -262,8 +264,10 @@ class ApiClient {
     }
 
     if (!res.ok) {
-      const json = await res.json().catch(() => null);
-      const error = (json as any)?.error;
+      const json = (await res.json().catch(() => null)) as
+        | { error?: { code?: string; message?: string } }
+        | null;
+      const error = json?.error;
       throw new ApiError(
         error?.code || "STREAM_ERROR",
         error?.message || `Request failed (${res.status})`,

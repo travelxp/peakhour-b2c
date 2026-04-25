@@ -9,6 +9,16 @@ export function OrgSwitcher() {
   const { org, orgs, switchOrg } = useAuth();
   const [open, setOpen] = useState(false);
   const [switching, setSwitching] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [open]);
 
   if (orgs.length <= 1) {
     // Single org — just show the name, no dropdown
@@ -29,17 +39,6 @@ export function OrgSwitcher() {
       setOpen(false);
     }
   }
-
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
-    }
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [open]);
 
   return (
     <div className="relative" ref={dropdownRef}>

@@ -78,6 +78,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Check auth on mount
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- bootstrap auth from server cookie on mount; setState inside refreshUser is required to populate context
     refreshUser();
   }, [refreshUser]);
 

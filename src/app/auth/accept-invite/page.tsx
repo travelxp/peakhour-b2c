@@ -42,6 +42,7 @@ function AcceptInviteContent() {
     calledRef.current = true;
 
     if (!token || !email) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time validation of URL search params on mount; necessary to surface the error UI
       setStatus("error");
       setMessage("Invalid invitation link. Please ask for a new invite.");
       return;
@@ -65,10 +66,12 @@ function AcceptInviteContent() {
           setStatus("error");
           setMessage(res.message || "Something went wrong");
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         setStatus("error");
+        const message =
+          err instanceof Error ? err.message : "";
         setMessage(
-          err.message || "This invitation has expired or already been used."
+          message || "This invitation has expired or already been used."
         );
       }
     })();
@@ -81,8 +84,9 @@ function AcceptInviteContent() {
     try {
       await sendMagicLink(email);
       setMagicLinkSent(true);
-    } catch (err: any) {
-      setMessage(err.message || "Failed to send sign-in link");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "";
+      setMessage(message || "Failed to send sign-in link");
     }
   };
 

@@ -52,6 +52,8 @@ export function useDataTable<TData>(options: UseDataTableOptions<TData>) {
   const [rowSelection, setRowSelection] =
     useState<RowSelectionState>(initialSelection);
 
+  // TODO: @tanstack/react-table — useReactTable returns unmemoizable functions; React Compiler must skip.
+  // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     data,
     columns,

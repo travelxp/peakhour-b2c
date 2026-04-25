@@ -24,6 +24,8 @@ export function ElapsedTimer({
 
   useEffect(() => {
     if (!running) {
+      // TODO: refactor to avoid synchronous setState in effect (reset elapsed when timer stops).
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setElapsed(0);
       return;
     }

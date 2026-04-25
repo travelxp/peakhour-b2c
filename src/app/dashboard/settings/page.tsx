@@ -18,7 +18,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
-  Link2,
   Plug,
   ArrowRight,
   Building2,
@@ -107,7 +106,7 @@ function SettingsContent() {
     setSaving(true);
     setError("");
     try {
-      const updates: Record<string, any> = {};
+      const updates: Record<string, unknown> = {};
       if (editName && editName !== orgDetails?.name) updates.name = editName;
       if (editType !== (orgDetails?.businessType || "")) updates.businessType = editType;
       if (editUrl !== (orgDetails?.websiteUrl || "")) updates.websiteUrl = editUrl;

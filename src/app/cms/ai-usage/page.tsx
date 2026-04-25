@@ -27,7 +27,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Brain, Zap, Clock, AlertTriangle, TrendingUp, Activity } from "lucide-react";
+import { Brain, Zap, Clock, AlertTriangle, Activity, type LucideIcon } from "lucide-react";
 
 interface UsageSummary {
   period: { days: number; since: string };
@@ -247,7 +247,7 @@ export default function AiUsagePage() {
 }
 
 function KpiCard({ icon: Icon, label, value, sub, variant = "default" }: {
-  icon: any; label: string; value: string; sub?: string; variant?: "default" | "destructive";
+  icon: LucideIcon; label: string; value: string; sub?: string; variant?: "default" | "destructive";
 }) {
   return (
     <Card>

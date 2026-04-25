@@ -66,6 +66,8 @@ export function DataTable<TData, TValue>({
 
   const isManualPagination = pageCount !== undefined;
 
+  // TODO: @tanstack/react-table — useReactTable returns unmemoizable functions; React Compiler must skip.
+  // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     data,
     columns,

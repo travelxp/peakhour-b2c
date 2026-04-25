@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useMyTickets, useTicketDetail, type FeedbackTicket } from "@/hooks/use-feedback";
+import { useMyTickets, useTicketDetail } from "@/hooks/use-feedback";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";

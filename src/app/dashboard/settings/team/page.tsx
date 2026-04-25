@@ -121,8 +121,8 @@ export default function TeamPage() {
       setInviteOpen(false);
       await loadData();
       setTimeout(() => setSuccess(null), 4000);
-    } catch (err: any) {
-      setError(err.message || "Failed to send invitation");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to send invitation");
     } finally {
       setInviting(false);
     }
@@ -134,8 +134,8 @@ export default function TeamPage() {
       await loadData();
       setSuccess("Invitation revoked");
       setTimeout(() => setSuccess(null), 3000);
-    } catch (err: any) {
-      setError(err.message || "Failed to revoke");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to revoke");
     }
   };
 
@@ -145,8 +145,8 @@ export default function TeamPage() {
       await loadData();
       setSuccess("Role updated");
       setTimeout(() => setSuccess(null), 3000);
-    } catch (err: any) {
-      setError(err.message || "Failed to update role");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update role");
     }
   };
 
@@ -156,8 +156,8 @@ export default function TeamPage() {
       await loadData();
       setSuccess("Member removed");
       setTimeout(() => setSuccess(null), 3000);
-    } catch (err: any) {
-      setError(err.message || "Failed to remove member");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to remove member");
     }
   };
 
