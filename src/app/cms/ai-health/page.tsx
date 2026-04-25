@@ -54,7 +54,10 @@ interface HealthResponse {
 function formatRetention(seconds?: number): string {
   if (seconds == null) return "—";
   const days = seconds / 86400;
-  if (days >= 365) return `${(days / 365).toFixed(1)}y`;
+  if (days >= 365) {
+    const years = days / 365;
+    return Number.isInteger(years) ? `${years}y` : `${years.toFixed(1)}y`;
+  }
   return `${days.toFixed(0)}d`;
 }
 
