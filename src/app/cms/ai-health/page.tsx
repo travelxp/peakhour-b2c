@@ -32,6 +32,12 @@ interface HealthResponse {
     skillTemplates: number;
     bizSkills: number;
   };
+  retention?: {
+    name: string;
+    expireAfterSeconds?: number;
+    granularity?: string;
+    count: number;
+  }[];
   last24h: {
     requests: number;
     errors: number;
@@ -43,6 +49,16 @@ interface HealthResponse {
   };
   crons: { job: string; lastRunAt?: string; status?: string }[];
   serverTime: string;
+}
+
+function formatRetention(seconds?: number): string {
+  if (seconds == null) return "—";
+  const days = seconds / 86400;
+  if (days >= 365) {
+    const years = days / 365;
+    return Number.isInteger(years) ? `${years}y` : `${years.toFixed(1)}y`;
+  }
+  return `${days.toFixed(0)}d`;
 }
 
 const CHECKLIST_LABELS: Record<keyof HealthResponse["checklist"], string> = {
@@ -162,6 +178,42 @@ export default function AiHealthPage() {
               <Stat label="Skill templates" value={data.counts.skillTemplates} />
               <Stat label="Business skills" value={data.counts.bizSkills} />
             </>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Retention */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Retention</CardTitle>
+          <CardDescription>
+            Currently-applied TTL per time-series log collection. Use{" "}
+            <code className="font-mono">npm run ttl:dev</code> /{" "}
+            <code className="font-mono">ttl:prod</code> in peakhour-mongodb to swap.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isLoading || !data ? (
+            <Skeleton className="h-24 w-full" />
+          ) : !data.retention?.length ? (
+            <p className="text-sm text-muted-foreground">No retention metadata reported.</p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {data.retention.map((r) => (
+                <div key={r.name} className="rounded border p-3">
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono text-xs">{r.name}</span>
+                    <span className="font-semibold tabular-nums">
+                      {formatRetention(r.expireAfterSeconds)}
+                    </span>
+                  </div>
+                  <div className="mt-1 flex justify-between text-xs text-muted-foreground">
+                    <span>granularity: {r.granularity || "—"}</span>
+                    <span>{r.count >= 0 ? `${r.count.toLocaleString()} rows` : "count unavailable"}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </CardContent>
       </Card>
