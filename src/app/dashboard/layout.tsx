@@ -230,12 +230,23 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                             <CollapsibleContent>
                               <SidebarMenuSub>
                                 {item.subItems.map((sub) => {
-                                  // Match the exact path AND any nested route
-                                  // (e.g. "/dashboard/content/beehiiv" should
-                                  // still highlight the "Library" sub-item).
-                                  const subActive =
+                                  // Active when URL exactly matches OR is
+                                  // nested under sub.href, but only when no
+                                  // sibling sub-item has a more-specific
+                                  // match. Example: on /dashboard/settings/team
+                                  // we want only "Team" lit, not "General"
+                                  // (which has href /dashboard/settings).
+                                  const matches =
                                     pathname === sub.href ||
                                     pathname.startsWith(sub.href + "/");
+                                  const hasMoreSpecificSibling = item.subItems!.some(
+                                    (other) =>
+                                      other.href !== sub.href &&
+                                      other.href.length > sub.href.length &&
+                                      (pathname === other.href ||
+                                        pathname.startsWith(other.href + "/")),
+                                  );
+                                  const subActive = matches && !hasMoreSpecificSibling;
                                   return (
                                     <SidebarMenuSubItem key={sub.href}>
                                       <SidebarMenuSubButton asChild isActive={subActive}>

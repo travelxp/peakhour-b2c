@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
@@ -36,19 +36,31 @@ type ConnectionMap = Map<string, ApiIntegration>;
 const ALL_TAB = "All" as const;
 
 export default function ContentChannelsHubPage() {
+  // useSearchParams forces the route boundary into client-rendered mode and
+  // emits a Next.js build error without a Suspense ancestor. Wrap the inner
+  // component to satisfy the App Router contract.
+  return (
+    <Suspense fallback={<HubSkeleton />}>
+      <ContentChannelsHubInner />
+    </Suspense>
+  );
+}
+
+function ContentChannelsHubInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  // `?stay=1` lets the user (or our own "Back to channels" link) opt out of
-  // the single-channel auto-redirect. Without it, navigating Back from the
-  // Beehiiv library would bounce the user immediately back to Beehiiv.
+  // `?stay=1` lets users opt out of the single-channel auto-redirect (e.g.
+  // the "Browse all channels" link on the Beehiiv library page). Combined
+  // with `hasRedirected` state, prevents bouncing back through the hub.
   const stay = searchParams?.get("stay") === "1";
-  const hasRedirected = useRef(false);
+  const [hasRedirected, setHasRedirected] = useState(false);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["content-hub-integrations"],
     queryFn: () => api.get<{ integrations: ApiIntegration[] }>("/v1/integrations"),
     staleTime: 30_000,
     refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
 
   const connections = useMemo<ConnectionMap>(() => {
@@ -63,19 +75,20 @@ export default function ContentChannelsHubPage() {
     return map;
   }, [data]);
 
-  // Determine redirect target synchronously so we can render a "redirecting"
-  // stub on the same paint instead of flashing the full hub.
+  // Determine redirect target synchronously so we can render the loading
+  // stub on the same paint instead of flashing the full hub before the
+  // navigation lands.
   const redirectTarget = useMemo(() => {
-    if (isLoading || !data || stay || hasRedirected.current) return null;
+    if (isLoading || !data || stay || hasRedirected) return null;
     const liveConnected = LIVE_CHANNELS.filter(
       (c) => connections.get(c.providerKey)?.connected,
     );
     return liveConnected.length === 1 ? liveConnected[0]?.dashboardPath ?? null : null;
-  }, [isLoading, data, stay, connections]);
+  }, [isLoading, data, stay, hasRedirected, connections]);
 
   useEffect(() => {
     if (!redirectTarget) return;
-    hasRedirected.current = true;
+    setHasRedirected(true);
     router.replace(redirectTarget);
   }, [redirectTarget, router]);
 

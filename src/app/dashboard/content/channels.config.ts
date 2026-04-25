@@ -233,4 +233,19 @@ export const CHANNELS: readonly ChannelConfig[] = [
 ];
 
 /** Channels that have a dashboard route — used by the auto-redirect logic. */
-export const LIVE_CHANNELS = CHANNELS.filter((c) => c.status === "live" && c.dashboardPath);
+export const LIVE_CHANNELS = CHANNELS.filter(
+  (c) => c.status === "live" && c.dashboardPath,
+);
+
+// Dev-only invariant: every `live` channel must declare a `dashboardPath`.
+// Without one, the auto-redirect silently skips it and the Manage CTA does
+// nothing — easy to miss when adding a new channel.
+if (process.env.NODE_ENV !== "production") {
+  for (const channel of CHANNELS) {
+    if (channel.status === "live" && !channel.dashboardPath) {
+      throw new Error(
+        `[channels.config] live channel "${channel.slug}" is missing dashboardPath`,
+      );
+    }
+  }
+}
