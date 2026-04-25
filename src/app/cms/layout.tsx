@@ -41,6 +41,13 @@ import {
   ChevronsUpDown,
   ArrowLeftRight,
   Zap,
+  Activity,
+  ScrollText,
+  Cpu,
+  SlidersHorizontal,
+  Wand2,
+  Network,
+  ShieldCheck,
   type LucideIcon,
 } from "lucide-react";
 
@@ -67,8 +74,25 @@ const CMS_NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/cms/feedback", label: "Feedback Tickets", icon: TicketCheck },
       { href: "/cms/skills", label: "Skills", icon: Zap },
-      { href: "/cms/ai-usage", label: "AI Usage", icon: Brain },
       { href: "/cms/team", label: "CMS Team", icon: Users },
+    ],
+  },
+  {
+    label: "AI Operations",
+    items: [
+      { href: "/cms/ai-health", label: "Health", icon: Activity },
+      { href: "/cms/ai-usage", label: "Usage", icon: Brain },
+      { href: "/cms/ai-logs", label: "Logs", icon: ScrollText },
+      { href: "/cms/ai-models", label: "Model Registry", icon: Cpu },
+      { href: "/cms/ai-config", label: "Configuration", icon: SlidersHorizontal },
+      { href: "/cms/ai-evaluator", label: "Evaluator", icon: Wand2 },
+    ],
+  },
+  {
+    label: "Observability",
+    items: [
+      { href: "/cms/api-logs", label: "API Logs", icon: Network },
+      { href: "/cms/auth-logs", label: "Auth Logs", icon: ShieldCheck },
     ],
   },
   {
