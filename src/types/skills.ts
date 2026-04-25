@@ -4,8 +4,11 @@ export interface SkillTemplate {
   displayName: string;
   description: string;
   category: string;
+  /** Free-form sub-grouping within `category` (e.g. 'seo', 'long_form', 'ad_copy'). */
+  subCategory?: string;
   agent: string;
-  platform: string;
+  /** Platforms this skill targets. ['all'] = platform-agnostic. */
+  platforms: string[];
   role: string;
   trustLevel: number;
   executionType: "ai" | "code" | "hybrid";
@@ -52,7 +55,16 @@ export interface BizSkill {
 
 export interface BusinessSkillsResponse {
   business: { name: string; type: string };
-  skills: Array<BizSkill & { agent: string; platform: string; displayName: string }>;
+  skills: Array<
+    BizSkill & {
+      agent: string;
+      platforms: string[];
+      /** First entry of `platforms[]` for backward compat with single-Badge UIs. */
+      platform: string;
+      subCategory?: string;
+      displayName: string;
+    }
+  >;
   autonomyScore: number;
 }
 
