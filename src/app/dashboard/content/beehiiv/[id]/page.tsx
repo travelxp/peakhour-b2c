@@ -121,7 +121,7 @@ export default function ArticleDetailPage() {
             variant="ghost"
             size="sm"
             className="mb-2 -ml-2"
-            onClick={() => router.push("/dashboard/content")}
+            onClick={() => router.push("/dashboard/content/beehiiv")}
           >
             &larr; Back to library
           </Button>
