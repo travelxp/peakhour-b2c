@@ -36,7 +36,6 @@ import {
   TicketCheck,
   Users,
   Brain,
-  Settings2,
   LogOut,
   ChevronsUpDown,
   ArrowLeftRight,
@@ -93,12 +92,6 @@ const CMS_NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/cms/api-logs", label: "API Logs", icon: Network },
       { href: "/cms/auth-logs", label: "Auth Logs", icon: ShieldCheck },
-    ],
-  },
-  {
-    label: "",
-    items: [
-      { href: "/cms/settings", label: "CMS Settings", icon: Settings2 },
     ],
   },
 ];
