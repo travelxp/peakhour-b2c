@@ -121,9 +121,9 @@ export default function ArticleDetailPage() {
             variant="ghost"
             size="sm"
             className="mb-2 -ml-2"
-            onClick={() => router.push("/dashboard/content")}
+            onClick={() => router.push("/dashboard/content/beehiiv")}
           >
-            &larr; Back to library
+            &larr; Back to Beehiiv library
           </Button>
           <h2 className="text-2xl font-bold tracking-tight leading-tight">
             {article.title}

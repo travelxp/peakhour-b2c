@@ -101,7 +101,7 @@ function ContentRefLink({ display, searchNum }: { display: string; searchNum: st
       onMouseLeave={handleMouseLeave}
     >
       <a
-        href={match ? `/dashboard/content/${match._id}` : "#"}
+        href={match ? `/dashboard/content/beehiiv/${match._id}` : "#"}
         target="_blank"
         rel="noopener noreferrer"
         className="text-primary underline underline-offset-2 decoration-primary/40 hover:decoration-primary cursor-pointer font-medium"
