@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { useAuth } from "@/providers/auth-provider";
+import { hasCmsRole, type CmsRole } from "@/components/cms/ai/role-gate";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -67,6 +69,10 @@ const EMPTY_FORM: Partial<ConfigRow> = { active: true, modelType: "chat" };
 
 export default function AiConfigPage() {
   const qc = useQueryClient();
+  const { user } = useAuth();
+  const role = user?.cmsRole as CmsRole;
+  const canWrite = hasCmsRole(role, "ops");
+  const canDelete = hasCmsRole(role, "superadmin");
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editing, setEditing] = useState<ConfigRow | null>(null);
   const [form, setForm] = useState<Partial<ConfigRow>>(EMPTY_FORM);
@@ -112,9 +118,11 @@ export default function AiConfigPage() {
             Per-useCase model selection + prompt templates. Edits flow through an audit log.
           </p>
         </div>
-        <Button onClick={() => open(null)}>
-          <Plus className="mr-2 size-4" /> New useCase
-        </Button>
+        {canWrite && (
+          <Button onClick={() => open(null)}>
+            <Plus className="mr-2 size-4" /> New useCase
+          </Button>
+        )}
       </div>
 
       <Card>
@@ -163,20 +171,24 @@ export default function AiConfigPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="icon" onClick={() => open(row)}>
-                          <Pencil className="size-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => {
-                            if (confirm(`Delete useCase '${row.useCase}'?`)) {
-                              remove.mutate(row.useCase);
-                            }
-                          }}
-                        >
-                          <Trash2 className="size-4" />
-                        </Button>
+                        {canWrite && (
+                          <Button variant="ghost" size="icon" onClick={() => open(row)}>
+                            <Pencil className="size-4" />
+                          </Button>
+                        )}
+                        {canDelete && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              if (confirm(`Delete useCase '${row.useCase}'?`)) {
+                                remove.mutate(row.useCase);
+                              }
+                            }}
+                          >
+                            <Trash2 className="size-4" />
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -294,13 +306,20 @@ export default function AiConfigPage() {
             )}
           </Tabs>
 
+          {(upsert.isError || remove.isError) && (
+            <p className="mt-4 text-sm text-red-600">
+              {((upsert.error || remove.error) as Error)?.message ||
+                "Operation failed. You may not have the required CMS role."}
+            </p>
+          )}
+
           <SheetFooter className="mt-6">
             <Button variant="outline" onClick={() => setSheetOpen(false)}>
               Cancel
             </Button>
             <Button
               onClick={() => upsert.mutate(form)}
-              disabled={upsert.isPending || !form.useCase || !form.modelId}
+              disabled={upsert.isPending || !form.useCase || !form.modelId || !canWrite}
             >
               {upsert.isPending ? "Saving…" : editing ? "Save changes" : "Create"}
             </Button>

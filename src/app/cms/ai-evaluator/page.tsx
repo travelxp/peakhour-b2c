@@ -2,6 +2,8 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { useAuth } from "@/providers/auth-provider";
+import { hasCmsRole, type CmsRole } from "@/components/cms/ai/role-gate";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -38,6 +40,10 @@ interface RunRow {
 
 export default function AiEvaluatorPage() {
   const qc = useQueryClient();
+  const { user } = useAuth();
+  const role = user?.cmsRole as CmsRole;
+  const canRun = hasCmsRole(role, "ops");
+  const canApply = hasCmsRole(role, "superadmin");
 
   const history = useQuery({
     queryKey: ["cms-ai-evaluator-history"],
@@ -75,11 +81,20 @@ export default function AiEvaluatorPage() {
             alternatives that match capabilities.
           </p>
         </div>
-        <Button onClick={() => run.mutate()} disabled={run.isPending}>
-          <Play className="mr-2 size-4" />
-          {run.isPending ? "Running…" : "Run evaluation"}
-        </Button>
+        {canRun && (
+          <Button onClick={() => run.mutate()} disabled={run.isPending}>
+            <Play className="mr-2 size-4" />
+            {run.isPending ? "Running…" : "Run evaluation"}
+          </Button>
+        )}
       </div>
+
+      {(run.isError || apply.isError) && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+          {((run.error || apply.error) as Error)?.message ||
+            "Operation failed. You may not have the required CMS role."}
+        </div>
+      )}
 
       {/* Latest recommendations */}
       <Card>
@@ -125,7 +140,7 @@ export default function AiEvaluatorPage() {
                     <TableCell className="text-right">
                       {r.applied ? (
                         <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">Applied</Badge>
-                      ) : (
+                      ) : canApply ? (
                         <Button
                           variant="outline"
                           size="sm"
@@ -140,6 +155,8 @@ export default function AiEvaluatorPage() {
                         >
                           Apply
                         </Button>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">superadmin only</span>
                       )}
                     </TableCell>
                   </TableRow>

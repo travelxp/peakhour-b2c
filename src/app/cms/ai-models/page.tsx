@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { useAuth } from "@/providers/auth-provider";
+import { hasCmsRole, type CmsRole } from "@/components/cms/ai/role-gate";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -32,6 +34,8 @@ interface ModelRow {
 
 export default function AiModelsPage() {
   const qc = useQueryClient();
+  const { user } = useAuth();
+  const canSync = hasCmsRole(user?.cmsRole as CmsRole, "ops");
   const [search, setSearch] = useState("");
 
   const { data, isLoading } = useQuery({
@@ -65,10 +69,12 @@ export default function AiModelsPage() {
             Synced from Vercel AI Gateway. Powers the evaluator's recommendations.
           </p>
         </div>
-        <Button onClick={() => sync.mutate()} disabled={sync.isPending}>
-          <RefreshCw className={`mr-2 size-4 ${sync.isPending ? "animate-spin" : ""}`} />
-          {sync.isPending ? "Syncing…" : "Sync now"}
-        </Button>
+        {canSync && (
+          <Button onClick={() => sync.mutate()} disabled={sync.isPending}>
+            <RefreshCw className={`mr-2 size-4 ${sync.isPending ? "animate-spin" : ""}`} />
+            {sync.isPending ? "Syncing…" : "Sync now"}
+          </Button>
+        )}
       </div>
 
       {sync.isSuccess && sync.data && (

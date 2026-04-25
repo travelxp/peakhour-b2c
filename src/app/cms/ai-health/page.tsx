@@ -5,16 +5,13 @@ import { api } from "@/lib/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Progress } from "@/components/ui/progress";
 import {
   Activity,
   AlertTriangle,
   CheckCircle2,
-  Clock,
   Database,
   DollarSign,
   XCircle,
-  Zap,
 } from "lucide-react";
 import { KpiCard } from "@/components/cms/ai/kpi-card";
 import { formatMs, formatUsd, formatDateTime } from "@/components/cms/ai/format";
