@@ -230,7 +230,12 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                             <CollapsibleContent>
                               <SidebarMenuSub>
                                 {item.subItems.map((sub) => {
-                                  const subActive = pathname === sub.href;
+                                  // Match the exact path AND any nested route
+                                  // (e.g. "/dashboard/content/beehiiv" should
+                                  // still highlight the "Library" sub-item).
+                                  const subActive =
+                                    pathname === sub.href ||
+                                    pathname.startsWith(sub.href + "/");
                                   return (
                                     <SidebarMenuSubItem key={sub.href}>
                                       <SidebarMenuSubButton asChild isActive={subActive}>

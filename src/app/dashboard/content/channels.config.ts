@@ -37,6 +37,8 @@ export interface ChannelConfig {
   dashboardPath?: string;
   /** Optional logo URL — falls back to a styled initial circle if absent. */
   logoUrl?: string;
+  /** Apply `dark:invert` to the logo so it stays visible on dark backgrounds (e.g. X). */
+  logoInvertOnDark?: boolean;
 }
 
 const SHADCN_LOGOS = "https://deifkwefumgah.cloudfront.net/shadcnblocks/block/logos";
@@ -116,14 +118,17 @@ export const CHANNELS: readonly ChannelConfig[] = [
     providerKey: "x",
     status: "available",
     logoUrl: `${SHADCN_LOGOS}/x-icon.svg`,
-    // logo intentionally rendered with `dark:invert` via the hub component
+    logoInvertOnDark: true,
   },
   {
-    slug: "facebook",
-    name: "Facebook",
+    slug: "facebook-pages",
+    name: "Facebook Pages",
     description: "Post to Pages, sync insights.",
     category: "Social",
-    providerKey: "facebook",
+    // Virtual Meta capability — flattenMetaIntegration in lib/integrations-meta.ts
+    // expands the parent `facebook` connection into per-capability rows so each
+    // surface shows its own connection state.
+    providerKey: "facebook_pages",
     status: "available",
     logoUrl: `${SHADCN_LOGOS}/facebook-icon.svg`,
   },
@@ -212,7 +217,8 @@ export const CHANNELS: readonly ChannelConfig[] = [
     name: "WhatsApp Business",
     description: "Drive conversations from approved templates.",
     category: "Messaging",
-    providerKey: "facebook",
+    // Virtual Meta capability — see facebook-pages note above.
+    providerKey: "whatsapp",
     status: "available",
   },
   {

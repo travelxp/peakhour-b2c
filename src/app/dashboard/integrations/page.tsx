@@ -145,140 +145,33 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 const CATEGORY_ORDER = ["social", "advertising", "newsletter", "cms", "ecommerce", "analytics", "messaging"];
 
-// ── Flatten Meta into virtual cards ──────────────────────────
-// The API returns one "facebook" provider with capabilities for Pages,
-// Instagram, Ads, WhatsApp. We split it into 4 individually searchable cards
-// that share the same OAuth connection.
-
-interface MetaVirtualCard {
-  virtualProvider: string;
-  name: string;
-  description: string;
-  category: string;
-  capabilityKey: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  hasResources: (extra: Record<string, any>) => boolean; // TODO: type Meta extras
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  getResourceSummary: (extra: Record<string, any>) => string | null; // TODO: type Meta extras
-}
-
-const META_VIRTUAL_CARDS: MetaVirtualCard[] = [
-  {
-    virtualProvider: "facebook_pages",
-    name: "Facebook Pages",
-    description: "Publish posts, manage engagement, and track page insights",
-    category: "social",
-    capabilityKey: "pages",
-    hasResources: (extra) => (extra.pages || []).length > 0,
-    getResourceSummary: (extra) => {
-      const pages = extra.pages || [];
-      if (pages.length === 0) return null;
-      return pages.length === 1 ? pages[0].pageName : `${pages.length} pages`;
-    },
-  },
-  {
-    virtualProvider: "instagram",
-    name: "Instagram",
-    description: "Business account, content publishing, and audience insights",
-    category: "social",
-    capabilityKey: "instagram",
-    hasResources: (extra) =>
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (extra.pages || []).some((p: any) => p.instagramAccountId),
-    getResourceSummary: (extra) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const page = (extra.pages || []).find((p: any) => p.instagramAccountId);
-      return page ? `@${page.instagramUsername}` : null;
-    },
-  },
-  {
-    virtualProvider: "meta_ads",
-    name: "Meta Ads",
-    description: "Facebook & Instagram ad campaigns, audiences, and reporting",
-    category: "advertising",
-    capabilityKey: "ads",
-    hasResources: (extra) => (extra.adAccounts || []).length > 0,
-    getResourceSummary: (extra) => {
-      const accs = extra.adAccounts || [];
-      if (accs.length === 0) return null;
-      return accs.length === 1 ? accs[0].name : `${accs.length} ad accounts`;
-    },
-  },
-  {
-    virtualProvider: "whatsapp",
-    name: "WhatsApp Business",
-    description: "Automated messaging, customer support, and notifications",
-    category: "messaging",
-    capabilityKey: "whatsapp",
-    hasResources: (extra) => (extra.whatsappAccounts || []).length > 0,
-    getResourceSummary: (extra) => {
-      const accs = extra.whatsappAccounts || [];
-      if (accs.length === 0) return null;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const phones = accs.flatMap((w: any) => w.phoneNumbers || []);
-      return phones.length > 0 ? phones[0].displayPhoneNumber : accs[0].name;
-    },
-  },
-];
+// Meta capability flattening lives in src/lib/integrations-meta.ts so the
+// channels hub at /dashboard/content shares the same logic.
+import {
+  flattenMetaIntegration as flattenMetaIntegrationBase,
+  resolveProvider,
+  isMetaVirtual,
+  type MetaVirtualCard,
+} from "@/lib/integrations-meta";
 
 function flattenMetaIntegration(integrations: Integration[]): Integration[] {
-  const result: Integration[] = [];
-
-  for (const item of integrations) {
-    if (item.provider !== "facebook") {
-      result.push(item);
-      continue;
-    }
-
-    // Split facebook into virtual cards
+  return flattenMetaIntegrationBase<Integration>(integrations, (item, card) => {
     const extra = item.account?.extra || {};
-    const capabilities = (extra.capabilities || {}) as Record<
-      string,
-      { enabled?: boolean }
-    >;
-
-    for (const card of META_VIRTUAL_CARDS) {
-      const hasRes = item.connected && card.hasResources(extra);
-      const capConfig = capabilities[card.capabilityKey];
-      const isEnabled = capConfig?.enabled !== false; // default enabled
-
-      result.push({
-        ...item,
-        provider: card.virtualProvider,
-        name: card.name,
-        description: card.description,
-        category: card.category,
-        // Show as connected only if Meta is connected AND this capability has resources
-        connected: item.connected && hasRes && isEnabled,
-        // Carry forward the parent connection info
-        account: item.connected
-          ? {
-              ...item.account!,
-              // Override name with the resource summary for this capability
-              name: card.getResourceSummary(extra) || item.account!.name,
-            }
-          : undefined,
-        // Tag so the card knows it's a virtual Meta sub-provider
-        group: "meta",
-        groupDisplayName: "Meta",
-        subLabel: null,
-      });
-    }
-  }
-
-  return result;
-}
-
-const META_VIRTUAL_PROVIDERS = new Set(META_VIRTUAL_CARDS.map((c) => c.virtualProvider));
-
-/** Resolve virtual Meta providers back to the real "facebook" provider for API calls */
-function resolveProvider(provider: string): string {
-  return META_VIRTUAL_PROVIDERS.has(provider) ? "facebook" : provider;
-}
-
-/** Check if a provider is a virtual Meta sub-card */
-function isMetaVirtual(provider: string): boolean {
-  return META_VIRTUAL_PROVIDERS.has(provider);
+    return {
+      name: card.name,
+      description: card.description,
+      category: card.category,
+      account: item.connected
+        ? {
+            ...item.account!,
+            name: card.getResourceSummary(extra) || item.account!.name,
+          }
+        : undefined,
+      group: "meta",
+      groupDisplayName: "Meta",
+      subLabel: null,
+    } as Partial<Integration>;
+  });
 }
 
 type ConnectionTab = "all" | "connected" | "disconnected";

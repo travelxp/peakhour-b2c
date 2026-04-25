@@ -1,15 +1,17 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollableTabsList } from "@/components/scrollable-tabslist";
+import { flattenMetaIntegration } from "@/lib/integrations-meta";
 import {
   CHANNELS,
   CHANNEL_CATEGORIES,
@@ -23,6 +25,10 @@ interface ApiIntegration {
   status?: string;
   lastSyncAt?: string;
   lastError?: string;
+  account?: {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    extra?: Record<string, any>;
+  };
 }
 
 type ConnectionMap = Map<string, ApiIntegration>;
@@ -31,35 +37,49 @@ const ALL_TAB = "All" as const;
 
 export default function ContentChannelsHubPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // `?stay=1` lets the user (or our own "Back to channels" link) opt out of
+  // the single-channel auto-redirect. Without it, navigating Back from the
+  // Beehiiv library would bounce the user immediately back to Beehiiv.
+  const stay = searchParams?.get("stay") === "1";
+  const hasRedirected = useRef(false);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["content-hub-integrations"],
     queryFn: () => api.get<{ integrations: ApiIntegration[] }>("/v1/integrations"),
     staleTime: 30_000,
+    refetchOnWindowFocus: false,
   });
 
   const connections = useMemo<ConnectionMap>(() => {
     const map: ConnectionMap = new Map();
-    for (const integ of data?.integrations ?? []) {
+    // Flatten Meta — one `facebook` connection becomes 4 virtual rows
+    // (facebook_pages, instagram, meta_ads, whatsapp) so per-capability
+    // connection state lights up independently in the hub.
+    const flat = flattenMetaIntegration(data?.integrations ?? []);
+    for (const integ of flat) {
       map.set(integ.provider, integ);
     }
     return map;
   }, [data]);
 
-  // Auto-redirect: if exactly one *live* channel is connected, send the user
-  // straight to its dashboard. Once they connect a second live channel the
-  // hub becomes the natural landing.
-  useEffect(() => {
-    if (isLoading || !data) return;
+  // Determine redirect target synchronously so we can render a "redirecting"
+  // stub on the same paint instead of flashing the full hub.
+  const redirectTarget = useMemo(() => {
+    if (isLoading || !data || stay || hasRedirected.current) return null;
     const liveConnected = LIVE_CHANNELS.filter(
       (c) => connections.get(c.providerKey)?.connected,
     );
-    if (liveConnected.length === 1 && liveConnected[0]?.dashboardPath) {
-      router.replace(liveConnected[0].dashboardPath);
-    }
-  }, [isLoading, data, connections, router]);
+    return liveConnected.length === 1 ? liveConnected[0]?.dashboardPath ?? null : null;
+  }, [isLoading, data, stay, connections]);
 
-  if (isLoading) {
+  useEffect(() => {
+    if (!redirectTarget) return;
+    hasRedirected.current = true;
+    router.replace(redirectTarget);
+  }, [redirectTarget, router]);
+
+  if (isLoading || redirectTarget) {
     return <HubSkeleton />;
   }
 
@@ -185,20 +205,32 @@ function StatusBadge({
 }
 
 function ChannelLogo({ channel }: { channel: ChannelConfig }) {
-  if (channel.logoUrl) {
+  // Track CDN failures locally so a blocked / 404'd logo gracefully falls
+  // back to the initial-circle without a broken-image icon.
+  const [errored, setErrored] = useState(false);
+  if (channel.logoUrl && !errored) {
     return (
       <Image
         src={channel.logoUrl}
-        alt={channel.name}
+        alt=""
+        aria-hidden
         width={40}
         height={40}
-        className="size-10 shrink-0 rounded"
+        className={cn(
+          "size-10 shrink-0 rounded",
+          channel.logoInvertOnDark && "dark:invert",
+        )}
         unoptimized
+        loading="lazy"
+        onError={() => setErrored(true)}
       />
     );
   }
   return (
-    <div className="size-10 shrink-0 rounded bg-muted flex items-center justify-center text-sm font-semibold text-muted-foreground">
+    <div
+      aria-hidden
+      className="size-10 shrink-0 rounded bg-muted flex items-center justify-center text-sm font-semibold text-muted-foreground"
+    >
       {channel.name.charAt(0)}
     </div>
   );
@@ -214,8 +246,10 @@ function useLastSyncedLabel(lastSyncAt: string | undefined): string | undefined 
     if (!lastSyncAt) return undefined;
     const ts = new Date(lastSyncAt).getTime();
     if (Number.isNaN(ts)) return undefined;
-    const diffMs = Date.now() - ts;
-    if (diffMs < 0) return undefined;
+    // Clamp to 0 — server/client clock skew can produce a small negative
+    // diff right after a fresh sync; show "Just synced" instead of nothing.
+    const diffMs = Math.max(0, Date.now() - ts);
+    if (diffMs < 30_000) return "Just synced";
 
     const minute = 60_000;
     const hour = 60 * minute;
