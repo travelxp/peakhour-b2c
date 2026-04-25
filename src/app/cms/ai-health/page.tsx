@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -302,7 +303,15 @@ function IngestHealthPanel() {
     queryKey: ["cms-ingest-health"],
     queryFn: () => api.get<IngestHealthResponse>(`/v1/cms/ingest-health`),
     refetchInterval: 30_000,
+    staleTime: 25_000,
+    refetchOnWindowFocus: false,
   });
+
+  const staleNoEventsCount = useMemo(
+    () =>
+      data?.connections.filter((c) => c.flags.includes("NO_EVENTS_24H")).length ?? 0,
+    [data],
+  );
 
   if (error) {
     return (
@@ -360,15 +369,9 @@ function IngestHealthPanel() {
               <KpiCard
                 label="Stale (no events)"
                 icon={AlertTriangle}
-                value={
-                  data.connections.filter((c) => c.flags.includes("NO_EVENTS_24H")).length
-                }
+                value={staleNoEventsCount}
                 hint="active connection, no events 24h"
-                tone={
-                  data.connections.some((c) => c.flags.includes("NO_EVENTS_24H"))
-                    ? "danger"
-                    : "default"
-                }
+                tone={staleNoEventsCount > 0 ? "danger" : "default"}
               />
             </div>
 
