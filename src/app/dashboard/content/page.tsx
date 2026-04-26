@@ -37,16 +37,18 @@ const ALL_TAB = "All" as const;
 // The hub is the landing page for /dashboard/content for everyone — including
 // single-channel users. Earlier iterations auto-redirected single-channel
 // users straight to their channel dashboard, but that made the hub unreachable:
-// users could never browse the channel list to add a second channel without
-// a hidden `?stay=1` escape hatch. The extra click is worth a discoverable hub.
+// users could never browse the channel list to add a second channel.
+// The extra click is worth a discoverable hub.
 
 export default function ContentChannelsHubPage() {
   const { data, isLoading, isError } = useQuery({
     queryKey: ["content-hub-integrations"],
     queryFn: () => api.get<{ integrations: ApiIntegration[] }>("/v1/integrations"),
     staleTime: 30_000,
-    refetchOnWindowFocus: false,
-    refetchOnReconnect: false,
+    // Default refetch behavior is fine here. We DON'T disable focus / reconnect
+    // refetches: a user who connects Beehiiv in another tab and returns should
+    // see fresh connection state. (Earlier code disabled these to keep the
+    // auto-redirect from re-firing on tab focus, but that's gone now.)
   });
 
   const connections = useMemo<ConnectionMap>(() => {
@@ -61,7 +63,9 @@ export default function ContentChannelsHubPage() {
       map.set(integ.provider, integ);
     }
     return map;
-  }, [data]);
+    // Memo on `data?.integrations` (not `data`) so refetches that return the
+    // same content reference don't churn the map and re-render every row.
+  }, [data?.integrations]);
 
   if (isLoading) {
     return <HubSkeleton />;
@@ -99,6 +103,7 @@ export default function ContentChannelsHubPage() {
               key={channel.slug}
               channel={channel}
               integration={connections.get(channel.providerKey)}
+              connectionStateUnknown={isError && !data}
             />
           ))}
         </TabsContent>
@@ -110,6 +115,7 @@ export default function ContentChannelsHubPage() {
                 key={channel.slug}
                 channel={channel}
                 integration={connections.get(channel.providerKey)}
+                connectionStateUnknown={isError && !data}
               />
             ))}
           </TabsContent>
@@ -122,15 +128,18 @@ export default function ContentChannelsHubPage() {
 interface ChannelRowProps {
   channel: ChannelConfig;
   integration: ApiIntegration | undefined;
+  /** Connection state couldn't be loaded — disable CTAs to avoid sending the
+   *  user to /dashboard/integrations for a channel they may already have. */
+  connectionStateUnknown?: boolean;
 }
 
-function ChannelRow({ channel, integration }: ChannelRowProps) {
+function ChannelRow({ channel, integration, connectionStateUnknown }: ChannelRowProps) {
   const router = useRouter();
   const isConnected = integration?.connected === true && channel.status === "live";
   const lastSyncedLabel = useLastSyncedLabel(integration?.lastSyncAt);
 
   const handleAction = () => {
-    if (channel.status === "coming_soon") return;
+    if (channel.status === "coming_soon" || connectionStateUnknown) return;
     if (isConnected && channel.dashboardPath) {
       router.push(channel.dashboardPath);
     } else {
@@ -157,12 +166,24 @@ function ChannelRow({ channel, integration }: ChannelRowProps) {
       </div>
 
       <Button
-        variant={isConnected ? "outline" : channel.status === "coming_soon" ? "ghost" : "default"}
+        variant={
+          isConnected
+            ? "outline"
+            : channel.status === "coming_soon" || connectionStateUnknown
+              ? "ghost"
+              : "default"
+        }
         size="sm"
-        disabled={channel.status === "coming_soon"}
+        disabled={channel.status === "coming_soon" || connectionStateUnknown}
         onClick={handleAction}
       >
-        {isConnected ? "Manage" : channel.status === "coming_soon" ? "Coming soon" : "Connect"}
+        {connectionStateUnknown
+          ? "Status unavailable"
+          : isConnected
+            ? "Manage"
+            : channel.status === "coming_soon"
+              ? "Coming soon"
+              : "Connect"}
       </Button>
     </div>
   );
