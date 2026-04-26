@@ -4,6 +4,7 @@ import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { api, API_BASE_URL } from "@/lib/api";
+import { useSyncProvider } from "@/hooks/use-sync-provider";
 import { useAuth } from "@/providers/auth-provider";
 import {
   SENTIMENT_CONFIG,
@@ -106,6 +107,16 @@ export default function ContentPage() {
   const [analysing, setAnalysing] = useState(false);
   const [analyseProgress, setAnalyseProgress] = useState<AnalyseProgress | null>(null);
   const [analyseResult, setAnalyseResult] = useState<string | null>(null);
+
+  const { sync: syncBeehiiv, syncing } = useSyncProvider("beehiiv", {
+    onSuccess: () => {
+      // Refresh derived views so freshly-imported drafts surface here
+      // without a manual reload.
+      queryClient.invalidateQueries({ queryKey: ["content-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["content-library-all"] });
+      queryClient.invalidateQueries({ queryKey: ["content-gaps"] });
+    },
+  });
 
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ["content-stats"],
@@ -274,6 +285,15 @@ export default function ContentPage() {
             </p>
           </div>
           <div className="flex gap-2">
+            {!analysing && (
+              <Button
+                variant="outline"
+                onClick={() => syncBeehiiv()}
+                disabled={syncing}
+              >
+                {syncing ? "Syncing Beehiiv…" : "Sync Beehiiv"}
+              </Button>
+            )}
             {hasUntagged && !analysing && (
               <Button onClick={() => startAnalysis(false)}>
                 Analyse {stats.total - stats.tagged} untagged
