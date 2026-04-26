@@ -1,8 +1,8 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Image from "next/image";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -15,7 +15,6 @@ import { flattenMetaIntegration } from "@/lib/integrations-meta";
 import {
   CHANNELS,
   CHANNEL_CATEGORIES,
-  LIVE_CHANNELS,
   type ChannelConfig,
 } from "./channels.config";
 
@@ -35,33 +34,13 @@ type ConnectionMap = Map<string, ApiIntegration>;
 
 const ALL_TAB = "All" as const;
 
+// The hub is the landing page for /dashboard/content for everyone — including
+// single-channel users. Earlier iterations auto-redirected single-channel
+// users straight to their channel dashboard, but that made the hub unreachable:
+// users could never browse the channel list to add a second channel without
+// a hidden `?stay=1` escape hatch. The extra click is worth a discoverable hub.
+
 export default function ContentChannelsHubPage() {
-  // useSearchParams forces the route boundary into client-rendered mode and
-  // emits a Next.js build error without a Suspense ancestor. Wrap the inner
-  // component to satisfy the App Router contract.
-  return (
-    <Suspense fallback={<HubSkeleton />}>
-      <ContentChannelsHubInner />
-    </Suspense>
-  );
-}
-
-function ContentChannelsHubInner() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  // `?stay=1` lets users opt out of the single-channel auto-redirect (e.g.
-  // a "Browse all channels" link could pass it). Without it, a user with
-  // exactly one live channel skips the hub on every visit.
-  const stay = searchParams?.get("stay") === "1";
-  // `isRedirecting` is a one-shot flag — set it once when we begin the
-  // navigation, never unset. This keeps the skeleton on screen until the
-  // browser actually unmounts the page. Previously we used `hasRedirected`
-  // to gate the redirect-target memo, which had the side effect of
-  // flipping the memo to `null` on the very next render — that caused
-  // the full hub to render for one paint between setting the flag and
-  // the navigation landing.
-  const [isRedirecting, setIsRedirecting] = useState(false);
-
   const { data, isLoading, isError } = useQuery({
     queryKey: ["content-hub-integrations"],
     queryFn: () => api.get<{ integrations: ApiIntegration[] }>("/v1/integrations"),
@@ -75,53 +54,16 @@ function ContentChannelsHubInner() {
     // Flatten Meta — one `facebook` connection becomes 4 virtual rows
     // (facebook_pages, instagram, meta_ads, whatsapp) so per-capability
     // connection state lights up independently in the hub.
-    const flat = flattenMetaIntegration(data?.integrations ?? []);
+    const flat = flattenMetaIntegration(
+      Array.isArray(data?.integrations) ? data.integrations : [],
+    );
     for (const integ of flat) {
       map.set(integ.provider, integ);
     }
     return map;
   }, [data]);
 
-  // Compute redirect target purely from the data — no transient gate.
-  // The useEffect below decides whether to act on it.
-  const redirectTarget = useMemo(() => {
-    if (isLoading || !data || stay) return null;
-    const liveConnected = LIVE_CHANNELS.filter(
-      (c) => connections.get(c.providerKey)?.connected,
-    );
-    return liveConnected.length === 1 ? liveConnected[0]?.dashboardPath ?? null : null;
-  }, [isLoading, data, stay, connections]);
-
-  // `isRedirecting` is intentionally NOT in this effect's deps. Including
-  // it would re-run the effect when we flip the flag → React fires the
-  // previous run's cleanup → cleanup clears the safety timer that was
-  // just scheduled → the safety net is gone within milliseconds.
-  // `redirectTarget` is what gates "should we navigate"; once we have a
-  // target the effect runs exactly once (until target changes).
-  useEffect(() => {
-    if (!redirectTarget) return;
-    // No-op when we'd just be navigating to ourselves — defensive guard
-    // against parallel-route or soft-nav cases where the hub re-mounts at
-    // the same path with the same connection state.
-    if (
-      typeof window !== "undefined" &&
-      window.location.pathname === redirectTarget
-    ) {
-      return;
-    }
-    setIsRedirecting(true);
-    router.replace(redirectTarget);
-    // Safety net: if the navigation doesn't unmount the page within 5s
-    // (target route fails to mount, error boundary remounts the hub,
-    // etc.), drop the skeleton so the user isn't trapped staring at it.
-    const fallback = setTimeout(() => setIsRedirecting(false), 5000);
-    return () => clearTimeout(fallback);
-  }, [redirectTarget, router]);
-
-  // Skeleton stays mounted through the entire navigation: while loading,
-  // while we have a target lined up, AND while we're already navigating.
-  // The third clause is the one that prevents the brief full-hub flash.
-  if (isLoading || redirectTarget || isRedirecting) {
+  if (isLoading) {
     return <HubSkeleton />;
   }
 
