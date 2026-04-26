@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/providers/auth-provider";
 import { api, ApiError } from "@/lib/api";
@@ -13,177 +13,246 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { CheckCircle2, ArrowRight, Sparkles, Loader2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
-interface OnboardingStatus {
-  onboarding: {
-    completed: boolean;
-    steps: {
-      businessDiscovered: boolean;
-      adAccountConnected: boolean;
-      budgetSet: boolean;
-      firstAdLaunched: boolean;
-    };
-  };
-  businessType: string | null;
-  linkedinConnected: boolean;
-  hasBudget: boolean;
+interface DiscoveryStatus {
+  status: "pending" | "running" | "done" | "failed";
+  currentPhase: "tech_stack" | "footprint" | "recommendations" | null;
+  phasesCompleted: string[];
+  attempts: number;
+  lastError: string | null;
+  finishedAt: string | null;
+  updatedAt: string | null;
 }
+
+const PHASES: Array<{
+  id: "tech_stack" | "footprint" | "recommendations";
+  label: string;
+  description: string;
+}> = [
+  {
+    id: "tech_stack",
+    label: "Looking up your website",
+    description: "Detecting how your site is built — WordPress, Shopify, Webflow, you name it.",
+  },
+  {
+    id: "footprint",
+    label: "Finding your other profiles",
+    description: "Searching the web for the rest of your accounts so you don't have to type them all in.",
+  },
+  {
+    id: "recommendations",
+    label: "Picking your best places to grow",
+    description: "Choosing two or three platforms that actually fit what you do.",
+  },
+];
+
+const POLL_INTERVAL_MS = 3000;
 
 export default function LaunchPage() {
   const router = useRouter();
-  const { refreshUser } = useAuth();
-  const [status, setStatus] = useState<OnboardingStatus | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [launching, setLaunching] = useState(false);
-  const [error, setError] = useState("");
-  const [launched, setLaunched] = useState(false);
+  const { org, refreshUser } = useAuth();
+  // Read sessionStorage in the initializer so we don't render the
+  // "We're working on it" hero for one tick before redirecting a
+  // returning user. Guard `typeof window` for SSR safety even though
+  // this is a client component (RSC could hydrate it).
+  const [jobId] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    return sessionStorage.getItem("onboarding:jobId");
+  });
+  const [status, setStatus] = useState<DiscoveryStatus | null>(null);
+  const [pollError, setPollError] = useState("");
 
+  // Returning users (no active jobId in this tab, OR onboarding already
+  // marked complete and a long time has passed) go straight to the
+  // dashboard. The latter handles the case where a stale jobId persists
+  // in sessionStorage from a prior session whose job has been TTL'd.
   useEffect(() => {
-    api
-      .get<OnboardingStatus>("/v1/onboarding/status")
-      .then(setStatus)
-      .catch((err: unknown) => {
-        console.error("[onboarding] status fetch failed:", err);
-        setError("Failed to load onboarding status.");
-      })
-      .finally(() => setLoading(false));
-  }, []);
-
-  async function handleLaunch() {
-    setError("");
-    setLaunching(true);
-
-    try {
-      await api.post("/v1/onboarding/launch");
-      await refreshUser();
-      setLaunched(true);
-    } catch (err) {
-      if (err instanceof ApiError) {
-        setError(err.message);
-      } else {
-        setError("Failed to launch. Please try again.");
-      }
-    } finally {
-      setLaunching(false);
+    if (!jobId) {
+      router.replace("/dashboard/overview");
     }
-  }
+  }, [jobId, router]);
 
-  // Auto-redirect to dashboard after launch
+  // Poll discovery status every 3 seconds while the job is alive
   useEffect(() => {
-    if (!launched) return;
-    const timer = setTimeout(() => router.push("/dashboard/overview"), 3000);
-    return () => clearTimeout(timer);
-  }, [launched, router]);
+    if (!jobId) return;
+    let cancelled = false;
+    let timeoutId: ReturnType<typeof setTimeout>;
 
-  if (launched) {
-    return (
-      <Card>
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl">You&apos;re all set!</CardTitle>
-          <CardDescription>
-            Your AI marketing engine is now active. We&apos;ll start analyzing
-            your content and creating ads to bring in new customers.
-          </CardDescription>
-          <p className="text-xs text-muted-foreground mt-2">
-            Redirecting to dashboard...
-          </p>
-        </CardHeader>
-        <CardFooter>
-          <Button
-            className="w-full"
-            onClick={() => router.push("/dashboard/overview")}
-          >
-            Go to dashboard now
-          </Button>
-        </CardFooter>
-      </Card>
-    );
-  }
+    const tick = async () => {
+      try {
+        const r = await api.get<DiscoveryStatus>(
+          `/v1/onboarding/discovery-status?jobId=${jobId}`,
+        );
+        if (cancelled) return;
+        setStatus(r);
+        setPollError("");
+        // Stop polling on terminal states
+        if (r.status === "done" || r.status === "failed") return;
+        timeoutId = setTimeout(tick, POLL_INTERVAL_MS);
+      } catch (err) {
+        if (cancelled) return;
+        if (err instanceof ApiError && err.status === 404) {
+          // Job not found. If we've already seen a terminal status the
+          // job has just been TTL'd — show the success/failed screen
+          // we already have. Otherwise it's a stale jobId; clear and
+          // bounce to the dashboard.
+          if (status?.status === "done" || status?.status === "failed") return;
+          sessionStorage.removeItem("onboarding:jobId");
+          router.replace("/dashboard/overview");
+          return;
+        }
+        setPollError(
+          err instanceof ApiError ? err.message : "Couldn't check progress.",
+        );
+        // On transient error, retry — but back off slightly
+        timeoutId = setTimeout(tick, POLL_INTERVAL_MS * 2);
+      }
+    };
+    tick();
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timeoutId);
+    };
+    // status is read inside tick() to disambiguate "TTL'd after success"
+    // from "stale jobId, never seen success" — we intentionally don't
+    // depend on it (would restart polling on every status change).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jobId, router]);
+
+  const isDone = status?.status === "done";
+  const isFailed = status?.status === "failed";
+
+  // When we transition to terminal — refresh user so any auth-side flags
+  // (onboarding.steps.discoveryJobCompleted) reflect on the dashboard.
+  useEffect(() => {
+    if (isDone || isFailed) {
+      refreshUser().catch(() => { /* non-critical */ });
+    }
+  }, [isDone, isFailed, refreshUser]);
+
+  const completedSet = useMemo(
+    () => new Set(status?.phasesCompleted ?? []),
+    [status?.phasesCompleted],
+  );
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Ready to launch</CardTitle>
-        <CardDescription>
-          Review your setup and let the AI start working for your business
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {loading ? (
-          <div className="flex justify-center py-8">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-muted border-t-primary" />
-          </div>
-        ) : (
-          <>
-            {error && (
-              <div role="alert" className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-                {error}
-              </div>
-            )}
-            <div className="space-y-3">
-              <CheckItem
-                label="Business discovered"
-                done={!!status?.onboarding?.steps?.businessDiscovered}
+    <div className="space-y-8">
+      <div className="space-y-3 text-center">
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+          {isDone ? <CheckCircle2 className="h-6 w-6" /> : <Sparkles className="h-6 w-6" />}
+        </div>
+        <h1 className="text-4xl font-semibold tracking-tight">
+          {isDone
+            ? "You're all set"
+            : isFailed
+              ? "We hit a snag"
+              : "We're working on it"}
+        </h1>
+        <p className="text-lg text-muted-foreground max-w-md mx-auto">
+          {isDone
+            ? `Welcome to peakhour, ${org?.name ?? "friend"}. Your dashboard is ready.`
+            : isFailed
+              ? "Don't worry — you can still use the dashboard. We'll try again automatically."
+              : "Feel free to close this tab. We'll keep going in the background."}
+        </p>
+      </div>
+
+      <Card className="border-2">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-primary" />
+            What we're doing
+          </CardTitle>
+          <CardDescription>
+            Three quick steps. They usually finish in under a minute.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-1">
+          {PHASES.map((phase) => {
+            const isComplete = completedSet.has(phase.id);
+            const isCurrent = !isComplete && status?.currentPhase === phase.id;
+            return (
+              <PhaseRow
+                key={phase.id}
+                label={phase.label}
+                description={phase.description}
+                state={
+                  isComplete ? "done" : isCurrent ? "running" : "pending"
+                }
               />
-              <CheckItem
-                label="Ad platform connected"
-                done={!!status?.linkedinConnected}
-                optional
-              />
-              <CheckItem
-                label="Budget configured"
-                done={!!status?.hasBudget}
-                optional
-              />
-            </div>
-          </>
-        )}
-      </CardContent>
-      <CardFooter className="flex flex-col gap-3">
-        <Button
-          className="w-full"
-          onClick={handleLaunch}
-          disabled={launching || loading || !status?.onboarding?.steps?.businessDiscovered}
-        >
-          {launching ? "Launching..." : "Launch"}
-        </Button>
-        <button
-          type="button"
-          onClick={() => router.push("/dashboard/overview")}
-          className="text-sm text-muted-foreground underline-offset-4 hover:underline"
-        >
-          Skip to dashboard
-        </button>
-      </CardFooter>
-    </Card>
+            );
+          })}
+          {pollError && (
+            <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
+              {pollError} (retrying)
+            </p>
+          )}
+        </CardContent>
+        <CardFooter className="flex flex-col items-stretch gap-3">
+          <Button
+            size="lg"
+            className="w-full"
+            onClick={() => {
+              sessionStorage.removeItem("onboarding:jobId");
+              router.push("/dashboard/overview");
+            }}
+          >
+            <span className="flex items-center gap-2">
+              {isDone ? "Open my dashboard" : "Take me to my dashboard"}
+              <ArrowRight className="h-4 w-4" />
+            </span>
+          </Button>
+          {!isDone && !isFailed && (
+            <p className="text-center text-xs text-muted-foreground">
+              Feel free to close this tab. We&apos;ll keep going in the background.
+            </p>
+          )}
+        </CardFooter>
+      </Card>
+    </div>
   );
 }
 
-function CheckItem({
+function PhaseRow({
   label,
-  done,
-  optional,
+  description,
+  state,
 }: {
   label: string;
-  done: boolean;
-  optional?: boolean;
+  description: string;
+  state: "pending" | "running" | "done";
 }) {
   return (
-    <div className="flex items-center gap-3 rounded-md border p-3">
+    <div
+      className={cn(
+        "flex items-start gap-3 rounded-md p-3 transition-colors",
+        state === "running" && "bg-primary/5",
+      )}
+    >
       <div
-        className={
-          done
-            ? "flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground"
-            : "flex h-5 w-5 items-center justify-center rounded-full border border-muted-foreground/30"
-        }
-      >
-        {done && "\u2713"}
-      </div>
-      <div>
-        <p className="text-sm font-medium">{label}</p>
-        {!done && optional && (
-          <p className="text-xs text-muted-foreground">Optional</p>
+        className={cn(
+          "flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition-colors",
+          state === "done" && "bg-emerald-500 text-white",
+          state === "running" && "border-2 border-primary text-primary",
+          state === "pending" && "border border-muted-foreground/30 text-muted-foreground",
         )}
+      >
+        {state === "done" && <CheckCircle2 className="h-4 w-4" />}
+        {state === "running" && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p
+          className={cn(
+            "text-sm font-medium transition-colors",
+            state === "pending" && "text-muted-foreground",
+          )}
+        >
+          {label}
+        </p>
+        <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
       </div>
     </div>
   );

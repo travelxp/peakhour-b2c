@@ -4,11 +4,19 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn, SITE } from "@/lib/utils";
 
+/**
+ * Three-step onboarding shell. Each step has plain-English labels —
+ * we never expose backend nouns ("discovery", "taxonomy") to the user.
+ *
+ * The route slugs map: add-business is the historical first step
+ * (renamed visually to "Start"), about is the AI-extracted profile
+ * confirmation, and launch is the friendly hand-off where the
+ * background pipeline finishes while the user can already use the app.
+ */
 const STEPS = [
-  { path: "/onboarding/add-business", label: "Your Business" },
-  { path: "/onboarding/connect-platforms", label: "Connect" },
-  { path: "/onboarding/budget", label: "Budget" },
-  { path: "/onboarding/launch", label: "Launch" },
+  { path: "/onboarding/add-business", label: "Tell us about you" },
+  { path: "/onboarding/about", label: "Confirm" },
+  { path: "/onboarding/launch", label: "We're on it" },
 ];
 
 export default function OnboardingLayout({
@@ -17,7 +25,7 @@ export default function OnboardingLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-screen flex-col bg-background">
       <header className="border-b">
         <div className="mx-auto flex h-16 max-w-3xl items-center justify-between px-4 sm:px-6">
           <Link href="/" className="flex items-center gap-2">
@@ -46,7 +54,7 @@ function StepIndicator() {
         <div key={step.path} className="flex items-center gap-2">
           <div
             className={cn(
-              "flex h-7 w-7 items-center justify-center rounded-full text-xs font-medium",
+              "flex h-7 w-7 items-center justify-center rounded-full text-xs font-medium transition-colors",
               i < currentIndex
                 ? "bg-primary text-primary-foreground"
                 : i === currentIndex
@@ -54,11 +62,11 @@ function StepIndicator() {
                   : "border border-muted-foreground/30 text-muted-foreground"
             )}
           >
-            {i < currentIndex ? "\u2713" : i + 1}
+            {i < currentIndex ? "✓" : i + 1}
           </div>
           <span
             className={cn(
-              "hidden text-xs sm:inline",
+              "hidden text-xs sm:inline transition-colors",
               i === currentIndex
                 ? "font-medium text-foreground"
                 : "text-muted-foreground"
@@ -69,7 +77,7 @@ function StepIndicator() {
           {i < STEPS.length - 1 && (
             <div
               className={cn(
-                "h-px w-6",
+                "h-px w-6 transition-colors",
                 i < currentIndex ? "bg-primary" : "bg-muted-foreground/30"
               )}
             />
