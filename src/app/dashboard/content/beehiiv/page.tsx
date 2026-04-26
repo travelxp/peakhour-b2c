@@ -256,7 +256,10 @@ export default function ContentPage() {
         }
 
         queryClient.invalidateQueries({ queryKey: ["content-stats"] });
-        queryClient.invalidateQueries({ queryKey: ["content-library"] });
+        // The actual library query key is "content-library-all" (line ~141).
+        // Invalidating "content-library" here was a no-op — the table never
+        // refreshed after analysis. Caught while wiring up sync invalidation.
+        queryClient.invalidateQueries({ queryKey: ["content-library-all"] });
         queryClient.invalidateQueries({ queryKey: ["content-gaps"] });
         setAnalysing(false);
       })
@@ -290,6 +293,7 @@ export default function ContentPage() {
                 variant="outline"
                 onClick={() => syncBeehiiv()}
                 disabled={syncing}
+                aria-busy={syncing}
               >
                 {syncing ? "Syncing Beehiiv…" : "Sync Beehiiv"}
               </Button>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
 import { api, ApiError } from "@/lib/api";
 
@@ -30,7 +30,11 @@ export interface UseSyncProviderOptions {
    */
   notify?: boolean;
   /**
-   * Override the default success message. Receives the sync result.
+   * Override the default success message. Receives the sync result —
+   * implementations MUST inspect `result.errors` because the same
+   * formatter renders both success (`errors === 0`) and partial-failure
+   * (`errors > 0`) toasts; a formatter that ignores `errors` will
+   * mislead users on partial failures.
    */
   formatSuccess?: (result: SyncResult) => { title: string; description?: string };
 }
@@ -57,22 +61,33 @@ export function useSyncProvider(
   provider: string,
   options: UseSyncProviderOptions = {},
 ): UseSyncProviderReturn {
-  const { onSuccess, notify = true, formatSuccess } = options;
   const [syncing, setSyncing] = useState(false);
   const [lastResult, setLastResult] = useState<SyncResult | null>(null);
+  // Ref-based in-flight guard: closes a double-tap race that React's
+  // state batching can let through, AND lets us drop `syncing` from the
+  // useCallback deps so the `sync` identity stays stable across the
+  // intermediate state flips.
+  const inFlightRef = useRef(false);
+  // Latest callbacks captured via ref so the hook's `sync` identity
+  // doesn't change every time the caller passes inline closures.
+  const optionsRef = useRef(options);
+  optionsRef.current = options;
 
   const sync = useCallback(async (): Promise<SyncResult | null> => {
-    if (syncing) return null;
+    if (inFlightRef.current) return null;
+    inFlightRef.current = true;
     setSyncing(true);
     setLastResult(null);
+    let result: SyncResult | null = null;
     try {
       const res = await api.post<SyncResponse>(
         `/v1/integrations/${provider}/sync`,
         {},
       );
-      const result = res.sync;
+      result = res.sync;
       setLastResult(result);
 
+      const { notify = true, formatSuccess } = optionsRef.current;
       if (notify) {
         const formatted = formatSuccess
           ? formatSuccess(result)
@@ -83,10 +98,8 @@ export function useSyncProvider(
           toast.success(formatted.title, { description: formatted.description });
         }
       }
-
-      onSuccess?.(result);
-      return result;
     } catch (err) {
+      const { notify = true } = optionsRef.current;
       if (notify) {
         if (err instanceof ApiError && err.code === "ALREADY_RUNNING") {
           toast.error("A sync is already in progress", {
@@ -100,17 +113,26 @@ export function useSyncProvider(
           const msg = err instanceof Error ? err.message : "Sync failed";
           toast.error("Sync failed", { description: msg });
         }
-      } else if (!(err instanceof ApiError)) {
-        // When notifications are suppressed, callers want to handle errors
-        // themselves — but unexpected non-ApiError throws should still
-        // surface so they don't get swallowed silently.
+      } else {
+        // notify:false callers want to render their own UI. Re-throw so
+        // the caller's await sees the failure (silently returning null
+        // would be indistinguishable from a successful no-op sync).
         throw err;
       }
-      return null;
     } finally {
+      inFlightRef.current = false;
       setSyncing(false);
     }
-  }, [provider, syncing, onSuccess, notify, formatSuccess]);
+
+    // onSuccess runs OUTSIDE the try so a callback throw doesn't get
+    // caught by the error branch and falsely report failure to the
+    // awaiter. The sync itself succeeded; downstream side-effects
+    // failing is the caller's problem to handle.
+    if (result !== null) {
+      optionsRef.current.onSuccess?.(result);
+    }
+    return result;
+  }, [provider]);
 
   return { sync, syncing, lastResult };
 }
