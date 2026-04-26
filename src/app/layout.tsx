@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { connection } from "next/server";
 import { ThemeProvider } from "@/providers/theme-provider";
 import { QueryProvider } from "@/providers/query-provider";
 import { AuthProvider } from "@/providers/auth-provider";
@@ -23,11 +24,16 @@ export const metadata: Metadata = {
     "Your AI-powered marketing team. Content intelligence, creative factory, and optimization engine — all in one platform.",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Opt every route into dynamic rendering so the CSP middleware can stamp a
+  // per-request nonce onto Next's injected <script> tags. Without this, statically
+  // prerendered pages have no nonce and 'strict-dynamic' blocks all framework chunks.
+  await connection();
+
   return (
     <html lang="en" suppressHydrationWarning>
       <body
