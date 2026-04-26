@@ -77,10 +77,35 @@ function readStash(): ExtractStashed | null {
   const raw = sessionStorage.getItem("onboarding:extract");
   if (!raw) return null;
   try {
-    return JSON.parse(raw) as ExtractStashed;
+    const parsed = JSON.parse(raw) as unknown;
+    // Minimal shape check — defends against stale schema in
+    // sessionStorage from a prior version of the b2c.
+    if (
+      !parsed
+      || typeof parsed !== "object"
+      || typeof (parsed as { url?: unknown }).url !== "string"
+      || !(parsed as { profile?: unknown }).profile
+      || typeof ((parsed as { profile: { displayName?: unknown } }).profile.displayName) !== "string"
+    ) {
+      sessionStorage.removeItem("onboarding:extract");
+      return null;
+    }
+    return parsed as ExtractStashed;
   } catch {
+    sessionStorage.removeItem("onboarding:extract");
     return null;
   }
+}
+
+/**
+ * Robust initials extractor. Strips emoji / non-letter characters and
+ * uses up to two uppercase letters. Falls back to "?" so the avatar
+ * never renders an empty bubble.
+ */
+function getInitials(name: string): string {
+  const letters = name.replace(/[^\p{L}]/gu, "");
+  if (!letters) return "?";
+  return letters.slice(0, 2).toUpperCase();
 }
 
 export default function AboutPage() {
@@ -147,7 +172,7 @@ export default function AboutPage() {
   const { profile, hostname, urlKind } = stash;
   const confidencePct = Math.round(profile.confidence * 100);
   const lowConfidence = profile.confidence < 0.6;
-  const initials = profile.displayName.slice(0, 2).toUpperCase();
+  const initials = getInitials(profile.displayName);
 
   return (
     <div className="space-y-8">

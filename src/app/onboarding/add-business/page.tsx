@@ -104,8 +104,10 @@ function AddBusinessContent() {
 
   // Live classify on input change. 300ms debounce + cancel flag so a
   // slow earlier response can't clobber a fresh later one (response
-  // ordering ≠ request ordering).
+  // ordering ≠ request ordering). Skipped while submitting — a stale
+  // classify resolving mid-submit would visually flicker the chip.
   useEffect(() => {
+    if (submitting) return;
     setClassifyError("");
     const trimmed = url.trim();
     if (trimmed.length < 4) {
@@ -134,7 +136,7 @@ function AddBusinessContent() {
       cancelled = true;
       clearTimeout(timeoutId);
     };
-  }, [url]);
+  }, [url, submitting]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -256,22 +258,20 @@ function AddBusinessContent() {
 
       <div className="space-y-3">
         <p className="text-center text-xs uppercase tracking-wider text-muted-foreground">
-          Examples
+          What kinds of links work
         </p>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           {URL_EXAMPLES.map((ex) => (
-            <button
+            <div
               key={ex.label}
-              type="button"
-              onClick={() => setUrl(ex.label)}
               className={cn(
                 "flex items-center gap-2 rounded-md border px-3 py-2 text-xs",
-                "text-muted-foreground hover:bg-muted hover:text-foreground transition-colors",
+                "text-muted-foreground",
               )}
             >
               <ex.icon className="h-3.5 w-3.5 shrink-0" />
               <span className="truncate">{ex.label}</span>
-            </button>
+            </div>
           ))}
         </div>
       </div>

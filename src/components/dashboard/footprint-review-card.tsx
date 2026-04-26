@@ -156,38 +156,40 @@ export function FootprintReviewCard({ pending }: FootprintReviewCardProps) {
             <div
               key={item.url}
               className={cn(
-                "flex items-center gap-3 rounded-md border p-3 transition-opacity",
+                "flex flex-col gap-2 rounded-md border p-3 transition-opacity sm:flex-row sm:items-center sm:gap-3",
                 isPending && "opacity-50",
               )}
             >
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-muted">
-                <Icon className="h-4 w-4" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-baseline gap-2">
-                  <p className="text-sm font-medium truncate">{display}</p>
-                  <span className="text-xs text-muted-foreground shrink-0">
-                    {label}
-                  </span>
+              <div className="flex flex-1 items-center gap-3 min-w-0">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-muted">
+                  <Icon className="h-4 w-4" />
                 </div>
-                {item.evidence && (
-                  <p className="text-xs text-muted-foreground truncate mt-0.5">
-                    {item.evidence}
-                  </p>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-baseline gap-2">
+                    <p className="text-sm font-medium truncate">{display}</p>
+                    <span className="text-xs text-muted-foreground shrink-0">
+                      {label}
+                    </span>
+                  </div>
+                  {item.evidence && (
+                    <p className="text-xs text-muted-foreground truncate mt-0.5">
+                      {item.evidence}
+                    </p>
+                  )}
+                </div>
+                {isHttpUrl(item.url) && (
+                  <a
+                    href={item.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hidden text-muted-foreground hover:text-foreground sm:inline-flex"
+                    aria-label="Open in new tab"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                  </a>
                 )}
               </div>
-              {isHttpUrl(item.url) && (
-                <a
-                  href={item.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hidden text-muted-foreground hover:text-foreground sm:inline-flex"
-                  aria-label="Open in new tab"
-                >
-                  <ExternalLink className="h-4 w-4" />
-                </a>
-              )}
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 self-end sm:self-auto">
                 <Button
                   size="sm"
                   variant="outline"
@@ -215,8 +217,8 @@ export function FootprintReviewCard({ pending }: FootprintReviewCardProps) {
                   aria-label="Yes, mine"
                   title="Yes, that's mine"
                 >
-                  <Check className="h-4 w-4 mr-1" />
-                  Yes
+                  <Check className="h-4 w-4 sm:mr-1" />
+                  <span className="hidden sm:inline">Yes</span>
                 </Button>
               </div>
             </div>

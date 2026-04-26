@@ -82,6 +82,16 @@ export function RecommendationsCard({ recommendations }: RecommendationsCardProp
         queryClient.invalidateQueries({ queryKey: ["dashboard-discovery"] });
       });
     } catch (err) {
+      // RECOMMENDATION_NOT_FOUND means the rec was already removed
+      // server-side (e.g. another tab actioned it). Keep our optimistic
+      // dismissal AND refetch so the UI converges with the truth — no
+      // need to surface an error to the user.
+      if (err instanceof ApiError && err.code === "RECOMMENDATION_NOT_FOUND") {
+        startTransition(() => {
+          queryClient.invalidateQueries({ queryKey: ["dashboard-discovery"] });
+        });
+        return;
+      }
       setDismissedPlatforms((prev) => {
         const next = new Set(prev);
         next.delete(platform);

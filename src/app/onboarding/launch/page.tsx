@@ -64,10 +64,14 @@ export default function LaunchPage() {
   const [status, setStatus] = useState<DiscoveryStatus | null>(null);
   const [pollError, setPollError] = useState("");
 
-  // Returning users (no active jobId in this tab) go straight to the dashboard.
+  // Returning users (no active jobId in this tab, OR onboarding already
+  // marked complete and a long time has passed) go straight to the
+  // dashboard. The latter handles the case where a stale jobId persists
+  // in sessionStorage from a prior session whose job has been TTL'd.
   useEffect(() => {
-    if (jobId) return;
-    router.replace("/dashboard/overview");
+    if (!jobId) {
+      router.replace("/dashboard/overview");
+    }
   }, [jobId, router]);
 
   // Poll discovery status every 3 seconds while the job is alive
@@ -90,7 +94,11 @@ export default function LaunchPage() {
       } catch (err) {
         if (cancelled) return;
         if (err instanceof ApiError && err.status === 404) {
-          // Job not found — likely a stale jobId; clear and redirect
+          // Job not found. If we've already seen a terminal status the
+          // job has just been TTL'd — show the success/failed screen
+          // we already have. Otherwise it's a stale jobId; clear and
+          // bounce to the dashboard.
+          if (status?.status === "done" || status?.status === "failed") return;
           sessionStorage.removeItem("onboarding:jobId");
           router.replace("/dashboard/overview");
           return;
@@ -108,6 +116,10 @@ export default function LaunchPage() {
       cancelled = true;
       clearTimeout(timeoutId);
     };
+    // status is read inside tick() to disambiguate "TTL'd after success"
+    // from "stale jobId, never seen success" — we intentionally don't
+    // depend on it (would restart polling on every status change).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jobId, router]);
 
   const isDone = status?.status === "done";
