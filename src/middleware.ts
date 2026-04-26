@@ -46,6 +46,9 @@ export function middleware(req: NextRequest) {
 
   const reqHeaders = new Headers(req.headers);
   reqHeaders.set("x-nonce", nonce);
+  // Next.js extracts the nonce from this request header and stamps it onto
+  // framework-injected <script> tags. Required for 'strict-dynamic' to work.
+  reqHeaders.set("content-security-policy", csp);
 
   const res = NextResponse.next({ request: { headers: reqHeaders } });
   res.headers.set("Content-Security-Policy", csp);
