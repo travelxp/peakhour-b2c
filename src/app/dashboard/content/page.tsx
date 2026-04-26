@@ -50,10 +50,17 @@ function ContentChannelsHubInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   // `?stay=1` lets users opt out of the single-channel auto-redirect (e.g.
-  // the "Browse all channels" link on the Beehiiv library page). Combined
-  // with `hasRedirected` state, prevents bouncing back through the hub.
+  // a "Browse all channels" link could pass it). Without it, a user with
+  // exactly one live channel skips the hub on every visit.
   const stay = searchParams?.get("stay") === "1";
-  const [hasRedirected, setHasRedirected] = useState(false);
+  // `isRedirecting` is a one-shot flag — set it once when we begin the
+  // navigation, never unset. This keeps the skeleton on screen until the
+  // browser actually unmounts the page. Previously we used `hasRedirected`
+  // to gate the redirect-target memo, which had the side effect of
+  // flipping the memo to `null` on the very next render — that caused
+  // the full hub to render for one paint between setting the flag and
+  // the navigation landing.
+  const [isRedirecting, setIsRedirecting] = useState(false);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["content-hub-integrations"],
@@ -75,24 +82,40 @@ function ContentChannelsHubInner() {
     return map;
   }, [data]);
 
-  // Determine redirect target synchronously so we can render the loading
-  // stub on the same paint instead of flashing the full hub before the
-  // navigation lands.
+  // Compute redirect target purely from the data — no transient gate.
+  // The useEffect below decides whether to act on it.
   const redirectTarget = useMemo(() => {
-    if (isLoading || !data || stay || hasRedirected) return null;
+    if (isLoading || !data || stay) return null;
     const liveConnected = LIVE_CHANNELS.filter(
       (c) => connections.get(c.providerKey)?.connected,
     );
     return liveConnected.length === 1 ? liveConnected[0]?.dashboardPath ?? null : null;
-  }, [isLoading, data, stay, hasRedirected, connections]);
+  }, [isLoading, data, stay, connections]);
 
   useEffect(() => {
-    if (!redirectTarget) return;
-    setHasRedirected(true);
+    if (!redirectTarget || isRedirecting) return;
+    // No-op when we'd just be navigating to ourselves — defensive guard
+    // against parallel-route or soft-nav cases where the hub re-mounts at
+    // the same path with the same connection state.
+    if (
+      typeof window !== "undefined" &&
+      window.location.pathname === redirectTarget
+    ) {
+      return;
+    }
+    setIsRedirecting(true);
     router.replace(redirectTarget);
-  }, [redirectTarget, router]);
+    // Safety net: if the navigation doesn't unmount the page within 5s
+    // (target route fails to mount, error boundary remounts the hub,
+    // etc.), drop the skeleton so the user isn't trapped staring at it.
+    const fallback = setTimeout(() => setIsRedirecting(false), 5000);
+    return () => clearTimeout(fallback);
+  }, [redirectTarget, isRedirecting, router]);
 
-  if (isLoading || redirectTarget) {
+  // Skeleton stays mounted through the entire navigation: while loading,
+  // while we have a target lined up, AND while we're already navigating.
+  // The third clause is the one that prevents the brief full-hub flash.
+  if (isLoading || redirectTarget || isRedirecting) {
     return <HubSkeleton />;
   }
 
