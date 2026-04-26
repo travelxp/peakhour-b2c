@@ -2,12 +2,33 @@ import { NextResponse, type NextRequest } from "next/server";
 
 const isDev = process.env.NODE_ENV !== "production";
 
+const apiOrigin = (() => {
+  try {
+    return new URL(process.env.NEXT_PUBLIC_API_URL ?? "").origin;
+  } catch {
+    return "";
+  }
+})();
+
 export function middleware(req: NextRequest) {
-  const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
+  const nonce = btoa(
+    String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16))),
+  );
 
   const scriptSrc = isDev
     ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
     : `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`;
+
+  const connectSrc = [
+    "connect-src 'self'",
+    apiOrigin,
+    "https://*.vercel-insights.com",
+    "https://vitals.vercel-insights.com",
+    "https://*.vercel-analytics.com",
+    isDev ? "ws: wss: http://localhost:* ws://localhost:*" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   const csp = [
     "default-src 'self'",
@@ -15,7 +36,7 @@ export function middleware(req: NextRequest) {
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https:",
     "font-src 'self' data:",
-    `connect-src 'self' https://*.vercel-insights.com${isDev ? " ws: wss:" : ""}`,
+    connectSrc,
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",
@@ -25,7 +46,6 @@ export function middleware(req: NextRequest) {
 
   const reqHeaders = new Headers(req.headers);
   reqHeaders.set("x-nonce", nonce);
-  reqHeaders.set("content-security-policy", csp);
 
   const res = NextResponse.next({ request: { headers: reqHeaders } });
   res.headers.set("Content-Security-Policy", csp);
@@ -34,6 +54,14 @@ export function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\..*).*)",
+    {
+      source: "/((?!_next/static|_next/image|favicon.ico|.*\\..*).*)",
+      missing: [
+        { type: "header", key: "next-router-prefetch" },
+        { type: "header", key: "purpose", value: "prefetch" },
+        { type: "header", key: "next-action" },
+        { type: "header", key: "rsc" },
+      ],
+    },
   ],
 };
