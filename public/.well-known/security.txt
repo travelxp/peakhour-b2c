@@ -1,0 +1,5 @@
+Contact: mailto:security@peakhour.ai
+Expires: 2027-04-26T00:00:00Z
+Preferred-Languages: en
+Canonical: https://peakhour.ai/.well-known/security.txt
+Policy: https://peakhour.ai/security

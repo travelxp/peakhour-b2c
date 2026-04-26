@@ -1,0 +1,7 @@
+User-agent: *
+Disallow: /api/
+Disallow: /dashboard/
+Disallow: /admin/
+Disallow: /auth/
+Disallow: /onboarding/
+Sitemap: https://peakhour.ai/sitemap.xml
