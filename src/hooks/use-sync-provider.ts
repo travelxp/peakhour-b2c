@@ -40,11 +40,19 @@ export interface UseSyncProviderOptions {
 }
 
 interface UseSyncProviderReturn {
-  /** Trigger a manual sync. No-op if already in flight. */
+  /**
+   * Trigger a manual sync. No-op if already in flight (returns null).
+   *
+   * Behavior on failure depends on the `notify` option:
+   * - `notify: true` (default): errors are toasted, promise resolves to null
+   * - `notify: false`: promise REJECTS with the underlying error so the
+   *   caller can render their own UI. Always wrap in try/catch when
+   *   using this option.
+   */
   sync: () => Promise<SyncResult | null>;
   /** True between request start and request settle. */
   syncing: boolean;
-  /** Last completed result (cleared on next sync start). */
+  /** Last successful result. Persists across re-syncs until the next success. */
   lastResult: SyncResult | null;
 }
 
@@ -77,7 +85,9 @@ export function useSyncProvider(
     if (inFlightRef.current) return null;
     inFlightRef.current = true;
     setSyncing(true);
-    setLastResult(null);
+    // Don't clear `lastResult` here — keep the previous successful result
+    // visible to consumers (e.g. an inline banner) while the new sync is
+    // in flight. Overwrite only when we have a fresh successful result.
     let result: SyncResult | null = null;
     try {
       const res = await api.post<SyncResponse>(
@@ -166,6 +176,7 @@ function defaultSuccessMessage(result: SyncResult): {
 
 /** Title-case a provider key for user-facing messages. */
 function humanProvider(provider: string): string {
+  if (!provider) return "Provider";
   return provider
     .split("_")
     .map((w) => (w.length > 0 ? w[0]!.toUpperCase() + w.slice(1) : ""))

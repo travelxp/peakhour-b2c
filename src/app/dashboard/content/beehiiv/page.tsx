@@ -294,6 +294,7 @@ export default function ContentPage() {
                 onClick={() => syncBeehiiv()}
                 disabled={syncing}
                 aria-busy={syncing}
+                className="min-w-[140px]"
               >
                 {syncing ? "Syncing Beehiiv…" : "Sync Beehiiv"}
               </Button>
