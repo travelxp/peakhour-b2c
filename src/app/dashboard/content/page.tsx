@@ -92,8 +92,14 @@ function ContentChannelsHubInner() {
     return liveConnected.length === 1 ? liveConnected[0]?.dashboardPath ?? null : null;
   }, [isLoading, data, stay, connections]);
 
+  // `isRedirecting` is intentionally NOT in this effect's deps. Including
+  // it would re-run the effect when we flip the flag → React fires the
+  // previous run's cleanup → cleanup clears the safety timer that was
+  // just scheduled → the safety net is gone within milliseconds.
+  // `redirectTarget` is what gates "should we navigate"; once we have a
+  // target the effect runs exactly once (until target changes).
   useEffect(() => {
-    if (!redirectTarget || isRedirecting) return;
+    if (!redirectTarget) return;
     // No-op when we'd just be navigating to ourselves — defensive guard
     // against parallel-route or soft-nav cases where the hub re-mounts at
     // the same path with the same connection state.
@@ -110,7 +116,7 @@ function ContentChannelsHubInner() {
     // etc.), drop the skeleton so the user isn't trapped staring at it.
     const fallback = setTimeout(() => setIsRedirecting(false), 5000);
     return () => clearTimeout(fallback);
-  }, [redirectTarget, isRedirecting, router]);
+  }, [redirectTarget, router]);
 
   // Skeleton stays mounted through the entire navigation: while loading,
   // while we have a target lined up, AND while we're already navigating.
