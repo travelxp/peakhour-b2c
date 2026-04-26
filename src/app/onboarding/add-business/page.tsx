@@ -102,8 +102,9 @@ function AddBusinessContent() {
     }
   }, [authLoading, org, router]);
 
-  // Live classify on input change (debounced via React's input rhythm —
-  // the call is ~50µs server-side so no client-side debouncing needed).
+  // Live classify on input change. 300ms debounce + cancel flag so a
+  // slow earlier response can't clobber a fresh later one (response
+  // ordering ≠ request ordering).
   useEffect(() => {
     setClassifyError("");
     const trimmed = url.trim();
@@ -112,20 +113,26 @@ function AddBusinessContent() {
       return;
     }
     let cancelled = false;
-    api
-      .post<ClassifyResponse>("/v1/onboarding/classify", { url: trimmed })
-      .then((r) => {
-        if (!cancelled) setClassified(r);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        if (err instanceof ApiError && err.code === "INVALID_URL") {
-          setClassifyError(err.message);
-        }
-        setClassified(null);
-      });
+    const timeoutId = setTimeout(() => {
+      api
+        .post<ClassifyResponse>("/v1/onboarding/classify", { url: trimmed })
+        .then((r) => {
+          if (!cancelled) setClassified(r);
+        })
+        .catch((err) => {
+          if (cancelled) return;
+          if (err instanceof ApiError && err.code === "INVALID_URL") {
+            setClassifyError(err.message);
+            setClassified(null);
+            return;
+          }
+          // Transient error — don't wipe a previously-good classification
+          // (the user might have hit a network blip mid-typing).
+        });
+    }, 300);
     return () => {
       cancelled = true;
+      clearTimeout(timeoutId);
     };
   }, [url]);
 

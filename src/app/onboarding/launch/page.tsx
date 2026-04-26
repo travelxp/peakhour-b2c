@@ -13,7 +13,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { CheckCircle2, ArrowRight, Sparkles, Mail, Loader2 } from "lucide-react";
+import { CheckCircle2, ArrowRight, Sparkles, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface DiscoveryStatus {
@@ -53,21 +53,22 @@ const POLL_INTERVAL_MS = 3000;
 export default function LaunchPage() {
   const router = useRouter();
   const { org, refreshUser } = useAuth();
-  const [jobId, setJobId] = useState<string | null>(null);
+  // Read sessionStorage in the initializer so we don't render the
+  // "We're working on it" hero for one tick before redirecting a
+  // returning user. Guard `typeof window` for SSR safety even though
+  // this is a client component (RSC could hydrate it).
+  const [jobId] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    return sessionStorage.getItem("onboarding:jobId");
+  });
   const [status, setStatus] = useState<DiscoveryStatus | null>(null);
   const [pollError, setPollError] = useState("");
-  const [emailToggle, setEmailToggle] = useState(false);
 
-  // Pull jobId from session — set by /confirm handler in the about page.
+  // Returning users (no active jobId in this tab) go straight to the dashboard.
   useEffect(() => {
-    const id = sessionStorage.getItem("onboarding:jobId");
-    if (!id) {
-      // No active job — most likely a returning user. Fall back to dashboard.
-      router.replace("/dashboard/overview");
-      return;
-    }
-    setJobId(id);
-  }, [router]);
+    if (jobId) return;
+    router.replace("/dashboard/overview");
+  }, [jobId, router]);
 
   // Poll discovery status every 3 seconds while the job is alive
   useEffect(() => {
@@ -193,16 +194,9 @@ export default function LaunchPage() {
             </span>
           </Button>
           {!isDone && !isFailed && (
-            <button
-              type="button"
-              onClick={() => setEmailToggle((v) => !v)}
-              className="flex items-center justify-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <Mail className="h-4 w-4" />
-              {emailToggle
-                ? "We'll email you when everything's ready"
-                : "Email me when ready"}
-            </button>
+            <p className="text-center text-xs text-muted-foreground">
+              Feel free to close this tab. We&apos;ll keep going in the background.
+            </p>
           )}
         </CardFooter>
       </Card>

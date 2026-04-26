@@ -76,20 +76,31 @@ const SOURCE_LABEL: Record<string, string> = {
 
 export function FootprintReviewCard({ pending }: FootprintReviewCardProps) {
   const queryClient = useQueryClient();
-  const [pendingItems, setPendingItems] = useState(pending);
+  // Track URLs the user has just actioned (optimistic dismissal). Using
+  // a Set keyed on URL — survives prop refetches naturally, and avoids
+  // the race where two near-simultaneous clicks step on each other's
+  // snapshot rollback.
+  const [dismissedUrls, setDismissedUrls] = useState<Set<string>>(new Set());
   const [submitting, setSubmitting] = useState<string | null>(null);
   const [, startTransition] = useTransition();
   const [error, setError] = useState("");
 
-  if (pendingItems.length === 0) return null;
+  // The pending list comes straight from the query data, filtered by
+  // the local dismissed set. When the query refetches and the row is
+  // gone from the server side, removing it from `pending` AND from
+  // `dismissedUrls` is automatic (the row is just absent).
+  const visible = pending.filter((p) => !dismissedUrls.has(p.url));
+
+  if (visible.length === 0) return null;
 
   async function handleConfirm(url: string, confirmed: boolean | null) {
     setError("");
     setSubmitting(url);
-    // Optimistically remove from the list — the server-side update
-    // is async but rarely fails for these toggles.
-    const previous = pendingItems;
-    setPendingItems((items) => items.filter((i) => i.url !== url));
+    setDismissedUrls((prev) => {
+      const next = new Set(prev);
+      next.add(url);
+      return next;
+    });
     try {
       await api.post("/v1/onboarding/confirm-footprint", {
         confirmations: [{ url, confirmed }],
@@ -100,8 +111,13 @@ export function FootprintReviewCard({ pending }: FootprintReviewCardProps) {
         queryClient.invalidateQueries({ queryKey: ["dashboard-discovery"] });
       });
     } catch (err) {
-      // Roll back on failure
-      setPendingItems(previous);
+      // Roll back the dismissal for THIS url only — leaves other
+      // in-flight dismissals unaffected (no snapshot rollback race).
+      setDismissedUrls((prev) => {
+        const next = new Set(prev);
+        next.delete(url);
+        return next;
+      });
       setError(err instanceof ApiError ? err.message : "Couldn't save. Try again.");
     } finally {
       setSubmitting(null);
@@ -122,7 +138,7 @@ export function FootprintReviewCard({ pending }: FootprintReviewCardProps) {
               recommend things you&apos;re already on.
             </CardDescription>
           </div>
-          <Badge variant="secondary">{pendingItems.length} to review</Badge>
+          <Badge variant="secondary">{visible.length} to review</Badge>
         </div>
       </CardHeader>
       <CardContent className="space-y-2">
@@ -131,7 +147,7 @@ export function FootprintReviewCard({ pending }: FootprintReviewCardProps) {
             {error}
           </div>
         )}
-        {pendingItems.map((item) => {
+        {visible.map((item) => {
           const Icon = SOURCE_ICONS[item.source] ?? Globe;
           const label = SOURCE_LABEL[item.source] ?? item.source;
           const isPending = submitting === item.url;
@@ -160,15 +176,17 @@ export function FootprintReviewCard({ pending }: FootprintReviewCardProps) {
                   </p>
                 )}
               </div>
-              <a
-                href={item.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hidden text-muted-foreground hover:text-foreground sm:inline-flex"
-                aria-label="Open in new tab"
-              >
-                <ExternalLink className="h-4 w-4" />
-              </a>
+              {isHttpUrl(item.url) && (
+                <a
+                  href={item.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hidden text-muted-foreground hover:text-foreground sm:inline-flex"
+                  aria-label="Open in new tab"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                </a>
+              )}
               <div className="flex items-center gap-1">
                 <Button
                   size="sm"
@@ -215,5 +233,20 @@ function prettyUrl(url: string): string {
     return `${u.hostname.replace(/^www\./, "")}${u.pathname === "/" ? "" : u.pathname}`;
   } catch {
     return url;
+  }
+}
+
+/**
+ * Defence-in-depth against `javascript:` / `data:` URLs that could
+ * sneak through if the upstream pipeline ever stored an unexpected
+ * value. The classifier guards against this server-side; this is
+ * client-side belt-and-braces before rendering as an `<a href>`.
+ */
+function isHttpUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return u.protocol === "http:" || u.protocol === "https:";
+  } catch {
+    return false;
   }
 }

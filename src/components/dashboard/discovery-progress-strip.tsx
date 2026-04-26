@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "@/lib/api";
 import { Loader2, Sparkles, X } from "lucide-react";
@@ -49,6 +49,13 @@ export function DiscoveryProgressStrip({ jobId }: ProgressStripProps) {
     }
   }, [jobId]);
 
+  const handleDismiss = useCallback(() => {
+    setDismissed(true);
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem(DISMISS_KEY_PREFIX + jobId, "1");
+    }
+  }, [jobId]);
+
   // Poll
   useEffect(() => {
     if (dismissed) return;
@@ -84,15 +91,7 @@ export function DiscoveryProgressStrip({ jobId }: ProgressStripProps) {
       cancelled = true;
       clearTimeout(timeoutId);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jobId, dismissed]);
-
-  function handleDismiss() {
-    setDismissed(true);
-    if (typeof window !== "undefined") {
-      sessionStorage.setItem(DISMISS_KEY_PREFIX + jobId, "1");
-    }
-  }
+  }, [jobId, dismissed, queryClient, handleDismiss]);
 
   if (dismissed) return null;
   if (!status) return null;

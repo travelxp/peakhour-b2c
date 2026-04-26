@@ -52,12 +52,18 @@ const PLATFORM_LABEL: Record<string, string> = {
 
 export function RecommendationsCard({ recommendations }: RecommendationsCardProps) {
   const queryClient = useQueryClient();
-  const [items, setItems] = useState(recommendations);
+  // Optimistic dismissal — see the same pattern in
+  // footprint-review-card.tsx. Keeps in sync with prop refetches and
+  // avoids the snapshot-rollback race when two clicks land in flight
+  // at the same time.
+  const [dismissedPlatforms, setDismissedPlatforms] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState<string | null>(null);
   const [, startTransition] = useTransition();
   const [error, setError] = useState("");
 
-  if (items.length === 0) return null;
+  const visible = recommendations.filter((r) => !dismissedPlatforms.has(r.platform));
+
+  if (visible.length === 0) return null;
 
   async function handleAction(
     platform: string,
@@ -65,15 +71,22 @@ export function RecommendationsCard({ recommendations }: RecommendationsCardProp
   ) {
     setError("");
     setBusy(platform);
-    const previous = items;
-    setItems((curr) => curr.filter((r) => r.platform !== platform));
+    setDismissedPlatforms((prev) => {
+      const next = new Set(prev);
+      next.add(platform);
+      return next;
+    });
     try {
       await api.post(`/v1/onboarding/recommendations/${encodeURIComponent(platform)}/${action}`);
       startTransition(() => {
         queryClient.invalidateQueries({ queryKey: ["dashboard-discovery"] });
       });
     } catch (err) {
-      setItems(previous);
+      setDismissedPlatforms((prev) => {
+        const next = new Set(prev);
+        next.delete(platform);
+        return next;
+      });
       if (err instanceof ApiError) {
         setError(err.message);
       } else {
@@ -106,7 +119,7 @@ export function RecommendationsCard({ recommendations }: RecommendationsCardProp
             {error}
           </div>
         )}
-        {items.map((rec) => {
+        {visible.map((rec) => {
           const isBusy = busy === rec.platform;
           const label = PLATFORM_LABEL[rec.platform] ?? prettyPlatform(rec.platform);
           return (

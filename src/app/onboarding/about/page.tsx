@@ -72,38 +72,36 @@ interface ConfirmResponse {
   jobId: string;
 }
 
+function readStash(): ExtractStashed | null {
+  if (typeof window === "undefined") return null;
+  const raw = sessionStorage.getItem("onboarding:extract");
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as ExtractStashed;
+  } catch {
+    return null;
+  }
+}
+
 export default function AboutPage() {
   const router = useRouter();
   const { refreshUser } = useAuth();
-  const [stash, setStash] = useState<ExtractStashed | null>(null);
+  // Read sessionStorage in the initializer so we don't render
+  // anything for one tick before bouncing to step 1 on a missing stash.
+  const [stash] = useState<ExtractStashed | null>(readStash);
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [hydrated, setHydrated] = useState(false);
 
   // Edit-mode draft (separate from stash so cancel restores cleanly)
-  const [displayName, setDisplayName] = useState("");
-  const [businessCategory, setBusinessCategory] = useState("other");
-  const [description, setDescription] = useState("");
+  const [displayName, setDisplayName] = useState(() => stash?.profile.displayName ?? "");
+  const [businessCategory, setBusinessCategory] = useState(() => stash?.profile.businessCategory ?? "other");
+  const [description, setDescription] = useState(() => stash?.profile.description ?? "");
 
+  // Bounce to step 1 if there's no stash to confirm.
   useEffect(() => {
-    const raw = sessionStorage.getItem("onboarding:extract");
-    if (!raw) {
-      router.replace("/onboarding/add-business");
-      return;
-    }
-    try {
-      const parsed = JSON.parse(raw) as ExtractStashed;
-      setStash(parsed);
-      setDisplayName(parsed.profile.displayName);
-      setBusinessCategory(parsed.profile.businessCategory);
-      setDescription(parsed.profile.description);
-    } catch {
-      router.replace("/onboarding/add-business");
-    } finally {
-      setHydrated(true);
-    }
-  }, [router]);
+    if (!stash) router.replace("/onboarding/add-business");
+  }, [stash, router]);
 
   async function handleConfirm() {
     if (!stash) return;
@@ -126,6 +124,15 @@ export default function AboutPage() {
       router.push("/onboarding/launch");
     } catch (err) {
       if (err instanceof ApiError) {
+        // ORG_EXISTS: the user already has an org with this name. Most
+        // likely a double-submit or returning user — send them to the
+        // dashboard rather than showing a confusing error.
+        if (err.code === "ORG_EXISTS") {
+          sessionStorage.removeItem("onboarding:extract");
+          await refreshUser();
+          router.replace("/dashboard/overview");
+          return;
+        }
         setError(err.message);
       } else {
         setError("Something went wrong. Try again.");
@@ -133,16 +140,6 @@ export default function AboutPage() {
     } finally {
       setSubmitting(false);
     }
-  }
-
-  if (!hydrated) {
-    return (
-      <Card>
-        <CardContent className="flex justify-center py-12">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-muted border-t-primary" />
-        </CardContent>
-      </Card>
-    );
   }
 
   if (!stash) return null;

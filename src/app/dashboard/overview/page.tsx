@@ -342,10 +342,13 @@ export default function OverviewPage() {
 // ── Setup Banner ───────────────────────────────────────────
 
 function SetupBanner({ stats }: { stats: DashboardStats }) {
+  // Budget is no longer collected during onboarding — moved to settings.
+  // Pointing the user at the integrations page is the natural next step
+  // after onboarding completes.
   const steps = [
-    { done: stats.hasTaxonomy, label: "Analyze business", href: "/onboarding/add-business" },
-    { done: stats.connections.beehiiv || stats.connections.linkedinContent || stats.connections.linkedinAds, label: "Connect platform", href: "/dashboard/integrations" },
-    { done: stats.hasBudget, label: "Set budget", href: "/onboarding/budget" },
+    { done: stats.hasTaxonomy, label: "Tell us about you", href: "/onboarding/add-business" },
+    { done: stats.connections.beehiiv || stats.connections.linkedinContent || stats.connections.linkedinAds, label: "Connect a platform", href: "/dashboard/integrations" },
+    { done: stats.hasBudget, label: "Set ad budget", href: "/dashboard/settings/billing" },
   ];
 
   const nextStep = steps.find((s) => !s.done);
