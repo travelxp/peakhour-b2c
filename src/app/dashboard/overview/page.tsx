@@ -29,6 +29,9 @@ import {
   Mail,
 } from "lucide-react";
 import { LinkedinIcon } from "@/components/ui/brand-icons";
+import { DiscoveryProgressStrip } from "@/components/dashboard/discovery-progress-strip";
+import { FootprintReviewCard } from "@/components/dashboard/footprint-review-card";
+import { RecommendationsCard } from "@/components/dashboard/recommendations-card";
 
 interface DashboardStats {
   content: {
@@ -55,8 +58,29 @@ interface DashboardStats {
   websiteUrl: string | null;
 }
 
+interface DashboardDiscovery {
+  techStack: { cms?: string; hosting?: string } | null;
+  pendingFootprint: Array<{
+    url: string;
+    source: string;
+    handle?: string;
+    confidence?: number;
+    evidence?: string;
+    confirmedByUser?: boolean | null;
+  }>;
+  pendingRecommendations: Array<{
+    platform: string;
+    rationale: string;
+    digitalLiteracyTips?: string[];
+    firstAction: string;
+    status?: string;
+  }>;
+  activeJob: { jobId: string; status: string } | null;
+  business: { _id: string; name: string; websiteUrl: string | null };
+}
+
 export default function OverviewPage() {
-  const { org } = useAuth();
+  const { org, business } = useAuth();
 
   const {
     data: stats,
@@ -66,6 +90,15 @@ export default function OverviewPage() {
     queryKey: ["dashboard-stats", org?._id],
     queryFn: () => api.get<DashboardStats>("/v1/dashboard/stats"),
     enabled: !!org,
+  });
+
+  // Discovery snapshot for the new widgets — separate query so the widgets
+  // refetch independently when the user actions a footprint/recommendation
+  // (the widgets call queryClient.invalidateQueries(["dashboard-discovery"])).
+  const { data: discovery } = useQuery({
+    queryKey: ["dashboard-discovery", org?._id, business?._id],
+    queryFn: () => api.get<DashboardDiscovery>("/v1/onboarding/discovery"),
+    enabled: !!org && !!business,
   });
 
   const onboardingComplete = stats?.onboarding?.completed;
@@ -95,6 +128,21 @@ export default function OverviewPage() {
           </a>
         )}
       </div>
+
+      {/* Discovery progress strip — only visible while a bg job is alive */}
+      {discovery?.activeJob && (
+        <DiscoveryProgressStrip jobId={discovery.activeJob.jobId} />
+      )}
+
+      {/* Footprint review — auto-archives once all entries are reviewed */}
+      {discovery?.pendingFootprint && discovery.pendingFootprint.length > 0 && (
+        <FootprintReviewCard pending={discovery.pendingFootprint} />
+      )}
+
+      {/* "Where to grow next" — persistent, refreshed weekly post-MVP */}
+      {discovery?.pendingRecommendations && discovery.pendingRecommendations.length > 0 && (
+        <RecommendationsCard recommendations={discovery.pendingRecommendations} />
+      )}
 
       {isError && (
         <div
