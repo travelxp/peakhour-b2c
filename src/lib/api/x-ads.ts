@@ -61,15 +61,16 @@ export const xAdsApi = {
   createCampaign: (input: CreateCampaignInput) =>
     api.post<XCampaign>("/v1/x/ads/campaigns", input),
 
+  // Note: the backend resolves the ad account from the stored connection
+  // (single ad account per int_connection), so accountId isn't part of the
+  // request body. We still take it as a parameter so callers stay symmetric
+  // with the rest of this surface.
   setCampaignStatus: (
-    accountId: string,
+    _accountId: string,
     campaignId: string,
     status: "ACTIVE" | "PAUSED"
   ) =>
-    api.patch<unknown>(`/v1/x/ads/campaigns/${campaignId}/status`, {
-      accountId,
-      status,
-    }),
+    api.patch<unknown>(`/v1/x/ads/campaigns/${campaignId}/status`, { status }),
 
   analytics: (params: {
     accountId: string;

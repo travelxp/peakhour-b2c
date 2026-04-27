@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
+import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -154,11 +155,27 @@ function ConnectedView() {
     enabled: !!accountId && (campaigns.data?.length ?? 0) > 0,
   });
 
+  // Capture accountId in mutation variables (not the outer closure) so a
+  // mid-flight account switch can't redirect onSuccess invalidation to the
+  // newly-selected account's cache while the response was for the previous one.
   const setStatus = useMutation({
-    mutationFn: ({ campaignId, status }: { campaignId: string; status: "ACTIVE" | "PAUSED" }) =>
-      xAdsApi.setCampaignStatus(accountId!, campaignId, status),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["x-ads-campaigns", accountId] });
+    mutationFn: ({
+      accountId: forAccount,
+      campaignId,
+      status,
+    }: {
+      accountId: string;
+      campaignId: string;
+      status: "ACTIVE" | "PAUSED";
+    }) => xAdsApi.setCampaignStatus(forAccount, campaignId, status),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: ["x-ads-campaigns", variables.accountId],
+      });
+    },
+    onError: (err: unknown) => {
+      const message = err instanceof ApiError ? err.message : "Couldn't update campaign status.";
+      toast.error(message);
     },
   });
 
@@ -282,7 +299,7 @@ function ConnectedView() {
                     spend={analytics.data?.find((a) => a.id === c.id)?.spend}
                     currency={account?.currency}
                     onToggle={(next) =>
-                      setStatus.mutate({ campaignId: c.id, status: next })
+                      setStatus.mutate({ accountId: accountId!, campaignId: c.id, status: next })
                     }
                     pending={
                       setStatus.isPending && setStatus.variables?.campaignId === c.id

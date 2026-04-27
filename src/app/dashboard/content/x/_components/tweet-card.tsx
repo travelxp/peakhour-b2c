@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,13 +21,19 @@ import {
 } from "lucide-react";
 import { formatDate } from "@/lib/locale";
 import { xApi, type XTweet } from "@/lib/api/x";
+import { ApiError } from "@/lib/api";
 
 export function TweetCard({ tweet }: { tweet: XTweet }) {
   const queryClient = useQueryClient();
   const del = useMutation({
     mutationFn: () => xApi.deleteTweet(tweet.id),
     onSuccess: () => {
+      toast.success("Tweet deleted.");
       queryClient.invalidateQueries({ queryKey: ["x-tweets"] });
+    },
+    onError: (err: unknown) => {
+      const message = err instanceof ApiError ? err.message : "Couldn't delete tweet.";
+      toast.error(message);
     },
   });
 
