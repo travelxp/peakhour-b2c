@@ -79,6 +79,13 @@ export default function SearchConsoleInsightsPage() {
     | string
     | undefined;
 
+  // "error" = last sync failed but tokens may still be valid → show
+  // the connected card so the user can read lastError and click
+  // "Sync now" to retry. "expired" = refresh token died → user must
+  // reconnect. "disconnected" / undefined = never connected.
+  const isWorking = status?.status === "active" || status?.status === "error";
+  const needsReconnect = status?.status === "expired";
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -95,21 +102,23 @@ export default function SearchConsoleInsightsPage() {
         </div>
       </div>
 
-      {status?.status !== "active" ? (
+      {!isWorking ? (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <AlertTriangle className="h-4 w-4" />
-              Not connected
+              {needsReconnect ? "Connection expired" : "Not connected"}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Connect Google Search Console to start syncing top queries into your content strategy and voice cards.
+              {needsReconnect
+                ? "Your Search Console refresh token expired. Reconnect to resume syncing top queries."
+                : "Connect Google Search Console to start syncing top queries into your content strategy and voice cards."}
             </p>
             <Button asChild>
               <Link href="/dashboard/integrations">
-                Go to integrations
+                {needsReconnect ? "Reconnect" : "Go to integrations"}
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>

@@ -82,6 +82,11 @@ export default function AnalyticsInsightsPage() {
   const selectedPropertyId = (capQ.data?.capabilities as Record<string, unknown> | undefined)
     ?.propertyId as string | undefined;
 
+  // See search-console/page.tsx for the rationale: "error" still shows
+  // the connected card so the user can retry; "expired" prompts reconnect.
+  const isWorking = status?.status === "active" || status?.status === "error";
+  const needsReconnect = status?.status === "expired";
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -98,21 +103,23 @@ export default function AnalyticsInsightsPage() {
         </div>
       </div>
 
-      {status?.status !== "active" ? (
+      {!isWorking ? (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <AlertTriangle className="h-4 w-4" />
-              Not connected
+              {needsReconnect ? "Connection expired" : "Not connected"}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Connect Google Analytics 4 to start syncing real conversion data into the autonomous engine. Universal Analytics is sunset and not supported — only GA4 properties (numeric ids) work.
+              {needsReconnect
+                ? "Your Analytics 4 refresh token expired. Reconnect to resume syncing funnel and page metrics."
+                : "Connect Google Analytics 4 to start syncing real conversion data into the autonomous engine. Universal Analytics is sunset and not supported — only GA4 properties (numeric ids) work."}
             </p>
             <Button asChild>
               <Link href="/dashboard/integrations">
-                Go to integrations
+                {needsReconnect ? "Reconnect" : "Go to integrations"}
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
