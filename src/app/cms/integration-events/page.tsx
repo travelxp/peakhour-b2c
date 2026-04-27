@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -113,12 +113,19 @@ function IntegrationEventsInner() {
   const [outcome, setOutcome] = useState(() => searchParams.get("outcome") || "all");
   const [trigger, setTrigger] = useState(() => searchParams.get("trigger") || "all");
   const [connectionId, setConnectionId] = useState(() => searchParams.get("connectionId") || "");
+  // Debounce connectionId so each keystroke doesn't fire a 400 INVALID_PARAMS
+  // — the API only accepts a complete 24-char ObjectId.
+  const [connectionIdQuery, setConnectionIdQuery] = useState(connectionId);
+  useEffect(() => {
+    const t = setTimeout(() => setConnectionIdQuery(connectionId), 300);
+    return () => clearTimeout(t);
+  }, [connectionId]);
   const [page, setPage] = useState(0);
   const [selected, setSelected] = useState<EventRow | null>(null);
   const limit = 50;
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["cms-integration-events", days, provider, eventType, outcome, trigger, connectionId, page],
+    queryKey: ["cms-integration-events", days, provider, eventType, outcome, trigger, connectionIdQuery, page],
     queryFn: () => {
       const params: Record<string, string> = {
         days,
@@ -129,7 +136,7 @@ function IntegrationEventsInner() {
       if (eventType !== "all") params.eventType = eventType;
       if (outcome !== "all") params.outcome = outcome;
       if (trigger !== "all") params.trigger = trigger;
-      if (connectionId) params.connectionId = connectionId;
+      if (connectionIdQuery) params.connectionId = connectionIdQuery;
       return api.get<EventsResponse>("/v1/cms/integration-events", params);
     },
   });
