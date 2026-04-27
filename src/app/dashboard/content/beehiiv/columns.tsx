@@ -71,7 +71,12 @@ function FormatSelectCell({ row }: { row: Draft }) {
   const current = row.tags?.contentFormat;
   const userPinned = !!row.tags?.userOverriddenFormat;
   const [optimistic, setOptimistic] = useState<ContentFormat | undefined>(undefined);
-  const value = optimistic ?? current ?? "newsletter";
+  // Resolve to the user's pending choice first, then the server value.
+  // Stays undefined for legacy rows so the placeholder ("—") makes it clear
+  // the format hasn't been classified yet — vs. the trigger silently lying
+  // by showing "Newsletter" for every unset row.
+  const value = optimistic ?? current;
+  const isUnset = !value;
 
   const mutation = useMutation({
     mutationFn: (next: ContentFormat) =>
@@ -79,10 +84,10 @@ function FormatSelectCell({ row }: { row: Draft }) {
     onMutate: (next) => {
       setOptimistic(next);
     },
-    onSuccess: () => {
+    onSettled: () => {
+      // Always clear optimistic state — refetched server value (or the
+      // pre-mutation value on error) becomes the source of truth again.
       queryClient.invalidateQueries({ queryKey: ["content-library-all"] });
-    },
-    onError: () => {
       setOptimistic(undefined);
     },
   });
@@ -101,8 +106,10 @@ function FormatSelectCell({ row }: { row: Draft }) {
             value={value}
             onValueChange={(v) => mutation.mutate(v as ContentFormat)}
           >
-            <SelectTrigger className="h-7 w-30 text-xs">
-              <SelectValue />
+            <SelectTrigger
+              className={`h-7 w-30 text-xs ${isUnset ? "text-muted-foreground italic" : ""}`}
+            >
+              <SelectValue placeholder="—" />
             </SelectTrigger>
             <SelectContent>
               {FORMAT_OPTIONS.map((f) => (
