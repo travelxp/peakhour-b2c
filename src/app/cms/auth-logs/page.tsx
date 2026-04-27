@@ -9,6 +9,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -58,6 +65,7 @@ export default function AuthLogsPage() {
   const [success, setSuccess] = useState("all");
   const [userId, setUserId] = useState("");
   const [page, setPage] = useState(0);
+  const [selected, setSelected] = useState<LogRow | null>(null);
   const limit = 50;
 
   const { data, isLoading, error } = useQuery({
@@ -168,7 +176,11 @@ export default function AuthLogsPage() {
                 </TableRow>
               ) : (
                 rows.map((row, i) => (
-                  <TableRow key={`${row.timestamp}-${i}`}>
+                  <TableRow
+                    key={`${row.timestamp}-${i}`}
+                    onClick={() => setSelected(row)}
+                    className="cursor-pointer hover:bg-muted/50"
+                  >
                     <TableCell className="text-xs whitespace-nowrap">{formatDateTime(row.timestamp)}</TableCell>
                     <TableCell className="font-mono text-xs">{row.event}</TableCell>
                     <TableCell>
@@ -199,6 +211,57 @@ export default function AuthLogsPage() {
           <Button variant="outline" disabled={page >= lastPage} onClick={() => setPage((p) => p + 1)}>Next</Button>
         </div>
       </div>
+
+      <Sheet open={!!selected} onOpenChange={(open) => !open && setSelected(null)}>
+        <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
+          {selected && (
+            <>
+              <SheetHeader>
+                <SheetTitle className="font-mono">{selected.event}</SheetTitle>
+                <SheetDescription>{formatDateTime(selected.timestamp)}</SheetDescription>
+              </SheetHeader>
+              <div className="mt-6 space-y-3 text-sm">
+                <div className="flex items-center gap-2">
+                  {selected.success ? (
+                    <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">success</Badge>
+                  ) : (
+                    <Badge className="bg-red-100 text-red-800 hover:bg-red-100">failure</Badge>
+                  )}
+                  {selected.channel && <Badge variant="outline">{selected.channel}</Badge>}
+                  {selected.platform && <Badge variant="outline">{selected.platform}</Badge>}
+                </div>
+                <KV k="User ID" v={selected.userId || "—"} mono />
+                <KV k="Request ID" v={selected.requestId || "—"} mono />
+                {selected.reason && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Reason</p>
+                    <pre className="text-xs whitespace-pre-wrap rounded bg-red-50 text-red-900 p-3">{selected.reason}</pre>
+                  </div>
+                )}
+                <div>
+                  <p className="text-xs text-muted-foreground mb-2">Origin</p>
+                  <div className="rounded border bg-muted/30 p-3 space-y-1.5 text-xs">
+                    <KV k="IP" v={selected.metadata?.ip || "—"} />
+                    <KV k="City" v={selected.metadata?.city || "—"} />
+                    <KV k="State" v={selected.metadata?.state || "—"} />
+                    <KV k="Country" v={selected.metadata?.country || "—"} />
+                    <KV k="User agent" v={selected.metadata?.userAgent || "—"} />
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
+    </div>
+  );
+}
+
+function KV({ k, v, mono = false }: { k: string; v: string; mono?: boolean }) {
+  return (
+    <div className="flex justify-between gap-4">
+      <span className="text-muted-foreground">{k}</span>
+      <span className={mono ? "font-mono text-xs break-all" : "text-xs break-all"}>{v}</span>
     </div>
   );
 }

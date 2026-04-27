@@ -70,12 +70,13 @@ export default function ApiLogsPage() {
   const [method, setMethod] = useState("all");
   const [path, setPath] = useState("");
   const [errorsOnly, setErrorsOnly] = useState(false);
+  const [statusCode, setStatusCode] = useState("");
   const [page, setPage] = useState(0);
   const [selected, setSelected] = useState<LogRow | null>(null);
   const limit = 50;
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["cms-api-logs", days, method, path, errorsOnly, page],
+    queryKey: ["cms-api-logs", days, method, path, errorsOnly, statusCode, page],
     queryFn: () => {
       const params: Record<string, string> = {
         days,
@@ -85,6 +86,8 @@ export default function ApiLogsPage() {
       if (method !== "all") params.method = method;
       if (path) params.path = path;
       if (errorsOnly) params.errorsOnly = "true";
+      const trimmedStatus = statusCode.trim();
+      if (/^\d{3}$/.test(trimmedStatus)) params.statusCode = trimmedStatus;
       return api.get<LogsResponse>("/v1/cms/api-logs", params);
     },
   });
@@ -109,7 +112,7 @@ export default function ApiLogsPage() {
       )}
 
       <Card>
-        <CardContent className="pt-6 grid grid-cols-1 md:grid-cols-5 gap-3">
+        <CardContent className="pt-6 grid grid-cols-1 md:grid-cols-6 gap-3">
           <TimeRangeSelector
             value={days}
             onChange={(v) => { setDays(v); setPage(0); }}
@@ -135,6 +138,13 @@ export default function ApiLogsPage() {
             placeholder="Path contains…"
             value={path}
             onChange={(e) => { setPath(e.target.value); setPage(0); }}
+          />
+          <Input
+            placeholder="Status (e.g. 500)"
+            inputMode="numeric"
+            maxLength={3}
+            value={statusCode}
+            onChange={(e) => { setStatusCode(e.target.value); setPage(0); }}
           />
           <Button
             variant={errorsOnly ? "default" : "outline"}
@@ -224,6 +234,18 @@ export default function ApiLogsPage() {
                     <pre className="text-xs whitespace-pre-wrap rounded bg-red-50 text-red-900 p-3">{selected.error}</pre>
                   </div>
                 )}
+                {selected.request && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Request body</p>
+                    <pre className="text-xs whitespace-pre-wrap rounded bg-muted p-3 max-h-96 overflow-auto">{prettyOrRaw(selected.request)}</pre>
+                  </div>
+                )}
+                {selected.response && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Response body</p>
+                    <pre className="text-xs whitespace-pre-wrap rounded bg-muted p-3 max-h-96 overflow-auto">{prettyOrRaw(selected.response)}</pre>
+                  </div>
+                )}
               </div>
             </>
           )}
@@ -237,7 +259,15 @@ function KV({ k, v, mono = false }: { k: string; v: string; mono?: boolean }) {
   return (
     <div className="flex justify-between gap-4">
       <span className="text-muted-foreground">{k}</span>
-      <span className={mono ? "font-mono text-xs" : ""}>{v}</span>
+      <span className={mono ? "font-mono text-xs break-all" : ""}>{v}</span>
     </div>
   );
+}
+
+function prettyOrRaw(s: string): string {
+  try {
+    return JSON.stringify(JSON.parse(s), null, 2);
+  } catch {
+    return s;
+  }
 }
