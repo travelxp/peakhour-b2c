@@ -47,6 +47,7 @@ import {
   Wand2,
   Network,
   ShieldCheck,
+  Plug,
   type LucideIcon,
 } from "lucide-react";
 
@@ -93,6 +94,7 @@ const CMS_NAV_GROUPS: NavGroup[] = [
       { href: "/cms/logs", label: "Application Logs", icon: ScrollText },
       { href: "/cms/api-logs", label: "API Logs", icon: Network },
       { href: "/cms/auth-logs", label: "Auth Logs", icon: ShieldCheck },
+      { href: "/cms/integration-events", label: "Integration Events", icon: Plug },
     ],
   },
 ];
