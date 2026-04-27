@@ -104,15 +104,18 @@ function ConnectedView() {
   });
 
   // Auto-select first account if none chosen and there's at least one.
+  // Depend on the id (a primitive) rather than accounts.data (a fresh array
+  // reference on every refetch) so the effect doesn't refire on every refetch.
+  const firstAccountId = accounts.data?.[0]?.id;
   useEffect(() => {
-    if (!queryAccountId && (accounts.data?.length ?? 0) > 0) {
+    if (!queryAccountId && firstAccountId) {
       const url = new URL(window.location.href);
-      url.searchParams.set(ACCOUNT_PARAM, accounts.data![0].id);
+      url.searchParams.set(ACCOUNT_PARAM, firstAccountId);
       router.replace(url.pathname + url.search);
     }
-  }, [queryAccountId, accounts.data, router]);
+  }, [queryAccountId, firstAccountId, router]);
 
-  const accountId = queryAccountId ?? accounts.data?.[0]?.id ?? null;
+  const accountId = queryAccountId ?? firstAccountId ?? null;
 
   function changeAccount(next: string) {
     const url = new URL(window.location.href);

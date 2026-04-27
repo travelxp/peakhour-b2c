@@ -81,7 +81,7 @@ export default function XContentDashboardPage() {
       <PageShell>
         <EmptyState
           icon={MessageCircle}
-          title="Connect X (MessageCircle) to get started"
+          title="Connect X (Twitter) to get started"
           description="Once connected, you can publish tweets, track engagement, and manage your mentions inbox from here."
           action={{ label: "Connect X", href: "/dashboard/integrations" }}
         />
@@ -189,7 +189,7 @@ function PageShell({ children, loading }: { children?: React.ReactNode; loading?
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold tracking-tight">X (MessageCircle)</h2>
+        <h2 className="text-2xl font-bold tracking-tight">X (Twitter)</h2>
         <p className="text-muted-foreground">
           Publish tweets, track engagement, and manage your mentions inbox.
         </p>
