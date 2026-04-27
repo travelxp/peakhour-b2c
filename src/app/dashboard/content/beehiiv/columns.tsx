@@ -103,7 +103,10 @@ function FormatSelectCell({ row }: { row: Draft }) {
       <TooltipTrigger asChild>
         <div onClick={(e) => e.stopPropagation()}>
           <Select
-            value={value}
+            // Pass "" rather than undefined to keep Radix in controlled mode
+            // even when the row has no contentFormat yet — avoids the
+            // uncontrolled→controlled dev warning when the user picks a value.
+            value={value ?? ""}
             onValueChange={(v) => mutation.mutate(v as ContentFormat)}
           >
             <SelectTrigger
