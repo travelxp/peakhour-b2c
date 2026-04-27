@@ -1,6 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { api } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { DataTableColumnHeader } from "@/components/molecules/data-table";
 import {
@@ -15,6 +18,22 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+const FORMAT_LABELS: Record<string, string> = {
+  article: "Article",
+  newsletter: "Newsletter",
+  advertorial: "Advertorial",
+  pr: "PR",
+};
+const FORMAT_OPTIONS = ["newsletter", "article", "advertorial", "pr"] as const;
+type ContentFormat = (typeof FORMAT_OPTIONS)[number];
 
 export interface Draft {
   _id: string;
@@ -27,16 +46,111 @@ export interface Draft {
   thumbnailUrl?: string;
   readingTimeMin?: number;
   tags: {
-    sectors: { name: string; weight: number }[];
+    sectors: { name: string; weight: number; rationale?: string }[];
     companies: { name: string; role: string; sentiment?: string }[];
+    contentFormat?: ContentFormat;
+    userOverriddenFormat?: boolean;
     contentType: string;
+    contentTypeRationale?: string;
     sentiment: string;
+    sentimentRationale?: string;
     shelfLife: string;
+    shelfLifeRationale?: string;
+    urgency?: number;
+    urgencyRationale?: string;
     adPotentialScore: number;
     adPotentialAngle?: string;
     topKeywords: string[];
     audienceRelevance: { segment: string; relevance: number }[];
   } | null;
+}
+
+/** Inline format Select — primary classification axis, user-controlled. */
+function FormatSelectCell({ row }: { row: Draft }) {
+  const queryClient = useQueryClient();
+  const current = row.tags?.contentFormat;
+  const userPinned = !!row.tags?.userOverriddenFormat;
+  const [optimistic, setOptimistic] = useState<ContentFormat | undefined>(undefined);
+  // Resolve to the user's pending choice first, then the server value.
+  // Stays undefined for legacy rows so the placeholder ("—") makes it clear
+  // the format hasn't been classified yet — vs. the trigger silently lying
+  // by showing "Newsletter" for every unset row.
+  const value = optimistic ?? current;
+  const isUnset = !value;
+
+  const mutation = useMutation({
+    mutationFn: (next: ContentFormat) =>
+      api.patch(`/v1/content/library/${row._id}/format`, { contentFormat: next }),
+    onMutate: (next) => {
+      setOptimistic(next);
+    },
+    onSettled: () => {
+      // Always clear optimistic state — refetched server value (or the
+      // pre-mutation value on error) becomes the source of truth again.
+      queryClient.invalidateQueries({ queryKey: ["content-library-all"] });
+      setOptimistic(undefined);
+    },
+  });
+
+  const tooltipText = userPinned
+    ? "User-set format. AI re-tags will preserve this pick."
+    : current
+      ? "AI-defaulted format. Click to override."
+      : "No format set yet. Click to assign.";
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div onClick={(e) => e.stopPropagation()}>
+          <Select
+            // Pass "" rather than undefined to keep Radix in controlled mode
+            // even when the row has no contentFormat yet — avoids the
+            // uncontrolled→controlled dev warning when the user picks a value.
+            value={value ?? ""}
+            onValueChange={(v) => mutation.mutate(v as ContentFormat)}
+          >
+            <SelectTrigger
+              className={`h-7 w-30 text-xs ${isUnset ? "text-muted-foreground italic" : ""}`}
+            >
+              <SelectValue placeholder="—" />
+            </SelectTrigger>
+            <SelectContent>
+              {FORMAT_OPTIONS.map((f) => (
+                <SelectItem key={f} value={f} className="text-xs">
+                  {FORMAT_LABELS[f]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-xs">
+        <p>{tooltipText}</p>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+/** Wraps a child in a Tooltip that shows the AI's rationale, or a hint when missing. */
+function RationaleTooltip({
+  children,
+  rationale,
+  fallback = "No reasoning recorded — re-run analyse to capture.",
+}: {
+  children: React.ReactNode;
+  rationale?: string;
+  fallback?: string;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span>{children}</span>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-sm whitespace-pre-wrap text-xs">
+        <p>{rationale || fallback}</p>
+      </TooltipContent>
+    </Tooltip>
+  );
 }
 
 export function getContentColumns(prefs: UserPreferences | null): ColumnDef<Draft, unknown>[] {
@@ -59,19 +173,37 @@ export function getContentColumns(prefs: UserPreferences | null): ColumnDef<Draf
     enableHiding: false,
   },
   {
+    id: "contentFormat",
+    accessorFn: (row) => row.tags?.contentFormat ?? "",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Format" />
+    ),
+    cell: ({ row }) => <FormatSelectCell row={row.original} />,
+    filterFn: (row, id, value) => {
+      if (!Array.isArray(value) || value.length === 0) return true;
+      const rowValue = String(row.getValue(id)).toLowerCase();
+      return value.some((v: string) => v.toLowerCase() === rowValue);
+    },
+    enableSorting: false,
+  },
+  {
     id: "contentType",
     accessorFn: (row) => row.tags?.contentType ?? "",
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Type" />
+      <DataTableColumnHeader column={column} title="Subtype" />
     ),
     cell: ({ row }) => {
       const ct = row.original.tags?.contentType;
-      return ct ? (
-        <Badge variant="outline" className="text-xs">
-          {label(undefined, ct)}
-        </Badge>
-      ) : (
-        <span className="text-muted-foreground">—</span>
+      if (!ct) return <span className="text-muted-foreground">—</span>;
+      return (
+        <RationaleTooltip rationale={row.original.tags?.contentTypeRationale}>
+          <Badge
+            variant="outline"
+            className={`text-xs ${ct === "unclassified" ? "text-muted-foreground italic" : ""}`}
+          >
+            {label(undefined, ct)}
+          </Badge>
+        </RationaleTooltip>
       );
     },
     filterFn: (row, id, value) => {
@@ -91,9 +223,11 @@ export function getContentColumns(prefs: UserPreferences | null): ColumnDef<Draf
       return (
         <div className="flex flex-wrap gap-1">
           {sectors.slice(0, 2).map((s) => (
-            <Badge key={s.name} variant="secondary" className="text-xs">
-              {label(undefined, s.name)}
-            </Badge>
+            <RationaleTooltip key={s.name} rationale={s.rationale}>
+              <Badge variant="secondary" className="text-xs">
+                {label(undefined, s.name)}
+              </Badge>
+            </RationaleTooltip>
           ))}
         </div>
       );
@@ -110,16 +244,17 @@ export function getContentColumns(prefs: UserPreferences | null): ColumnDef<Draf
       const value = row.original.tags?.sentiment;
       if (!value) return null;
       const config = SENTIMENT_CONFIG[value];
-      if (!config)
-        return (
-          <Badge variant="outline" className="text-xs">
-            {value}
-          </Badge>
-        );
-      return (
+      const badge = config ? (
         <Badge className={`text-xs ${config.bg} ${config.color} border-0`}>
           {config.label}
         </Badge>
+      ) : (
+        <Badge variant="outline" className="text-xs">{value}</Badge>
+      );
+      return (
+        <RationaleTooltip rationale={row.original.tags?.sentimentRationale}>
+          {badge}
+        </RationaleTooltip>
       );
     },
     filterFn: (row, id, value) => {
@@ -171,11 +306,14 @@ export function getContentColumns(prefs: UserPreferences | null): ColumnDef<Draf
     id: "shelfLife",
     accessorFn: (row) => row.tags?.shelfLife ?? "",
     header: "Shelf Life",
-    cell: ({ row }) => (
-      <span className="text-xs text-muted-foreground">
-        {label(SHELF_LIFE_LABELS, row.original.tags?.shelfLife)}
-      </span>
-    ),
+    cell: ({ row }) => {
+      const text = label(SHELF_LIFE_LABELS, row.original.tags?.shelfLife);
+      return (
+        <RationaleTooltip rationale={row.original.tags?.shelfLifeRationale}>
+          <span className="text-xs text-muted-foreground">{text}</span>
+        </RationaleTooltip>
+      );
+    },
     filterFn: (row, id, value) => {
       if (!Array.isArray(value) || value.length === 0) return true;
       const rowValue = String(row.getValue(id)).toLowerCase();

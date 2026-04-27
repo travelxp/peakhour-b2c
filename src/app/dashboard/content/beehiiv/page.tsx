@@ -148,6 +148,15 @@ export default function ContentPage() {
     () => Object.entries(SENTIMENT_CONFIG).map(([k, v]) => ({ value: k, label: v.label })),
     [],
   );
+  const contentFormatFilterOptions: FacetedFilterOption[] = useMemo(
+    () => [
+      { value: "newsletter", label: "Newsletter" },
+      { value: "article", label: "Article" },
+      { value: "advertorial", label: "Advertorial" },
+      { value: "pr", label: "PR" },
+    ],
+    [],
+  );
   const contentTypeFilterOptions: FacetedFilterOption[] = useMemo(
     () => taxonomyContentTypes.map((t) => ({ value: t, label: label(undefined, t) })),
     [taxonomyContentTypes],
@@ -411,8 +420,14 @@ export default function ContentPage() {
                 className="h-8 w-full lg:w-64"
               />
               <FacetedFilter
+                column={table.getColumn("contentFormat")}
+                title="Format"
+                options={contentFormatFilterOptions}
+                align="start"
+              />
+              <FacetedFilter
                 column={table.getColumn("contentType")}
-                title="Type"
+                title="Subtype"
                 options={contentTypeFilterOptions}
                 align="start"
               />
