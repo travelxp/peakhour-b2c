@@ -113,10 +113,11 @@ export const CHANNELS: readonly ChannelConfig[] = [
   {
     slug: "x",
     name: "X (Twitter)",
-    description: "Schedule threads and posts; track impressions.",
+    description: "Publish tweets, track impressions, manage your mentions inbox.",
     category: "Social",
     providerKey: "x",
-    status: "available",
+    status: "live",
+    dashboardPath: "/dashboard/content/x",
     logoUrl: `${SHADCN_LOGOS}/x-icon.svg`,
     logoInvertOnDark: true,
   },
@@ -205,10 +206,13 @@ export const CHANNELS: readonly ChannelConfig[] = [
   {
     slug: "x-ads",
     name: "X Ads",
-    description: "Promote threads and posts on X.",
+    description: "Launch and manage promoted-tweet campaigns on X.",
     category: "Ads",
     providerKey: "x_ads",
-    status: "coming_soon",
+    status: "live",
+    dashboardPath: "/dashboard/content/x-ads",
+    logoUrl: `${SHADCN_LOGOS}/x-icon.svg`,
+    logoInvertOnDark: true,
   },
 
   // ── Messaging ───────────────────────────────────────────────
