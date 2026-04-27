@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
@@ -242,6 +243,14 @@ export default function AiLogsPage() {
                 {selected.errorMessage && (
                   <Field label="Error">
                     <pre className="text-xs whitespace-pre-wrap rounded bg-red-50 text-red-900 p-3">{selected.errorMessage}</pre>
+                    {selected.requestId && (
+                      <Link
+                        href={`/cms/logs?requestId=${encodeURIComponent(selected.requestId)}`}
+                        className="text-xs text-blue-600 hover:underline mt-2 inline-block"
+                      >
+                        View full stack + cause in /cms/logs →
+                      </Link>
+                    )}
                   </Field>
                 )}
                 {selected.contentRedacted && (

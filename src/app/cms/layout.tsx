@@ -90,6 +90,7 @@ const CMS_NAV_GROUPS: NavGroup[] = [
   {
     label: "Observability",
     items: [
+      { href: "/cms/logs", label: "Application Logs", icon: ScrollText },
       { href: "/cms/api-logs", label: "API Logs", icon: Network },
       { href: "/cms/auth-logs", label: "Auth Logs", icon: ShieldCheck },
     ],
