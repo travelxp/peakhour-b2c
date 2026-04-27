@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
@@ -78,11 +79,22 @@ function tryPrettyJson(s?: string): string | undefined {
 }
 
 export default function LogsPage() {
-  const [days, setDays] = useState("7");
-  const [severity, setSeverity] = useState("all");
-  const [component, setComponent] = useState("all");
-  const [q, setQ] = useState("");
-  const [requestId, setRequestId] = useState("");
+  return (
+    <Suspense fallback={null}>
+      <LogsPageInner />
+    </Suspense>
+  );
+}
+
+function LogsPageInner() {
+  // Seed filters from the URL so deep-links from /cms/ai-logs (which carry
+  // a requestId) filter correctly on first render.
+  const searchParams = useSearchParams();
+  const [days, setDays] = useState(() => searchParams.get("days") || "7");
+  const [severity, setSeverity] = useState(() => searchParams.get("severity") || "all");
+  const [component, setComponent] = useState(() => searchParams.get("component") || "all");
+  const [q, setQ] = useState(() => searchParams.get("q") || "");
+  const [requestId, setRequestId] = useState(() => searchParams.get("requestId") || "");
   const [page, setPage] = useState(0);
   const [selected, setSelected] = useState<LogRow | null>(null);
   const limit = 50;
@@ -148,7 +160,8 @@ export default function LogsPage() {
               <SelectItem value="all">All severities</SelectItem>
               <SelectItem value="error">Error</SelectItem>
               <SelectItem value="warn">Warn</SelectItem>
-              <SelectItem value="info">Info</SelectItem>
+              {/* "info" is supported by the API and schema, but no logInfo() callsite
+                  emits at that level today — re-add when we start using it. */}
             </SelectContent>
           </Select>
           <Select value={component} onValueChange={(v) => { setComponent(v); setPage(0); }}>
