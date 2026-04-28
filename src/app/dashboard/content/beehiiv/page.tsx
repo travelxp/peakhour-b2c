@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useSyncProvider } from "@/hooks/use-sync-provider";
-import { useEnqueueJob } from "@/hooks/use-jobs";
+import { useEnqueueJob, useJobs } from "@/hooks/use-jobs";
 import { useAuth } from "@/providers/auth-provider";
 import {
   SENTIMENT_CONFIG,
@@ -99,6 +99,9 @@ export default function ContentPage() {
   const [view, setView] = useState<"card" | "table">("table");
 
   const enqueueJob = useEnqueueJob();
+  // useJobs("active") is already mounted at the dashboard layout level
+  // for the nav badge; React Query dedupes, so this is a free read.
+  const { data: activeJobs } = useJobs("active");
 
   const { sync: syncBeehiiv, syncing } = useSyncProvider("beehiiv", {
     onEnqueue: () => {
@@ -181,6 +184,23 @@ export default function ContentPage() {
   // resolved — prevents the "Pick a business first" toast from firing
   // on a hydration race when stats arrive before AuthProvider does.
   const businessReady = !!business?._id;
+  // Backend already dedupes via partial unique index — second click
+  // returns the same jobId, no double-spend. But the user gets no
+  // feedback after enqueueJob.isPending flips back, so they keep
+  // clicking. Gate on whether a content_analyse job is already active.
+  // Server filters /v1/jobs by orgId+businessId from JWT, so this is
+  // safely scoped per-business. The Job's id is also used to deep-link
+  // to /dashboard/tasks for progress.
+  const pendingAnalyseJob = useMemo(
+    () =>
+      activeJobs?.rows?.find(
+        (j) =>
+          j.kind === "content_analyse" &&
+          (j.status === "pending" || j.status === "running"),
+      ),
+    [activeJobs?.rows],
+  );
+  const hasPendingAnalyse = !!pendingAnalyseJob;
 
   /**
    * Enqueue a content_analyse job and redirect to /dashboard/tasks
@@ -254,16 +274,40 @@ export default function ContentPage() {
             </Button>
             {hasUntagged && (
               <Button
-                onClick={() => startAnalysis(false)}
+                onClick={() => {
+                  // `analysing` (mutation in-flight) takes precedence
+                  // over `pendingAnalyseJob`: the active-jobs poll runs
+                  // every 10s, so for up to 10s after a job finishes
+                  // the rows still contain it. Short-circuiting on the
+                  // stale row would deep-link to a finished job
+                  // instead of starting the new one the user intends.
+                  if (!analysing && pendingAnalyseJob) {
+                    router.push(
+                      `/dashboard/tasks?jobId=${pendingAnalyseJob._id}`,
+                    );
+                    return;
+                  }
+                  startAnalysis(false);
+                }}
                 disabled={analysing || !businessReady}
+                variant={
+                  hasPendingAnalyse && !analysing ? "secondary" : "default"
+                }
               >
-                {analysing ? "Queuing…" : `Analyse ${stats.total - stats.tagged} untagged`}
+                {analysing
+                  ? "Queuing…"
+                  : hasPendingAnalyse
+                    ? "Analysis in progress — view"
+                    : `Analyse ${stats.total - stats.tagged} untagged`}
               </Button>
             )}
             {stats && stats.tagged > 0 && (
               <ConfirmDialog
                 trigger={
-                  <Button variant="outline" disabled={analysing || !businessReady}>
+                  <Button
+                    variant="outline"
+                    disabled={analysing || !businessReady || hasPendingAnalyse}
+                  >
                     Re-analyse all
                   </Button>
                 }
@@ -271,7 +315,20 @@ export default function ContentPage() {
                 description="This will queue a background job that wipes existing tags and re-analyses every newsletter. You can track it on the Tasks page."
                 confirmLabel="Re-analyse"
                 variant="destructive"
-                onConfirm={() => startAnalysis(true)}
+                onConfirm={() => {
+                  // Race guard: the trigger was disabled when this
+                  // dialog opened, but the active-jobs poll can land
+                  // a fresh content_analyse between trigger-click and
+                  // confirm-click. If so, deep-link to it instead of
+                  // re-enqueuing (backend would dedupe anyway).
+                  if (pendingAnalyseJob) {
+                    router.push(
+                      `/dashboard/tasks?jobId=${pendingAnalyseJob._id}`,
+                    );
+                    return;
+                  }
+                  startAnalysis(true);
+                }}
               />
             )}
           </div>

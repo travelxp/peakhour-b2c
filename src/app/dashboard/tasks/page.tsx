@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
@@ -60,7 +60,12 @@ export default function TasksPage() {
         ) : (
           <div className="space-y-3">
             {active.rows.map((job) => (
-              <JobCard key={job._id} job={job} expanded={focusJobId === job._id} />
+              <JobCard
+                key={job._id}
+                job={job}
+                expanded={focusJobId === job._id}
+                focused={focusJobId === job._id}
+              />
             ))}
           </div>
         )}
@@ -76,7 +81,12 @@ export default function TasksPage() {
         ) : (
           <div className="space-y-3">
             {recent.rows.map((job) => (
-              <JobCard key={job._id} job={job} />
+              <JobCard
+                key={job._id}
+                job={job}
+                expanded={focusJobId === job._id}
+                focused={focusJobId === job._id}
+              />
             ))}
           </div>
         )}
@@ -87,10 +97,31 @@ export default function TasksPage() {
 
 // ── Subcomponents ────────────────────────────────────────────────
 
-function JobCard({ job, expanded: initialExpanded = false }: { job: Job; expanded?: boolean }) {
+function JobCard({
+  job,
+  expanded: initialExpanded = false,
+  focused = false,
+}: {
+  job: Job;
+  expanded?: boolean;
+  focused?: boolean;
+}) {
   const [expanded, setExpanded] = useState(initialExpanded);
   const isActive = job.status === "running" || job.status === "pending";
   const cancelMutation = useCancelJob();
+  // When a deep-link lands here with ?jobId=<id>, scroll the matched
+  // card into view and apply a brief ring so the user can spot which
+  // job they were sent to. Only fires once on mount; subsequent
+  // re-renders (poll updates etc.) don't re-trigger.
+  const cardRef = useRef<HTMLDivElement>(null);
+  const [highlighted, setHighlighted] = useState(focused);
+  useEffect(() => {
+    if (!focused) return;
+    cardRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    const timer = setTimeout(() => setHighlighted(false), 2500);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount
+  }, []);
 
   const totalUnits = job.progress?.totalUnits ?? 0;
   const processedUnits = job.progress?.processedUnits ?? 0;
@@ -104,7 +135,14 @@ function JobCard({ job, expanded: initialExpanded = false }: { job: Job; expande
   };
 
   return (
-    <Card>
+    <Card
+      ref={cardRef}
+      className={
+        highlighted
+          ? "ring-2 ring-primary transition-shadow duration-300"
+          : "transition-shadow duration-300"
+      }
+    >
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
