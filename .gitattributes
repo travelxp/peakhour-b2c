@@ -1,0 +1,36 @@
+# Pin line endings to LF for all text files so a Windows checkout doesn't
+# show every JSON/TS file as "modified" against an LF-on-disk index. Without
+# this file, Git's autocrlf=true (the Windows default) tries to convert LF to
+# CRLF on next operation, polluting `git status` even when no real edits
+# happened.
+
+# Default: treat all text as auto-detected with LF endings
+* text=auto eol=lf
+
+# Explicit overrides for the file types we generate / hand-edit
+*.json   text eol=lf
+*.ts     text eol=lf
+*.tsx    text eol=lf
+*.js     text eol=lf
+*.cjs    text eol=lf
+*.mjs    text eol=lf
+*.md     text eol=lf
+*.yml    text eol=lf
+*.yaml   text eol=lf
+*.sh     text eol=lf
+*.css    text eol=lf
+*.html   text eol=lf
+
+# Binary types — don't touch
+*.png    binary
+*.jpg    binary
+*.jpeg   binary
+*.gif    binary
+*.ico    binary
+*.pdf    binary
+*.zip    binary
+*.woff   binary
+*.woff2  binary
+*.ttf    binary
+*.otf    binary
+*.eot    binary
