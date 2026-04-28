@@ -48,6 +48,7 @@ import {
   Network,
   ShieldCheck,
   Plug,
+  Workflow,
   type LucideIcon,
 } from "lucide-react";
 
@@ -73,6 +74,7 @@ const CMS_NAV_GROUPS: NavGroup[] = [
     label: "Operations",
     items: [
       { href: "/cms/feedback", label: "Feedback Tickets", icon: TicketCheck },
+      { href: "/cms/jobs", label: "Background Jobs", icon: Workflow },
       { href: "/cms/skills", label: "Skills", icon: Zap },
       { href: "/cms/team", label: "CMS Team", icon: Users },
     ],
