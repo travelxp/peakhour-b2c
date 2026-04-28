@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useSyncProvider } from "@/hooks/use-sync-provider";
-import { useEnqueueJob } from "@/hooks/use-jobs";
+import { useEnqueueJob, useJobs } from "@/hooks/use-jobs";
 import { useAuth } from "@/providers/auth-provider";
 import {
   SENTIMENT_CONFIG,
@@ -99,6 +99,9 @@ export default function ContentPage() {
   const [view, setView] = useState<"card" | "table">("table");
 
   const enqueueJob = useEnqueueJob();
+  // useJobs("active") is already mounted at the dashboard layout level
+  // for the nav badge; React Query dedupes, so this is a free read.
+  const { data: activeJobs } = useJobs("active");
 
   const { sync: syncBeehiiv, syncing } = useSyncProvider("beehiiv", {
     onEnqueue: () => {
@@ -181,6 +184,22 @@ export default function ContentPage() {
   // resolved — prevents the "Pick a business first" toast from firing
   // on a hydration race when stats arrive before AuthProvider does.
   const businessReady = !!business?._id;
+  // Backend already dedupes via partial unique index — second click
+  // returns the same jobId, no double-spend. But the user gets no
+  // feedback after enqueueJob.isPending flips back, so they keep
+  // clicking. Gate on whether a content_analyse job is already active
+  // (cookie-scoped, so this is implicitly per-business). The Job's
+  // jobId is also used to deep-link to /dashboard/tasks for progress.
+  const pendingAnalyseJob = useMemo(
+    () =>
+      activeJobs?.rows?.find(
+        (j) =>
+          j.kind === "content_analyse" &&
+          (j.status === "pending" || j.status === "running"),
+      ),
+    [activeJobs?.rows],
+  );
+  const hasPendingAnalyse = !!pendingAnalyseJob;
 
   /**
    * Enqueue a content_analyse job and redirect to /dashboard/tasks
@@ -254,16 +273,32 @@ export default function ContentPage() {
             </Button>
             {hasUntagged && (
               <Button
-                onClick={() => startAnalysis(false)}
+                onClick={() => {
+                  if (pendingAnalyseJob) {
+                    router.push(
+                      `/dashboard/tasks?jobId=${pendingAnalyseJob._id}`,
+                    );
+                    return;
+                  }
+                  startAnalysis(false);
+                }}
                 disabled={analysing || !businessReady}
+                variant={hasPendingAnalyse ? "outline" : "default"}
               >
-                {analysing ? "Queuing…" : `Analyse ${stats.total - stats.tagged} untagged`}
+                {hasPendingAnalyse
+                  ? "Analysis in progress — view"
+                  : analysing
+                    ? "Queuing…"
+                    : `Analyse ${stats.total - stats.tagged} untagged`}
               </Button>
             )}
             {stats && stats.tagged > 0 && (
               <ConfirmDialog
                 trigger={
-                  <Button variant="outline" disabled={analysing || !businessReady}>
+                  <Button
+                    variant="outline"
+                    disabled={analysing || !businessReady || hasPendingAnalyse}
+                  >
                     Re-analyse all
                   </Button>
                 }
