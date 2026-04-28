@@ -177,6 +177,10 @@ export default function ContentPage() {
   const hasActiveFilters = table.getState().columnFilters.length > 0 || !!globalFilter;
   const hasUntagged = stats && stats.tagged < stats.total;
   const analysing = enqueueJob.isPending;
+  // Disable business-scoped actions until the active business has
+  // resolved — prevents the "Pick a business first" toast from firing
+  // on a hydration race when stats arrive before AuthProvider does.
+  const businessReady = !!business?._id;
 
   /**
    * Enqueue a content_analyse job and redirect to /dashboard/tasks
@@ -242,21 +246,26 @@ export default function ContentPage() {
             <Button
               variant="outline"
               onClick={() => syncBeehiiv()}
-              disabled={syncing}
+              disabled={syncing || !businessReady}
               aria-busy={syncing}
-              className="min-w-[140px]"
+              className="min-w-35"
             >
               {syncing ? "Syncing Beehiiv…" : "Sync Beehiiv"}
             </Button>
             {hasUntagged && (
-              <Button onClick={() => startAnalysis(false)} disabled={analysing}>
+              <Button
+                onClick={() => startAnalysis(false)}
+                disabled={analysing || !businessReady}
+              >
                 {analysing ? "Queuing…" : `Analyse ${stats.total - stats.tagged} untagged`}
               </Button>
             )}
             {stats && stats.tagged > 0 && (
               <ConfirmDialog
                 trigger={
-                  <Button variant="outline" disabled={analysing}>Re-analyse all</Button>
+                  <Button variant="outline" disabled={analysing || !businessReady}>
+                    Re-analyse all
+                  </Button>
                 }
                 title="Re-analyse all content"
                 description="This will queue a background job that wipes existing tags and re-analyses every newsletter. You can track it on the Tasks page."

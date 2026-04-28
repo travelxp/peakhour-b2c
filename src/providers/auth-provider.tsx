@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
 } from "react";
 import { useRouter } from "next/navigation";
@@ -84,6 +85,60 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     refreshUser();
   }, [refreshUser]);
 
+  // Auto-resolve a single-business org. If the JWT cookie has no
+  // businessId (or a stale one) but the user has exactly one business
+  // in the active org, pin it server-side so business-scoped actions
+  // (Analyse, Sync, etc.) don't dead-end on "Pick a business first."
+  // Multi-business orgs are left to the user — the BusinessSwitcher
+  // dropdown handles that case.
+  //
+  // Mirrors switchBusiness's cache management: cancel in-flight queries
+  // that fired against the previous (no-business) scope, clear cached
+  // empty results so the next render refetches with the new scope.
+  //
+  // Race-with-manual-pick is not a concern here: single-business orgs
+  // (the only case this effect fires for) render the BusinessSwitcher
+  // as a read-only name display — there's no dropdown to click — so
+  // the user cannot race the auto-resolve.
+  //
+  // Latch policy: latched true on attempt; we do NOT reset on catch.
+  // A deterministic 4xx (e.g. business soft-deleted between getMe and
+  // switch) would otherwise re-fire on every render and storm the
+  // server. switchOrg resets the latch so a freshly-switched org
+  // gets a clean attempt; a logout/login cycle remounts the provider,
+  // resetting the ref naturally.
+  const autoResolveAttempted = useRef(false);
+  useEffect(() => {
+    if (autoResolveAttempted.current) return;
+    if (state.isLoading || !state.isAuthenticated) return;
+    if (state.business) return;
+    if (state.businesses.length !== 1) return;
+    autoResolveAttempted.current = true;
+    let cancelled = false;
+    (async () => {
+      try {
+        await queryClient.cancelQueries();
+        if (cancelled) return;
+        await apiSwitchBusiness(state.businesses[0]._id);
+        if (cancelled) return;
+        queryClient.clear();
+        await refreshUser();
+      } catch {
+        // Latched — see comment block above. Re-mount to retry.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    state.isLoading,
+    state.isAuthenticated,
+    state.business,
+    state.businesses,
+    refreshUser,
+    queryClient,
+  ]);
+
   const logout = useCallback(async () => {
     try {
       await apiLogout();
@@ -91,6 +146,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Best-effort — clear local state regardless
     }
     queryClient.clear();
+    // Reset the auto-resolve latch so the next login (which may share
+    // this provider instance if the layout doesn't unmount) gets a
+    // clean attempt. router.push("/auth") doesn't guarantee remount.
+    autoResolveAttempted.current = false;
     setState({
       user: null,
       org: null,
@@ -116,6 +175,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await queryClient.cancelQueries();
       await apiSwitchOrg(orgId);
       queryClient.clear();
+      // Reset the auto-resolve latch — the new org may be a single-
+      // business org that needs its own pinning round-trip.
+      autoResolveAttempted.current = false;
       await refreshUser();
     },
     [refreshUser, queryClient]
@@ -126,6 +188,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await queryClient.cancelQueries();
       await apiSwitchBusiness(businessId);
       queryClient.clear();
+      // Symmetric with switchOrg: if the backend later invalidates
+      // this pin and refreshUser returns business=null while the lone
+      // business remains, auto-resolve should be free to recover.
+      autoResolveAttempted.current = false;
       await refreshUser();
     },
     [refreshUser, queryClient]
