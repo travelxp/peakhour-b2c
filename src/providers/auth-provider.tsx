@@ -107,9 +107,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // implicitly scoped to the active org/business via the auth cookie. When
   // the user switches scope, the cached results from the previous scope
   // would otherwise leak into the new view for up to staleTime — including
-  // private jobs from another business. Clear everything to be safe.
+  // private jobs from another business. cancelQueries() first so any
+  // in-flight fetch from the OLD scope can't land post-clear and
+  // re-populate the cache; then clear() drops everything; then refresh
+  // pulls the new auth state which the next render's queries pick up.
   const switchOrg = useCallback(
     async (orgId: string) => {
+      await queryClient.cancelQueries();
       await apiSwitchOrg(orgId);
       queryClient.clear();
       await refreshUser();
@@ -119,6 +123,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const switchBusiness = useCallback(
     async (businessId: string) => {
+      await queryClient.cancelQueries();
       await apiSwitchBusiness(businessId);
       queryClient.clear();
       await refreshUser();

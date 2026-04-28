@@ -132,28 +132,51 @@ export function useEnqueueJob() {
  * confirmation arrives on the next poll up to 10s later, so we
  * optimistically flip `cancelRequested:true` on the cached row to
  * remove the Cancel button immediately.
+ *
+ * On error we restore the snapshot — relying on `invalidateQueries`
+ * alone leaves the optimistic-flipped row visible until the next poll
+ * lands.
  */
 export function useCancelJob() {
   const queryClient = useQueryClient();
-  return useMutation({
+  return useMutation<
+    { jobId: string; status: string },
+    Error,
+    string,
+    { prevList?: { rows: Job[] }; prevDetail?: JobDetail }
+  >({
     mutationFn: (id: string) =>
       api.post<{ jobId: string; status: string }>(`/v1/jobs/${id}/cancel`),
-    onMutate: (id: string) => {
+    onMutate: async (id: string) => {
+      // Cancel any in-flight refetch so it can't overwrite our optimistic write.
+      await queryClient.cancelQueries({ queryKey: jobsKeys.all });
+      const prevList = queryClient.getQueryData<{ rows: Job[] }>(jobsKeys.list("active"));
+      const prevDetail = queryClient.getQueryData<JobDetail>(jobsKeys.detail(id));
       const flip = (rows?: Job[]) =>
         rows?.map((j) => (j._id === id ? { ...j, cancelRequested: true } : j));
-      queryClient.setQueryData<{ rows: Job[] }>(
-        jobsKeys.list("active"),
-        (old) => (old ? { ...old, rows: flip(old.rows) || old.rows } : old),
-      );
-      queryClient.setQueryData<JobDetail>(jobsKeys.detail(id), (old) =>
-        old ? { ...old, cancelRequested: true } : old,
-      );
+      if (prevList) {
+        queryClient.setQueryData<{ rows: Job[] }>(
+          jobsKeys.list("active"),
+          { ...prevList, rows: flip(prevList.rows) || prevList.rows },
+        );
+      }
+      if (prevDetail) {
+        queryClient.setQueryData<JobDetail>(jobsKeys.detail(id), {
+          ...prevDetail,
+          cancelRequested: true,
+        });
+      }
+      return { prevList, prevDetail };
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: jobsKeys.all });
+    onError: (_err, id, ctx) => {
+      if (ctx?.prevList) {
+        queryClient.setQueryData(jobsKeys.list("active"), ctx.prevList);
+      }
+      if (ctx?.prevDetail) {
+        queryClient.setQueryData(jobsKeys.detail(id), ctx.prevDetail);
+      }
     },
-    onError: () => {
-      // Roll back by refetching truth from the server.
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: jobsKeys.all });
     },
   });

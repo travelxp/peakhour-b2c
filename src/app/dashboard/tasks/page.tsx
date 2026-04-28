@@ -160,7 +160,6 @@ function JobCard({ job, expanded: initialExpanded = false }: { job: Job; expande
                 title="Cancel this task?"
                 description="In-flight work will finish, then everything else stops. You can restart later."
                 confirmLabel="Cancel task"
-                variant="destructive"
                 onConfirm={onCancel}
               />
             )}

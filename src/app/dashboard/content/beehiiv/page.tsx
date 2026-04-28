@@ -182,25 +182,24 @@ export default function ContentPage() {
    * highlighted and can monitor progress. The runner handles the
    * actual fan-out (one tag_drafts child per 10 drafts).
    *
-   * Spam-click protection: we send a per-business idempotencyKey
-   * bucketed to the current minute. The api enforces uniqueness via
-   * a partial unique index on (orgId, idempotencyKey, status:
-   * pending|running), so a second click within the same minute hits
-   * E11000 and the api returns the existing parent jobId.
+   * Idempotency: a single stable per-business key. The api's partial
+   * unique index on (orgId, idempotencyKey, status:pending|running)
+   * means a second submit while the first is still pending|running
+   * returns the existing jobId — no double-spend, regardless of
+   * whether the user picks Analyse-untagged or Re-analyse-all. Once
+   * the prior job terminates the key becomes reusable for the next
+   * run.
    */
   function startAnalysis(force: boolean) {
     if (!business?._id) {
       toast.error("Pick a business first.");
       return;
     }
-    const minuteBucket = Math.floor(Date.now() / 60_000);
-    const idempotencyKey = `content_analyse:${force ? "force" : "untagged"}:${business._id}:${minuteBucket}`;
-
     enqueueJob.mutate(
       {
         kind: "content_analyse",
         params: force ? { force: true } : undefined,
-        idempotencyKey,
+        idempotencyKey: `content_analyse:${business._id}`,
       },
       {
         onSuccess: (data) => {
