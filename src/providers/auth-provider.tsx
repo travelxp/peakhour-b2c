@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   type AuthUser,
   type AuthOrg,
@@ -41,6 +42,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [state, setState] = useState<AuthState>({
     user: null,
     org: null,
@@ -88,6 +90,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch {
       // Best-effort — clear local state regardless
     }
+    queryClient.clear();
     setState({
       user: null,
       org: null,
@@ -98,22 +101,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isAuthenticated: false,
     });
     router.push("/auth");
-  }, [router]);
+  }, [router, queryClient]);
 
+  // Cache scope: most queries (jobs, content stats, integrations, …) are
+  // implicitly scoped to the active org/business via the auth cookie. When
+  // the user switches scope, the cached results from the previous scope
+  // would otherwise leak into the new view for up to staleTime — including
+  // private jobs from another business. Clear everything to be safe.
   const switchOrg = useCallback(
     async (orgId: string) => {
       await apiSwitchOrg(orgId);
+      queryClient.clear();
       await refreshUser();
     },
-    [refreshUser]
+    [refreshUser, queryClient]
   );
 
   const switchBusiness = useCallback(
     async (businessId: string) => {
       await apiSwitchBusiness(businessId);
+      queryClient.clear();
       await refreshUser();
     },
-    [refreshUser]
+    [refreshUser, queryClient]
   );
 
   return (

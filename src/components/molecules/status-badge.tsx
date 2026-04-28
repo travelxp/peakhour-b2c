@@ -56,6 +56,12 @@ const STATUS_MAP: Record<string, StatusVariant> = {
   disconnected: "error",
   expired: "error",
   error: "error",
+  // Background-job statuses (Tasks dashboard)
+  queued: "muted",
+  cancelling: "warning",
+  cancelled: "muted",
+  failed: "error",
+  done: "success",
 };
 
 interface StatusBadgeProps {
