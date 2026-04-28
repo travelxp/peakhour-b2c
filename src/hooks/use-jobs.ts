@@ -190,3 +190,102 @@ export function useRunningJobCount(): number {
   if (!data?.rows) return 0;
   return data.rows.filter((j) => j.status === "running" || j.status === "pending").length;
 }
+
+// ── CMS (cross-org, ops scope) ───────────────────────────────
+
+/** Technical-row shape returned by `/v1/cms/jobs` (`projectJobForOps`). */
+export interface CmsJobRow extends Job {
+  priority: number;
+  orgId?: string;
+  businessId?: string;
+  enqueuedByUserId?: string;
+  parentJobId?: string;
+  childJobIds: string[];
+  idempotencyKey?: string;
+  params?: Record<string, unknown>;
+  attempts: number;
+  maxAttempts: number;
+  lastError?: string;
+  phaseHistory: Array<{
+    phase: string;
+    startedAt: string;
+    finishedAt?: string;
+    durationMs?: number;
+    ok?: boolean;
+    error?: string;
+  }>;
+  result?: Record<string, unknown>;
+  claimedAt?: string;
+  claimedUntil?: string;
+  workerId?: string;
+  currentPhase?: string;
+  updatedAt?: string;
+}
+
+export interface CmsJobsListResponse {
+  period: { days: number; since: string };
+  total: number;
+  offset: number;
+  limit: number;
+  rows: CmsJobRow[];
+}
+
+export interface CmsJobsFilters {
+  days?: string;
+  limit?: number;
+  offset?: number;
+  kind?: string;
+  status?: string;
+  orgId?: string;
+  businessId?: string;
+  showChildren?: boolean;
+}
+
+export const cmsJobsKeys = {
+  list: (filters: CmsJobsFilters) => ["cms-jobs", "list", filters] as const,
+  detail: (id: string) => ["cms-jobs", "detail", id] as const,
+};
+
+/** GET /v1/cms/jobs — cross-org list for ops. */
+export function useCmsJobs(filters: CmsJobsFilters) {
+  return useQuery({
+    queryKey: cmsJobsKeys.list(filters),
+    queryFn: () => {
+      const params: Record<string, string> = {};
+      if (filters.days) params.days = filters.days;
+      if (filters.limit) params.limit = String(filters.limit);
+      if (filters.offset) params.offset = String(filters.offset);
+      if (filters.kind) params.kind = filters.kind;
+      if (filters.status) params.status = filters.status;
+      if (filters.orgId) params.orgId = filters.orgId;
+      if (filters.businessId) params.businessId = filters.businessId;
+      if (filters.showChildren) params.showChildren = "true";
+      return api.get<CmsJobsListResponse>("/v1/cms/jobs", params);
+    },
+    // Modest auto-refresh — ops watch this for stuck/recently-failed work.
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
+    staleTime: 15_000,
+  });
+}
+
+/**
+ * GET /v1/cms/jobs/:id — full technical drilldown (includes children).
+ * Polls at 5s while the job is non-terminal so an ops user watching a
+ * stuck running job sees claimedUntil/childrenDone tick live; stops as
+ * soon as the job (or its fetch) terminates.
+ */
+export function useCmsJobDetail(id: string | null | undefined) {
+  return useQuery({
+    queryKey: id ? cmsJobsKeys.detail(id) : ["cms-jobs", "detail", "__noop__"],
+    queryFn: () => api.get<CmsJobRow & { children: CmsJobRow[] }>(`/v1/cms/jobs/${id}`),
+    enabled: !!id,
+    refetchInterval: (q) => {
+      if (q.state.error) return false;
+      const data = q.state.data as CmsJobRow | undefined;
+      if (!data) return q.state.dataUpdatedAt === 0 ? 5_000 : false;
+      return data.status === "pending" || data.status === "running" ? 5_000 : false;
+    },
+    refetchIntervalInBackground: false,
+  });
+}
