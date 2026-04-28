@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
 } from "react";
 import { useRouter } from "next/navigation";
@@ -83,6 +84,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- bootstrap auth from server cookie on mount; setState inside refreshUser is required to populate context
     refreshUser();
   }, [refreshUser]);
+
+  // Auto-resolve a single-business org. If the JWT cookie has no
+  // businessId (or a stale one) but the user has exactly one business
+  // in the active org, pin it server-side so business-scoped actions
+  // (Analyse, Sync, etc.) don't dead-end on "Pick a business first."
+  // Multi-business orgs are left to the user — the BusinessSwitcher
+  // dropdown handles that case.
+  //
+  // Mirrors switchBusiness's cache management: cancel in-flight queries
+  // that fired against the previous (no-business) scope, clear cached
+  // empty results so the next render refetches with the new scope.
+  const autoResolveAttempted = useRef(false);
+  useEffect(() => {
+    if (autoResolveAttempted.current) return;
+    if (state.isLoading || !state.isAuthenticated) return;
+    if (state.business) return;
+    if (state.businesses.length !== 1) return;
+    autoResolveAttempted.current = true;
+    (async () => {
+      try {
+        await queryClient.cancelQueries();
+        await apiSwitchBusiness(state.businesses[0]._id);
+        queryClient.clear();
+        await refreshUser();
+      } catch {
+        // Reset so a manual pick (or a future re-mount) still has
+        // a clean attempt.
+        autoResolveAttempted.current = false;
+      }
+    })();
+  }, [
+    state.isLoading,
+    state.isAuthenticated,
+    state.business,
+    state.businesses,
+    refreshUser,
+    queryClient,
+  ]);
 
   const logout = useCallback(async () => {
     try {
