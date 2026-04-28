@@ -47,6 +47,7 @@ import {
   ChevronsUpDown,
   ArrowLeftRight,
   ChevronRight,
+  ListChecks,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -55,11 +56,13 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { useMyTickets } from "@/hooks/use-feedback";
+import { useRunningJobCount } from "@/hooks/use-jobs";
 
 interface NavItem {
   href: string;
   label: string;
   icon: LucideIcon;
+  badge?: () => React.ReactNode;
   subItems?: { href: string; label: string; badge?: () => React.ReactNode }[];
 }
 
@@ -93,6 +96,7 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/dashboard/optimizer", label: "Optimizer" },
         ],
       },
+      { href: "/dashboard/tasks", label: "Tasks", icon: ListChecks, badge: () => <RunningJobsBadge /> },
       { href: "/dashboard/integrations", label: "Integrations", icon: Plug },
       {
         href: "/dashboard/settings",
@@ -120,6 +124,17 @@ function OpenTicketBadge() {
   return (
     <span className="ml-auto flex size-5 items-center justify-center rounded-full bg-primary text-[10px] font-medium text-primary-foreground">
       {openCount > 9 ? "9+" : openCount}
+    </span>
+  );
+}
+
+/** Badge showing count of running/pending background jobs for this business */
+function RunningJobsBadge() {
+  const count = useRunningJobCount();
+  if (!count) return null;
+  return (
+    <span className="ml-auto flex size-5 items-center justify-center rounded-full bg-primary text-[10px] font-medium text-primary-foreground">
+      {count > 9 ? "9+" : count}
     </span>
   );
 }
@@ -275,6 +290,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                           <Link href={item.href}>
                             <Icon />
                             <span>{item.label}</span>
+                            {item.badge?.()}
                           </Link>
                         </SidebarMenuButton>
                       </SidebarMenuItem>

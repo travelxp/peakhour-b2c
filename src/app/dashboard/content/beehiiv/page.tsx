@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { api, API_BASE_URL } from "@/lib/api";
+import { toast } from "sonner";
+import { api } from "@/lib/api";
 import { useSyncProvider } from "@/hooks/use-sync-provider";
+import { useEnqueueJob } from "@/hooks/use-jobs";
 import { useAuth } from "@/providers/auth-provider";
 import {
   SENTIMENT_CONFIG,
@@ -88,25 +90,15 @@ const CONTENT_FETCH_LIMIT = 500;
 
 // ── Main Page ────────────────────────────────────────────────────
 
-interface AnalyseProgress {
-  tagged: number;
-  total: number;
-  remaining: number;
-  batchNum: number;
-  currentTitle: string;
-  currentStatus: "tagged" | "partial" | "error";
-}
-
 export default function ContentPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { user } = useAuth();
+  const { user, business } = useAuth();
   const prefs = user?.preferences ?? null;
   const contentColumns = useMemo(() => getContentColumns(prefs), [prefs]);
   const [view, setView] = useState<"card" | "table">("table");
-  const [analysing, setAnalysing] = useState(false);
-  const [analyseProgress, setAnalyseProgress] = useState<AnalyseProgress | null>(null);
-  const [analyseResult, setAnalyseResult] = useState<string | null>(null);
+
+  const enqueueJob = useEnqueueJob();
 
   const { sync: syncBeehiiv, syncing } = useSyncProvider("beehiiv", {
     onSuccess: () => {
@@ -182,115 +174,49 @@ export default function ContentPage() {
   const library = libraryRes || [];
   const hasActiveFilters = table.getState().columnFilters.length > 0 || !!globalFilter;
   const hasUntagged = stats && stats.tagged < stats.total;
-  const cancelRef = useRef(false);
+  const analysing = enqueueJob.isPending;
 
-  const startAnalysis = useCallback((force: boolean) => {
-    setAnalysing(true);
-    setAnalyseProgress(null);
-    setAnalyseResult(null);
-    cancelRef.current = false;
-
-    const url = `${API_BASE_URL}/v1/content/analyse${force ? "?force=true" : ""}`;
-
-    // Use fetch with ReadableStream for SSE (EventSource doesn't send cookies)
-    fetch(url, { credentials: "include" })
-      .then(async (res) => {
-        if (!res.ok) {
-          const json = await res.json().catch(() => null);
-          setAnalyseResult(json?.error?.message || "Failed to start analysis.");
-          setAnalysing(false);
-          return;
-        }
-
-        const reader = res.body?.getReader();
-        if (!reader) {
-          setAnalyseResult("Streaming not supported.");
-          setAnalysing(false);
-          return;
-        }
-
-        const decoder = new TextDecoder();
-        let buffer = "";
-        let eventType = "";
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          if (cancelRef.current) {
-            reader.cancel();
-            break;
-          }
-
-          buffer += decoder.decode(value, { stream: true });
-
-          // SSE format: "event: X\ndata: Y\nid: Z\n\n"
-          // Split on double newline to get complete events
-          const events = buffer.split("\n\n");
-          buffer = events.pop() || ""; // Last element is incomplete
-
-          for (const event of events) {
-            const lines = event.split("\n");
-            let data = "";
-            for (const line of lines) {
-              if (line.startsWith("event:")) eventType = line.slice(6).trim();
-              else if (line.startsWith("data:")) data = line.slice(5).trim();
-            }
-
-            if (!data) continue;
-            try {
-              const parsed = JSON.parse(data);
-
-              if (eventType === "progress") {
-                setAnalyseProgress({
-                  tagged: parsed.tagged,
-                  total: parsed.total,
-                  remaining: parsed.remaining,
-                  batchNum: 0,
-                  currentTitle: parsed.title,
-                  currentStatus: parsed.status,
-                });
-              } else if (eventType === "complete") {
-                // The server caps each request at 240s (Vercel's 300s hard
-                // limit minus headroom) and emits truncated:true with the
-                // remaining count when it bails early. Show the partial
-                // status + a "click Analyse to continue" prompt so the user
-                // doesn't think it silently succeeded.
-                if (parsed.truncated && parsed.remaining > 0) {
-                  setAnalyseResult(
-                    `Tagged ${parsed.tagged} of ${parsed.total} so far` +
-                    (parsed.skipped > 0 ? `, ${parsed.skipped} partial` : "") +
-                    (parsed.errors > 0 ? `, ${parsed.errors} errors` : "") +
-                    `. ${parsed.remaining} remaining — click Analyse to continue.`
-                  );
-                } else {
-                  setAnalyseResult(
-                    `All done! ${parsed.tagged} newsletters tagged with AI insights.` +
-                    (parsed.skipped > 0 ? ` ${parsed.skipped} partially tagged.` : "") +
-                    (parsed.errors > 0 ? ` ${parsed.errors} failed.` : "")
-                  );
-                }
-              }
-            } catch { /* skip malformed events */ }
-          }
-        }
-
-        if (cancelRef.current) {
-          setAnalyseResult("Analysis cancelled. Click Analyse to continue with remaining.");
-        }
-
-        queryClient.invalidateQueries({ queryKey: ["content-stats"] });
-        // The actual library query key is "content-library-all" (line ~141).
-        // Invalidating "content-library" here was a no-op — the table never
-        // refreshed after analysis. Caught while wiring up sync invalidation.
-        queryClient.invalidateQueries({ queryKey: ["content-library-all"] });
-        queryClient.invalidateQueries({ queryKey: ["content-gaps"] });
-        setAnalysing(false);
-      })
-      .catch(() => {
-        setAnalyseResult("Analysis failed. Please try again.");
-        setAnalysing(false);
-      });
-  }, [queryClient]);
+  /**
+   * Enqueue a content_analyse job and redirect to /dashboard/tasks
+   * with the new jobId in the URL so the user sees their submission
+   * highlighted and can monitor progress. The runner handles the
+   * actual fan-out (one tag_drafts child per 10 drafts).
+   *
+   * Idempotency: a single stable per-business key. The api's partial
+   * unique index on (orgId, idempotencyKey, status:pending|running)
+   * means a second submit while the first is still pending|running
+   * returns the existing jobId — no double-spend, regardless of
+   * whether the user picks Analyse-untagged or Re-analyse-all. Once
+   * the prior job terminates the key becomes reusable for the next
+   * run.
+   */
+  function startAnalysis(force: boolean) {
+    if (!business?._id) {
+      toast.error("Pick a business first.");
+      return;
+    }
+    enqueueJob.mutate(
+      {
+        kind: "content_analyse",
+        params: force ? { force: true } : undefined,
+        idempotencyKey: `content_analyse:${business._id}`,
+      },
+      {
+        onSuccess: (data) => {
+          // Refresh content stats once the job lands so the UI doesn't
+          // get stuck on stale "untagged" counts after the user returns.
+          queryClient.invalidateQueries({ queryKey: ["content-stats"] });
+          queryClient.invalidateQueries({ queryKey: ["content-library-all"] });
+          queryClient.invalidateQueries({ queryKey: ["content-gaps"] });
+          toast.success("Analysis queued — track progress in Tasks.");
+          router.push(`/dashboard/tasks?jobId=${data.jobId}`);
+        },
+        onError: (err: Error) => {
+          toast.error(err.message || "Failed to queue analysis. Please try again.");
+        },
+      },
+    );
+  }
 
   function clearFilters() {
     table.resetColumnFilters();
@@ -311,75 +237,34 @@ export default function ContentPage() {
             </p>
           </div>
           <div className="flex gap-2">
-            {!analysing && (
-              <Button
-                variant="outline"
-                onClick={() => syncBeehiiv()}
-                disabled={syncing}
-                aria-busy={syncing}
-                className="min-w-[140px]"
-              >
-                {syncing ? "Syncing Beehiiv…" : "Sync Beehiiv"}
+            <Button
+              variant="outline"
+              onClick={() => syncBeehiiv()}
+              disabled={syncing}
+              aria-busy={syncing}
+              className="min-w-[140px]"
+            >
+              {syncing ? "Syncing Beehiiv…" : "Sync Beehiiv"}
+            </Button>
+            {hasUntagged && (
+              <Button onClick={() => startAnalysis(false)} disabled={analysing}>
+                {analysing ? "Queuing…" : `Analyse ${stats.total - stats.tagged} untagged`}
               </Button>
             )}
-            {hasUntagged && !analysing && (
-              <Button onClick={() => startAnalysis(false)}>
-                Analyse {stats.total - stats.tagged} untagged
-              </Button>
-            )}
-            {!analysing && stats && stats.tagged > 0 && (
+            {stats && stats.tagged > 0 && (
               <ConfirmDialog
                 trigger={
-                  <Button variant="outline">Re-analyse all</Button>
+                  <Button variant="outline" disabled={analysing}>Re-analyse all</Button>
                 }
                 title="Re-analyse all content"
-                description="This will delete all existing AI tags and re-analyse every newsletter from scratch. This may take a while."
+                description="This will queue a background job that wipes existing tags and re-analyses every newsletter. You can track it on the Tasks page."
                 confirmLabel="Re-analyse"
                 variant="destructive"
                 onConfirm={() => startAnalysis(true)}
               />
             )}
-            {analysing && (
-              <Button variant="outline" onClick={() => { cancelRef.current = true; }}>
-                Cancel
-              </Button>
-            )}
           </div>
         </div>
-
-        {/* Analysis progress */}
-        {(analysing || analyseResult) && (
-          <Card className={analyseResult ? "border-green-200 bg-green-50/50" : "border-blue-200 bg-blue-50/50"}>
-            <CardContent className="py-3 px-4">
-              {analysing && analyseProgress ? (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="truncate max-w-md">
-                      {analyseProgress.currentStatus === "tagged" ? "✓" : analyseProgress.currentStatus === "partial" ? "◐" : "✗"}{" "}
-                      <span className="font-medium">{analyseProgress.currentTitle}</span>
-                    </span>
-                    <span className="text-muted-foreground font-medium shrink-0 ml-2">
-                      {analyseProgress.tagged} / {analyseProgress.total}
-                    </span>
-                  </div>
-                  <Progress
-                    value={analyseProgress.total > 0 ? (analyseProgress.tagged / analyseProgress.total) * 100 : 0}
-                    className="h-2"
-                  />
-                </div>
-              ) : analysing ? (
-                <AnalysingPlaceholder />
-              ) : analyseResult ? (
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium">{analyseResult}</p>
-                  <Button variant="ghost" size="sm" onClick={() => setAnalyseResult(null)}>
-                    Dismiss
-                  </Button>
-                </div>
-              ) : null}
-            </CardContent>
-          </Card>
-        )}
 
         {/* KPI Strip */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -847,43 +732,6 @@ function AdScoreBar({ score }: { score?: number }) {
         <p>Ad Potential Score: {score}/10</p>
       </TooltipContent>
     </Tooltip>
-  );
-}
-
-// ~17s per AI call (Haiku 4.5) for first chunk of 5.
-// 12 messages × 2.5s = 30s coverage (17s + 75% buffer) before first result streams.
-const LOADING_MESSAGES = [
-  "Warming up AI engines...",
-  "Reading your content library...",
-  "Sending content to AI for analysis...",
-  "Identifying industry sectors...",
-  "Mapping companies and people mentioned...",
-  "Extracting key metrics and data points...",
-  "Scoring ad potential for each article...",
-  "Mapping audience relevance per segment...",
-  "Analysing sentiment and urgency...",
-  "Cross-referencing with your taxonomy...",
-  "Finalising 12-dimension analysis...",
-  "Almost there — first results coming...",
-];
-
-function AnalysingPlaceholder() {
-  const [msgIndex, setMsgIndex] = useState(0);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setMsgIndex((i) => (i + 1) % LOADING_MESSAGES.length);
-    }, 2500);
-    return () => clearInterval(interval);
-  }, []);
-
-  return (
-    <div className="space-y-2">
-      <p className="text-sm animate-pulse">{LOADING_MESSAGES[msgIndex]}</p>
-      <div className="h-2 rounded-full bg-muted overflow-hidden">
-        <div className="h-full w-1/3 rounded-full bg-primary/40 animate-[shimmer_2s_ease-in-out_infinite]" />
-      </div>
-    </div>
   );
 }
 
