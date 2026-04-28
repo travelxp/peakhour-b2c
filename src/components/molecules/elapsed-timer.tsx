@@ -42,24 +42,33 @@ export function ElapsedTimer({
     return Number.isFinite(t) ? t : null;
   }, [startedAt]);
 
-  // Single `now` state drives both elapsed and remaining derivations —
-  // avoids the prior "setElapsed inside effect" pattern flagged by the
-  // old TODO and keeps the two values in lockstep.
+  // `now` ticks every second while running; `legacyStartAt` is the
+  // origin for callers that don't supply a server-side `startedAt`
+  // anchor. We re-stamp `legacyStartAt` on every running:false→true
+  // transition so consumers like strategist (which toggles generating
+  // multiple times within one component lifetime) get a fresh 0s start
+  // each run instead of accumulating from the first toggle. Both are
+  // updated from the effect — same pattern as the pre-refactor code.
   const [now, setNow] = useState(() => Date.now());
-  // Mount epoch — used as the elapsed origin only when there's no
-  // `startedAt` anchor (legacy callers). Lazy useState initialiser
-  // captures Date.now() exactly once and stays stable across renders.
-  const [mountAt] = useState(() => Date.now());
+  const [legacyStartAt, setLegacyStartAt] = useState<number | null>(null);
 
   useEffect(() => {
-    if (!running) return;
+    if (!running) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setLegacyStartAt(null);
+      return;
+    }
+    setLegacyStartAt(Date.now());
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, [running]);
 
   if (!running) return null;
 
-  const origin = anchorMs ?? mountAt;
+  // Origin precedence: server-supplied anchor → fresh per-run legacy
+  // anchor → `now` (covers the first render after running flips true,
+  // before the effect populates legacyStartAt; resolves to 0s elapsed).
+  const origin = anchorMs ?? legacyStartAt ?? now;
   const elapsed = Math.max(0, Math.floor((now - origin) / 1000));
 
   const mins = Math.floor(elapsed / 60);
@@ -74,15 +83,20 @@ export function ElapsedTimer({
       : null;
 
   // Progress bar prefers the server ETA, falls back to a static estimate.
+  // Clamp to [0, 1] — `now < anchorMs` from clock skew would otherwise
+  // produce a negative value.
   let progress: number | undefined;
   if (etaMs != null && etaMs > 0 && anchorMs != null) {
-    progress = Math.min((now - anchorMs) / etaMs, 1);
+    progress = Math.min(Math.max((now - anchorMs) / etaMs, 0), 1);
   } else if (estimatedSeconds) {
     progress = Math.min(elapsed / estimatedSeconds, 1);
   }
 
+  // Suppress "~0s left" once we overshoot the ETA — the elapsed counter
+  // continues to convey "still working", and a stuck "~0s left" beside
+  // a ticking elapsed is just noise.
   const remainingDisplay =
-    remainingSec != null
+    remainingSec != null && remainingSec > 0
       ? remainingSec >= 60
         ? `~${Math.ceil(remainingSec / 60)}m left`
         : `~${remainingSec}s left`
