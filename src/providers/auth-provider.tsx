@@ -95,6 +95,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Mirrors switchBusiness's cache management: cancel in-flight queries
   // that fired against the previous (no-business) scope, clear cached
   // empty results so the next render refetches with the new scope.
+  //
+  // Race-with-manual-pick is not a concern here: single-business orgs
+  // (the only case this effect fires for) render the BusinessSwitcher
+  // as a read-only name display — there's no dropdown to click — so
+  // the user cannot race the auto-resolve.
+  //
+  // Latch policy: latched true on attempt; we do NOT reset on catch.
+  // A deterministic 4xx (e.g. business soft-deleted between getMe and
+  // switch) would otherwise re-fire on every render and storm the
+  // server. switchOrg resets the latch so a freshly-switched org
+  // gets a clean attempt; a logout/login cycle remounts the provider,
+  // resetting the ref naturally.
   const autoResolveAttempted = useRef(false);
   useEffect(() => {
     if (autoResolveAttempted.current) return;
@@ -109,9 +121,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         queryClient.clear();
         await refreshUser();
       } catch {
-        // Reset so a manual pick (or a future re-mount) still has
-        // a clean attempt.
-        autoResolveAttempted.current = false;
+        // Latched — see comment block above. Re-mount to retry.
       }
     })();
   }, [
@@ -155,6 +165,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await queryClient.cancelQueries();
       await apiSwitchOrg(orgId);
       queryClient.clear();
+      // Reset the auto-resolve latch — the new org may be a single-
+      // business org that needs its own pinning round-trip.
+      autoResolveAttempted.current = false;
       await refreshUser();
     },
     [refreshUser, queryClient]
