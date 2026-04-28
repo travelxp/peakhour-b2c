@@ -114,16 +114,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (state.business) return;
     if (state.businesses.length !== 1) return;
     autoResolveAttempted.current = true;
+    let cancelled = false;
     (async () => {
       try {
         await queryClient.cancelQueries();
+        if (cancelled) return;
         await apiSwitchBusiness(state.businesses[0]._id);
+        if (cancelled) return;
         queryClient.clear();
         await refreshUser();
       } catch {
         // Latched — see comment block above. Re-mount to retry.
       }
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [
     state.isLoading,
     state.isAuthenticated,
@@ -140,6 +146,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Best-effort — clear local state regardless
     }
     queryClient.clear();
+    // Reset the auto-resolve latch so the next login (which may share
+    // this provider instance if the layout doesn't unmount) gets a
+    // clean attempt. router.push("/auth") doesn't guarantee remount.
+    autoResolveAttempted.current = false;
     setState({
       user: null,
       org: null,
@@ -178,6 +188,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await queryClient.cancelQueries();
       await apiSwitchBusiness(businessId);
       queryClient.clear();
+      // Symmetric with switchOrg: if the backend later invalidates
+      // this pin and refreshUser returns business=null while the lone
+      // business remains, auto-resolve should be free to recover.
+      autoResolveAttempted.current = false;
       await refreshUser();
     },
     [refreshUser, queryClient]
