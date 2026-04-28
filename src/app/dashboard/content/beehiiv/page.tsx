@@ -250,11 +250,25 @@ export default function ContentPage() {
                   currentStatus: parsed.status,
                 });
               } else if (eventType === "complete") {
-                setAnalyseResult(
-                  `All done! ${parsed.tagged} newsletters tagged with AI insights.` +
-                  (parsed.skipped > 0 ? ` ${parsed.skipped} partially tagged.` : "") +
-                  (parsed.errors > 0 ? ` ${parsed.errors} failed.` : "")
-                );
+                // The server caps each request at 240s (Vercel's 300s hard
+                // limit minus headroom) and emits truncated:true with the
+                // remaining count when it bails early. Show the partial
+                // status + a "click Analyse to continue" prompt so the user
+                // doesn't think it silently succeeded.
+                if (parsed.truncated && parsed.remaining > 0) {
+                  setAnalyseResult(
+                    `Tagged ${parsed.tagged} of ${parsed.total} so far` +
+                    (parsed.skipped > 0 ? `, ${parsed.skipped} partial` : "") +
+                    (parsed.errors > 0 ? `, ${parsed.errors} errors` : "") +
+                    `. ${parsed.remaining} remaining — click Analyse to continue.`
+                  );
+                } else {
+                  setAnalyseResult(
+                    `All done! ${parsed.tagged} newsletters tagged with AI insights.` +
+                    (parsed.skipped > 0 ? ` ${parsed.skipped} partially tagged.` : "") +
+                    (parsed.errors > 0 ? ` ${parsed.errors} failed.` : "")
+                  );
+                }
               }
             } catch { /* skip malformed events */ }
           }
