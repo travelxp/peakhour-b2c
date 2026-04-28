@@ -275,7 +275,13 @@ export default function ContentPage() {
             {hasUntagged && (
               <Button
                 onClick={() => {
-                  if (pendingAnalyseJob) {
+                  // `analysing` (mutation in-flight) takes precedence
+                  // over `pendingAnalyseJob`: the active-jobs poll runs
+                  // every 10s, so for up to 10s after a job finishes
+                  // the rows still contain it. Short-circuiting on the
+                  // stale row would deep-link to a finished job
+                  // instead of starting the new one the user intends.
+                  if (!analysing && pendingAnalyseJob) {
                     router.push(
                       `/dashboard/tasks?jobId=${pendingAnalyseJob._id}`,
                     );
@@ -284,12 +290,14 @@ export default function ContentPage() {
                   startAnalysis(false);
                 }}
                 disabled={analysing || !businessReady}
-                variant={hasPendingAnalyse ? "secondary" : "default"}
+                variant={
+                  hasPendingAnalyse && !analysing ? "secondary" : "default"
+                }
               >
-                {hasPendingAnalyse
-                  ? "Analysis in progress — view"
-                  : analysing
-                    ? "Queuing…"
+                {analysing
+                  ? "Queuing…"
+                  : hasPendingAnalyse
+                    ? "Analysis in progress — view"
                     : `Analyse ${stats.total - stats.tagged} untagged`}
               </Button>
             )}
