@@ -187,9 +187,10 @@ export default function ContentPage() {
   // Backend already dedupes via partial unique index — second click
   // returns the same jobId, no double-spend. But the user gets no
   // feedback after enqueueJob.isPending flips back, so they keep
-  // clicking. Gate on whether a content_analyse job is already active
-  // (cookie-scoped, so this is implicitly per-business). The Job's
-  // jobId is also used to deep-link to /dashboard/tasks for progress.
+  // clicking. Gate on whether a content_analyse job is already active.
+  // Server filters /v1/jobs by orgId+businessId from JWT, so this is
+  // safely scoped per-business. The Job's id is also used to deep-link
+  // to /dashboard/tasks for progress.
   const pendingAnalyseJob = useMemo(
     () =>
       activeJobs?.rows?.find(
@@ -283,7 +284,7 @@ export default function ContentPage() {
                   startAnalysis(false);
                 }}
                 disabled={analysing || !businessReady}
-                variant={hasPendingAnalyse ? "outline" : "default"}
+                variant={hasPendingAnalyse ? "secondary" : "default"}
               >
                 {hasPendingAnalyse
                   ? "Analysis in progress — view"
@@ -306,7 +307,20 @@ export default function ContentPage() {
                 description="This will queue a background job that wipes existing tags and re-analyses every newsletter. You can track it on the Tasks page."
                 confirmLabel="Re-analyse"
                 variant="destructive"
-                onConfirm={() => startAnalysis(true)}
+                onConfirm={() => {
+                  // Race guard: the trigger was disabled when this
+                  // dialog opened, but the active-jobs poll can land
+                  // a fresh content_analyse between trigger-click and
+                  // confirm-click. If so, deep-link to it instead of
+                  // re-enqueuing (backend would dedupe anyway).
+                  if (pendingAnalyseJob) {
+                    router.push(
+                      `/dashboard/tasks?jobId=${pendingAnalyseJob._id}`,
+                    );
+                    return;
+                  }
+                  startAnalysis(true);
+                }}
               />
             )}
           </div>
