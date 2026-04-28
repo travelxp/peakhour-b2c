@@ -64,6 +64,12 @@ export function useJobs(status: JobListStatus = "active") {
     queryKey: jobsKeys.list(status),
     queryFn: () => api.get<{ rows: Job[] }>("/v1/jobs", { status }),
     refetchInterval: (q) => {
+      // Stop polling when the request errors (403 from a stale auth
+      // cookie, 5xx, etc.). Otherwise this hammers devtools with one
+      // failure per cycle on every dashboard route until the user
+      // navigates. A fresh mount or a successful refetch resumes the
+      // schedule. Mirrors useJobDetail's pattern.
+      if (q.state.error) return false;
       if (!isActive) return 60_000;
       const data = q.state.data as { rows: Job[] } | undefined;
       return data?.rows?.length ? 10_000 : 60_000;
