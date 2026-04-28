@@ -101,9 +101,11 @@ export default function ContentPage() {
   const enqueueJob = useEnqueueJob();
 
   const { sync: syncBeehiiv, syncing } = useSyncProvider("beehiiv", {
-    onSuccess: () => {
-      // Refresh derived views so freshly-imported drafts surface here
-      // without a manual reload.
+    onEnqueue: () => {
+      // Pre-invalidate derived views so when the user returns from the
+      // Tasks page the library is fresh by the time the runner has
+      // finished. The actual data lands later via the runner; this just
+      // marks the cache so the next refetch picks up the new state.
       queryClient.invalidateQueries({ queryKey: ["content-stats"] });
       queryClient.invalidateQueries({ queryKey: ["content-library-all"] });
       queryClient.invalidateQueries({ queryKey: ["content-gaps"] });
