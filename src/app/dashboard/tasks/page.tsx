@@ -158,7 +158,13 @@ function JobCard({
               status={statusForBadge(job)}
               dot={isActive}
             />
-            {isActive && <ElapsedTimer running />}
+            {isActive && (
+              <ElapsedTimer
+                running
+                startedAt={job.createdAt}
+                etaMs={job.progress?.etaMs}
+              />
+            )}
           </div>
         </div>
       </CardHeader>
