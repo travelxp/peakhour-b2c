@@ -1,4 +1,16 @@
 {
+  "git": {
+    "deploymentEnabled": {
+      "production": true,
+      "master": true,
+      "staging": true,
+      "feature-1": true,
+      "feature-2": true,
+      "feature-3": true,
+      "feature-4": true,
+      "*": false
+    }
+  },
   "headers": [
     {
       "source": "/(.*)",
