@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "errors:ai": "npm --prefix ../peakhour-api run errors:ai --",
+    "errors:ai:1d": "npm --prefix ../peakhour-api run errors:ai:1d",
+    "errors:ai:7d": "npm --prefix ../peakhour-api run errors:ai:7d"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
