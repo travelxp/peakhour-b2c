@@ -112,20 +112,19 @@ export function InsightsPanel({ rows }: InsightsPanelProps) {
         items={[
           {
             title: "Citation timeline",
-            gatedOn: "cnt_source_usage time-series aggregate endpoint",
+            gateNoun: "cnt_source_usage time-series aggregate endpoint",
           },
           {
-            // gatedOn is parsed by PendingItemsCard as the noun
-            // phrase between "Lands once the" and "ships." A
-            // parenthetical aside ("(algo in design)") would attach
-            // "ships" to the parenthetical, reading awkwardly — keep
-            // the phrase a clean noun.
+            // gateNoun must read as a clean noun ("Lands once the X
+            // ships.") — see PendingItem JSDoc. If a parenthetical
+            // ("(algo in design)") creeps back in, switch to the
+            // discriminated `caption` variant for full control.
             title: "Coverage heatmap",
-            gatedOn: "proprietary coverage scorer",
+            gateNoun: "proprietary coverage scorer",
           },
           {
             title: "Drift alerts",
-            gatedOn: "rejection-topic embedding comparison cron",
+            gateNoun: "rejection-topic embedding comparison cron",
           },
         ]}
       />

@@ -1,4 +1,4 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 
 /**
@@ -37,7 +37,9 @@ export function ProportionListCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">{title}</CardTitle>
+        {/* Real <h3> for SR navigation — see ranked-list-card.tsx
+            for the rationale. Tokens mirror CardTitle's defaults. */}
+        <h3 className="text-base leading-none font-semibold">{title}</h3>
       </CardHeader>
       <CardContent>
         {items.length === 0 ? (

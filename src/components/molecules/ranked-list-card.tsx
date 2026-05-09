@@ -1,4 +1,4 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
 /**
@@ -47,7 +47,11 @@ export function RankedListCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">{title}</CardTitle>
+        {/* Real <h3> (not CardTitle, which is a styled <div>) so the
+            section appears in the page outline and SR users
+            navigating by heading can land on it. Tailwind tokens
+            mirror CardTitle's defaults so the visual is unchanged. */}
+        <h3 className="text-base leading-none font-semibold">{title}</h3>
       </CardHeader>
       <CardContent>
         {visible.length === 0 ? (

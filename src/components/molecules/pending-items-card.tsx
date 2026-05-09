@@ -1,4 +1,4 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 
 /**
  * PendingItemsCard — a deliberate "what's coming, and what gates it"
@@ -10,17 +10,20 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
  * alerts, hook DNA, audience signals). Naming each gate explicitly
  * lets a future reader pattern-match against followup trackers
  * instead of guessing what's missing.
+ *
+ * Each item supplies either:
+ *   • `gateNoun` — a noun phrase the molecule splices into the
+ *     templated sentence "Lands once the {gateNoun} ships." Use this
+ *     for the common case (an endpoint, scorer, cron, etc.).
+ *   • `caption` — a full sentence rendered verbatim. Use this when
+ *     the templated sentence reads awkwardly (passive voice, future
+ *     tense, multi-clause). Caption wins if both are provided.
  */
 
-export interface PendingItem {
-  /** Item title, e.g. "Citation timeline". */
-  title: string;
-  /** What backend or data surface gates this item, e.g. "cnt_source_usage
-   *  time-series aggregate endpoint". The card prepends "Lands once the"
-   *  and appends "ships." so callers should write the *thing* that needs
-   *  to ship, not a full sentence. */
-  gatedOn: string;
-}
+export type PendingItem = { title: string } & (
+  | { gateNoun: string; caption?: never }
+  | { caption: string; gateNoun?: never }
+);
 
 export interface PendingItemsCardProps {
   title?: string;
@@ -31,13 +34,17 @@ export function PendingItemsCard({ title = "Coming soon", items }: PendingItemsC
   return (
     <Card className="border-dashed">
       <CardHeader>
-        <CardTitle className="text-base">{title}</CardTitle>
+        {/* Real <h3> for SR navigation — see ranked-list-card.tsx
+            for the rationale. Tokens mirror CardTitle's defaults. */}
+        <h3 className="text-base leading-none font-semibold">{title}</h3>
       </CardHeader>
       <CardContent className="space-y-2 text-sm text-muted-foreground">
         {items.map((item) => (
           <div key={item.title}>
             <p className="text-sm font-medium text-foreground">{item.title}</p>
-            <p className="text-xs">Lands once the {item.gatedOn} ships.</p>
+            <p className="text-xs">
+              {item.caption ?? `Lands once the ${item.gateNoun} ships.`}
+            </p>
           </div>
         ))}
       </CardContent>
