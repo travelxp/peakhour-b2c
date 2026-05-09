@@ -6,7 +6,7 @@ import { FeatureGate } from "@/components/upgrade/feature-gate";
 import { UpgradeButton } from "@/components/upgrade/upgrade-button";
 
 const FEATURE_KEY = "growth.optimizer";
-const FEATURE_NAME = "AI Optimizer";
+const FEATURE_NAME = "Optimizer";
 const FEATURE_TAGLINE =
   "An always-on optimizer that auto-promotes winning posts, kills underperformers, and reallocates budget against your stated KPI.";
 
@@ -38,7 +38,7 @@ export default function OptimizerPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold tracking-tight">AI Optimizer</h2>
+        <h2 className="text-2xl font-bold tracking-tight">Optimizer</h2>
         <p className="text-muted-foreground">
           An autonomous teammate for paid + organic — running the dials so you don&apos;t have to.
         </p>
@@ -51,10 +51,12 @@ export default function OptimizerPage() {
         mode="hide"
         fallback={<OptimizerWaitlistCard />}
       >
-        {/* Unlocked branch — until the live optimizer ships, the
-            preview pillars double as the surface and the small
-            confirmation banner below tells the user the feature is
-            reserved for their account. */}
+        {/* Unlocked branch — only reachable once an org has
+            growth.optimizer entitled (today: nobody, since the
+            feature is on no plan). Until the live agent ships, we
+            render the same pillar preview + a reservation banner so
+            entitled orgs see something stable instead of an empty
+            page. */}
         <OptimizerPreview />
         <Card>
           <CardContent className="flex items-center gap-3 py-5 text-sm">
@@ -121,12 +123,12 @@ function OptimizerWaitlistCard() {
               <h3 className="text-sm font-medium text-amber-950 dark:text-amber-100">
                 Reserve early access
               </h3>
-              {/* amber-on-amber palette guarantees ≥4.5:1 contrast on
-                  both gradient backgrounds (light + dark), where
-                  `text-muted-foreground` would dip below threshold on
-                  the amber-50/60 light background. */}
+              {/* amber-on-amber so contrast holds at the gradient's
+                  amber end (where `text-muted-foreground` is the
+                  weakest). The white end + the dark theme are both
+                  comfortably safe with this token pair. */}
               <p className="text-sm text-amber-900/80 dark:text-amber-200/80">
-                AI Optimizer rolls out to founding members first. Join the waitlist to lock in access + early-bird pricing.
+                Optimizer rolls out to founding members first. Join the waitlist to lock in access + early-bird pricing.
               </p>
             </div>
           </div>
