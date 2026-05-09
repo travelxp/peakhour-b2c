@@ -85,7 +85,7 @@ function OptimizerPreview() {
     <div className="grid gap-4 md:grid-cols-3">
       {PILLARS.map(({ icon: Icon, title, body }) => (
         <Card key={title}>
-          <CardContent className="flex flex-col gap-3 p-6">
+          <CardContent className="flex flex-col gap-4 p-6">
             <div className="flex size-10 items-center justify-center rounded-md border">
               <Icon aria-hidden="true" className="size-5" />
             </div>
