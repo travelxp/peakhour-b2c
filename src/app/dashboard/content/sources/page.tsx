@@ -1,0 +1,309 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Activity, BookMarked, FileSearch, Sparkles } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { KpiCard } from "@/components/molecules/kpi-card";
+import { FeatureGate } from "@/components/upgrade/feature-gate";
+import { UpgradeButton } from "@/components/upgrade/upgrade-button";
+import { listSources } from "./api";
+import { AddSourceDrawer } from "./components/add-source-drawer";
+import { SourceRow } from "./components/source-row";
+import type { TrustedSource } from "./types";
+
+/**
+ * Trusted Sources — Phase 0 priority per the LinkedIn 360 plan §3.
+ *
+ * Ships the Day-1/2 surface: Active tab fully wired against
+ * /v1/sources/trusted, status-tab counts, search filter, KPI strip
+ * with the metrics computable from the listing payload alone, and
+ * the manual Add Source drawer. Suggested + Insights tabs render
+ * when data lands but the dedicated Suggested ranker UI + Insights
+ * timeline ship in Day-3/4 follow-ups.
+ *
+ * Gating: behind `content.sources` feature key. Today no plan grants
+ * this — the FeatureGate fallback opens the waitlist drawer pre-tagged
+ * so signups become signal for the rollout order.
+ */
+
+const FEATURE_KEY = "content.sources";
+const FEATURE_NAME = "Trusted Sources";
+const FEATURE_TAGLINE =
+  "Ground every brief, idea, and post in your brand's voice. Add the sites, feeds, channels, and creators your AI should read, watch, and cite.";
+
+type StatusTab = "active" | "suggested" | "rejected" | "inactive";
+
+const TABS: { value: StatusTab; label: string }[] = [
+  { value: "active", label: "Active" },
+  { value: "suggested", label: "Suggested" },
+  { value: "rejected", label: "Rejected" },
+  { value: "inactive", label: "Inactive" },
+];
+
+export default function TrustedSourcesPage() {
+  return (
+    <FeatureGate
+      feature={FEATURE_KEY}
+      featureName={FEATURE_NAME}
+      featureTagline={FEATURE_TAGLINE}
+      mode="hide"
+      fallback={<TrustedSourcesLockedFallback />}
+    >
+      <TrustedSourcesSurface />
+    </FeatureGate>
+  );
+}
+
+function TrustedSourcesSurface() {
+  // Pull all rows up front (cap at 200 — current schema validation
+  // ceiling on the listing endpoint). Per-status counts come from
+  // the in-memory split below; saves four sequential round-trips
+  // every time the page mounts. If a tenant grows past 200 sources
+  // the Day-5 server-side pagination tab handles it.
+  const { data, isLoading } = useQuery({
+    queryKey: ["trusted-sources", { limit: 200 }],
+    queryFn: () => listSources({ limit: 200 }),
+  });
+
+  const [tab, setTab] = useState<StatusTab>("active");
+  const [search, setSearch] = useState("");
+
+  // Memoize the row list against `data` directly so the deps array
+  // for `byStatus` doesn't change on every render (a fresh `?? []`
+  // expression yields a new array reference each call).
+  const rows = useMemo<TrustedSource[]>(() => data?.rows ?? [], [data]);
+
+  const byStatus = useMemo(() => {
+    const groups: Record<StatusTab, TrustedSource[]> = {
+      active: [],
+      suggested: [],
+      rejected: [],
+      inactive: [],
+    };
+    for (const r of rows) {
+      // The schema enum matches our tab values 1:1, but a future
+      // status would silently land in the wrong bucket without this
+      // narrow check.
+      if (r.status === "active" || r.status === "suggested" || r.status === "rejected" || r.status === "inactive") {
+        groups[r.status].push(r);
+      }
+    }
+    return groups;
+  }, [rows]);
+
+  const visibleRows = useMemo(() => {
+    const list = byStatus[tab];
+    if (!search.trim()) return list;
+    const q = search.trim().toLowerCase();
+    return list.filter(
+      (r) =>
+        r.displayName.toLowerCase().includes(q) ||
+        r.identifier.toLowerCase().includes(q),
+    );
+  }, [byStatus, tab, search]);
+
+  return (
+    <div className="space-y-6">
+      <header className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">Trusted Sources</h2>
+          <p className="text-muted-foreground">
+            What your AI reads, watches, and cites.
+          </p>
+        </div>
+        <AddSourceDrawer />
+      </header>
+
+      <KpiStrip rows={rows} loading={isLoading} />
+
+      <Tabs value={tab} onValueChange={(v) => setTab(v as StatusTab)}>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <TabsList>
+            {TABS.map((t) => (
+              <TabsTrigger key={t.value} value={t.value} className="gap-1.5">
+                {t.label}
+                <Badge variant="secondary" className="rounded-sm px-1.5 text-[10px]">
+                  {byStatus[t.value].length}
+                </Badge>
+              </TabsTrigger>
+            ))}
+          </TabsList>
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search name or URL"
+            className="h-9 w-full sm:w-72"
+          />
+        </div>
+
+        <div className="mt-4">
+          {isLoading ? (
+            <RowSkeletons />
+          ) : visibleRows.length === 0 ? (
+            <EmptyState tab={tab} hasAnySources={rows.length > 0} hasSearch={Boolean(search.trim())} />
+          ) : (
+            <div className="space-y-2">
+              {visibleRows.map((r) => (
+                <SourceRow key={r._id} source={r} />
+              ))}
+            </div>
+          )}
+        </div>
+      </Tabs>
+    </div>
+  );
+}
+
+/**
+ * KPI strip — four cards per the §3.4 spec. Two metrics are derivable
+ * from the listing payload and ship live; two need backend telemetry
+ * surfaces that don't exist yet (citations-30d depends on a count
+ * over `cnt_source_usage`; coverage-score is a proprietary scoring
+ * surface — see plan §3.4 + §6 algo #4) and ship as `—` placeholders
+ * with a tooltip-eligible muted state until the endpoint lands.
+ */
+function KpiStrip({ rows, loading }: { rows: TrustedSource[]; loading: boolean }) {
+  const activeCount = rows.filter((r) => r.status === "active").length;
+
+  // 24h fetch health — ratio of recent-success vs recent-failure on
+  // active sources. consecutiveFetchFailures resets to 0 on success,
+  // so a non-zero value across active sources is the "needs attention"
+  // signal. Display as "{healthy}/{total}" so a dropping ratio is
+  // visible at a glance.
+  const active = rows.filter((r) => r.status === "active");
+  const healthy = active.filter((r) => (r.consecutiveFetchFailures ?? 0) === 0).length;
+  const fetchHealth = active.length === 0 ? "—" : `${healthy}/${active.length}`;
+
+  if (loading) {
+    return (
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Skeleton key={i} className="h-24" />
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <KpiCard
+        title="Active sources"
+        value={activeCount}
+        description="Currently feeding the AI"
+        icon={BookMarked}
+      />
+      <KpiCard
+        title="Fetch health"
+        value={fetchHealth}
+        description="Active sources fetched without failure"
+        icon={Activity}
+      />
+      <KpiCard
+        title="Citations (30d)"
+        value="—"
+        description="Lands when usage telemetry ships"
+        icon={FileSearch}
+      />
+      <KpiCard
+        title="Coverage score"
+        value="—"
+        description="Proprietary; algo in design"
+        icon={Sparkles}
+      />
+    </div>
+  );
+}
+
+function RowSkeletons() {
+  return (
+    <div className="space-y-2">
+      {Array.from({ length: 3 }).map((_, i) => (
+        <Skeleton key={i} className="h-20" />
+      ))}
+    </div>
+  );
+}
+
+function EmptyState({
+  tab,
+  hasAnySources,
+  hasSearch,
+}: {
+  tab: StatusTab;
+  hasAnySources: boolean;
+  hasSearch: boolean;
+}) {
+  if (hasSearch) {
+    return (
+      <Card>
+        <CardContent className="py-12 text-center text-sm text-muted-foreground">
+          No sources match that search in this tab.
+        </CardContent>
+      </Card>
+    );
+  }
+  if (tab === "active" && !hasAnySources) {
+    // First-time empty state per the §3.4 spec — soft nudge ("explore
+    // first"), not a blocking modal. Per the open-questions log in
+    // §14, this lean was already chosen.
+    return (
+      <Card>
+        <CardContent className="space-y-2 py-12 text-center">
+          <p className="text-sm font-medium">Your AI is using only platform-default sources.</p>
+          <p className="text-sm text-muted-foreground">
+            Add 5–10 trusted sources to ground every brief in your brand&apos;s voice.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+  const copy: Record<StatusTab, string> = {
+    active: "Nothing active yet — add a source to start grounding briefs.",
+    suggested: "No suggested sources right now. The recommender adds candidates as your content grows.",
+    rejected: "Nothing rejected. Sources you reject from the Suggested tab show up here.",
+    inactive: "No paused sources.",
+  };
+  return (
+    <Card>
+      <CardContent className="py-12 text-center text-sm text-muted-foreground">
+        {copy[tab]}
+      </CardContent>
+    </Card>
+  );
+}
+
+function TrustedSourcesLockedFallback() {
+  return (
+    <div className="space-y-6">
+      <header>
+        <h2 className="text-2xl font-bold tracking-tight">Trusted Sources</h2>
+        <p className="text-muted-foreground">
+          What your AI reads, watches, and cites.
+        </p>
+      </header>
+      <Card className="border-amber-200 bg-linear-to-br from-amber-50/60 to-white dark:border-amber-900/40 dark:from-amber-950/30 dark:to-transparent">
+        <CardContent className="space-y-3 p-8 text-center">
+          <Sparkles aria-hidden="true" className="mx-auto size-8 text-amber-600 dark:text-amber-400" />
+          <h3 className="text-lg font-semibold tracking-tight">Trusted Sources is rolling out</h3>
+          <p className="mx-auto max-w-md text-sm text-muted-foreground">
+            {FEATURE_TAGLINE}
+          </p>
+          <div className="pt-1">
+            <UpgradeButton
+              featureKey={FEATURE_KEY}
+              featureName={FEATURE_NAME}
+              featureTagline={FEATURE_TAGLINE}
+            >
+              Join waitlist
+            </UpgradeButton>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

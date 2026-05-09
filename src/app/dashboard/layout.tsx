@@ -80,8 +80,12 @@ const NAV_GROUPS: NavGroup[] = [
         href: "/dashboard/content",
         label: "Content",
         icon: FileText,
+        // Order encodes the mental model: Library → Sources → Strategist
+        // → Calendar = ingest → ground → plan → publish. Per the
+        // LinkedIn 360 plan §3.3 IA decision.
         subItems: [
           { href: "/dashboard/content", label: "Library" },
+          { href: "/dashboard/content/sources", label: "Sources" },
           { href: "/dashboard/strategist", label: "Strategist" },
           { href: "/dashboard/calendar", label: "Calendar" },
         ],
