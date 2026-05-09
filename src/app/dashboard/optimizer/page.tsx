@@ -1,10 +1,9 @@
 "use client";
 
-import { Sparkles, Target, TrendingUp, Zap, Lock } from "lucide-react";
+import { Sparkles, Target, TrendingUp, Zap, Lock, type LucideIcon } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FeatureGate } from "@/components/upgrade/feature-gate";
 import { UpgradeButton } from "@/components/upgrade/upgrade-button";
-import { useFeature } from "@/hooks/use-feature";
 
 const FEATURE_KEY = "growth.optimizer";
 const FEATURE_NAME = "AI Optimizer";
@@ -12,7 +11,7 @@ const FEATURE_TAGLINE =
   "An always-on optimizer that auto-promotes winning posts, kills underperformers, and reallocates budget against your stated KPI.";
 
 interface Pillar {
-  icon: typeof Target;
+  icon: LucideIcon;
   title: string;
   body: string;
 }
@@ -36,19 +35,13 @@ const PILLARS: Pillar[] = [
 ];
 
 export default function OptimizerPage() {
-  // Surface the active plan label in the unlocked header so the page
-  // never feels like a placeholder once entitlements switch on.
-  const { plan } = useFeature(FEATURE_KEY);
-
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">AI Optimizer</h2>
-          <p className="text-muted-foreground">
-            An autonomous teammate for paid + organic — running the dials so you don&apos;t have to.
-          </p>
-        </div>
+      <div>
+        <h2 className="text-2xl font-bold tracking-tight">AI Optimizer</h2>
+        <p className="text-muted-foreground">
+          An autonomous teammate for paid + organic — running the dials so you don&apos;t have to.
+        </p>
       </div>
 
       <FeatureGate
@@ -58,16 +51,16 @@ export default function OptimizerPage() {
         mode="hide"
         fallback={<OptimizerWaitlistCard />}
       >
-        {/* Unlocked state — until the live optimizer ships, the
-            preview pillars double as the surface and a small banner
-            confirms the feature is reserved on this plan. */}
+        {/* Unlocked branch — until the live optimizer ships, the
+            preview pillars double as the surface and the small
+            confirmation banner below tells the user the feature is
+            reserved for their account. */}
         <OptimizerPreview />
         <Card>
           <CardContent className="flex items-center gap-3 py-5 text-sm">
-            <Sparkles className="size-4 text-amber-500 shrink-0" />
+            <Sparkles aria-hidden="true" className="size-4 text-amber-500 shrink-0" />
             <span className="text-muted-foreground">
-              Reserved on your <span className="font-medium text-foreground">{plan ?? "current"}</span> plan.
-              Live agents roll out as each Phase ships — you&apos;ll see them appear here automatically.
+              Access reserved on your account. Live agents roll out as each Phase ships — you&apos;ll see them appear here automatically.
             </span>
           </CardContent>
         </Card>
@@ -89,7 +82,7 @@ function OptimizerPreview() {
           <CardHeader className="pb-3">
             <div className="flex items-center gap-2">
               <div className="rounded-md bg-primary/10 p-1.5">
-                <Icon className="size-4 text-primary" />
+                <Icon aria-hidden="true" className="size-4 text-primary" />
               </div>
               <CardTitle className="text-base">{title}</CardTitle>
             </div>
@@ -119,11 +112,20 @@ function OptimizerWaitlistCard() {
         <CardContent className="flex flex-col gap-3 py-6 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-3">
             <div className="rounded-full bg-amber-100 p-2 dark:bg-amber-900/40">
-              <Lock className="size-4 text-amber-700 dark:text-amber-300" />
+              <Lock aria-hidden="true" className="size-4 text-amber-700 dark:text-amber-300" />
             </div>
             <div>
-              <p className="text-sm font-medium">Reserve early access</p>
-              <p className="text-sm text-muted-foreground">
+              {/* h3 (not p) so screen-reader users land on a real
+                  heading, and the locked card has a navigable title
+                  in the page outline. */}
+              <h3 className="text-sm font-medium text-amber-950 dark:text-amber-100">
+                Reserve early access
+              </h3>
+              {/* amber-on-amber palette guarantees ≥4.5:1 contrast on
+                  both gradient backgrounds (light + dark), where
+                  `text-muted-foreground` would dip below threshold on
+                  the amber-50/60 light background. */}
+              <p className="text-sm text-amber-900/80 dark:text-amber-200/80">
                 AI Optimizer rolls out to founding members first. Join the waitlist to lock in access + early-bird pricing.
               </p>
             </div>
