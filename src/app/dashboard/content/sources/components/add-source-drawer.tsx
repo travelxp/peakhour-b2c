@@ -363,7 +363,14 @@ function OpmlTab({ onClose }: { onClose: () => void }) {
 
   function onFileInput(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    if (file) ingestFile(file);
+    // Reset the input value AFTER reading the file so re-picking
+    // the same file fires `change` again. Browsers (Chrome/Safari)
+    // suppress onChange when the user re-selects an identical
+    // FileList; clearing the value forces a fresh selection.
+    if (file) {
+      ingestFile(file);
+      e.target.value = "";
+    }
   }
 
   function onDrop(e: React.DragEvent<HTMLDivElement>) {
@@ -395,8 +402,23 @@ function OpmlTab({ onClose }: { onClose: () => void }) {
           tabIndex={0}
           aria-label="Drop an OPML file here, or click to browse"
           onClick={() => fileInputRef.current?.click()}
+          // WAI-ARIA pattern for role="button": activate Enter on
+          // keyDown but Space on keyUp. Some browsers (Firefox)
+          // synthesise a click on Space-up for role="button"; if
+          // we also fired the picker on Space-down the dialog
+          // would open twice. preventDefault on Space-down still
+          // suppresses the page-scroll that Space normally
+          // triggers.
           onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              fileInputRef.current?.click();
+            } else if (e.key === " ") {
+              e.preventDefault();
+            }
+          }}
+          onKeyUp={(e) => {
+            if (e.key === " ") {
               e.preventDefault();
               fileInputRef.current?.click();
             }

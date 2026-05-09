@@ -47,7 +47,13 @@ export function parseOpml(xml: string): ParsedOpmlRow[] {
   if (parserError) {
     throw new OpmlParseError("File doesn't look like valid XML/OPML");
   }
-  if (doc.documentElement.tagName.toLowerCase() !== "opml") {
+  // `localName` returns the un-namespaced element name (e.g.
+  // <opml:opml> → "opml"). Some legacy exporters wrap their OPML in
+  // a custom namespace; `tagName` would include the prefix and fail
+  // this check unnecessarily. Lowercase the compare since XML
+  // element names are technically case-sensitive (real OPML uses
+  // lowercase `<opml>`/`<outline>` per spec).
+  if (doc.documentElement.localName.toLowerCase() !== "opml") {
     throw new OpmlParseError("Root element isn't <opml>");
   }
 
@@ -63,7 +69,10 @@ export function parseOpml(xml: string): ParsedOpmlRow[] {
 
 function walk(node: Element, breadcrumbs: string[], seen: Map<string, ParsedOpmlRow>): void {
   for (const child of Array.from(node.children)) {
-    if (child.tagName.toLowerCase() !== "outline") continue;
+    // `localName` strips namespace prefixes — see the parseOpml
+    // header for why. Real OPML exporters emit lowercase
+    // `<outline>`; the case-fold is belt-and-braces.
+    if (child.localName.toLowerCase() !== "outline") continue;
 
     // OPML 2.0 spec: attribute names are case-sensitive `xmlUrl` /
     // `htmlUrl`. All real-world exporters (Feedly, NetNewsWire,
