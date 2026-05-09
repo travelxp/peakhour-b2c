@@ -74,20 +74,27 @@ export function AddSourceDrawer() {
     setFetchFrequency("daily");
   }
 
+  // Mutation takes the snapshot of trimmed values explicitly via a
+  // `variables` arg so the success toast and any error context read
+  // the values that were submitted, not whatever the input fields
+  // happen to contain when the response arrives. (Inputs aren't
+  // disabled while pending — only the buttons are — so a slow
+  // network + a user who keeps typing would otherwise have the toast
+  // echo the newer text.)
+  interface CreateVars {
+    type: SourceType;
+    identifier: string;
+    displayName: string;
+    fetchFrequency: FetchFrequency;
+  }
   const mutation = useMutation({
-    mutationFn: () =>
-      createSource({
-        type,
-        identifier: identifier.trim(),
-        displayName: displayName.trim(),
-        fetchFrequency,
-      }),
-    onSuccess: () => {
+    mutationFn: (vars: CreateVars) => createSource(vars),
+    onSuccess: (_data, vars) => {
       // Reach all status filters so the new row appears in whichever
       // tab the user is on (always lands `active`, but the per-status
       // counts on every tab also need to refresh).
       queryClient.invalidateQueries({ queryKey: ["trusted-sources"] });
-      toast.success(`${displayName.trim() || "Source"} added`);
+      toast.success(`${vars.displayName || "Source"} added`);
       setOpen(false);
       // Reset after the close animation so the form doesn't visibly
       // clear while the sheet is fading out (~300ms).
@@ -107,11 +114,18 @@ export function AddSourceDrawer() {
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!identifier.trim() || !displayName.trim()) {
+    const trimmedIdentifier = identifier.trim();
+    const trimmedName = displayName.trim();
+    if (!trimmedIdentifier || !trimmedName) {
       toast.error("Identifier and name are required");
       return;
     }
-    mutation.mutate();
+    mutation.mutate({
+      type,
+      identifier: trimmedIdentifier,
+      displayName: trimmedName,
+      fetchFrequency,
+    });
   }
 
   return (

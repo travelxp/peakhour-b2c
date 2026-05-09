@@ -15,7 +15,7 @@ import { ApiError } from "@/lib/api";
 import { listSources } from "./api";
 import { AddSourceDrawer } from "./components/add-source-drawer";
 import { SourceRow } from "./components/source-row";
-import type { TrustedSource } from "./types";
+import type { SourceStatus, TrustedSource } from "./types";
 
 /**
  * Trusted Sources — Phase 0 priority per the LinkedIn 360 plan §3.
@@ -37,7 +37,14 @@ const FEATURE_NAME = "Trusted Sources";
 const FEATURE_TAGLINE =
   "Ground every brief, idea, and post in your brand's voice. Add the sites, feeds, channels, and creators your AI should read, watch, and cite.";
 
-type StatusTab = "active" | "suggested" | "rejected" | "inactive";
+/**
+ * Tabs are 1:1 with SourceStatus. Aliasing instead of duplicating
+ * the union means a future schema addition (e.g., "archived") will
+ * TS-error at the `Record<StatusTab, ...>` exhaustiveness check on
+ * `byStatus` AND at the `TABS` const below — closing the silent-drop
+ * gap where a runtime `||` chain would have ignored the new value.
+ */
+type StatusTab = SourceStatus;
 
 const TABS: { value: StatusTab; label: string }[] = [
   { value: "active", label: "Active" },
@@ -72,10 +79,15 @@ function TrustedSourcesSurface() {
   // of looking like a slow load. The auth-provider is the right
   // place to wait on session boot; this page just renders what we
   // know.
-  const { data, isLoading, isError, error } = useQuery({
+  const { data, isLoading, isFetching, isError, error } = useQuery({
     queryKey: ["trusted-sources", { limit: 200 }],
     queryFn: () => listSources({ limit: 200 }),
     retry: false,
+    // Trusted sources change at 15-minute fetcher cadence at most;
+    // 30s of staleness avoids the tab-switch refetch storm that
+    // would otherwise rebuild every memo and remount the per-row
+    // "Xm ago" intervals.
+    staleTime: 30_000,
   });
 
   const [tab, setTab] = useState<StatusTab>("active");
@@ -93,13 +105,13 @@ function TrustedSourcesSurface() {
       rejected: [],
       inactive: [],
     };
+    // StatusTab is aliased to SourceStatus, so every r.status is a
+    // valid groups[] key by construction. If the schema gains a new
+    // status, the Record<StatusTab,…> initialiser above will fail
+    // exhaustiveness — that's the desired error surface, not this
+    // loop.
     for (const r of rows) {
-      // The schema enum matches our tab values 1:1, but a future
-      // status would silently land in the wrong bucket without this
-      // narrow check.
-      if (r.status === "active" || r.status === "suggested" || r.status === "rejected" || r.status === "inactive") {
-        groups[r.status].push(r);
-      }
+      groups[r.status].push(r);
     }
     return groups;
   }, [rows]);
@@ -149,7 +161,11 @@ function TrustedSourcesSurface() {
           />
         </div>
 
-        <div className="mt-4">
+        {/* aria-busy on the list region so screen-reader users learn
+            when a background revalidation (post-mutation invalidate
+            or focus refetch) is in flight — the visual list goes
+            stale for ~1s with no indicator without this. */}
+        <div className="mt-4" aria-busy={isFetching && !isLoading}>
           {isLoading ? (
             <RowSkeletons />
           ) : isError ? (
