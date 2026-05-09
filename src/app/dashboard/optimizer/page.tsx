@@ -60,7 +60,7 @@ export default function OptimizerPage() {
         <OptimizerPreview />
         <Card>
           <CardContent className="flex items-center gap-3 py-5 text-sm">
-            <Sparkles aria-hidden="true" className="size-4 text-amber-500 shrink-0" />
+            <Sparkles aria-hidden="true" className="size-4 text-amber-600 dark:text-amber-400 shrink-0" />
             <span className="text-muted-foreground">
               Access reserved on your account. Live agents roll out as each Phase ships — you&apos;ll see them appear here automatically.
             </span>
