@@ -14,6 +14,7 @@ import { UpgradeButton } from "@/components/upgrade/upgrade-button";
 import { ApiError } from "@/lib/api";
 import { listSources } from "./api";
 import { AddSourceDrawer } from "./components/add-source-drawer";
+import { InsightsPanel } from "./components/insights-panel";
 import { SourceRow } from "./components/source-row";
 import type { SourceStatus, TrustedSource } from "./types";
 
@@ -38,15 +39,21 @@ const FEATURE_TAGLINE =
   "Ground every brief, idea, and post in your brand's voice. Add the sites, feeds, channels, and creators your AI should read, watch, and cite.";
 
 /**
- * Tabs are 1:1 with SourceStatus. Aliasing instead of duplicating
- * the union means a future schema addition (e.g., "archived") will
- * TS-error at the `Record<StatusTab, ...>` exhaustiveness check on
- * `byStatus` AND at the `TABS` const below — closing the silent-drop
- * gap where a runtime `||` chain would have ignored the new value.
+ * Status-filtered list tabs are 1:1 with SourceStatus. Aliasing
+ * instead of duplicating the union means a future schema addition
+ * (e.g., "archived") will TS-error at the `Record<StatusTab, ...>`
+ * exhaustiveness check on `byStatus` AND at the `STATUS_TABS` const
+ * below — closing the silent-drop gap where a runtime `||` chain
+ * would have ignored the new value.
+ *
+ * `Tab` is the broader union including the Insights view; the
+ * Insights tab renders aggregates (not a filtered list) so it sits
+ * outside the SourceStatus alias.
  */
 type StatusTab = SourceStatus;
+type Tab = StatusTab | "insights";
 
-const TABS: { value: StatusTab; label: string }[] = [
+const STATUS_TABS: { value: StatusTab; label: string }[] = [
   { value: "active", label: "Active" },
   { value: "suggested", label: "Suggested" },
   { value: "rejected", label: "Rejected" },
@@ -90,7 +97,7 @@ function TrustedSourcesSurface() {
     staleTime: 30_000,
   });
 
-  const [tab, setTab] = useState<StatusTab>("active");
+  const [tab, setTab] = useState<Tab>("active");
   const [search, setSearch] = useState("");
 
   // Memoize the row list against `data` directly so the deps array
@@ -117,6 +124,7 @@ function TrustedSourcesSurface() {
   }, [rows]);
 
   const visibleRows = useMemo(() => {
+    if (tab === "insights") return [];
     const list = byStatus[tab];
     if (!search.trim()) return list;
     const q = search.trim().toLowerCase();
@@ -141,10 +149,10 @@ function TrustedSourcesSurface() {
 
       <KpiStrip rows={rows} loading={isLoading} />
 
-      <Tabs value={tab} onValueChange={(v) => setTab(v as StatusTab)}>
+      <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <TabsList>
-            {TABS.map((t) => (
+            {STATUS_TABS.map((t) => (
               <TabsTrigger key={t.value} value={t.value} className="gap-1.5">
                 {t.label}
                 <Badge variant="secondary" className="rounded-sm px-1.5 text-[10px]">
@@ -152,13 +160,18 @@ function TrustedSourcesSurface() {
                 </Badge>
               </TabsTrigger>
             ))}
+            <TabsTrigger value="insights">Insights</TabsTrigger>
           </TabsList>
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search name or URL"
-            className="h-9 w-full sm:w-72"
-          />
+          {/* Search filters the row list — irrelevant on Insights, so
+              it hides there to avoid implying "search the aggregates". */}
+          {tab !== "insights" && (
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search name or URL"
+              className="h-9 w-full sm:w-72"
+            />
+          )}
         </div>
 
         {/* aria-busy on the list region so screen-reader users learn
@@ -170,6 +183,8 @@ function TrustedSourcesSurface() {
             <RowSkeletons />
           ) : isError ? (
             <ErrorCard error={error} />
+          ) : tab === "insights" ? (
+            <InsightsPanel rows={rows} />
           ) : visibleRows.length === 0 ? (
             <EmptyState tab={tab} hasAnySources={rows.length > 0} hasSearch={Boolean(search.trim())} />
           ) : (

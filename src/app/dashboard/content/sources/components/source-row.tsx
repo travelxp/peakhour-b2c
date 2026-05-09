@@ -176,10 +176,25 @@ export function SourceRow({ source }: SourceRowProps) {
           <Badge variant="outline" className="shrink-0 text-[10px]">
             {SOURCE_TYPE_LABEL[source.type]}
           </Badge>
+          {source.origin === "ai_suggested" && (
+            <Badge variant="secondary" className="shrink-0 text-[10px]">
+              AI suggested
+            </Badge>
+          )}
         </div>
         <p className="truncate font-mono text-xs text-muted-foreground" title={source.identifier}>
           {source.identifier}
         </p>
+        {/* Suggested rows lead with WHY the recommender flagged it —
+            that's the decision-relevant info for an Accept/Reject
+            click. Active/inactive/rejected rows show fetch + usage
+            stats instead. */}
+        {source.status === "suggested" && source.suggestedReason ? (
+          <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+            <span className="font-medium text-foreground/80">Why: </span>
+            {source.suggestedReason}
+          </p>
+        ) : null}
         <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
           <span>{source.fetchFrequency}</span>
           <span aria-hidden="true">•</span>
