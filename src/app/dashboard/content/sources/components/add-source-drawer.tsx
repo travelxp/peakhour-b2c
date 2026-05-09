@@ -176,7 +176,10 @@ function ManualTab({ onClose }: { onClose: () => void }) {
 
   return (
     <>
-      <form onSubmit={onSubmit} className="flex flex-1 flex-col gap-5 overflow-auto px-4 pt-4">
+      {/* Constrain Manual to a typical-form width even though the
+          parent Sheet is sm:max-w-2xl (sized for the bulk preview).
+          A four-field form at 2xl-width reads loose. */}
+      <form onSubmit={onSubmit} className="flex flex-1 flex-col gap-5 overflow-auto px-4 pt-4 sm:max-w-md">
         <div className="grid gap-2">
           <Label htmlFor="source-type">Type</Label>
           <Select value={type} onValueChange={(v) => setType(v as SourceType)}>
@@ -326,11 +329,10 @@ function BulkPasteTab({ onClose }: { onClose: () => void }) {
 function OpmlTab({ onClose }: { onClose: () => void }) {
   const [rows, setRows] = useState<CreateSourceInput[]>([]);
   const [fileName, setFileName] = useState<string | null>(null);
+  const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  async function ingestFile(file: File) {
     setFileName(file.name);
     try {
       const xml = await file.text();
@@ -359,6 +361,18 @@ function OpmlTab({ onClose }: { onClose: () => void }) {
     }
   }
 
+  function onFileInput(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (file) ingestFile(file);
+  }
+
+  function onDrop(e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    setDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) ingestFile(file);
+  }
+
   function clear() {
     setRows([]);
     setFileName(null);
@@ -368,22 +382,60 @@ function OpmlTab({ onClose }: { onClose: () => void }) {
   return (
     <>
       <div className="flex flex-1 flex-col gap-3 overflow-auto px-4 pt-4">
-        <div className="flex items-center gap-3">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <Upload className="mr-1.5 size-4" />
-            {fileName ? "Replace file" : "Choose OPML file"}
-          </Button>
-          {fileName && (
-            <span className="truncate text-sm text-muted-foreground" title={fileName}>
-              {fileName}
-            </span>
-          )}
+        {/* Drop-or-click affordance — visual pattern adapted from
+            @shadcnblocks/file-upload-file-upload-dropzone-3 (compact
+            horizontal arrangement: icon + dual-line label). The
+            block depends on a third-party Dice UI primitive; we
+            keep the visual idiom but use HTML5 drag-and-drop
+            directly so no extra dep tree lands for one OPML upload.
+            Clicking the zone or pressing Enter/Space activates the
+            hidden file input. */}
+        <div
+          role="button"
+          tabIndex={0}
+          aria-label="Drop an OPML file here, or click to browse"
+          onClick={() => fileInputRef.current?.click()}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              fileInputRef.current?.click();
+            }
+          }}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDragOver(true);
+          }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={onDrop}
+          className={
+            "flex cursor-pointer items-center gap-3 rounded-lg border border-dashed px-4 py-3 transition-colors " +
+            (dragOver
+              ? "border-primary bg-primary/5"
+              : "hover:border-foreground/30 hover:bg-muted/40")
+          }
+        >
+          <Upload aria-hidden="true" className="size-5 text-muted-foreground" />
+          <div className="flex-1 text-left">
+            <p className="text-sm font-medium">
+              {fileName ? fileName : "Drop an OPML file here, or click to browse"}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {fileName
+                ? `${rows.length} feed${rows.length === 1 ? "" : "s"} parsed — review below.`
+                : "Export from Feedly, NetNewsWire, Inoreader, or any reader that supports OPML 2.0."}
+            </p>
+          </div>
           {rows.length > 0 && (
-            <Button type="button" variant="ghost" size="sm" onClick={clear}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={(e) => {
+                // Don't trigger the wrapper's onClick file-picker.
+                e.stopPropagation();
+                clear();
+              }}
+            >
               <Trash2 className="mr-1.5 size-4" />
               Clear
             </Button>
@@ -393,12 +445,9 @@ function OpmlTab({ onClose }: { onClose: () => void }) {
             type="file"
             accept=".opml,.xml,application/xml,text/xml"
             className="hidden"
-            onChange={onFile}
+            onChange={onFileInput}
           />
         </div>
-        <p className="text-xs text-muted-foreground">
-          Export from Feedly, NetNewsWire, Inoreader, or any feed reader that supports OPML 2.0.
-        </p>
         <BulkPreview rows={rows} />
       </div>
       <BulkSubmitFooter rows={rows} onClose={onClose} />
@@ -433,12 +482,16 @@ interface BulkOutcome {
   errors: { identifier: string; message: string }[];
 }
 
-/** Run N create-source POSTs in parallel batches of 5. Returns an
+/** Run N create-source POSTs in parallel batches of 10. Returns an
  *  aggregate outcome rather than throwing on partial failure — the
  *  UI surfaces "3 added, 1 duplicate, 1 failed" rather than a hard
- *  fail when one row hits a 409. */
-async function bulkCreateSources(rows: CreateSourceInput[]): Promise<BulkOutcome> {
-  const BATCH = 5;
+ *  fail when one row hits a 409. Calls `onProgress` between batches
+ *  so the caller can render a progress counter without polling. */
+async function bulkCreateSources(
+  rows: CreateSourceInput[],
+  onProgress?: (done: number, total: number) => void,
+): Promise<BulkOutcome> {
+  const BATCH = 10;
   const result: BulkOutcome = { succeeded: 0, duplicates: 0, failed: 0, errors: [] };
   for (let i = 0; i < rows.length; i += BATCH) {
     const batch = rows.slice(i, i + BATCH);
@@ -455,6 +508,7 @@ async function bulkCreateSources(rows: CreateSourceInput[]): Promise<BulkOutcome
         result.errors.push({ identifier: row.identifier, message });
       }
     });
+    onProgress?.(Math.min(i + BATCH, rows.length), rows.length);
   }
   return result;
 }
@@ -497,22 +551,27 @@ function BulkSubmitFooter({
 }) {
   const queryClient = useQueryClient();
   const [submitting, setSubmitting] = useState(false);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
 
   async function submit() {
     if (rows.length === 0) return;
     setSubmitting(true);
+    setProgress({ done: 0, total: rows.length });
     try {
-      const outcome = await bulkCreateSources(rows);
+      const outcome = await bulkCreateSources(rows, (done, total) => setProgress({ done, total }));
       // Refetch even on a partial outcome — any successes need to
       // appear in the listing immediately.
       queryClient.invalidateQueries({ queryKey: ["trusted-sources"] });
       summarize(outcome);
-      // Close only when at least one row landed; on a hard zero
-      // (everything was a duplicate or failed), keep the drawer
-      // open so the user can amend without losing context.
-      if (outcome.succeeded > 0) onClose();
+      // Close only when there were no failures. On any failure
+      // (including "everything was a duplicate" or hard errors),
+      // keep the drawer open so the user can see the rows that
+      // didn't land + amend without losing context. Pure-success
+      // and pure-success-plus-no-op-duplicate paths close.
+      if (outcome.failed === 0 && outcome.succeeded > 0) onClose();
     } finally {
       setSubmitting(false);
+      setProgress(null);
     }
   }
 
@@ -534,22 +593,21 @@ function BulkSubmitFooter({
     });
   }
 
+  const buttonLabel =
+    submitting && progress
+      ? `Adding ${progress.done} / ${progress.total}…`
+      : rows.length === 0
+        ? "Add"
+        : `Add ${rows.length} source${rows.length === 1 ? "" : "s"}`;
+
   return (
     <SheetFooter>
       <Button variant="outline" type="button" onClick={onClose} disabled={submitting}>
         Cancel
       </Button>
       <Button onClick={submit} disabled={submitting || rows.length === 0}>
-        {submitting ? (
-          <>
-            <Loader2 className="mr-1.5 size-4 animate-spin" />
-            Adding {rows.length}…
-          </>
-        ) : rows.length === 0 ? (
-          "Add"
-        ) : (
-          `Add ${rows.length} source${rows.length === 1 ? "" : "s"}`
-        )}
+        {submitting ? <Loader2 className="mr-1.5 size-4 animate-spin" /> : null}
+        {buttonLabel}
       </Button>
     </SheetFooter>
   );

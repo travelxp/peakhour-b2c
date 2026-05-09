@@ -51,41 +51,49 @@ export function parseOpml(xml: string): ParsedOpmlRow[] {
     throw new OpmlParseError("Root element isn't <opml>");
   }
 
-  const out: ParsedOpmlRow[] = [];
+  // Dedupe by identifier — Feedly et al. export the same feed
+  // under multiple categories, and bulk-create would generate one
+  // 409 per duplicate. First occurrence wins so the breadcrumb
+  // reflects the primary category.
+  const seen = new Map<string, ParsedOpmlRow>();
   const root = doc.querySelector("body");
-  if (!root) return out;
-
-  walk(root, [], out);
-  return out;
+  if (root) walk(root, [], seen);
+  return Array.from(seen.values());
 }
 
-function walk(node: Element, breadcrumbs: string[], out: ParsedOpmlRow[]): void {
+function walk(node: Element, breadcrumbs: string[], seen: Map<string, ParsedOpmlRow>): void {
   for (const child of Array.from(node.children)) {
     if (child.tagName.toLowerCase() !== "outline") continue;
 
-    const xmlUrl = child.getAttribute("xmlUrl") || child.getAttribute("xmlurl");
-    const htmlUrl = child.getAttribute("htmlUrl") || child.getAttribute("htmlurl");
+    // OPML 2.0 spec: attribute names are case-sensitive `xmlUrl` /
+    // `htmlUrl`. All real-world exporters (Feedly, NetNewsWire,
+    // Inoreader) emit canonical casing; we read it directly.
+    const xmlUrl = child.getAttribute("xmlUrl");
+    const htmlUrl = child.getAttribute("htmlUrl");
     const text = child.getAttribute("text") || child.getAttribute("title") || "";
 
     // A leaf with at least one URL → emit a row. We favour xmlUrl
     // because feed-reader exports lean on it; htmlUrl is used as
-    // the displayName-target when both are present.
+    // the fallback when xmlUrl is absent.
     const url = xmlUrl || htmlUrl;
     if (url) {
-      const displayName = text.trim() || defaultDisplayName(url);
-      const type = xmlUrl ? "rss" : detectSourceType(url);
-      out.push({
-        type,
-        identifier: url.trim(),
-        displayName,
-        ...(breadcrumbs.length > 0 ? { category: breadcrumbs.join(" / ") } : {}),
-      });
+      const identifier = url.trim();
+      if (!seen.has(identifier)) {
+        const displayName = text.trim() || defaultDisplayName(url);
+        const type = xmlUrl ? "rss" : detectSourceType(url);
+        seen.set(identifier, {
+          type,
+          identifier,
+          displayName,
+          ...(breadcrumbs.length > 0 ? { category: breadcrumbs.join(" / ") } : {}),
+        });
+      }
       continue;
     }
 
     // Branch outline (no URL) — recurse with the breadcrumb. Use
     // the outline's text/title as the path segment.
     const segment = text.trim();
-    walk(child, segment ? [...breadcrumbs, segment] : breadcrumbs, out);
+    walk(child, segment ? [...breadcrumbs, segment] : breadcrumbs, seen);
   }
 }
