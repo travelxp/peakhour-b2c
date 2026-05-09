@@ -125,3 +125,21 @@
     @apply bg-background text-foreground;
   }
 }
+
+/*
+ * Animated conic-gradient ring used by <UpgradeButton variant="pill" />.
+ * @property is required so browsers can interpolate the custom angle
+ * value at the requested 60fps; without it the conic-gradient would
+ * snap from 0deg to 360deg without intermediate frames.
+ */
+@property --ring-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@keyframes gradient-ring-spin {
+  to {
+    --ring-angle: 360deg;
+  }
+}

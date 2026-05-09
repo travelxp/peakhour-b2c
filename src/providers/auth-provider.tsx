@@ -16,6 +16,7 @@ import {
   type AuthBusiness,
   type OrgSummary,
   type BusinessSummary,
+  type Entitlements,
   getMe,
   logout as apiLogout,
   switchOrg as apiSwitchOrg,
@@ -28,6 +29,9 @@ interface AuthState {
   orgs: OrgSummary[];
   business: AuthBusiness | null;
   businesses: BusinessSummary[];
+  /** Active org's entitlements snapshot from /me. Null when unavailable
+   *  — every FeatureGate treats null as locked (correct safety posture). */
+  entitlements: Entitlements | null;
   isLoading: boolean;
   isAuthenticated: boolean;
 }
@@ -50,19 +54,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     orgs: [],
     business: null,
     businesses: [],
+    entitlements: null,
     isLoading: true,
     isAuthenticated: false,
   });
 
   const refreshUser = useCallback(async () => {
     try {
-      const { user, org, orgs, business, businesses } = await getMe();
+      const { user, org, orgs, business, businesses, entitlements } = await getMe();
       setState({
         user,
         org,
         orgs: orgs || [],
         business: business || null,
         businesses: businesses || [],
+        entitlements: entitlements ?? null,
         isLoading: false,
         isAuthenticated: true,
       });
@@ -73,6 +79,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         orgs: [],
         business: null,
         businesses: [],
+        entitlements: null,
         isLoading: false,
         isAuthenticated: false,
       });
@@ -156,6 +163,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       orgs: [],
       business: null,
       businesses: [],
+      entitlements: null,
       isLoading: false,
       isAuthenticated: false,
     });
