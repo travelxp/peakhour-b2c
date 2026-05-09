@@ -54,7 +54,11 @@ export function ProportionListCard({
                 </div>
                 <Progress
                   value={total === 0 ? 0 : (item.count / total) * 100}
-                  aria-label={`${item.count} of ${total} are ${item.label}`}
+                  // Label puts the category name first so the AT
+                  // user hears the bar's meaning (the category) before
+                  // the proportion. "Newsletter: 3 of 12" is more
+                  // scannable than "3 of 12 are newsletter".
+                  aria-label={`${item.label}: ${item.count} of ${total}`}
                 />
               </li>
             ))}

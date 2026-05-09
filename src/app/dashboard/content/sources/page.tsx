@@ -60,6 +60,20 @@ const STATUS_TABS: { value: StatusTab; label: string }[] = [
   { value: "inactive", label: "Inactive" },
 ];
 
+/**
+ * Validate a string against the Tab union — Radix Tabs only emits
+ * values from the rendered triggers today, but accepting them via
+ * an unchecked cast would defeat the silent-drop guard the
+ * StatusTab/Tab split was introduced for. A future caller passing
+ * a stray query param into this state would silently land on
+ * `"active"` instead of crashing or rendering a broken layout.
+ */
+function parseTab(v: string): Tab {
+  if (v === "insights") return "insights";
+  if (STATUS_TABS.some((t) => t.value === v)) return v as StatusTab;
+  return "active";
+}
+
 export default function TrustedSourcesPage() {
   return (
     <FeatureGate
@@ -149,7 +163,7 @@ function TrustedSourcesSurface() {
 
       <KpiStrip rows={rows} loading={isLoading} />
 
-      <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
+      <Tabs value={tab} onValueChange={(v) => setTab(parseTab(v))}>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <TabsList>
             {STATUS_TABS.map((t) => (

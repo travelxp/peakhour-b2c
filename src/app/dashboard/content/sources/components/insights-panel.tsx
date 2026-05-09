@@ -60,13 +60,19 @@ export function InsightsPanel({ rows }: InsightsPanelProps) {
           value={stats.totalActive}
           icon={BookMarked}
         />
+        {/* "Active citations" so the active-only scope is on the
+            label, not buried in a description. A paused source's
+            historical citations are real but excluded here — the
+            user reads this number as "what's currently feeding the
+            AI's output," matching the rest of this panel which is
+            also active-only by design. */}
         <KpiCard
-          title="Citations"
+          title="Active citations"
           value={stats.totalCitations}
           description={
             stats.totalCitations === 0
               ? "Once the AI cites a source, the count lands here"
-              : "All-time, across active sources"
+              : "All-time, across currently-active sources"
           }
           icon={Sparkles}
         />
@@ -104,9 +110,23 @@ export function InsightsPanel({ rows }: InsightsPanelProps) {
 
       <PendingItemsCard
         items={[
-          { title: "Citation timeline", gatedOn: "cnt_source_usage time-series aggregate endpoint" },
-          { title: "Coverage heatmap", gatedOn: "proprietary scorer (algo in design)" },
-          { title: "Drift alerts", gatedOn: "rejection-topic embedding comparison cron" },
+          {
+            title: "Citation timeline",
+            gatedOn: "cnt_source_usage time-series aggregate endpoint",
+          },
+          {
+            // gatedOn is parsed by PendingItemsCard as the noun
+            // phrase between "Lands once the" and "ships." A
+            // parenthetical aside ("(algo in design)") would attach
+            // "ships" to the parenthetical, reading awkwardly — keep
+            // the phrase a clean noun.
+            title: "Coverage heatmap",
+            gatedOn: "proprietary coverage scorer",
+          },
+          {
+            title: "Drift alerts",
+            gatedOn: "rejection-topic embedding comparison cron",
+          },
         ]}
       />
     </div>
