@@ -50,12 +50,14 @@ export function FeatureGate({
 }: FeatureGateProps) {
   const { allowed, loading } = useFeature(feature);
 
-  if (loading) {
-    return <div className="opacity-70">{children}</div>;
-  }
+  // While loading, render the locked treatment — never expose
+  // children fully interactive before entitlements resolve. A brief
+  // "locked" flash beats briefly granting access. Keeps the JSDoc
+  // promise above (locked-by-default semantics) honest.
+  const showLocked = loading || !allowed;
 
-  if (allowed) {
-    return mode === "passthrough" ? <>{children}</> : <>{children}</>;
+  if (!showLocked) {
+    return <>{children}</>;
   }
 
   // Locked.
@@ -63,21 +65,39 @@ export function FeatureGate({
     return fallback ?? null;
   }
 
-  // Lock mode (default): show children muted + an upgrade affordance.
+  // Lock mode (default): muted children + upgrade affordance over them.
+  // - `inert` disables pointer + keyboard interaction on the muted
+  //   subtree (React 19+ supports inert natively). Without it, a
+  //   focusable child (Switch, Input) stays tab-reachable and could
+  //   be activated via keyboard despite the visual lock.
+  // - The overlay container is `pointer-events-none` so empty space
+  //   in the centered flex layout doesn't intercept attempts to click
+  //   visible-but-muted children. Only the UpgradeButton itself
+  //   captures pointer events.
+  // - role="group" + aria-label give AT users a description of WHY
+  //   the region is locked instead of just announcing "Unlock".
+  const lockLabel = `Locked feature${featureName ? `: ${featureName}` : ""}. Upgrade required.`;
   return (
-    <div className={cn("relative", className)}>
-      <div className="pointer-events-none select-none opacity-50 [filter:saturate(0.8)]">
+    <div
+      className={cn("relative", className)}
+      role="group"
+      aria-label={lockLabel}
+    >
+      {/* @ts-expect-error -- React 19 supports the `inert` attribute, but TS DOM types haven't caught up everywhere. */}
+      <div inert="" className="select-none opacity-50 filter-[saturate(0.8)]">
         {children}
       </div>
       <UpgradeBadge />
-      <div className="absolute inset-0 flex items-center justify-center">
-        <UpgradeButton
-          featureKey={feature}
-          featureName={featureName}
-          featureTagline={featureTagline}
-        >
-          Unlock
-        </UpgradeButton>
+      <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+        <span className="pointer-events-auto">
+          <UpgradeButton
+            featureKey={feature}
+            featureName={featureName}
+            featureTagline={featureTagline}
+          >
+            Unlock
+          </UpgradeButton>
+        </span>
       </div>
     </div>
   );

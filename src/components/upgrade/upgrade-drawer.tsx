@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { Sparkles, Mail, Loader2, Check, Send } from "lucide-react";
+import { Sparkles, Mail, Loader2, Check, Share2 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
 import {
@@ -57,12 +57,31 @@ export interface UpgradeDrawerProps {
 }
 
 /**
- * Cryptographically random-ish 4-char anti-collision suffix used in
- * the success card's share URL. Keeps the UTM stable while avoiding
- * exact-URL caching on retweets.
+ * Client-side random suffix used in the success card's share URL —
+ * defeats exact-URL caching on retweets. Non-security; Math.random
+ * is fine.
  */
 function clientNonce(): string {
   return Math.random().toString(36).slice(2, 6);
+}
+
+/**
+ * Pick the right `intent` for a waitlist signup based on which key
+ * the caller passed. Documents the precedence so callers passing
+ * BOTH addonKey AND featureKey (legitimate — an add-on unlocks a
+ * feature) know they'll be bucketed by add-on (the more specific of
+ * the two for analytics). Override via the explicit `intent` prop
+ * when the default is wrong.
+ */
+function inferIntent(args: {
+  addonKey?: string;
+  integrationKey?: string;
+  featureKey?: string;
+}): "plan_upgrade" | "addon" | "integration" | "general" {
+  if (args.addonKey) return "addon";
+  if (args.integrationKey) return "integration";
+  if (args.featureKey) return "plan_upgrade";
+  return "general";
 }
 
 export function UpgradeDrawer(props: UpgradeDrawerProps) {
@@ -77,7 +96,7 @@ export function UpgradeDrawer(props: UpgradeDrawerProps) {
     addonKey,
     integrationKey,
   } = props;
-  const { user, org } = useAuth();
+  const { user } = useAuth();
 
   // Local form state — kept inside the drawer so closing-and-reopening
   // resets the form. Authenticated callers see their email auto-filled.
@@ -102,9 +121,11 @@ export function UpgradeDrawer(props: UpgradeDrawerProps) {
   function handleClose(next: boolean) {
     onOpenChange(next);
     if (!next) {
-      // Defer reset to next tick so the close animation doesn't show
-      // the form clearing while the drawer is still visible.
-      setTimeout(reset, 200);
+      // Reset form once the Sheet's close animation has finished
+      // (Radix's default close transition is ~300ms in this build).
+      // Resetting earlier would visibly clear the form while the
+      // drawer is still fading out.
+      setTimeout(reset, 350);
     }
   }
 
@@ -117,13 +138,12 @@ export function UpgradeDrawer(props: UpgradeDrawerProps) {
     try {
       const body: Record<string, unknown> = {
         email,
-        intent: intent ?? (addonKey ? "addon" : integrationKey ? "integration" : featureKey ? "plan_upgrade" : "general"),
+        intent: intent ?? inferIntent({ addonKey, integrationKey, featureKey }),
       };
       if (featureKey) body.featureKey = featureKey;
       if (addonKey) body.addonKey = addonKey;
       if (integrationKey) body.integrationKey = integrationKey;
       if (businessContext) body.businessContext = businessContext;
-      if (org?.slug) body.utmSource = org.slug;
 
       const r = await api.post<{
         _id: string;
@@ -161,7 +181,10 @@ export function UpgradeDrawer(props: UpgradeDrawerProps) {
         url,
       }).catch(() => {/* user dismissed */});
     } else {
-      navigator.clipboard.writeText(url).then(() => toast.success("Referral link copied"));
+      navigator.clipboard
+        .writeText(url)
+        .then(() => toast.success("Referral link copied"))
+        .catch(() => toast.error("Could not copy link — copy it manually below"));
     }
   }
 
@@ -292,8 +315,8 @@ export function UpgradeDrawer(props: UpgradeDrawerProps) {
                   <code className="flex-1 rounded bg-muted px-3 py-1.5 font-mono text-xs">
                     {success.referralCode}
                   </code>
-                  <Button size="sm" variant="outline" onClick={shareReferral}>
-                    <Send className="size-3.5 mr-1.5" />
+                  <Button size="sm" variant="outline" onClick={shareReferral} aria-label="Share referral link">
+                    <Share2 className="size-3.5 mr-1.5" />
                     Share
                   </Button>
                 </div>

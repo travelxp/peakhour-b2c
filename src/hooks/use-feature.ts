@@ -1,5 +1,6 @@
 "use client";
 
+import type { EntitlementLimits } from "@/lib/auth";
 import { useAuth } from "@/providers/auth-provider";
 
 /**
@@ -69,8 +70,11 @@ export function useAnyFeature(featureKeys: string[]): UseFeatureResult {
 /**
  * Lookup a numeric limit from entitlements. Returns null if not set
  * (treat as "no quota explicitly defined" — caller decides default).
+ *
+ * Typed via `keyof EntitlementLimits` directly so a refactor of the
+ * AuthState shape doesn't silently widen this surface.
  */
-export function useLimit(limitKey: keyof NonNullable<ReturnType<typeof useAuth>["entitlements"]>["limits"]): number | null {
+export function useLimit(limitKey: keyof EntitlementLimits): number | null {
   const { entitlements } = useAuth();
   const v = entitlements?.limits?.[limitKey];
   return typeof v === "number" ? v : null;
