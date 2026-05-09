@@ -126,12 +126,17 @@ export function SourceRow({ source }: SourceRowProps) {
   });
 
   const rejectMutation = useMutation({
-    // Reason is required by the backend — sending a static value
+    // Reason is required by the backend — sending a sentinel value
     // until the UI for capturing a reason ships (a small dialog with
     // a textarea + radio of canned reasons). Until then this rejection
     // path is intentionally rare; the dropdown copy makes that clear.
+    // Sentinel chosen so future analytics can filter "rejected without
+    // a captured reason" rows out of any reason-distribution chart.
     mutationFn: () =>
-      patchSource(source._id, { status: "rejected", rejectionReason: "Rejected from dashboard" }),
+      patchSource(source._id, {
+        status: "rejected",
+        rejectionReason: "[ui-rejected: no reason captured]",
+      }),
     onSuccess: () => {
       toast.success(`${source.displayName} rejected`);
       invalidate();
@@ -196,7 +201,12 @@ export function SourceRow({ source }: SourceRowProps) {
       <div className="shrink-0">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" disabled={isPending} aria-label="Source actions">
+            <Button
+              variant="ghost"
+              size="icon"
+              disabled={isPending}
+              aria-label={`Actions for ${source.displayName}`}
+            >
               {isPending ? (
                 <Loader2 className="size-4 animate-spin" />
               ) : (

@@ -24,7 +24,10 @@ export async function listSources(params: ListParams = {}): Promise<ListResponse
   const query: Record<string, string> = {};
   if (params.status) query.status = params.status;
   if (params.type) query.type = params.type;
-  if (params.limit) query.limit = String(params.limit);
+  // `!== undefined` rather than truthy-check so a caller passing
+  // limit: 0 surfaces as a backend 400 (Zod min(1)) instead of being
+  // silently dropped here.
+  if (params.limit !== undefined) query.limit = String(params.limit);
   return api.get<ListResponse>("/v1/sources/trusted", query);
 }
 

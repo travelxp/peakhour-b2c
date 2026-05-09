@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Activity, BookMarked, FileSearch, Sparkles } from "lucide-react";
+import { Activity, AlertCircle, BookMarked, FileSearch, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { KpiCard } from "@/components/molecules/kpi-card";
 import { FeatureGate } from "@/components/upgrade/feature-gate";
 import { UpgradeButton } from "@/components/upgrade/upgrade-button";
+import { ApiError } from "@/lib/api";
 import { listSources } from "./api";
 import { AddSourceDrawer } from "./components/add-source-drawer";
 import { SourceRow } from "./components/source-row";
@@ -65,9 +66,16 @@ function TrustedSourcesSurface() {
   // the in-memory split below; saves four sequential round-trips
   // every time the page mounts. If a tenant grows past 200 sources
   // the Day-5 server-side pagination tab handles it.
-  const { data, isLoading } = useQuery({
+  //
+  // `retry: false` so a 401 from a not-yet-ready session or a 400
+  // from a missing-business principal surfaces immediately instead
+  // of looking like a slow load. The auth-provider is the right
+  // place to wait on session boot; this page just renders what we
+  // know.
+  const { data, isLoading, isError, error } = useQuery({
     queryKey: ["trusted-sources", { limit: 200 }],
     queryFn: () => listSources({ limit: 200 }),
+    retry: false,
   });
 
   const [tab, setTab] = useState<StatusTab>("active");
@@ -144,6 +152,8 @@ function TrustedSourcesSurface() {
         <div className="mt-4">
           {isLoading ? (
             <RowSkeletons />
+          ) : isError ? (
+            <ErrorCard error={error} />
           ) : visibleRows.length === 0 ? (
             <EmptyState tab={tab} hasAnySources={rows.length > 0} hasSearch={Boolean(search.trim())} />
           ) : (
@@ -216,6 +226,41 @@ function KpiStrip({ rows, loading }: { rows: TrustedSource[]; loading: boolean }
         icon={Sparkles}
       />
     </div>
+  );
+}
+
+/**
+ * Error card for the listing fetch — distinguishes the most common
+ * failure modes (no active business / unauthenticated) from generic
+ * errors so the user sees an actionable message instead of "0
+ * sources" with no explanation.
+ */
+function ErrorCard({ error }: { error: unknown }) {
+  const isApi = error instanceof ApiError;
+  const status = isApi ? error.status : 0;
+  const message = isApi ? error.message : "Could not load trusted sources.";
+
+  // 400 + scope mention from the backend = no business selected
+  // (the route's principal-narrowing branch returns
+  // "Missing principal scope"). Surface a switcher hint instead of
+  // dumping the raw API message.
+  const hint =
+    status === 400 && /scope/i.test(message)
+      ? "Pick a business from the switcher to see its sources."
+      : status === 401
+        ? "Your session expired. Refresh the page to sign back in."
+        : null;
+
+  return (
+    <Card>
+      <CardContent className="flex items-start gap-3 py-6">
+        <AlertCircle aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-destructive" />
+        <div className="space-y-1">
+          <p className="text-sm font-medium">Couldn&apos;t load sources</p>
+          <p className="text-sm text-muted-foreground">{hint ?? message}</p>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
