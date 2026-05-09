@@ -54,12 +54,53 @@ export interface BusinessSummary {
   businessCategory?: string | null;
 }
 
+export interface EntitlementLimits {
+  maxPostsPerMonth?: number;
+  maxAgentRunsPerDay?: number;
+  maxConnectedChannels?: number;
+  maxBusinesses?: number;
+  maxSeats?: number;
+  monthlyAdSpendCap?: number;
+  maxStorageGb?: number;
+  maxAiTokensPerMonth?: number;
+}
+
+/**
+ * Computed entitlements snapshot for the active org. Mirrors
+ * peakhour-api's `ComputedEntitlements` shape (services/entitlements/
+ * compute.ts). Resolves features + integrations + limits from the
+ * org's plan + active add-ons.
+ *
+ * `features[]` keys follow the cfg_features dotted.snake_case convention
+ * (e.g., "linkedin.autonomy.l3", "audience.lookalike_pipe").
+ * `integrations[]` keys follow flat snake_case matching cfg_integrations.key.
+ */
+export interface Entitlements {
+  plan: string;
+  planVersion: number;
+  features: string[];
+  integrations: string[];
+  limits: EntitlementLimits;
+  country?: string;
+  currency?: string;
+  computedAt: string;
+}
+
 export interface MeResponse {
   user: AuthUser;
   org: AuthOrg | null;
   orgs: OrgSummary[];
   business: AuthBusiness | null;
   businesses: BusinessSummary[];
+  /**
+   * Active org's entitlements snapshot. Null when the user has no
+   * active org (pre-onboarding) — UI should treat as "no features".
+   * When the API has trouble computing (Mongo blip, missing plan
+   * row), the field is null AND `entitlementsError: true` is also
+   * set — gates stay locked, ops investigates via auth log.
+   */
+  entitlements: Entitlements | null;
+  entitlementsError?: boolean;
 }
 
 export interface VerifyMagicResponse {
