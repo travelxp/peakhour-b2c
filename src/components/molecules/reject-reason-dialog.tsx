@@ -128,12 +128,19 @@ function RejectReasonDialogBody({
     const left = selected.trim();
     const right = detailTrimmed;
     const raw = left && right ? `${left}: ${right}` : left || right;
-    // Backend caps at REASON_MAX_LENGTH; truncate so the dialog can
-    // never round-trip to a VALIDATION_ERROR. Leaves a 1-char buffer
-    // for the ellipsis so the truncation is visible to the operator
-    // reading the audit trail later.
+    // Backend caps at REASON_MAX_LENGTH (UTF-16 code units). Truncate
+    // so the dialog can never round-trip to a VALIDATION_ERROR. Leaves
+    // a 1-unit buffer for the ellipsis (U+2026, single code unit) so
+    // the truncation is visible to whoever reads the audit trail.
     if (raw.length <= REASON_MAX_LENGTH) return raw;
-    return `${raw.slice(0, REASON_MAX_LENGTH - 1)}…`;
+    let cut = REASON_MAX_LENGTH - 1;
+    // Don't split a UTF-16 surrogate pair (emoji etc.) — would
+    // leave a lone high-surrogate that renders as U+FFFD and may
+    // fail strict UTF-8 validators. If the unit just before the cut
+    // is a high surrogate, back off by one.
+    const code = raw.charCodeAt(cut - 1);
+    if (code >= 0xd800 && code <= 0xdbff) cut -= 1;
+    return `${raw.slice(0, cut)}…`;
   }
 
   async function handleSubmit() {
@@ -155,8 +162,23 @@ function RejectReasonDialogBody({
     }
   }
 
+  // Block the dialog from dismissing via ESC / outside-click while
+  // a submit is in flight — Radix would otherwise unmount the
+  // dialog mid-mutation and the success toast would land over an
+  // unrelated screen. The Cancel button is already disabled via
+  // `submitting`; this closes the keyboard/pointer dismissal
+  // paths too.
+  function blockIfSubmitting(e: { preventDefault: () => void }) {
+    if (submitting) e.preventDefault();
+  }
+
   return (
-    <DialogContent className="sm:max-w-md">
+    <DialogContent
+      className="sm:max-w-md"
+      onEscapeKeyDown={blockIfSubmitting}
+      onPointerDownOutside={blockIfSubmitting}
+      onInteractOutside={blockIfSubmitting}
+    >
         <DialogHeader>
           <DialogTitle>{title ?? `Reject ${targetLabel}`}</DialogTitle>
           {description ? <DialogDescription>{description}</DialogDescription> : null}
