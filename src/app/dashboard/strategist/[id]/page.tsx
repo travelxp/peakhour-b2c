@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { ChannelIcon } from "@/components/ui/channel-icon";
 import { PipelineStatusBadge } from "../components/status-badge";
 import { PipelineStepper, STAGE_PANEL_MAP } from "../components/pipeline-stepper";
+import { RejectReasonDialog } from "@/components/molecules/reject-reason-dialog";
 import {
   ArrowLeft,
   Loader2,
@@ -169,16 +170,27 @@ export default function IdeaDetailPage() {
     queryClient.invalidateQueries({ queryKey: ["pipeline-ideas"] });
   }, [queryClient, ideaId]);
 
-  async function action(path: string, body?: Record<string, unknown>) {
+  /**
+   * Returns true on success, false on caught failure. Existing callers
+   * (approve / submit-review / schedule / publish) ignore the return
+   * — fire-and-forget. The reject flow uses the boolean to bridge
+   * into RejectReasonDialog's "throw to stay open" contract: the
+   * dialog auto-closes on resolve, so a swallowed-error void return
+   * would close the dialog after a failed reject.
+   */
+  async function action(path: string, body?: Record<string, unknown>): Promise<boolean> {
     setLoading(path);
     try {
       await api.post(`/v1/content/ideas/${ideaId}/${path}`, body || {});
       refresh();
       toast.success(ACTION_LABELS[path] || "Done");
+      setLoading(null);
+      return true;
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Action failed");
+      setLoading(null);
+      return false;
     }
-    setLoading(null);
   }
 
   if (isLoading || !idea) {
@@ -233,7 +245,20 @@ export default function IdeaDetailPage() {
         {activePanel === "overview" && <OverviewTab idea={idea} />}
         {activePanel === "brief" && <BriefTab idea={idea} ideaId={ideaId} onRefresh={refresh} />}
         {activePanel === "write" && <WriteTab idea={idea} ideaId={ideaId} onRefresh={refresh} />}
-        {activePanel === "review" && <ReviewTab idea={idea} loading={loading} onSubmitReview={() => action("submit-review")} onApprove={() => action("approve")} onReject={(notes: string) => action("reject-review", { notes })} />}
+        {activePanel === "review" && (
+          <ReviewTab
+            idea={idea}
+            loading={loading}
+            onSubmitReview={() => action("submit-review")}
+            onApprove={() => action("approve")}
+            onReject={async (notes: string) => {
+              // Throw on failure so RejectReasonDialog stays open;
+              // resolve on success so it auto-closes.
+              const ok = await action("reject-review", { notes });
+              if (!ok) throw new Error("reject-review failed");
+            }}
+          />
+        )}
         {activePanel === "publish" && <PublishTab idea={idea} loading={loading} onSchedule={(date: string) => action("schedule", { scheduledAt: date })} onPublish={() => action("publish")} />}
       </div>
     </div>
@@ -582,8 +607,8 @@ function WriteTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: strin
   );
 }
 
-function ReviewTab({ idea, loading, onSubmitReview, onApprove, onReject }: { idea: IdeaDetail; loading: string | null; onSubmitReview: () => void; onApprove: () => void; onReject: (n: string) => void }) {
-  const [rejectNotes, setRejectNotes] = useState("");
+function ReviewTab({ idea, loading, onSubmitReview, onApprove, onReject }: { idea: IdeaDetail; loading: string | null; onSubmitReview: () => void; onApprove: () => void; onReject: (n: string) => Promise<void> }) {
+  const [rejectOpen, setRejectOpen] = useState(false);
 
   if (["brainstorm", "planned", "writing", "brief_ready"].includes(idea.status)) {
     return (
@@ -635,13 +660,28 @@ function ReviewTab({ idea, loading, onSubmitReview, onApprove, onReject }: { ide
               <Button onClick={onApprove} disabled={loading === "approve"} className="bg-emerald-600 hover:bg-emerald-500">
                 {loading === "approve" ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-1.5 h-4 w-4" />}Approve
               </Button>
-              <Input value={rejectNotes} onChange={(e) => setRejectNotes(e.target.value)} placeholder="Revision notes..." className="flex-1" />
-              <Button variant="outline" onClick={() => { if (!rejectNotes.trim()) { toast.warning("Add revision notes before rejecting"); return; } onReject(rejectNotes); }} disabled={loading === "reject-review"} className="text-destructive border-destructive/30">
-                <XCircle className="mr-1.5 h-4 w-4" />Revise
+              <Button variant="outline" onClick={() => setRejectOpen(true)} disabled={loading === "reject-review"} className="text-destructive border-destructive/30">
+                <XCircle className="mr-1.5 h-4 w-4" />Request revisions
               </Button>
             </div>
           </CardContent>
         </Card>
+        {/* Free-text only — content review feedback is too varied for
+            canned reasons. The dialog still gives us 3-char min, length
+            cap, focus management, and submit-spinner over the previous
+            inline Input. */}
+        <RejectReasonDialog
+          open={rejectOpen}
+          onOpenChange={setRejectOpen}
+          // `title` is overridden below, so `targetLabel` is unused
+          // for display. Empty string instead of `idea.title` makes
+          // the non-reliance explicit.
+          targetLabel=""
+          title="Request revisions"
+          description="Notes for the next revision pass — they'll appear on the draft when reopened."
+          cannedReasons={[]}
+          onSubmit={onReject}
+        />
       </div>
     );
   }
