@@ -14,9 +14,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Link2, Send, X } from "lucide-react";
+import { Link2, Send, Sparkles, X } from "lucide-react";
 import {
   linkedInContentApi,
+  type HookScore,
   type LinkedInAuthor,
   type LinkedInVisibility,
   type LinkedInIdentity,
@@ -84,6 +85,13 @@ export function PostComposer({ identity }: Props) {
   // org and person flows share the same control state.
   const isOrgAuthor = authorKey.startsWith("org:");
   const effectiveVisibility: LinkedInVisibility = isOrgAuthor ? "PUBLIC" : visibility;
+
+  // Hook DNA score — debounced live scoring as the user types. Pure
+  // server function (no AI, no DB) so it's safe to fire on every
+  // 400ms keystroke pause. Score is the v0 Tier-C floor; the badge
+  // surfaces "rules" so users see when personalised tiers haven't
+  // shipped yet.
+  const hookScore = useHookScore(text);
 
   const publish = useMutation({
     mutationFn: (input: PublishLinkedInPostInput) => linkedInContentApi.publish(input),
@@ -200,6 +208,8 @@ export function PostComposer({ identity }: Props) {
         className="resize-none"
         aria-label="LinkedIn post content"
       />
+
+      <HookScoreCard score={hookScore} />
 
       {showLink && (
         <div className="space-y-2 rounded-md border p-3">
@@ -329,4 +339,131 @@ function isProbablyUrl(s: string): boolean {
   } catch {
     return false;
   }
+}
+
+// ── Hook DNA scoring ─────────────────────────────────────────────────
+
+const HOOK_SCORE_DEBOUNCE_MS = 400;
+const HOOK_SCORE_MIN_CHARS = 8;
+
+/**
+ * Debounced hook scorer. Fires `POST /v1/linkedin-content/score-hook`
+ * 400ms after the user stops typing. Pure-server function (no AI),
+ * so the cost of getting it wrong is just a request, not a token bill.
+ *
+ * Returns:
+ *   - `null` while text is too short to score meaningfully
+ *   - `undefined` while a debounce window is still open
+ *   - `HookScore` object otherwise
+ */
+function useHookScore(text: string): HookScore | null | undefined {
+  const [score, setScore] = useState<HookScore | null | undefined>(null);
+
+  useEffect(() => {
+    const trimmed = text.trim();
+    if (trimmed.length < HOOK_SCORE_MIN_CHARS) {
+      setScore(null);
+      return;
+    }
+    setScore(undefined); // pending
+
+    // Stale-response guard MUST live at effect-scope so the cleanup
+    // closure can flip it. Hoisting it inside the setTimeout callback
+    // (a previous attempt) was a no-op — setTimeout ignores callback
+    // return values, so the cleanup function returned from there was
+    // discarded. A slow first request would silently clobber a faster
+    // second one. With the flag at effect-scope, the next text-change
+    // tick flips it to true before the in-flight promise can setScore.
+    let cancelled = false;
+    const handle = window.setTimeout(() => {
+      linkedInContentApi
+        .scoreHook(trimmed)
+        .then((s) => {
+          if (!cancelled) setScore(s);
+        })
+        .catch(() => {
+          if (!cancelled) setScore(null);
+        });
+    }, HOOK_SCORE_DEBOUNCE_MS);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(handle);
+    };
+  }, [text]);
+
+  return score;
+}
+
+interface HookScoreBand {
+  label: string;
+  className: string;
+}
+
+function bandForScore(score: number): HookScoreBand {
+  if (score >= 80)
+    return {
+      label: "Strong hook",
+      className:
+        "border-emerald-200 bg-emerald-50/60 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300",
+    };
+  if (score >= 55)
+    return {
+      label: "Decent hook",
+      className:
+        "border-blue-200 bg-blue-50/60 text-blue-800 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-300",
+    };
+  if (score >= 30)
+    return {
+      label: "Weak hook",
+      className:
+        "border-amber-200 bg-amber-50/60 text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300",
+    };
+  return {
+    label: "Rework the hook",
+    className:
+      "border-red-200 bg-red-50/60 text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300",
+  };
+}
+
+/**
+ * HookScore card — surfaces the v0 score, an honest tier badge, and
+ * up to 3 plain-English suggestions. Hidden until the user types
+ * enough characters to score (`null`); shows a light pending state
+ * while the debounced request is in flight (`undefined`).
+ */
+function HookScoreCard({ score }: { score: HookScore | null | undefined }) {
+  if (score === null) return null;
+  if (score === undefined) {
+    return (
+      <div className="rounded-md border border-dashed bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+        Scoring hook…
+      </div>
+    );
+  }
+  const band = bandForScore(score.score);
+  const topSuggestions = score.suggestions.slice(0, 3);
+  return (
+    <div className={`space-y-2 rounded-md border px-3 py-2.5 text-sm ${band.className}`}>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <Sparkles className="size-4" />
+          <span className="font-medium">{band.label}</span>
+          <span className="rounded-sm border border-current/30 px-1.5 py-0 text-[10px] uppercase tracking-wide opacity-80">
+            Tier: {score.tier}
+          </span>
+        </div>
+        <span className="font-mono text-base font-semibold tabular-nums">
+          {score.score}
+          <span className="ml-0.5 text-xs opacity-70">/100</span>
+        </span>
+      </div>
+      {topSuggestions.length > 0 && (
+        <ul className="ml-4 list-disc space-y-0.5 text-xs opacity-90">
+          {topSuggestions.map((s, i) => (
+            <li key={i}>{s}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 }

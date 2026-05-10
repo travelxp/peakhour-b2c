@@ -44,9 +44,39 @@ export interface LinkedInIdentity {
   pages: LinkedInOrgPage[];
 }
 
+/** Hook DNA score — `tier: "rules"` is the v0 floor; v1+ may add
+ *  "personal" (per-business cosine) and "industry" (archetype cosine)
+ *  as the embedding pipeline lands. The badge surfaces the tier so
+ *  users see when they're getting the floor vs personalised tiers. */
+export interface HookScore {
+  score: number;
+  tier: "rules";
+  breakdown: {
+    length: number;
+    opener: number;
+    specificData: number;
+    audienceNoun: number;
+    activeVoice: number;
+    rhythm: number;
+  };
+  signals: {
+    wordCount: number;
+    visibleChars: number;
+    opener: "number" | "question" | "contrarian" | "named_entity" | "generic";
+    hasSpecificNumber: boolean;
+    hasAudienceNoun: boolean;
+    isActiveOpening: boolean;
+    firstLineChars: number;
+  };
+  suggestions: string[];
+}
+
 export const linkedInContentApi = {
   me: () => api.get<LinkedInIdentity>("/v1/linkedin-content/me"),
 
   publish: (body: PublishLinkedInPostInput) =>
     api.post<{ postId: string }>("/v1/linkedin-content/publish", body),
+
+  scoreHook: (hook: string) =>
+    api.post<HookScore>("/v1/linkedin-content/score-hook", { hook }),
 };
