@@ -107,7 +107,8 @@ export const CHANNELS: readonly ChannelConfig[] = [
     description: "Publish posts and articles, analyze reach.",
     category: "Social",
     providerKey: "linkedin_content",
-    status: "available",
+    status: "live",
+    dashboardPath: "/dashboard/content/linkedin",
     logoUrl: `${SHADCN_LOGOS}/linkedin-icon.svg`,
   },
   {
