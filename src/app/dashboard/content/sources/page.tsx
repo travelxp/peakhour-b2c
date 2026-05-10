@@ -258,16 +258,14 @@ function KpiStrip({ rows, loading }: { rows: TrustedSource[]; loading: boolean }
     );
   }
 
-  // The KPI is honest about its lifecycle: still loading → "—",
-  // fetched → number, errored → "—" with a softer description so a
-  // transient backend blip doesn't read as "zero citations".
-  const citationsValue = citations.isLoading
-    ? "—"
-    : citations.isError
-      ? "—"
-      : citations.data?.count ?? 0;
+  // The KPI is honest about its lifecycle: loading and error both
+  // have undefined `data`, so a single `?? "—"` covers both — the
+  // softer description on error is what tells the user the value
+  // missing isn't "zero citations" but a transient backend blip.
+  // 5-min staleTime means a focus refetch retries automatically.
+  const citationsValue = citations.data?.count ?? "—";
   const citationsDescription = citations.isError
-    ? "Couldn't load — refresh to retry"
+    ? "Couldn't load — will retry shortly"
     : "AI citations across all sources, last 30 days";
 
   return (
