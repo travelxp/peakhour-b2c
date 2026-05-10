@@ -12,7 +12,7 @@ import { KpiCard } from "@/components/molecules/kpi-card";
 import { FeatureGate } from "@/components/upgrade/feature-gate";
 import { UpgradeButton } from "@/components/upgrade/upgrade-button";
 import { ApiError } from "@/lib/api";
-import { listSources } from "./api";
+import { getCitations, listSources } from "./api";
 import { AddSourceDrawer } from "./components/add-source-drawer";
 import { InsightsPanel } from "./components/insights-panel";
 import { SourceRow } from "./components/source-row";
@@ -215,12 +215,16 @@ function TrustedSourcesSurface() {
 }
 
 /**
- * KPI strip — four cards per the §3.4 spec. Two metrics are derivable
- * from the listing payload and ship live; two need backend telemetry
- * surfaces that don't exist yet (citations-30d depends on a count
- * over `cnt_source_usage`; coverage-score is a proprietary scoring
- * surface — see plan §3.4 + §6 algo #4) and ship as `—` placeholders
- * with a tooltip-eligible muted state until the endpoint lands.
+ * KPI strip — four cards per the §3.4 spec. Three metrics ship live;
+ * Coverage score remains `—` until the proprietary scorer lands
+ * (plan §6 algo #4 — needs a `sector` field that doesn't exist yet).
+ *
+ * Citations (30d) reads from /v1/sources/insights/citations as its
+ * own query rather than being derived from the rows payload, since
+ * it aggregates the cnt_source_usage time-series across paused +
+ * active sources (the listing payload only carries per-source
+ * usageCount, which excludes any usage logged after a row went
+ * inactive).
  */
 function KpiStrip({ rows, loading }: { rows: TrustedSource[]; loading: boolean }) {
   const activeCount = rows.filter((r) => r.status === "active").length;
@@ -234,6 +238,16 @@ function KpiStrip({ rows, loading }: { rows: TrustedSource[]; loading: boolean }
   const healthy = active.filter((r) => (r.consecutiveFetchFailures ?? 0) === 0).length;
   const fetchHealth = active.length === 0 ? "—" : `${healthy}/${active.length}`;
 
+  // Citations is its own backend roundtrip — counts cnt_source_usage
+  // in a rolling 30d window. 5-min staleTime keeps tab-switches snappy
+  // without surfacing minute-stale numbers.
+  const citations = useQuery({
+    queryKey: ["citations", 30],
+    queryFn: () => getCitations(30),
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+
   if (loading) {
     return (
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -243,6 +257,16 @@ function KpiStrip({ rows, loading }: { rows: TrustedSource[]; loading: boolean }
       </div>
     );
   }
+
+  // The KPI is honest about its lifecycle: loading and error both
+  // have undefined `data`, so a single `?? "—"` covers both — the
+  // softer description on error is what tells the user the value
+  // missing isn't "zero citations" but a transient backend blip.
+  // 5-min staleTime means a focus refetch retries automatically.
+  const citationsValue = citations.data?.count ?? "—";
+  const citationsDescription = citations.isError
+    ? "Couldn't load — will retry shortly"
+    : "AI citations across all sources, last 30 days";
 
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -260,8 +284,8 @@ function KpiStrip({ rows, loading }: { rows: TrustedSource[]; loading: boolean }
       />
       <KpiCard
         title="Citations (30d)"
-        value="—"
-        description="Lands when usage telemetry ships"
+        value={citationsValue}
+        description={citationsDescription}
         icon={FileSearch}
       />
       <KpiCard
