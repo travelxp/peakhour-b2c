@@ -53,3 +53,24 @@ export async function deleteSource(
 ): Promise<{ _id: string; softDeleted: boolean }> {
   return api.delete<{ _id: string; softDeleted: boolean }>(`/v1/sources/trusted/${id}`);
 }
+
+export interface CitationsResponse {
+  count: number;
+  windowDays: number;
+  /** ISO of window start (asOf - windowDays) */
+  since: string;
+  /** ISO of response time */
+  asOf: string;
+}
+
+/**
+ * Rolling-window count of cnt_source_usage rows for the active
+ * business. Powers the "Citations (Nd)" KPI on the Trusted Sources
+ * page. Defaults to 30 days; capped at 365 by the backend.
+ */
+export async function getCitations(days = 30): Promise<CitationsResponse> {
+  return api.get<CitationsResponse>(
+    "/v1/sources/insights/citations",
+    { days: String(days) },
+  );
+}
