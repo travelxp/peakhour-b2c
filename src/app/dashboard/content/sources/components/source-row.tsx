@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { RejectReasonDialog } from "@/components/molecules/reject-reason-dialog";
 import {
   Check,
   Globe,
@@ -125,17 +126,17 @@ export function SourceRow({ source }: SourceRowProps) {
     onError: (e) => handleApiError(e, "Could not accept source"),
   });
 
+  // Reject now goes through RejectReasonDialog; the mutation takes
+  // the captured reason as a variable rather than baking a sentinel.
+  // The dialog opens when the user picks "Reject" from the dropdown
+  // and closes on successful submit (or stays open + surfaces the
+  // toast on error).
+  const [rejectOpen, setRejectOpen] = useState(false);
   const rejectMutation = useMutation({
-    // Reason is required by the backend — sending a sentinel value
-    // until the UI for capturing a reason ships (a small dialog with
-    // a textarea + radio of canned reasons). Until then this rejection
-    // path is intentionally rare; the dropdown copy makes that clear.
-    // Sentinel chosen so future analytics can filter "rejected without
-    // a captured reason" rows out of any reason-distribution chart.
-    mutationFn: () =>
+    mutationFn: (reason: string) =>
       patchSource(source._id, {
         status: "rejected",
-        rejectionReason: "[ui-rejected: no reason captured]",
+        rejectionReason: reason,
       }),
     onSuccess: () => {
       toast.success(`${source.displayName} rejected`);
@@ -236,7 +237,7 @@ export function SourceRow({ source }: SourceRowProps) {
                   <Check className="mr-2 size-4" />
                   Accept
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => rejectMutation.mutate()}>
+                <DropdownMenuItem onClick={() => setRejectOpen(true)}>
                   <X className="mr-2 size-4" />
                   Reject
                 </DropdownMenuItem>
@@ -274,6 +275,22 @@ export function SourceRow({ source }: SourceRowProps) {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      {/* Reject dialog mounts inside the row so its open state is
+          row-scoped — each row has its own. The dialog throws if the
+          mutation rejects so it stays open for retry; it auto-closes
+          on success. */}
+      <RejectReasonDialog
+        open={rejectOpen}
+        onOpenChange={setRejectOpen}
+        targetLabel={source.displayName}
+        // Discard mutateAsync's return value — the dialog only cares
+        // about resolve-vs-reject (resolve closes, reject keeps it
+        // open). The patch result isn't useful at the dialog layer.
+        onSubmit={async (reason) => {
+          await rejectMutation.mutateAsync(reason);
+        }}
+      />
     </div>
   );
 }
