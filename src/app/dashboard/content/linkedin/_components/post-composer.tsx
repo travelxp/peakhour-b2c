@@ -366,12 +366,16 @@ function useHookScore(text: string): HookScore | null | undefined {
       return;
     }
     setScore(undefined); // pending
+
+    // Stale-response guard MUST live at effect-scope so the cleanup
+    // closure can flip it. Hoisting it inside the setTimeout callback
+    // (a previous attempt) was a no-op — setTimeout ignores callback
+    // return values, so the cleanup function returned from there was
+    // discarded. A slow first request would silently clobber a faster
+    // second one. With the flag at effect-scope, the next text-change
+    // tick flips it to true before the in-flight promise can setScore.
+    let cancelled = false;
     const handle = window.setTimeout(() => {
-      // Stale-response guard via `cancelled` — debounced calls can race
-      // with newer keystrokes; only the most-recent one wins. Without
-      // this, a slow network on the first call would clobber a faster
-      // second call's score.
-      let cancelled = false;
       linkedInContentApi
         .scoreHook(trimmed)
         .then((s) => {
@@ -380,11 +384,11 @@ function useHookScore(text: string): HookScore | null | undefined {
         .catch(() => {
           if (!cancelled) setScore(null);
         });
-      return () => {
-        cancelled = true;
-      };
     }, HOOK_SCORE_DEBOUNCE_MS);
-    return () => window.clearTimeout(handle);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(handle);
+    };
   }, [text]);
 
   return score;
