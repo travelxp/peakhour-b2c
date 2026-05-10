@@ -25,9 +25,13 @@ export interface LinkedInOrgPage {
 }
 
 export interface LinkedInIdentity {
-  /** Connection lifecycle status — `disconnected`/`expired` mean the
-   *  caller should render a Reconnect CTA, not treat this as "no LinkedIn". */
-  status: "active" | "disconnected" | "expired" | "error";
+  /** Connection lifecycle status — anything other than `active` means
+   *  the caller should render a Reconnect CTA / banner, not treat
+   *  this as "no LinkedIn". `needs_reauth` covers the case where
+   *  tokens still refresh but the stored scopes no longer cover what
+   *  the current provider config requires (refresh-token flow can't
+   *  upgrade scopes). */
+  status: "active" | "disconnected" | "expired" | "error" | "needs_reauth";
   /** Granted scopes from the last consent. Use to gate features —
    *  e.g. hide org-page authoring when `w_organization_social` is missing. */
   scopes: string[];

@@ -37,7 +37,14 @@ export default function LinkedInDashboardPage() {
     () => integrations.data?.integrations.find((i) => i.provider === "linkedin_content"),
     [integrations.data]
   );
-  const isConnected = linkedInConnection?.connected === true;
+  // Treat `needs_reauth` as "set up, just stale" — the composer
+  // renders + surfaces the in-page banner. Without this, /v1/integrations'
+  // strict `connected = status === "active"` would bounce stale-scope
+  // users to the EmptyState, hiding the very banner that tells them to
+  // reconnect.
+  const isConnected =
+    linkedInConnection?.connected === true ||
+    linkedInConnection?.status === "needs_reauth";
 
   const identity = useLinkedInIdentity();
   const enabledIdentity = isConnected ? identity : null;
