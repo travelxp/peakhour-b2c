@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -66,6 +66,25 @@ export function PostComposer({ identity }: Props) {
 
   const [authorKey, setAuthorKey] = useState<string>(authorOptions[0]?.value ?? "person");
 
+  // Clamp the selected author back into the option list when identity
+  // shifts beneath us (scope reconnect drops org_social, page list
+  // shrinks, etc). Without this, Radix Select renders a controlled
+  // value with no matching item — blank trigger + console warning —
+  // and submit would happily ship a stale `org:<id>` to a page the
+  // user can no longer post to.
+  useEffect(() => {
+    if (!authorOptions.some((o) => o.value === authorKey)) {
+      setAuthorKey(authorOptions[0]?.value ?? "person");
+    }
+  }, [authorOptions, authorKey]);
+
+  // LinkedIn rejects non-PUBLIC visibility on org posts. Coerce to
+  // PUBLIC when the user picks a page so the submit doesn't surface
+  // the raw API error. Keeps the visibility selector simple — both
+  // org and person flows share the same control state.
+  const isOrgAuthor = authorKey.startsWith("org:");
+  const effectiveVisibility: LinkedInVisibility = isOrgAuthor ? "PUBLIC" : visibility;
+
   const publish = useMutation({
     mutationFn: (input: PublishLinkedInPostInput) => linkedInContentApi.publish(input),
     onSuccess: () => {
@@ -92,14 +111,16 @@ export function PostComposer({ identity }: Props) {
     if (disabled) return;
     setFeedback(null);
 
-    const author: LinkedInAuthor = authorKey.startsWith("org:")
+    const author: LinkedInAuthor = isOrgAuthor
       ? { type: "org", pageId: authorKey.slice("org:".length) }
       : { type: "person" };
 
     const body: PublishLinkedInPostInput = {
       author,
       commentary: text.trim(),
-      visibility,
+      visibility: effectiveVisibility,
+      // TODO: wire ideaId once the strategist→linkedin bridge ships,
+      // so org-grounded posts feed the source-usage audit pipeline.
     };
 
     if (showLink && linkUrl.trim()) {
@@ -137,6 +158,8 @@ export function PostComposer({ identity }: Props) {
             </SelectContent>
           </Select>
           {!identity.scopes.includes(HAS_ORG_SCOPE) && identity.pages.length > 0 && (
+            // Suppressed when pages.length === 0 — a user with no admin
+            // pages has nothing to enable, so the hint would just confuse.
             <p className="text-xs text-muted-foreground">
               Reconnect LinkedIn to enable posting from your company pages.
             </p>
@@ -147,7 +170,11 @@ export function PostComposer({ identity }: Props) {
           <Label htmlFor="li-visibility" className="text-xs uppercase tracking-wide text-muted-foreground">
             Visibility
           </Label>
-          <Select value={visibility} onValueChange={(v) => setVisibility(v as LinkedInVisibility)}>
+          <Select
+            value={effectiveVisibility}
+            onValueChange={(v) => setVisibility(v as LinkedInVisibility)}
+            disabled={isOrgAuthor}
+          >
             <SelectTrigger id="li-visibility">
               <SelectValue />
             </SelectTrigger>
@@ -157,6 +184,11 @@ export function PostComposer({ identity }: Props) {
               <SelectItem value="LOGGED_IN">Signed-in members</SelectItem>
             </SelectContent>
           </Select>
+          {isOrgAuthor && (
+            <p className="text-xs text-muted-foreground">
+              Company page posts are always public.
+            </p>
+          )}
         </div>
       </div>
 
