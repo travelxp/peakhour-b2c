@@ -57,20 +57,31 @@ export interface RejectReasonDialogProps {
   onSubmit: (reason: string) => Promise<void> | void;
   /** Canned-reason options shown in the dropdown. Pass [] to skip
    *  the picker and force free-text only. */
-  cannedReasons?: string[];
+  cannedReasons?: readonly string[];
   /** Override the title; defaults to "Reject {targetLabel}". */
   title?: string;
   /** Override the body description. */
   description?: string;
 }
 
-const DEFAULT_REASONS = [
+/** Sentinel for the "Other" canned option — when selected the
+ *  dialog requires a non-empty note (it'd otherwise read as
+ *  "selected the option that says 'use note below' and didn't
+ *  use the note"). Imported from the same const so the gate stays
+ *  in sync with the option list. */
+const OTHER_REASON = "Other (use note below)";
+
+const DEFAULT_REASONS: readonly string[] = [
   "Off-topic for our brand",
   "Low signal / poor quality",
   "Duplicate of an existing source",
   "Compliance / regulatory concern",
-  "Other (use note below)",
-] as const;
+  OTHER_REASON,
+];
+
+/** Backend cap on rejectionReason — keep in sync with PatchBody.zod
+ *  in peakhour-api/src/v1/routes/sources/trusted.ts. */
+const REASON_MAX_LENGTH = 1024;
 
 export function RejectReasonDialog(props: RejectReasonDialogProps) {
   // Mount the inner body only when open. Closed → unmounted → state
@@ -90,7 +101,7 @@ function RejectReasonDialogBody({
   onOpenChange,
   targetLabel,
   onSubmit,
-  cannedReasons = DEFAULT_REASONS as unknown as string[],
+  cannedReasons = DEFAULT_REASONS,
   title,
   description,
 }: RejectReasonDialogProps) {
@@ -99,19 +110,30 @@ function RejectReasonDialogBody({
   const [submitting, setSubmitting] = useState(false);
 
   const hasOptions = cannedReasons.length > 0;
-  // Submit is allowed when the user has either picked a canned
-  // reason OR typed at least 3 chars of detail. Pure-empty submits
-  // would surface as a backend 400 anyway; gating in the UI saves
-  // the round-trip and lets us disable the button instead of
-  // toasting an error.
+  const detailTrimmed = detail.trim();
+  // Submit gating:
+  //  • need a canned pick OR ≥3 chars of detail
+  //  • when the canned pick is the OTHER sentinel, the detail is
+  //    mandatory — submitting "Other (use note below)" alone reads
+  //    as "I picked the option that says 'use the note' and didn't
+  //    use the note." The backend would accept it; the UI shouldn't.
+  const otherWithoutDetail =
+    selected === OTHER_REASON && detailTrimmed.length < 3;
   const canSubmit =
-    !submitting && (Boolean(selected) || detail.trim().length >= 3);
+    !submitting &&
+    !otherWithoutDetail &&
+    (Boolean(selected) || detailTrimmed.length >= 3);
 
   function combineReason(): string {
     const left = selected.trim();
-    const right = detail.trim();
-    if (left && right) return `${left}: ${right}`;
-    return left || right;
+    const right = detailTrimmed;
+    const raw = left && right ? `${left}: ${right}` : left || right;
+    // Backend caps at REASON_MAX_LENGTH; truncate so the dialog can
+    // never round-trip to a VALIDATION_ERROR. Leaves a 1-char buffer
+    // for the ellipsis so the truncation is visible to the operator
+    // reading the audit trail later.
+    if (raw.length <= REASON_MAX_LENGTH) return raw;
+    return `${raw.slice(0, REASON_MAX_LENGTH - 1)}…`;
   }
 
   async function handleSubmit() {
@@ -167,14 +189,18 @@ function RejectReasonDialogBody({
               onChange={(e) => setDetail(e.target.value)}
               placeholder={
                 hasOptions
-                  ? "Add detail to the canned reason — useful when 'Other' is picked."
+                  ? "Add detail to the canned reason — required when 'Other' is picked."
                   : "Why is this being rejected?"
               }
-              maxLength={1024}
+              maxLength={REASON_MAX_LENGTH}
               rows={3}
             />
-            <p className="text-xs text-muted-foreground tabular-nums">
-              {detail.length} / 1024
+            <p
+              className={`text-xs tabular-nums ${otherWithoutDetail ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground"}`}
+            >
+              {otherWithoutDetail
+                ? "Detail required when 'Other' is selected"
+                : `${detail.length} / ${REASON_MAX_LENGTH}`}
             </p>
           </div>
         </div>

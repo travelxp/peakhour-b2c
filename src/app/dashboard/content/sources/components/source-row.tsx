@@ -284,9 +284,10 @@ export function SourceRow({ source }: SourceRowProps) {
         open={rejectOpen}
         onOpenChange={setRejectOpen}
         targetLabel={source.displayName}
-        // Discard mutateAsync's return value — the dialog only cares
-        // about resolve-vs-reject (resolve closes, reject keeps it
-        // open). The patch result isn't useful at the dialog layer.
+        // We don't propagate the patch result up to the dialog — it
+        // only cares about resolve-vs-reject (resolve closes, reject
+        // keeps it open for retry). The mutation's onSuccess /
+        // onError handle the toast + invalidate.
         onSubmit={async (reason) => {
           await rejectMutation.mutateAsync(reason);
         }}
