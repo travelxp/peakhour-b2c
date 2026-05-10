@@ -1,0 +1,300 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Link2, Send, X } from "lucide-react";
+import {
+  linkedInContentApi,
+  type LinkedInAuthor,
+  type LinkedInVisibility,
+  type LinkedInIdentity,
+  type PublishLinkedInPostInput,
+} from "@/lib/api/linkedin-content";
+import { ApiError } from "@/lib/api";
+
+const MAX_LEN = 3000;
+
+const HAS_ORG_SCOPE = "w_organization_social";
+
+interface Props {
+  identity: LinkedInIdentity;
+}
+
+export function PostComposer({ identity }: Props) {
+  const queryClient = useQueryClient();
+  const [text, setText] = useState("");
+  const [visibility, setVisibility] = useState<LinkedInVisibility>("PUBLIC");
+  const [showLink, setShowLink] = useState(false);
+  const [linkUrl, setLinkUrl] = useState("");
+  const [linkTitle, setLinkTitle] = useState("");
+  const [feedback, setFeedback] = useState<{ kind: "success" | "error"; message: string } | null>(null);
+
+  // Author picker — discriminated union string keys for the Select.
+  // "person" → user's personal feed. "org:<id>" → that org page.
+  const authorOptions = useMemo(() => {
+    const opts: Array<{ value: string; label: string; sublabel?: string }> = [
+      {
+        value: "person",
+        label: identity.person.name ?? "My personal feed",
+        sublabel: "Personal feed",
+      },
+    ];
+    const canPostAsOrg = identity.scopes.includes(HAS_ORG_SCOPE);
+    if (canPostAsOrg) {
+      for (const page of identity.pages) {
+        opts.push({
+          value: `org:${page.id}`,
+          label: page.name || `Page ${page.id}`,
+          sublabel: "Company page",
+        });
+      }
+    }
+    return opts;
+  }, [identity]);
+
+  const [authorKey, setAuthorKey] = useState<string>(authorOptions[0]?.value ?? "person");
+
+  const publish = useMutation({
+    mutationFn: (input: PublishLinkedInPostInput) => linkedInContentApi.publish(input),
+    onSuccess: () => {
+      setText("");
+      setLinkUrl("");
+      setLinkTitle("");
+      setShowLink(false);
+      setFeedback({ kind: "success", message: "Post published to LinkedIn." });
+      queryClient.invalidateQueries({ queryKey: ["linkedin-me"] });
+    },
+    onError: (err: unknown) => {
+      const message = err instanceof ApiError ? err.message : "Failed to publish post.";
+      setFeedback({ kind: "error", message });
+    },
+  });
+
+  const remaining = MAX_LEN - text.length;
+  const tooLong = remaining < 0;
+  const empty = text.trim().length === 0;
+  const linkInvalid = showLink && linkUrl.trim().length > 0 && !isProbablyUrl(linkUrl);
+  const disabled = empty || tooLong || publish.isPending || linkInvalid;
+
+  function onSubmit() {
+    if (disabled) return;
+    setFeedback(null);
+
+    const author: LinkedInAuthor = authorKey.startsWith("org:")
+      ? { type: "org", pageId: authorKey.slice("org:".length) }
+      : { type: "person" };
+
+    const body: PublishLinkedInPostInput = {
+      author,
+      commentary: text.trim(),
+      visibility,
+    };
+
+    if (showLink && linkUrl.trim()) {
+      body.link = {
+        url: linkUrl.trim(),
+        title: linkTitle.trim() || undefined,
+      };
+    }
+
+    publish.mutate(body);
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label htmlFor="li-author" className="text-xs uppercase tracking-wide text-muted-foreground">
+            Post as
+          </Label>
+          <Select value={authorKey} onValueChange={setAuthorKey}>
+            <SelectTrigger id="li-author">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {authorOptions.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  <span className="flex flex-col">
+                    <span>{opt.label}</span>
+                    {opt.sublabel && (
+                      <span className="text-xs text-muted-foreground">{opt.sublabel}</span>
+                    )}
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {!identity.scopes.includes(HAS_ORG_SCOPE) && identity.pages.length > 0 && (
+            <p className="text-xs text-muted-foreground">
+              Reconnect LinkedIn to enable posting from your company pages.
+            </p>
+          )}
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="li-visibility" className="text-xs uppercase tracking-wide text-muted-foreground">
+            Visibility
+          </Label>
+          <Select value={visibility} onValueChange={(v) => setVisibility(v as LinkedInVisibility)}>
+            <SelectTrigger id="li-visibility">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="PUBLIC">Public — anyone on LinkedIn</SelectItem>
+              <SelectItem value="CONNECTIONS">Connections only</SelectItem>
+              <SelectItem value="LOGGED_IN">Signed-in members</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <Textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        placeholder="Share an update, story, or question…"
+        rows={6}
+        className="resize-none"
+        aria-label="LinkedIn post content"
+      />
+
+      {showLink && (
+        <div className="space-y-2 rounded-md border p-3">
+          <Label htmlFor="li-link-url" className="text-xs uppercase tracking-wide text-muted-foreground">
+            Attach link
+          </Label>
+          <Input
+            id="li-link-url"
+            value={linkUrl}
+            onChange={(e) => setLinkUrl(e.target.value)}
+            placeholder="https://example.com/article"
+            aria-invalid={linkInvalid}
+          />
+          <Input
+            value={linkTitle}
+            onChange={(e) => setLinkTitle(e.target.value)}
+            placeholder="Link title (optional)"
+          />
+          <div className="flex items-center justify-between">
+            {linkInvalid ? (
+              <p className="text-xs text-destructive">Enter a valid http(s) URL.</p>
+            ) : (
+              <span />
+            )}
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setShowLink(false);
+                setLinkUrl("");
+                setLinkTitle("");
+              }}
+            >
+              <X className="size-3.5 mr-1" /> Remove
+            </Button>
+          </div>
+        </div>
+      )}
+
+      <div className="flex items-center justify-between">
+        <div className="flex gap-2">
+          {!showLink && (
+            <Button type="button" variant="ghost" size="sm" onClick={() => setShowLink(true)}>
+              <Link2 className="size-3.5 mr-1" /> Add link
+            </Button>
+          )}
+        </div>
+        <div className="flex items-center gap-3">
+          <span
+            className={
+              tooLong
+                ? "text-sm font-medium text-destructive"
+                : remaining <= 100
+                  ? "text-sm font-medium text-amber-600"
+                  : "text-sm text-muted-foreground"
+            }
+            aria-live="polite"
+          >
+            {remaining}
+          </span>
+          <Button onClick={onSubmit} disabled={disabled} aria-busy={publish.isPending}>
+            <Send className="size-4 mr-1.5" />
+            {publish.isPending ? "Publishing…" : "Publish"}
+          </Button>
+        </div>
+      </div>
+
+      {feedback && (
+        <p
+          role="status"
+          className={
+            feedback.kind === "error"
+              ? "rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+              : "rounded-md border border-green-200 bg-green-50/60 px-3 py-2 text-sm text-green-800 dark:border-green-900 dark:bg-green-950/40 dark:text-green-300"
+          }
+        >
+          {feedback.message}
+        </p>
+      )}
+    </div>
+  );
+}
+
+export function PostComposerSkeleton() {
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Skeleton className="h-10 w-full" />
+        <Skeleton className="h-10 w-full" />
+      </div>
+      <Skeleton className="h-32 w-full" />
+      <div className="flex justify-between">
+        <Skeleton className="h-8 w-24" />
+        <Skeleton className="h-9 w-28" />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Use the linkedin-me query as the data source for the composer's
+ * picker. Re-exported here so the page can render the right shell
+ * (composer, EmptyState, or Reconnect CTA) based on the same query.
+ */
+export function useLinkedInIdentity() {
+  return useQuery({
+    queryKey: ["linkedin-me"],
+    queryFn: () => linkedInContentApi.me(),
+    retry: (failureCount, err) => {
+      // Don't keep retrying if LinkedIn isn't connected — the page
+      // will render its EmptyState. Other transient errors get the
+      // default retry behavior.
+      if (err instanceof ApiError && (err.code === "NOT_CONNECTED" || err.status === 404)) {
+        return false;
+      }
+      return failureCount < 2;
+    },
+    staleTime: 60_000,
+  });
+}
+
+function isProbablyUrl(s: string): boolean {
+  try {
+    const u = new URL(s.trim());
+    return u.protocol === "http:" || u.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
