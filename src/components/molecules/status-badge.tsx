@@ -56,6 +56,7 @@ const STATUS_MAP: Record<string, StatusVariant> = {
   disconnected: "error",
   expired: "error",
   error: "error",
+  needs_reauth: "warning",
   // Background-job statuses (Tasks dashboard + /cms/jobs ops view)
   queued: "muted",
   pending: "info",
