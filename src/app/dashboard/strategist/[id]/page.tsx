@@ -673,9 +673,12 @@ function ReviewTab({ idea, loading, onSubmitReview, onApprove, onReject }: { ide
         <RejectReasonDialog
           open={rejectOpen}
           onOpenChange={setRejectOpen}
-          targetLabel={idea.title}
+          // `title` is overridden below, so `targetLabel` is unused
+          // for display. Empty string instead of `idea.title` makes
+          // the non-reliance explicit.
+          targetLabel=""
           title="Request revisions"
-          description="Tell the writer what to change. They'll see your notes when they reopen the draft."
+          description="Notes for the next revision pass — they'll appear on the draft when reopened."
           cannedReasons={[]}
           onSubmit={onReject}
         />
