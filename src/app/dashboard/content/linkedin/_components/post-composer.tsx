@@ -231,7 +231,14 @@ export function PostComposer({ identity }: Props) {
 
       <Textarea
         value={text}
-        onChange={(e) => setText(e.target.value)}
+        onChange={(e) => {
+          setText(e.target.value);
+          // Stale-variant guard — a typing user has moved on from the
+          // hook the rewrites were generated for. Keeping the panel
+          // visible would let them apply a variant scored against
+          // already-discarded text.
+          if (variants !== null) setVariants(null);
+        }}
         placeholder="Share an update, story, or question…"
         rows={6}
         className="resize-none"
@@ -569,7 +576,12 @@ function HookVariantsPanel({
 }) {
   const { variants } = response;
   return (
-    <div className="space-y-2 rounded-md border bg-muted/20 p-3">
+    <div
+      className="space-y-2 rounded-md border bg-muted/20 p-3"
+      role="region"
+      aria-live="polite"
+      aria-label="Hook rewrite suggestions"
+    >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm font-medium">
           <Wand2 className="size-4" />
