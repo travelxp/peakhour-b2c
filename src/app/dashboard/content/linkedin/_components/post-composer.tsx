@@ -508,14 +508,18 @@ function HookScoreCard({
   }
   const band = bandForScore(score.score);
   const topSuggestions = score.suggestions.slice(0, 3);
+  const tierMeta = tierBadgeMeta(score.tier);
   return (
     <div className={`space-y-2 rounded-md border px-3 py-2.5 text-sm ${band.className}`}>
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Sparkles className="size-4" />
           <span className="font-medium">{band.label}</span>
-          <span className="rounded-sm border border-current/30 px-1.5 py-0 text-[10px] uppercase tracking-wide opacity-80">
-            Tier: {score.tier}
+          <span
+            className="rounded-sm border border-current/30 px-1.5 py-0 text-[10px] uppercase tracking-wide opacity-80"
+            title={tierMeta.tooltip}
+          >
+            {tierMeta.label}
           </span>
         </div>
         <div className="flex items-center gap-2">
@@ -543,6 +547,15 @@ function HookScoreCard({
           </span>
         </div>
       </div>
+      {score.archetypeMatch && (
+        <div className="text-[11px] opacity-80">
+          Matched{" "}
+          <span className="font-mono">{score.archetypeMatch.cohortId}</span>{" "}
+          archetype · cosine{" "}
+          {score.archetypeMatch.cosineSimilarity.toFixed(2)} · scored
+          against {score.archetypeMatch.exampleCount} examples
+        </div>
+      )}
       {topSuggestions.length > 0 && (
         <ul className="ml-4 list-disc space-y-0.5 text-xs opacity-90">
           {topSuggestions.map((s, i) => (
@@ -552,6 +565,36 @@ function HookScoreCard({
       )}
     </div>
   );
+}
+
+/**
+ * Friendlier copy for the tier badge. "Rules" / "Industry" / "Personal"
+ * reads more meaningful than the raw enum value, with a hover tooltip
+ * that explains what produced the score so the badge isn't a mystery
+ * abbreviation.
+ */
+function tierBadgeMeta(tier: HookScore["tier"]): { label: string; tooltip: string } {
+  switch (tier) {
+    case "industry":
+      return {
+        label: "Tier: industry",
+        tooltip:
+          "Blended score: 60% cosine similarity to your industry archetype + 40% craft rules. Higher confidence than the rules-only floor.",
+      };
+    case "personal":
+      return {
+        label: "Tier: personal",
+        tooltip:
+          "Blended score: cosine similarity to your own top-performing hooks + craft rules. Most personalised tier.",
+      };
+    case "rules":
+    default:
+      return {
+        label: "Tier: rules",
+        tooltip:
+          "Score from craft rules only (length, opener, specific data, audience naming, active voice, line rhythm). No archetype available yet for your cohort.",
+      };
+  }
 }
 
 /**
