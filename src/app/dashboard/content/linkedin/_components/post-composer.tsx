@@ -765,7 +765,6 @@ function VoiceCardPanel() {
           <button
             type="button"
             className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left"
-            aria-label={open ? "Hide voice card" : "Show voice card"}
           >
             <div className="flex items-center gap-2 text-sm">
               <Mic className="size-4 text-muted-foreground" />
