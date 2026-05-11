@@ -44,13 +44,15 @@ export interface LinkedInIdentity {
   pages: LinkedInOrgPage[];
 }
 
-/** Hook DNA score — `tier: "rules"` is the v0 floor; v1+ may add
- *  "personal" (per-business cosine) and "industry" (archetype cosine)
- *  as the embedding pipeline lands. The badge surfaces the tier so
- *  users see when they're getting the floor vs personalised tiers. */
+/** Hook DNA score. Tier badge:
+ *    "rules"    — Tier C floor (deterministic craft rules only)
+ *    "industry" — Tier B blend (Tier C + cosine to industry archetype centroid)
+ *    "personal" — Tier A blend (Tier C + cosine to per-business archetype; future)
+ *  The composer surfaces the tier so users see when they're
+ *  getting the floor vs personalised tiers. */
 export interface HookScore {
   score: number;
-  tier: "rules";
+  tier: "rules" | "industry" | "personal";
   breakdown: {
     length: number;
     opener: number;
@@ -69,6 +71,16 @@ export interface HookScore {
     firstLineChars: number;
   };
   suggestions: string[];
+  /** Archetype match diagnostic — populated when Tier B / A fires.
+   *  Surface in the composer hover so curious users can see
+   *  "matched bfsi_india archetype, cosine 0.78 across 142 examples". */
+  archetypeMatch?: {
+    archetypeId: string;
+    cohortId: string;
+    cosineSimilarity: number;
+    archetypeScore: number;
+    exampleCount: number;
+  };
 }
 
 /** Hook rewrite variant — matches `rewrite_hook_variants` skill output.
