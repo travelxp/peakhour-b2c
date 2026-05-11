@@ -14,7 +14,21 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Link2, Loader2, Send, Sparkles, Wand2, X } from "lucide-react";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
+  ChevronDown,
+  Link2,
+  Loader2,
+  Mic,
+  Send,
+  Sparkles,
+  Wand2,
+  X,
+} from "lucide-react";
 import {
   linkedInContentApi,
   type HookScore,
@@ -22,6 +36,7 @@ import {
   type LinkedInAuthor,
   type LinkedInVisibility,
   type LinkedInIdentity,
+  type LinkedInVoiceCard,
   type PublishLinkedInPostInput,
   type RewriteHookResponse,
 } from "@/lib/api/linkedin-content";
@@ -228,6 +243,8 @@ export function PostComposer({ identity }: Props) {
           )}
         </div>
       </div>
+
+      <VoiceCardPanel />
 
       <Textarea
         value={text}
@@ -674,5 +691,176 @@ function HookVariantsPanel({
         </div>
       )}
     </div>
+  );
+}
+
+// ── Voice Card panel ─────────────────────────────────────────────────
+
+const PERSPECTIVE_LABEL: Record<LinkedInVoiceCard["voice"]["perspective"], string> = {
+  first_person_singular: "I",
+  first_person_plural: "We",
+  third_person: "They",
+};
+
+/**
+ * Surface the auto-synthesised LinkedIn voice card alongside the
+ * composer so the user sees the tone/perspective/signature phrases
+ * we learned from their own posts before they type. 404 from the
+ * endpoint is the expected "we haven't trained yet" path — render
+ * a one-line hint and don't surface it as an error.
+ */
+function VoiceCardPanel() {
+  const [open, setOpen] = useState(false);
+  const { data, isLoading, isError, error } = useQuery({
+    queryKey: ["linkedin-voice-card"],
+    queryFn: () => linkedInContentApi.voiceCard(),
+    retry: (failureCount, err) => {
+      // 404 + FORBIDDEN are expected (no card yet / no business
+      // selected). Other transient errors get the default retry.
+      if (err instanceof ApiError && (err.status === 404 || err.status === 403)) {
+        return false;
+      }
+      return failureCount < 2;
+    },
+    staleTime: 5 * 60_000,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="rounded-md border border-dashed bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+        Loading your voice card…
+      </div>
+    );
+  }
+
+  if (isError) {
+    // "Not generated yet" — neutral, not an error.
+    if (error instanceof ApiError && error.status === 404) {
+      return (
+        <div className="rounded-md border border-dashed bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+          <Mic className="mr-1 inline size-3" />
+          Your LinkedIn voice card will appear here once you have 5+ published posts. We&apos;ll learn your tone and signature patterns automatically.
+        </div>
+      );
+    }
+    // 403 (no business) or transient — render nothing so the composer
+    // stays usable. The Hook DNA panel already conveys the underlying
+    // "pick a business" state via its tier badge.
+    return null;
+  }
+
+  if (!data) return null;
+
+  const v = data.voice;
+  const s = data.structure;
+  const tones = v.tone.slice(0, 4);
+  const sigPhrases = v.signaturePhrases.slice(0, 3);
+  const neverDoes = v.neverDoes.slice(0, 3);
+  const avoidTopics = data.content.avoidTopics.slice(0, 3);
+
+  return (
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <div className="rounded-md border bg-card">
+        <CollapsibleTrigger asChild>
+          <button
+            type="button"
+            className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left"
+          >
+            <div className="flex items-center gap-2 text-sm">
+              <Mic className="size-4 text-muted-foreground" />
+              <span className="font-medium">Your LinkedIn voice</span>
+              <span className="rounded-sm border px-1.5 py-0 text-[10px] uppercase tracking-wide text-muted-foreground">
+                {PERSPECTIVE_LABEL[v.perspective]} · {v.formality}/10 formality
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">
+                Trained on {data.generatedFrom} post{data.generatedFrom === 1 ? "" : "s"}
+              </span>
+              <ChevronDown
+                className={`size-4 text-muted-foreground transition-transform ${
+                  open ? "rotate-180" : ""
+                }`}
+              />
+            </div>
+          </button>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="border-t px-3 py-3 text-xs">
+          <dl className="grid gap-3 sm:grid-cols-2">
+            {tones.length > 0 && (
+              <div>
+                <dt className="text-[10px] uppercase tracking-wide text-muted-foreground">Tone</dt>
+                <dd className="mt-1 flex flex-wrap gap-1">
+                  {tones.map((t) => (
+                    <span
+                      key={t}
+                      className="rounded-sm bg-muted px-1.5 py-0.5 text-[11px]"
+                    >
+                      {t}
+                    </span>
+                  ))}
+                </dd>
+              </div>
+            )}
+            <div>
+              <dt className="text-[10px] uppercase tracking-wide text-muted-foreground">Typical length</dt>
+              <dd className="mt-1">
+                {s.averageWordCount} words avg · range {s.wordCountRange?.[0] ?? 0}–{s.wordCountRange?.[1] ?? 0}
+              </dd>
+            </div>
+            {sigPhrases.length > 0 && (
+              <div className="sm:col-span-2">
+                <dt className="text-[10px] uppercase tracking-wide text-muted-foreground">Signature phrases</dt>
+                <dd className="mt-1 flex flex-wrap gap-1">
+                  {sigPhrases.map((p) => (
+                    <span
+                      key={p}
+                      className="rounded-sm border bg-muted/40 px-1.5 py-0.5 text-[11px]"
+                    >
+                      &ldquo;{p}&rdquo;
+                    </span>
+                  ))}
+                </dd>
+              </div>
+            )}
+            {neverDoes.length > 0 && (
+              <div className="sm:col-span-2">
+                <dt className="text-[10px] uppercase tracking-wide text-muted-foreground">Never does</dt>
+                <dd className="mt-1">
+                  <ul className="ml-4 list-disc space-y-0.5 text-[11px] text-muted-foreground">
+                    {neverDoes.map((n) => (
+                      <li key={n}>{n}</li>
+                    ))}
+                  </ul>
+                </dd>
+              </div>
+            )}
+            <div>
+              <dt className="text-[10px] uppercase tracking-wide text-muted-foreground">Opening</dt>
+              <dd className="mt-1 line-clamp-2">{s.openingStyle}</dd>
+            </div>
+            <div>
+              <dt className="text-[10px] uppercase tracking-wide text-muted-foreground">Closing</dt>
+              <dd className="mt-1 line-clamp-2">{s.closingStyle}</dd>
+            </div>
+            {avoidTopics.length > 0 && (
+              <div className="sm:col-span-2">
+                <dt className="text-[10px] uppercase tracking-wide text-muted-foreground">Avoid topics</dt>
+                <dd className="mt-1 flex flex-wrap gap-1">
+                  {avoidTopics.map((t) => (
+                    <span
+                      key={t}
+                      className="rounded-sm border border-amber-200 bg-amber-50/60 px-1.5 py-0.5 text-[11px] text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300"
+                    >
+                      {t}
+                    </span>
+                  ))}
+                </dd>
+              </div>
+            )}
+          </dl>
+        </CollapsibleContent>
+      </div>
+    </Collapsible>
   );
 }
