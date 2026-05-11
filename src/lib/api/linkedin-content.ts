@@ -71,6 +71,25 @@ export interface HookScore {
   suggestions: string[];
 }
 
+/** Hook rewrite variant — matches `rewrite_hook_variants` skill output.
+ *  `score` is the same Hook DNA scale as `HookScore.score`. `technique`
+ *  is a short label the API returns describing the rewrite approach
+ *  (data-led, contrarian, named decision-maker, etc.). */
+export interface HookVariant {
+  hook: string;
+  score: number;
+  technique: string;
+}
+
+export interface RewriteHookResponse {
+  /** Echo of the input + its score, so the variant panel can show
+   *  "your hook scored X" without a separate score-hook roundtrip. */
+  original: { hook: string; score: number };
+  /** Variants ranked best-first. May be shorter than the requested
+   *  `count` if the AI returned near-duplicates that got deduped. */
+  variants: HookVariant[];
+}
+
 export const linkedInContentApi = {
   me: () => api.get<LinkedInIdentity>("/v1/linkedin-content/me"),
 
@@ -79,4 +98,10 @@ export const linkedInContentApi = {
 
   scoreHook: (hook: string) =>
     api.post<HookScore>("/v1/linkedin-content/score-hook", { hook }),
+
+  rewriteHook: (hook: string, count?: number) =>
+    api.post<RewriteHookResponse>(
+      "/v1/linkedin-content/rewrite-hook",
+      count !== undefined ? { hook, count } : { hook },
+    ),
 };

@@ -14,14 +14,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Link2, Send, Sparkles, X } from "lucide-react";
+import { Link2, Loader2, Send, Sparkles, Wand2, X } from "lucide-react";
 import {
   linkedInContentApi,
   type HookScore,
+  type HookVariant,
   type LinkedInAuthor,
   type LinkedInVisibility,
   type LinkedInIdentity,
   type PublishLinkedInPostInput,
+  type RewriteHookResponse,
 } from "@/lib/api/linkedin-content";
 import { ApiError } from "@/lib/api";
 
@@ -93,6 +95,32 @@ export function PostComposer({ identity }: Props) {
   // shipped yet.
   const hookScore = useHookScore(text);
 
+  // Rewrite-hook variants — explicit user action (NOT debounced)
+  // because each call is an LLM roundtrip with real cost. Variants
+  // panel mounts when present; clears on successful publish or when
+  // the user picks one to apply.
+  const [variants, setVariants] = useState<RewriteHookResponse | null>(null);
+  const rewrite = useMutation({
+    mutationFn: () => linkedInContentApi.rewriteHook(text.trim(), 4),
+    onSuccess: setVariants,
+    onError: (err: unknown) => {
+      const message =
+        err instanceof ApiError ? err.message : "Couldn't rewrite hook.";
+      setFeedback({ kind: "error", message });
+    },
+  });
+
+  function applyVariant(v: HookVariant) {
+    // Replace the textarea with the picked variant. Preserves any
+    // body content the user wrote BELOW the hook by appending it
+    // back — splits on the first blank-line boundary as a "hook
+    // ends here" heuristic. Conservative: when no boundary is
+    // found, just replaces wholesale.
+    const [, ...rest] = text.split(/\n\s*\n/);
+    setText(rest.length > 0 ? `${v.hook}\n\n${rest.join("\n\n")}` : v.hook);
+    setVariants(null);
+  }
+
   const publish = useMutation({
     mutationFn: (input: PublishLinkedInPostInput) => linkedInContentApi.publish(input),
     onSuccess: () => {
@@ -100,6 +128,7 @@ export function PostComposer({ identity }: Props) {
       setLinkUrl("");
       setLinkTitle("");
       setShowLink(false);
+      setVariants(null);
       setFeedback({ kind: "success", message: "Post published to LinkedIn." });
       queryClient.invalidateQueries({ queryKey: ["linkedin-me"] });
     },
@@ -202,14 +231,40 @@ export function PostComposer({ identity }: Props) {
 
       <Textarea
         value={text}
-        onChange={(e) => setText(e.target.value)}
+        onChange={(e) => {
+          setText(e.target.value);
+          // Stale-variant guard — a typing user has moved on from the
+          // hook the rewrites were generated for. Keeping the panel
+          // visible would let them apply a variant scored against
+          // already-discarded text.
+          if (variants !== null) setVariants(null);
+        }}
         placeholder="Share an update, story, or question…"
         rows={6}
         className="resize-none"
         aria-label="LinkedIn post content"
       />
 
-      <HookScoreCard score={hookScore} />
+      <HookScoreCard
+        score={hookScore}
+        onRewrite={() => {
+          // Only fire when there's a real score to improve. Reuse
+          // the same min-chars threshold as the live scorer so the
+          // button never appears on too-short text.
+          if (text.trim().length < HOOK_SCORE_MIN_CHARS) return;
+          setFeedback(null);
+          rewrite.mutate();
+        }}
+        rewritePending={rewrite.isPending}
+      />
+
+      {variants && (
+        <HookVariantsPanel
+          response={variants}
+          onPick={applyVariant}
+          onDismiss={() => setVariants(null)}
+        />
+      )}
 
       {showLink && (
         <div className="space-y-2 rounded-md border p-3">
@@ -430,8 +485,19 @@ function bandForScore(score: number): HookScoreBand {
  * up to 3 plain-English suggestions. Hidden until the user types
  * enough characters to score (`null`); shows a light pending state
  * while the debounced request is in flight (`undefined`).
+ *
+ * When `onRewrite` is wired, a Rewrite button appears in the header
+ * (LLM-cost action; user clicks explicitly, not on debounce).
  */
-function HookScoreCard({ score }: { score: HookScore | null | undefined }) {
+function HookScoreCard({
+  score,
+  onRewrite,
+  rewritePending,
+}: {
+  score: HookScore | null | undefined;
+  onRewrite?: () => void;
+  rewritePending?: boolean;
+}) {
   if (score === null) return null;
   if (score === undefined) {
     return (
@@ -452,10 +518,30 @@ function HookScoreCard({ score }: { score: HookScore | null | undefined }) {
             Tier: {score.tier}
           </span>
         </div>
-        <span className="font-mono text-base font-semibold tabular-nums">
-          {score.score}
-          <span className="ml-0.5 text-xs opacity-70">/100</span>
-        </span>
+        <div className="flex items-center gap-2">
+          {onRewrite && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 gap-1 text-xs"
+              onClick={onRewrite}
+              disabled={rewritePending}
+              aria-busy={rewritePending}
+            >
+              {rewritePending ? (
+                <Loader2 className="size-3 animate-spin" />
+              ) : (
+                <Wand2 className="size-3" />
+              )}
+              {rewritePending ? "Rewriting…" : "Rewrite"}
+            </Button>
+          )}
+          <span className="font-mono text-base font-semibold tabular-nums">
+            {score.score}
+            <span className="ml-0.5 text-xs opacity-70">/100</span>
+          </span>
+        </div>
       </div>
       {topSuggestions.length > 0 && (
         <ul className="ml-4 list-disc space-y-0.5 text-xs opacity-90">
@@ -463,6 +549,86 @@ function HookScoreCard({ score }: { score: HookScore | null | undefined }) {
             <li key={i}>{s}</li>
           ))}
         </ul>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Variants panel — renders the rewrite_hook_variants response. Each
+ * row shows the variant text, technique label, and its Hook DNA
+ * score (same scale as the live scorer; matches by construction
+ * since the API uses the same scoreHookV0). Click to apply.
+ *
+ * Empty `variants` is rendered as a "no rewrites available" state —
+ * the AI occasionally returns near-identical variants that all dedup
+ * to nothing useful, and a panel that just disappears would be a
+ * silent failure.
+ */
+function HookVariantsPanel({
+  response,
+  onPick,
+  onDismiss,
+}: {
+  response: RewriteHookResponse;
+  onPick: (v: HookVariant) => void;
+  onDismiss: () => void;
+}) {
+  const { variants } = response;
+  return (
+    <div
+      className="space-y-2 rounded-md border bg-muted/20 p-3"
+      role="region"
+      aria-live="polite"
+      aria-label="Hook rewrite suggestions"
+    >
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 text-sm font-medium">
+          <Wand2 className="size-4" />
+          Rewrite suggestions
+          <span className="text-xs font-normal text-muted-foreground">
+            (your hook scored {response.original.score})
+          </span>
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-7 px-2"
+          onClick={onDismiss}
+          aria-label="Dismiss rewrite suggestions"
+        >
+          <X className="size-3.5" />
+        </Button>
+      </div>
+      {variants.length === 0 ? (
+        <p className="text-xs text-muted-foreground">
+          No rewrites available — try editing the hook yourself and rescoring.
+        </p>
+      ) : (
+        <div className="space-y-1.5">
+          {variants.map((v, i) => {
+            const band = bandForScore(v.score);
+            return (
+              <button
+                key={i}
+                type="button"
+                onClick={() => onPick(v)}
+                className={`flex w-full flex-col gap-1.5 rounded-md border px-3 py-2 text-left text-sm transition hover:shadow-sm ${band.className}`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <span className="line-clamp-3 whitespace-pre-line">{v.hook}</span>
+                  <span className="shrink-0 font-mono text-sm font-semibold tabular-nums">
+                    {v.score}
+                  </span>
+                </div>
+                <span className="text-[10px] uppercase tracking-wide opacity-70">
+                  {v.technique}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       )}
     </div>
   );
