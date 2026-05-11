@@ -102,6 +102,52 @@ export interface RewriteHookResponse {
   variants: HookVariant[];
 }
 
+/**
+ * LinkedIn voice card surfaced to the composer. Narrow shape served by
+ * `GET /v1/linkedin-content/voice-card` — audit fields + internal signals
+ * stripped server-side; this is exactly what the panel needs.
+ */
+export interface LinkedInVoiceCard {
+  voice: {
+    perspective: "first_person_singular" | "first_person_plural" | "third_person";
+    tone: string[];
+    formality: number;
+    complexity: number;
+    sentenceLength: "short" | "medium" | "long" | "mixed_short_and_medium" | "mixed";
+    paragraphLength: "short" | "medium" | "long";
+    usesRhetoricalQuestions: boolean;
+    usesAnecdotes: boolean;
+    usesData: boolean;
+    dataStyle?: string;
+    signaturePhrases: string[];
+    avoidPhrases: string[];
+    neverDoes: string[];
+  };
+  structure: {
+    openingStyle: string;
+    usesSubheadings: boolean;
+    subheadingStyle?: string;
+    closingStyle: string;
+    hasTLDR: boolean;
+    hasRecurringSection: boolean;
+    recurringSectionName?: string;
+    averageWordCount: number;
+    wordCountRange: [number, number];
+  };
+  content: {
+    niche: string;
+    audience: string;
+    audienceSophistication: "beginner" | "intermediate" | "expert";
+    primaryAngle: string;
+    primaryContentType: string;
+    avoidTopics: string[];
+  };
+  version: number;
+  /** Sample size the synthesis was generated from. Use as the "trained on N posts" signal. */
+  generatedFrom: number;
+  lastGeneratedAt: string;
+}
+
 export const linkedInContentApi = {
   me: () => api.get<LinkedInIdentity>("/v1/linkedin-content/me"),
 
@@ -116,4 +162,10 @@ export const linkedInContentApi = {
       "/v1/linkedin-content/rewrite-hook",
       count !== undefined ? { hook, count } : { hook },
     ),
+
+  /** Fetch the auto-synthesised LinkedIn voice card. ApiError with
+   *  `code: "NOT_FOUND"` (404) means "no card yet" — caller should
+   *  render an empty state, not surface an error. */
+  voiceCard: () =>
+    api.get<LinkedInVoiceCard>("/v1/linkedin-content/voice-card"),
 };
