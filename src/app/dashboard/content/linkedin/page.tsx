@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api, ApiError } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
@@ -111,39 +111,71 @@ export default function LinkedInDashboardPage() {
         </Card>
       )}
 
-      <Tabs defaultValue="compose">
-        <TabsList>
-          <TabsTrigger value="compose" className="gap-1.5">
-            <Send className="size-4" /> Compose
-          </TabsTrigger>
-          <TabsTrigger value="audience" className="gap-1.5">
-            <Users className="size-4" /> Audience
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="compose" className="mt-4">
-          <Card>
-            <CardContent className="p-5">
-              {identity.isLoading || !enabledIdentity?.data ? (
-                <PostComposerSkeleton />
-              ) : (
-                <PostComposer identity={enabledIdentity.data} />
-              )}
-            </CardContent>
-          </Card>
-          <p className="mt-3 text-xs text-muted-foreground">
-            Text + link posts only for now — carousels, polls, and scheduling are coming.
-          </p>
-        </TabsContent>
-
-        <TabsContent value="audience" className="mt-4">
-          <AudiencePanel />
-          <p className="mt-3 text-xs text-muted-foreground">
-            We rank commenters on your LinkedIn posts by frequency, recency, and reactions. Names and titles will appear once profile enrichment lands.
-          </p>
-        </TabsContent>
-      </Tabs>
+      <LinkedInTabs identity={identity} enabledIdentity={enabledIdentity} />
     </PageShell>
+  );
+}
+
+/**
+ * Tabs shell — lifts the Tabs state into React so we can lazy-mount
+ * the Audience tab. Radix's <TabsContent> eagerly mounts every child
+ * (just toggles `hidden`), which would fire the engagers query on
+ * every page load even for users who never open the tab. Tracking
+ * "has the user ever opened Audience" in state lets us skip the
+ * mount until the user actually asks for it; on subsequent switches
+ * the mounted-once component handles its own visibility (and TanStack
+ * Query keeps the data warm via staleTime).
+ */
+function LinkedInTabs({
+  identity,
+  enabledIdentity,
+}: {
+  identity: ReturnType<typeof useLinkedInIdentity>;
+  enabledIdentity: ReturnType<typeof useLinkedInIdentity> | null;
+}) {
+  const [tab, setTab] = useState<"compose" | "audience">("compose");
+  const [audienceOpened, setAudienceOpened] = useState(false);
+
+  function handleTabChange(value: string) {
+    if (value === "compose" || value === "audience") {
+      setTab(value);
+      if (value === "audience") setAudienceOpened(true);
+    }
+  }
+
+  return (
+    <Tabs value={tab} onValueChange={handleTabChange}>
+      <TabsList>
+        <TabsTrigger value="compose" className="gap-1.5">
+          <Send className="size-4" /> Compose
+        </TabsTrigger>
+        <TabsTrigger value="audience" className="gap-1.5">
+          <Users className="size-4" /> Audience
+        </TabsTrigger>
+      </TabsList>
+
+      <TabsContent value="compose" className="mt-4">
+        <Card>
+          <CardContent className="p-5">
+            {identity.isLoading || !enabledIdentity?.data ? (
+              <PostComposerSkeleton />
+            ) : (
+              <PostComposer identity={enabledIdentity.data} />
+            )}
+          </CardContent>
+        </Card>
+        <p className="mt-3 text-xs text-muted-foreground">
+          Text + link posts only for now — carousels, polls, and scheduling are coming.
+        </p>
+      </TabsContent>
+
+      <TabsContent value="audience" className="mt-4">
+        {audienceOpened ? <AudiencePanel /> : null}
+        <p className="mt-3 text-xs text-muted-foreground">
+          We rank commenters on your LinkedIn posts by frequency, recency, and reactions. Names and titles will appear once profile enrichment lands.
+        </p>
+      </TabsContent>
+    </Tabs>
   );
 }
 
