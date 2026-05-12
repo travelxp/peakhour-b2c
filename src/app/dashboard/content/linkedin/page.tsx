@@ -7,13 +7,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EmptyState } from "@/components/molecules/empty-state";
-import { MessageSquare, RefreshCw, Send, Users } from "lucide-react";
+import { MessageSquare, RefreshCw, Rocket, Send, Users } from "lucide-react";
 import {
   PostComposer,
   PostComposerSkeleton,
   useLinkedInIdentity,
 } from "./_components/post-composer";
 import { AudiencePanel } from "./_components/audience-panel";
+import { BoostCandidatesPanel } from "./_components/boost-candidates-panel";
 import { SuggestedDraftsPanel } from "./_components/suggested-drafts-panel";
 
 interface ApiIntegration {
@@ -134,8 +135,9 @@ function LinkedInTabs({
   identity: ReturnType<typeof useLinkedInIdentity>;
   enabledIdentity: ReturnType<typeof useLinkedInIdentity> | null;
 }) {
-  const [tab, setTab] = useState<"compose" | "audience">("compose");
+  const [tab, setTab] = useState<"compose" | "audience" | "boost">("compose");
   const [audienceOpened, setAudienceOpened] = useState(false);
+  const [boostOpened, setBoostOpened] = useState(false);
   // Composer seed text — set when the user clicks "Use this draft" on
   // the Suggested Drafts panel. PostComposer accepts this as a prop and
   // seeds its internal text state when the value changes (tracked via
@@ -143,9 +145,10 @@ function LinkedInTabs({
   const [composerSeed, setComposerSeed] = useState<string | undefined>(undefined);
 
   function handleTabChange(value: string) {
-    if (value === "compose" || value === "audience") {
+    if (value === "compose" || value === "audience" || value === "boost") {
       setTab(value);
       if (value === "audience") setAudienceOpened(true);
+      if (value === "boost") setBoostOpened(true);
     }
   }
 
@@ -157,6 +160,9 @@ function LinkedInTabs({
         </TabsTrigger>
         <TabsTrigger value="audience" className="gap-1.5">
           <Users className="size-4" /> Audience
+        </TabsTrigger>
+        <TabsTrigger value="boost" className="gap-1.5">
+          <Rocket className="size-4" /> Boost
         </TabsTrigger>
       </TabsList>
 
@@ -183,6 +189,13 @@ function LinkedInTabs({
         {audienceOpened ? <AudiencePanel /> : null}
         <p className="mt-3 text-xs text-muted-foreground">
           We rank commenters on your LinkedIn posts by frequency, recency, and reactions. Names and titles will appear once profile enrichment lands.
+        </p>
+      </TabsContent>
+
+      <TabsContent value="boost" className="mt-4">
+        {boostOpened ? <BoostCandidatesPanel /> : null}
+        <p className="mt-3 text-xs text-muted-foreground">
+          We rank your recent posts by boost-worthiness — velocity, audience quality, hook strength, and freshness. Autonomous ad-spend ships in a follow-up; today this is a recommendation surface.
         </p>
       </TabsContent>
     </Tabs>
