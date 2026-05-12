@@ -253,6 +253,22 @@ export const linkedInContentApi = {
       "/v1/linkedin-content/generate-from-profile",
       count !== undefined ? { count } : {},
     ),
+
+  /** Boost-this-post candidates. Read-only ranking of the business's
+   *  recently-published posts by boost-worthiness (velocity + audience
+   *  quality + Hook DNA + freshness). Server returns an empty
+   *  candidates array (not 404) when no eligible posts exist; the
+   *  panel renders an empty state. Default limit 10, max 25 server-side. */
+  boostCandidates: (params?: { limit?: number }) => {
+    const qs = new URLSearchParams();
+    if (typeof params?.limit === "number" && params.limit > 0) {
+      qs.set("limit", String(params.limit));
+    }
+    const q = qs.toString();
+    return api.get<BoostCandidatesResponse>(
+      `/v1/linkedin-content/boost-candidates${q ? `?${q}` : ""}`,
+    );
+  },
 };
 
 /** One generated LinkedIn post draft returned by `generateFromProfile`.
@@ -290,6 +306,58 @@ export interface SuggestedDraft {
   rationale: string;
   /** Full Hook DNA score for the post's hook. */
   hookScore: HookScore;
+}
+
+/** One boost-this-post candidate returned by `boostCandidates`. Mirrors
+ *  the api's response shape exactly. Surfaces the composite score, the
+ *  four component breakdowns, the raw signals (likes/comments/shares,
+ *  velocity, avg AQS, Hook DNA), and a human-readable rationale for
+ *  the UI hover. */
+export interface BoostCandidate {
+  postId: string;
+  linkedInPostUrn: string;
+  authorUrn?: string;
+  authorType?: "person" | "org";
+  publishedAt: string;
+  hoursSincePublished: number;
+  hookExcerpt: string;
+  score: number;
+  breakdown: {
+    velocity: number;
+    audienceQuality: number;
+    hookDna: number;
+    freshness: number;
+  };
+  signals: {
+    likes: number;
+    comments: number;
+    shares: number;
+    engagement: number;
+    velocity: number;
+    distinctEngagers: number;
+    avgAqsScore: number;
+    hookScore: number;
+    hookTier: "rules" | "industry" | "personal";
+  };
+  rationale: string;
+  performanceLastUpdated?: string;
+}
+
+export interface BoostCandidatesResponse {
+  candidates: BoostCandidate[];
+  totalPostsConsidered: number;
+  eligibleCount: number;
+  /** True when the business has more eligible posts than the scorer's
+   *  hard cap (currently 30). UI should render "showing top N most
+   *  recent" so the user knows there's more. */
+  truncated: boolean;
+  filteredOut: {
+    missingPerformance: number;
+    missingContent: number;
+    lowEngagement: number;
+    tooFresh: number;
+    tooStale: number;
+  };
 }
 
 export interface GenerateFromProfileResponse {
