@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/card";
 import { Sparkles, Globe, ArrowRight } from "lucide-react";
 import {
+  GoogleIcon,
   InstagramIcon,
   LinkedinIcon,
   YoutubeIcon,
@@ -50,6 +51,7 @@ interface ExtractResponse {
 
 const URL_EXAMPLES = [
   { label: "yourcompany.com", icon: Globe },
+  { label: "google.com/maps/place/…", icon: GoogleIcon },
   { label: "instagram.com/you", icon: InstagramIcon },
   { label: "linkedin.com/in/you", icon: LinkedinIcon },
   { label: "youtube.com/@you", icon: YoutubeIcon },
@@ -170,8 +172,9 @@ function AddBusinessContent() {
           Tell us about you
         </h1>
         <p className="text-lg text-muted-foreground">
-          Paste any link — your website, social profile, or newsletter.
-          We&apos;ll figure out the rest.
+          Paste any link — your website, your Google Business listing,
+          a social profile, or a newsletter. We&apos;ll figure out the
+          rest.
         </p>
       </div>
 
@@ -260,7 +263,7 @@ function AddBusinessContent() {
         <p className="text-center text-xs uppercase tracking-wider text-muted-foreground">
           What kinds of links work
         </p>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
           {URL_EXAMPLES.map((ex) => (
             <div
               key={ex.label}
