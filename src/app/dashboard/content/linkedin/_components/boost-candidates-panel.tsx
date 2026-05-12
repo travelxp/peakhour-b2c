@@ -7,7 +7,15 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Rocket, TrendingUp, Building2, User } from "lucide-react";
+import {
+  Building2,
+  Heart,
+  MessageSquare,
+  Rocket,
+  Share2,
+  TrendingUp,
+  User,
+} from "lucide-react";
 import {
   linkedInContentApi,
   type BoostCandidate,
@@ -73,6 +81,14 @@ export function BoostCandidatesPanel() {
   }
 
   if (!data || data.candidates.length === 0) {
+    // Empty-state path intentionally does NOT forward `truncated` /
+    // `eligibleCount` to PanelShell. If it did, the summary line in
+    // PanelShell could render "Top 0 of M+ posts considered" when
+    // the candidates array is empty but truncated is true (rare:
+    // the server hit the 30-post cap, then in-app filters knocked
+    // all of them out for low engagement / missing content). That
+    // reads worse than the empty-state body alone, so we hide the
+    // summary here on purpose.
     return (
       <PanelShell totalConsidered={data?.totalPostsConsidered ?? 0}>
         <EmptyBody
@@ -228,7 +244,7 @@ function BoostCandidateRow({
           aria-expanded={expanded}
         >
           <p
-            className={`whitespace-pre-line text-sm font-medium ${expanded ? "" : "line-clamp-2"}`}
+            className={`text-sm font-medium ${expanded ? "" : "line-clamp-2"}`}
             title={expanded ? undefined : candidate.hookExcerpt}
           >
             {candidate.hookExcerpt}
@@ -240,23 +256,23 @@ function BoostCandidateRow({
             {candidate.authorType === "org" ? "Company page" : "Personal feed"}
           </span>
           <span>{formatHoursSincePublished(candidate.hoursSincePublished)}</span>
-          <span>
+          <span className="inline-flex items-center gap-1">
+            <Heart className="size-3 shrink-0" />
             <span className="font-medium text-foreground">
               {candidate.signals.likes}
-            </span>{" "}
-            ♥
+            </span>
           </span>
-          <span>
+          <span className="inline-flex items-center gap-1">
+            <MessageSquare className="size-3 shrink-0" />
             <span className="font-medium text-foreground">
               {candidate.signals.comments}
-            </span>{" "}
-            💬
+            </span>
           </span>
-          <span>
+          <span className="inline-flex items-center gap-1">
+            <Share2 className="size-3 shrink-0" />
             <span className="font-medium text-foreground">
               {candidate.signals.shares}
-            </span>{" "}
-            ↻
+            </span>
           </span>
         </div>
         <p className="text-[11px] italic text-muted-foreground" title={candidate.rationale}>
