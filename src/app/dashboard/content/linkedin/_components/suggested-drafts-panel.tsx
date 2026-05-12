@@ -11,26 +11,28 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { ChevronDown, Sparkles, X } from "lucide-react";
-import type {
-  GenerateFromProfileResponse,
-  SuggestedDraft,
+import {
+  SUGGESTED_DRAFTS_QUERY_KEY,
+  type GenerateFromProfileResponse,
+  type SuggestedDraft,
 } from "@/lib/api/linkedin-content";
 
 /**
- * SUGGESTED_DRAFTS_QUERY_KEY — the cache key shared with the onboarding
- * launch page. The launch page writes the generate-from-profile result
- * via `queryClient.setQueryData(SUGGESTED_DRAFTS_QUERY_KEY, response)`;
- * this panel reads it back via `useQuery` with the same key + a
- * `queryFn` that resolves to `null` when no data is in cache yet
- * (no network call — this is pure in-memory state coordination).
- *
- * Page refresh clears the cache, which is intentional for v1: the
- * suggested-drafts surface is a "just-onboarded" affordance, not a
- * persistent queue. The drafts themselves persist in `cnt_drafts`
- * (status="ready", source="ai_generated") and a future iteration will
- * fetch them from `/v1/content/library` so the panel survives reloads.
+ * Cache lifecycle for the SuggestedDraftsPanel:
+ *   • Launch page writes the generate-from-profile response into the
+ *     TanStack cache under SUGGESTED_DRAFTS_QUERY_KEY (re-exported from
+ *     the api-client module so launch + panel share a neutral source).
+ *   • This panel reads from the cache via useQuery with enabled:false +
+ *     initialData:null — pure cache reader, no queryFn invocation.
+ *   • Dismissals are persisted into the cache itself (mutated via
+ *     setQueryData) so the dismissed state survives tab switches and
+ *     route navigation within the session. Page refresh clears the
+ *     cache entirely — intentional for v1; the suggested-drafts surface
+ *     is a "just-onboarded" affordance, not a persistent queue. The
+ *     drafts themselves persist in cnt_drafts (status="ready",
+ *     source="ai_generated") and a future iteration will fetch them
+ *     from /v1/content/library so the panel survives reloads.
  */
-export const SUGGESTED_DRAFTS_QUERY_KEY = ["linkedin-suggested-drafts"] as const;
 
 interface Props {
   /** Called when the user clicks "Use this draft" — the parent threads
@@ -52,36 +54,39 @@ interface Props {
 export function SuggestedDraftsPanel({ onUseDraft }: Props) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(true);
-  // Locally-dismissed draftIds — once a user picks a draft (or X's it),
-  // it disappears from this panel but stays in cnt_drafts so it's still
-  // discoverable from the broader Drafts list (when that surface lands).
-  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
 
-  // staleTime: Infinity — the cache is populated synchronously by the
-  // launch page; we never refetch in this panel (no network query to
-  // make — the data is hand-fed). Empty initialData lets the panel
-  // render the "no drafts" branch cleanly before anything's stashed.
+  // Pure cache reader — no network call, no queryFn invocation. The
+  // launch page populates the cache via setQueryData; this panel only
+  // reads from it. enabled:false + initialData:null means useQuery
+  // never runs a fetch and renders the "no drafts" branch cleanly on
+  // first mount before the launch page has stashed anything.
   const { data } = useQuery<GenerateFromProfileResponse | null>({
     queryKey: SUGGESTED_DRAFTS_QUERY_KEY,
-    queryFn: () => null,
+    enabled: false,
+    initialData: null,
     staleTime: Infinity,
     gcTime: Infinity,
   });
 
-  const drafts = (data?.posts ?? []).filter((d) => !dismissedIds.has(d.draftId));
+  const drafts = data?.posts ?? [];
   if (drafts.length === 0) return null;
 
+  // Dismissals mutate the cache directly so they survive tab switches
+  // and route navigation within the session (component-local useState
+  // would reset on remount, re-showing dismissed drafts). One source
+  // of truth: the TanStack cache.
   function dismiss(draftId: string) {
-    setDismissedIds((prev) => {
-      const next = new Set(prev);
-      next.add(draftId);
-      return next;
-    });
-    // If the user dismisses everything, drop the cache entry so the
-    // panel doesn't reappear on next tab switch via stale cache.
-    if (drafts.length === 1) {
-      queryClient.setQueryData(SUGGESTED_DRAFTS_QUERY_KEY, null);
-    }
+    queryClient.setQueryData<GenerateFromProfileResponse | null>(
+      SUGGESTED_DRAFTS_QUERY_KEY,
+      (prev) => {
+        if (!prev) return prev;
+        const remaining = prev.posts.filter((p) => p.draftId !== draftId);
+        // Last draft dismissed → null the cache so the panel hides
+        // permanently for this session.
+        if (remaining.length === 0) return null;
+        return { ...prev, posts: remaining };
+      },
+    );
   }
 
   function use(draft: SuggestedDraft) {
@@ -160,12 +165,10 @@ function SuggestedDraftCard({
   onDismiss: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const tierBadgeText =
-    draft.hookScore.tier === "rules"
-      ? "rules"
-      : draft.hookScore.tier === "industry"
-        ? "industry"
-        : "personal";
+  // Fallback to a humanised version of the raw angle key if the server
+  // returns an angle that isn't in our local map (schema drift safety).
+  const angleLabel =
+    ANGLE_LABEL[draft.angle] ?? draft.angle.replace(/_/g, " ");
 
   return (
     <li className="rounded-md border bg-card">
@@ -196,16 +199,16 @@ function SuggestedDraftCard({
               variant="secondary"
               className="text-[10px] uppercase tracking-wide"
             >
-              {ANGLE_LABEL[draft.angle]}
+              {angleLabel}
             </Badge>
             {draft.audienceSegment ? (
               <span>for {draft.audienceSegment}</span>
             ) : null}
             <span
-              title={`Frequency ${draft.hookScore.breakdown.length} / Opener ${draft.hookScore.breakdown.opener} / Specific ${draft.hookScore.breakdown.specificData} / Audience ${draft.hookScore.breakdown.audienceNoun} / Active ${draft.hookScore.breakdown.activeVoice} / Rhythm ${draft.hookScore.breakdown.rhythm}`}
+              title={`Length ${draft.hookScore.breakdown.length} / Opener ${draft.hookScore.breakdown.opener} / Specific ${draft.hookScore.breakdown.specificData} / Audience ${draft.hookScore.breakdown.audienceNoun} / Active ${draft.hookScore.breakdown.activeVoice} / Rhythm ${draft.hookScore.breakdown.rhythm}`}
             >
               Hook DNA {draft.hookScore.score}/100 ·{" "}
-              <span className="uppercase">{tierBadgeText}</span>
+              <span className="uppercase">{draft.hookScore.tier}</span>
             </span>
           </div>
         </div>

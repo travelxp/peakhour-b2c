@@ -5,8 +5,7 @@ import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/providers/auth-provider";
 import { api, ApiError } from "@/lib/api";
-import { linkedInContentApi } from "@/lib/api/linkedin-content";
-import { SUGGESTED_DRAFTS_QUERY_KEY } from "@/app/dashboard/content/linkedin/_components/suggested-drafts-panel";
+import { linkedInContentApi, SUGGESTED_DRAFTS_QUERY_KEY } from "@/lib/api/linkedin-content";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -142,9 +141,19 @@ export default function LaunchPage() {
   // SuggestedDraftsPanel on the LinkedIn dashboard renders the drafts
   // immediately when the user navigates there.
   //
+  // No LinkedIn OAuth required for this call — the server-side endpoint
+  // generates from BusinessContext + voice card alone. Drafts persist
+  // in cnt_drafts regardless of whether the user has connected
+  // LinkedIn; they're publishable once the connection lands.
+  //
   // A ref tracks whether we've already fired so polling-driven
   // re-renders of isDone (refreshUser → user-doc state churn → status
   // re-renders) don't accidentally fire generate twice.
+  //
+  // Gated on `org` being defined — the user's currently-selected
+  // business is read from the session on the server side, but if the
+  // AuthProvider's session refresh hasn't propagated yet, a 403 is the
+  // worst case and is swallowed by the catch below.
   //
   // No toast / no progress UI on this page — keeping it silent because
   // the dashboard is the better place to surface the result, and a
@@ -154,6 +163,7 @@ export default function LaunchPage() {
   const generateFiredRef = useRef(false);
   useEffect(() => {
     if (!isDone) return;
+    if (!org?._id) return;
     if (generateFiredRef.current) return;
     generateFiredRef.current = true;
     linkedInContentApi
@@ -170,7 +180,7 @@ export default function LaunchPage() {
           err instanceof Error ? err.message : err,
         );
       });
-  }, [isDone, queryClient]);
+  }, [isDone, org?._id, queryClient]);
 
   const completedSet = useMemo(
     () => new Set(status?.phasesCompleted ?? []),

@@ -192,6 +192,15 @@ export interface EngagersResponse {
   lookbackDays: number;
 }
 
+/** Shared TanStack Query cache key for the LinkedIn suggested-drafts
+ *  surface. Producer: `onboarding/launch/page.tsx` writes the
+ *  generate-from-profile response via `queryClient.setQueryData`.
+ *  Consumer: `SuggestedDraftsPanel` on the LinkedIn dashboard reads
+ *  from the same key. Lives in the api-client module so both
+ *  consumers reach a neutral location (not a Next.js `_components`
+ *  private folder). */
+export const SUGGESTED_DRAFTS_QUERY_KEY = ["linkedin-suggested-drafts"] as const;
+
 export const linkedInContentApi = {
   me: () => api.get<LinkedInIdentity>("/v1/linkedin-content/me"),
 
