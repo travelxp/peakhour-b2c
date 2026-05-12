@@ -39,7 +39,22 @@ export function AudiencePanel() {
       return failureCount < 2;
     },
     staleTime: 5 * 60_000,
+    // The engagers endpoint runs a Mongo aggregation per call. Match
+    // the heavier insights panels' convention: don't auto-refetch on
+    // tab refocus or component remount — the 5min staleTime is the
+    // honest refresh cadence here, and the user can hard-refresh if
+    // they want a fresher view.
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
   });
+
+  // Surface transient errors in the dev console so we can debug
+  // network/parse failures (raw TypeError from fetch, PARSE_ERROR from
+  // a 500 with non-JSON body). The user-facing toast intentionally
+  // doesn't echo err.message — provider/network strings leak internals.
+  if (isError && !(error instanceof ApiError && error.status === 403)) {
+    console.error("[AudiencePanel] engagers query failed:", error);
+  }
 
   if (isLoading) {
     return <AudiencePanelSkeleton />;

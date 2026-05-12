@@ -216,11 +216,17 @@ export const linkedInContentApi = {
   /** AQS-ranked recent engagers for the active business. Server returns
    *  an empty `engagers` array (not 404) when no comments have been
    *  ingested yet, so the panel renders an empty state instead of an
-   *  error. Defaults match the server's defaults (days=90, limit=25). */
+   *  error. Omitting the params (or passing 0 / negative values) lets
+   *  the server fall back to its own defaults (days=90, limit=25);
+   *  only positive values are serialised. */
   engagers: (params?: { days?: number; limit?: number }) => {
     const qs = new URLSearchParams();
-    if (params?.days !== undefined) qs.set("days", String(params.days));
-    if (params?.limit !== undefined) qs.set("limit", String(params.limit));
+    if (typeof params?.days === "number" && params.days > 0) {
+      qs.set("days", String(params.days));
+    }
+    if (typeof params?.limit === "number" && params.limit > 0) {
+      qs.set("limit", String(params.limit));
+    }
     const q = qs.toString();
     return api.get<EngagersResponse>(
       `/v1/linkedin-content/engagers${q ? `?${q}` : ""}`,
