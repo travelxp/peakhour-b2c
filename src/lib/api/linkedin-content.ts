@@ -192,6 +192,15 @@ export interface EngagersResponse {
   lookbackDays: number;
 }
 
+/** Shared TanStack Query cache key for the LinkedIn suggested-drafts
+ *  surface. Producer: `onboarding/launch/page.tsx` writes the
+ *  generate-from-profile response via `queryClient.setQueryData`.
+ *  Consumer: `SuggestedDraftsPanel` on the LinkedIn dashboard reads
+ *  from the same key. Lives in the api-client module so both
+ *  consumers reach a neutral location (not a Next.js `_components`
+ *  private folder). */
+export const SUGGESTED_DRAFTS_QUERY_KEY = ["linkedin-suggested-drafts"] as const;
+
 export const linkedInContentApi = {
   me: () => api.get<LinkedInIdentity>("/v1/linkedin-content/me"),
 
@@ -232,4 +241,67 @@ export const linkedInContentApi = {
       `/v1/linkedin-content/engagers${q ? `?${q}` : ""}`,
     );
   },
+
+  /** Generate N initial LinkedIn post drafts grounded in the active
+   *  business's profile + voice card + cohort archetype. Persists each
+   *  as a cnt_drafts row server-side and returns them in the response.
+   *  Designed to fire once on onboarding completion (and on-demand
+   *  from a "generate more" button later). Server clamps count to
+   *  [1, 10]; defaults to 5 when omitted. */
+  generateFromProfile: (count?: number) =>
+    api.post<GenerateFromProfileResponse>(
+      "/v1/linkedin-content/generate-from-profile",
+      count !== undefined ? { count } : {},
+    ),
 };
+
+/** One generated LinkedIn post draft returned by `generateFromProfile`.
+ *  Mirrors the api's response shape exactly — `draftId` is the
+ *  cnt_drafts._id the server inserted. A future drafts-list endpoint
+ *  will let the b2c re-fetch persisted drafts after the in-memory
+ *  cache clears (page refresh); for now the panel only surfaces drafts
+ *  during the session in which they were generated. */
+export interface SuggestedDraft {
+  /** ObjectId hex of the cnt_drafts row the server persisted. */
+  draftId: string;
+  /** First 1-3 lines of the post (above the See-more cut). */
+  hook: string;
+  /** Remainder of the post body. */
+  body: string;
+  /** Generator-picked angle — narrow enum on the server. */
+  angle:
+    | "industry_insight"
+    | "customer_story"
+    | "thought_leadership"
+    | "product_or_service_highlight"
+    | "behind_the_scenes"
+    | "trend_observation"
+    | "founder_personal"
+    | "data_point"
+    | "lessons_learned"
+    | "how_to_practical";
+  /** Optional audience segment from the business's taxonomy this post
+   *  was tuned for. Surface in a card subtitle when present. */
+  audienceSegment?: string;
+  /** Optional CTA the generator suggests appending. Kept out of body
+   *  so the user can pick whether to include it without re-editing. */
+  suggestedCta?: string;
+  /** One-sentence reason the post fits — surfaces in a hover/tooltip. */
+  rationale: string;
+  /** Full Hook DNA score for the post's hook. */
+  hookScore: HookScore;
+}
+
+export interface GenerateFromProfileResponse {
+  posts: SuggestedDraft[];
+  metadata: {
+    usedVoiceCard: boolean;
+    voiceCardVersion?: number;
+    /** Cohort IDs the business is currently matched to. Each post's
+     *  hookScore.archetypeMatch.cohortId tells which one Tier B
+     *  actually used for THAT post (may differ across posts in the
+     *  batch). */
+    businessCohortIds: string[];
+    usedBusinessContext: boolean;
+  };
+}

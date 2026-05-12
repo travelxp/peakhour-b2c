@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/providers/auth-provider";
 import { api, ApiError } from "@/lib/api";
+import { linkedInContentApi, SUGGESTED_DRAFTS_QUERY_KEY } from "@/lib/api/linkedin-content";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -52,7 +54,7 @@ const POLL_INTERVAL_MS = 3000;
 
 export default function LaunchPage() {
   const router = useRouter();
-  const { org, refreshUser } = useAuth();
+  const { org, business, refreshUser } = useAuth();
   // Read sessionStorage in the initializer so we don't render the
   // "We're working on it" hero for one tick before redirecting a
   // returning user. Guard `typeof window` for SSR safety even though
@@ -132,6 +134,61 @@ export default function LaunchPage() {
       refreshUser().catch(() => { /* non-critical */ });
     }
   }, [isDone, isFailed, refreshUser]);
+
+  // Fire-and-forget the LinkedIn suggested-drafts generation when
+  // discovery finishes successfully. The result is stashed in the
+  // TanStack Query cache under SUGGESTED_DRAFTS_QUERY_KEY so the
+  // SuggestedDraftsPanel on the LinkedIn dashboard renders the drafts
+  // immediately when the user navigates there.
+  //
+  // No LinkedIn OAuth required for this call — the server-side endpoint
+  // generates from BusinessContext + voice card alone. Drafts persist
+  // in cnt_drafts regardless of whether the user has connected
+  // LinkedIn; they're publishable once the connection lands.
+  //
+  // A ref tracks whether we've already fired so polling-driven
+  // re-renders of isDone (refreshUser → user-doc state churn → status
+  // re-renders) don't accidentally fire generate twice.
+  //
+  // Gated on `business?._id` (not just `org`). The api endpoint requires
+  // a selected businessId on the server-side principal; the AuthProvider
+  // auto-resolves single-business users by calling switchBusiness AFTER
+  // refreshUser returns, and switchBusiness in turn calls
+  // queryClient.clear() to wipe stale cache. If we fire generate before
+  // business?._id has stabilised, we hit two races:
+  //   1. The api 403s with FORBIDDEN ("Active business required")
+  //   2. Even on success, the in-flight setQueryData lands BEFORE the
+  //      auto-resolve's queryClient.clear(), which then wipes the cache
+  //      and the LinkedIn dashboard sees nothing.
+  // Gating on business?._id ensures the auto-resolve has completed
+  // before we fire — both races avoided.
+  //
+  // No toast / no progress UI on this page — keeping it silent because
+  // the dashboard is the better place to surface the result, and a
+  // mid-flight toast on the launch page distracts from the "you're
+  // all set" hero.
+  const queryClient = useQueryClient();
+  const generateFiredRef = useRef(false);
+  useEffect(() => {
+    if (!isDone) return;
+    if (!business?._id) return;
+    if (generateFiredRef.current) return;
+    generateFiredRef.current = true;
+    linkedInContentApi
+      .generateFromProfile()
+      .then((response) => {
+        queryClient.setQueryData(SUGGESTED_DRAFTS_QUERY_KEY, response);
+      })
+      .catch((err) => {
+        // Non-blocking — the rest of onboarding completes regardless.
+        // Drafts are a nice-to-have at launch; the user can ask for
+        // fresh drafts later from the LinkedIn dashboard.
+        console.warn(
+          "[onboarding/launch] generateFromProfile failed:",
+          err instanceof Error ? err.message : err,
+        );
+      });
+  }, [isDone, business?._id, queryClient]);
 
   const completedSet = useMemo(
     () => new Set(status?.phasesCompleted ?? []),

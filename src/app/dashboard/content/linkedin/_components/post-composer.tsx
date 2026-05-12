@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -48,11 +48,30 @@ const HAS_ORG_SCOPE = "w_organization_social";
 
 interface Props {
   identity: LinkedInIdentity;
+  /** When set to a non-empty string, the composer loads it as the
+   *  current text. Used by the Suggested Drafts panel above the
+   *  composer to populate "Use this draft." The composer only seeds on
+   *  *value change* (tracked via a ref) so re-renders with the same
+   *  string don't blow away user edits. Empty/undefined values are
+   *  ignored entirely. */
+  seedText?: string;
 }
 
-export function PostComposer({ identity }: Props) {
+export function PostComposer({ identity, seedText }: Props) {
   const queryClient = useQueryClient();
   const [text, setText] = useState("");
+
+  // Seed the composer when the parent passes a fresh seedText (e.g.,
+  // the user clicked "Use this draft" on the Suggested Drafts panel).
+  // A ref tracks the last seed we applied so we don't overwrite the
+  // user's in-progress edits on every parent re-render.
+  const lastSeedRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (seedText && seedText !== lastSeedRef.current) {
+      lastSeedRef.current = seedText;
+      setText(seedText);
+    }
+  }, [seedText]);
   const [visibility, setVisibility] = useState<LinkedInVisibility>("PUBLIC");
   const [showLink, setShowLink] = useState(false);
   const [linkUrl, setLinkUrl] = useState("");

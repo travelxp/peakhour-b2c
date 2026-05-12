@@ -14,6 +14,7 @@ import {
   useLinkedInIdentity,
 } from "./_components/post-composer";
 import { AudiencePanel } from "./_components/audience-panel";
+import { SuggestedDraftsPanel } from "./_components/suggested-drafts-panel";
 
 interface ApiIntegration {
   provider: string;
@@ -135,6 +136,11 @@ function LinkedInTabs({
 }) {
   const [tab, setTab] = useState<"compose" | "audience">("compose");
   const [audienceOpened, setAudienceOpened] = useState(false);
+  // Composer seed text — set when the user clicks "Use this draft" on
+  // the Suggested Drafts panel. PostComposer accepts this as a prop and
+  // seeds its internal text state when the value changes (tracked via
+  // ref inside the composer so re-renders don't blow away edits).
+  const [composerSeed, setComposerSeed] = useState<string | undefined>(undefined);
 
   function handleTabChange(value: string) {
     if (value === "compose" || value === "audience") {
@@ -154,17 +160,21 @@ function LinkedInTabs({
         </TabsTrigger>
       </TabsList>
 
-      <TabsContent value="compose" className="mt-4">
+      <TabsContent value="compose" className="mt-4 space-y-4">
+        <SuggestedDraftsPanel onUseDraft={setComposerSeed} />
         <Card>
           <CardContent className="p-5">
             {identity.isLoading || !enabledIdentity?.data ? (
               <PostComposerSkeleton />
             ) : (
-              <PostComposer identity={enabledIdentity.data} />
+              <PostComposer
+                identity={enabledIdentity.data}
+                seedText={composerSeed}
+              />
             )}
           </CardContent>
         </Card>
-        <p className="mt-3 text-xs text-muted-foreground">
+        <p className="text-xs text-muted-foreground">
           Text + link posts only for now — carousels, polls, and scheduling are coming.
         </p>
       </TabsContent>
