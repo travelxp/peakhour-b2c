@@ -77,9 +77,9 @@ export function BoostCandidatesPanel() {
       <PanelShell totalConsidered={data?.totalPostsConsidered ?? 0}>
         <EmptyBody
           title="No boost-worthy posts yet"
-          body="We surface posts that are 24h-14d old with at least 5 weighted engagement (likes + 2·comments + 3·shares). Publish a few and check back here."
+          body="We score posts 24h–14d old once they pick up at least 5 weighted engagement (likes + 2·comments + 3·shares). New posts will appear here as they mature."
         />
-        {data && filteredOutTotal(data.filteredOut) > 0 ? (
+        {data ? (
           <FilteredOutFootnote
             filteredOut={data.filteredOut}
             totalConsidered={data.totalPostsConsidered}
@@ -161,18 +161,6 @@ function EmptyBody({ title, body }: { title: string; body: string }) {
   );
 }
 
-function filteredOutTotal(f: {
-  missingPerformance: number;
-  missingContent: number;
-  lowEngagement: number;
-  tooFresh: number;
-  tooStale: number;
-}): number {
-  return (
-    f.missingPerformance + f.missingContent + f.lowEngagement + f.tooFresh + f.tooStale
-  );
-}
-
 function FilteredOutFootnote({
   filteredOut,
   totalConsidered,
@@ -186,11 +174,11 @@ function FilteredOutFootnote({
   };
   totalConsidered: number;
 }) {
-  const total = filteredOutTotal(filteredOut);
-  if (total === 0) return null;
-  // Only `lowEngagement` and `missingContent` actually fire in practice
-  // (the Mongo pre-filter handles the rest); render only the non-zero
-  // ones so the footnote stays honest.
+  // Only render counters that actually fire — lowEngagement,
+  // missingContent, missingPerformance. tooFresh/tooStale are
+  // clock-skew defences that never fire in practice (Mongo
+  // pre-filters the age window). Surfacing those would confuse users
+  // since the empty-state copy already covers fresh / stale gating.
   const parts: string[] = [];
   if (filteredOut.lowEngagement > 0) {
     parts.push(
@@ -301,7 +289,7 @@ function BoostCandidateRow({
         <div className="text-right">
           <div
             className="font-mono text-base font-semibold tabular-nums"
-            title={`Velocity ${candidate.breakdown.velocity}/40 · Audience ${candidate.breakdown.audienceQuality}/25 · Hook DNA ${candidate.breakdown.hookDna}/20 · Freshness ${candidate.breakdown.freshness}/15`}
+            title={`Velocity ${candidate.breakdown.velocity}/40 · Audience ${candidate.breakdown.audienceQuality}/25 · Hook DNA ${candidate.breakdown.hookDna}/20 (${candidate.signals.hookTier}) · Freshness ${candidate.breakdown.freshness}/15`}
           >
             {candidate.score}
           </div>
@@ -369,7 +357,7 @@ function BoostPanelSkeleton() {
       </CardHeader>
       <CardContent className="pt-0">
         <ol className="divide-y">
-          {Array.from({ length: 3 }).map((_, i) => (
+          {Array.from({ length: 5 }).map((_, i) => (
             <li key={i} className="flex items-start gap-3 py-3">
               <Skeleton className="h-4 w-4 shrink-0" />
               <div className="flex-1 space-y-2">
