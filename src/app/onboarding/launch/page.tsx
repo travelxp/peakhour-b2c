@@ -1,9 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/providers/auth-provider";
 import { api, ApiError } from "@/lib/api";
+import { linkedInContentApi } from "@/lib/api/linkedin-content";
+import { SUGGESTED_DRAFTS_QUERY_KEY } from "@/app/dashboard/content/linkedin/_components/suggested-drafts-panel";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -132,6 +135,42 @@ export default function LaunchPage() {
       refreshUser().catch(() => { /* non-critical */ });
     }
   }, [isDone, isFailed, refreshUser]);
+
+  // Fire-and-forget the LinkedIn suggested-drafts generation when
+  // discovery finishes successfully. The result is stashed in the
+  // TanStack Query cache under SUGGESTED_DRAFTS_QUERY_KEY so the
+  // SuggestedDraftsPanel on the LinkedIn dashboard renders the drafts
+  // immediately when the user navigates there.
+  //
+  // A ref tracks whether we've already fired so polling-driven
+  // re-renders of isDone (refreshUser → user-doc state churn → status
+  // re-renders) don't accidentally fire generate twice.
+  //
+  // No toast / no progress UI on this page — keeping it silent because
+  // the dashboard is the better place to surface the result, and a
+  // mid-flight toast on the launch page distracts from the "you're
+  // all set" hero.
+  const queryClient = useQueryClient();
+  const generateFiredRef = useRef(false);
+  useEffect(() => {
+    if (!isDone) return;
+    if (generateFiredRef.current) return;
+    generateFiredRef.current = true;
+    linkedInContentApi
+      .generateFromProfile()
+      .then((response) => {
+        queryClient.setQueryData(SUGGESTED_DRAFTS_QUERY_KEY, response);
+      })
+      .catch((err) => {
+        // Non-blocking — the rest of onboarding completes regardless.
+        // Drafts are a nice-to-have at launch; the user can ask for
+        // fresh drafts later from the LinkedIn dashboard.
+        console.warn(
+          "[onboarding/launch] generateFromProfile failed:",
+          err instanceof Error ? err.message : err,
+        );
+      });
+  }, [isDone, queryClient]);
 
   const completedSet = useMemo(
     () => new Set(status?.phasesCompleted ?? []),
