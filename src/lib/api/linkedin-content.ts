@@ -257,9 +257,10 @@ export const linkedInContentApi = {
 
 /** One generated LinkedIn post draft returned by `generateFromProfile`.
  *  Mirrors the api's response shape exactly — `draftId` is the
- *  cnt_drafts._id the server inserted; the b2c reads it back via the
- *  drafts list endpoint once the user navigates away from the in-memory
- *  cache. */
+ *  cnt_drafts._id the server inserted. A future drafts-list endpoint
+ *  will let the b2c re-fetch persisted drafts after the in-memory
+ *  cache clears (page refresh); for now the panel only surfaces drafts
+ *  during the session in which they were generated. */
 export interface SuggestedDraft {
   /** ObjectId hex of the cnt_drafts row the server persisted. */
   draftId: string;

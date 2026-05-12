@@ -54,7 +54,7 @@ const POLL_INTERVAL_MS = 3000;
 
 export default function LaunchPage() {
   const router = useRouter();
-  const { org, refreshUser } = useAuth();
+  const { org, business, refreshUser } = useAuth();
   // Read sessionStorage in the initializer so we don't render the
   // "We're working on it" hero for one tick before redirecting a
   // returning user. Guard `typeof window` for SSR safety even though
@@ -150,10 +150,18 @@ export default function LaunchPage() {
   // re-renders of isDone (refreshUser → user-doc state churn → status
   // re-renders) don't accidentally fire generate twice.
   //
-  // Gated on `org` being defined — the user's currently-selected
-  // business is read from the session on the server side, but if the
-  // AuthProvider's session refresh hasn't propagated yet, a 403 is the
-  // worst case and is swallowed by the catch below.
+  // Gated on `business?._id` (not just `org`). The api endpoint requires
+  // a selected businessId on the server-side principal; the AuthProvider
+  // auto-resolves single-business users by calling switchBusiness AFTER
+  // refreshUser returns, and switchBusiness in turn calls
+  // queryClient.clear() to wipe stale cache. If we fire generate before
+  // business?._id has stabilised, we hit two races:
+  //   1. The api 403s with FORBIDDEN ("Active business required")
+  //   2. Even on success, the in-flight setQueryData lands BEFORE the
+  //      auto-resolve's queryClient.clear(), which then wipes the cache
+  //      and the LinkedIn dashboard sees nothing.
+  // Gating on business?._id ensures the auto-resolve has completed
+  // before we fire — both races avoided.
   //
   // No toast / no progress UI on this page — keeping it silent because
   // the dashboard is the better place to surface the result, and a
@@ -163,7 +171,7 @@ export default function LaunchPage() {
   const generateFiredRef = useRef(false);
   useEffect(() => {
     if (!isDone) return;
-    if (!org?._id) return;
+    if (!business?._id) return;
     if (generateFiredRef.current) return;
     generateFiredRef.current = true;
     linkedInContentApi
@@ -180,7 +188,7 @@ export default function LaunchPage() {
           err instanceof Error ? err.message : err,
         );
       });
-  }, [isDone, org?._id, queryClient]);
+  }, [isDone, business?._id, queryClient]);
 
   const completedSet = useMemo(
     () => new Set(status?.phasesCompleted ?? []),
