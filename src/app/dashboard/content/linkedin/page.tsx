@@ -7,12 +7,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EmptyState } from "@/components/molecules/empty-state";
-import { MessageSquare, RefreshCw, Send } from "lucide-react";
+import { MessageSquare, RefreshCw, Send, Users } from "lucide-react";
 import {
   PostComposer,
   PostComposerSkeleton,
   useLinkedInIdentity,
 } from "./_components/post-composer";
+import { AudiencePanel } from "./_components/audience-panel";
 
 interface ApiIntegration {
   provider: string;
@@ -115,6 +116,9 @@ export default function LinkedInDashboardPage() {
           <TabsTrigger value="compose" className="gap-1.5">
             <Send className="size-4" /> Compose
           </TabsTrigger>
+          <TabsTrigger value="audience" className="gap-1.5">
+            <Users className="size-4" /> Audience
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="compose" className="mt-4">
@@ -129,6 +133,13 @@ export default function LinkedInDashboardPage() {
           </Card>
           <p className="mt-3 text-xs text-muted-foreground">
             Text + link posts only for now — carousels, polls, and scheduling are coming.
+          </p>
+        </TabsContent>
+
+        <TabsContent value="audience" className="mt-4">
+          <AudiencePanel />
+          <p className="mt-3 text-xs text-muted-foreground">
+            We rank commenters on your LinkedIn posts by frequency, recency, and reactions. Names and titles will appear once profile enrichment lands.
           </p>
         </TabsContent>
       </Tabs>

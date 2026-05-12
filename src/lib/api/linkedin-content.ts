@@ -148,6 +148,50 @@ export interface LinkedInVoiceCard {
   lastGeneratedAt: string;
 }
 
+/**
+ * Audience Quality Score (AQS) result for one engager.
+ * Tier badge:
+ *   "rules"    — Tier C floor (frequency + recency + reactions; deterministic)
+ *   "enriched" — Tier B (Tier C + LinkedIn People Search enrichment;
+ *                 job title × seniority × ICP match; future)
+ * Today every engager comes back tier:"rules". The panel renders the
+ * badge so users see when the score is the deterministic floor vs the
+ * enriched tier.
+ */
+export interface EngagerScore {
+  actorUrn: string;
+  actorType: "person" | "org";
+  score: number;
+  tier: "rules" | "enriched";
+  breakdown: {
+    frequency: number;
+    recency: number;
+    reactions: number;
+  };
+  signals: {
+    commentCount: number;
+    topLevelCount: number;
+    totalReactions: number;
+    daysSinceLastComment: number;
+    lastCommentedAt: string;
+    firstCommentedAt: string;
+    lastCommentText: string;
+    lastParentPostUrn: string;
+  };
+}
+
+export interface EngagersResponse {
+  engagers: EngagerScore[];
+  /** Sum of commentCount across returned engagers — feeds the panel
+   *  header's "N comments across M people" line. */
+  totalComments: number;
+  /** = engagers.length, surfaced so the UI doesn't recompute. */
+  distinctActors: number;
+  /** Echo of the lookback window the server actually used (after
+   *  clamping the ?days query param). */
+  lookbackDays: number;
+}
+
 export const linkedInContentApi = {
   me: () => api.get<LinkedInIdentity>("/v1/linkedin-content/me"),
 
@@ -168,4 +212,18 @@ export const linkedInContentApi = {
    *  render an empty state, not surface an error. */
   voiceCard: () =>
     api.get<LinkedInVoiceCard>("/v1/linkedin-content/voice-card"),
+
+  /** AQS-ranked recent engagers for the active business. Server returns
+   *  an empty `engagers` array (not 404) when no comments have been
+   *  ingested yet, so the panel renders an empty state instead of an
+   *  error. Defaults match the server's defaults (days=90, limit=25). */
+  engagers: (params?: { days?: number; limit?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.days !== undefined) qs.set("days", String(params.days));
+    if (params?.limit !== undefined) qs.set("limit", String(params.limit));
+    const q = qs.toString();
+    return api.get<EngagersResponse>(
+      `/v1/linkedin-content/engagers${q ? `?${q}` : ""}`,
+    );
+  },
 };
