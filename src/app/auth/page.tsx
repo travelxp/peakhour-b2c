@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { sendMagicLink } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,38 @@ import {
 } from "@/components/ui/card";
 import { ApiError } from "@/lib/api";
 import { SITE } from "@/lib/utils";
+
+/**
+ * Mirrors peakhour-cms/src/app/login/login-form.tsx so the b2c
+ * customer flow has the same "Resend link" affordance the CMS
+ * operator flow does. Five states keep the button labels and
+ * disabled-state logic readable; without `resending` and `error`
+ * as first-class states the JSX has to hunt across booleans.
+ */
+type Status =
+  | { kind: "idle" }
+  | { kind: "submitting" }
+  | {
+      kind: "sent";
+      email: string;
+      cooldownEndsAt: number;
+      // Optional inline error surfaced on the cooldown card when a
+      // *resend* fails. Initial-send failures land in the top-level
+      // `error` state and bounce the user back to the form — only
+      // resends keep them on the card with the previously confirmed
+      // email + countdown intact.
+      resendError?: string;
+    }
+  | { kind: "resending"; email: string; cooldownEndsAt: number }
+  | { kind: "error"; message: string };
+
+// peakhour-api enforces a hard 60s rate limit between magic-link
+// requests for the same user (routes/auth/magic-link.ts). Mirror that
+// here so the button enables exactly when the server will accept the
+// next request — picking a shorter window only buys an avoidable 429
+// + confused user. If the server window changes, update this in
+// tandem; treat the API as the source of truth.
+const RESEND_COOLDOWN_SECONDS = 60;
 
 const VALUE_PROPS = [
   {
@@ -43,27 +75,128 @@ const TRUST_STATS = [
 
 export default function AuthPage() {
   const [email, setEmail] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [sent, setSent] = useState(false);
+  const [status, setStatus] = useState<Status>({ kind: "idle" });
+  // Tick once per second while a cooldown is running so the button
+  // label re-renders. A single shared timestamp + Math.ceil derives
+  // the displayed countdown without per-second state updates competing
+  // with the status transitions. The effect's cleanup is keyed on
+  // isCoolingDown so the interval stops once status leaves the
+  // cooldown states (sent / resending) or the component unmounts.
+  const [now, setNow] = useState<number>(() => Date.now());
+
+  const isCoolingDown =
+    status.kind === "sent" || status.kind === "resending";
+  const cooldownSecondsLeft = isCoolingDown
+    ? Math.max(0, Math.ceil((status.cooldownEndsAt - now) / 1000))
+    : 0;
+
+  useEffect(() => {
+    if (!isCoolingDown) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    // Browsers throttle setInterval to ~1/min on backgrounded tabs, so
+    // a long-backgrounded countdown would display a stale value until
+    // the next throttled tick. Re-anchor `now` to wall-clock time the
+    // moment the tab becomes visible again so the label jumps to the
+    // correct remaining seconds (or "Resend link") immediately.
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") setNow(Date.now());
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [isCoolingDown]);
+
+  async function submit(targetEmail: string, mode: "send" | "resend") {
+    if (mode === "send") {
+      setStatus({ kind: "submitting" });
+    } else {
+      // Preserve the prior cooldown end-time across the in-flight
+      // resend so the countdown doesn't briefly reset to 60s while
+      // the network round-trips. The fallback only fires if a caller
+      // ever invokes submit("resend") from a non-cooldown state — the
+      // button can't trigger that today, but keeping a sane default
+      // avoids an invalid discriminated-union construction.
+      const preserved =
+        status.kind === "sent" || status.kind === "resending"
+          ? status.cooldownEndsAt
+          : Date.now() + RESEND_COOLDOWN_SECONDS * 1000;
+      setStatus({
+        kind: "resending",
+        email: targetEmail,
+        cooldownEndsAt: preserved,
+      });
+    }
+
+    // Remember the cooldown anchor BEFORE the await — `status` reads
+    // inside the catch are stale closures over the pre-submit value,
+    // but we want the cooldown that was active when the user clicked.
+    const cooldownAtAttempt =
+      status.kind === "sent" || status.kind === "resending"
+        ? status.cooldownEndsAt
+        : Date.now() + RESEND_COOLDOWN_SECONDS * 1000;
+
+    try {
+      await sendMagicLink(targetEmail);
+      setStatus({
+        kind: "sent",
+        email: targetEmail,
+        cooldownEndsAt: Date.now() + RESEND_COOLDOWN_SECONDS * 1000,
+      });
+    } catch (err) {
+      let message =
+        "Something went wrong. Please try again or contact support.";
+      let isRateLimited = false;
+      if (err instanceof ApiError) {
+        if (err.code === "RATE_LIMITED") {
+          // The 60s client cooldown should normally keep us from
+          // hitting this — but if a user opened two tabs or the clocks
+          // drift, surface a friendly message instead of the raw
+          // "magic link sent recently" copy from the API.
+          message =
+            "Please wait a minute before requesting another link.";
+          isRateLimited = true;
+        } else if (err.message) {
+          message = err.message;
+        }
+      }
+
+      if (mode === "resend") {
+        // Resend failed — keep the "Check your email" card visible with
+        // an inline error rather than dropping the user back to the
+        // form. Disconnecting the failure from the action that caused
+        // it (Resend click) is confusing UX. RATE_LIMITED means the
+        // server window is still active, so bump the cooldown anchor
+        // forward by a fresh 60s; other errors leave the prior anchor
+        // intact so the timer keeps ticking against the original
+        // server-side rate-limit window.
+        const cooldownEndsAt = isRateLimited
+          ? Date.now() + RESEND_COOLDOWN_SECONDS * 1000
+          : cooldownAtAttempt;
+        setStatus({
+          kind: "sent",
+          email: targetEmail,
+          cooldownEndsAt,
+          resendError: message,
+        });
+        return;
+      }
+
+      setStatus({ kind: "error", message });
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setError("");
-    setLoading(true);
+    const trimmed = email.trim();
+    if (!trimmed) return;
+    await submit(trimmed, "send");
+  }
 
-    try {
-      await sendMagicLink(email);
-      setSent(true);
-    } catch (err) {
-      if (err instanceof ApiError) {
-        setError(err.message);
-      } else {
-        setError("Something went wrong. Please try again.");
-      }
-    } finally {
-      setLoading(false);
-    }
+  function handleReset() {
+    setEmail("");
+    setStatus({ kind: "idle" });
   }
 
   return (
@@ -121,7 +254,7 @@ export default function AuthPage() {
       {/* Right panel — auth form */}
       <div className="flex flex-1 flex-col">
         <div className="flex flex-1 items-center justify-center px-4 py-12">
-          {sent ? (
+          {isCoolingDown ? (
             <Card className="w-full max-w-md">
               <CardHeader className="text-center">
                 <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
@@ -131,7 +264,7 @@ export default function AuthPage() {
                 </div>
                 <CardTitle className="text-2xl font-bold">Check your email</CardTitle>
                 <CardDescription>
-                  We sent a sign-in link to <strong>{email}</strong>
+                  We sent a sign-in link to <strong>{status.email}</strong>
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4 text-center">
@@ -139,15 +272,40 @@ export default function AuthPage() {
                   Click the link in the email to sign in. The link expires in 15
                   minutes.
                 </p>
+                {status.kind === "sent" && status.resendError && (
+                  <div
+                    role="alert"
+                    className="rounded-md bg-destructive/10 p-3 text-left text-sm text-destructive"
+                  >
+                    {status.resendError}
+                  </div>
+                )}
               </CardContent>
-              <CardFooter className="flex flex-col gap-4">
+              <CardFooter className="flex flex-col gap-2">
+                <Button
+                  className="w-full"
+                  disabled={
+                    status.kind === "resending" || cooldownSecondsLeft > 0
+                  }
+                  onClick={() => submit(status.email, "resend")}
+                  // aria-live so a screen reader announces the changing
+                  // label as the countdown ticks ("Resend in 42s" → "...
+                  // 41s" → ... → "Resend link") without the user having
+                  // to refocus the button. polite keeps it from
+                  // interrupting other announcements; the value only
+                  // changes once per second.
+                  aria-live="polite"
+                >
+                  {status.kind === "resending"
+                    ? "Resending…"
+                    : cooldownSecondsLeft > 0
+                      ? `Resend in ${cooldownSecondsLeft}s`
+                      : "Resend link"}
+                </Button>
                 <Button
                   variant="outline"
                   className="w-full"
-                  onClick={() => {
-                    setSent(false);
-                    setEmail("");
-                  }}
+                  onClick={handleReset}
                 >
                   Use a different email
                 </Button>
@@ -168,9 +326,9 @@ export default function AuthPage() {
               <Card>
                 <form onSubmit={handleSubmit} className="flex flex-col gap-6">
                   <CardContent className="space-y-4 pt-6">
-                    {error && (
+                    {status.kind === "error" && (
                       <div role="alert" className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-                        {error}
+                        {status.message}
                       </div>
                     )}
                     <div className="space-y-2">
@@ -192,9 +350,11 @@ export default function AuthPage() {
                     <Button
                       type="submit"
                       className="h-11 w-full text-base"
-                      disabled={loading}
+                      disabled={status.kind === "submitting"}
                     >
-                      {loading ? "Sending link..." : "Continue with email"}
+                      {status.kind === "submitting"
+                        ? "Sending link…"
+                        : "Continue with email"}
                     </Button>
                     <p className="text-center text-xs text-muted-foreground">
                       We&apos;ll send you a magic link. No password to remember.
