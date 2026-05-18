@@ -104,7 +104,7 @@ export interface RewriteHookResponse {
 
 /**
  * LinkedIn voice card surfaced to the composer. Narrow shape served by
- * `GET /v1/linkedin-content/voice-card` — audit fields + internal signals
+ * `GET /v1/linkedin/content/voice-card` — audit fields + internal signals
  * stripped server-side; this is exactly what the panel needs.
  */
 export interface LinkedInVoiceCard {
@@ -202,17 +202,17 @@ export interface EngagersResponse {
 export const SUGGESTED_DRAFTS_QUERY_KEY = ["linkedin-suggested-drafts"] as const;
 
 export const linkedInContentApi = {
-  me: () => api.get<LinkedInIdentity>("/v1/linkedin-content/me"),
+  me: () => api.get<LinkedInIdentity>("/v1/linkedin/content/me"),
 
   publish: (body: PublishLinkedInPostInput) =>
-    api.post<{ postId: string }>("/v1/linkedin-content/publish", body),
+    api.post<{ postId: string }>("/v1/linkedin/content/publish", body),
 
   scoreHook: (hook: string) =>
-    api.post<HookScore>("/v1/linkedin-content/score-hook", { hook }),
+    api.post<HookScore>("/v1/linkedin/content/score-hook", { hook }),
 
   rewriteHook: (hook: string, count?: number) =>
     api.post<RewriteHookResponse>(
-      "/v1/linkedin-content/rewrite-hook",
+      "/v1/linkedin/content/rewrite-hook",
       count !== undefined ? { hook, count } : { hook },
     ),
 
@@ -220,7 +220,7 @@ export const linkedInContentApi = {
    *  `code: "NOT_FOUND"` (404) means "no card yet" — caller should
    *  render an empty state, not surface an error. */
   voiceCard: () =>
-    api.get<LinkedInVoiceCard>("/v1/linkedin-content/voice-card"),
+    api.get<LinkedInVoiceCard>("/v1/linkedin/content/voice-card"),
 
   /** AQS-ranked recent engagers for the active business. Server returns
    *  an empty `engagers` array (not 404) when no comments have been
@@ -238,7 +238,7 @@ export const linkedInContentApi = {
     }
     const q = qs.toString();
     return api.get<EngagersResponse>(
-      `/v1/linkedin-content/engagers${q ? `?${q}` : ""}`,
+      `/v1/linkedin/content/engagers${q ? `?${q}` : ""}`,
     );
   },
 
@@ -250,7 +250,7 @@ export const linkedInContentApi = {
    *  [1, 10]; defaults to 5 when omitted. */
   generateFromProfile: (count?: number) =>
     api.post<GenerateFromProfileResponse>(
-      "/v1/linkedin-content/generate-from-profile",
+      "/v1/linkedin/content/generate-from-profile",
       count !== undefined ? { count } : {},
     ),
 
@@ -266,7 +266,7 @@ export const linkedInContentApi = {
     }
     const q = qs.toString();
     return api.get<BoostCandidatesResponse>(
-      `/v1/linkedin-content/boost-candidates${q ? `?${q}` : ""}`,
+      `/v1/linkedin/content/boost-candidates${q ? `?${q}` : ""}`,
     );
   },
 };

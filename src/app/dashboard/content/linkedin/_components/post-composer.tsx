@@ -438,7 +438,7 @@ const HOOK_SCORE_DEBOUNCE_MS = 400;
 const HOOK_SCORE_MIN_CHARS = 8;
 
 /**
- * Debounced hook scorer. Fires `POST /v1/linkedin-content/score-hook`
+ * Debounced hook scorer. Fires `POST /v1/linkedin/content/score-hook`
  * 400ms after the user stops typing. Pure-server function (no AI),
  * so the cost of getting it wrong is just a request, not a token bill.
  *
