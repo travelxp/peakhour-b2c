@@ -20,6 +20,7 @@ import {
   linkedInContentApi,
   type BoostCandidate,
 } from "@/lib/api/linkedin-content";
+import { RetentionFootnote } from "./retention-footnote";
 
 /**
  * BoostCandidatesPanel — ranks the business's recently-published
@@ -120,6 +121,11 @@ export function BoostCandidatesPanel() {
         filteredOut={data.filteredOut}
         totalConsidered={data.totalPostsConsidered}
       />
+      <RetentionFootnote>
+        Posts are scored 24h&ndash;14d after publication. Personal-feed
+        posts drop out at 48h under LinkedIn&apos;s Members&apos; Social
+        Activity rule; Company-Page posts run the full window.
+      </RetentionFootnote>
     </PanelShell>
   );
 }
@@ -154,7 +160,7 @@ function PanelShell({
           <Badge
             variant="outline"
             className="text-[10px] uppercase tracking-wide"
-            title="Velocity · Audience quality · Hook DNA · Freshness — composite 0-100. Autonomous ad-spend is on the roadmap; today this is a recommendation surface."
+            title="Velocity · Audience quality · Hook DNA · Freshness — composite 0-100. Posts are scored from 24 hours to 14 days after publication; for personal-feed posts the effective ceiling is 48 hours under LinkedIn's Members' Social Activity rule. Autonomous ad-spend is on the roadmap; today this is a recommendation surface."
           >
             Recommender
           </Badge>

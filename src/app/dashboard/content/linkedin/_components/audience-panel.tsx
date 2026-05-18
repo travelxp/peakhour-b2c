@@ -10,6 +10,7 @@ import {
   linkedInContentApi,
   type EngagerScore,
 } from "@/lib/api/linkedin-content";
+import { RetentionFootnote } from "./retention-footnote";
 
 /**
  * AudiencePanel — surfaces the AQS Tier C ranking of recent LinkedIn
@@ -94,15 +95,31 @@ export function AudiencePanel() {
 
   return (
     <PanelShell
-      summary={`${data.totalComments} comment${data.totalComments === 1 ? "" : "s"} across ${data.distinctActors} engager${data.distinctActors === 1 ? "" : "s"} in the last ${data.lookbackDays} days`}
+      summary={`${data.totalComments} comment${data.totalComments === 1 ? "" : "s"} across ${data.distinctActors} engager${data.distinctActors === 1 ? "" : "s"} in the last ${formatLookback(data.lookbackDays)}`}
     >
       <ol className="divide-y">
         {data.engagers.map((engager, i) => (
           <EngagerRow key={engager.actorUrn} engager={engager} rank={i + 1} />
         ))}
       </ol>
+      <RetentionFootnote>
+        Comments are scored over the lookback window LinkedIn permits (48
+        hours by default).
+      </RetentionFootnote>
     </PanelShell>
   );
+}
+
+/** Render lookbackDays in the form a non-technical user reasons about.
+ *  2 = "48 hours" (the post-R1.2 default aligned with LinkedIn's 48h
+ *  Members' Social Activity ceiling); 1 is rendered as "24 hours" for
+ *  the corner case where ops overrides `?days=1`; everything else falls
+ *  through to "N days". Keeps the summary readable while letting ops
+ *  override the window without the UI claiming a different number. */
+function formatLookback(days: number): string {
+  if (days === 2) return "48 hours";
+  if (days === 1) return "24 hours";
+  return `${days} days`;
 }
 
 function PanelShell({
@@ -122,7 +139,7 @@ function PanelShell({
           <Badge
             variant="outline"
             className="text-[10px] uppercase tracking-wide"
-            title="Tier C floor — frequency, recency, and comment reactions. Profile enrichment (job title, seniority, ICP match) ships next."
+            title="Tier C floor — frequency, recency, and comment reactions, scored over the lookback window LinkedIn's data-retention rules permit (48 hours by default). Profile enrichment (job title, seniority, ICP match) ships next."
           >
             AQS · rules
           </Badge>
