@@ -69,8 +69,9 @@ export default function AuthPage() {
   // Tick once per second while a cooldown is running so the button
   // label re-renders. A single shared timestamp + Math.ceil derives
   // the displayed countdown without per-second state updates competing
-  // with the status transitions. Effect cleanup teardown is keyed on
-  // status.kind so the interval stops once the user navigates away.
+  // with the status transitions. The effect's cleanup is keyed on
+  // isCoolingDown so the interval stops once status leaves the
+  // cooldown states (sent / resending) or the component unmounts.
   const [now, setNow] = useState<number>(() => Date.now());
 
   const isCoolingDown =
@@ -82,7 +83,19 @@ export default function AuthPage() {
   useEffect(() => {
     if (!isCoolingDown) return;
     const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
+    // Browsers throttle setInterval to ~1/min on backgrounded tabs, so
+    // a long-backgrounded countdown would display a stale value until
+    // the next throttled tick. Re-anchor `now` to wall-clock time the
+    // moment the tab becomes visible again so the label jumps to the
+    // correct remaining seconds (or "Resend link") immediately.
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") setNow(Date.now());
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, [isCoolingDown]);
 
   async function submit(targetEmail: string, mode: "send" | "resend") {
@@ -225,6 +238,13 @@ export default function AuthPage() {
                     status.kind === "resending" || cooldownSecondsLeft > 0
                   }
                   onClick={() => submit(status.email, "resend")}
+                  // aria-live so a screen reader announces the changing
+                  // label as the countdown ticks ("Resend in 42s" → "...
+                  // 41s" → ... → "Resend link") without the user having
+                  // to refocus the button. polite keeps it from
+                  // interrupting other announcements; the value only
+                  // changes once per second.
+                  aria-live="polite"
                 >
                   {status.kind === "resending"
                     ? "Resending…"
@@ -283,7 +303,7 @@ export default function AuthPage() {
                       disabled={status.kind === "submitting"}
                     >
                       {status.kind === "submitting"
-                        ? "Sending link..."
+                        ? "Sending link…"
                         : "Continue with email"}
                     </Button>
                     <p className="text-center text-xs text-muted-foreground">
