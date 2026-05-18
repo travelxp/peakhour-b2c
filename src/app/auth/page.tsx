@@ -27,7 +27,17 @@ import { SITE } from "@/lib/utils";
 type Status =
   | { kind: "idle" }
   | { kind: "submitting" }
-  | { kind: "sent"; email: string; cooldownEndsAt: number }
+  | {
+      kind: "sent";
+      email: string;
+      cooldownEndsAt: number;
+      // Optional inline error surfaced on the cooldown card when a
+      // *resend* fails. Initial-send failures land in the top-level
+      // `error` state and bounce the user back to the form — only
+      // resends keep them on the card with the previously confirmed
+      // email + countdown intact.
+      resendError?: string;
+    }
   | { kind: "resending"; email: string; cooldownEndsAt: number }
   | { kind: "error"; message: string };
 
@@ -119,6 +129,14 @@ export default function AuthPage() {
       });
     }
 
+    // Remember the cooldown anchor BEFORE the await — `status` reads
+    // inside the catch are stale closures over the pre-submit value,
+    // but we want the cooldown that was active when the user clicked.
+    const cooldownAtAttempt =
+      status.kind === "sent" || status.kind === "resending"
+        ? status.cooldownEndsAt
+        : Date.now() + RESEND_COOLDOWN_SECONDS * 1000;
+
     try {
       await sendMagicLink(targetEmail);
       setStatus({
@@ -129,6 +147,7 @@ export default function AuthPage() {
     } catch (err) {
       let message =
         "Something went wrong. Please try again or contact support.";
+      let isRateLimited = false;
       if (err instanceof ApiError) {
         if (err.code === "RATE_LIMITED") {
           // The 60s client cooldown should normally keep us from
@@ -137,10 +156,33 @@ export default function AuthPage() {
           // "magic link sent recently" copy from the API.
           message =
             "Please wait a minute before requesting another link.";
+          isRateLimited = true;
         } else if (err.message) {
           message = err.message;
         }
       }
+
+      if (mode === "resend") {
+        // Resend failed — keep the "Check your email" card visible with
+        // an inline error rather than dropping the user back to the
+        // form. Disconnecting the failure from the action that caused
+        // it (Resend click) is confusing UX. RATE_LIMITED means the
+        // server window is still active, so bump the cooldown anchor
+        // forward by a fresh 60s; other errors leave the prior anchor
+        // intact so the timer keeps ticking against the original
+        // server-side rate-limit window.
+        const cooldownEndsAt = isRateLimited
+          ? Date.now() + RESEND_COOLDOWN_SECONDS * 1000
+          : cooldownAtAttempt;
+        setStatus({
+          kind: "sent",
+          email: targetEmail,
+          cooldownEndsAt,
+          resendError: message,
+        });
+        return;
+      }
+
       setStatus({ kind: "error", message });
     }
   }
@@ -230,6 +272,14 @@ export default function AuthPage() {
                   Click the link in the email to sign in. The link expires in 15
                   minutes.
                 </p>
+                {status.kind === "sent" && status.resendError && (
+                  <div
+                    role="alert"
+                    className="rounded-md bg-destructive/10 p-3 text-left text-sm text-destructive"
+                  >
+                    {status.resendError}
+                  </div>
+                )}
               </CardContent>
               <CardFooter className="flex flex-col gap-2">
                 <Button
