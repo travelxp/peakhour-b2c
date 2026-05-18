@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { sendMagicLink } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
@@ -83,6 +83,14 @@ export default function AuthPage() {
   // isCoolingDown so the interval stops once status leaves the
   // cooldown states (sent / resending) or the component unmounts.
   const [now, setNow] = useState<number>(() => Date.now());
+  // Guards against fast double-submits — Enter-key mashing or
+  // duplicate click events during the click → render gap can fire
+  // two parallel sendMagicLink() calls before the disabled prop
+  // takes effect on the next paint, which results in two magic-link
+  // emails. The ref is mutated synchronously inside submit() so the
+  // second entry returns immediately. Cleared in a finally so a
+  // network failure still re-enables future submissions.
+  const inFlightRef = useRef(false);
 
   const isCoolingDown =
     status.kind === "sent" || status.kind === "resending";
@@ -109,6 +117,8 @@ export default function AuthPage() {
   }, [isCoolingDown]);
 
   async function submit(targetEmail: string, mode: "send" | "resend") {
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
     if (mode === "send") {
       setStatus({ kind: "submitting" });
     } else {
@@ -132,8 +142,10 @@ export default function AuthPage() {
     // Remember the cooldown anchor BEFORE the await — `status` reads
     // inside the catch are stale closures over the pre-submit value,
     // but we want the cooldown that was active when the user clicked.
+    // Only meaningful for resends; on initial send we never read it.
     const cooldownAtAttempt =
-      status.kind === "sent" || status.kind === "resending"
+      mode === "resend" &&
+      (status.kind === "sent" || status.kind === "resending")
         ? status.cooldownEndsAt
         : Date.now() + RESEND_COOLDOWN_SECONDS * 1000;
 
@@ -184,6 +196,8 @@ export default function AuthPage() {
       }
 
       setStatus({ kind: "error", message });
+    } finally {
+      inFlightRef.current = false;
     }
   }
 
