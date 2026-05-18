@@ -142,8 +142,10 @@ export default function AuthPage() {
     // Remember the cooldown anchor BEFORE the await — `status` reads
     // inside the catch are stale closures over the pre-submit value,
     // but we want the cooldown that was active when the user clicked.
+    // Only meaningful for resends; on initial send we never read it.
     const cooldownAtAttempt =
-      status.kind === "sent" || status.kind === "resending"
+      mode === "resend" &&
+      (status.kind === "sent" || status.kind === "resending")
         ? status.cooldownEndsAt
         : Date.now() + RESEND_COOLDOWN_SECONDS * 1000;
 
