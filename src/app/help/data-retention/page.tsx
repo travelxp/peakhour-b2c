@@ -143,11 +143,9 @@ export default function DataRetentionPage() {
                 <span className="font-medium text-foreground">
                   Top engagers (LinkedIn):
                 </span>{" "}
-                ranked from comments collected in the last 48 hours. People
-                who commented earlier are still counted in their aggregate
-                engager score (frequency, recency, reactions) &mdash; you
-                just don&apos;t see the raw comment text once it ages past
-                48 hours.
+                ranked over the last 48 hours of comment activity. Once a
+                comment ages past the window it is deleted and no longer
+                contributes to the ranking.
               </li>
               <li>
                 <span className="font-medium text-foreground">
@@ -162,11 +160,13 @@ export default function DataRetentionPage() {
               </li>
               <li>
                 <span className="font-medium text-foreground">
-                  Long-term trends:
+                  Long-term trends (planned):
                 </span>{" "}
-                preserved through aggregated scores and counts that update
-                on every sync. The trend survives even though the raw
-                comment-by-comment trail does not.
+                under the aggregated-marketing-data allowance, PeakHour
+                will retain anonymous counts, scores, and recency markers
+                so the trend in engagement survives even after the raw
+                comment trail is deleted. The writer that populates this
+                aggregate ships in a follow-up release.
               </li>
             </ul>
           </section>
