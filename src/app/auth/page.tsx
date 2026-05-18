@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { sendMagicLink } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,28 @@ import {
 } from "@/components/ui/card";
 import { ApiError } from "@/lib/api";
 import { SITE } from "@/lib/utils";
+
+/**
+ * Mirrors peakhour-cms/src/app/login/login-form.tsx so the b2c
+ * customer flow has the same "Resend link" affordance the CMS
+ * operator flow does. Five states keep the button labels and
+ * disabled-state logic readable; without `resending` and `error`
+ * as first-class states the JSX has to hunt across booleans.
+ */
+type Status =
+  | { kind: "idle" }
+  | { kind: "submitting" }
+  | { kind: "sent"; email: string; cooldownEndsAt: number }
+  | { kind: "resending"; email: string; cooldownEndsAt: number }
+  | { kind: "error"; message: string };
+
+// peakhour-api enforces a hard 60s rate limit between magic-link
+// requests for the same user (routes/auth/magic-link.ts). Mirror that
+// here so the button enables exactly when the server will accept the
+// next request — picking a shorter window only buys an avoidable 429
+// + confused user. If the server window changes, update this in
+// tandem; treat the API as the source of truth.
+const RESEND_COOLDOWN_SECONDS = 60;
 
 const VALUE_PROPS = [
   {
@@ -43,27 +65,83 @@ const TRUST_STATS = [
 
 export default function AuthPage() {
   const [email, setEmail] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [sent, setSent] = useState(false);
+  const [status, setStatus] = useState<Status>({ kind: "idle" });
+  // Tick once per second while a cooldown is running so the button
+  // label re-renders. A single shared timestamp + Math.ceil derives
+  // the displayed countdown without per-second state updates competing
+  // with the status transitions. Effect cleanup teardown is keyed on
+  // status.kind so the interval stops once the user navigates away.
+  const [now, setNow] = useState<number>(() => Date.now());
+
+  const isCoolingDown =
+    status.kind === "sent" || status.kind === "resending";
+  const cooldownSecondsLeft = isCoolingDown
+    ? Math.max(0, Math.ceil((status.cooldownEndsAt - now) / 1000))
+    : 0;
+
+  useEffect(() => {
+    if (!isCoolingDown) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [isCoolingDown]);
+
+  async function submit(targetEmail: string, mode: "send" | "resend") {
+    if (mode === "send") {
+      setStatus({ kind: "submitting" });
+    } else {
+      // Preserve the prior cooldown end-time across the in-flight
+      // resend so the countdown doesn't briefly reset to 60s while
+      // the network round-trips. The fallback only fires if a caller
+      // ever invokes submit("resend") from a non-cooldown state — the
+      // button can't trigger that today, but keeping a sane default
+      // avoids an invalid discriminated-union construction.
+      const preserved =
+        status.kind === "sent" || status.kind === "resending"
+          ? status.cooldownEndsAt
+          : Date.now() + RESEND_COOLDOWN_SECONDS * 1000;
+      setStatus({
+        kind: "resending",
+        email: targetEmail,
+        cooldownEndsAt: preserved,
+      });
+    }
+
+    try {
+      await sendMagicLink(targetEmail);
+      setStatus({
+        kind: "sent",
+        email: targetEmail,
+        cooldownEndsAt: Date.now() + RESEND_COOLDOWN_SECONDS * 1000,
+      });
+    } catch (err) {
+      let message =
+        "Something went wrong. Please try again or contact support.";
+      if (err instanceof ApiError) {
+        if (err.code === "RATE_LIMITED") {
+          // The 60s client cooldown should normally keep us from
+          // hitting this — but if a user opened two tabs or the clocks
+          // drift, surface a friendly message instead of the raw
+          // "magic link sent recently" copy from the API.
+          message =
+            "Please wait a minute before requesting another link.";
+        } else if (err.message) {
+          message = err.message;
+        }
+      }
+      setStatus({ kind: "error", message });
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setError("");
-    setLoading(true);
+    const trimmed = email.trim();
+    if (!trimmed) return;
+    await submit(trimmed, "send");
+  }
 
-    try {
-      await sendMagicLink(email);
-      setSent(true);
-    } catch (err) {
-      if (err instanceof ApiError) {
-        setError(err.message);
-      } else {
-        setError("Something went wrong. Please try again.");
-      }
-    } finally {
-      setLoading(false);
-    }
+  function handleReset() {
+    setEmail("");
+    setStatus({ kind: "idle" });
   }
 
   return (
@@ -121,7 +199,7 @@ export default function AuthPage() {
       {/* Right panel — auth form */}
       <div className="flex flex-1 flex-col">
         <div className="flex flex-1 items-center justify-center px-4 py-12">
-          {sent ? (
+          {isCoolingDown ? (
             <Card className="w-full max-w-md">
               <CardHeader className="text-center">
                 <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
@@ -131,7 +209,7 @@ export default function AuthPage() {
                 </div>
                 <CardTitle className="text-2xl font-bold">Check your email</CardTitle>
                 <CardDescription>
-                  We sent a sign-in link to <strong>{email}</strong>
+                  We sent a sign-in link to <strong>{status.email}</strong>
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4 text-center">
@@ -140,14 +218,24 @@ export default function AuthPage() {
                   minutes.
                 </p>
               </CardContent>
-              <CardFooter className="flex flex-col gap-4">
+              <CardFooter className="flex flex-col gap-2">
+                <Button
+                  className="w-full"
+                  disabled={
+                    status.kind === "resending" || cooldownSecondsLeft > 0
+                  }
+                  onClick={() => submit(status.email, "resend")}
+                >
+                  {status.kind === "resending"
+                    ? "Resending…"
+                    : cooldownSecondsLeft > 0
+                      ? `Resend in ${cooldownSecondsLeft}s`
+                      : "Resend link"}
+                </Button>
                 <Button
                   variant="outline"
                   className="w-full"
-                  onClick={() => {
-                    setSent(false);
-                    setEmail("");
-                  }}
+                  onClick={handleReset}
                 >
                   Use a different email
                 </Button>
@@ -168,9 +256,9 @@ export default function AuthPage() {
               <Card>
                 <form onSubmit={handleSubmit} className="flex flex-col gap-6">
                   <CardContent className="space-y-4 pt-6">
-                    {error && (
+                    {status.kind === "error" && (
                       <div role="alert" className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-                        {error}
+                        {status.message}
                       </div>
                     )}
                     <div className="space-y-2">
@@ -192,9 +280,11 @@ export default function AuthPage() {
                     <Button
                       type="submit"
                       className="h-11 w-full text-base"
-                      disabled={loading}
+                      disabled={status.kind === "submitting"}
                     >
-                      {loading ? "Sending link..." : "Continue with email"}
+                      {status.kind === "submitting"
+                        ? "Sending link..."
+                        : "Continue with email"}
                     </Button>
                     <p className="text-center text-xs text-muted-foreground">
                       We&apos;ll send you a magic link. No password to remember.
