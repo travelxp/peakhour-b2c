@@ -25,7 +25,7 @@ interface ApiIntegration {
 
 export default function LinkedInDashboardPage() {
   // Mirror the X hub's pattern — read /v1/integrations once for the
-  // top-level connect gate, then defer to /linkedin-content/me for
+  // top-level connect gate, then defer to /linkedin/content/me for
   // the picker data. Two queries because the integrations endpoint
   // gives us the lifecycle truth that lets us render an EmptyState
   // before /me would 404.
