@@ -808,6 +808,17 @@ function IntegrationCard({
               />
             )}
 
+            {/* LinkedIn Content — page list + refresh (sidesteps the
+                disconnect-and-reconnect dance for picking up new admin
+                roles on existing connections) */}
+            {integration.provider === "linkedin_content" && integration.account?.extra && (
+              <LinkedInContentPages
+                extra={integration.account.extra}
+                onRefresh={onRefresh}
+                refreshing={refreshing}
+              />
+            )}
+
             {/* Beehiiv sync controls */}
             {integration.provider === "beehiiv" && (
               <BeehiivSyncControls
@@ -954,6 +965,64 @@ function BeehiivSyncControls({
         <p className="text-[10px] text-muted-foreground">
           This may take a minute. Please don&apos;t close this page.
         </p>
+      )}
+    </div>
+  );
+}
+
+// ── LinkedIn Content — Page list + refresh ──────────────────────────
+//
+// Replaces the "disconnect and reconnect to pick up new Pages" friction.
+// Click Refresh → calls /v1/integrations/linkedin_content/refresh →
+// peakhour-api re-runs getAccountInfo → fresh /organizationAcls + per-row
+// /organizations/{id} hits → connection.account.extra.pages re-populated
+// with any newly-admin'd Pages and updated names. Use case: a user gets
+// promoted to Super Admin on a new client Page after their initial
+// Connect; one click here picks it up without OAuth round-trip.
+
+function LinkedInContentPages({
+  extra,
+  onRefresh,
+  refreshing,
+}: {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  extra: Record<string, any>;
+  onRefresh: () => void;
+  refreshing: boolean;
+}) {
+  const pages = Array.isArray(extra?.pages) ? extra.pages : [];
+
+  return (
+    <div className="space-y-1.5 rounded-md border border-border/40 p-2">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[11px] text-muted-foreground">
+          {pages.length === 0
+            ? "No company pages found"
+            : `${pages.length} company page${pages.length === 1 ? "" : "s"}`}
+        </p>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={onRefresh}
+          disabled={refreshing}
+          className="h-6 gap-1 px-1.5 text-[10px]"
+        >
+          <RefreshCw className={`h-2.5 w-2.5 ${refreshing ? "animate-spin" : ""}`} />
+          {refreshing ? "Refreshing" : "Refresh"}
+        </Button>
+      </div>
+
+      {pages.length > 0 && (
+        <ul className="space-y-0.5 text-[10px] text-muted-foreground">
+          {pages.slice(0, 3).map((p: { organizationId: string; organizationName?: string }) => (
+            <li key={p.organizationId} className="truncate">
+              • {p.organizationName || `Page ${p.organizationId}`}
+            </li>
+          ))}
+          {pages.length > 3 && (
+            <li className="italic opacity-70">+ {pages.length - 3} more</li>
+          )}
+        </ul>
       )}
     </div>
   );
