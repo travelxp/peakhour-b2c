@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { ArrowRight, Sparkles, Brain, Zap, BarChart3, Check } from "lucide-react";
+import { headers } from "next/headers";
+import { ArrowRight, Sparkles, Brain, Zap, BarChart3 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,6 +12,8 @@ import {
 } from "@/components/ui/card";
 import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
+import { PricingGrid } from "@/components/marketing/pricing-grid";
+import { getPricing } from "@/lib/pricing";
 import {
   LinkedinIcon,
   FacebookIcon,
@@ -85,50 +88,18 @@ const INTEGRATIONS = [
   { name: "X (Twitter)", icon: TwitterIcon, color: "bg-black", description: "Posts & promoted content" },
 ] as const;
 
-const PLANS = [
-  {
-    name: "Free",
-    price: "0",
-    description: "See what AI can do with your content",
-    features: [
-      "50 content pieces tagged",
-      "Ad creative preview",
-      "Content gap analysis",
-    ],
-    cta: "Start free",
-    highlighted: false,
-  },
-  {
-    name: "Growth",
-    price: "7,499",
-    description: "Full AI marketing engine for growing businesses",
-    features: [
-      "Unlimited content tagging",
-      "2 ad platforms",
-      "Full optimization engine",
-      "Pattern mining & insights",
-      "Lead tracking",
-    ],
-    cta: "Get started",
-    highlighted: true,
-  },
-  {
-    name: "Pro",
-    price: "19,999",
-    description: "For businesses ready to scale aggressively",
-    features: [
-      "Everything in Growth",
-      "All ad platforms",
-      "Subscriber enrichment",
-      "Custom taxonomy",
-      "API access",
-    ],
-    cta: "Get started",
-    highlighted: false,
-  },
-] as const;
-
-export default function Home() {
+export default async function Home() {
+  // Country-aware pricing — resolves the visitor's country from the
+  // Vercel edge geo header (set on every prod/preview request) and
+  // fetches the corresponding pricing matrix from peakhour-api. The
+  // /pricing page uses the same helper; both surfaces stay in sync.
+  const h = await headers();
+  const vercelCountry = h.get("x-vercel-ip-country");
+  const country =
+    vercelCountry && /^[A-Za-z]{2}$/.test(vercelCountry)
+      ? vercelCountry.toUpperCase()
+      : "DEFAULT";
+  const pricing = await getPricing(country);
   return (
     <div className="flex min-h-screen flex-col">
       <Header />
@@ -277,67 +248,29 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Pricing */}
+        {/* Pricing — country-aware, fetched server-side from
+            /v1/platform/pricing. Falls back to a CTA-only block when
+            the API is unreachable so the landing page never breaks
+            because pricing data is unavailable. */}
         <section id="pricing" className="py-20">
           <div className="container">
-            <div className="mx-auto max-w-5xl">
-              <div className="text-center">
-                <h2 className="text-3xl font-semibold text-pretty lg:text-4xl">
-                  Simple, transparent pricing
-                </h2>
-                <p className="mt-3 text-muted-foreground">
-                  Start free. Upgrade when you&apos;re ready to launch ads.
-                </p>
-              </div>
-              <div className="mt-12 grid gap-6 md:grid-cols-3">
-                {PLANS.map((plan) => (
-                  <Card
-                    key={plan.name}
-                    className={`relative transition-shadow hover:shadow-md ${
-                      plan.highlighted
-                        ? "border-primary shadow-lg ring-1 ring-primary/20"
-                        : ""
-                    }`}
-                  >
-                    {plan.highlighted && (
-                      <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-primary px-3 py-0.5 text-xs font-medium text-primary-foreground">
-                        Most popular
-                      </div>
-                    )}
-                    <CardHeader>
-                      <CardTitle className="text-lg">{plan.name}</CardTitle>
-                      <div className="mt-2 flex items-baseline gap-1">
-                        <span className="text-3xl font-bold">
-                          &#8377;{plan.price}
-                        </span>
-                        {plan.price !== "0" && (
-                          <span className="text-sm text-muted-foreground">
-                            /month
-                          </span>
-                        )}
-                      </div>
-                      <CardDescription>{plan.description}</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <ul className="space-y-2.5 text-sm">
-                        {plan.features.map((feature) => (
-                          <li key={feature} className="flex items-start gap-2.5">
-                            <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                            {feature}
-                          </li>
-                        ))}
-                      </ul>
-                      <Button
-                        asChild
-                        className="w-full"
-                        variant={plan.highlighted ? "default" : "outline"}
-                      >
-                        <Link href="/auth">{plan.cta}</Link>
-                      </Button>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
+            <div className="mx-auto max-w-6xl">
+              {pricing && pricing.plans.length > 0 ? (
+                <PricingGrid plans={pricing.plans} />
+              ) : (
+                <div className="text-center">
+                  <h2 className="text-3xl font-semibold text-pretty lg:text-4xl">
+                    Simple, transparent pricing
+                  </h2>
+                  <p className="mx-auto mt-3 max-w-xl text-muted-foreground">
+                    Free tier and three paid plans. See full details on the
+                    pricing page.
+                  </p>
+                  <Button asChild size="lg" className="mt-6">
+                    <Link href="/pricing">View pricing</Link>
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         </section>

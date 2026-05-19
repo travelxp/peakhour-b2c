@@ -1,38 +1,35 @@
-import Link from "next/link";
-import { Check } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { headers } from "next/headers";
 import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
+import { PricingGrid } from "@/components/marketing/pricing-grid";
+import { getPricing } from "@/lib/pricing";
 
-const PLANS = [
-  {
-    name: "Free",
-    price: "0",
-    description: "See what AI can do with your content",
-    features: ["50 content pieces tagged", "Ad creative preview", "Content gap analysis"],
-    cta: "Start free",
-    highlighted: false,
-  },
-  {
-    name: "Growth",
-    price: "7,499",
-    description: "Full AI marketing engine for growing businesses",
-    features: ["Unlimited content tagging", "2 ad platforms", "Full optimization engine", "Pattern mining & insights", "Lead tracking"],
-    cta: "Get started",
-    highlighted: true,
-  },
-  {
-    name: "Pro",
-    price: "19,999",
-    description: "For businesses ready to scale aggressively",
-    features: ["Everything in Growth", "All ad platforms", "Subscriber enrichment", "Custom taxonomy", "API access"],
-    cta: "Get started",
-    highlighted: false,
-  },
-] as const;
+/**
+ * /pricing — public marketing pricing page. Server-rendered with the
+ * visitor's country resolved from the Vercel edge geo header
+ * (`x-vercel-ip-country`). The peakhour-api `/v1/platform/pricing`
+ * endpoint resolves the country-specific entry per plan (INR for IN,
+ * USD via DEFAULT for everyone else in MVP) so the page renders with
+ * the right currency without any client-side flicker.
+ *
+ * Falls back to "DEFAULT" (USD) when the header is missing — local dev
+ * and non-Vercel deploys both hit that path; the page still renders.
+ *
+ * Pricing is cached server-side for 5 minutes via the
+ * `platform-pricing` tag (see `getPricing` in lib/pricing.ts). A CMS
+ * supersede can trigger a future revalidate by calling
+ * `revalidateTag("platform-pricing")` once that hook is wired.
+ */
+export default async function PricingPage() {
+  const h = await headers();
+  const vercelCountry = h.get("x-vercel-ip-country");
+  const country =
+    vercelCountry && /^[A-Za-z]{2}$/.test(vercelCountry)
+      ? vercelCountry.toUpperCase()
+      : "DEFAULT";
 
-export default function PricingPage() {
+  const pricing = await getPricing(country);
+
   return (
     <div className="flex min-h-screen flex-col">
       <Header />
@@ -40,42 +37,29 @@ export default function PricingPage() {
       <main>
         <section className="py-20">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
-            <h1 className="text-center text-3xl font-bold">Simple, transparent pricing</h1>
-            <p className="mx-auto mt-3 max-w-xl text-center text-muted-foreground">
-              Start free. Upgrade when you&apos;re ready to launch ads.
-            </p>
-            <div className="mt-12 grid gap-6 md:grid-cols-3">
-              {PLANS.map((plan) => (
-                <Card key={plan.name} className={plan.highlighted ? "relative border-primary shadow-lg" : undefined}>
-                  {plan.highlighted && (
-                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-primary px-3 py-0.5 text-xs font-medium text-primary-foreground">
-                      Most popular
-                    </div>
-                  )}
-                  <CardHeader>
-                    <CardTitle className="text-lg">{plan.name}</CardTitle>
-                    <div className="mt-2 flex items-baseline gap-1">
-                      <span className="text-3xl font-bold">&#8377;{plan.price}</span>
-                      {plan.price !== "0" && <span className="text-sm text-muted-foreground">/month</span>}
-                    </div>
-                    <CardDescription>{plan.description}</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <ul className="space-y-2 text-sm">
-                      {plan.features.map((f) => (
-                        <li key={f} className="flex items-start gap-2">
-                          <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                          {f}
-                        </li>
-                      ))}
-                    </ul>
-                    <Button asChild className="w-full" variant={plan.highlighted ? "default" : "outline"}>
-                      <Link href="/auth">{plan.cta}</Link>
-                    </Button>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+            {pricing && pricing.plans.length > 0 ? (
+              <PricingGrid plans={pricing.plans} />
+            ) : (
+              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-6 text-sm text-amber-700 dark:text-amber-400">
+                Pricing is temporarily unavailable. Please refresh in a
+                moment, or contact{" "}
+                <a
+                  href="mailto:sales@peakhour.ai"
+                  className="font-medium underline underline-offset-2"
+                >
+                  sales@peakhour.ai
+                </a>{" "}
+                if the problem persists.
+              </div>
+            )}
+
+            {pricing && pricing.country !== "DEFAULT" && (
+              <p className="mt-8 text-center text-[11px] text-muted-foreground">
+                Prices shown for{" "}
+                <code className="font-mono">{pricing.country}</code>. Detected
+                from your IP — contact sales for a custom-currency invoice.
+              </p>
+            )}
           </div>
         </section>
       </main>
