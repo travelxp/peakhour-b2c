@@ -38,7 +38,10 @@ import {
   Download,
   Megaphone,
   Search,
+  Settings2,
 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   LinkedinIcon,
   FacebookIcon,
@@ -526,6 +529,7 @@ export default function IntegrationsPage() {
                   onRefresh={() => handleRefresh(item.provider)}
                   onSync={() => handleSync(item.provider)}
                   onBackfillSync={item.provider === "beehiiv" ? handleBackfillSync : undefined}
+                  onChanged={loadIntegrations}
                   backfillResult={item.provider === "beehiiv" ? backfillResult : null}
                   disconnecting={disconnecting === item.provider}
                   refreshing={refreshing === item.provider}
@@ -707,6 +711,7 @@ function IntegrationCard({
   onRefresh,
   onSync,
   onBackfillSync,
+  onChanged,
   backfillResult,
   disconnecting,
   refreshing,
@@ -719,6 +724,10 @@ function IntegrationCard({
   onRefresh: () => void;
   onSync: () => void;
   onBackfillSync?: () => Promise<void>;
+  /** Called after the Manage Pages dialog persists toggles, so the
+   *  parent can refetch /v1/integrations and re-render with the new
+   *  capabilities state. */
+  onChanged?: () => void;
   backfillResult?: { message: string; hasErrors: boolean } | null;
   disconnecting: boolean;
   refreshing: boolean;
@@ -808,14 +817,15 @@ function IntegrationCard({
               />
             )}
 
-            {/* LinkedIn Content — page list + refresh (sidesteps the
-                disconnect-and-reconnect dance for picking up new admin
-                roles on existing connections) */}
+            {/* LinkedIn Content — page list + refresh + Manage Pages dialog.
+                The dialog sidesteps the disconnect-and-reconnect dance for
+                choosing which admin Pages Peakhour can actually post to. */}
             {integration.provider === "linkedin_content" && integration.account?.extra && (
               <LinkedInContentPages
                 extra={integration.account.extra}
                 onRefresh={onRefresh}
                 refreshing={refreshing}
+                onChanged={onChanged}
               />
             )}
 
@@ -992,13 +1002,16 @@ function LinkedInContentPages({
   extra,
   onRefresh,
   refreshing,
+  onChanged,
 }: {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   extra: Record<string, any>;
   onRefresh: () => void;
   refreshing: boolean;
+  onChanged?: () => void;
 }) {
   const pages = Array.isArray(extra?.pages) ? extra.pages : [];
+  const [manageOpen, setManageOpen] = useState(false);
 
   // The OAuth callback skips per-Page name hydration to redirect fast
   // (peakhour-api PR #247). Names land within ~1 min via a background
@@ -1053,17 +1066,37 @@ function LinkedInContentPages({
             ? "No company pages found"
             : `${pages.length} company page${pages.length === 1 ? "" : "s"}`}
         </p>
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={onRefresh}
-          disabled={refreshing}
-          className="h-6 gap-1 px-1.5 text-[10px]"
-        >
-          <RefreshCw className={`h-2.5 w-2.5 ${refreshing ? "animate-spin" : ""}`} />
-          {refreshing ? "Refreshing" : "Refresh"}
-        </Button>
+        <div className="flex items-center gap-1">
+          {pages.length > 0 && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setManageOpen(true)}
+              className="h-6 gap-1 px-1.5 text-[10px]"
+            >
+              <Settings2 className="h-2.5 w-2.5" />
+              Manage
+            </Button>
+          )}
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={onRefresh}
+            disabled={refreshing}
+            className="h-6 gap-1 px-1.5 text-[10px]"
+          >
+            <RefreshCw className={`h-2.5 w-2.5 ${refreshing ? "animate-spin" : ""}`} />
+            {refreshing ? "Refreshing" : "Refresh"}
+          </Button>
+        </div>
       </div>
+
+      <ManagePagesDialog
+        open={manageOpen}
+        onOpenChange={setManageOpen}
+        extra={extra}
+        onChanged={onChanged}
+      />
 
       {namesPending && (
         <div
@@ -1321,4 +1354,232 @@ function getServingAlert(statuses: string[]): {
     actionUrl: "https://www.linkedin.com/campaignmanager",
     actionLabel: "Check on LinkedIn",
   };
+}
+
+// ── Manage Pages dialog ────────────────────────────────────────────
+//
+// Per-page on/off switches backed by PATCH /v1/integrations/linkedin_content/pages.
+// The endpoint enforces the org's plan cap server-side and returns 429
+// PLAN_LIMIT_REACHED on toggle-on at the cap — we surface that as a
+// disabled switch + tooltip pointing at /dashboard/settings/billing.
+// Toggle-off is always allowed so legacy over-cap rows can trim down.
+
+interface AdminPage {
+  organizationId: string;
+  organizationName?: string;
+  role?: string;
+}
+
+function ManagePagesDialog({
+  open,
+  onOpenChange,
+  extra,
+  onChanged,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  extra: Record<string, any>;
+  onChanged?: () => void;
+}) {
+  const { entitlements } = useAuth();
+  const pages: AdminPage[] = Array.isArray(extra?.pages) ? extra.pages : [];
+  const cap = entitlements?.limits.maxLinkedInPagesPerBusiness;
+  const planLabel = entitlements?.plan ?? "your";
+
+  // Seed local state from the connection's persisted set. Missing
+  // `enabledResourceIds` (legacy rows, fresh OAuth before the API
+  // onConnect seeder ran) means "all admin pages enabled" — the b2c
+  // mirror of the `/me` filter's legacy compat.
+  const persistedIds: string[] | null = useMemo(() => {
+    const caps = extra?.capabilities as
+      | { pages?: { enabledResourceIds?: string[] } }
+      | undefined;
+    const ids = caps?.pages?.enabledResourceIds;
+    return Array.isArray(ids) ? ids : null;
+  }, [extra]);
+
+  const [enabledIds, setEnabledIds] = useState<Set<string>>(() => {
+    if (persistedIds === null) return new Set(pages.map((p) => p.organizationId));
+    return new Set(persistedIds);
+  });
+
+  // Re-seed when the dialog re-opens against a refreshed connection.
+  // Without this, a Refresh of the integration tile (which fetches
+  // updated `extra`) wouldn't propagate into the dialog's switches
+  // until the user closed and reopened the dialog twice.
+  useEffect(() => {
+    if (!open) return;
+    if (persistedIds === null) {
+      setEnabledIds(new Set(pages.map((p) => p.organizationId)));
+    } else {
+      setEnabledIds(new Set(persistedIds));
+    }
+  }, [open, persistedIds, pages]);
+
+  const [pending, setPending] = useState<Set<string>>(new Set());
+  const [error, setError] = useState<string | null>(null);
+
+  const enabledCount = enabledIds.size;
+  const atCap = typeof cap === "number" && enabledCount >= cap;
+  const overCap = typeof cap === "number" && enabledCount > cap; // legacy state
+
+  async function togglePage(pageId: string, next: boolean) {
+    if (pending.has(pageId)) return;
+    setError(null);
+
+    // Optimistic — flip THIS pageId via the updater form so two rapid
+    // clicks on DIFFERENT pages don't clobber each other (each click
+    // would otherwise capture a stale `enabledIds` closure from before
+    // the other's `setEnabledIds` committed). Rollback below uses the
+    // same per-pageId updater form so a failed toggle only reverts its
+    // own flip, leaving other concurrent successes intact.
+    setEnabledIds((prev) => {
+      const optimistic = new Set(prev);
+      if (next) optimistic.add(pageId);
+      else optimistic.delete(pageId);
+      return optimistic;
+    });
+
+    setPending((p) => new Set(p).add(pageId));
+    try {
+      await api.patch("/v1/integrations/linkedin_content/pages", {
+        pageId,
+        enabled: next,
+      });
+      onChanged?.();
+    } catch (err) {
+      // Roll back this pageId only — never overwrite the whole set,
+      // since other concurrent toggles may have landed in the meantime.
+      setEnabledIds((prev) => {
+        const reverted = new Set(prev);
+        if (next) reverted.delete(pageId);
+        else reverted.add(pageId);
+        return reverted;
+      });
+      if (err instanceof ApiError) {
+        setError(err.message);
+      } else {
+        setError("Failed to update page. Please try again.");
+      }
+    } finally {
+      setPending((p) => {
+        const n = new Set(p);
+        n.delete(pageId);
+        return n;
+      });
+    }
+  }
+
+  const capLabel =
+    typeof cap === "number"
+      ? `${enabledCount} of ${cap} active on your ${planLabel} plan`
+      : `${enabledCount} active · unlimited on your ${planLabel} plan`;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#0A66C2] text-white">
+              <LinkedinIcon className="h-5 w-5" />
+            </div>
+            <div>
+              <DialogTitle>Manage LinkedIn pages</DialogTitle>
+              <DialogDescription>{capLabel}</DialogDescription>
+            </div>
+          </div>
+        </DialogHeader>
+
+        {overCap && (
+          <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-700 dark:text-amber-400">
+            You have more pages enabled than your plan allows. They keep
+            posting for now, but new toggles are blocked until you disable a
+            page or upgrade.
+          </div>
+        )}
+
+        {error && (
+          <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-[11px] text-destructive">
+            {error}
+          </div>
+        )}
+
+        <TooltipProvider delayDuration={150}>
+          <ul className="max-h-80 space-y-2 overflow-y-auto pr-1">
+            {pages.map((p) => {
+              const isOn = enabledIds.has(p.organizationId);
+              const isPending = pending.has(p.organizationId);
+              // Disable toggle-on when at cap AND this page is currently
+              // OFF. A page that's already ON keeps its switch active so
+              // the user can turn it off (always allowed).
+              const switchDisabled = isPending || (atCap && !isOn);
+              const switchEl = (
+                <Switch
+                  checked={isOn}
+                  disabled={switchDisabled}
+                  onCheckedChange={(v) => togglePage(p.organizationId, v)}
+                  aria-label={`Toggle ${p.organizationName || p.organizationId}`}
+                />
+              );
+              return (
+                <li
+                  key={p.organizationId}
+                  className="flex items-center justify-between gap-3 rounded-md border bg-background px-3 py-2"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">
+                      {p.organizationName || `Page ${p.organizationId}`}
+                    </p>
+                    <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                      {p.role && (
+                        <span className="rounded bg-muted px-1.5 py-0.5 font-mono">
+                          {p.role}
+                        </span>
+                      )}
+                      <a
+                        href={`https://www.linkedin.com/company/${p.organizationId}/admin/`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-0.5 hover:text-foreground hover:underline"
+                      >
+                        Manage on LinkedIn
+                        <ExternalLink className="h-2.5 w-2.5" />
+                      </a>
+                    </div>
+                  </div>
+                  {switchDisabled && atCap && !isOn ? (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span tabIndex={0}>{switchEl}</span>
+                      </TooltipTrigger>
+                      <TooltipContent side="left" className="max-w-[220px] text-[11px]">
+                        Plan cap reached. Disable another page or upgrade your plan
+                        to enable more.
+                      </TooltipContent>
+                    </Tooltip>
+                  ) : (
+                    switchEl
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </TooltipProvider>
+
+        <DialogFooter className="flex-row gap-2 sm:justify-between">
+          {atCap ? (
+            <Button asChild variant="outline" size="sm">
+              <a href="/dashboard/settings/billing">Upgrade plan</a>
+            </Button>
+          ) : (
+            <span />
+          )}
+          <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
+            Done
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 }

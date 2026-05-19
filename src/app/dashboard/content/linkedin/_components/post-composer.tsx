@@ -235,6 +235,24 @@ export function PostComposer({ identity, seedText }: Props) {
               Reconnect LinkedIn to enable posting from your company pages.
             </p>
           )}
+          {identity.scopes.includes(HAS_ORG_SCOPE) && identity.pages.length === 0 && (
+            // Scope is granted, but the per-page filter on /me returned an
+            // empty set — the user either has no admin Pages OR has
+            // disabled all of them via the Manage Pages dialog. The
+            // composer can't distinguish, so the hint covers both: it
+            // points at the dialog (which itself shows "No company pages
+            // found" if LinkedIn says there are none).
+            <p className="text-xs text-muted-foreground">
+              No pages enabled.{" "}
+              <a
+                href="/dashboard/integrations"
+                className="font-medium text-primary underline underline-offset-2 hover:no-underline"
+              >
+                Manage pages
+              </a>
+              .
+            </p>
+          )}
         </div>
 
         <div className="space-y-1.5">
