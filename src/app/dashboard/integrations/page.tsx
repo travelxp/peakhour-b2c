@@ -1013,28 +1013,37 @@ function LinkedInContentPages({
     pages.every(
       (p: { organizationName?: string }) => !p.organizationName,
     );
-  const attemptsRef = useRef(0);
+  const [attempts, setAttempts] = useState(0);
+
+  // Latest-ref pattern: the parent passes a fresh `onRefresh` closure
+  // on every render (it's an inline `() => handleRefresh(provider)`),
+  // so depending on it directly would re-fire the effect on every
+  // parent re-render and reset the polling timer forever. Hold the
+  // latest ref and keep the effect depending only on real state.
+  const onRefreshRef = useRef(onRefresh);
+  useEffect(() => {
+    onRefreshRef.current = onRefresh;
+  });
 
   useEffect(() => {
     // Reset attempt count once names land — if the user later
     // disconnects + reconnects, the pending state re-opens with a
     // fresh budget.
     if (!namesPending) {
-      attemptsRef.current = 0;
+      if (attempts !== 0) setAttempts(0);
       return;
     }
     if (refreshing) return; // don't pile on while a refresh is in-flight
-    if (attemptsRef.current >= NAMES_POLL_MAX_ATTEMPTS) return;
+    if (attempts >= NAMES_POLL_MAX_ATTEMPTS) return;
 
     const id = setTimeout(() => {
-      attemptsRef.current += 1;
-      onRefresh();
+      setAttempts((a) => a + 1);
+      onRefreshRef.current();
     }, NAMES_POLL_INTERVAL_MS);
     return () => clearTimeout(id);
-  }, [namesPending, refreshing, onRefresh]);
+  }, [namesPending, refreshing, attempts]);
 
-  const showPollGaveUp =
-    namesPending && attemptsRef.current >= NAMES_POLL_MAX_ATTEMPTS;
+  const showPollGaveUp = namesPending && attempts >= NAMES_POLL_MAX_ATTEMPTS;
 
   return (
     <div className="space-y-1.5 rounded-md border border-border/40 p-2">
@@ -1057,7 +1066,11 @@ function LinkedInContentPages({
       </div>
 
       {namesPending && (
-        <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+        <div
+          role="status"
+          aria-live="polite"
+          className="flex items-center gap-1.5 text-[10px] text-muted-foreground"
+        >
           <Loader2 className="h-2.5 w-2.5 animate-spin" />
           <span>
             {showPollGaveUp
