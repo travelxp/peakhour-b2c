@@ -63,6 +63,11 @@ export interface EntitlementLimits {
   monthlyAdSpendCap?: number;
   maxStorageGb?: number;
   maxAiTokensPerMonth?: number;
+  /** Max LinkedIn company Pages a single business can have enabled for
+   *  posting. Counted against `int_connections.config.capabilities.pages.enabledResourceIds`.
+   *  Omitted = unlimited. Set per business by the API's plan-cap
+   *  enforcement (PATCH /v1/integrations/linkedin_content/pages). */
+  maxLinkedInPagesPerBusiness?: number;
 }
 
 /**
