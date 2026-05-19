@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/providers/auth-provider";
 import { useLocale } from "@/hooks/use-locale";
 import { api, ApiError, API_BASE_URL } from "@/lib/api";
@@ -980,6 +980,14 @@ function BeehiivSyncControls({
 // promoted to Super Admin on a new client Page after their initial
 // Connect; one click here picks it up without OAuth round-trip.
 
+// Auto-poll cadence for the names-pending state: 10 sec between
+// attempts, max ~8 attempts (~80 sec) before giving up. peakhour-api's
+// linkedin_post_sync background job typically hydrates names within
+// ~1 min of OAuth callback (depends on jobs-runner cron interval), so
+// 80 sec gives us a comfortable margin.
+const NAMES_POLL_INTERVAL_MS = 10_000;
+const NAMES_POLL_MAX_ATTEMPTS = 8;
+
 function LinkedInContentPages({
   extra,
   onRefresh,
@@ -991,6 +999,51 @@ function LinkedInContentPages({
   refreshing: boolean;
 }) {
   const pages = Array.isArray(extra?.pages) ? extra.pages : [];
+
+  // The OAuth callback skips per-Page name hydration to redirect fast
+  // (peakhour-api PR #247). Names land within ~1 min via a background
+  // job. Detect the "pages exist but all unnamed" state and:
+  //   1. Show a "Fetching Page names from LinkedIn…" indicator so the
+  //      user sees it's an in-progress operation, not a bug
+  //   2. Auto-poll /refresh every 10 sec until names arrive (capped at
+  //      ~80 sec to avoid hammering the API if the background job
+  //      stalls — user can still click Refresh manually after that)
+  const namesPending =
+    pages.length > 0 &&
+    pages.every(
+      (p: { organizationName?: string }) => !p.organizationName,
+    );
+  const [attempts, setAttempts] = useState(0);
+
+  // Latest-ref pattern: the parent passes a fresh `onRefresh` closure
+  // on every render (it's an inline `() => handleRefresh(provider)`),
+  // so depending on it directly would re-fire the effect on every
+  // parent re-render and reset the polling timer forever. Hold the
+  // latest ref and keep the effect depending only on real state.
+  const onRefreshRef = useRef(onRefresh);
+  useEffect(() => {
+    onRefreshRef.current = onRefresh;
+  });
+
+  useEffect(() => {
+    // Reset attempt count once names land — if the user later
+    // disconnects + reconnects, the pending state re-opens with a
+    // fresh budget.
+    if (!namesPending) {
+      if (attempts !== 0) setAttempts(0);
+      return;
+    }
+    if (refreshing) return; // don't pile on while a refresh is in-flight
+    if (attempts >= NAMES_POLL_MAX_ATTEMPTS) return;
+
+    const id = setTimeout(() => {
+      setAttempts((a) => a + 1);
+      onRefreshRef.current();
+    }, NAMES_POLL_INTERVAL_MS);
+    return () => clearTimeout(id);
+  }, [namesPending, refreshing, attempts]);
+
+  const showPollGaveUp = namesPending && attempts >= NAMES_POLL_MAX_ATTEMPTS;
 
   return (
     <div className="space-y-1.5 rounded-md border border-border/40 p-2">
@@ -1011,6 +1064,21 @@ function LinkedInContentPages({
           {refreshing ? "Refreshing" : "Refresh"}
         </Button>
       </div>
+
+      {namesPending && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="flex items-center gap-1.5 text-[10px] text-muted-foreground"
+        >
+          <Loader2 className="h-2.5 w-2.5 animate-spin" />
+          <span>
+            {showPollGaveUp
+              ? "Page names still loading — tap Refresh to retry."
+              : "Fetching Page names from LinkedIn…"}
+          </span>
+        </div>
+      )}
 
       {pages.length > 0 && (
         <ul className="space-y-0.5 text-[10px] text-muted-foreground">
