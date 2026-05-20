@@ -1,5 +1,6 @@
 import { api } from "@/lib/api";
 import type {
+  CompetitorRecommendations,
   CreateSourceInput,
   ListResponse,
   PatchSourceInput,
@@ -72,5 +73,29 @@ export async function getCitations(days = 30): Promise<CitationsResponse> {
   return api.get<CitationsResponse>(
     "/v1/sources/insights/citations",
     { days: String(days) },
+  );
+}
+
+/**
+ * Competitor-driven source recommendations. The backend loads the
+ * requesting business's brand context + existing source pool, calls
+ * the `trusted_sources.competitor_recommender` AI use case, and
+ * returns 0–12 candidate sources scored with confidence + a
+ * one-sentence relevance pitch each. The competitorSummary is the
+ * AI's two-sentence read on what the competitor appears to be — the
+ * UI shows it so the operator can sanity-check the AI's premise
+ * before committing.
+ *
+ * Returns 402 PAYMENT_REQUIRED when the org lacks the
+ * `content.trusted_sources` feature; the global ApiError wrapper
+ * surfaces that to the FeatureGate machinery so the upgrade drawer
+ * opens with the right featureKey tag.
+ */
+export async function recommendSourcesFromCompetitor(
+  competitorUrl: string,
+): Promise<CompetitorRecommendations> {
+  return api.post<CompetitorRecommendations>(
+    "/v1/sources/recommend-from-competitor",
+    { competitorUrl },
   );
 }

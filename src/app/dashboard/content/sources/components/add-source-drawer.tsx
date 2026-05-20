@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Loader2, Plus, Trash2, Upload } from "lucide-react";
+import { Loader2, Plus, Sparkles, Trash2, Upload } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -27,7 +27,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ApiError } from "@/lib/api";
-import { createSource } from "../api";
+import { createSource, recommendSourcesFromCompetitor } from "../api";
 import { defaultDisplayName, detectSourceType } from "../lib/detect-type";
 import { OpmlParseError, parseOpml } from "../lib/parse-opml";
 import {
@@ -35,28 +35,33 @@ import {
   SOURCE_TYPE_LABEL,
   type CreateSourceInput,
   type FetchFrequency,
+  type RecommendedSource,
   type SourceType,
 } from "../types";
 
 /**
  * Add Source drawer — Day-4 surface per the LinkedIn 360 plan §3.4.
  *
- * Hosts three input modes via Tabs:
+ * Hosts four input modes via Tabs:
  *   • Manual    — type-specific form (Day-1 ship; PR #162).
  *   • Bulk      — paste one URL/handle per line, auto-detect type,
  *                 review preview, batch-create.
  *   • OPML      — upload an OPML/.xml export (Feedly, NetNewsWire,
  *                 etc.), preview, batch-create.
+ *   • Compete   — paste a competitor URL, the
+ *                 `trusted_sources.competitor_recommender` AI use case
+ *                 proposes 0–12 candidate sources scored with
+ *                 confidence + relevance reason. Approved
+ *                 recommendations land as `status: "suggested"` (NOT
+ *                 active) so the operator reviews them under the
+ *                 Suggested tab before they join the active fetch
+ *                 pool — half the AI's guesses might be hallucinated
+ *                 handles, and we don't want those polluting the
+ *                 active pool with accumulating fetch failures.
  *
- * A fourth "From competitor" mode (AI proposes sources from a
- * competitor's citation graph) is on the roadmap but hidden until
- * the backend recommender ships — see the inline comment on the
- * `<TabsList>` for the re-enable steps.
- *
- * Bulk + OPML share a preview/submit pattern via the inner
- * BulkPreview component so a future input mode (CSV import,
- * paste-from-Notion, competitor-recommender once that lands, etc.)
- * doesn't duplicate the parallel-mutation + per-row outcome handling.
+ * Bulk + OPML + Compete share the BulkPreview + BulkSubmitFooter
+ * pattern. Compete's CompetitorPreview wraps BulkPreview-shaped data
+ * with per-row reason + confidence chrome.
  */
 
 const SOURCE_TYPES: SourceType[] = [
@@ -72,7 +77,7 @@ const SOURCE_TYPES: SourceType[] = [
 
 const FETCH_FREQUENCIES: FetchFrequency[] = ["hourly", "daily", "weekly", "manual"];
 
-type DrawerTab = "manual" | "bulk" | "opml";
+type DrawerTab = "manual" | "bulk" | "opml" | "compete";
 
 export function AddSourceDrawer() {
   const [open, setOpen] = useState(false);
@@ -94,20 +99,12 @@ export function AddSourceDrawer() {
           </SheetDescription>
         </SheetHeader>
 
-        {/* "From competitor" tab is hidden until the competitor-scrape
-            + source-recommender agent ships. Leaving a tab whose only
-            content was "this will exist someday" confused customers
-            (the tab read as broken / empty). To re-enable: add the
-            `<TabsTrigger value="compete">From competitor</TabsTrigger>`
-            back, restore the `<TabsContent value="compete">` block,
-            and recreate the `CompetitorTab` component (the original
-            stub lived right above the BulkPreview section — see git
-            history at fix/trusted-sources-drawer-layout). */}
         <Tabs value={tab} onValueChange={(v) => setTab(v as DrawerTab)} className="flex flex-1 flex-col overflow-hidden">
           <TabsList className="mx-4">
             <TabsTrigger value="manual">Manual</TabsTrigger>
             <TabsTrigger value="bulk">Bulk paste</TabsTrigger>
             <TabsTrigger value="opml">OPML</TabsTrigger>
+            <TabsTrigger value="compete">From competitor</TabsTrigger>
           </TabsList>
 
           <TabsContent value="manual" className="flex flex-1 flex-col overflow-hidden">
@@ -118,6 +115,9 @@ export function AddSourceDrawer() {
           </TabsContent>
           <TabsContent value="opml" className="flex flex-1 flex-col overflow-hidden">
             <OpmlTab onClose={() => setOpen(false)} />
+          </TabsContent>
+          <TabsContent value="compete" className="flex flex-1 flex-col overflow-hidden">
+            <CompetitorTab onClose={() => setOpen(false)} />
           </TabsContent>
         </Tabs>
       </SheetContent>
@@ -488,6 +488,212 @@ function OpmlTab({ onClose }: { onClose: () => void }) {
   );
 }
 
+/* ── Competitor recommender tab ──────────────────────────────── */
+
+/**
+ * Paste a competitor URL → AI proposes 0–12 candidate trusted sources
+ * scored with confidence + a one-sentence relevance pitch each.
+ * Recommendations are mapped to CreateSourceInput[] with `as:
+ * "suggested"` so they land as `status: "suggested"` + `origin:
+ * "ai_suggested"` + `trustScore: <AI confidence>` — the operator
+ * reviews under the Suggested tab and accepts/rejects per-row via the
+ * existing state-machine PATCH (suggested → active or rejected).
+ *
+ * Why suggested-not-active: half the AI's guesses might be
+ * hallucinated handles. Landing them directly in the active pool
+ * would accumulate `consecutiveFetchFailures` and pollute the
+ * fetcher's working set. Suggested-tab review-before-promote
+ * matches the state machine the trusted.ts route was designed for.
+ */
+function CompetitorTab({ onClose }: { onClose: () => void }) {
+  const [competitorUrl, setCompetitorUrl] = useState("");
+  const [recs, setRecs] = useState<RecommendedSource[]>([]);
+  const [summary, setSummary] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function onRecommend(e: React.FormEvent) {
+    e.preventDefault();
+    const trimmed = competitorUrl.trim();
+    if (!trimmed) {
+      toast.error("Enter a competitor URL");
+      return;
+    }
+    setLoading(true);
+    try {
+      const result = await recommendSourcesFromCompetitor(trimmed);
+      setRecs(result.recommendations);
+      setSummary(result.competitorSummary);
+      if (result.recommendations.length === 0) {
+        // Empty result is honest — the model couldn't confidently
+        // propose anything. Don't surface as an error toast; the
+        // empty-state inline copy carries the explanation.
+        toast.info("No high-confidence recommendations for this competitor");
+      } else {
+        toast.success(`Found ${result.recommendations.length} candidate source${result.recommendations.length === 1 ? "" : "s"}`);
+      }
+    } catch (err) {
+      // 402 PAYMENT_REQUIRED would have been intercepted upstream by
+      // the FeatureGate (the tab only renders when the feature is
+      // unlocked anyway). Other errors surface verbatim from the API.
+      const message = err instanceof ApiError ? err.message : "Recommender failed";
+      toast.error(message);
+      setRecs([]);
+      setSummary(null);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Map recommendations → CreateSourceInput with the as/suggestedReason/
+  // trustScore fields populated. The shared BulkSubmitFooter uses
+  // `createSource` which forwards every field, so the recommender's
+  // `reason` and `confidence` flow through to the persisted row's
+  // `suggestedReason` and `trustScore` without any glue here.
+  const submitRows: CreateSourceInput[] = recs.map((r) => ({
+    type: r.type,
+    identifier: r.identifier,
+    displayName: r.displayName,
+    fetchFrequency: r.fetchFrequency,
+    as: "suggested",
+    suggestedReason: r.reason,
+    trustScore: r.confidence,
+  }));
+
+  return (
+    <>
+      <div className="flex flex-1 flex-col gap-4 overflow-auto px-4 pt-4">
+        <form onSubmit={onRecommend} className="grid gap-2">
+          <Label htmlFor="competitor-url">Competitor URL</Label>
+          <div className="flex gap-2">
+            <Input
+              id="competitor-url"
+              value={competitorUrl}
+              onChange={(e) => setCompetitorUrl(e.target.value)}
+              placeholder="https://acme.io"
+              autoComplete="off"
+              disabled={loading}
+            />
+            <Button type="submit" disabled={loading || !competitorUrl.trim()}>
+              {loading ? (
+                <>
+                  <Loader2 className="mr-1.5 size-4 animate-spin" />
+                  Finding…
+                </>
+              ) : (
+                <>
+                  <Sparkles className="mr-1.5 size-4" />
+                  Find sources
+                </>
+              )}
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Paste a competitor or peer brand&apos;s URL — the AI proposes trusted sources grounded in your brand&apos;s sectors and audience. Approved recommendations land in your Suggested tab for one-click review.
+          </p>
+        </form>
+
+        {summary && (
+          <div className="rounded-lg border bg-muted/40 p-3 text-xs">
+            <p className="mb-1 font-medium">Competitor read</p>
+            <p className="text-muted-foreground">{summary}</p>
+          </div>
+        )}
+
+        {recs.length > 0 && <CompetitorRecommendationsPreview rows={recs} />}
+
+        {/* Empty-state inline copy — surfaces ONLY after a successful
+            run that returned zero. Loading + pre-run states render
+            nothing here so the form's helper paragraph stays as the
+            single explainer. */}
+        {!loading && summary !== null && recs.length === 0 && (
+          <div className="rounded-lg border border-dashed bg-muted/20 p-6 text-center">
+            <p className="text-sm font-medium">No high-confidence recommendations</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              The AI couldn&apos;t confidently identify sources scoped to this competitor and your business. Try a closer competitor or refine your business profile so the recommender has more signal.
+            </p>
+          </div>
+        )}
+      </div>
+      <BulkSubmitFooter
+        rows={submitRows}
+        onClose={onClose}
+        addLabel={
+          submitRows.length === 0
+            ? "Add to Suggested"
+            : `Add ${submitRows.length} to Suggested`
+        }
+      />
+    </>
+  );
+}
+
+/**
+ * Wraps BulkPreview's row layout with per-row reason + confidence
+ * chrome. We don't reuse BulkPreview directly because the shared
+ * component is intentionally type-agnostic — it sees only
+ * CreateSourceInput which doesn't carry the AI's display metadata.
+ */
+function CompetitorRecommendationsPreview({ rows }: { rows: RecommendedSource[] }) {
+  return (
+    <div className="rounded-lg border">
+      <div className="flex items-center justify-between border-b px-3 py-2">
+        <span className="text-xs font-medium">
+          {rows.length} {rows.length === 1 ? "recommendation" : "recommendations"}
+        </span>
+        <span className="text-xs text-muted-foreground">
+          Land as Suggested — review before promoting
+        </span>
+      </div>
+      <ul className="max-h-80 divide-y overflow-auto">
+        {rows.map((row, i) => (
+          <li key={`${row.identifier}-${i}`} className="flex items-start gap-3 px-3 py-2.5">
+            <Badge variant="outline" className="mt-0.5 shrink-0 text-[10px]">
+              {SOURCE_TYPE_LABEL[row.type]}
+            </Badge>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-baseline justify-between gap-2">
+                <p className="truncate text-xs font-medium">{row.displayName}</p>
+                <ConfidencePill confidence={row.confidence} />
+              </div>
+              <p className="truncate font-mono text-[10px] text-muted-foreground" title={row.identifier}>
+                {row.identifier}
+              </p>
+              <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                {row.reason}
+              </p>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/**
+ * Compact confidence indicator. Buckets a 0..1 score into three
+ * labels: High (>=0.7), Medium (>=0.55), Low (everything else above
+ * the recommender's 0.4 schema floor). Color follows the same
+ * success/warning/neutral semantics the rest of the app uses for
+ * trust signals.
+ */
+function ConfidencePill({ confidence }: { confidence: number }) {
+  const { label, classes } =
+    confidence >= 0.7
+      ? { label: "High", classes: "border-emerald-500/50 text-emerald-700 dark:text-emerald-400" }
+      : confidence >= 0.55
+        ? { label: "Medium", classes: "border-amber-500/50 text-amber-700 dark:text-amber-400" }
+        : { label: "Low", classes: "border-muted-foreground/30 text-muted-foreground" };
+  return (
+    <Badge
+      variant="outline"
+      className={`shrink-0 text-[10px] ${classes}`}
+      title={`AI confidence: ${(confidence * 100).toFixed(0)}%`}
+    >
+      {label}
+    </Badge>
+  );
+}
+
 /* ── Shared bulk preview + submit ────────────────────────────── */
 
 interface BulkOutcome {
@@ -560,9 +766,15 @@ function BulkPreview({ rows }: { rows: CreateSourceInput[] }) {
 function BulkSubmitFooter({
   rows,
   onClose,
+  /** Optional override of the primary button's label. Competitor tab
+   *  passes "Add N to Suggested" so the button names the lifecycle
+   *  the recommendations land in; bulk/opml tabs omit and get the
+   *  default "Add N sources". */
+  addLabel,
 }: {
   rows: CreateSourceInput[];
   onClose: () => void;
+  addLabel?: string;
 }) {
   const queryClient = useQueryClient();
   const [submitting, setSubmitting] = useState(false);
@@ -611,9 +823,10 @@ function BulkSubmitFooter({
   const buttonLabel =
     submitting && progress
       ? `Adding ${progress.done} / ${progress.total}…`
-      : rows.length === 0
-        ? "Add"
-        : `Add ${rows.length} source${rows.length === 1 ? "" : "s"}`;
+      : addLabel ??
+        (rows.length === 0
+          ? "Add"
+          : `Add ${rows.length} source${rows.length === 1 ? "" : "s"}`);
 
   return (
     <SheetFooter>
