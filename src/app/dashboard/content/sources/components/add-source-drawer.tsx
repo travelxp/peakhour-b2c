@@ -104,7 +104,11 @@ export function AddSourceDrawer() {
             <TabsTrigger value="manual">Manual</TabsTrigger>
             <TabsTrigger value="bulk">Bulk paste</TabsTrigger>
             <TabsTrigger value="opml">OPML</TabsTrigger>
-            <TabsTrigger value="compete">From competitor</TabsTrigger>
+            {/* Label is "Competitor" not "From competitor" — keeps the
+                4-tab row within ~75vw on mobile sheets without
+                clipping. The parent Sheet's "Add trusted sources"
+                title disambiguates so the shortened label still reads. */}
+            <TabsTrigger value="compete">Competitor</TabsTrigger>
           </TabsList>
 
           <TabsContent value="manual" className="flex flex-1 flex-col overflow-hidden">
@@ -709,6 +713,12 @@ interface BulkOutcome {
   succeeded: number;
   duplicates: number;
   failed: number;
+  /** Set when at least one row hit 402 PAYMENT_REQUIRED — typically
+   *  means the org's feature gate was revoked between page load and
+   *  submit (rare but possible during a plan downgrade). The summary
+   *  toast can then route to "Refresh to see the upgrade options"
+   *  rather than reporting N generic failures with identical text. */
+  featureRevoked: boolean;
   errors: { identifier: string; message: string }[];
 }
 
@@ -722,7 +732,13 @@ async function bulkCreateSources(
   onProgress?: (done: number, total: number) => void,
 ): Promise<BulkOutcome> {
   const BATCH = 10;
-  const result: BulkOutcome = { succeeded: 0, duplicates: 0, failed: 0, errors: [] };
+  const result: BulkOutcome = {
+    succeeded: 0,
+    duplicates: 0,
+    failed: 0,
+    featureRevoked: false,
+    errors: [],
+  };
   for (let i = 0; i < rows.length; i += BATCH) {
     const batch = rows.slice(i, i + BATCH);
     const settled = await Promise.allSettled(batch.map((r) => createSource(r)));
@@ -732,6 +748,13 @@ async function bulkCreateSources(
         result.succeeded += 1;
       } else if (s.reason instanceof ApiError && s.reason.status === 409) {
         result.duplicates += 1;
+      } else if (s.reason instanceof ApiError && s.reason.status === 402) {
+        // Feature gate fired mid-submit — every subsequent row in this
+        // batch will repeat the 402. Mark the outcome so the summary
+        // can route to a single "refresh to upgrade" message instead
+        // of N identical failure toasts.
+        result.failed += 1;
+        result.featureRevoked = true;
       } else {
         result.failed += 1;
         const message = s.reason instanceof ApiError ? s.reason.message : "unknown error";
@@ -812,6 +835,18 @@ function BulkSubmitFooter({
   }
 
   function summarize(o: BulkOutcome) {
+    // Feature-revoked path short-circuits the normal summary — if any
+    // row hit 402, the org's entitlement to this feature changed
+    // mid-session and every subsequent row would repeat the same
+    // failure. One actionable toast beats N identical "Feature
+    // required" messages.
+    if (o.featureRevoked) {
+      toast.error("Trusted Sources is no longer on your plan", {
+        description:
+          "Refresh the page to see the upgrade options. Any rows that were already added before the change have been kept.",
+      });
+      return;
+    }
     const parts: string[] = [];
     if (o.succeeded) parts.push(`${o.succeeded} added`);
     if (o.duplicates) parts.push(`${o.duplicates} already existed`);
