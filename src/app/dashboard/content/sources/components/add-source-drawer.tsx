@@ -41,20 +41,22 @@ import {
 /**
  * Add Source drawer — Day-4 surface per the LinkedIn 360 plan §3.4.
  *
- * Hosts four input modes via Tabs:
+ * Hosts three input modes via Tabs:
  *   • Manual    — type-specific form (Day-1 ship; PR #162).
  *   • Bulk      — paste one URL/handle per line, auto-detect type,
  *                 review preview, batch-create.
  *   • OPML      — upload an OPML/.xml export (Feedly, NetNewsWire,
  *                 etc.), preview, batch-create.
- *   • Compete   — paste a competitor URL, the AI proposes sources
- *                 from their citation graph. STUBBED — depends on a
- *                 backend AI endpoint that doesn't exist yet.
+ *
+ * A fourth "From competitor" mode (AI proposes sources from a
+ * competitor's citation graph) is on the roadmap but hidden until
+ * the backend recommender ships — see the inline comment on the
+ * `<TabsList>` for the re-enable steps.
  *
  * Bulk + OPML share a preview/submit pattern via the inner
  * BulkPreview component so a future input mode (CSV import,
- * paste-from-Notion, etc.) doesn't duplicate the parallel-mutation
- * + per-row outcome handling.
+ * paste-from-Notion, competitor-recommender once that lands, etc.)
+ * doesn't duplicate the parallel-mutation + per-row outcome handling.
  */
 
 const SOURCE_TYPES: SourceType[] = [
@@ -70,7 +72,7 @@ const SOURCE_TYPES: SourceType[] = [
 
 const FETCH_FREQUENCIES: FetchFrequency[] = ["hourly", "daily", "weekly", "manual"];
 
-type DrawerTab = "manual" | "bulk" | "opml" | "compete";
+type DrawerTab = "manual" | "bulk" | "opml";
 
 export function AddSourceDrawer() {
   const [open, setOpen] = useState(false);
@@ -92,12 +94,20 @@ export function AddSourceDrawer() {
           </SheetDescription>
         </SheetHeader>
 
+        {/* "From competitor" tab is hidden until the competitor-scrape
+            + source-recommender agent ships. Leaving a tab whose only
+            content was "this will exist someday" confused customers
+            (the tab read as broken / empty). To re-enable: add the
+            `<TabsTrigger value="compete">From competitor</TabsTrigger>`
+            back, restore the `<TabsContent value="compete">` block,
+            and recreate the `CompetitorTab` component (the original
+            stub lived right above the BulkPreview section — see git
+            history at fix/trusted-sources-drawer-layout). */}
         <Tabs value={tab} onValueChange={(v) => setTab(v as DrawerTab)} className="flex flex-1 flex-col overflow-hidden">
           <TabsList className="mx-4">
             <TabsTrigger value="manual">Manual</TabsTrigger>
             <TabsTrigger value="bulk">Bulk paste</TabsTrigger>
             <TabsTrigger value="opml">OPML</TabsTrigger>
-            <TabsTrigger value="compete">From competitor</TabsTrigger>
           </TabsList>
 
           <TabsContent value="manual" className="flex flex-1 flex-col overflow-hidden">
@@ -108,9 +118,6 @@ export function AddSourceDrawer() {
           </TabsContent>
           <TabsContent value="opml" className="flex flex-1 flex-col overflow-hidden">
             <OpmlTab onClose={() => setOpen(false)} />
-          </TabsContent>
-          <TabsContent value="compete" className="flex flex-1 flex-col overflow-hidden">
-            <CompetitorTab />
           </TabsContent>
         </Tabs>
       </SheetContent>
@@ -176,10 +183,14 @@ function ManualTab({ onClose }: { onClose: () => void }) {
 
   return (
     <>
-      {/* Constrain Manual to a typical-form width even though the
-          parent Sheet is sm:max-w-2xl (sized for the bulk preview).
-          A four-field form at 2xl-width reads loose. */}
-      <form onSubmit={onSubmit} className="flex flex-1 flex-col gap-5 overflow-auto px-4 pt-4 sm:max-w-md">
+      {/* Form fills the sheet's content width to match the bulk / opml
+          tabs. An earlier `sm:max-w-md` constraint here capped the
+          form at 28rem inside a 42rem sheet, leaving ~14rem of dead
+          space on the right — visible as a big gap and the only tab
+          whose layout drifted from its siblings. If the four-field
+          form ever reads too loose, swap to `mx-auto max-w-lg` so the
+          gutters balance instead of pooling on one side. */}
+      <form onSubmit={onSubmit} className="flex flex-1 flex-col gap-5 overflow-auto px-4 pt-4">
         <div className="grid gap-2">
           <Label htmlFor="source-type">Type</Label>
           <Select value={type} onValueChange={(v) => setType(v as SourceType)}>
@@ -474,24 +485,6 @@ function OpmlTab({ onClose }: { onClose: () => void }) {
       </div>
       <BulkSubmitFooter rows={rows} onClose={onClose} />
     </>
-  );
-}
-
-/* ── Suggest from competitor (stubbed) ───────────────────────── */
-
-function CompetitorTab() {
-  return (
-    <div className="flex flex-1 flex-col gap-3 overflow-auto px-4 pt-4">
-      <div className="rounded-lg border border-dashed bg-muted/30 p-6 text-center">
-        <p className="text-sm font-medium">Source recommendation by competitor</p>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Paste a competitor&apos;s URL → the AI parses their citations + linked sources and proposes a starter set scoped to your brand.
-        </p>
-        <p className="mt-3 text-xs text-muted-foreground">
-          Lands once the competitor-scrape + source-recommender agent ships.
-        </p>
-      </div>
-    </div>
   );
 }
 
