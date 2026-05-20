@@ -28,11 +28,12 @@ import type { SourceStatus, TrustedSource } from "./types";
  * when data lands but the dedicated Suggested ranker UI + Insights
  * timeline ship in Day-3/4 follow-ups.
  *
- * Gating: behind `content.trusted_sources` feature key. Seeded into the
- * Starter / Growth / Agency / Enterprise plans via the cfg_features +
- * cfg_plans rollout in peakhour-mongodb; Free stays locked and sees the
- * waitlist fallback. The cfg_features row uses the same tagline string
- * below so the upgrade drawer copy stays consistent.
+ * Gating: behind `content.trusted_sources` feature key. Granted to
+ * Starter / Growth / Agency / Enterprise via the companion cfg_features
+ * + cfg_plans rollout in peakhour-mongodb; Free stays locked and sees
+ * the waitlist fallback. The cfg_features row reuses the same tagline
+ * string below so the upgrade drawer copy stays consistent — if you
+ * edit FEATURE_TAGLINE here, edit the seed row too.
  */
 
 const FEATURE_KEY = "content.trusted_sources";
