@@ -28,12 +28,15 @@ import type { SourceStatus, TrustedSource } from "./types";
  * when data lands but the dedicated Suggested ranker UI + Insights
  * timeline ship in Day-3/4 follow-ups.
  *
- * Gating: behind `content.sources` feature key. Today no plan grants
- * this — the FeatureGate fallback opens the waitlist drawer pre-tagged
- * so signups become signal for the rollout order.
+ * Gating: behind `content.trusted_sources` feature key. Granted to
+ * Starter / Growth / Agency / Enterprise via the companion cfg_features
+ * + cfg_plans rollout in peakhour-mongodb; Free stays locked and sees
+ * the waitlist fallback. The cfg_features row reuses the same tagline
+ * string below so the upgrade drawer copy stays consistent — if you
+ * edit FEATURE_TAGLINE here, edit the seed row too.
  */
 
-const FEATURE_KEY = "content.sources";
+const FEATURE_KEY = "content.trusted_sources";
 const FEATURE_NAME = "Trusted Sources";
 const FEATURE_TAGLINE =
   "Ground every brief, idea, and post in your brand's voice. Add the sites, feeds, channels, and creators your AI should read, watch, and cite.";
