@@ -97,9 +97,12 @@ export function AddSourceDrawer() {
         {/* "From competitor" tab is hidden until the competitor-scrape
             + source-recommender agent ships. Leaving a tab whose only
             content was "this will exist someday" confused customers
-            (the tab read as broken / empty). Re-add the trigger and
-            <TabsContent value="compete"> wired to <CompetitorTab/>
-            once the backend recommender lands. */}
+            (the tab read as broken / empty). To re-enable: add the
+            `<TabsTrigger value="compete">From competitor</TabsTrigger>`
+            back, restore the `<TabsContent value="compete">` block,
+            and recreate the `CompetitorTab` component (the original
+            stub lived right above the BulkPreview section — see git
+            history at fix/trusted-sources-drawer-layout). */}
         <Tabs value={tab} onValueChange={(v) => setTab(v as DrawerTab)} className="flex flex-1 flex-col overflow-hidden">
           <TabsList className="mx-4">
             <TabsTrigger value="manual">Manual</TabsTrigger>
