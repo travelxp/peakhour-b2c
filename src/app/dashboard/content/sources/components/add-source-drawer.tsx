@@ -675,6 +675,13 @@ function CompetitorRecommendationsPreview({ rows }: { rows: RecommendedSource[] 
  * the recommender's 0.4 schema floor). Color follows the same
  * success/warning/neutral semantics the rest of the app uses for
  * trust signals.
+ *
+ * a11y: aria-label combines BOTH the bucket label and the precise
+ * percentage so screen readers announce "High confidence, 84%" rather
+ * than losing the percentage in a `title=`-attribute that AT users
+ * announce inconsistently. The visible bucket label still renders so
+ * sighted users get the at-a-glance bucket; AT users get the same
+ * bucket plus the underlying number.
  */
 function ConfidencePill({ confidence }: { confidence: number }) {
   const { label, classes } =
@@ -683,11 +690,13 @@ function ConfidencePill({ confidence }: { confidence: number }) {
       : confidence >= 0.55
         ? { label: "Medium", classes: "border-amber-500/50 text-amber-700 dark:text-amber-400" }
         : { label: "Low", classes: "border-muted-foreground/30 text-muted-foreground" };
+  const pct = (confidence * 100).toFixed(0);
   return (
     <Badge
       variant="outline"
       className={`shrink-0 text-[10px] ${classes}`}
-      title={`AI confidence: ${(confidence * 100).toFixed(0)}%`}
+      title={`AI confidence: ${pct}%`}
+      aria-label={`${label} confidence, ${pct}%`}
     >
       {label}
     </Badge>
