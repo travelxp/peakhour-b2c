@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
 
 /** Shape of `/v1/dashboard/org` as relevant to plan/trial surfaces.
@@ -69,7 +69,11 @@ export function useDashboardOrg() {
  */
 export function useExtendTrial() {
   const queryClient = useQueryClient();
-  return useMutation<TrialExtendResponse, Error>({
+  // Tight error generic: api.post() throws ApiError with a `code` field
+  // mirroring the server's error taxonomy
+  // (EXTENSION_ALREADY_USED / NOT_TRIALING / EXTENSION_RACE / generic).
+  // Consumers map by `err.code` without unsafe casts.
+  return useMutation<TrialExtendResponse, ApiError>({
     mutationFn: () => api.post<TrialExtendResponse>("/v1/dashboard/trial/extend", {}),
     onSuccess: () => {
       // Drop every cached dashboard/org regardless of org-id suffix —

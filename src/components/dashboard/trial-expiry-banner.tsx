@@ -4,16 +4,19 @@ import { useState } from "react";
 import { Clock, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { ApiError } from "@/lib/api";
 import { useDashboardOrg, useExtendTrial } from "@/hooks/use-dashboard-org";
 
 /**
  * Surfaces when a trial is within the final 3 days. Includes a single
  * one-click "Extend by 7 days" CTA when the customer's self-serve
  * allowance is unused; falls back to a Contact-us link once that
- * one-shot has been spent. Dismissible per session — the dismissal
- * lives in component state only (not persisted) so it returns on the
- * next dashboard mount; a sticky "remind me tomorrow" would need
- * localStorage + a TTL and isn't worth the complexity yet.
+ * one-shot has been spent. Dismissible — the dismissal lives in
+ * component state. The dashboard layout in Next.js app-router
+ * persists across in-app navigations, so dismissal effectively holds
+ * for the rest of the browser session and returns on full page reload
+ * / re-login. A sticky "remind me tomorrow" with TTL would need
+ * localStorage and is deliberately out-of-scope for v1.
  *
  * Hidden completely when:
  *   - no trial active
@@ -46,12 +49,12 @@ export function TrialExpiryBanner() {
           }
         );
       },
-      onError: (err: Error & { code?: string }) => {
-        // The api client wraps error responses with a `code` field
-        // mirroring the server's machine-readable code. Map known codes
-        // to user-facing messages; fall through to a generic fallback
-        // so a new server-side code never produces a silent failure.
-        const code = (err as { code?: string }).code;
+      onError: (err: ApiError) => {
+        // ApiError carries a server-side `code` string mirroring the
+        // backend's error taxonomy. Map known codes to user-facing
+        // messages; fall through to a generic fallback so a new
+        // server-side code never produces a silent failure.
+        const code = err.code;
         if (code === "EXTENSION_ALREADY_USED") {
           toast.error("Extension already used", {
             description: "Reach out to hello@peakhour.ai for further help.",
@@ -83,9 +86,14 @@ export function TrialExpiryBanner() {
     : "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200";
 
   return (
+    // Critical (≤1 day) bumps the ARIA role to `alert` so assistive
+    // tech announces it immediately; the soft amber band (2-3 days
+    // remaining) stays at `status` to avoid interrupting users who
+    // are mid-flow but still benefit from a visible heads-up.
     <div
       className={`flex flex-col gap-2 rounded-lg border px-4 py-3 sm:flex-row sm:items-center sm:gap-3 ${wrapClass}`}
-      role="status"
+      role={critical ? "alert" : "status"}
+      aria-live={critical ? "assertive" : "polite"}
     >
       {critical ? (
         <AlertTriangle className="size-4 shrink-0" />

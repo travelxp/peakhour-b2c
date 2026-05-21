@@ -1,6 +1,7 @@
 "use client";
 
 import { toast } from "sonner";
+import { ApiError } from "@/lib/api";
 import { useLocale } from "@/hooks/use-locale";
 import { useDashboardOrg, useExtendTrial } from "@/hooks/use-dashboard-org";
 import { Badge } from "@/components/ui/badge";
@@ -62,8 +63,8 @@ export default function BillingPage() {
           description: `New end date: ${new Date(res.trialEndsAt).toLocaleDateString()}`,
         });
       },
-      onError: (err: Error & { code?: string }) => {
-        const code = (err as { code?: string }).code;
+      onError: (err: ApiError) => {
+        const code = err.code;
         if (code === "EXTENSION_ALREADY_USED") {
           toast.error("Extension already used", {
             description: "Reach out to hello@peakhour.ai for further help.",
