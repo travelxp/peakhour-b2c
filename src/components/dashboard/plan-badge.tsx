@@ -97,8 +97,13 @@ export function PlanBadge() {
       >
         {planLabel(plan)}
       </Badge>
+      {/* Trial countdown + Upgrade CTA collapse on narrow viewports —
+          below sm the header would otherwise wrap (badge + countdown +
+          button + FeedbackWidget all competing for the same row). The
+          plan-tier chip alone communicates the most important state on
+          mobile; the rest is reachable via the badge route to billing. */}
       {trialActive && trialDays > 0 ? (
-        <span className="text-xs text-muted-foreground">
+        <span className="hidden text-xs text-muted-foreground sm:inline">
           {trialDays}d trial
         </span>
       ) : null}
@@ -107,7 +112,7 @@ export function PlanBadge() {
           variant="outline"
           size="sm"
           asChild
-          className="h-7 gap-1 px-2 text-xs"
+          className="hidden h-7 gap-1 px-2 text-xs sm:inline-flex"
         >
           <Link href="/dashboard/settings/billing">
             Upgrade
