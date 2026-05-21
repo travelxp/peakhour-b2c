@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useAuth } from "@/providers/auth-provider";
+import { toast } from "sonner";
+import { ApiError } from "@/lib/api";
 import { useLocale } from "@/hooks/use-locale";
-import { api } from "@/lib/api";
+import { useDashboardOrg, useExtendTrial } from "@/hooks/use-dashboard-org";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -14,28 +14,6 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-
-interface OrgBilling {
-  name?: string;
-  /** Backward-compat alias on /v1/dashboard/org — `plan` is derived from
-   *  subscription.plan. New surfaces should consume `subscription`
-   *  directly (richer shape including trial state). */
-  billing?: { plan?: string };
-  subscription?: {
-    plan?: string;
-    planVersion?: number;
-    trialEndsAt?: string | null;
-    trialActive?: boolean;
-    trialDaysRemaining?: number;
-  };
-  entitlements?: {
-    plan?: string;
-    planVersion?: number;
-    computedAt?: string | null;
-    features?: string[];
-  } | null;
-  createdAt?: string;
-}
 
 // Mirrors the navbar PlanBadge tier accents so plan presentation stays
 // consistent across surfaces.
@@ -52,21 +30,11 @@ const PLAN_STYLES: Record<string, string> = {
 };
 
 export default function BillingPage() {
-  const { org } = useAuth();
   const { formatDate } = useLocale();
-  const [details, setDetails] = useState<OrgBilling | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data: details, isLoading } = useDashboardOrg();
+  const extend = useExtendTrial();
 
-  useEffect(() => {
-    if (!org?._id) return;
-    api
-      .get<OrgBilling>("/v1/dashboard/org")
-      .then(setDetails)
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [org?._id]);
-
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex justify-center py-12">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-muted border-t-primary" />
@@ -84,7 +52,39 @@ export default function BillingPage() {
   const trialEndsAt = details?.subscription?.trialEndsAt
     ? new Date(details.subscription.trialEndsAt)
     : null;
+  const selfServeExtensionUsed =
+    details?.subscription?.selfServeExtensionUsed === true;
   const features = details?.entitlements?.features ?? [];
+
+  const handleExtend = () => {
+    extend.mutate(undefined, {
+      onSuccess: (res) => {
+        toast.success(`Trial extended by ${res.addedDays} days`, {
+          description: `New end date: ${new Date(res.trialEndsAt).toLocaleDateString()}`,
+        });
+      },
+      onError: (err: ApiError) => {
+        const code = err.code;
+        if (code === "EXTENSION_ALREADY_USED") {
+          toast.error("Extension already used", {
+            description: "Reach out to hello@peakhour.ai for further help.",
+          });
+        } else if (code === "NOT_TRIALING") {
+          toast.error("Trial ended", {
+            description: "Contact hello@peakhour.ai to discuss next steps.",
+          });
+        } else if (code === "EXTENSION_RACE") {
+          toast.info("State changed", {
+            description: "Refreshing the latest trial state…",
+          });
+        } else {
+          toast.error("Could not extend trial", {
+            description: err.message ?? "Try again or contact support.",
+          });
+        }
+      },
+    });
+  };
 
   return (
     <div className="space-y-6">
@@ -113,9 +113,25 @@ export default function BillingPage() {
                 </Badge>
               ) : null}
             </div>
-            <Button variant="outline" size="sm" asChild>
-              <a href="mailto:hello@peakhour.ai">Upgrade plan</a>
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Self-serve trial extension — visible only while the
+                  trial is active AND the customer hasn't burned their
+                  one-shot. After use, the button disappears; the dashboard
+                  banner shows a contact link in that window. */}
+              {trialActive && !selfServeExtensionUsed ? (
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={handleExtend}
+                  disabled={extend.isPending}
+                >
+                  {extend.isPending ? "Extending…" : "Extend trial 7 days"}
+                </Button>
+              ) : null}
+              <Button variant="outline" size="sm" asChild>
+                <a href="mailto:hello@peakhour.ai">Upgrade plan</a>
+              </Button>
+            </div>
           </div>
           <div className="grid gap-3 sm:grid-cols-3">
             <div>

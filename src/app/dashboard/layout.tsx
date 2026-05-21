@@ -35,6 +35,7 @@ import {
 import { OrgSwitcher } from "@/components/dashboard/org-switcher";
 import { BusinessSwitcher } from "@/components/dashboard/business-switcher";
 import { PlanBadge } from "@/components/dashboard/plan-badge";
+import { TrialExpiryBanner } from "@/components/dashboard/trial-expiry-banner";
 import { CommandMenu } from "@/components/molecules/command-menu";
 import { FeedbackWidget } from "@/components/molecules/feedback-widget";
 import { ChatPanel } from "@/components/molecules/chat-panel";
@@ -395,7 +396,16 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
             <FeedbackWidget />
           </div>
         </header>
-        <div className="flex-1 overflow-auto p-6">{children}</div>
+        <div className="flex-1 overflow-auto p-6">
+          {/* Trial-expiry warning slot — sits above the route content
+              only when a trial is within the final 3 days. Component
+              renders nothing in all other states (no trial, plenty of
+              days left, dismissed). */}
+          <div className="mb-4">
+            <TrialExpiryBanner />
+          </div>
+          {children}
+        </div>
       </SidebarInset>
 
       {/* ── AI Chat FAB ──────────────────────────────────── */}
