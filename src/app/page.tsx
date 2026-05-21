@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { ArrowRight, Sparkles, Brain, Zap, BarChart3 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -88,7 +89,31 @@ const INTEGRATIONS = [
   { name: "X (Twitter)", icon: TwitterIcon, color: "bg-black", description: "Posts & promoted content" },
 ] as const;
 
-export default async function Home() {
+// Same validator as /auth — sanitises a tampered ?ref= so the
+// redirect target only ever carries a well-formed inviter code.
+const REFERRAL_CODE_PATTERN = /^[0-9A-Z]{4,32}$/;
+
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ ref?: string | string[]; n?: string | string[] }>;
+}) {
+  // Back-compat redirect for waitlist share links that were minted
+  // with the old `/?ref=…` shape. Forward to /auth so the inviter
+  // code is captured by the auth page and credited on signup. We
+  // forward `n` only if present to preserve the cache-bust nonce.
+  const params = await searchParams;
+  const refRaw = Array.isArray(params.ref) ? params.ref[0] : params.ref;
+  const nRaw = Array.isArray(params.n) ? params.n[0] : params.n;
+  if (refRaw) {
+    const refUpper = refRaw.toUpperCase();
+    if (REFERRAL_CODE_PATTERN.test(refUpper)) {
+      const qs = new URLSearchParams({ ref: refUpper });
+      if (nRaw) qs.set("n", nRaw);
+      redirect(`/auth?${qs.toString()}`);
+    }
+  }
+
   // Country-aware pricing — resolves the visitor's country from the
   // Vercel edge geo header (set on every prod/preview request) and
   // fetches the corresponding pricing matrix from peakhour-api. The
