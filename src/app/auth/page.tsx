@@ -76,9 +76,11 @@ const TRUST_STATS = [
 ] as const;
 
 // Bounded length + character set so a tampered link can't smuggle
-// arbitrary strings into the waitlist payload. Matches the
-// referredByCode validator on /v1/waitlist/signup (min 4, max 32) and
-// the customAlphabet used to mint codes (0-9, A-Z minus I/L/O/U).
+// arbitrary strings into the waitlist payload. Mirrors the
+// referredByCode validator on /v1/waitlist/signup (string, min 4,
+// max 32). The mint alphabet is a stricter subset (0-9, A-Z minus
+// I/L/O/U/10 chars) — staying with the validator's bounds means a
+// mint-alphabet change doesn't require a client release.
 const REFERRAL_CODE_PATTERN = /^[0-9A-Z]{4,32}$/;
 
 export default function AuthPage() {
@@ -317,13 +319,18 @@ function AuthPageContent() {
       {/* Right panel — auth form */}
       <div className="flex flex-1 flex-col">
         {referralCode ? (
-          <div className="border-b bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+          // Avoid "skip 5 spots" copy: the backend's idempotent path
+          // (existing email on the waitlist) returns the prior row
+          // without recrediting the inviter, so the promise would be
+          // unbacked for recipients who are already in line. Backend
+          // fix tracked separately; copy stays honest until then.
+          <div
+            role="status"
+            className="border-b bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200"
+          >
             <div className="mx-auto flex max-w-md items-center gap-2">
               <Sparkles className="size-4 shrink-0" />
-              <span>
-                You were invited by a friend. Sign up below to skip 5 spots on
-                the waitlist.
-              </span>
+              <span>You were invited by a friend. Sign up to claim your spot.</span>
             </div>
           </div>
         ) : null}
