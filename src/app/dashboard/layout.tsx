@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/sidebar";
 import { OrgSwitcher } from "@/components/dashboard/org-switcher";
 import { BusinessSwitcher } from "@/components/dashboard/business-switcher";
+import { PlanBadge } from "@/components/dashboard/plan-badge";
 import { CommandMenu } from "@/components/molecules/command-menu";
 import { FeedbackWidget } from "@/components/molecules/feedback-widget";
 import { ChatPanel } from "@/components/molecules/chat-panel";
@@ -389,7 +390,8 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       <SidebarInset>
         <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
           <SidebarTrigger className="-ml-1" />
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-3">
+            <PlanBadge />
             <FeedbackWidget />
           </div>
         </header>

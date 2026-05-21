@@ -13,12 +13,43 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 interface OrgBilling {
   name?: string;
+  /** Backward-compat alias on /v1/dashboard/org — `plan` is derived from
+   *  subscription.plan. New surfaces should consume `subscription`
+   *  directly (richer shape including trial state). */
   billing?: { plan?: string };
+  subscription?: {
+    plan?: string;
+    planVersion?: number;
+    trialEndsAt?: string | null;
+    trialActive?: boolean;
+    trialDaysRemaining?: number;
+  };
+  entitlements?: {
+    plan?: string;
+    planVersion?: number;
+    computedAt?: string | null;
+    features?: string[];
+  } | null;
   createdAt?: string;
 }
+
+// Mirrors the navbar PlanBadge tier accents so plan presentation stays
+// consistent across surfaces.
+const PLAN_STYLES: Record<string, string> = {
+  free: "bg-muted text-muted-foreground",
+  starter:
+    "bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300",
+  growth:
+    "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300",
+  agency:
+    "bg-violet-100 text-violet-700 dark:bg-violet-950/60 dark:text-violet-300",
+  enterprise:
+    "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300",
+};
 
 export default function BillingPage() {
   const { org } = useAuth();
@@ -43,7 +74,17 @@ export default function BillingPage() {
     );
   }
 
-  const plan = details?.billing?.plan || "free";
+  // Prefer subscription.plan (canonical); fall back to billing.plan
+  // (legacy alias from the endpoint, also derived from subscription
+  // but kept on the response for old consumers).
+  const plan = details?.subscription?.plan ?? details?.billing?.plan ?? "free";
+  const planClass = PLAN_STYLES[plan] ?? PLAN_STYLES.free;
+  const trialActive = details?.subscription?.trialActive === true;
+  const trialDays = details?.subscription?.trialDaysRemaining ?? 0;
+  const trialEndsAt = details?.subscription?.trialEndsAt
+    ? new Date(details.subscription.trialEndsAt)
+    : null;
+  const features = details?.entitlements?.features ?? [];
 
   return (
     <div className="space-y-6">
@@ -60,9 +101,17 @@ export default function BillingPage() {
           <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center mb-4">
             <div className="flex items-center gap-2">
               <h3 className="font-semibold">Current Plan</h3>
-              <Badge variant="secondary" className="bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400">
+              <Badge
+                variant="secondary"
+                className={cn("font-medium capitalize", planClass)}
+              >
                 {plan}
               </Badge>
+              {trialActive && trialDays > 0 ? (
+                <Badge variant="outline" className="font-medium">
+                  Trial · {trialDays}d left
+                </Badge>
+              ) : null}
             </div>
             <Button variant="outline" size="sm" asChild>
               <a href="mailto:hello@peakhour.ai">Upgrade plan</a>
@@ -80,8 +129,14 @@ export default function BillingPage() {
               </p>
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">Billing cycle</p>
-              <p className="text-sm font-medium">Monthly</p>
+              <p className="text-xs text-muted-foreground">
+                {trialActive ? "Trial ends" : "Billing cycle"}
+              </p>
+              <p className="text-sm font-medium">
+                {trialActive && trialEndsAt
+                  ? formatDate(trialEndsAt.toISOString())
+                  : "Monthly"}
+              </p>
             </div>
           </div>
         </div>
@@ -106,12 +161,41 @@ export default function BillingPage() {
             <p className="font-semibold mb-1">Ad platforms</p>
             <p className="text-sm text-muted-foreground">
               <span className="text-foreground font-medium">
-                {plan === "pro" ? "All" : plan === "growth" ? "2" : "Preview only"}
+                {plan === "enterprise" || plan === "agency"
+                  ? "All"
+                  : plan === "growth"
+                    ? "2"
+                    : "Preview only"}
               </span>
               {" "}included
             </p>
           </div>
         </div>
+
+        {/* Features unlocked on this plan — sourced from the entitlements
+            snapshot so it reflects whatever cfg_plans currently grants,
+            not a hardcoded enumeration that would drift from the seed. */}
+        {features.length > 0 ? (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Features included</CardTitle>
+              <CardDescription>
+                Resolved from your plan + any add-ons or platform grants.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ul className="flex flex-wrap gap-1.5">
+                {features.map((f) => (
+                  <li key={f}>
+                    <Badge variant="outline" className="font-mono text-[11px]">
+                      {f}
+                    </Badge>
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+        ) : null}
 
         {/* Payment method */}
         <Card>
