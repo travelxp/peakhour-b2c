@@ -1,23 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { useAuth } from "@/providers/auth-provider";
-import { api } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ArrowUpRight } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-interface PlanSummary {
-  subscription?: {
-    plan?: string;
-    planVersion?: number;
-    trialEndsAt?: string | null;
-    trialActive?: boolean;
-    trialDaysRemaining?: number;
-  };
-}
+import { useDashboardOrg } from "@/hooks/use-dashboard-org";
 
 /** Plans where an upgrade is meaningful. agency + enterprise hide the
  *  CTA (they're already at/near the top of the price ladder; surfacing
@@ -58,28 +46,11 @@ function planLabel(key: string): string {
  * redundant request when /me has not resolved yet.
  */
 export function PlanBadge() {
-  const { org, isAuthenticated } = useAuth();
-  const [summary, setSummary] = useState<PlanSummary | null>(null);
-
-  useEffect(() => {
-    if (!isAuthenticated || !org?._id) return;
-    let cancelled = false;
-    api
-      .get<PlanSummary>("/v1/dashboard/org")
-      .then((d) => {
-        if (!cancelled) setSummary(d);
-      })
-      // Swallow — the badge is decorative; a failed fetch should not
-      // surface as a UI error. If the plan never lands the badge
-      // simply stays absent (handled by the early return below).
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-    // org._id is the right dep — switching orgs should refetch the
-    // badge so an agency operator who flips between client orgs sees
-    // each one's plan.
-  }, [isAuthenticated, org?._id]);
+  // Reads through the shared dashboard/org cache so this badge, the
+  // trial-expiry banner, and the billing page all hit one network
+  // round-trip per org. After self-serve trial extension, the mutation
+  // invalidates the cache and the badge's trial countdown updates.
+  const { data: summary } = useDashboardOrg();
 
   if (!summary?.subscription?.plan) return null;
 
