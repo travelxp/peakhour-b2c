@@ -5,13 +5,7 @@ import { useAuth } from "@/providers/auth-provider";
 import { api, ApiError } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -236,12 +230,58 @@ export default function SeasonalEventsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight">Seasonal Events</h2>
-        <p className="text-muted-foreground mt-1">
-          Cultural, national, and commercial moments the AI uses to plan
-          seasonal content.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+            <CalendarDays className="h-6 w-6 text-muted-foreground" />
+            Seasonal Events
+          </h2>
+          <p className="text-muted-foreground mt-1">
+            Cultural, national, and commercial moments the AI uses to plan
+            seasonal content. Onboarding seeds these from your country&apos;s
+            calendar; you can add, edit, or remove events here. Exact dates
+            show for the current year when a moving holiday (Diwali, Eid,
+            Easter, …) has been mapped.
+          </p>
+        </div>
+        {/* Edit / Save controls hoisted to the page header so the inner
+            Card doesn't repeat the "Seasonal Events" title (which would
+            duplicate the page H2). */}
+        <div className="shrink-0">
+          {!editing ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="gap-1.5 text-muted-foreground"
+              onClick={() => {
+                setEditing(true);
+                setEditEvents(attachClientIds(orgDetails?.taxonomy?.seasonalEvents || []));
+              }}
+            >
+              <Pencil className="h-3.5 w-3.5" /> Edit
+            </Button>
+          ) : (
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setEditing(false)}
+                disabled={saving}
+              >
+                <X className="h-3.5 w-3.5" /> Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleSave}
+                disabled={saving}
+                className="gap-1.5"
+              >
+                <Check className="h-3.5 w-3.5" />
+                {saving ? "Saving..." : "Save"}
+              </Button>
+            </div>
+          )}
+        </div>
       </div>
 
       {error && (
@@ -252,54 +292,7 @@ export default function SeasonalEventsPage() {
 
       <div className="max-w-3xl">
         <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <CalendarDays className="h-5 w-5 text-muted-foreground" />
-                <CardTitle>Seasonal Events</CardTitle>
-              </div>
-              {!editing ? (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="gap-1.5 text-muted-foreground"
-                  onClick={() => {
-                    setEditing(true);
-                    setEditEvents(attachClientIds(orgDetails?.taxonomy?.seasonalEvents || []));
-                  }}
-                >
-                  <Pencil className="h-3.5 w-3.5" /> Edit
-                </Button>
-              ) : (
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setEditing(false)}
-                    disabled={saving}
-                  >
-                    <X className="h-3.5 w-3.5" /> Cancel
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={handleSave}
-                    disabled={saving}
-                    className="gap-1.5"
-                  >
-                    <Check className="h-3.5 w-3.5" />
-                    {saving ? "Saving..." : "Save"}
-                  </Button>
-                </div>
-              )}
-            </div>
-            <CardDescription>
-              Onboarding seeds these from your country&apos;s calendar; you can
-              add, edit, or remove events here. Exact dates show for the
-              current year when a moving holiday (Diwali, Eid, Easter, …) has
-              been mapped.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2">
+          <CardContent className="space-y-2 p-4">
             {editing ? (
               <EditableSeasonalEvents events={editEvents} onChange={setEditEvents} />
             ) : (
