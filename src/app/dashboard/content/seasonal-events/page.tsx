@@ -501,6 +501,12 @@ function SeasonalEventEditor({
     }
     return false;
   };
+  // Block submit when the form would silently drop a date row at save
+  // time. Previously the duplicate-year case just highlighted the row
+  // and let the form submit with last-wins semantics — the earlier
+  // entry would silently disappear. Now the editor refuses to save
+  // until the duplicate is resolved.
+  const hasDuplicateYear = dateRows.some((r, i) => isDuplicateAt(i, r.year));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -634,6 +640,13 @@ function SeasonalEventEditor({
             )}
           </div>
 
+          {hasDuplicateYear ? (
+            <p className="text-xs text-destructive">
+              Two per-year date rows share the same year. Resolve the duplicate
+              to save.
+            </p>
+          ) : null}
+
           <DialogFooter>
             <Button
               type="button"
@@ -643,7 +656,10 @@ function SeasonalEventEditor({
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={saving || !name.trim()}>
+            <Button
+              type="submit"
+              disabled={saving || !name.trim() || hasDuplicateYear}
+            >
               {saving ? "Saving..." : initial ? "Save" : "Add event"}
             </Button>
           </DialogFooter>
