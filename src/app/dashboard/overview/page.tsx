@@ -354,6 +354,18 @@ function SetupBanner({ stats }: { stats: DashboardStats }) {
   const nextStep = steps.find((s) => !s.done);
   const completedCount = steps.filter((s) => s.done).length;
 
+  // Self-hide when every visible step is done. The outer parent already
+  // hides on `stats.onboarding.completed`, but that persisted flag can
+  // be stale for businesses that completed the steps before the flag
+  // existed (or whose flag never got set due to an onboarding-cron
+  // hiccup). Without this guard, the banner would render as "3 of 3
+  // steps complete" with no CTA — pure clutter for a user who has
+  // already finished setup. Matches the existing "Engine active"
+  // sub-banner pattern in the AI Engine card.
+  if (completedCount === steps.length) {
+    return null;
+  }
+
   return (
     <Card className="overflow-hidden border-0 bg-linear-to-r from-primary/8 via-primary/4 to-transparent">
       <CardContent className="flex items-center justify-between py-5">
