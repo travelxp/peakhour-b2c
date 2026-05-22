@@ -106,29 +106,120 @@ function nextYearForRows(rows: DateRow[]): string {
   return candidate >= 1000 && candidate <= 9999 ? String(candidate) : "";
 }
 
+interface EventDateInfo {
+  /** Display string for the primary date badge — e.g. "Sun · Nov 8"
+   *  for precise events or "Nov" for static-month events. `null` when
+   *  the event's month is out of range (malformed wire data). */
+  primary: string | null;
+  /** Human countdown to the next occurrence — e.g. "in 3 weeks",
+   *  "tomorrow", "today". `null` when no useful next-occurrence date
+   *  can be computed (e.g., a current-year date already passed and
+   *  no next-year `dates[]` entry exists). */
+  countdown: string | null;
+  /** True when the badge text is derived from a precise YYYY-MM-DD
+   *  in `dates[]`. False for the modal-month fallback. */
+  precise: boolean;
+}
+
 /**
- * Build the date-badge text for an event. When a current-year date
- * exists in the `dates` map (lunar / variable holidays), render the
- * weekday + month + day-of-month so owners see EXACTLY when the
- * event lands this year. Falls back to the modal-month abbreviation
- * for static-date events.
+ * Build the date + countdown badge data for an event.
+ *
+ * Resolution order (mirrors the seasonal generator's `resolveEventOccurrence`
+ * in peakhour-api):
+ *   1. `dates[currentYear]` if it parses AND lies today-or-later
+ *   2. `dates[currentYear + 1]` if it parses (year-wrap for events
+ *      whose current-year date has already passed)
+ *   3. Modal-month fallback for static-date events — synthesises a
+ *      target of the 1st-of-month for the upcoming occurrence (this
+ *      year if the month is today-or-later, next year otherwise).
+ *      The badge shows just the month abbreviation; the countdown
+ *      reads "in N weeks/months" using the synthesised target.
+ *
+ * Countdown buckets:
+ *   - same UTC day  → "today"
+ *   - 1 day         → "tomorrow"
+ *   - 2..6 days     → "in N days"
+ *   - 7..29 days    → "in N week[s]" (rounded)
+ *   - 30+ days      → "in N month[s]" (rounded; 1y+ also rendered in months)
  */
-function formatEventDateBadge(event: SeasonalEvent): string | null {
-  const currentYear = String(new Date().getUTCFullYear());
-  const exact = event.dates?.[currentYear];
-  if (exact && /^\d{4}-\d{2}-\d{2}$/.test(exact)) {
-    const d = new Date(`${exact}T00:00:00Z`);
-    if (!isNaN(d.getTime())) {
-      const weekday = d.toLocaleDateString("en-US", {
-        weekday: "short",
-        timeZone: "UTC",
-      });
-      const month = MONTH_SHORT_NAMES[d.getUTCMonth() + 1];
-      const dayNum = d.getUTCDate();
-      return `${weekday} · ${month} ${dayNum}`;
-    }
+function getEventDateInfo(event: SeasonalEvent, now: Date = new Date()): EventDateInfo {
+  // Anchor "today" at UTC midnight so the bucket math is timezone-stable.
+  const todayMs = Date.UTC(
+    now.getUTCFullYear(),
+    now.getUTCMonth(),
+    now.getUTCDate(),
+  );
+  const currentYear = now.getUTCFullYear();
+
+  function parseDate(iso: string | undefined): Date | null {
+    if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return null;
+    const d = new Date(`${iso}T00:00:00Z`);
+    return isNaN(d.getTime()) ? null : d;
   }
-  return MONTH_SHORT_NAMES[event.month] ?? null;
+
+  function formatPrecise(d: Date): string {
+    const weekday = d.toLocaleDateString("en-US", {
+      weekday: "short",
+      timeZone: "UTC",
+    });
+    const month = MONTH_SHORT_NAMES[d.getUTCMonth() + 1];
+    const dayNum = d.getUTCDate();
+    return `${weekday} · ${month} ${dayNum}`;
+  }
+
+  function formatCountdown(targetMs: number): string {
+    const diffDays = Math.round((targetMs - todayMs) / 86_400_000);
+    if (diffDays === 0) return "today";
+    if (diffDays === 1) return "tomorrow";
+    if (diffDays < 0) return "passed"; // defensive; shouldn't hit on the year-wrap path
+    if (diffDays < 7) return `in ${diffDays} days`;
+    if (diffDays < 30) {
+      const weeks = Math.max(1, Math.round(diffDays / 7));
+      return `in ${weeks} week${weeks === 1 ? "" : "s"}`;
+    }
+    const months = Math.max(1, Math.round(diffDays / 30));
+    return `in ${months} month${months === 1 ? "" : "s"}`;
+  }
+
+  // Precise path — try current-year first, fall back to year-wrap.
+  const currentExact = parseDate(event.dates?.[String(currentYear)]);
+  if (currentExact && currentExact.getTime() >= todayMs) {
+    return {
+      primary: formatPrecise(currentExact),
+      countdown: formatCountdown(currentExact.getTime()),
+      precise: true,
+    };
+  }
+  const nextExact = parseDate(event.dates?.[String(currentYear + 1)]);
+  if (nextExact) {
+    return {
+      primary: formatPrecise(nextExact),
+      countdown: formatCountdown(nextExact.getTime()),
+      precise: true,
+    };
+  }
+
+  // Modal-month fallback — no precise date available. Synthesise a
+  // first-of-month target for the countdown so operators still get an
+  // "in N weeks/months" sense. Badge stays as just the month.
+  const monthName = MONTH_SHORT_NAMES[event.month] ?? null;
+  if (!monthName) {
+    return { primary: null, countdown: null, precise: false };
+  }
+  // Pick this year if the modal month hasn't passed today, else next.
+  const monthIndex = event.month - 1; // 0..11
+  const thisYearTargetMs = Date.UTC(currentYear, monthIndex, 1);
+  // "Has passed" = the modal month has fully ended. If today is in the
+  // modal month or earlier, this year still applies.
+  const targetMs =
+    thisYearTargetMs + 31 * 86_400_000 < todayMs
+      ? Date.UTC(currentYear + 1, monthIndex, 1)
+      : Math.max(thisYearTargetMs, todayMs);
+  return {
+    primary: monthName,
+    countdown: formatCountdown(targetMs),
+    precise: false,
+  };
 }
 
 // ── Page ─────────────────────────────────────────────────────────
@@ -340,7 +431,7 @@ function EventRow({
   onEdit: () => void;
   onDelete: () => void;
 }) {
-  const dateBadge = formatEventDateBadge(event);
+  const dateInfo = getEventDateInfo(event);
   const movingYears = event.dates ? Object.keys(event.dates).sort() : [];
 
   return (
@@ -355,13 +446,21 @@ function EventRow({
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <h3 className="truncate text-sm font-medium">{event.name}</h3>
-          {dateBadge ? (
+          {dateInfo.primary ? (
             <Badge variant="outline" className="shrink-0 font-mono text-[10px]">
-              {dateBadge}
+              {dateInfo.primary}
+            </Badge>
+          ) : null}
+          {dateInfo.countdown ? (
+            // Secondary countdown chip — kept muted so the date stays
+            // the primary affordance. "passed" renders neutral too;
+            // it's defensive (shouldn't fire on the year-wrap path).
+            <Badge variant="secondary" className="shrink-0 text-[10px]">
+              {dateInfo.countdown}
             </Badge>
           ) : null}
           {movingYears.length > 0 ? (
-            <Badge variant="secondary" className="shrink-0 text-[10px]">
+            <Badge variant="outline" className="shrink-0 text-[10px] text-muted-foreground">
               moving · {movingYears.length}y mapped
             </Badge>
           ) : null}
