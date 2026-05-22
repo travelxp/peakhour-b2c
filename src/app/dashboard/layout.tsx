@@ -83,13 +83,18 @@ const NAV_GROUPS: NavGroup[] = [
         label: "Content",
         icon: FileText,
         // Order encodes the mental model: Library → Sources → Strategist
-        // → Calendar = ingest → ground → plan → publish. Per the
-        // LinkedIn 360 plan §3.3 IA decision.
+        // → Calendar → Seasonal Events = ingest → ground → plan →
+        // publish → background calendar. Seasonal events sit at the
+        // end because they're a long-tail config the strategist + the
+        // supervisor's seasonal generator stream consume — most
+        // owners visit them rarely. Per the LinkedIn 360 plan §3.3 IA
+        // decision (with the Seasonal Events addition).
         subItems: [
           { href: "/dashboard/content", label: "Library" },
           { href: "/dashboard/content/sources", label: "Sources" },
           { href: "/dashboard/strategist", label: "Strategist" },
           { href: "/dashboard/calendar", label: "Calendar" },
+          { href: "/dashboard/content/seasonal-events", label: "Seasonal Events" },
         ],
       },
       {
