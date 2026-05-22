@@ -4,9 +4,33 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/providers/auth-provider";
 import { api, ApiError } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Select,
   SelectContent,
@@ -14,17 +38,24 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CalendarDays, Pencil, X, Check, Plus } from "lucide-react";
+import {
+  CalendarDays,
+  MoreHorizontal,
+  Pencil,
+  Plus,
+  Trash2,
+  X,
+} from "lucide-react";
+import { toast } from "sonner";
 
-// ── Types (mirror routes/dashboard/index.ts SeasonalEventBody) ───
+// ── Types ───────────────────────────────────────────────────────
 
 interface SeasonalEvent {
   name: string;
   /** 1..12 */
   month: number;
   relevance?: string;
-  /** Year (YYYY) → ISO date (YYYY-MM-DD). Set by the seed for moving
-   *  holidays; editable here for ops-style per-year overrides. */
+  /** Year (YYYY) → ISO date (YYYY-MM-DD) — set for moving holidays. */
   dates?: Record<string, string>;
 }
 
@@ -35,72 +66,14 @@ interface OrgDetails {
   } | null;
 }
 
-/**
- * Client-side row state during edit. Two shape changes vs the wire
- * `SeasonalEvent`:
- *  - `clientId` — stable React key so removing a middle row doesn't
- *    drift focus + leak input values across rows.
- *  - `dateRows` — per-year dates rendered as an editable array. Lets
- *    the user freely edit both year and date without "mutating a
- *    Record's key" awkwardness. Converted back to a Record at save
- *    time.
- *
- * Both fields are stripped before sending to the api — the server's
- * `.strict()` schema would reject them.
- */
 interface DateRow {
   rowId: string;
   year: string;
   date: string;
 }
 
-interface EditableSeasonalEvent {
-  clientId: string;
-  name: string;
-  month: number;
-  relevance?: string;
-  dateRows: DateRow[];
-}
-
-function makeClientId() {
-  return typeof crypto !== "undefined" && crypto.randomUUID
-    ? crypto.randomUUID()
-    : `e-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-}
-
-/**
- * Pick a sensible default year when the owner clicks "Add date".
- * Returns the year AFTER the largest valid year in the current rows,
- * or the current calendar year if there are no valid rows.
- */
-function nextYearForRows(rows: DateRow[]): string {
-  let maxValid = 0;
-  for (const r of rows) {
-    if (/^\d{4}$/.test(r.year)) {
-      const n = parseInt(r.year, 10);
-      if (n > maxValid) maxValid = n;
-    }
-  }
-  const candidate = maxValid > 0 ? maxValid + 1 : new Date().getUTCFullYear();
-  return candidate >= 1000 && candidate <= 9999 ? String(candidate) : "";
-}
-
-function attachClientIds(events: SeasonalEvent[]): EditableSeasonalEvent[] {
-  return events.map((e) => ({
-    clientId: makeClientId(),
-    name: e.name,
-    month: e.month,
-    ...(e.relevance !== undefined ? { relevance: e.relevance } : {}),
-    dateRows: e.dates
-      ? Object.entries(e.dates)
-          .sort(([a], [b]) => a.localeCompare(b))
-          .map(([year, date]) => ({ rowId: makeClientId(), year, date }))
-      : [],
-  }));
-}
-
 const MONTH_SHORT_NAMES = [
-  "", // padding so MONTH_SHORT_NAMES[1] === "Jan"
+  "",
   "Jan",
   "Feb",
   "Mar",
@@ -115,23 +88,35 @@ const MONTH_SHORT_NAMES = [
   "Dec",
 ] as const;
 
+function makeClientId() {
+  return typeof crypto !== "undefined" && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `e-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function nextYearForRows(rows: DateRow[]): string {
+  let maxValid = 0;
+  for (const r of rows) {
+    if (/^\d{4}$/.test(r.year)) {
+      const n = parseInt(r.year, 10);
+      if (n > maxValid) maxValid = n;
+    }
+  }
+  const candidate = maxValid > 0 ? maxValid + 1 : new Date().getUTCFullYear();
+  return candidate >= 1000 && candidate <= 9999 ? String(candidate) : "";
+}
+
 /**
  * Build the date-badge text for an event. When a current-year date
  * exists in the `dates` map (lunar / variable holidays), render the
  * weekday + month + day-of-month so owners see EXACTLY when the
  * event lands this year. Falls back to the modal-month abbreviation
- * for static-date events (where the day-of-month isn't in the schema).
- *
- * Returns `null` when month is out of range — defensive against
- * malformed wire data.
+ * for static-date events.
  */
 function formatEventDateBadge(event: SeasonalEvent): string | null {
   const currentYear = String(new Date().getUTCFullYear());
   const exact = event.dates?.[currentYear];
   if (exact && /^\d{4}-\d{2}-\d{2}$/.test(exact)) {
-    // Parse the ISO date as UTC so weekday + day-of-month don't shift
-    // by the viewer's timezone (Diwali on 2026-11-08 is always
-    // Sunday regardless of where the viewer sits).
     const d = new Date(`${exact}T00:00:00Z`);
     if (!isNaN(d.getTime())) {
       const weekday = d.toLocaleDateString("en-US", {
@@ -146,15 +131,33 @@ function formatEventDateBadge(event: SeasonalEvent): string | null {
   return MONTH_SHORT_NAMES[event.month] ?? null;
 }
 
+// ── Page ─────────────────────────────────────────────────────────
+
+/**
+ * Seasonal Events page — list-row layout matching the trusted-sources
+ * pattern (icon + name/meta on the left, 3-dot action menu on the
+ * right). Each row's Edit / Delete actions live behind the 3-dot
+ * dropdown; the page header carries an "Add event" button that opens
+ * the same Dialog as Edit (empty initial state).
+ *
+ * Save semantics: each Edit / Delete / Add is its own atomic
+ * `PUT /v1/dashboard/org` with the full updated array. No
+ * page-level edit mode — the row is the unit of work.
+ */
 export default function SeasonalEventsPage() {
   const { org } = useAuth();
   const [orgDetails, setOrgDetails] = useState<OrgDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const [editing, setEditing] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [editEvents, setEditEvents] = useState<EditableSeasonalEvent[]>([]);
+  // Editor state — `null` editorIndex means "new event"; a number is
+  // the index of the event being edited.
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editorIndex, setEditorIndex] = useState<number | null>(null);
+
+  // Delete-confirm state
+  const [deleteIndex, setDeleteIndex] = useState<number | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (!org?._id) return;
@@ -167,57 +170,57 @@ export default function SeasonalEventsPage() {
       .finally(() => setLoading(false));
   }, [org?._id]);
 
-  async function handleSave() {
-    setSaving(true);
-    setError("");
+  const events = orgDetails?.taxonomy?.seasonalEvents ?? [];
+
+  async function persistEvents(next: SeasonalEvent[], successMessage: string) {
     try {
-      // Rebuild the wire shape from the editable form. The api's
-      // SeasonalEventBody is .strict() — clientId / rowId / dateRows
-      // never reach the server.
-      const cleaned = editEvents
-        .map((e) => {
-          const dates: Record<string, string> = {};
-          for (const row of e.dateRows) {
-            if (!/^\d{4}$/.test(row.year)) continue;
-            if (!/^\d{4}-\d{2}-\d{2}$/.test(row.date)) continue;
-            dates[row.year] = row.date;
-          }
-          const hasDates = Object.keys(dates).length > 0;
-          return {
-            name: e.name.trim(),
-            month: e.month,
-            ...(e.relevance && e.relevance.trim()
-              ? { relevance: e.relevance.trim() }
-              : {}),
-            ...(hasDates ? { dates } : {}),
-          };
-        })
-        .filter((e) => e.name.length > 0);
-
-      // Guard against accidentally wiping the whole array.
-      const originalCount = orgDetails?.taxonomy?.seasonalEvents?.length ?? 0;
-      if (originalCount > 0 && cleaned.length === 0) {
-        const confirmed =
-          typeof window !== "undefined" &&
-          window.confirm(
-            `This will remove all ${originalCount} seasonal events from your business. Continue?`,
-          );
-        if (!confirmed) {
-          setSaving(false);
-          return;
-        }
-      }
-
-      await api.put("/v1/dashboard/org", { taxonomy: { seasonalEvents: cleaned } });
+      await api.put("/v1/dashboard/org", {
+        taxonomy: { seasonalEvents: next },
+      });
       const updated = await api.get<OrgDetails>("/v1/dashboard/org");
       setOrgDetails(updated);
-      setEditing(false);
+      toast.success(successMessage);
     } catch (err) {
-      if (err instanceof ApiError) setError(err.message);
-      else setError("Failed to save seasonal events. Please try again.");
-    } finally {
-      setSaving(false);
+      if (err instanceof ApiError) toast.error(err.message);
+      else toast.error("Save failed. Please try again.");
+      throw err;
     }
+  }
+
+  async function handleSaveEvent(updatedEvent: SeasonalEvent) {
+    // Editor delivers the wire-shape SeasonalEvent. Splice in at
+    // editorIndex or append for new.
+    const next =
+      editorIndex === null
+        ? [...events, updatedEvent]
+        : events.map((e, i) => (i === editorIndex ? updatedEvent : e));
+    await persistEvents(
+      next,
+      editorIndex === null
+        ? `Added ${updatedEvent.name}`
+        : `Updated ${updatedEvent.name}`,
+    );
+  }
+
+  async function handleConfirmDelete() {
+    if (deleteIndex === null) return;
+    const target = events[deleteIndex];
+    setDeleting(true);
+    try {
+      const next = events.filter((_, i) => i !== deleteIndex);
+      await persistEvents(next, `Removed ${target.name}`);
+      setDeleteIndex(null);
+    } catch {
+      // toast already fired in persistEvents; just keep the dialog
+      // open so the operator can retry or cancel.
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  function openEditor(index: number | null) {
+    setEditorIndex(index);
+    setEditorOpen(true);
   }
 
   if (loading) {
@@ -228,364 +231,424 @@ export default function SeasonalEventsPage() {
     );
   }
 
+  // Sort by month for a calendar-ish read order; same-month events
+  // preserve their stored order. Track the original index so per-row
+  // actions can splice the source array correctly even after sort.
+  const indexedEvents = events.map((e, i) => ({ event: e, originalIndex: i }));
+  indexedEvents.sort((a, b) => a.event.month - b.event.month);
+
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
+      <header className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
             <CalendarDays className="h-6 w-6 text-muted-foreground" />
             Seasonal Events
           </h2>
-          <p className="text-muted-foreground mt-1">
+          <p className="text-muted-foreground mt-1 max-w-prose">
             Cultural, national, and commercial moments the AI uses to plan
             seasonal content. Onboarding seeds these from your country&apos;s
-            calendar; you can add, edit, or remove events here. Exact dates
-            show for the current year when a moving holiday (Diwali, Eid,
-            Easter, …) has been mapped.
+            calendar; add, edit, or remove events to fine-tune what the
+            seasonal generator sees. Exact dates show for the current year
+            when a moving holiday (Diwali, Eid, Easter, …) has been mapped.
           </p>
         </div>
-        {/* Edit / Save controls hoisted to the page header so the inner
-            Card doesn't repeat the "Seasonal Events" title (which would
-            duplicate the page H2). */}
-        <div className="shrink-0">
-          {!editing ? (
-            <Button
-              size="sm"
-              variant="ghost"
-              className="gap-1.5 text-muted-foreground"
-              onClick={() => {
-                setEditing(true);
-                setEditEvents(attachClientIds(orgDetails?.taxonomy?.seasonalEvents || []));
-              }}
-            >
-              <Pencil className="h-3.5 w-3.5" /> Edit
-            </Button>
-          ) : (
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setEditing(false)}
-                disabled={saving}
-              >
-                <X className="h-3.5 w-3.5" /> Cancel
-              </Button>
-              <Button
-                size="sm"
-                onClick={handleSave}
-                disabled={saving}
-                className="gap-1.5"
-              >
-                <Check className="h-3.5 w-3.5" />
-                {saving ? "Saving..." : "Save"}
-              </Button>
-            </div>
-          )}
-        </div>
-      </div>
+        <Button
+          size="sm"
+          onClick={() => openEditor(null)}
+          className="gap-1.5"
+        >
+          <Plus className="h-3.5 w-3.5" /> Add event
+        </Button>
+      </header>
 
-      {error && (
+      {error ? (
         <div role="alert" className="rounded-lg bg-destructive/10 p-4 text-sm text-destructive">
           {error}
         </div>
+      ) : null}
+
+      {indexedEvents.length === 0 ? (
+        <div className="rounded-lg border border-dashed bg-card p-8 text-center">
+          <CalendarDays className="mx-auto h-8 w-8 text-muted-foreground/40" />
+          <p className="mt-3 text-sm text-muted-foreground">
+            No seasonal events yet. Click <span className="font-medium">Add event</span>{" "}
+            to add a holiday, festival, or commercial moment relevant to your audience.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {indexedEvents.map(({ event: e, originalIndex }) => (
+            <EventRow
+              key={`${e.name}-${originalIndex}`}
+              event={e}
+              onEdit={() => openEditor(originalIndex)}
+              onDelete={() => setDeleteIndex(originalIndex)}
+            />
+          ))}
+        </div>
       )}
 
-      <div className="max-w-3xl">
-        <Card>
-          <CardContent className="space-y-2 p-4">
-            {editing ? (
-              <EditableSeasonalEvents events={editEvents} onChange={setEditEvents} />
-            ) : (
-              <ReadOnlySeasonalEvents
-                events={orgDetails?.taxonomy?.seasonalEvents || []}
-              />
-            )}
-          </CardContent>
-        </Card>
+      <SeasonalEventEditor
+        open={editorOpen}
+        onOpenChange={setEditorOpen}
+        initial={editorIndex !== null ? events[editorIndex] : null}
+        onSave={handleSaveEvent}
+      />
+
+      <AlertDialog
+        open={deleteIndex !== null}
+        onOpenChange={(open) => !open && setDeleteIndex(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Remove {deleteIndex !== null ? events[deleteIndex]?.name : "event"}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              The seasonal generator will no longer surface this event for your
+              business. You can re-add it later.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                // Prevent the dialog auto-close before our async runs
+                e.preventDefault();
+                void handleConfirmDelete();
+              }}
+              disabled={deleting}
+            >
+              {deleting ? "Removing..." : "Remove"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
+// ── Row component ────────────────────────────────────────────────
+
+function EventRow({
+  event,
+  onEdit,
+  onDelete,
+}: {
+  event: SeasonalEvent;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const dateBadge = formatEventDateBadge(event);
+  const movingYears = event.dates ? Object.keys(event.dates).sort() : [];
+
+  return (
+    <div className="flex items-center gap-4 rounded-lg border bg-card p-4">
+      <div
+        aria-hidden="true"
+        className="flex size-10 shrink-0 items-center justify-center rounded-md border text-muted-foreground"
+      >
+        <CalendarDays className="size-5" />
+      </div>
+
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <h3 className="truncate text-sm font-medium">{event.name}</h3>
+          {dateBadge ? (
+            <Badge variant="outline" className="shrink-0 font-mono text-[10px]">
+              {dateBadge}
+            </Badge>
+          ) : null}
+          {movingYears.length > 0 ? (
+            <Badge variant="secondary" className="shrink-0 text-[10px]">
+              moving · {movingYears.length}y mapped
+            </Badge>
+          ) : null}
+        </div>
+        {event.relevance ? (
+          <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+            {event.relevance}
+          </p>
+        ) : null}
+      </div>
+
+      <div className="shrink-0">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={`Actions for ${event.name}`}
+            >
+              <MoreHorizontal className="size-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={onEdit}>
+              <Pencil className="mr-2 size-4" />
+              Edit
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={onDelete}
+              className="text-destructive focus:text-destructive"
+            >
+              <Trash2 className="mr-2 size-4" />
+              Remove
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </div>
   );
 }
 
-function ReadOnlySeasonalEvents({ events }: { events: SeasonalEvent[] }) {
-  if (events.length === 0) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        No seasonal events yet. Click Edit to add holidays, festivals, or
-        commercial moments relevant to your audience.
-      </p>
-    );
-  }
-  // Sort by month for a calendar-ish read order. Same-month events
-  // preserve their declared sort order.
-  const sorted = [...events].sort((a, b) => a.month - b.month);
-  return (
-    <div className="space-y-1.5">
-      {sorted.map((e, i) => {
-        const dateBadge = formatEventDateBadge(e);
-        const movingYears = e.dates ? Object.keys(e.dates).sort() : [];
-        return (
-          <div
-            key={`${e.name}-${i}`}
-            className="rounded-md border bg-card p-2.5 text-sm"
-          >
-            <div className="flex flex-wrap items-baseline gap-2">
-              <span className="font-medium">{e.name}</span>
-              {dateBadge ? (
-                <Badge variant="outline" className="font-mono text-[10px]">
-                  {dateBadge}
-                </Badge>
-              ) : null}
-              {movingYears.length > 0 ? (
-                <Badge variant="secondary" className="text-[10px]">
-                  moving · {movingYears.length}y mapped
-                </Badge>
-              ) : null}
-            </div>
-            {e.relevance ? (
-              <p className="mt-1 text-xs text-muted-foreground">{e.relevance}</p>
-            ) : null}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
+// ── Editor dialog (add or edit) ──────────────────────────────────
 
-function EditableSeasonalEvents({
-  events,
-  onChange,
+function SeasonalEventEditor({
+  open,
+  onOpenChange,
+  initial,
+  onSave,
 }: {
-  events: EditableSeasonalEvent[];
-  onChange: (events: EditableSeasonalEvent[]) => void;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  initial: SeasonalEvent | null;
+  onSave: (event: SeasonalEvent) => Promise<void>;
 }) {
-  function updateById(
-    clientId: string,
-    patch: Partial<Omit<EditableSeasonalEvent, "clientId" | "dateRows">>,
-  ) {
-    onChange(events.map((e) => (e.clientId === clientId ? { ...e, ...patch } : e)));
+  const [name, setName] = useState("");
+  const [month, setMonth] = useState(1);
+  const [relevance, setRelevance] = useState("");
+  const [dateRows, setDateRows] = useState<DateRow[]>([]);
+  const [saving, setSaving] = useState(false);
+
+  // Re-seed form fields each time the dialog opens — handles both
+  // edit (initial !== null) and add (initial === null) cases without
+  // a separate mount/unmount cycle.
+  useEffect(() => {
+    if (!open) return;
+    if (initial) {
+      setName(initial.name);
+      setMonth(initial.month);
+      setRelevance(initial.relevance ?? "");
+      setDateRows(
+        initial.dates
+          ? Object.entries(initial.dates)
+              .sort(([a], [b]) => a.localeCompare(b))
+              .map(([year, date]) => ({ rowId: makeClientId(), year, date }))
+          : [],
+      );
+    } else {
+      setName("");
+      setMonth(1);
+      setRelevance("");
+      setDateRows([]);
+    }
+  }, [open, initial]);
+
+  function updateDateRow(rowId: string, patch: Partial<Pick<DateRow, "year" | "date">>) {
+    setDateRows((rows) => rows.map((r) => (r.rowId === rowId ? { ...r, ...patch } : r)));
   }
-  function removeById(clientId: string) {
-    onChange(events.filter((e) => e.clientId !== clientId));
+  function removeDateRow(rowId: string) {
+    setDateRows((rows) => rows.filter((r) => r.rowId !== rowId));
   }
-  function addBlank() {
-    onChange([
-      ...events,
-      { clientId: makeClientId(), name: "", month: 1, dateRows: [] },
+  function addDateRow() {
+    setDateRows((rows) => [
+      ...rows,
+      { rowId: makeClientId(), year: nextYearForRows(rows), date: "" },
     ]);
   }
-  function updateDateRow(
-    clientId: string,
-    rowId: string,
-    patch: Partial<Pick<DateRow, "year" | "date">>,
-  ) {
-    onChange(
-      events.map((e) =>
-        e.clientId === clientId
-          ? {
-              ...e,
-              dateRows: e.dateRows.map((r) =>
-                r.rowId === rowId ? { ...r, ...patch } : r,
-              ),
-            }
-          : e,
-      ),
-    );
-  }
-  function removeDateRow(clientId: string, rowId: string) {
-    onChange(
-      events.map((e) =>
-        e.clientId === clientId
-          ? { ...e, dateRows: e.dateRows.filter((r) => r.rowId !== rowId) }
-          : e,
-      ),
-    );
-  }
-  function addDateRow(clientId: string) {
-    onChange(
-      events.map((e) =>
-        e.clientId === clientId
-          ? {
-              ...e,
-              dateRows: [
-                ...e.dateRows,
-                { rowId: makeClientId(), year: nextYearForRows(e.dateRows), date: "" },
-              ],
-            }
-          : e,
-      ),
-    );
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const trimmedName = name.trim();
+    if (!trimmedName) return;
+    setSaving(true);
+    try {
+      const dates: Record<string, string> = {};
+      for (const row of dateRows) {
+        if (!/^\d{4}$/.test(row.year)) continue;
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(row.date)) continue;
+        dates[row.year] = row.date;
+      }
+      const wire: SeasonalEvent = {
+        name: trimmedName,
+        month,
+      };
+      const trimmedRelevance = relevance.trim();
+      if (trimmedRelevance) wire.relevance = trimmedRelevance;
+      if (Object.keys(dates).length > 0) wire.dates = dates;
+
+      await onSave(wire);
+      onOpenChange(false);
+    } catch {
+      // Parent toasted the error; keep the dialog open so the
+      // operator can retry or cancel.
+    } finally {
+      setSaving(false);
+    }
   }
 
+  const datesAtCap = dateRows.length >= 20;
+  const uniqueYears = new Set(
+    dateRows.filter((r) => /^\d{4}$/.test(r.year)).map((r) => r.year),
+  );
+  const isDuplicateAt = (idx: number, year: string) => {
+    if (!/^\d{4}$/.test(year)) return false;
+    for (let j = 0; j < idx; j++) {
+      if (dateRows[j].year === year) return true;
+    }
+    return false;
+  };
+
   return (
-    <div className="space-y-2">
-      {events.length === 0 ? (
-        <p className="text-xs text-muted-foreground">
-          No events yet. Add your first one below.
-        </p>
-      ) : (
-        events.map((e, i) => {
-          const rowLabel = e.name || `Event ${i + 1}`;
-          const datesAtCap = e.dateRows.length >= 20;
-          const uniqueYears = new Set(
-            e.dateRows.filter((r) => /^\d{4}$/.test(r.year)).map((r) => r.year),
-          );
-          const isDuplicateAt = (idx: number, year: string) => {
-            if (!/^\d{4}$/.test(year)) return false;
-            for (let j = 0; j < idx; j++) {
-              if (e.dateRows[j].year === year) return true;
-            }
-            return false;
-          };
-          return (
-            <div key={e.clientId} className="rounded-md border bg-card p-2.5 space-y-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <Input
-                  type="text"
-                  value={e.name}
-                  placeholder="Event name (e.g. Diwali)"
-                  aria-label={`${rowLabel} — name`}
-                  onChange={(ev) => updateById(e.clientId, { name: ev.target.value })}
-                  className="h-8 text-sm flex-1 min-w-48"
-                />
-                <Select
-                  value={String(e.month)}
-                  onValueChange={(v) => updateById(e.clientId, { month: parseInt(v, 10) })}
-                >
-                  <SelectTrigger className="h-8 w-22" aria-label={`${rowLabel} — month`}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {MONTH_SHORT_NAMES.slice(1).map((label, idx) => (
-                      <SelectItem key={label} value={String(idx + 1)}>
-                        {label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {uniqueYears.size > 0 ? (
-                  <Badge variant="secondary" className="text-[10px]">
-                    {uniqueYears.size}y mapped
-                  </Badge>
-                ) : null}
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => removeById(e.clientId)}
-                  className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
-                  aria-label={`Remove ${rowLabel}`}
-                >
-                  <X className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-              <Input
-                type="text"
-                value={e.relevance || ""}
-                placeholder="What does this event mean for your audience? (optional)"
-                aria-label={`${rowLabel} — relevance`}
-                onChange={(ev) => updateById(e.clientId, { relevance: ev.target.value })}
-                className="h-8 text-sm"
-              />
-              <div className="rounded bg-muted/30 px-2 py-1.5 space-y-1">
-                <div className="flex items-center justify-between">
-                  <p className="text-[10px] font-medium text-muted-foreground">
-                    Per-year dates {datesAtCap ? "(max 20)" : "(optional, lunar/variable)"}
-                  </p>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => addDateRow(e.clientId)}
-                    disabled={datesAtCap}
-                    className="h-6 text-[10px] gap-1 px-1.5 text-muted-foreground"
-                    aria-label={`Add per-year date to ${rowLabel}`}
-                  >
-                    <Plus className="h-3 w-3" /> Add date
-                  </Button>
-                </div>
-                {e.dateRows.length === 0 ? (
-                  <p className="text-[10px] text-muted-foreground italic">
-                    None — the modal month is the fallback.
-                  </p>
-                ) : (
-                  <div className="space-y-1">
-                    {e.dateRows.map((row, rowIdx) => {
-                      const yearOk = /^\d{4}$/.test(row.year);
-                      const dateOk = /^\d{4}-\d{2}-\d{2}$/.test(row.date);
-                      const isDup = isDuplicateAt(rowIdx, row.year);
-                      const yearInvalid = (!yearOk && row.year !== "") || isDup;
-                      return (
-                        <div
-                          key={row.rowId}
-                          className="flex items-center gap-1.5 text-[11px]"
-                        >
-                          <Input
-                            type="text"
-                            inputMode="numeric"
-                            maxLength={4}
-                            value={row.year}
-                            placeholder="YYYY"
-                            aria-label={
-                              isDup
-                                ? `${rowLabel} — year ${row.year} duplicates an earlier row (last wins)`
-                                : `${rowLabel} — year for date row`
-                            }
-                            title={
-                              isDup
-                                ? `Year ${row.year} is set twice for this event — only the last entry saves.`
-                                : undefined
-                            }
-                            onChange={(ev) =>
-                              updateDateRow(e.clientId, row.rowId, { year: ev.target.value })
-                            }
-                            className={`h-7 w-16 font-mono text-[11px] ${
-                              yearInvalid ? "border-destructive" : ""
-                            }`}
-                          />
-                          <span className="text-muted-foreground">:</span>
-                          <Input
-                            type="date"
-                            value={row.date}
-                            aria-label={`${rowLabel} — date for year ${row.year || "?"}`}
-                            onChange={(ev) =>
-                              updateDateRow(e.clientId, row.rowId, { date: ev.target.value })
-                            }
-                            className={`h-7 font-mono text-[11px] flex-1 max-w-48 ${
-                              !dateOk && row.date ? "border-destructive" : ""
-                            }`}
-                          />
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => removeDateRow(e.clientId, row.rowId)}
-                            className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
-                            aria-label={`Remove year ${row.year || "row"} from ${rowLabel}`}
-                          >
-                            <X className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{initial ? "Edit event" : "Add seasonal event"}</DialogTitle>
+          <DialogDescription>
+            {initial
+              ? "Refine the name, month, relevance, or per-year dates."
+              : "Add a holiday, festival, or commercial moment to your calendar."}
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <div className="space-y-1.5">
+            <label htmlFor="event-name" className="text-xs font-medium text-muted-foreground">
+              Name
+            </label>
+            <Input
+              id="event-name"
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Diwali"
+              maxLength={128}
+              required
+              autoFocus
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label htmlFor="event-month" className="text-xs font-medium text-muted-foreground">
+              Month
+            </label>
+            <Select
+              value={String(month)}
+              onValueChange={(v) => setMonth(parseInt(v, 10))}
+            >
+              <SelectTrigger id="event-month" className="w-40">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {MONTH_SHORT_NAMES.slice(1).map((label, idx) => (
+                  <SelectItem key={label} value={String(idx + 1)}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <label htmlFor="event-relevance" className="text-xs font-medium text-muted-foreground">
+              Relevance (optional)
+            </label>
+            <Input
+              id="event-relevance"
+              type="text"
+              value={relevance}
+              onChange={(e) => setRelevance(e.target.value)}
+              placeholder="What does this event mean for your audience?"
+              maxLength={256}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-medium text-muted-foreground">
+                Per-year dates {uniqueYears.size > 0 ? `(${uniqueYears.size}y mapped)` : "(optional, lunar/variable)"}
+              </label>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={addDateRow}
+                disabled={datesAtCap}
+                className="h-6 gap-1 px-1.5 text-[10px] text-muted-foreground"
+              >
+                <Plus className="h-3 w-3" /> Add date
+              </Button>
             </div>
-          );
-        })
-      )}
-      <Button
-        size="sm"
-        variant="outline"
-        onClick={addBlank}
-        className="gap-1.5"
-        disabled={events.length >= 64}
-      >
-        <Plus className="h-3.5 w-3.5" /> Add event
-      </Button>
-      {events.length >= 64 ? (
-        <p className="text-[10px] text-muted-foreground">
-          Maximum of 64 events. Remove one to add another.
-        </p>
-      ) : null}
-    </div>
+            {dateRows.length === 0 ? (
+              <p className="text-[11px] text-muted-foreground italic">
+                None — the modal month is the fallback.
+              </p>
+            ) : (
+              <div className="space-y-1.5 rounded bg-muted/30 p-2">
+                {dateRows.map((row, rowIdx) => {
+                  const yearOk = /^\d{4}$/.test(row.year);
+                  const dateOk = /^\d{4}-\d{2}-\d{2}$/.test(row.date);
+                  const isDup = isDuplicateAt(rowIdx, row.year);
+                  const yearInvalid = (!yearOk && row.year !== "") || isDup;
+                  return (
+                    <div key={row.rowId} className="flex items-center gap-1.5 text-xs">
+                      <Input
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={4}
+                        value={row.year}
+                        placeholder="YYYY"
+                        aria-label={isDup ? `Duplicate year ${row.year}` : "Year"}
+                        title={
+                          isDup
+                            ? `Year ${row.year} is set twice — only the last entry saves.`
+                            : undefined
+                        }
+                        onChange={(ev) => updateDateRow(row.rowId, { year: ev.target.value })}
+                        className={`h-7 w-16 font-mono text-[11px] ${yearInvalid ? "border-destructive" : ""}`}
+                      />
+                      <span className="text-muted-foreground">:</span>
+                      <Input
+                        type="date"
+                        value={row.date}
+                        aria-label="Date"
+                        onChange={(ev) => updateDateRow(row.rowId, { date: ev.target.value })}
+                        className={`h-7 flex-1 font-mono text-[11px] ${!dateOk && row.date ? "border-destructive" : ""}`}
+                      />
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => removeDateRow(row.rowId)}
+                        className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                        aria-label="Remove date row"
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => onOpenChange(false)}
+              disabled={saving}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={saving || !name.trim()}>
+              {saving ? "Saving..." : initial ? "Save" : "Add event"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
