@@ -131,7 +131,7 @@ function formatEventDateBadge(event: SeasonalEvent): string | null {
   if (exact && /^\d{4}-\d{2}-\d{2}$/.test(exact)) {
     // Parse the ISO date as UTC so weekday + day-of-month don't shift
     // by the viewer's timezone (Diwali on 2026-11-08 is always
-    // Saturday regardless of where the viewer sits).
+    // Sunday regardless of where the viewer sits).
     const d = new Date(`${exact}T00:00:00Z`);
     if (!isNaN(d.getTime())) {
       const weekday = d.toLocaleDateString("en-US", {
