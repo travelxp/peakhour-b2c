@@ -93,13 +93,31 @@ interface SeasonalEvent {
 }
 
 /**
- * Client-side row state during edit. Adds a stable `clientId` so React
- * keys don't fall back to array index (which would drift focus + leak
- * input values across rows after a middle remove). Stripped before
- * sending to the api — the server's `.strict()` schema would reject it.
+ * Client-side row state during edit. Two shape changes vs the wire
+ * `SeasonalEvent`:
+ *  - `clientId` — stable React key so removing a middle row doesn't
+ *    drift focus + leak input values across rows.
+ *  - `dateRows` — per-year dates rendered as an editable array (each
+ *    row has its own `rowId` + year + date strings) rather than the
+ *    wire `Record<YYYY, YYYY-MM-DD>`. Lets the user freely edit both
+ *    year and date without the "editing a record's key" awkwardness.
+ *    Converted back to a `Record` at save time.
+ *
+ * Both fields are stripped before sending to the api — the server's
+ * `.strict()` schema would reject them.
  */
-interface EditableSeasonalEvent extends SeasonalEvent {
+interface DateRow {
+  rowId: string;
+  year: string;
+  date: string;
+}
+
+interface EditableSeasonalEvent {
   clientId: string;
+  name: string;
+  month: number;
+  relevance?: string;
+  dateRows: DateRow[];
 }
 
 function makeClientId() {
@@ -109,8 +127,39 @@ function makeClientId() {
     : `e-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
+/**
+ * Pick a sensible default year when the owner clicks "Add date".
+ * Returns the year AFTER the largest valid year in the current rows,
+ * or the current calendar year if there are no valid rows. Empty
+ * string if the next year would exceed a sensible ceiling — the
+ * owner can still edit the field after.
+ */
+function nextYearForRows(rows: DateRow[]): string {
+  let maxValid = 0;
+  for (const r of rows) {
+    if (/^\d{4}$/.test(r.year)) {
+      const n = parseInt(r.year, 10);
+      if (n > maxValid) maxValid = n;
+    }
+  }
+  const candidate = maxValid > 0 ? maxValid + 1 : new Date().getUTCFullYear();
+  // Cap at a sane ceiling (operator can still edit the field if
+  // they really want 9999). The api regex accepts any 4-digit year.
+  return candidate >= 1000 && candidate <= 9999 ? String(candidate) : "";
+}
+
 function attachClientIds(events: SeasonalEvent[]): EditableSeasonalEvent[] {
-  return events.map((e) => ({ ...e, clientId: makeClientId() }));
+  return events.map((e) => ({
+    clientId: makeClientId(),
+    name: e.name,
+    month: e.month,
+    ...(e.relevance !== undefined ? { relevance: e.relevance } : {}),
+    dateRows: e.dates
+      ? Object.entries(e.dates)
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([year, date]) => ({ rowId: makeClientId(), year, date }))
+      : [],
+  }));
 }
 
 const MONTH_SHORT_NAMES = [
@@ -213,21 +262,33 @@ function SettingsContent() {
     setSavingSeasonal(true);
     setError("");
     try {
-      // Strip empty rows the owner left blank; preserve their existing
-      // `dates` map (seed-driven for moving holidays, read-only in v0).
-      // The api's SeasonalEventBody is .strict() — clientId MUST stay
-      // local and never reach the server.
+      // Strip empty rows the owner left blank; rebuild the per-year
+      // `dates` record from `dateRows` (the editable array form).
+      // The api's SeasonalEventBody is `.strict()` — clientId +
+      // dateRows + rowId MUST stay local and never reach the server.
       const cleaned = editSeasonalEvents
-        .map((e) => ({
-          name: e.name.trim(),
-          month: e.month,
-          ...(e.relevance && e.relevance.trim()
-            ? { relevance: e.relevance.trim() }
-            : {}),
-          ...(e.dates && Object.keys(e.dates).length > 0
-            ? { dates: e.dates }
-            : {}),
-        }))
+        .map((e) => {
+          // Build the dates record from rows that have both a valid
+          // 4-digit year AND a YYYY-MM-DD date. Last-write-wins on
+          // duplicate years — the server's .refine(<=20) cap is
+          // enforced downstream, but we also pre-trim to 20 to keep
+          // the request lean.
+          const dates: Record<string, string> = {};
+          for (const row of e.dateRows) {
+            if (!/^\d{4}$/.test(row.year)) continue;
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(row.date)) continue;
+            dates[row.year] = row.date;
+          }
+          const hasDates = Object.keys(dates).length > 0;
+          return {
+            name: e.name.trim(),
+            month: e.month,
+            ...(e.relevance && e.relevance.trim()
+              ? { relevance: e.relevance.trim() }
+              : {}),
+            ...(hasDates ? { dates } : {}),
+          };
+        })
         .filter((e) => e.name.length > 0);
 
       // Guard against accidentally clearing the whole array. If the
@@ -674,7 +735,10 @@ function EditableSeasonalEvents({
   events: EditableSeasonalEvent[];
   onChange: (events: EditableSeasonalEvent[]) => void;
 }) {
-  function updateById(clientId: string, patch: Partial<SeasonalEvent>) {
+  function updateById(
+    clientId: string,
+    patch: Partial<Omit<EditableSeasonalEvent, "clientId" | "dateRows">>,
+  ) {
     onChange(
       events.map((e) => (e.clientId === clientId ? { ...e, ...patch } : e)),
     );
@@ -683,7 +747,58 @@ function EditableSeasonalEvents({
     onChange(events.filter((e) => e.clientId !== clientId));
   }
   function addBlank() {
-    onChange([...events, { clientId: makeClientId(), name: "", month: 1 }]);
+    onChange([
+      ...events,
+      { clientId: makeClientId(), name: "", month: 1, dateRows: [] },
+    ]);
+  }
+  function updateDateRow(
+    clientId: string,
+    rowId: string,
+    patch: Partial<Pick<DateRow, "year" | "date">>,
+  ) {
+    onChange(
+      events.map((e) =>
+        e.clientId === clientId
+          ? {
+              ...e,
+              dateRows: e.dateRows.map((r) =>
+                r.rowId === rowId ? { ...r, ...patch } : r,
+              ),
+            }
+          : e,
+      ),
+    );
+  }
+  function removeDateRow(clientId: string, rowId: string) {
+    onChange(
+      events.map((e) =>
+        e.clientId === clientId
+          ? { ...e, dateRows: e.dateRows.filter((r) => r.rowId !== rowId) }
+          : e,
+      ),
+    );
+  }
+  function addDateRow(clientId: string) {
+    onChange(
+      events.map((e) =>
+        e.clientId === clientId
+          ? {
+              ...e,
+              dateRows: [
+                ...e.dateRows,
+                // Default the new year to "next unmapped year" so common
+                // case "extend Diwali one more year" is one click.
+                {
+                  rowId: makeClientId(),
+                  year: nextYearForRows(e.dateRows),
+                  date: "",
+                },
+              ],
+            }
+          : e,
+      ),
+    );
   }
 
   return (
@@ -694,8 +809,8 @@ function EditableSeasonalEvents({
         </p>
       ) : (
         events.map((e, i) => {
-          const movingYears = e.dates ? Object.keys(e.dates).sort() : [];
           const rowLabel = e.name || `Event ${i + 1}`;
+          const datesAtCap = e.dateRows.length >= 20;
           // Stable key via clientId keeps input focus + value bound to
           // the row that owns them when middle entries are removed —
           // an index key would visually leave stale text in the input
@@ -736,9 +851,9 @@ function EditableSeasonalEvents({
                     ))}
                   </SelectContent>
                 </Select>
-                {movingYears.length > 0 ? (
+                {e.dateRows.length > 0 ? (
                   <Badge variant="secondary" className="text-[10px]">
-                    {movingYears.length}y mapped
+                    {e.dateRows.length}y mapped
                   </Badge>
                 ) : null}
                 <Button
@@ -761,25 +876,87 @@ function EditableSeasonalEvents({
                 }
                 className="h-8 text-sm"
               />
-              {movingYears.length > 0 && e.dates ? (
-                // Read-only display of per-year dates for moving holidays
-                // (lunar / variable). Editing per-year dates from this UI
-                // is deferred to a v1 follow-up — the seed populates
-                // these and most owners won't need to override.
-                <div className="rounded bg-muted/30 px-2 py-1.5">
-                  <p className="text-[10px] font-medium text-muted-foreground mb-1">
-                    Per-year dates (read-only)
+              {/* Per-year dates editor — used for lunar / variable
+                  holidays where the Gregorian date shifts year by year
+                  (Diwali, Eid, Easter, etc.). For static-date events
+                  this section starts empty; the owner can opt-in by
+                  clicking Add date if they want to override the modal
+                  month for a specific year. */}
+              <div className="rounded bg-muted/30 px-2 py-1.5 space-y-1">
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] font-medium text-muted-foreground">
+                    Per-year dates {datesAtCap ? "(max 20)" : "(optional, lunar/variable)"}
                   </p>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-3 gap-y-0.5 text-[11px] font-mono">
-                    {movingYears.map((year) => (
-                      <div key={year} className="flex gap-1">
-                        <span className="text-muted-foreground">{year}:</span>
-                        <span>{e.dates![year]}</span>
-                      </div>
-                    ))}
-                  </div>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => addDateRow(e.clientId)}
+                    disabled={datesAtCap}
+                    className="h-6 text-[10px] gap-1 px-1.5 text-muted-foreground"
+                    aria-label={`Add per-year date to ${rowLabel}`}
+                  >
+                    <Plus className="h-3 w-3" /> Add date
+                  </Button>
                 </div>
-              ) : null}
+                {e.dateRows.length === 0 ? (
+                  <p className="text-[10px] text-muted-foreground italic">
+                    None — the modal month is the fallback.
+                  </p>
+                ) : (
+                  <div className="space-y-1">
+                    {e.dateRows.map((row) => {
+                      const yearOk = /^\d{4}$/.test(row.year);
+                      const dateOk = /^\d{4}-\d{2}-\d{2}$/.test(row.date);
+                      return (
+                        <div
+                          key={row.rowId}
+                          className="flex items-center gap-1.5 text-[11px]"
+                        >
+                          <Input
+                            type="text"
+                            inputMode="numeric"
+                            maxLength={4}
+                            value={row.year}
+                            placeholder="YYYY"
+                            aria-label={`${rowLabel} — year for date row`}
+                            onChange={(ev) =>
+                              updateDateRow(e.clientId, row.rowId, {
+                                year: ev.target.value,
+                              })
+                            }
+                            className={`h-7 w-16 font-mono text-[11px] ${
+                              !yearOk && row.year ? "border-destructive" : ""
+                            }`}
+                          />
+                          <span className="text-muted-foreground">:</span>
+                          <Input
+                            type="date"
+                            value={row.date}
+                            aria-label={`${rowLabel} — date for year ${row.year || "?"}`}
+                            onChange={(ev) =>
+                              updateDateRow(e.clientId, row.rowId, {
+                                date: ev.target.value,
+                              })
+                            }
+                            className={`h-7 font-mono text-[11px] flex-1 max-w-48 ${
+                              !dateOk && row.date ? "border-destructive" : ""
+                            }`}
+                          />
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => removeDateRow(e.clientId, row.rowId)}
+                            className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                            aria-label={`Remove year ${row.year || "row"} from ${rowLabel}`}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
           );
         })
