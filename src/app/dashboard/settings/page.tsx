@@ -270,9 +270,10 @@ function SettingsContent() {
         .map((e) => {
           // Build the dates record from rows that have both a valid
           // 4-digit year AND a YYYY-MM-DD date. Last-write-wins on
-          // duplicate years — the server's .refine(<=20) cap is
-          // enforced downstream, but we also pre-trim to 20 to keep
-          // the request lean.
+          // duplicate years. The 20-entry cap is enforced upstream
+          // by disabling the Add-date button at `dateRows.length >= 20`
+          // — combined with the server's `.refine(<=20)` as defense
+          // in depth, no slice is needed here.
           const dates: Record<string, string> = {};
           for (const row of e.dateRows) {
             if (!/^\d{4}$/.test(row.year)) continue;
@@ -811,6 +812,25 @@ function EditableSeasonalEvents({
         events.map((e, i) => {
           const rowLabel = e.name || `Event ${i + 1}`;
           const datesAtCap = e.dateRows.length >= 20;
+          // The badge + "N year(s) mapped" copy below refers to UNIQUE
+          // years that will actually persist. Duplicate years collapse
+          // to one entry (last-write-wins at save) so the row count
+          // would otherwise over-count.
+          const uniqueYears = new Set(
+            e.dateRows
+              .filter((r) => /^\d{4}$/.test(r.year))
+              .map((r) => r.year),
+          );
+          const isDuplicateAt = (idx: number, year: string) => {
+            if (!/^\d{4}$/.test(year)) return false;
+            // Walk forward from idx-1 — duplicates flag the LATER row
+            // (the earlier row stays "clean" since it's the one that
+            // would be overwritten at save).
+            for (let j = 0; j < idx; j++) {
+              if (e.dateRows[j].year === year) return true;
+            }
+            return false;
+          };
           // Stable key via clientId keeps input focus + value bound to
           // the row that owns them when middle entries are removed —
           // an index key would visually leave stale text in the input
@@ -851,9 +871,9 @@ function EditableSeasonalEvents({
                     ))}
                   </SelectContent>
                 </Select>
-                {e.dateRows.length > 0 ? (
+                {uniqueYears.size > 0 ? (
                   <Badge variant="secondary" className="text-[10px]">
-                    {e.dateRows.length}y mapped
+                    {uniqueYears.size}y mapped
                   </Badge>
                 ) : null}
                 <Button
@@ -904,9 +924,12 @@ function EditableSeasonalEvents({
                   </p>
                 ) : (
                   <div className="space-y-1">
-                    {e.dateRows.map((row) => {
+                    {e.dateRows.map((row, rowIdx) => {
                       const yearOk = /^\d{4}$/.test(row.year);
                       const dateOk = /^\d{4}-\d{2}-\d{2}$/.test(row.date);
+                      const isDup = isDuplicateAt(rowIdx, row.year);
+                      const yearInvalid =
+                        (!yearOk && row.year !== "") || isDup;
                       return (
                         <div
                           key={row.rowId}
@@ -918,14 +941,23 @@ function EditableSeasonalEvents({
                             maxLength={4}
                             value={row.year}
                             placeholder="YYYY"
-                            aria-label={`${rowLabel} — year for date row`}
+                            aria-label={
+                              isDup
+                                ? `${rowLabel} — year ${row.year} duplicates an earlier row (last wins)`
+                                : `${rowLabel} — year for date row`
+                            }
+                            title={
+                              isDup
+                                ? `Year ${row.year} is set twice for this event — only the last entry saves.`
+                                : undefined
+                            }
                             onChange={(ev) =>
                               updateDateRow(e.clientId, row.rowId, {
                                 year: ev.target.value,
                               })
                             }
                             className={`h-7 w-16 font-mono text-[11px] ${
-                              !yearOk && row.year ? "border-destructive" : ""
+                              yearInvalid ? "border-destructive" : ""
                             }`}
                           />
                           <span className="text-muted-foreground">:</span>
