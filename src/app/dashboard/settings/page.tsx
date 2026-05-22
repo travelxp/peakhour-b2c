@@ -29,7 +29,16 @@ import {
   X,
   Check,
   Plus,
+  CalendarDays,
+  Globe2,
 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface OrgDetails {
   _id: string;
@@ -62,12 +71,42 @@ interface OrgDetails {
   taxonomy?: {
     sectors?: string[];
     generatedAt?: string;
+    seasonalEvents?: SeasonalEvent[];
+  } | null;
+  location?: {
+    country?: string;
   } | null;
   onboarding?: {
     completed?: boolean;
   };
   createdAt?: string;
 }
+
+interface SeasonalEvent {
+  name: string;
+  /** 1..12 */
+  month: number;
+  relevance?: string;
+  /** Year (YYYY) → ISO date (YYYY-MM-DD). Set by the seed for moving
+   *  holidays; read-only in v0 of this UI. Display only. */
+  dates?: Record<string, string>;
+}
+
+const MONTH_SHORT_NAMES = [
+  "",
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+] as const;
 
 export default function SettingsPage() {
   return (
@@ -101,6 +140,13 @@ function SettingsContent() {
   const [editType, setEditType] = useState("");
   const [editUrl, setEditUrl] = useState("");
   const [editSectors, setEditSectors] = useState<string[]>([]);
+  const [editCountry, setEditCountry] = useState("");
+
+  // Seasonal events edit state — kept independent of the Business
+  // Details card so an owner can edit one without touching the other.
+  const [editingSeasonal, setEditingSeasonal] = useState(false);
+  const [savingSeasonal, setSavingSeasonal] = useState(false);
+  const [editSeasonalEvents, setEditSeasonalEvents] = useState<SeasonalEvent[]>([]);
 
   async function handleSaveBusinessDetails() {
     setSaving(true);
@@ -112,6 +158,15 @@ function SettingsContent() {
       if (editUrl !== (orgDetails?.websiteUrl || "")) updates.websiteUrl = editUrl;
       if (JSON.stringify(editSectors) !== JSON.stringify(orgDetails?.taxonomy?.sectors || [])) {
         updates.taxonomy = { sectors: editSectors };
+      }
+      // Country drives onboarding's seasonal-pack lookup. Sending only
+      // when changed avoids overwriting with the same value (the api
+      // upper-cases before persistence, so a same-value send is a no-op
+      // but still bumps updatedAt).
+      const currentCountry = (orgDetails?.location?.country || "").toUpperCase();
+      const nextCountry = editCountry.trim().toUpperCase();
+      if (nextCountry && nextCountry !== currentCountry) {
+        updates.countryCode = nextCountry;
       }
 
       if (Object.keys(updates).length === 0) {
@@ -128,6 +183,39 @@ function SettingsContent() {
       else setError("Failed to save. Please try again.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleSaveSeasonalEvents() {
+    setSavingSeasonal(true);
+    setError("");
+    try {
+      // Strip empty rows the owner left blank; preserve their existing
+      // `dates` map (seed-driven for moving holidays, read-only in v0).
+      const cleaned = editSeasonalEvents
+        .map((e) => ({
+          name: e.name.trim(),
+          month: e.month,
+          ...(e.relevance && e.relevance.trim()
+            ? { relevance: e.relevance.trim() }
+            : {}),
+          ...(e.dates && Object.keys(e.dates).length > 0
+            ? { dates: e.dates }
+            : {}),
+        }))
+        .filter((e) => e.name.length > 0);
+
+      await api.put("/v1/dashboard/org", {
+        taxonomy: { seasonalEvents: cleaned },
+      });
+      const updated = await api.get<OrgDetails>("/v1/dashboard/org");
+      setOrgDetails(updated);
+      setEditingSeasonal(false);
+    } catch (err) {
+      if (err instanceof ApiError) setError(err.message);
+      else setError("Failed to save seasonal events. Please try again.");
+    } finally {
+      setSavingSeasonal(false);
     }
   }
 
@@ -194,6 +282,7 @@ function SettingsContent() {
                     setEditType(orgDetails?.businessType || "");
                     setEditUrl(orgDetails?.websiteUrl || "");
                     setEditSectors(orgDetails?.taxonomy?.sectors || []);
+                    setEditCountry(orgDetails?.location?.country || "");
                   }}
                 >
                   <Pencil className="h-3.5 w-3.5" />
@@ -221,6 +310,11 @@ function SettingsContent() {
                 <SettingRow label="Category" value={orgDetails?.businessCategory} />
                 <EditRow label="Type" value={editType} onChange={setEditType} />
                 <EditRow label="Website" value={editUrl} onChange={setEditUrl} type="url" />
+                <EditRow
+                  label="Country (ISO-2)"
+                  value={editCountry}
+                  onChange={(v) => setEditCountry(v.toUpperCase())}
+                />
                 <SettingRow
                   label="Plan"
                   value={
@@ -238,6 +332,21 @@ function SettingsContent() {
                 <SettingRow label="Category" value={orgDetails?.businessCategory} />
                 <SettingRow label="Type" value={orgDetails?.businessType} />
                 <SettingRow label="Website" value={orgDetails?.websiteUrl} />
+                <SettingRow
+                  label="Country"
+                  value={
+                    orgDetails?.location?.country ? (
+                      <span className="flex items-center gap-1.5">
+                        <Globe2 className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span className="font-mono">{orgDetails.location.country}</span>
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">
+                        Not set — seasonal events will be limited until you pick a country
+                      </span>
+                    )
+                  }
+                />
                 <SettingRow
                   label="Plan"
                   value={
@@ -260,6 +369,68 @@ function SettingsContent() {
                   </div>
                 )}
               </>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Seasonal Events */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CalendarDays className="h-5 w-5 text-muted-foreground" />
+                <CardTitle>Seasonal Events</CardTitle>
+              </div>
+              {!editingSeasonal ? (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="gap-1.5 text-muted-foreground"
+                  onClick={() => {
+                    setEditingSeasonal(true);
+                    setEditSeasonalEvents(orgDetails?.taxonomy?.seasonalEvents || []);
+                  }}
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                  Edit
+                </Button>
+              ) : (
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setEditingSeasonal(false)}
+                    disabled={savingSeasonal}
+                  >
+                    <X className="h-3.5 w-3.5" /> Cancel
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={handleSaveSeasonalEvents}
+                    disabled={savingSeasonal}
+                  >
+                    <Check className="h-3.5 w-3.5" />{" "}
+                    {savingSeasonal ? "Saving…" : "Save"}
+                  </Button>
+                </div>
+              )}
+            </div>
+            <CardDescription>
+              Cultural, national, and commercial moments the AI uses to plan
+              seasonal content. Onboarding seeds these from your country&apos;s
+              calendar; you can add, edit, or remove events here.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {editingSeasonal ? (
+              <EditableSeasonalEvents
+                events={editSeasonalEvents}
+                onChange={setEditSeasonalEvents}
+              />
+            ) : (
+              <ReadOnlySeasonalEvents
+                events={orgDetails?.taxonomy?.seasonalEvents || []}
+              />
             )}
           </CardContent>
         </Card>
@@ -406,6 +577,165 @@ function EditableSectors({ sectors, onChange }: { sectors: string[]; onChange: (
           <Plus className="h-3.5 w-3.5" /> Add
         </Button>
       </div>
+    </div>
+  );
+}
+
+function ReadOnlySeasonalEvents({ events }: { events: SeasonalEvent[] }) {
+  if (events.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        No seasonal events yet. Click Edit to add holidays, festivals, or
+        commercial moments relevant to your audience.
+      </p>
+    );
+  }
+  // Sort by month for a calendar-ish read order. Same-month events
+  // preserve their declared sort order.
+  const sorted = [...events].sort((a, b) => a.month - b.month);
+  return (
+    <div className="space-y-1.5">
+      {sorted.map((e, i) => {
+        const movingYears = e.dates ? Object.keys(e.dates).sort() : [];
+        return (
+          <div
+            key={`${e.name}-${i}`}
+            className="rounded-md border bg-card p-2.5 text-sm"
+          >
+            <div className="flex flex-wrap items-baseline gap-2">
+              <span className="font-medium">{e.name}</span>
+              <Badge variant="outline" className="font-mono text-[10px]">
+                {MONTH_SHORT_NAMES[e.month] ?? `m${e.month}`}
+              </Badge>
+              {movingYears.length > 0 ? (
+                <Badge variant="secondary" className="text-[10px]">
+                  moving · {movingYears.length}y mapped
+                </Badge>
+              ) : null}
+            </div>
+            {e.relevance ? (
+              <p className="mt-1 text-xs text-muted-foreground">{e.relevance}</p>
+            ) : null}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function EditableSeasonalEvents({
+  events,
+  onChange,
+}: {
+  events: SeasonalEvent[];
+  onChange: (events: SeasonalEvent[]) => void;
+}) {
+  function updateAt(index: number, patch: Partial<SeasonalEvent>) {
+    onChange(events.map((e, i) => (i === index ? { ...e, ...patch } : e)));
+  }
+  function removeAt(index: number) {
+    onChange(events.filter((_, i) => i !== index));
+  }
+  function addBlank() {
+    onChange([...events, { name: "", month: 1 }]);
+  }
+
+  return (
+    <div className="space-y-2">
+      {events.length === 0 ? (
+        <p className="text-xs text-muted-foreground">
+          No events yet. Add your first one below.
+        </p>
+      ) : (
+        events.map((e, i) => {
+          const movingYears = e.dates ? Object.keys(e.dates).sort() : [];
+          return (
+            <div
+              key={i}
+              className="rounded-md border bg-card p-2.5 space-y-2"
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <Input
+                  type="text"
+                  value={e.name}
+                  placeholder="Event name (e.g. Diwali)"
+                  onChange={(ev) => updateAt(i, { name: ev.target.value })}
+                  className="h-8 text-sm flex-1 min-w-48"
+                />
+                <Select
+                  value={String(e.month)}
+                  onValueChange={(v) => updateAt(i, { month: parseInt(v, 10) })}
+                >
+                  <SelectTrigger className="h-8 w-22">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {MONTH_SHORT_NAMES.slice(1).map((label, idx) => (
+                      <SelectItem key={label} value={String(idx + 1)}>
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {movingYears.length > 0 ? (
+                  <Badge variant="secondary" className="text-[10px]">
+                    {movingYears.length}y mapped
+                  </Badge>
+                ) : null}
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => removeAt(i)}
+                  className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                  aria-label={`Remove ${e.name || "event"}`}
+                >
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+              <Input
+                type="text"
+                value={e.relevance || ""}
+                placeholder="What does this event mean for your audience? (optional)"
+                onChange={(ev) => updateAt(i, { relevance: ev.target.value })}
+                className="h-8 text-sm"
+              />
+              {movingYears.length > 0 && e.dates ? (
+                // Read-only display of per-year dates for moving holidays
+                // (lunar / variable). Editing per-year dates from this UI
+                // is deferred to a v1 follow-up — the seed populates
+                // these and most owners won't need to override.
+                <div className="rounded bg-muted/30 px-2 py-1.5">
+                  <p className="text-[10px] font-medium text-muted-foreground mb-1">
+                    Per-year dates (read-only)
+                  </p>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-3 gap-y-0.5 text-[11px] font-mono">
+                    {movingYears.map((year) => (
+                      <div key={year} className="flex gap-1">
+                        <span className="text-muted-foreground">{year}:</span>
+                        <span>{e.dates![year]}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          );
+        })
+      )}
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={addBlank}
+        className="gap-1.5"
+        disabled={events.length >= 64}
+      >
+        <Plus className="h-3.5 w-3.5" /> Add event
+      </Button>
+      {events.length >= 64 ? (
+        <p className="text-[10px] text-muted-foreground">
+          Maximum of 64 events. Remove one to add another.
+        </p>
+      ) : null}
     </div>
   );
 }
