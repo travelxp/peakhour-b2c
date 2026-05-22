@@ -106,29 +106,164 @@ function nextYearForRows(rows: DateRow[]): string {
   return candidate >= 1000 && candidate <= 9999 ? String(candidate) : "";
 }
 
+interface EventDateInfo {
+  /** Display string for the primary date badge — e.g. "Sun · Nov 8"
+   *  for precise events or "Nov" for static-month events. `null` when
+   *  the event's month is out of range (malformed wire data). */
+  primary: string | null;
+  /** Human countdown to the next occurrence — e.g. "in 3 weeks",
+   *  "tomorrow", "today". `null` when no useful next-occurrence date
+   *  can be computed. */
+  countdown: string | null;
+  /** True when the badge text is derived from a precise YYYY-MM-DD
+   *  in `dates[]`. False for the modal-month fallback. */
+  precise: boolean;
+  /** True when the operator HAD a mapped date for the current year
+   *  but it has already passed AND no `dates[currentYear+1]` is set.
+   *  The countdown falls back to the modal month of next year (we
+   *  KNOW this year fired), but the projection is necessarily
+   *  approximate — Diwali 2027 is Oct 29, not Nov 1, so the UI
+   *  should nudge the operator to map the next year's exact date. */
+  needsNextYearDate: boolean;
+  /** True when this year's occurrence has already fired (either via
+   *  a precise `dates[currentYear]` past, or the modal month is fully
+   *  elapsed). Drives the "hide past events" default filter — the
+   *  event still recurs next year, but it's clutter for the
+   *  what's-coming-next view that the page is built around. */
+  passedThisYear: boolean;
+}
+
 /**
- * Build the date-badge text for an event. When a current-year date
- * exists in the `dates` map (lunar / variable holidays), render the
- * weekday + month + day-of-month so owners see EXACTLY when the
- * event lands this year. Falls back to the modal-month abbreviation
- * for static-date events.
+ * Build the date + countdown badge data for an event.
+ *
+ * Resolution order (mirrors the seasonal generator's `resolveEventOccurrence`
+ * in peakhour-api):
+ *   1. `dates[currentYear]` if it parses AND lies today-or-later
+ *   2. `dates[currentYear + 1]` if it parses (year-wrap for events
+ *      whose current-year date has already passed)
+ *   3. Modal-month fallback for static-date events — synthesises a
+ *      target of the 1st-of-month for the upcoming occurrence (this
+ *      year if the month is today-or-later, next year otherwise).
+ *      The badge shows just the month abbreviation; the countdown
+ *      reads "in N weeks/months" using the synthesised target.
+ *
+ * Countdown buckets:
+ *   - same UTC day  → "today"
+ *   - 1 day         → "tomorrow"
+ *   - 2..6 days     → "in N days"
+ *   - 7..29 days    → "in N week[s]" (rounded)
+ *   - 30+ days      → "in N month[s]" (rounded; 1y+ also rendered in months)
  */
-function formatEventDateBadge(event: SeasonalEvent): string | null {
-  const currentYear = String(new Date().getUTCFullYear());
-  const exact = event.dates?.[currentYear];
-  if (exact && /^\d{4}-\d{2}-\d{2}$/.test(exact)) {
-    const d = new Date(`${exact}T00:00:00Z`);
-    if (!isNaN(d.getTime())) {
-      const weekday = d.toLocaleDateString("en-US", {
-        weekday: "short",
-        timeZone: "UTC",
-      });
-      const month = MONTH_SHORT_NAMES[d.getUTCMonth() + 1];
-      const dayNum = d.getUTCDate();
-      return `${weekday} · ${month} ${dayNum}`;
-    }
+function getEventDateInfo(event: SeasonalEvent, now: Date = new Date()): EventDateInfo {
+  // Anchor "today" at UTC midnight so the bucket math is timezone-stable.
+  const todayMs = Date.UTC(
+    now.getUTCFullYear(),
+    now.getUTCMonth(),
+    now.getUTCDate(),
+  );
+  const currentYear = now.getUTCFullYear();
+
+  function parseDate(iso: string | undefined): Date | null {
+    if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return null;
+    const d = new Date(`${iso}T00:00:00Z`);
+    return isNaN(d.getTime()) ? null : d;
   }
-  return MONTH_SHORT_NAMES[event.month] ?? null;
+
+  function formatPrecise(d: Date): string {
+    const weekday = d.toLocaleDateString("en-US", {
+      weekday: "short",
+      timeZone: "UTC",
+    });
+    const month = MONTH_SHORT_NAMES[d.getUTCMonth() + 1];
+    const dayNum = d.getUTCDate();
+    return `${weekday} · ${month} ${dayNum}`;
+  }
+
+  function formatCountdown(targetMs: number): string {
+    const diffDays = Math.round((targetMs - todayMs) / 86_400_000);
+    if (diffDays === 0) return "today";
+    if (diffDays === 1) return "tomorrow";
+    if (diffDays < 0) return "passed"; // defensive; shouldn't hit on the year-wrap path
+    if (diffDays < 7) return `in ${diffDays} days`;
+    if (diffDays < 30) {
+      const weeks = Math.max(1, Math.round(diffDays / 7));
+      return `in ${weeks} week${weeks === 1 ? "" : "s"}`;
+    }
+    const months = Math.max(1, Math.round(diffDays / 30));
+    return `in ${months} month${months === 1 ? "" : "s"}`;
+  }
+
+  // Compute "passed this year" against the modal month or the
+  // precise current-year date if available. Used by the page-level
+  // filter (hide past by default).
+  const monthIndexProbe = event.month - 1;
+  const firstOfNextMonthMs = Date.UTC(currentYear, monthIndexProbe + 1, 1);
+
+  // Precise path — try current-year first, fall back to year-wrap.
+  const currentExact = parseDate(event.dates?.[String(currentYear)]);
+  if (currentExact && currentExact.getTime() >= todayMs) {
+    return {
+      primary: formatPrecise(currentExact),
+      countdown: formatCountdown(currentExact.getTime()),
+      precise: true,
+      needsNextYearDate: false,
+      passedThisYear: false,
+    };
+  }
+  const nextExact = parseDate(event.dates?.[String(currentYear + 1)]);
+  if (nextExact) {
+    // `currentExact` is either null (never mapped) or past. The
+    // event has passed-this-year exactly when `currentExact !== null`
+    // (we KNOW this year's instance fired).
+    return {
+      primary: formatPrecise(nextExact),
+      countdown: formatCountdown(nextExact.getTime()),
+      precise: true,
+      needsNextYearDate: false,
+      passedThisYear: currentExact !== null,
+    };
+  }
+
+  // Modal-month fallback — no precise date available. Synthesise a
+  // first-of-month target for the countdown so operators still get an
+  // "in N weeks/months" sense. Badge stays as just the month.
+  //
+  // CORRECTNESS: when `currentExact` was set but has already passed,
+  // we KNOW this year's event fired — force next-year projection
+  // regardless of the modal-month-has-this-year-elapsed heuristic.
+  // Without this guard, an event with `dates[2026] = "2026-11-08"`
+  // evaluated on Nov 15 2026 would project to Nov 1 2026 + a fresh
+  // countdown ("today") because Nov 1 + 31d = Dec 2, which isn't
+  // past today on Nov 15 — but the actual event already happened.
+  const monthName = MONTH_SHORT_NAMES[event.month] ?? null;
+  if (!monthName) {
+    return {
+      primary: null,
+      countdown: null,
+      precise: false,
+      needsNextYearDate: false,
+      passedThisYear: false,
+    };
+  }
+  const monthIndex = event.month - 1; // 0..11
+  const thisYearTargetMs = Date.UTC(currentYear, monthIndex, 1);
+  const hasPastCurrentYearDate = currentExact !== null;
+  // Modal month is "passed" once the first of NEXT month is today-or-
+  // earlier (the whole modal month has elapsed). For events with a
+  // precise current-year date set + past, that's also "passed".
+  const passedThisYear =
+    hasPastCurrentYearDate || firstOfNextMonthMs <= todayMs;
+  const useNextYear = passedThisYear;
+  const targetMs = useNextYear
+    ? Date.UTC(currentYear + 1, monthIndex, 1)
+    : Math.max(thisYearTargetMs, todayMs);
+  return {
+    primary: monthName,
+    countdown: formatCountdown(targetMs),
+    precise: false,
+    needsNextYearDate: hasPastCurrentYearDate,
+    passedThisYear,
+  };
 }
 
 // ── Page ─────────────────────────────────────────────────────────
@@ -158,6 +293,13 @@ export default function SeasonalEventsPage() {
   // Delete-confirm state
   const [deleteIndex, setDeleteIndex] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // List filter — by default, hide events whose this-year occurrence
+  // has already fired. They still recur annually so they stay in the
+  // data, but they're clutter for the what's-coming-next view this
+  // page is built around. Toggle re-shows them with their next-year
+  // projection + "approximate · add next year" hint.
+  const [showPast, setShowPast] = useState(false);
 
   useEffect(() => {
     if (!org?._id) return;
@@ -231,11 +373,26 @@ export default function SeasonalEventsPage() {
     );
   }
 
-  // Sort by month for a calendar-ish read order; same-month events
-  // preserve their stored order. Track the original index so per-row
-  // actions can splice the source array correctly even after sort.
-  const indexedEvents = events.map((e, i) => ({ event: e, originalIndex: i }));
-  indexedEvents.sort((a, b) => a.event.month - b.event.month);
+  // Compute `dateInfo` once per event so the filter and the row
+  // render share the same answer. Track the original wire-array
+  // index so per-row Edit/Delete can splice correctly after sort.
+  const indexedEvents = events.map((e, i) => ({
+    event: e,
+    originalIndex: i,
+    dateInfo: getEventDateInfo(e),
+  }));
+  // Sort by countdown-meaningful order — closest upcoming first.
+  // Past events (if shown) sink to the bottom in calendar order.
+  indexedEvents.sort((a, b) => {
+    if (a.dateInfo.passedThisYear !== b.dateInfo.passedThisYear) {
+      return a.dateInfo.passedThisYear ? 1 : -1;
+    }
+    return a.event.month - b.event.month;
+  });
+  const passedCount = indexedEvents.filter((x) => x.dateInfo.passedThisYear).length;
+  const visibleEvents = showPast
+    ? indexedEvents
+    : indexedEvents.filter((x) => !x.dateInfo.passedThisYear);
 
   return (
     <div className="space-y-6">
@@ -278,14 +435,40 @@ export default function SeasonalEventsPage() {
         </div>
       ) : (
         <div className="space-y-2">
-          {indexedEvents.map(({ event: e, originalIndex }) => (
-            <EventRow
-              key={`${e.name}-${originalIndex}`}
-              event={e}
-              onEdit={() => openEditor(originalIndex)}
-              onDelete={() => setDeleteIndex(originalIndex)}
-            />
-          ))}
+          {passedCount > 0 ? (
+            <div className="flex items-center justify-end gap-2 text-xs text-muted-foreground">
+              <span>
+                {showPast
+                  ? `Showing all events (${passedCount} have already passed this year)`
+                  : `${passedCount} event${passedCount === 1 ? "" : "s"} hidden (already passed this year)`}
+              </span>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setShowPast((v) => !v)}
+                className="h-7 px-2 text-xs"
+              >
+                {showPast ? "Hide past" : "Show past"}
+              </Button>
+            </div>
+          ) : null}
+          {visibleEvents.length === 0 ? (
+            <div className="rounded-lg border border-dashed bg-card p-6 text-center text-sm text-muted-foreground">
+              All events in this calendar have already passed this year. Click{" "}
+              <span className="font-medium">Show past</span> above to review or
+              update their per-year dates.
+            </div>
+          ) : (
+            visibleEvents.map(({ event: e, originalIndex, dateInfo }) => (
+              <EventRow
+                key={`${e.name}-${originalIndex}`}
+                event={e}
+                dateInfo={dateInfo}
+                onEdit={() => openEditor(originalIndex)}
+                onDelete={() => setDeleteIndex(originalIndex)}
+              />
+            ))
+          )}
         </div>
       )}
 
@@ -333,14 +516,15 @@ export default function SeasonalEventsPage() {
 
 function EventRow({
   event,
+  dateInfo,
   onEdit,
   onDelete,
 }: {
   event: SeasonalEvent;
+  dateInfo: EventDateInfo;
   onEdit: () => void;
   onDelete: () => void;
 }) {
-  const dateBadge = formatEventDateBadge(event);
   const movingYears = event.dates ? Object.keys(event.dates).sort() : [];
 
   return (
@@ -355,13 +539,35 @@ function EventRow({
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <h3 className="truncate text-sm font-medium">{event.name}</h3>
-          {dateBadge ? (
+          {dateInfo.primary ? (
             <Badge variant="outline" className="shrink-0 font-mono text-[10px]">
-              {dateBadge}
+              {dateInfo.primary}
+            </Badge>
+          ) : null}
+          {dateInfo.countdown ? (
+            // Secondary countdown chip — kept muted so the date stays
+            // the primary affordance. "passed" renders neutral too;
+            // it's defensive (shouldn't fire on the year-wrap path).
+            <Badge variant="secondary" className="shrink-0 text-[10px]">
+              {dateInfo.countdown}
+            </Badge>
+          ) : null}
+          {dateInfo.needsNextYearDate ? (
+            // Operator-actionable hint: the precise date for the
+            // current year has fired and no next-year mapping exists,
+            // so the countdown is a modal-month projection. Nudge
+            // the operator to add the next year's date via the
+            // editor.
+            <Badge
+              variant="outline"
+              className="shrink-0 text-[10px] border-amber-500/40 text-amber-700 dark:text-amber-300"
+              title="The current-year date has passed and no next-year date is mapped. Click Edit on this row and add a per-year date for the upcoming year."
+            >
+              approximate · add next year
             </Badge>
           ) : null}
           {movingYears.length > 0 ? (
-            <Badge variant="secondary" className="shrink-0 text-[10px]">
+            <Badge variant="outline" className="shrink-0 text-[10px] text-muted-foreground">
               moving · {movingYears.length}y mapped
             </Badge>
           ) : null}
