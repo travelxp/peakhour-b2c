@@ -92,6 +92,27 @@ interface SeasonalEvent {
   dates?: Record<string, string>;
 }
 
+/**
+ * Client-side row state during edit. Adds a stable `clientId` so React
+ * keys don't fall back to array index (which would drift focus + leak
+ * input values across rows after a middle remove). Stripped before
+ * sending to the api — the server's `.strict()` schema would reject it.
+ */
+interface EditableSeasonalEvent extends SeasonalEvent {
+  clientId: string;
+}
+
+function makeClientId() {
+  // crypto.randomUUID is available in all evergreen browsers + Node 19+.
+  return typeof crypto !== "undefined" && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `e-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function attachClientIds(events: SeasonalEvent[]): EditableSeasonalEvent[] {
+  return events.map((e) => ({ ...e, clientId: makeClientId() }));
+}
+
 const MONTH_SHORT_NAMES = [
   "",
   "Jan",
@@ -144,9 +165,11 @@ function SettingsContent() {
 
   // Seasonal events edit state — kept independent of the Business
   // Details card so an owner can edit one without touching the other.
+  // `EditableSeasonalEvent` carries a stable `clientId` for React keys
+  // so removing a middle row doesn't drift input focus / values.
   const [editingSeasonal, setEditingSeasonal] = useState(false);
   const [savingSeasonal, setSavingSeasonal] = useState(false);
-  const [editSeasonalEvents, setEditSeasonalEvents] = useState<SeasonalEvent[]>([]);
+  const [editSeasonalEvents, setEditSeasonalEvents] = useState<EditableSeasonalEvent[]>([]);
 
   async function handleSaveBusinessDetails() {
     setSaving(true);
@@ -192,6 +215,8 @@ function SettingsContent() {
     try {
       // Strip empty rows the owner left blank; preserve their existing
       // `dates` map (seed-driven for moving holidays, read-only in v0).
+      // The api's SeasonalEventBody is .strict() — clientId MUST stay
+      // local and never reach the server.
       const cleaned = editSeasonalEvents
         .map((e) => ({
           name: e.name.trim(),
@@ -204,6 +229,22 @@ function SettingsContent() {
             : {}),
         }))
         .filter((e) => e.name.length > 0);
+
+      // Guard against accidentally clearing the whole array. If the
+      // original had events and the cleaned list is empty, prompt for
+      // confirmation before persisting.
+      const originalCount = orgDetails?.taxonomy?.seasonalEvents?.length ?? 0;
+      if (originalCount > 0 && cleaned.length === 0) {
+        const confirmed =
+          typeof window !== "undefined" &&
+          window.confirm(
+            `This will remove all ${originalCount} seasonal events from your business. Continue?`,
+          );
+        if (!confirmed) {
+          setSavingSeasonal(false);
+          return;
+        }
+      }
 
       await api.put("/v1/dashboard/org", {
         taxonomy: { seasonalEvents: cleaned },
@@ -388,7 +429,9 @@ function SettingsContent() {
                   className="gap-1.5 text-muted-foreground"
                   onClick={() => {
                     setEditingSeasonal(true);
-                    setEditSeasonalEvents(orgDetails?.taxonomy?.seasonalEvents || []);
+                    setEditSeasonalEvents(
+                      attachClientIds(orgDetails?.taxonomy?.seasonalEvents || []),
+                    );
                   }}
                 >
                   <Pencil className="h-3.5 w-3.5" />
@@ -408,9 +451,10 @@ function SettingsContent() {
                     size="sm"
                     onClick={handleSaveSeasonalEvents}
                     disabled={savingSeasonal}
+                    className="gap-1.5"
                   >
-                    <Check className="h-3.5 w-3.5" />{" "}
-                    {savingSeasonal ? "Saving…" : "Save"}
+                    <Check className="h-3.5 w-3.5" />
+                    {savingSeasonal ? "Saving..." : "Save"}
                   </Button>
                 </div>
               )}
@@ -627,17 +671,19 @@ function EditableSeasonalEvents({
   events,
   onChange,
 }: {
-  events: SeasonalEvent[];
-  onChange: (events: SeasonalEvent[]) => void;
+  events: EditableSeasonalEvent[];
+  onChange: (events: EditableSeasonalEvent[]) => void;
 }) {
-  function updateAt(index: number, patch: Partial<SeasonalEvent>) {
-    onChange(events.map((e, i) => (i === index ? { ...e, ...patch } : e)));
+  function updateById(clientId: string, patch: Partial<SeasonalEvent>) {
+    onChange(
+      events.map((e) => (e.clientId === clientId ? { ...e, ...patch } : e)),
+    );
   }
-  function removeAt(index: number) {
-    onChange(events.filter((_, i) => i !== index));
+  function removeById(clientId: string) {
+    onChange(events.filter((e) => e.clientId !== clientId));
   }
   function addBlank() {
-    onChange([...events, { name: "", month: 1 }]);
+    onChange([...events, { clientId: makeClientId(), name: "", month: 1 }]);
   }
 
   return (
@@ -649,9 +695,14 @@ function EditableSeasonalEvents({
       ) : (
         events.map((e, i) => {
           const movingYears = e.dates ? Object.keys(e.dates).sort() : [];
+          const rowLabel = e.name || `Event ${i + 1}`;
+          // Stable key via clientId keeps input focus + value bound to
+          // the row that owns them when middle entries are removed —
+          // an index key would visually leave stale text in the input
+          // that "moves up" after a removal.
           return (
             <div
-              key={i}
+              key={e.clientId}
               className="rounded-md border bg-card p-2.5 space-y-2"
             >
               <div className="flex flex-wrap items-center gap-2">
@@ -659,14 +710,22 @@ function EditableSeasonalEvents({
                   type="text"
                   value={e.name}
                   placeholder="Event name (e.g. Diwali)"
-                  onChange={(ev) => updateAt(i, { name: ev.target.value })}
+                  aria-label={`${rowLabel} — name`}
+                  onChange={(ev) =>
+                    updateById(e.clientId, { name: ev.target.value })
+                  }
                   className="h-8 text-sm flex-1 min-w-48"
                 />
                 <Select
                   value={String(e.month)}
-                  onValueChange={(v) => updateAt(i, { month: parseInt(v, 10) })}
+                  onValueChange={(v) =>
+                    updateById(e.clientId, { month: parseInt(v, 10) })
+                  }
                 >
-                  <SelectTrigger className="h-8 w-22">
+                  <SelectTrigger
+                    className="h-8 w-22"
+                    aria-label={`${rowLabel} — month`}
+                  >
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -685,9 +744,9 @@ function EditableSeasonalEvents({
                 <Button
                   size="sm"
                   variant="ghost"
-                  onClick={() => removeAt(i)}
+                  onClick={() => removeById(e.clientId)}
                   className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
-                  aria-label={`Remove ${e.name || "event"}`}
+                  aria-label={`Remove ${rowLabel}`}
                 >
                   <X className="h-3.5 w-3.5" />
                 </Button>
@@ -696,7 +755,10 @@ function EditableSeasonalEvents({
                 type="text"
                 value={e.relevance || ""}
                 placeholder="What does this event mean for your audience? (optional)"
-                onChange={(ev) => updateAt(i, { relevance: ev.target.value })}
+                aria-label={`${rowLabel} — relevance`}
+                onChange={(ev) =>
+                  updateById(e.clientId, { relevance: ev.target.value })
+                }
                 className="h-8 text-sm"
               />
               {movingYears.length > 0 && e.dates ? (
