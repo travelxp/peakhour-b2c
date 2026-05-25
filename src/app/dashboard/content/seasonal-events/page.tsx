@@ -50,6 +50,16 @@ import { toast } from "sonner";
 
 // ── Types ───────────────────────────────────────────────────────
 
+/**
+ * Per-event status (mirrors zSeasonalEventStatus on peakhour-mongodb).
+ * Absent === confirmed on read; the AI's seasonal generator + chat
+ * agent skip events flagged tentative / postponed / cancelled. Lets
+ * an owner mark a slipped event (e.g. Arabian Travel Mart postponed)
+ * without deleting it — preserves the audit trail and lets the row
+ * be re-activated later if the organiser locks a new date.
+ */
+type SeasonalEventStatus = "confirmed" | "tentative" | "postponed" | "cancelled";
+
 interface SeasonalEvent {
   name: string;
   /** 1..12 */
@@ -57,6 +67,37 @@ interface SeasonalEvent {
   relevance?: string;
   /** Year (YYYY) → ISO date (YYYY-MM-DD) — set for moving holidays. */
   dates?: Record<string, string>;
+  /** Absent === confirmed on read. */
+  status?: SeasonalEventStatus;
+}
+
+const STATUS_OPTIONS: { value: SeasonalEventStatus; label: string }[] = [
+  { value: "confirmed", label: "Confirmed" },
+  { value: "tentative", label: "Tentative" },
+  { value: "postponed", label: "Postponed" },
+  { value: "cancelled", label: "Cancelled" },
+];
+
+const STATUS_LABEL: Record<SeasonalEventStatus, string> = {
+  confirmed: "Confirmed",
+  tentative: "Tentative",
+  postponed: "Postponed",
+  cancelled: "Cancelled",
+};
+
+/**
+ * Hidden-by-default in the b2c list — postponed or cancelled. The
+ * "Show postponed or cancelled" toggle un-hides them.
+ *
+ * NOTE on the asymmetry with the AI: the canonical generator filter
+ * (peakhour-api `isDrivingStatus`) also treats `tentative` as
+ * non-driving, but the b2c keeps tentative events visible by default
+ * — the operator needs to see them in order to lock the date once
+ * the organiser confirms. Naming this predicate "hiddenByDefault"
+ * instead of "nonDriving" so the distinction reads clearly.
+ */
+function isHiddenByDefault(status: SeasonalEventStatus | undefined): boolean {
+  return status === "postponed" || status === "cancelled";
 }
 
 interface OrgDetails {
@@ -300,6 +341,12 @@ export default function SeasonalEventsPage() {
   // page is built around. Toggle re-shows them with their next-year
   // projection + "approximate · add next year" hint.
   const [showPast, setShowPast] = useState(false);
+  // Sibling filter — by default, hide events the owner has flagged
+  // postponed or cancelled. They stay in the data (audit + re-activate)
+  // but the default view stays focused on what's actually driving
+  // generation. Tentative events stay visible regardless — operators
+  // need to see them to lock the date once the organiser confirms.
+  const [showNonDriving, setShowNonDriving] = useState(false);
 
   useEffect(() => {
     if (!org?._id) return;
@@ -390,9 +437,12 @@ export default function SeasonalEventsPage() {
     return a.event.month - b.event.month;
   });
   const passedCount = indexedEvents.filter((x) => x.dateInfo.passedThisYear).length;
-  const visibleEvents = showPast
-    ? indexedEvents
-    : indexedEvents.filter((x) => !x.dateInfo.passedThisYear);
+  const hiddenStatusCount = indexedEvents.filter((x) => isHiddenByDefault(x.event.status)).length;
+  const visibleEvents = indexedEvents.filter((x) => {
+    if (!showPast && x.dateInfo.passedThisYear) return false;
+    if (!showNonDriving && isHiddenByDefault(x.event.status)) return false;
+    return true;
+  });
 
   return (
     <div className="space-y-6">
@@ -435,28 +485,57 @@ export default function SeasonalEventsPage() {
         </div>
       ) : (
         <div className="space-y-2">
-          {passedCount > 0 ? (
-            <div className="flex items-center justify-end gap-2 text-xs text-muted-foreground">
-              <span>
-                {showPast
-                  ? `Showing all events (${passedCount} have already passed this year)`
-                  : `${passedCount} event${passedCount === 1 ? "" : "s"} hidden (already passed this year)`}
-              </span>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setShowPast((v) => !v)}
-                className="h-7 px-2 text-xs"
-              >
-                {showPast ? "Hide past" : "Show past"}
-              </Button>
+          {passedCount > 0 || hiddenStatusCount > 0 ? (
+            <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-xs text-muted-foreground">
+              {passedCount > 0 ? (
+                <span className="flex items-center gap-2">
+                  <span>
+                    {showPast
+                      ? `${passedCount} past event${passedCount === 1 ? "" : "s"} shown`
+                      : `${passedCount} past event${passedCount === 1 ? "" : "s"} hidden`}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setShowPast((v) => !v)}
+                    className="h-7 px-2 text-xs"
+                  >
+                    {showPast ? "Hide past" : "Show past"}
+                  </Button>
+                </span>
+              ) : null}
+              {hiddenStatusCount > 0 ? (
+                <span className="flex items-center gap-2">
+                  <span>
+                    {showNonDriving
+                      ? `${hiddenStatusCount} postponed or cancelled event${hiddenStatusCount === 1 ? "" : "s"} shown`
+                      : `${hiddenStatusCount} postponed or cancelled event${hiddenStatusCount === 1 ? "" : "s"} hidden`}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setShowNonDriving((v) => !v)}
+                    className="h-7 px-2 text-xs"
+                  >
+                    {showNonDriving ? "Hide postponed or cancelled" : "Show postponed or cancelled"}
+                  </Button>
+                </span>
+              ) : null}
             </div>
           ) : null}
           {visibleEvents.length === 0 ? (
             <div className="rounded-lg border border-dashed bg-card p-6 text-center text-sm text-muted-foreground">
-              All events in this calendar have already passed this year. Click{" "}
-              <span className="font-medium">Show past</span> above to review or
-              update their per-year dates.
+              No events to show in the current view. Use the{" "}
+              <span className="font-medium">Show past</span>
+              {hiddenStatusCount > 0 ? (
+                <>
+                  {" "}or{" "}
+                  <span className="font-medium">Show postponed or cancelled</span>
+                  {" "}toggles above to review hidden events.
+                </>
+              ) : (
+                <> toggle above to review hidden events.</>
+              )}
             </div>
           ) : (
             visibleEvents.map(({ event: e, originalIndex, dateInfo }) => (
@@ -539,6 +618,33 @@ function EventRow({
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <h3 className="truncate text-sm font-medium">{event.name}</h3>
+          {/* Per-event status chip. Absent or "confirmed" stays
+              silent (the common case); tentative / postponed /
+              cancelled get an inline badge so the operator can see at
+              a glance why the AI is skipping the event. Postponed +
+              cancelled use the amber tone (operator-actionable);
+              tentative uses a muted outline (informational — the AI
+              still treats it as non-driving, but it's not a
+              follow-up signal). */}
+          {event.status && event.status !== "confirmed" ? (
+            <Badge
+              variant="outline"
+              className={
+                event.status === "tentative"
+                  ? "shrink-0 text-[10px] text-muted-foreground"
+                  : "shrink-0 text-[10px] border-amber-500/40 text-amber-700 dark:text-amber-300"
+              }
+              title={
+                event.status === "tentative"
+                  ? "The date is provisional. The AI seasonal generator skips this event until you mark it confirmed."
+                  : event.status === "postponed"
+                    ? "Flagged as postponed — the AI seasonal generator will not produce content for this event."
+                    : "Flagged as cancelled — the AI seasonal generator will not produce content for this event."
+              }
+            >
+              {STATUS_LABEL[event.status]}
+            </Badge>
+          ) : null}
           {dateInfo.primary ? (
             <Badge variant="outline" className="shrink-0 font-mono text-[10px]">
               {dateInfo.primary}
@@ -627,6 +733,12 @@ function SeasonalEventEditor({
   const [month, setMonth] = useState(1);
   const [relevance, setRelevance] = useState("");
   const [dateRows, setDateRows] = useState<DateRow[]>([]);
+  // Status: undefined === "confirmed" semantics on the wire. The
+  // Select displays the explicit value when set; falls back to
+  // "confirmed" when undefined. Toggling back to Confirmed clears
+  // to undefined so the wire payload omits the field (preserves the
+  // absent-as-confirmed schema contract).
+  const [status, setStatus] = useState<SeasonalEventStatus | undefined>(undefined);
   const [saving, setSaving] = useState(false);
 
   // Re-seed form fields each time the dialog opens — handles both
@@ -638,6 +750,7 @@ function SeasonalEventEditor({
       setName(initial.name);
       setMonth(initial.month);
       setRelevance(initial.relevance ?? "");
+      setStatus(initial.status);
       setDateRows(
         initial.dates
           ? Object.entries(initial.dates)
@@ -649,6 +762,7 @@ function SeasonalEventEditor({
       setName("");
       setMonth(1);
       setRelevance("");
+      setStatus(undefined);
       setDateRows([]);
     }
   }, [open, initial]);
@@ -685,6 +799,10 @@ function SeasonalEventEditor({
       const trimmedRelevance = relevance.trim();
       if (trimmedRelevance) wire.relevance = trimmedRelevance;
       if (Object.keys(dates).length > 0) wire.dates = dates;
+      // Only emit status when the operator explicitly chose a non-
+      // confirmed value — absent on the wire matches the canonical
+      // schema's absent-as-confirmed contract.
+      if (status && status !== "confirmed") wire.status = status;
 
       await onSave(wire);
       onOpenChange(false);
@@ -761,6 +879,36 @@ function SeasonalEventEditor({
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <label htmlFor="event-status" className="text-xs font-medium text-muted-foreground">
+              Status
+            </label>
+            <Select
+              value={status ?? "confirmed"}
+              onValueChange={(v) =>
+                setStatus(
+                  v === "confirmed" ? undefined : (v as SeasonalEventStatus),
+                )
+              }
+            >
+              <SelectTrigger id="event-status" className="w-40">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {STATUS_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-[11px] text-muted-foreground">
+              Confirmed events drive AI content. Tentative, postponed, or
+              cancelled events stay in your calendar but the seasonal
+              generator skips them.
+            </p>
           </div>
 
           <div className="space-y-1.5">
