@@ -37,25 +37,32 @@ interface Props {
 
 /**
  * Shared "Repurpose to platforms" sheet used from every entry point
- * (SuggestedDraftCard, Beehiiv row action, paste-and-repurpose
- * composer). Owns the recommend → confirm → generate flow end-to-end:
+ * (SuggestedDraftCard, Beehiiv row action — paste-and-repurpose
+ * composer ships later when /repurpose accepts ad_hoc sources).
+ * Owns the recommend → confirm → generate flow end-to-end:
  *
  *   1. Open → fires POST /v1/content/recommend-platforms with the
  *      source. Renders skeletons while the recommender scores.
  *   2. Recommendations land → renders one row per scored channel
  *      with band badge + rationale + checkbox. Green pre-checked,
  *      amber pre-checked, grey unchecked (the user can override).
- *      Hard-blocked greys are checkbox-disabled with a tooltip.
+ *      Hard-blocked greys are checkbox-disabled with the
+ *      hardBlocks reasons rendered inline next to the rationale.
  *   3. User clicks Generate → fires POST /v1/content/repurpose with
  *      platforms[] + platformFitId. Renders per-channel progress.
- *   4. Variants land → renders preview cards with "Open in composer"
- *      CTAs. Stub channels (Coming soon) render as a separate row
- *      so the user sees the recommender did its job even though
- *      publishing isn't wired.
+ *   4. Variants land → renders preview cards with VariantPreview
+ *      (expand/collapse). Stub channels (Facebook / Instagram /
+ *      Threads) are scored by the recommender but the engine
+ *      filters them out before the soc_social_posts persist — so
+ *      they don't appear in the Done view; users see them only in
+ *      the recommend list with greyed-out / hard-block reasoning.
  *
- * No internal hook — the state is sheet-scoped and unmounts on
- * close, so co-locating the mutations + selection state here keeps
- * the surface area small.
+ * Lifecycle note: the parent mounts <RepurposeSheet/> unconditionally
+ * (open is just a prop), so the component itself persists across
+ * close/open cycles — only radix's <SheetContent/> portal unmounts.
+ * The reset effect on [open, source] calls mutation.reset() before
+ * re-firing the recommend, so no stale data leaks into the next
+ * session.
  */
 export function RepurposeSheet({ open, onOpenChange, source }: Props) {
   const recommendMutation = useMutation({
@@ -71,7 +78,9 @@ export function RepurposeSheet({ open, onOpenChange, source }: Props) {
     onSuccess: (data: RepurposeResponse) => {
       const real = data.adaptations.length;
       if (real === 0) {
-        toast.info("No variants generated — every selected channel is either pending or failed.");
+        toast.info(
+          "No variants generated — every selected channel is either coming soon or failed.",
+        );
       } else if (data.idempotent) {
         toast.success(`Showing your previous repurpose (${real} variant${real === 1 ? "" : "s"})`);
       } else {
@@ -141,20 +150,32 @@ export function RepurposeSheet({ open, onOpenChange, source }: Props) {
     [selected],
   );
 
-  const stage: "loading" | "recommend" | "generating" | "done" | "empty" =
-    repurposeMutation.isPending
-      ? "generating"
-      : repurposeMutation.isSuccess
-        ? "done"
-        : // `isIdle` (mutation hasn't run yet) AND we have a source =
-          // we're about to call mutate via the reset effect — treat as
-          // loading instead of letting the fallback "recommend" branch
-          // render an empty list for one frame.
-          recommendMutation.isPending || (recommendMutation.isIdle && source !== null)
-          ? "loading"
-          : recommendations.length === 0 && recommendMutation.isSuccess
-            ? "empty"
-            : "recommend";
+  const stage:
+    | "loading"
+    | "recommend"
+    | "generating"
+    | "done"
+    | "empty"
+    | "error" =
+    // Defensive: open with no source = a parent bug; render loading
+    // (skeletons) rather than an empty checkbox list while the parent
+    // sorts itself out.
+    source === null
+      ? "loading"
+      : repurposeMutation.isPending
+        ? "generating"
+        : repurposeMutation.isSuccess
+          ? "done"
+          : recommendMutation.isError
+            ? "error"
+            : // `isIdle` = about to call mutate via the reset effect;
+              // treat as loading instead of letting the fallback
+              // "recommend" branch render an empty list for one frame.
+              recommendMutation.isPending || recommendMutation.isIdle
+              ? "loading"
+              : recommendations.length === 0 && recommendMutation.isSuccess
+                ? "empty"
+                : "recommend";
 
   function handleConfirm() {
     if (!source || !platformFitId || finalPlatforms.length === 0) return;
@@ -183,6 +204,16 @@ export function RepurposeSheet({ open, onOpenChange, source }: Props) {
         <div className="flex-1 overflow-y-auto px-6 py-4">
           {stage === "loading" && <LoadingRows />}
           {stage === "empty" && <EmptyState count={recommendData?.connectedChannelsCount ?? 0} />}
+          {stage === "error" && (
+            <ErrorState
+              message={
+                recommendMutation.error instanceof Error
+                  ? recommendMutation.error.message
+                  : "Failed to score platforms"
+              }
+              onRetry={() => source && recommendMutation.mutate(source)}
+            />
+          )}
           {stage === "recommend" && (
             <RecommendationList
               recommendations={recommendations}
@@ -220,7 +251,7 @@ export function RepurposeSheet({ open, onOpenChange, source }: Props) {
               </Button>
             </>
           )}
-          {(stage === "done" || stage === "empty") && (
+          {(stage === "done" || stage === "empty" || stage === "error") && (
             <Button type="button" size="sm" onClick={handleClose}>
               Close
             </Button>
@@ -251,6 +282,21 @@ function LoadingRows() {
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <div className="rounded-md border border-destructive/30 bg-destructive/5 p-4">
+      <div className="mb-2 flex items-center gap-2 text-sm font-medium text-destructive">
+        <AlertCircle className="size-4" aria-hidden />
+        Failed to score platforms
+      </div>
+      <p className="mb-3 text-xs text-muted-foreground">{message}</p>
+      <Button type="button" size="sm" variant="outline" onClick={onRetry}>
+        Retry
+      </Button>
     </div>
   );
 }
