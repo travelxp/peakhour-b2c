@@ -103,10 +103,14 @@ export function RepurposeSheet({ open, onOpenChange, source }: Props) {
   const recommendData = recommendMutation.data;
   // Memoised so the useEffect dep array sees a stable identity —
   // without this, the seeding effect would re-fire on every render
-  // (data ref is stable, but `?? []` produces a fresh array each time).
+  // (data ref is stable, but `?? []` produces a fresh array each
+  // time). Depend on the inner `recommendations` array rather than
+  // the whole `recommendData` object so the memo cache hit is tighter
+  // (avoids unnecessary seeding re-fires when other fields on
+  // recommendData would have updated).
   const recommendations = useMemo(
     () => recommendData?.recommendations ?? [],
-    [recommendData],
+    [recommendData?.recommendations],
   );
   const platformFitId = recommendData?.platformFitId ?? null;
 
@@ -142,7 +146,11 @@ export function RepurposeSheet({ open, onOpenChange, source }: Props) {
       ? "generating"
       : repurposeMutation.isSuccess
         ? "done"
-        : recommendMutation.isPending
+        : // `isIdle` (mutation hasn't run yet) AND we have a source =
+          // we're about to call mutate via the reset effect — treat as
+          // loading instead of letting the fallback "recommend" branch
+          // render an empty list for one frame.
+          recommendMutation.isPending || (recommendMutation.isIdle && source !== null)
           ? "loading"
           : recommendations.length === 0 && recommendMutation.isSuccess
             ? "empty"
@@ -314,7 +322,14 @@ function RecommendationList({
                   </span>
                 )}
               </div>
-              <p className="text-xs text-muted-foreground">{r.rationale}</p>
+              <p className="text-xs text-muted-foreground">
+                {r.rationale}
+                {isHardBlocked && r.hardBlocks && r.hardBlocks.length > 0 && (
+                  <span className="ml-1 text-[10px] uppercase tracking-wide opacity-70">
+                    [{r.hardBlocks.join(", ")}]
+                  </span>
+                )}
+              </p>
             </label>
           </li>
         );
@@ -325,7 +340,7 @@ function RecommendationList({
 
 function GeneratingRows({ platforms }: { platforms: string[] }) {
   return (
-    <div className="space-y-2">
+    <div className="space-y-2" role="status" aria-live="polite">
       {platforms.map((p) => {
         const display = getChannelDisplay(p);
         return (
@@ -333,11 +348,45 @@ function GeneratingRows({ platforms }: { platforms: string[] }) {
             key={p}
             className="flex items-center gap-3 rounded-md border bg-card p-3"
           >
-            <Loader2 className="size-4 animate-spin text-muted-foreground" />
+            <Loader2
+              className="size-4 animate-spin text-muted-foreground"
+              aria-hidden
+            />
             <span className="text-sm">Writing for {display.label}…</span>
           </div>
         );
       })}
+      <span className="sr-only">Generating variants for {platforms.length} platform{platforms.length === 1 ? "" : "s"}</span>
+    </div>
+  );
+}
+
+function VariantPreview({ variant: v }: { variant: RepurposeResponse["adaptations"][number] }) {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center gap-2 text-[11px] uppercase text-muted-foreground">
+        {v.contentType}
+        {v.estimatedEngagement > 0 && (
+          <span className="tabular-nums">
+            · {v.estimatedEngagement}/10 engagement
+          </span>
+        )}
+      </div>
+      <p
+        className={`whitespace-pre-line text-sm ${expanded ? "" : "line-clamp-6"}`}
+      >
+        {v.content}
+      </p>
+      {v.content.length > 280 && (
+        <button
+          type="button"
+          onClick={() => setExpanded((s) => !s)}
+          className="text-[11px] text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
+        >
+          {expanded ? "Show less" : "Show more"}
+        </button>
+      )}
     </div>
   );
 }
@@ -353,6 +402,14 @@ function DoneState({ response }: { response: RepurposeResponse }) {
   }, {});
   return (
     <div className="space-y-3">
+      {response.idempotent && (
+        // Visible cue (in addition to the sonner toast) so a user who
+        // dismisses the toast still sees these are prior variants,
+        // not fresh ones.
+        <div className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+          Showing your previous repurpose for this content (no new variants generated).
+        </div>
+      )}
       {Object.entries(byPlatform).map(([platform, variants]) => {
         const display = getChannelDisplay(platform);
         return (
@@ -365,18 +422,8 @@ function DoneState({ response }: { response: RepurposeResponse }) {
               </Badge>
             </div>
             <div className="space-y-2 px-3 py-2">
-              {variants.map((v, i) => (
-                <div key={i} className="space-y-1">
-                  <div className="flex items-center gap-2 text-[11px] uppercase text-muted-foreground">
-                    {v.contentType}
-                    {v.estimatedEngagement > 0 && (
-                      <span className="tabular-nums">
-                        · {v.estimatedEngagement}/10 engagement
-                      </span>
-                    )}
-                  </div>
-                  <p className="whitespace-pre-line text-sm line-clamp-6">{v.content}</p>
-                </div>
+              {variants.map((v) => (
+                <VariantPreview key={`${platform}-${v.contentType}`} variant={v} />
               ))}
             </div>
           </div>
