@@ -35,7 +35,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FileX, LayoutGrid, List, Library, BrainCircuit } from "lucide-react";
+import { FileX, LayoutGrid, List, Library, BrainCircuit, Share2 } from "lucide-react";
+import { RepurposeSheet } from "@/components/repurpose/repurpose-sheet";
+import type { RepurposeSource } from "@/lib/api/repurpose";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -97,6 +99,9 @@ export default function ContentPage() {
   const prefs = user?.preferences ?? null;
   const contentColumns = useMemo(() => getContentColumns(prefs), [prefs]);
   const [view, setView] = useState<"card" | "table">("table");
+  // Sheet state lives at page level so it survives any row re-render
+  // during the sheet's open lifecycle.
+  const [repurposeSource, setRepurposeSource] = useState<RepurposeSource | null>(null);
 
   const enqueueJob = useEnqueueJob();
   // useJobs("active") is already mounted at the dashboard layout level
@@ -465,6 +470,9 @@ export default function ContentPage() {
                     onClick={() =>
                       router.push(`/dashboard/content/beehiiv/${row.original._id}`)
                     }
+                    onRepurpose={() =>
+                      setRepurposeSource({ type: "draft", draftId: row.original._id })
+                    }
                   />
                 ))}
               </div>
@@ -657,6 +665,13 @@ export default function ContentPage() {
           </TabsContent>
         </Tabs>
       </div>
+      <RepurposeSheet
+        open={repurposeSource !== null}
+        onOpenChange={(o) => {
+          if (!o) setRepurposeSource(null);
+        }}
+        source={repurposeSource}
+      />
     </TooltipProvider>
   );
 }
@@ -710,9 +725,11 @@ function KpiCard({
 function ArticleCard({
   draft,
   onClick,
+  onRepurpose,
 }: {
   draft: Draft;
   onClick: () => void;
+  onRepurpose: () => void;
 }) {
   const t = draft.tags;
   return (
@@ -762,6 +779,26 @@ function ArticleCard({
           <span className="text-xs text-muted-foreground">
             {formatDate(draft.publishedAt, null)}
           </span>
+        </div>
+
+        {/* Repurpose action — stopPropagation so the card's onClick
+            (router.push to the detail page) doesn't fire when the
+            user only wanted to open the platform recommender. */}
+        <div className="flex justify-end pt-1">
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-7 text-xs"
+            onClick={(e) => {
+              e.stopPropagation();
+              onRepurpose();
+            }}
+            title="Score connected platforms and generate variants"
+          >
+            <Share2 className="mr-1 size-3" />
+            Repurpose
+          </Button>
         </div>
       </CardContent>
     </Card>

@@ -10,12 +10,14 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { ChevronDown, Sparkles, X } from "lucide-react";
+import { ChevronDown, Share2, Sparkles, X } from "lucide-react";
 import {
   SUGGESTED_DRAFTS_QUERY_KEY,
   type GenerateFromProfileResponse,
   type SuggestedDraft,
 } from "@/lib/api/linkedin-content";
+import { RepurposeSheet } from "@/components/repurpose/repurpose-sheet";
+import type { RepurposeSource } from "@/lib/api/repurpose";
 
 /**
  * Cache lifecycle for the SuggestedDraftsPanel:
@@ -54,6 +56,9 @@ interface Props {
 export function SuggestedDraftsPanel({ onUseDraft }: Props) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(true);
+  // Sheet state lives here (not per-card) so the sheet survives card
+  // dismissal animations without an unmount race.
+  const [repurposeSource, setRepurposeSource] = useState<RepurposeSource | null>(null);
 
   // Pure cache reader — no network call, no queryFn invocation. The
   // launch page populates the cache via setQueryData; this panel only
@@ -130,12 +135,22 @@ export function SuggestedDraftsPanel({ onUseDraft }: Props) {
                   draft={draft}
                   onUse={() => use(draft)}
                   onDismiss={() => dismiss(draft.draftId)}
+                  onRepurpose={() =>
+                    setRepurposeSource({ type: "draft", draftId: draft.draftId })
+                  }
                 />
               ))}
             </ol>
           </CardContent>
         </CollapsibleContent>
       </Card>
+      <RepurposeSheet
+        open={repurposeSource !== null}
+        onOpenChange={(o) => {
+          if (!o) setRepurposeSource(null);
+        }}
+        source={repurposeSource}
+      />
     </Collapsible>
   );
 }
@@ -158,11 +173,13 @@ function SuggestedDraftCard({
   draft,
   onUse,
   onDismiss,
+  onRepurpose,
 }: {
   rank: number;
   draft: SuggestedDraft;
   onUse: () => void;
   onDismiss: () => void;
+  onRepurpose: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   // Fallback to a humanised version of the raw angle key if the server
@@ -212,7 +229,7 @@ function SuggestedDraftCard({
             </span>
           </div>
         </div>
-        <div className="flex shrink-0 flex-col items-end gap-2">
+        <div className="flex shrink-0 flex-col items-end gap-1.5">
           <Button
             type="button"
             size="sm"
@@ -221,6 +238,17 @@ function SuggestedDraftCard({
             className="h-7 text-xs"
           >
             Use this draft
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={onRepurpose}
+            className="h-7 text-xs"
+            title="Score connected platforms for this draft and generate variants"
+          >
+            <Share2 className="mr-1 size-3" />
+            Repurpose
           </Button>
           <button
             type="button"
