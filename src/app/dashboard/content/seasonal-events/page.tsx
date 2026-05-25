@@ -86,11 +86,17 @@ const STATUS_LABEL: Record<SeasonalEventStatus, string> = {
 };
 
 /**
- * "Non-driving" statuses — the AI seasonal generator skips these.
- * Used to hide them from the default list view and gate the "Show
- * postponed/cancelled" toggle.
+ * Hidden-by-default in the b2c list — postponed or cancelled. The
+ * "Show postponed or cancelled" toggle un-hides them.
+ *
+ * NOTE on the asymmetry with the AI: the canonical generator filter
+ * (peakhour-api `isDrivingStatus`) also treats `tentative` as
+ * non-driving, but the b2c keeps tentative events visible by default
+ * — the operator needs to see them in order to lock the date once
+ * the organiser confirms. Naming this predicate "hiddenByDefault"
+ * instead of "nonDriving" so the distinction reads clearly.
  */
-function isNonDriving(status: SeasonalEventStatus | undefined): boolean {
+function isHiddenByDefault(status: SeasonalEventStatus | undefined): boolean {
   return status === "postponed" || status === "cancelled";
 }
 
@@ -431,10 +437,10 @@ export default function SeasonalEventsPage() {
     return a.event.month - b.event.month;
   });
   const passedCount = indexedEvents.filter((x) => x.dateInfo.passedThisYear).length;
-  const nonDrivingCount = indexedEvents.filter((x) => isNonDriving(x.event.status)).length;
+  const hiddenStatusCount = indexedEvents.filter((x) => isHiddenByDefault(x.event.status)).length;
   const visibleEvents = indexedEvents.filter((x) => {
     if (!showPast && x.dateInfo.passedThisYear) return false;
-    if (!showNonDriving && isNonDriving(x.event.status)) return false;
+    if (!showNonDriving && isHiddenByDefault(x.event.status)) return false;
     return true;
   });
 
@@ -479,7 +485,7 @@ export default function SeasonalEventsPage() {
         </div>
       ) : (
         <div className="space-y-2">
-          {passedCount > 0 || nonDrivingCount > 0 ? (
+          {passedCount > 0 || hiddenStatusCount > 0 ? (
             <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-xs text-muted-foreground">
               {passedCount > 0 ? (
                 <span className="flex items-center gap-2">
@@ -498,12 +504,12 @@ export default function SeasonalEventsPage() {
                   </Button>
                 </span>
               ) : null}
-              {nonDrivingCount > 0 ? (
+              {hiddenStatusCount > 0 ? (
                 <span className="flex items-center gap-2">
                   <span>
                     {showNonDriving
-                      ? `${nonDrivingCount} postponed/cancelled shown`
-                      : `${nonDrivingCount} postponed/cancelled hidden`}
+                      ? `${hiddenStatusCount} postponed or cancelled event${hiddenStatusCount === 1 ? "" : "s"} shown`
+                      : `${hiddenStatusCount} postponed or cancelled event${hiddenStatusCount === 1 ? "" : "s"} hidden`}
                   </span>
                   <Button
                     size="sm"
@@ -511,7 +517,7 @@ export default function SeasonalEventsPage() {
                     onClick={() => setShowNonDriving((v) => !v)}
                     className="h-7 px-2 text-xs"
                   >
-                    {showNonDriving ? "Hide postponed/cancelled" : "Show postponed/cancelled"}
+                    {showNonDriving ? "Hide postponed or cancelled" : "Show postponed or cancelled"}
                   </Button>
                 </span>
               ) : null}
@@ -521,13 +527,15 @@ export default function SeasonalEventsPage() {
             <div className="rounded-lg border border-dashed bg-card p-6 text-center text-sm text-muted-foreground">
               No events to show in the current view. Use the{" "}
               <span className="font-medium">Show past</span>
-              {nonDrivingCount > 0 ? (
+              {hiddenStatusCount > 0 ? (
                 <>
                   {" "}or{" "}
-                  <span className="font-medium">Show postponed/cancelled</span>
+                  <span className="font-medium">Show postponed or cancelled</span>
+                  {" "}toggles above to review hidden events.
                 </>
-              ) : null}{" "}
-              toggle above to review hidden events.
+              ) : (
+                <> toggle above to review hidden events.</>
+              )}
             </div>
           ) : (
             visibleEvents.map(({ event: e, originalIndex, dateInfo }) => (
