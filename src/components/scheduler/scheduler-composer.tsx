@@ -48,6 +48,8 @@ import { ScheduleConflictWarning } from "./schedule-conflict-warning";
 import { TimezoneBanner } from "./timezone-banner";
 import { ChannelIconCompact } from "@/components/ui/channel-icon";
 import { useSchedulePreview } from "./use-schedule-preview";
+import { useSchedulerEntitlements } from "./use-scheduler-entitlements";
+import { UpgradeCallout } from "./upgrade-callout";
 import { channelDisplayName } from "@/lib/scheduler/format";
 
 export interface SchedulerComposerProps {
@@ -67,8 +69,13 @@ export interface SchedulerComposerProps {
     publishViaReminder?: boolean;
     payload: CommitPlanRequest["channels"][number]["payload"];
   }[];
-  /** Whether the org's plan tier allows auto-approval (PR 8 wires
-   *  this from the entitlements feed). */
+  /**
+   * Explicit override for the auto-approve affordance. When omitted,
+   * the composer reads from /v1/scheduler/entitlements and only
+   * surfaces the checkbox when `schedulerFeatures.autoApprove` is
+   * true. Passing `true` here forces it visible regardless (useful
+   * for staging / preview pages); passing `false` hides it.
+   */
   canAutoApprove?: boolean;
   /** Initial anchor — defaults to the next round hour. */
   initialAnchor?: Date;
@@ -109,6 +116,34 @@ export function SchedulerComposer({
   const [strategy, setStrategy] = useState<StaggerStrategy>("smart");
   const [autoApprove, setAutoApprove] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  // Entitlements gate — pull the scheduler-shaped slice once on
+  // mount. Two separate concerns:
+  //
+  //   - DISPLAY: show / hide affordances and callouts. Default-
+  //     restrictive while loading (don't flash locked banners before
+  //     we know the user's tier).
+  //   - AUTHORIZATION: what goes into the request body. ALWAYS reads
+  //     from entitlements, never from props. The `canAutoApprove`
+  //     override only forces the checkbox VISIBLE in staging /
+  //     preview surfaces; the server is the source of truth.
+  const { data: entitlements, isLoading: entitlementsLoading } =
+    useSchedulerEntitlements();
+  const autoApproveAuthorized =
+    entitlements?.schedulerFeatures.autoApprove ?? false;
+  const autoApproveVisible =
+    canAutoApprove === true || (canAutoApprove !== false && autoApproveAuthorized);
+  const bundleCap = entitlements?.schedulerLimits.maxScheduleBundleSize;
+  const bundleExceedsCap =
+    bundleCap !== undefined && channels.length > bundleCap;
+  // Multi-channel users mounted before entitlements arrive: hide
+  // the locked banner until we know — otherwise paid users flash a
+  // "Free tier" callout on every load.
+  const bundlesLocked =
+    !entitlementsLoading &&
+    channels.length > 1 &&
+    entitlements?.schedulerFeatures.bundles === false;
+  const queueCap = entitlements?.schedulerLimits.maxScheduledItems;
   // Double-submit ref guard — protects against React batching delays
   // letting two Enter keypresses fire the submit handler before the
   // disabled state propagates.
@@ -156,7 +191,11 @@ export function SchedulerComposer({
         staggerStrategy: strategy,
         canonicalScheduledAtUtc: anchor.toISOString(),
         timezone,
-        ...(canAutoApprove && autoApprove ? { autoApprove: true } : {}),
+        // Authorization gate — ALWAYS read from entitlements, never
+        // from the canAutoApprove display override. A staging caller
+        // setting canAutoApprove={true} must not be able to bypass
+        // the server's plan check.
+        ...(autoApproveAuthorized && autoApprove ? { autoApprove: true } : {}),
       };
       const result = await scheduler.commitPlan(body);
       toast.success(
@@ -241,7 +280,47 @@ export function SchedulerComposer({
 
       <ScheduleConflictWarning preview={preview} />
 
-      {canAutoApprove && (
+      {/* Bundle-gate callout — appears when the caller's channel
+          count exceeds the user's plan tier. The server will 402 if
+          they try to schedule, so we surface the hint before submit.
+          Suppressed while entitlements is loading so paid users
+          don't flash a "Free tier" banner. */}
+      {bundlesLocked && (
+        <UpgradeCallout
+          variant="banner"
+          message="Multi-channel bundled publishing is on Starter+ plans. Free tier schedules channels one at a time."
+        />
+      )}
+      {bundleExceedsCap && (
+        <UpgradeCallout
+          variant="banner"
+          message={`Your plan caps bundle publishing at ${bundleCap} channel${
+            bundleCap === 1 ? "" : "s"
+          } per plan — upgrade to bundle ${channels.length} together.`}
+        />
+      )}
+
+      {/* Plan queue cap — informational only. The live "X of Y"
+          count belongs on the calendar page, not the composer
+          (composer doesn't have list-items query state). */}
+      {queueCap !== undefined && !entitlementsLoading && (
+        <div className="text-[11px] text-muted-foreground">
+          {entitlements?.plan === "free"
+            ? `Free tier holds up to ${queueCap} scheduled items at a time. `
+            : `Your plan caps active scheduled items at ${queueCap}. `}
+          See your{" "}
+          <a href="/dashboard/calendar" className="underline-offset-2 hover:underline">
+            calendar
+          </a>{" "}
+          for the current count.
+        </div>
+      )}
+
+      {/* Auto-approve — checkbox visible when entitlements unlock it
+          OR when the explicit override forces it visible. The
+          request body still respects entitlements (authorization is
+          decoupled from display). */}
+      {autoApproveVisible && (
         <div className="flex items-start gap-2 rounded-md border bg-muted/30 p-3">
           <Checkbox
             id="auto-approve"
@@ -263,14 +342,30 @@ export function SchedulerComposer({
           </Label>
         </div>
       )}
+      {/* Upgrade teaser — surfaces for every tier that doesn't have
+          auto_approve unlocked, INCLUDING Free. Free users are the
+          highest-value upsell target; excluding them was a mistake. */}
+      {!autoApproveAuthorized &&
+        !entitlementsLoading &&
+        canAutoApprove !== false && (
+          <UpgradeCallout message="Auto-approve publishing is on Growth+ plans." />
+        )}
 
       <Button
         onClick={submit}
-        // Disable only while actively submitting or with no channels.
-        // A failed preview (error !== null) shouldn't block commit —
-        // the server re-runs the stagger on commit and the user
-        // shouldn't be locked out by a transient preview API failure.
-        disabled={submitting || channels.length === 0 || loading}
+        // Disable rules:
+        //  - submitting / loading-preview (UX)
+        //  - empty channels (no-op)
+        //  - bundleExceedsCap or bundlesLocked (server would 402)
+        //    — we read the same entitlements the server checks; no
+        //    sense letting the user hit submit on a known-bad config.
+        disabled={
+          submitting ||
+          channels.length === 0 ||
+          loading ||
+          bundleExceedsCap ||
+          bundlesLocked
+        }
         className="w-full gap-2"
         size="lg"
       >

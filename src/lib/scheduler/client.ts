@@ -19,6 +19,7 @@ import type {
   ScheduledItemStatus,
   PublishPlanStatus,
   PublishPlanApprovalState,
+  SchedulerEntitlementsResponse,
 } from "./types";
 
 export interface ListPlansQuery {
@@ -109,5 +110,11 @@ export const scheduler = {
 
   previewTime(body: PreviewTimeRequest) {
     return api.post<PreviewTimeResponse>("/v1/scheduler/preview-time", body);
+  },
+
+  getEntitlements() {
+    return api.get<SchedulerEntitlementsResponse>(
+      "/v1/scheduler/entitlements",
+    );
   },
 };

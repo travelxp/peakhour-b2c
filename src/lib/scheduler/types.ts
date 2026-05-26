@@ -213,3 +213,19 @@ export interface PlanDetailResponse {
   plan: PublishPlanDto;
   items: ScheduledItemDto[];
 }
+
+export interface SchedulerEntitlementsResponse {
+  plan: string;
+  planVersion: number;
+  schedulerFeatures: {
+    recurring: boolean;
+    bundles: boolean;
+    autoApprove: boolean;
+    bulkCsv: boolean;
+  };
+  schedulerLimits: {
+    maxScheduledItems?: number;
+    maxScheduleHorizonDays?: number;
+    maxScheduleBundleSize?: number;
+  };
+}

@@ -43,3 +43,11 @@ export { useSchedulePreview } from "./use-schedule-preview";
 
 export { SchedulerComposer } from "./scheduler-composer";
 export type { SchedulerComposerProps } from "./scheduler-composer";
+
+export {
+  useSchedulerEntitlements,
+  schedulerFeatureEnabled,
+} from "./use-scheduler-entitlements";
+
+export { UpgradeCallout } from "./upgrade-callout";
+export type { UpgradeCalloutProps } from "./upgrade-callout";
