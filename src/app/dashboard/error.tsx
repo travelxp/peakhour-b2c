@@ -20,9 +20,8 @@ export default function DashboardError({
     console.error("[dashboard/error]", error);
   }, [error]);
 
-  return (
-    <div className="p-4 md:p-6">
-      <ErrorFallback error={error} reset={reset} />
-    </div>
-  );
+  // Dashboard layout already wraps {children} in a `p-6` container, so we
+  // render the fallback directly — adding our own padding would double up
+  // and push the card off-grid.
+  return <ErrorFallback error={error} reset={reset} />;
 }

@@ -9,13 +9,27 @@ interface ErrorBoundaryProps {
   fallback?: (args: { error: Error; reset: () => void }) => ReactNode;
   /** Optional side effect on catch — e.g. log to Sentry, post a breadcrumb, fire a metric. */
   onError?: (error: Error, info: ErrorInfo) => void;
-  /** Pass any value (e.g. a queryKey, route segment) that should trigger a reset when it changes —
-   *  useful for "auto-recover when the user navigates away." */
-  resetKey?: unknown;
+  /** Primitive values (string/number) compared by `Object.is` between renders;
+   *  any change resets the boundary. Useful for "auto-recover on navigation."
+   *  Arrays/objects would create a fresh reference every render and reset
+   *  loop forever — primitives only. */
+  resetKeys?: ReadonlyArray<string | number | boolean | null | undefined>;
 }
 
 interface ErrorBoundaryState {
   error: Error | null;
+}
+
+function resetKeysChanged(
+  a: ErrorBoundaryProps["resetKeys"],
+  b: ErrorBoundaryProps["resetKeys"],
+): boolean {
+  if (a === b) return false;
+  if (!a || !b || a.length !== b.length) return true;
+  for (let i = 0; i < a.length; i++) {
+    if (!Object.is(a[i], b[i])) return true;
+  }
+  return false;
 }
 
 /**
@@ -44,7 +58,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   }
 
   componentDidUpdate(prevProps: ErrorBoundaryProps): void {
-    if (this.state.error && prevProps.resetKey !== this.props.resetKey) {
+    if (this.state.error && resetKeysChanged(prevProps.resetKeys, this.props.resetKeys)) {
       this.setState({ error: null });
     }
   }

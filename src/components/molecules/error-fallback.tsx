@@ -2,6 +2,14 @@
 
 import { AlertTriangle, RotateCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
 import { cn } from "@/lib/utils";
 
 interface ErrorFallbackProps {
@@ -19,6 +27,11 @@ interface ErrorFallbackProps {
   className?: string;
 }
 
+/**
+ * Error variant of the shadcn `Empty` primitive — same visual chrome as
+ * EmptyState so error/empty/no-results screens read from one vocabulary.
+ * Used by every `error.tsx` boundary and the class `ErrorBoundary`.
+ */
 export function ErrorFallback({
   error,
   reset,
@@ -31,44 +44,48 @@ export function ErrorFallback({
   const digest = error?.digest;
 
   return (
-    <div
+    <Empty
       role="alert"
-      className={cn(
-        "flex min-h-100 flex-col items-center justify-center rounded-lg border border-dashed p-8 text-center",
-        className,
-      )}
+      className={cn("border border-destructive/30 bg-destructive/5", className)}
     >
-      <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-destructive/10">
-        <AlertTriangle aria-hidden="true" className="size-6 text-destructive" />
-      </div>
-      <h3 className="mt-4 text-lg font-semibold">{title}</h3>
-      <p className="mt-2 max-w-md text-sm text-muted-foreground">{description}</p>
+      <EmptyHeader>
+        <EmptyMedia
+          variant="icon"
+          className="bg-destructive/10 text-destructive [&_svg:not([class*='size-'])]:size-6"
+        >
+          <AlertTriangle />
+        </EmptyMedia>
+        <EmptyTitle>{title}</EmptyTitle>
+        <EmptyDescription>{description}</EmptyDescription>
+      </EmptyHeader>
 
-      {detail && (
-        <p className="mt-3 max-w-md font-mono text-xs text-muted-foreground/80 break-words">
-          {detail}
-        </p>
-      )}
-
-      <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
-        {reset && (
-          <Button onClick={reset}>
-            <RotateCw className="mr-1.5 size-4" />
-            {resetLabel}
-          </Button>
+      <EmptyContent>
+        {detail && (
+          <p className="font-mono text-xs text-muted-foreground/80 wrap-break-word">
+            {detail}
+          </p>
         )}
-        <Button variant="outline" onClick={() => window.location.reload()}>
-          Reload page
-        </Button>
-      </div>
 
-      {/* `digest` lets ops correlate this exact error with the server log entry.
-          Hidden visually but selectable for support — kept small to avoid scaring users. */}
-      {digest && (
-        <p className="mt-4 text-[10px] text-muted-foreground/60 tabular-nums select-all">
-          ref: {digest}
-        </p>
-      )}
-    </div>
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          {reset && (
+            <Button onClick={reset}>
+              <RotateCw className="mr-1.5 size-4" />
+              {resetLabel}
+            </Button>
+          )}
+          <Button variant="outline" onClick={() => window.location.reload()}>
+            Reload page
+          </Button>
+        </div>
+
+        {/* `digest` lets ops correlate this exact error with the server log
+            entry. Hidden visually but selectable for support. */}
+        {digest && (
+          <p className="text-[10px] text-muted-foreground/60 tabular-nums select-all">
+            ref: {digest}
+          </p>
+        )}
+      </EmptyContent>
+    </Empty>
   );
 }
