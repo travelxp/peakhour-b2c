@@ -35,6 +35,7 @@ import {
 import { OrgSwitcher } from "@/components/dashboard/org-switcher";
 import { BusinessSwitcher } from "@/components/dashboard/business-switcher";
 import { PlanBadge } from "@/components/dashboard/plan-badge";
+import { AttentionBell } from "@/components/dashboard/attention-bell";
 import { TrialExpiryBanner } from "@/components/dashboard/trial-expiry-banner";
 import { CommandMenu } from "@/components/molecules/command-menu";
 import { FeedbackWidget } from "@/components/molecules/feedback-widget";
@@ -398,6 +399,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           <SidebarTrigger className="-ml-1" />
           <div className="ml-auto flex items-center gap-3">
             <PlanBadge />
+            <AttentionBell />
             <FeedbackWidget />
           </div>
         </header>
