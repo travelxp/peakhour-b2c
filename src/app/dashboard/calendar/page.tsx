@@ -26,6 +26,7 @@
  *   - Esc: close drawer
  */
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -56,9 +57,8 @@ import { CalendarItemDrawer } from "./_components/calendar-item-drawer";
 
 type Mode = "week" | "month";
 
-/** Week starts on Monday in our UI — aligns with the platform's
- *  primary B2B audience scheduling pattern. */
-function startOfWeek(date: Date, tz: string): Date {
+/** Render a Date's local (in `tz`) year-month-day parts. */
+function localParts(date: Date, tz: string): { y: number; mo: number; d: number; wd: string } {
   const fmt = new Intl.DateTimeFormat("en-CA", {
     timeZone: tz,
     year: "numeric",
@@ -67,37 +67,71 @@ function startOfWeek(date: Date, tz: string): Date {
     weekday: "short",
   });
   const parts = fmt.formatToParts(date);
-  const weekday = parts.find((p) => p.type === "weekday")?.value ?? "Mon";
-  const map: Record<string, number> = {
-    Mon: 0,
-    Tue: 1,
-    Wed: 2,
-    Thu: 3,
-    Fri: 4,
-    Sat: 5,
-    Sun: 6,
+  const get = (k: string) => parts.find((p) => p.type === k)?.value ?? "";
+  return {
+    y: Number(get("year")),
+    mo: Number(get("month")),
+    d: Number(get("day")),
+    wd: get("weekday") || "Mon",
   };
-  const offset = map[weekday] ?? 0;
-  const out = new Date(date.getTime());
-  out.setUTCDate(out.getUTCDate() - offset);
-  out.setUTCHours(0, 0, 0, 0);
-  return out;
 }
 
-function startOfMonth(date: Date): Date {
-  const out = new Date(
-    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1, 0, 0, 0, 0),
-  );
-  return out;
+/** Compose a UTC instant from local (in tz) year-month-day at
+ *  midnight. Uses the guess-and-diff trick to honour DST without
+ *  drifting across boundaries. */
+function localMidnightUtc(y: number, mo: number, d: number, tz: string): Date {
+  const guess = new Date(Date.UTC(y, mo - 1, d, 0, 0, 0, 0));
+  const rendered = localParts(guess, tz);
+  const renderedMs = Date.UTC(rendered.y, rendered.mo - 1, rendered.d, 0, 0, 0, 0);
+  const desiredMs = Date.UTC(y, mo - 1, d, 0, 0, 0, 0);
+  return new Date(guess.getTime() + (desiredMs - renderedMs));
+}
+
+const WEEKDAY_OFFSET: Record<string, number> = {
+  Mon: 0,
+  Tue: 1,
+  Wed: 2,
+  Thu: 3,
+  Fri: 4,
+  Sat: 5,
+  Sun: 6,
+};
+
+/** Week starts on Monday in our UI — aligns with the platform's
+ *  primary B2B audience scheduling pattern. Computed in `tz` so the
+ *  week boundary matches the user's local calendar, not UTC. */
+function startOfWeek(date: Date, tz: string): Date {
+  const p = localParts(date, tz);
+  const offset = WEEKDAY_OFFSET[p.wd] ?? 0;
+  // Back up `offset` local days to land on Monday-midnight-local.
+  let monday = localMidnightUtc(p.y, p.mo, p.d, tz);
+  monday = new Date(monday.getTime() - offset * 24 * 60 * 60 * 1000);
+  // Re-snap to local midnight after the day arithmetic (DST safety).
+  const mondayParts = localParts(monday, tz);
+  return localMidnightUtc(mondayParts.y, mondayParts.mo, mondayParts.d, tz);
+}
+
+function startOfMonth(date: Date, tz: string): Date {
+  const p = localParts(date, tz);
+  return localMidnightUtc(p.y, p.mo, 1, tz);
 }
 
 export default function CalendarPage() {
   const queryClient = useQueryClient();
+  // SSR-safe init: both `tz` and `anchor` are hydrated on mount.
+  // Initialising `new Date()` directly in useState runs on the
+  // server too, causing hydration mismatch when the server's "now"
+  // differs from the client's "now" by even a second — and the
+  // resulting queryKey would differ across the boundary, firing
+  // two queries.
   const [tz, setTz] = useState("UTC");
-  useEffect(() => setTz(detectTimezone()), []);
+  const [anchor, setAnchor] = useState<Date | null>(null);
+  useEffect(() => {
+    setTz(detectTimezone());
+    setAnchor(new Date());
+  }, []);
 
   const [mode, setMode] = useState<Mode>("week");
-  const [anchor, setAnchor] = useState(() => new Date());
   const [channelFilter, setChannelFilter] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<ScheduledItemStatus | null>(
     null,
@@ -105,15 +139,30 @@ export default function CalendarPage() {
   const [drawerItem, setDrawerItem] = useState<ScheduledItemDto | null>(null);
 
   const { rangeStart, rangeEnd } = useMemo(() => {
+    if (!anchor) {
+      // Pre-mount stub — no query fires until anchor hydrates.
+      const stub = new Date(0);
+      return { rangeStart: stub, rangeEnd: stub };
+    }
     if (mode === "week") {
       const start = startOfWeek(anchor, tz);
       const end = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000);
       return { rangeStart: start, rangeEnd: end };
     }
-    const start = startOfMonth(anchor);
-    const end = new Date(
-      Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 1),
-    );
+    const start = startOfMonth(anchor, tz);
+    // End-of-month = start of next month in the user's tz, computed
+    // the same way to avoid UTC-month edge cases.
+    const p = localParts(start, tz);
+    const end = (() => {
+      const nextMo = p.mo === 12 ? 1 : p.mo + 1;
+      const nextY = p.mo === 12 ? p.y + 1 : p.y;
+      // Inline composer to avoid a circular helper.
+      const guess = new Date(Date.UTC(nextY, nextMo - 1, 1, 0, 0, 0, 0));
+      const rendered = localParts(guess, tz);
+      const renderedMs = Date.UTC(rendered.y, rendered.mo - 1, rendered.d, 0, 0, 0, 0);
+      const desiredMs = Date.UTC(nextY, nextMo - 1, 1, 0, 0, 0, 0);
+      return new Date(guess.getTime() + (desiredMs - renderedMs));
+    })();
     return { rangeStart: start, rangeEnd: end };
   }, [anchor, mode, tz]);
 
@@ -130,6 +179,7 @@ export default function CalendarPage() {
 
   const { data, isLoading, refetch, isFetching } = useQuery<ListItemsResponse>({
     queryKey,
+    enabled: anchor !== null,
     queryFn: () =>
       scheduler.listItems({
         from: rangeStart,
@@ -204,7 +254,8 @@ export default function CalendarPage() {
 
   const shiftAnchor = (dir: -1 | 1) => {
     setAnchor((prev) => {
-      const next = new Date(prev);
+      const base = prev ?? new Date();
+      const next = new Date(base);
       if (mode === "week") {
         next.setUTCDate(next.getUTCDate() + dir * 7);
       } else {
@@ -262,7 +313,7 @@ export default function CalendarPage() {
       }).format(endDate);
       return `${start} – ${end}`;
     }
-    return fmt.format(anchor);
+    return anchor ? fmt.format(anchor) : "";
   }, [mode, rangeStart, rangeEnd, anchor, tz]);
 
   const filterStaleAndNeedsAction = useMemo(() => {
@@ -281,8 +332,7 @@ export default function CalendarPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Calendar</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            Every scheduled publish across all your channels. Drag a chip to
-            reschedule; Shift-drag to move just one channel.
+            Every scheduled publish across all your channels.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -359,10 +409,11 @@ export default function CalendarPage() {
             <span className="rounded-full bg-amber-100 px-2 py-0.5 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
               {filterStaleAndNeedsAction.staleCount +
                 filterStaleAndNeedsAction.needsActionCount}{" "}
-              need{filterStaleAndNeedsAction.staleCount +
-                filterStaleAndNeedsAction.needsActionCount === 1
-                ? "s"
-                : ""}{" "}
+              {filterStaleAndNeedsAction.staleCount +
+                filterStaleAndNeedsAction.needsActionCount ===
+              1
+                ? "needs"
+                : "need"}{" "}
               your attention
             </span>
           </div>
@@ -460,9 +511,21 @@ export default function CalendarPage() {
           <div>
             <div className="text-sm font-medium">Nothing scheduled yet</div>
             <p className="mt-1 max-w-md text-xs text-muted-foreground">
-              Schedule your first post from the Content composer or the
-              Beehiiv newsletter editor. It will appear here as a draggable
-              chip on the day it publishes.
+              Schedule your first post from the{" "}
+              <Link
+                href="/dashboard/content"
+                className="text-primary underline-offset-2 hover:underline"
+              >
+                Content composer
+              </Link>{" "}
+              or the{" "}
+              <Link
+                href="/dashboard/integrations"
+                className="text-primary underline-offset-2 hover:underline"
+              >
+                Beehiiv newsletter editor
+              </Link>
+              . It will appear here on the day it publishes.
             </p>
           </div>
         </div>
@@ -474,16 +537,11 @@ export default function CalendarPage() {
           timezone={tz}
           mode={mode}
           onItemClick={(item) => setDrawerItem(item)}
-          onItemMove={(args) => {
-            // Drag-to-reschedule wiring lands with the reschedule API
-            // endpoint (deferred from PR 5). For now surface a toast
-            // so the user knows the click was registered.
-            toast.info(
-              `${args.mode === "bundle" ? "Bundle" : "Item"}-move to ${
-                args.toDayLocal.toDateString()
-              } — reschedule API ships in the next release.`,
-            );
-          }}
+          // Drag-to-reschedule is deferred until the
+          // /v1/scheduler/items/:id reschedule endpoint lands. Leaving
+          // onItemMove unset makes CalendarView render non-draggable
+          // chips so we don't surface a "drag works" affordance that
+          // silently no-ops.
         />
       )}
 
@@ -493,9 +551,7 @@ export default function CalendarPage() {
         <kbd className="rounded border bg-muted px-1">→</kbd> nav ·{" "}
         <kbd className="rounded border bg-muted px-1">T</kbd> today ·{" "}
         <kbd className="rounded border bg-muted px-1">W</kbd> /{" "}
-        <kbd className="rounded border bg-muted px-1">M</kbd> week/month ·{" "}
-        <kbd className="rounded border bg-muted px-1">Shift</kbd>+drag to move
-        one channel
+        <kbd className="rounded border bg-muted px-1">M</kbd> week/month
       </div>
 
       {/* Per-item drawer */}

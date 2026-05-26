@@ -32,7 +32,6 @@ import {
   formatRelative,
   formatScheduleLabel,
   formatTimeLabel,
-  sha1Hex,
   statusTone,
 } from "@/lib/scheduler/format";
 import type { ScheduledItemDto } from "@/lib/scheduler/types";
@@ -52,6 +51,10 @@ const STATUS_ICON = {
 export interface CalendarItemDrawerProps {
   item: ScheduledItemDto;
   onCancel?: () => void;
+  /** Reserved for the next-PR source-hash sync. Currently unused —
+   *  the refresh button is disabled until the live source-hash fetch
+   *  lands. Keeping the prop on the public shape so the parent can
+   *  wire it once the API is ready. */
   onRefreshStale?: (newSourceTextHash: string) => void;
 }
 
@@ -85,6 +88,9 @@ function ToneBadge({
 export function CalendarItemDrawer({
   item,
   onCancel,
+  // Currently unused — see prop JSDoc. Will be wired with the source-
+  // hash sync API in a follow-up.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   onRefreshStale,
 }: CalendarItemDrawerProps) {
   const [confirmCancel, setConfirmCancel] = useState(false);
@@ -152,7 +158,7 @@ export function CalendarItemDrawer({
           Content snapshot
         </div>
         <div className="rounded-md border bg-muted/30 p-3 text-sm">
-          <p className="whitespace-pre-wrap break-words text-foreground">
+          <p className="whitespace-pre-wrap wrap-break-word text-foreground">
             {item.payload.text.length > 400
               ? `${item.payload.text.slice(0, 400)}…`
               : item.payload.text}
@@ -283,19 +289,21 @@ export function CalendarItemDrawer({
 
       {/* Actions */}
       <div className="flex flex-wrap gap-2">
-        {item.payloadStale && onRefreshStale && (
+        {item.payloadStale && (
+          // The "Refresh snapshot" button needs to fetch the live
+          // source content's hash from the source collection (the
+          // server treats markStale as a no-op when the new hash
+          // matches the existing one). That source-fetch API isn't
+          // wired in this PR, so the button shows as disabled with a
+          // tooltip-style label. The /stale path on the API stays
+          // gated to the plan owner anyway, so leaving it disabled
+          // also avoids the cross-user grief vector.
           <Button
             size="sm"
             variant="outline"
-            onClick={async () => {
-              // Re-hash the existing payload as a placeholder; once
-              // the source-content sync API lands, the page will
-              // fetch the live source's hash and pass that instead.
-              const newHash = await sha1Hex(
-                `${item.payload.text}|${item.payload.snapshotAt}`,
-              );
-              onRefreshStale(newHash);
-            }}
+            disabled
+            title="Source-content sync ships next — for now, recompose the post to refresh"
+            onClick={() => undefined}
           >
             Refresh snapshot
           </Button>
