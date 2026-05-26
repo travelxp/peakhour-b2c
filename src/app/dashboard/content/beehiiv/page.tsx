@@ -820,7 +820,15 @@ function AdScoreBar({
       return (
         <Tooltip>
           <TooltipTrigger asChild>
-            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+            {/* stopPropagation on click + pointerdown — card is wired
+                to navigate on click; without both, tapping the Info
+                routes away and closes the tooltip the user was trying
+                to read. Mirrors the Repurpose button pattern below. */}
+            <span
+              className="flex items-center gap-1 text-xs text-muted-foreground"
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+            >
               Can&apos;t score
               <Info className="size-3 text-amber-500" aria-label="Why not scored?" />
             </span>

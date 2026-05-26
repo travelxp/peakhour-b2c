@@ -305,7 +305,18 @@ export function getContentColumns(prefs: UserPreferences | null): ColumnDef<Draf
           return (
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                {/* stopPropagation on click + pointerdown — the row is
+                    wired to navigate on click in the parent table, and
+                    Radix opens its tooltip on pointerdown. Without
+                    both, tapping the Info icon routes away and the
+                    tooltip the user was trying to read closes
+                    immediately. Mirrors the Repurpose button pattern
+                    elsewhere on this page. */}
+                <span
+                  className="flex items-center gap-1 text-xs text-muted-foreground"
+                  onClick={(e) => e.stopPropagation()}
+                  onPointerDown={(e) => e.stopPropagation()}
+                >
                   Can&apos;t score
                   <Info className="size-3 text-amber-500" aria-label="Why not scored?" />
                 </span>
