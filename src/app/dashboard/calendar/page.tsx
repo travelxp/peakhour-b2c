@@ -255,13 +255,22 @@ export default function CalendarPage() {
   const shiftAnchor = (dir: -1 | 1) => {
     setAnchor((prev) => {
       const base = prev ?? new Date();
-      const next = new Date(base);
+      const p = localParts(base, tz);
       if (mode === "week") {
-        next.setUTCDate(next.getUTCDate() + dir * 7);
-      } else {
-        next.setUTCMonth(next.getUTCMonth() + dir);
+        // 7 LOCAL days. Adding 7×86400000ms to the UTC instant works
+        // unless the shift crosses a DST transition (gains/loses 1h);
+        // localMidnightUtc re-snaps on the new day anyway via
+        // startOfWeek, so the offset wash is harmless.
+        return localMidnightUtc(p.y, p.mo, p.d + dir * 7, tz);
       }
-      return next;
+      // Local month arithmetic — JS Date's setUTCMonth clamps Jan-31
+      // + 1mo to Mar-3 (UTC), losing February entirely. Computing in
+      // local parts and re-anchoring to day=1 of the next month gives
+      // the calendar what it expects.
+      const nextMo = p.mo + dir;
+      const nextY = p.y + Math.floor((nextMo - 1) / 12);
+      const moClamped = ((nextMo - 1) % 12 + 12) % 12 + 1;
+      return localMidnightUtc(nextY, moClamped, 1, tz);
     });
   };
 
@@ -316,13 +325,14 @@ export default function CalendarPage() {
     return anchor ? fmt.format(anchor) : "";
   }, [mode, rangeStart, rangeEnd, anchor, tz]);
 
-  const filterStaleAndNeedsAction = useMemo(() => {
-    if (!data) return { staleCount: 0, needsActionCount: 0 };
-    return {
-      staleCount: data.items.filter((i) => i.payloadStale).length,
-      needsActionCount: data.items.filter((i) => i.status === "needs_action")
-        .length,
-    };
+  /** Distinct count of items needing attention. An item can be BOTH
+   *  payloadStale AND in status="needs_action"; counting them
+   *  separately would double-report the same row. */
+  const attentionCount = useMemo(() => {
+    if (!data) return 0;
+    return data.items.filter(
+      (i) => i.payloadStale || i.status === "needs_action",
+    ).length;
   }, [data]);
 
   return (
@@ -403,18 +413,12 @@ export default function CalendarPage() {
             Today
           </Button>
         </div>
-        {(filterStaleAndNeedsAction.staleCount > 0 ||
-          filterStaleAndNeedsAction.needsActionCount > 0) && (
+        {attentionCount > 0 && (
           <div className="text-xs">
             <span className="rounded-full bg-amber-100 px-2 py-0.5 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-              {filterStaleAndNeedsAction.staleCount +
-                filterStaleAndNeedsAction.needsActionCount}{" "}
-              {filterStaleAndNeedsAction.staleCount +
-                filterStaleAndNeedsAction.needsActionCount ===
-              1
-                ? "needs"
-                : "need"}{" "}
-              your attention
+              {attentionCount}{" "}
+              {attentionCount === 1 ? "item needs" : "items need"} your
+              attention
             </span>
           </div>
         )}
