@@ -74,6 +74,30 @@ export const scheduler = {
     );
   },
 
+  /**
+   * Drag-to-reschedule. mode="bundle" shifts every sibling item under
+   * the same plan by the same delta (anchor item's old → new time);
+   * mode="item" shifts only the dragged item. Per locked decision #10:
+   * plain drag = bundle, alt-drag = item.
+   *
+   * Backdated requests (>5min in the past) return 400 BACKDATED_NOT_ALLOWED.
+   * Items in terminal status or currently being published return 409.
+   */
+  rescheduleItem(
+    itemId: string,
+    body: { scheduledAtUtc: Date; mode: "bundle" | "item" },
+  ) {
+    return api.patch<{
+      movedItemIds: string[];
+      cancelledItemIds: string[];
+      skippedItemIds: string[];
+      deltaMs: number;
+    }>(`/v1/scheduler/items/${itemId}/reschedule`, {
+      scheduledAtUtc: body.scheduledAtUtc.toISOString(),
+      mode: body.mode,
+    });
+  },
+
   listPlans(query: ListPlansQuery = {}) {
     return api.get<ListPlansResponse>(
       "/v1/scheduler/plans",

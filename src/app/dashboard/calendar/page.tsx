@@ -76,15 +76,34 @@ function localParts(date: Date, tz: string): { y: number; mo: number; d: number;
   };
 }
 
-/** Compose a UTC instant from local (in tz) year-month-day at
- *  midnight. Uses the guess-and-diff trick to honour DST without
- *  drifting across boundaries. */
-function localMidnightUtc(y: number, mo: number, d: number, tz: string): Date {
-  const guess = new Date(Date.UTC(y, mo - 1, d, 0, 0, 0, 0));
+/** Compose a UTC instant from local (in tz) year-month-day at the
+ *  given hour:minute. Uses the guess-and-diff trick to honour DST
+ *  without drifting across boundaries. */
+function localTimeUtc(
+  y: number,
+  mo: number,
+  d: number,
+  hh: number,
+  mm: number,
+  tz: string,
+): Date {
+  const guess = new Date(Date.UTC(y, mo - 1, d, hh, mm, 0, 0));
   const rendered = localParts(guess, tz);
-  const renderedMs = Date.UTC(rendered.y, rendered.mo - 1, rendered.d, 0, 0, 0, 0);
-  const desiredMs = Date.UTC(y, mo - 1, d, 0, 0, 0, 0);
+  const renderedHm = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz, hour12: false, hour: "2-digit", minute: "2-digit",
+  }).formatToParts(guess);
+  const rHh = Number(renderedHm.find((p) => p.type === "hour")?.value ?? "0");
+  const rMm = Number(renderedHm.find((p) => p.type === "minute")?.value ?? "0");
+  const renderedMs = Date.UTC(
+    rendered.y, rendered.mo - 1, rendered.d,
+    rHh === 24 ? 0 : rHh, rMm, 0, 0,
+  );
+  const desiredMs = Date.UTC(y, mo - 1, d, hh, mm, 0, 0);
   return new Date(guess.getTime() + (desiredMs - renderedMs));
+}
+
+function localMidnightUtc(y: number, mo: number, d: number, tz: string): Date {
+  return localTimeUtc(y, mo, d, 0, 0, tz);
 }
 
 const WEEKDAY_OFFSET: Record<string, number> = {
@@ -299,6 +318,64 @@ export default function CalendarPage() {
       }
     },
     [queryClient],
+  );
+
+  /**
+   * Drag-to-reschedule. The CalendarView callback gives us a day
+   * boundary (`toDayLocal` at midnight in the user's tz) and a mode —
+   * plain drag = "bundle", alt-drag = "item". We preserve the original
+   * time-of-day by computing a UTC delta from the item's original
+   * scheduledAtUtc to the same H:M on the target day. The API does the
+   * cancel-then-reinsert + sibling shift; we just invalidate the
+   * calendar query on success.
+   */
+  const onItemMove = useCallback(
+    async (args: {
+      item: ScheduledItemDto;
+      toDayLocal: Date;
+      mode: "bundle" | "item";
+    }) => {
+      // Preserve the item's original local time-of-day on the new day —
+      // dragging Mon 09:00 → Wed should land on Wed 09:00, not Wed
+      // midnight.
+      const original = new Date(args.item.scheduledAtUtc);
+      const originalHm = new Intl.DateTimeFormat("en-US", {
+        timeZone: tz, hour12: false, hour: "2-digit", minute: "2-digit",
+      }).formatToParts(original);
+      const hh = Number(originalHm.find((p) => p.type === "hour")?.value ?? "0");
+      const mm = Number(originalHm.find((p) => p.type === "minute")?.value ?? "0");
+      const dayParts = localParts(args.toDayLocal, tz);
+      const newScheduledAtUtc = localTimeUtc(
+        dayParts.y, dayParts.mo, dayParts.d, hh, mm, tz,
+      );
+
+      // Pre-empt the server's BACKDATED_NOT_ALLOWED check (5min skew
+      // tolerance) so dragging onto today before the original time-of-
+      // day doesn't round-trip just to get a 400.
+      if (newScheduledAtUtc.getTime() < Date.now() - 5 * 60_000) {
+        toast.error("Cannot reschedule into the past. Pick a future day.");
+        return;
+      }
+
+      try {
+        const result = await scheduler.rescheduleItem(args.item._id, {
+          scheduledAtUtc: newScheduledAtUtc,
+          mode: args.mode,
+        });
+        const moved = result.movedItemIds.length;
+        toast.success(
+          args.mode === "bundle"
+            ? `Bundle rescheduled — ${moved} item${moved === 1 ? "" : "s"} moved.`
+            : "Item rescheduled.",
+        );
+        void queryClient.invalidateQueries({ queryKey: ["scheduler:items"] });
+      } catch (err) {
+        toast.error(
+          err instanceof Error ? err.message : "Reschedule failed",
+        );
+      }
+    },
+    [queryClient, tz],
   );
 
   const headlineLabel = useMemo(() => {
@@ -541,11 +618,7 @@ export default function CalendarPage() {
           timezone={tz}
           mode={mode}
           onItemClick={(item) => setDrawerItem(item)}
-          // Drag-to-reschedule is deferred until the
-          // /v1/scheduler/items/:id reschedule endpoint lands. Leaving
-          // onItemMove unset makes CalendarView render non-draggable
-          // chips so we don't surface a "drag works" affordance that
-          // silently no-ops.
+          onItemMove={onItemMove}
         />
       )}
 
