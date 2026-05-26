@@ -35,7 +35,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FileX, LayoutGrid, List, Library, BrainCircuit, Share2 } from "lucide-react";
+import { FileX, LayoutGrid, List, Library, BrainCircuit, Share2, Info } from "lucide-react";
 import { RepurposeSheet } from "@/components/repurpose/repurpose-sheet";
 import type { RepurposeSource } from "@/lib/api/repurpose";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -775,7 +775,7 @@ function ArticleCard({
 
         {/* Ad score bar */}
         <div className="flex items-center justify-between">
-          <AdScoreBar score={t?.adPotentialScore} />
+          <AdScoreBar score={t?.adPotentialScore} unprocessable={draft.unprocessable} />
           <span className="text-xs text-muted-foreground">
             {formatDate(draft.publishedAt, null)}
           </span>
@@ -805,11 +805,36 @@ function ArticleCard({
   );
 }
 
-function AdScoreBar({ score }: { score?: number }) {
-  if (score == null)
+function AdScoreBar({
+  score,
+  unprocessable,
+}: {
+  score?: number;
+  unprocessable?: { message: string };
+}) {
+  if (score == null) {
+    if (unprocessable) {
+      // Reason set by the API (AI cap hit, preflight gate, etc.) —
+      // show why instead of an indefinite "Not scored". `message` is
+      // pre-rendered server-side; display as-is.
+      return (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+              Can&apos;t score
+              <Info className="size-3 text-amber-500" aria-label="Why not scored?" />
+            </span>
+          </TooltipTrigger>
+          <TooltipContent className="max-w-xs">
+            <p>{unprocessable.message}</p>
+          </TooltipContent>
+        </Tooltip>
+      );
+    }
     return (
       <span className="text-xs text-muted-foreground">Not scored</span>
     );
+  }
 
   const color =
     score >= 8
