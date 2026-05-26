@@ -175,21 +175,21 @@ export function SchedulerComposer({
   };
 
   // Cmd+Enter / Ctrl+Enter to schedule — power-user shortcut.
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-        e.preventDefault();
-        void submit();
-      }
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-    // submit closes over current state — fine to re-bind on every render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  });
+  // Scoped to keydown events INSIDE the composer's root (via the
+  // wrapper div's onKeyDown below) so it doesn't fire from unrelated
+  // modals or sibling composers. Global window listener was scope-
+  // leaking across multiple mounted composers.
 
   return (
-    <div className={cn("flex flex-col gap-4", className)}>
+    <div
+      className={cn("flex flex-col gap-4", className)}
+      onKeyDown={(e) => {
+        if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+          e.preventDefault();
+          void submit();
+        }
+      }}
+    >
       {/* Channel targets — read-only badges */}
       <div>
         <Label className="mb-1.5 block text-xs font-medium text-muted-foreground">

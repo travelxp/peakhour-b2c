@@ -347,9 +347,11 @@ export function CalendarView({
                       "application/x-scheduled-item-id",
                       item._id,
                     );
+                    // Shift-drag = item-only; plain drag = bundle-move.
+                    // Same contract as week view.
                     e.dataTransfer.setData(
-                      "application/x-alt",
-                      e.altKey ? "1" : "0",
+                      "application/x-item-only",
+                      e.shiftKey ? "1" : "0",
                     );
                     e.dataTransfer.effectAllowed = "move";
                   }}

@@ -53,6 +53,19 @@ function composeLocalDateTime(
   if (!yyyymmdd) return new Date().toISOString();
   const [y, mo, d] = yyyymmdd.split("-").map(Number);
   const [hh, mm] = hhmm.split(":").map(Number);
+  // Native <input type="date"> shouldn't emit malformed strings,
+  // but a future bound-prop change or a paste of garbage would
+  // otherwise produce Date.UTC(NaN, …) → Invalid Date → toISOString
+  // throws. Guard so the caller gets a usable fallback.
+  if (
+    !Number.isFinite(y) ||
+    !Number.isFinite(mo) ||
+    !Number.isFinite(d) ||
+    !Number.isFinite(hh) ||
+    !Number.isFinite(mm)
+  ) {
+    return new Date().toISOString();
+  }
   // Initial guess: parts interpreted as UTC.
   const guess = new Date(Date.UTC(y!, (mo ?? 1) - 1, d!, hh ?? 0, mm ?? 0));
   // Re-format the guess into the target tz to compute the offset.

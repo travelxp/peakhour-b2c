@@ -71,7 +71,11 @@ export function TimezoneBanner({
         onClick={() => {
           setDismissed(true);
           if (storageKey && typeof window !== "undefined") {
-            sessionStorage.setItem(storageKey, "1");
+            try {
+              sessionStorage.setItem(storageKey, "1");
+            } catch {
+              /* private mode / quota — dismissal is in-memory only. */
+            }
           }
         }}
         aria-label="Dismiss timezone banner"
