@@ -48,6 +48,8 @@ import { ScheduleConflictWarning } from "./schedule-conflict-warning";
 import { TimezoneBanner } from "./timezone-banner";
 import { ChannelIconCompact } from "@/components/ui/channel-icon";
 import { useSchedulePreview } from "./use-schedule-preview";
+import { useSchedulerEntitlements } from "./use-scheduler-entitlements";
+import { UpgradeCallout } from "./upgrade-callout";
 import { channelDisplayName } from "@/lib/scheduler/format";
 
 export interface SchedulerComposerProps {
@@ -67,8 +69,13 @@ export interface SchedulerComposerProps {
     publishViaReminder?: boolean;
     payload: CommitPlanRequest["channels"][number]["payload"];
   }[];
-  /** Whether the org's plan tier allows auto-approval (PR 8 wires
-   *  this from the entitlements feed). */
+  /**
+   * Explicit override for the auto-approve affordance. When omitted,
+   * the composer reads from /v1/scheduler/entitlements and only
+   * surfaces the checkbox when `schedulerFeatures.autoApprove` is
+   * true. Passing `true` here forces it visible regardless (useful
+   * for staging / preview pages); passing `false` hides it.
+   */
   canAutoApprove?: boolean;
   /** Initial anchor — defaults to the next round hour. */
   initialAnchor?: Date;
@@ -109,6 +116,19 @@ export function SchedulerComposer({
   const [strategy, setStrategy] = useState<StaggerStrategy>("smart");
   const [autoApprove, setAutoApprove] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  // Entitlements gate — pull the scheduler-shaped slice once on
+  // mount. Default-permissive disabled affordances when the call is
+  // still in flight or 4xx'd.
+  const { data: entitlements } = useSchedulerEntitlements();
+  const autoApproveAllowed =
+    canAutoApprove ?? entitlements?.schedulerFeatures.autoApprove ?? false;
+  const bundleCap = entitlements?.schedulerLimits.maxScheduleBundleSize;
+  const bundleExceedsCap =
+    bundleCap !== undefined && channels.length > bundleCap;
+  const bundlesUnlocked =
+    entitlements?.schedulerFeatures.bundles ?? channels.length <= 1;
+  const queueCap = entitlements?.schedulerLimits.maxScheduledItems;
   // Double-submit ref guard — protects against React batching delays
   // letting two Enter keypresses fire the submit handler before the
   // disabled state propagates.
@@ -156,7 +176,7 @@ export function SchedulerComposer({
         staggerStrategy: strategy,
         canonicalScheduledAtUtc: anchor.toISOString(),
         timezone,
-        ...(canAutoApprove && autoApprove ? { autoApprove: true } : {}),
+        ...(autoApproveAllowed && autoApprove ? { autoApprove: true } : {}),
       };
       const result = await scheduler.commitPlan(body);
       toast.success(
@@ -241,7 +261,44 @@ export function SchedulerComposer({
 
       <ScheduleConflictWarning preview={preview} />
 
-      {canAutoApprove && (
+      {/* Bundle-gate callout — appears when the caller's channel
+          count exceeds the user's plan tier. The server will 402 if
+          they try to schedule, so we surface the hint before submit. */}
+      {channels.length > 1 && !bundlesUnlocked && (
+        <UpgradeCallout
+          variant="banner"
+          message="Multi-channel bundled publishing is on Starter+ plans. Free tier schedules channels one at a time."
+        />
+      )}
+      {bundleExceedsCap && (
+        <UpgradeCallout
+          variant="banner"
+          message={`Your plan caps bundle publishing at ${bundleCap} channel${
+            bundleCap === 1 ? "" : "s"
+          } per plan — upgrade to bundle ${channels.length} together.`}
+        />
+      )}
+
+      {/* Queue-depth indicator — shows when the user is close to or
+          at their plan's queue cap. Reads from entitlements only;
+          actual count comes from the calendar page query. */}
+      {queueCap !== undefined && (
+        <div className="text-[11px] text-muted-foreground">
+          {entitlements?.plan === "free"
+            ? `Free tier holds up to ${queueCap} scheduled items at a time. `
+            : `Your plan caps active scheduled items at ${queueCap}. `}
+          See your{" "}
+          <a href="/dashboard/calendar" className="underline-offset-2 hover:underline">
+            calendar
+          </a>{" "}
+          for the current count.
+        </div>
+      )}
+
+      {/* Auto-approve — checkbox visible when entitlements unlock it,
+          OR when the explicit canAutoApprove override is true. When
+          the explicit override is false we hide outright. */}
+      {autoApproveAllowed && canAutoApprove !== false && (
         <div className="flex items-start gap-2 rounded-md border bg-muted/30 p-3">
           <Checkbox
             id="auto-approve"
@@ -263,6 +320,14 @@ export function SchedulerComposer({
           </Label>
         </div>
       )}
+      {/* Show a teaser upgrade callout when the feature is locked but
+          the user is on a tier above Free (likely to convert). */}
+      {!autoApproveAllowed &&
+        entitlements &&
+        entitlements.plan !== "free" &&
+        canAutoApprove !== false && (
+          <UpgradeCallout message="Auto-approve publishing is on Growth+ plans." />
+        )}
 
       <Button
         onClick={submit}
