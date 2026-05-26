@@ -40,6 +40,44 @@ export interface RecurringRuleInput {
   maxRuns?: number;
 }
 
+/** Compose a `yyyy-MM-dd` date input value + `HH:mm` time + IANA tz
+ *  into a proper UTC ISO string. Avoids the `new Date("yyyy-mm-dd")`
+ *  trap where the string is interpreted as UTC midnight (drifting
+ *  the date back by one for east-of-UTC users). Uses the same
+ *  guess-and-diff trick as the time picker's fromLocalParts. */
+function composeLocalDateTime(
+  yyyymmdd: string,
+  hhmm: string,
+  tz: string,
+): string {
+  if (!yyyymmdd) return new Date().toISOString();
+  const [y, mo, d] = yyyymmdd.split("-").map(Number);
+  const [hh, mm] = hhmm.split(":").map(Number);
+  // Initial guess: parts interpreted as UTC.
+  const guess = new Date(Date.UTC(y!, (mo ?? 1) - 1, d!, hh ?? 0, mm ?? 0));
+  // Re-format the guess into the target tz to compute the offset.
+  const fmt = new Intl.DateTimeFormat("en-CA", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  const parts = fmt.formatToParts(guess);
+  const get = (k: string) => parts.find((p) => p.type === k)?.value ?? "00";
+  const renderedMs = Date.UTC(
+    Number(get("year")),
+    Number(get("month")) - 1,
+    Number(get("day")),
+    Number(get("hour")),
+    Number(get("minute")),
+  );
+  const desiredMs = Date.UTC(y!, (mo ?? 1) - 1, d!, hh ?? 0, mm ?? 0);
+  return new Date(guess.getTime() + (desiredMs - renderedMs)).toISOString();
+}
+
 const WEEKDAYS = [
   { idx: 1, label: "M" },
   { idx: 2, label: "T" },
@@ -208,7 +246,16 @@ export function RecurringScheduleEditor({
             onChange={(e) =>
               onChange({
                 ...value,
-                effectiveFrom: new Date(e.target.value).toISOString(),
+                // Compose the date with the rule's localTime + tz so
+                // an east-of-UTC user doesn't drift back by a day on
+                // round-trip. Plain `new Date("yyyy-mm-dd")` parses
+                // as UTC midnight which becomes the previous local
+                // day for any positive UTC offset.
+                effectiveFrom: composeLocalDateTime(
+                  e.target.value,
+                  value.localTime,
+                  value.timezone,
+                ),
               })
             }
           />
@@ -239,7 +286,11 @@ export function RecurringScheduleEditor({
               onChange={(e) =>
                 onChange({
                   ...value,
-                  effectiveUntil: new Date(e.target.value).toISOString(),
+                  effectiveUntil: composeLocalDateTime(
+                    e.target.value,
+                    value.localTime,
+                    value.timezone,
+                  ),
                 })
               }
             />

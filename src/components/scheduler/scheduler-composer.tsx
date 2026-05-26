@@ -25,7 +25,7 @@
  *   7. Commit button + auto-approve checkbox (gated by plan tier)
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { CalendarPlus, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -98,12 +98,21 @@ export function SchedulerComposer({
   className,
 }: SchedulerComposerProps) {
   const [anchor, setAnchor] = useState<Date>(initialAnchor ?? defaultAnchor());
-  const [timezone, setTimezone] = useState<string>(
-    initialTimezone ?? detectTimezone(),
-  );
+  // SSR-safe timezone init: start with UTC (or caller's explicit choice),
+  // then hydrate to the user's real tz after mount. Avoids the hydration
+  // mismatch where the server renders "UTC" and the client renders
+  // "Asia/Kolkata".
+  const [timezone, setTimezone] = useState<string>(initialTimezone ?? "UTC");
+  useEffect(() => {
+    if (!initialTimezone) setTimezone(detectTimezone());
+  }, [initialTimezone]);
   const [strategy, setStrategy] = useState<StaggerStrategy>("smart");
   const [autoApprove, setAutoApprove] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  // Double-submit ref guard — protects against React batching delays
+  // letting two Enter keypresses fire the submit handler before the
+  // disabled state propagates.
+  const submittingRef = useRef(false);
 
   // Debounced preview — fires on every anchor / strategy / channels[]
   // change.
@@ -126,6 +135,8 @@ export function SchedulerComposer({
       toast.error("Pick at least one channel before scheduling.");
       return;
     }
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setSubmitting(true);
     try {
       const body: CommitPlanRequest = {
@@ -159,8 +170,23 @@ export function SchedulerComposer({
       toast.error(msg);
     } finally {
       setSubmitting(false);
+      submittingRef.current = false;
     }
   };
+
+  // Cmd+Enter / Ctrl+Enter to schedule — power-user shortcut.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+        e.preventDefault();
+        void submit();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // submit closes over current state — fine to re-bind on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  });
 
   return (
     <div className={cn("flex flex-col gap-4", className)}>
@@ -240,7 +266,11 @@ export function SchedulerComposer({
 
       <Button
         onClick={submit}
-        disabled={submitting || channels.length === 0 || !preview}
+        // Disable only while actively submitting or with no channels.
+        // A failed preview (error !== null) shouldn't block commit —
+        // the server re-runs the stagger on commit and the user
+        // shouldn't be locked out by a transient preview API failure.
+        disabled={submitting || channels.length === 0 || loading}
         className="w-full gap-2"
         size="lg"
       >

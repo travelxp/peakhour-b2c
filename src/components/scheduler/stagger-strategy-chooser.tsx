@@ -4,8 +4,14 @@
  * <StaggerStrategyChooser /> — radio-card picker for synchronized /
  * rolling / smart with an inline explanation for each. Smart is the
  * locked default per content-pipeline-hardening.md decision #6.
+ *
+ * Implements the full ARIA radiogroup keyboard pattern: Left/Right/
+ * Up/Down move selection and focus to the next option; Home/End
+ * jump to first/last. Tab moves focus OUT of the group (not
+ * between options) per the spec.
  */
 
+import { useRef } from "react";
 import { Sparkles, Layers, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { staggerDescription } from "@/lib/scheduler/format";
@@ -36,6 +42,33 @@ export function StaggerStrategyChooser({
   className,
   compact,
 }: StaggerStrategyChooserProps) {
+  const refs = useRef<(HTMLButtonElement | null)[]>([]);
+
+  const onKeyDown = (idx: number) => (e: React.KeyboardEvent) => {
+    let nextIdx = -1;
+    switch (e.key) {
+      case "ArrowRight":
+      case "ArrowDown":
+        nextIdx = (idx + 1) % OPTIONS.length;
+        break;
+      case "ArrowLeft":
+      case "ArrowUp":
+        nextIdx = (idx - 1 + OPTIONS.length) % OPTIONS.length;
+        break;
+      case "Home":
+        nextIdx = 0;
+        break;
+      case "End":
+        nextIdx = OPTIONS.length - 1;
+        break;
+    }
+    if (nextIdx !== -1) {
+      e.preventDefault();
+      onChange(OPTIONS[nextIdx]!.value);
+      refs.current[nextIdx]?.focus();
+    }
+  };
+
   return (
     <div
       className={cn(
@@ -48,15 +81,22 @@ export function StaggerStrategyChooser({
       role="radiogroup"
       aria-label="Stagger strategy"
     >
-      {OPTIONS.map((opt) => {
+      {OPTIONS.map((opt, idx) => {
         const Icon = opt.icon;
         const selected = value === opt.value;
         return (
           <button
             key={opt.value}
+            ref={(el) => {
+              refs.current[idx] = el;
+            }}
             type="button"
             role="radio"
             aria-checked={selected}
+            // Per ARIA radiogroup pattern: only the selected option
+            // is in the tab order; arrows move within the group.
+            tabIndex={selected ? 0 : -1}
+            onKeyDown={onKeyDown(idx)}
             onClick={() => onChange(opt.value)}
             className={cn(
               "group flex flex-col rounded-lg border p-3 text-left transition",

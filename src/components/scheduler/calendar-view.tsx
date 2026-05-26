@@ -197,18 +197,20 @@ export function CalendarView({
     e.preventDefault();
     if (!onItemMove) return;
     const itemId = e.dataTransfer.getData("application/x-scheduled-item-id");
-    const altKey = e.dataTransfer.getData("application/x-alt") === "1";
+    const itemOnly = e.dataTransfer.getData("application/x-item-only") === "1";
     const item = items.find((i) => i._id === itemId);
     if (!item) return;
     onItemMove({
       item,
       toDayLocal: day,
-      mode: altKey ? "item" : "bundle",
+      mode: itemOnly ? "item" : "bundle",
     });
   };
 
   if (mode === "week") {
-    // 7-column week grid; tall cells with day items stacked vertically.
+    // Below `md` (768px) week stacks into a vertical list with
+    // inline day headers — 7 full-height cards on mobile is too
+    // tall to scan. Above md, 7-column grid with stacked items.
     return (
       <div
         className={cn(
@@ -226,7 +228,10 @@ export function CalendarView({
               onDragOver={(e) => e.preventDefault()}
               onDrop={onDrop(day)}
               className={cn(
-                "flex min-h-[140px] flex-col rounded-lg border bg-background p-2",
+                "flex flex-col rounded-lg border bg-background p-2",
+                // Mobile (stacked): compact min-height. Desktop
+                // (7-col grid): taller cells to show multiple items.
+                "min-h-20 md:min-h-35",
                 isToday && "border-primary/40 ring-1 ring-primary/20",
               )}
             >
@@ -267,9 +272,13 @@ export function CalendarView({
                           "application/x-scheduled-item-id",
                           item._id,
                         );
+                        // Shift-drag selects item-only mode; plain
+                        // drag is bundle-move (locked decision #10).
+                        // Shift avoids the OS-level "create link"
+                        // overload that Alt triggers on Windows.
                         e.dataTransfer.setData(
-                          "application/x-alt",
-                          e.altKey ? "1" : "0",
+                          "application/x-item-only",
+                          e.shiftKey ? "1" : "0",
                         );
                         e.dataTransfer.effectAllowed = "move";
                       }}
@@ -302,7 +311,7 @@ export function CalendarView({
             onDragOver={(e) => e.preventDefault()}
             onDrop={onDrop(day)}
             className={cn(
-              "flex min-h-[100px] flex-col rounded p-1 text-xs",
+              "flex min-h-25 flex-col rounded p-1 text-xs",
               isToday && "bg-primary/5",
             )}
           >

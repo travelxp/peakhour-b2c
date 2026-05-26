@@ -8,7 +8,7 @@
  */
 
 import { Globe, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { detectTimezone } from "@/lib/scheduler/format";
 
@@ -21,27 +21,38 @@ export interface TimezoneBannerProps {
   storageKey?: string;
 }
 
-/** Lazy initialiser so SSR doesn't touch sessionStorage; the second
- *  render hydrates with the persisted value if any. Avoids the
- *  "setState-in-effect" lint by computing once at mount instead. */
-function initialDismissed(storageKey?: string): boolean {
-  if (!storageKey || typeof window === "undefined") return false;
-  try {
-    return sessionStorage.getItem(storageKey) === "1";
-  } catch {
-    return false;
-  }
-}
-
 export function TimezoneBanner({
   timezone,
   className,
   storageKey,
 }: TimezoneBannerProps) {
-  const [dismissed, setDismissed] = useState(() => initialDismissed(storageKey));
-  const userTz = typeof window !== "undefined" ? detectTimezone() : "UTC";
+  // SSR-safe: render NOTHING until mounted on the client. The banner
+  // is decorative — its absence on the first paint is acceptable, and
+  // a hydration mismatch (userTz="UTC" on server vs real tz on client)
+  // is not.
+  const [mounted, setMounted] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
+  const [userTz, setUserTz] = useState("UTC");
 
-  if (dismissed || userTz === timezone) return null;
+  // The setState calls below are mount-time hydration of values
+  // that legitimately can't be computed during SSR (timezone +
+  // sessionStorage). Lint rule guards against cascading renders;
+  // here the effect runs exactly once per mount with no cascade.
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    setMounted(true);
+    setUserTz(detectTimezone());
+    if (storageKey) {
+      try {
+        setDismissed(sessionStorage.getItem(storageKey) === "1");
+      } catch {
+        /* sessionStorage may be unavailable (private mode). */
+      }
+    }
+  }, [storageKey]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  if (!mounted || dismissed || userTz === timezone) return null;
 
   return (
     <div
