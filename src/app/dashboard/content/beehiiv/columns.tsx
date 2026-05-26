@@ -301,19 +301,27 @@ export function getContentColumns(prefs: UserPreferences | null): ColumnDef<Draf
         // fired, etc.), surface the reason as a tooltip so the user
         // doesn't sit waiting for a score that will never come. The
         // reason `message` is pre-rendered by the API — display as-is.
-        if (unprocessable) {
+        // Defence-in-depth: if the API ever ships an empty message,
+        // fall through to plain "Not scored" rather than render an
+        // empty hover bubble. The API contract requires a non-empty
+        // string (schema maxLength 512, no minLength but the writer
+        // always populates it) — this guard is for forward-compat.
+        if (unprocessable && unprocessable.message) {
           return (
             <Tooltip>
               <TooltipTrigger asChild>
-                {/* stopPropagation on click + pointerdown — the row is
-                    wired to navigate on click in the parent table, and
-                    Radix opens its tooltip on pointerdown. Without
-                    both, tapping the Info icon routes away and the
-                    tooltip the user was trying to read closes
-                    immediately. Mirrors the Repurpose button pattern
-                    elsewhere on this page. */}
+                {/* tabIndex makes the span focusable so keyboard
+                    users can reach the tooltip — Radix auto-opens on
+                    focus once the trigger is focusable. stopPropagation
+                    on click + pointerdown — the row is wired to
+                    navigate on click, and Radix opens its tooltip on
+                    pointerdown; without both, tapping the Info icon
+                    routes away and the tooltip closes immediately.
+                    Mirrors the Repurpose button pattern elsewhere on
+                    this page. */}
                 <span
-                  className="flex items-center gap-1 text-xs text-muted-foreground"
+                  className="flex items-center gap-1 rounded-sm text-xs text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  tabIndex={0}
                   onClick={(e) => e.stopPropagation()}
                   onPointerDown={(e) => e.stopPropagation()}
                 >

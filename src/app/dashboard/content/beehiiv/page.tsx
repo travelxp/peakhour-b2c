@@ -813,19 +813,25 @@ function AdScoreBar({
   unprocessable?: { message: string };
 }) {
   if (score == null) {
-    if (unprocessable) {
-      // Reason set by the API (AI cap hit, preflight gate, etc.) —
-      // show why instead of an indefinite "Not scored". `message` is
-      // pre-rendered server-side; display as-is.
+    // Reason set by the API (AI cap hit, preflight gate, etc.) —
+    // show why instead of an indefinite "Not scored". `message` is
+    // pre-rendered server-side; display as-is. Guard against an
+    // empty message so we don't render an empty hover bubble if the
+    // API ever ships partial data.
+    if (unprocessable && unprocessable.message) {
       return (
         <Tooltip>
           <TooltipTrigger asChild>
-            {/* stopPropagation on click + pointerdown — card is wired
-                to navigate on click; without both, tapping the Info
-                routes away and closes the tooltip the user was trying
-                to read. Mirrors the Repurpose button pattern below. */}
+            {/* tabIndex makes the span focusable so keyboard users
+                can reach the tooltip — Radix auto-opens on focus
+                once the trigger is focusable. stopPropagation on
+                click + pointerdown — card is wired to navigate on
+                click; without both, tapping the Info routes away and
+                closes the tooltip the user was trying to read.
+                Mirrors the Repurpose button pattern below. */}
             <span
-              className="flex items-center gap-1 text-xs text-muted-foreground"
+              className="flex items-center gap-1 rounded-sm text-xs text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              tabIndex={0}
               onClick={(e) => e.stopPropagation()}
               onPointerDown={(e) => e.stopPropagation()}
             >
