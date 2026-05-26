@@ -14,9 +14,6 @@ export default function CmsError({
     console.error("[cms/error]", error);
   }, [error]);
 
-  return (
-    <div className="p-4 md:p-6">
-      <ErrorFallback error={error} reset={reset} />
-    </div>
-  );
+  // CMS layout already pads `{children}` with p-6 — render directly.
+  return <ErrorFallback error={error} reset={reset} />;
 }

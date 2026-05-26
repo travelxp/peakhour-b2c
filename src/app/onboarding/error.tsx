@@ -14,9 +14,7 @@ export default function OnboardingError({
     console.error("[onboarding/error]", error);
   }, [error]);
 
-  return (
-    <div className="container mx-auto p-6 md:p-10">
-      <ErrorFallback error={error} reset={reset} />
-    </div>
-  );
+  // Onboarding layout already wraps in a max-w-2xl padded container —
+  // render directly to avoid double-wrap + container/max-width fight.
+  return <ErrorFallback error={error} reset={reset} />;
 }

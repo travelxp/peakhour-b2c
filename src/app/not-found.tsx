@@ -19,7 +19,7 @@ import {
 export default function NotFound() {
   return (
     <div className="container mx-auto p-6 md:p-10">
-      <Empty role="alert">
+      <Empty role="status">
         <EmptyHeader>
           <EmptyMedia variant="icon">
             <FileQuestion />
