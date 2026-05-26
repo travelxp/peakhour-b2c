@@ -85,6 +85,19 @@ interface Integration {
   connectedAt?: string;
   lastSyncAt?: string;
   lastError?: string;
+  /** Per-connection webhook health (cron-written; beehiiv-only today).
+   *  Absent when integration doesn't use webhooks OR cron hasn't run
+   *  on a new connection yet. See peakhour-api integrations/webhook-health.ts */
+  webhookHealth?: {
+    band: "grey" | "green" | "yellow" | "red";
+    computedAt: string;
+    postsLast30dViaCron: number;
+    postsLast30dViaWebhook: number;
+    registeredOnProvider: boolean;
+    lastWebhookAt?: string;
+    lastWebhookOutcome?: "success" | "signature_invalid" | "parse_error";
+    redReason?: "not_registered_on_provider" | "signature_invalid" | "reconciliation_gap";
+  };
 }
 
 const PROVIDER_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -193,6 +206,7 @@ export default function IntegrationsPage() {
   const [disconnecting, setDisconnecting] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState<string | null>(null);
   const [syncing, setSyncing] = useState<string | null>(null);
+  const [repairingWebhook, setRepairingWebhook] = useState<string | null>(null);
   const [backfilling, setBackfilling] = useState(false);
   const [backfillResult, setBackfillResult] = useState<{ message: string; hasErrors: boolean } | null>(null);
   const [connectModal, setConnectModal] = useState<string | null>(null);
@@ -270,6 +284,25 @@ export default function IntegrationsPage() {
       else setError("Sync failed. Please try again.");
     } finally {
       setSyncing(null);
+    }
+  }
+
+  async function handleRepairWebhook(provider: string) {
+    const realProvider = resolveProvider(provider);
+    setRepairingWebhook(provider);
+    setError("");
+    try {
+      await api.post(`/v1/integrations/${realProvider}/repair-webhook`, {});
+      // Refetch so the chip reflects the post-repair state. The cron
+      // will recompute webhookHealth on its next tick; in the meantime
+      // the connection card still shows the prior band, which is
+      // honest ("we re-registered; awaiting verification").
+      await loadIntegrations();
+    } catch (err) {
+      if (err instanceof ApiError) setError(err.message);
+      else setError("Re-register failed. Please try again.");
+    } finally {
+      setRepairingWebhook(null);
     }
   }
 
@@ -529,12 +562,14 @@ export default function IntegrationsPage() {
                   onRefresh={() => handleRefresh(item.provider)}
                   onSync={() => handleSync(item.provider)}
                   onBackfillSync={item.provider === "beehiiv" ? handleBackfillSync : undefined}
+                  onRepairWebhook={() => handleRepairWebhook(item.provider)}
                   onChanged={loadIntegrations}
                   backfillResult={item.provider === "beehiiv" ? backfillResult : null}
                   disconnecting={disconnecting === item.provider}
                   refreshing={refreshing === item.provider}
                   syncing={syncing === item.provider}
                   backfilling={item.provider === "beehiiv" ? backfilling : false}
+                  repairingWebhook={repairingWebhook === item.provider}
                 />
               ))}
             </div>
@@ -711,12 +746,14 @@ function IntegrationCard({
   onRefresh,
   onSync,
   onBackfillSync,
+  onRepairWebhook,
   onChanged,
   backfillResult,
   disconnecting,
   refreshing,
   syncing,
   backfilling,
+  repairingWebhook,
 }: {
   integration: Integration;
   onConnect: () => void;
@@ -724,6 +761,10 @@ function IntegrationCard({
   onRefresh: () => void;
   onSync: () => void;
   onBackfillSync?: () => Promise<void>;
+  /** Called when the user clicks the "Re-register" action on a red
+   *  webhook-health chip. The page handler calls
+   *  POST /v1/integrations/:provider/repair-webhook and then refetches. */
+  onRepairWebhook?: () => Promise<void>;
   /** Called after the Manage Pages dialog persists toggles, so the
    *  parent can refetch /v1/integrations and re-render with the new
    *  capabilities state. */
@@ -733,6 +774,7 @@ function IntegrationCard({
   refreshing: boolean;
   syncing: boolean;
   backfilling: boolean;
+  repairingWebhook: boolean;
 }) {
   const { formatDate, formatDateTime } = useLocale();
   const Icon = PROVIDER_ICONS[integration.provider] || Plug;
@@ -762,6 +804,14 @@ function IntegrationCard({
                 <CheckCircle className="h-2.5 w-2.5" />
                 Live
               </Badge>
+            )}
+            {integration.connected && integration.webhookHealth && (
+              <WebhookHealthChip
+                health={integration.webhookHealth}
+                onRepair={onRepairWebhook}
+                repairing={repairingWebhook}
+                formatDateTime={formatDateTime}
+              />
             )}
             {isComingSoon && (
               <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">
@@ -898,6 +948,122 @@ function IntegrationCard({
         )}
       </CardContent>
     </Card>
+  );
+}
+
+// ── Webhook Health Chip ─────────────────────────────────────────────
+//
+// Compact badge next to the "Live" indicator on connected integration
+// cards. Reads `integration.webhookHealth` (cron-written; beehiiv-only
+// today). Green is rendered as silence (no chip) so the card stays
+// clean when everything's healthy; only grey / yellow / red show.
+//
+// Hover surfaces the reason in plain English. Red carries a
+// "Re-register" action that hits POST /:provider/repair-webhook.
+//
+// All bands are user-readable explanations — no internal acronyms.
+
+function WebhookHealthChip({
+  health,
+  onRepair,
+  repairing,
+  formatDateTime,
+}: {
+  health: NonNullable<Integration["webhookHealth"]>;
+  onRepair?: () => Promise<void>;
+  repairing: boolean;
+  formatDateTime: (d: string) => string;
+}) {
+  // Healthy band: silent. Adding a green chip on every healthy card
+  // is visual noise — the existing "Live" badge already signals
+  // healthy. We surface ONLY when there's something to communicate.
+  if (health.band === "green") return null;
+
+  const missing = Math.max(
+    0,
+    health.postsLast30dViaCron - health.postsLast30dViaWebhook,
+  );
+
+  // Per-band copy + style.
+  const label =
+    health.band === "red"
+      ? "Webhook issue"
+      : health.band === "yellow"
+        ? "Webhook lagging"
+        : "Webhook not verified yet";
+
+  const className =
+    health.band === "red"
+      ? "bg-destructive/15 text-destructive border-destructive/30"
+      : health.band === "yellow"
+        ? "bg-amber-500/15 text-amber-700 border-amber-500/30 dark:text-amber-400"
+        : "bg-muted text-muted-foreground border-border";
+
+  const longExplanation = (() => {
+    if (health.band === "red") {
+      switch (health.redReason) {
+        case "not_registered_on_provider":
+          return "The webhook is no longer registered on the provider's side — likely revoked in the provider's UI. Click Re-register to fix.";
+        case "signature_invalid":
+          return "Recent webhooks failed signature verification — usually means the signing secret is out of sync. Click Re-register to rotate.";
+        case "reconciliation_gap":
+          return `${missing} of your last ${health.postsLast30dViaCron} posts didn't arrive via webhook. The hourly sync rescued them, but real-time delivery is broken.`;
+        default:
+          return "Webhook delivery looks broken.";
+      }
+    }
+    if (health.band === "yellow") {
+      if (missing > 0) {
+        return `${missing} of your last ${health.postsLast30dViaCron} posts missed the webhook. The hourly sync picked them up — investigate if this keeps happening.`;
+      }
+      return "An isolated webhook signature failure was recorded recently. Worth keeping an eye on but no action needed yet.";
+    }
+    // grey
+    return "Not enough recent posts to verify the webhook end-to-end yet. The chip will turn green once you publish a post and the hourly sync confirms it arrived in real time.";
+  })();
+
+  // Red bands also render an inline "Re-register" button next to the
+  // chip so the action is reachable on touch devices (Tooltip doesn't
+  // open on tap) and by keyboard. Tooltip continues to show the long
+  // explanation on hover/focus for desktop users.
+  const showInlineRepair = health.band === "red" && Boolean(onRepair);
+
+  return (
+    <TooltipProvider delayDuration={150}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Badge
+            variant="outline"
+            tabIndex={0}
+            className={`gap-0.5 text-[10px] px-1.5 py-0 shrink-0 cursor-help focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${className}`}
+          >
+            {label}
+          </Badge>
+        </TooltipTrigger>
+        <TooltipContent side="bottom" className="max-w-[280px] text-[11px] space-y-1.5">
+          <p>{longExplanation}</p>
+          {health.lastWebhookAt && (
+            <p className="text-muted-foreground">
+              Last webhook: {formatDateTime(health.lastWebhookAt)}
+            </p>
+          )}
+        </TooltipContent>
+      </Tooltip>
+      {showInlineRepair && (
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="h-5 text-[10px] px-1.5 ml-1 shrink-0"
+          onClick={() => {
+            void onRepair!();
+          }}
+          disabled={repairing}
+        >
+          {repairing ? "Re-registering…" : "Re-register"}
+        </Button>
+      )}
+    </TooltipProvider>
   );
 }
 
