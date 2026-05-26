@@ -25,6 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Info } from "lucide-react";
 
 const FORMAT_LABELS: Record<string, string> = {
   article: "Article",
@@ -45,6 +46,28 @@ export interface Draft {
   webUrl?: string;
   thumbnailUrl?: string;
   readingTimeMin?: number;
+  /**
+   * Set by the API when an automated pipeline (today: AI tagger hits
+   * retry cap; future: deterministic preflight gates) determines no
+   * further automated processing will help. Surfaced as an info icon
+   * + tooltip next to "Not scored" in the Ad Score column so users
+   * understand WHY a score will never appear rather than waiting
+   * indefinitely. `code` is stable across businesses for analytics;
+   * `message` is the human-readable, possibly business-contextual
+   * tooltip text.
+   */
+  unprocessable?: {
+    code:
+      | "ai_persistent_failure"
+      | "content_too_short"
+      | "image_only"
+      | "unsupported_language"
+      | "duplicate_content"
+      | "boilerplate_only"
+      | "ai_no_extractable_tags";
+    message: string;
+    detectedAt: string;
+  };
   tags: {
     sectors: { name: string; weight: number; rationale?: string }[];
     companies: { name: string; role: string; sentiment?: string }[];
@@ -272,8 +295,48 @@ export function getContentColumns(prefs: UserPreferences | null): ColumnDef<Draf
     ),
     cell: ({ row }) => {
       const score = row.original.tags?.adPotentialScore;
-      if (score == null)
+      const unprocessable = row.original.unprocessable;
+      if (score == null) {
+        // When the API marked this draft unprocessable (cap hit, gate
+        // fired, etc.), surface the reason as a tooltip so the user
+        // doesn't sit waiting for a score that will never come. The
+        // reason `message` is pre-rendered by the API — display as-is.
+        // Defence-in-depth: if the API ever ships an empty message,
+        // fall through to plain "Not scored" rather than render an
+        // empty hover bubble. The API contract requires a non-empty
+        // string (schema maxLength 512, no minLength but the writer
+        // always populates it) — this guard is for forward-compat.
+        if (unprocessable && unprocessable.message) {
+          return (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                {/* tabIndex makes the span focusable so keyboard
+                    users can reach the tooltip — Radix auto-opens on
+                    focus once the trigger is focusable. stopPropagation
+                    on click + pointerdown — the row is wired to
+                    navigate on click, and Radix opens its tooltip on
+                    pointerdown; without both, tapping the Info icon
+                    routes away and the tooltip closes immediately.
+                    Mirrors the Repurpose button pattern elsewhere on
+                    this page. */}
+                <span
+                  className="flex items-center gap-1 rounded-sm text-xs text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  tabIndex={0}
+                  onClick={(e) => e.stopPropagation()}
+                  onPointerDown={(e) => e.stopPropagation()}
+                >
+                  Can&apos;t score
+                  <Info className="size-3 text-amber-500" aria-label="Why not scored?" />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs">
+                <p>{unprocessable.message}</p>
+              </TooltipContent>
+            </Tooltip>
+          );
+        }
         return <span className="text-xs text-muted-foreground">Not scored</span>;
+      }
       const color =
         score >= 8
           ? "bg-green-500"
