@@ -118,16 +118,31 @@ export function SchedulerComposer({
   const [submitting, setSubmitting] = useState(false);
 
   // Entitlements gate — pull the scheduler-shaped slice once on
-  // mount. Default-permissive disabled affordances when the call is
-  // still in flight or 4xx'd.
-  const { data: entitlements } = useSchedulerEntitlements();
-  const autoApproveAllowed =
-    canAutoApprove ?? entitlements?.schedulerFeatures.autoApprove ?? false;
+  // mount. Two separate concerns:
+  //
+  //   - DISPLAY: show / hide affordances and callouts. Default-
+  //     restrictive while loading (don't flash locked banners before
+  //     we know the user's tier).
+  //   - AUTHORIZATION: what goes into the request body. ALWAYS reads
+  //     from entitlements, never from props. The `canAutoApprove`
+  //     override only forces the checkbox VISIBLE in staging /
+  //     preview surfaces; the server is the source of truth.
+  const { data: entitlements, isLoading: entitlementsLoading } =
+    useSchedulerEntitlements();
+  const autoApproveAuthorized =
+    entitlements?.schedulerFeatures.autoApprove ?? false;
+  const autoApproveVisible =
+    canAutoApprove === true || (canAutoApprove !== false && autoApproveAuthorized);
   const bundleCap = entitlements?.schedulerLimits.maxScheduleBundleSize;
   const bundleExceedsCap =
     bundleCap !== undefined && channels.length > bundleCap;
-  const bundlesUnlocked =
-    entitlements?.schedulerFeatures.bundles ?? channels.length <= 1;
+  // Multi-channel users mounted before entitlements arrive: hide
+  // the locked banner until we know — otherwise paid users flash a
+  // "Free tier" callout on every load.
+  const bundlesLocked =
+    !entitlementsLoading &&
+    channels.length > 1 &&
+    entitlements?.schedulerFeatures.bundles === false;
   const queueCap = entitlements?.schedulerLimits.maxScheduledItems;
   // Double-submit ref guard — protects against React batching delays
   // letting two Enter keypresses fire the submit handler before the
@@ -176,7 +191,11 @@ export function SchedulerComposer({
         staggerStrategy: strategy,
         canonicalScheduledAtUtc: anchor.toISOString(),
         timezone,
-        ...(autoApproveAllowed && autoApprove ? { autoApprove: true } : {}),
+        // Authorization gate — ALWAYS read from entitlements, never
+        // from the canAutoApprove display override. A staging caller
+        // setting canAutoApprove={true} must not be able to bypass
+        // the server's plan check.
+        ...(autoApproveAuthorized && autoApprove ? { autoApprove: true } : {}),
       };
       const result = await scheduler.commitPlan(body);
       toast.success(
@@ -263,8 +282,10 @@ export function SchedulerComposer({
 
       {/* Bundle-gate callout — appears when the caller's channel
           count exceeds the user's plan tier. The server will 402 if
-          they try to schedule, so we surface the hint before submit. */}
-      {channels.length > 1 && !bundlesUnlocked && (
+          they try to schedule, so we surface the hint before submit.
+          Suppressed while entitlements is loading so paid users
+          don't flash a "Free tier" banner. */}
+      {bundlesLocked && (
         <UpgradeCallout
           variant="banner"
           message="Multi-channel bundled publishing is on Starter+ plans. Free tier schedules channels one at a time."
@@ -279,10 +300,10 @@ export function SchedulerComposer({
         />
       )}
 
-      {/* Queue-depth indicator — shows when the user is close to or
-          at their plan's queue cap. Reads from entitlements only;
-          actual count comes from the calendar page query. */}
-      {queueCap !== undefined && (
+      {/* Plan queue cap — informational only. The live "X of Y"
+          count belongs on the calendar page, not the composer
+          (composer doesn't have list-items query state). */}
+      {queueCap !== undefined && !entitlementsLoading && (
         <div className="text-[11px] text-muted-foreground">
           {entitlements?.plan === "free"
             ? `Free tier holds up to ${queueCap} scheduled items at a time. `
@@ -295,10 +316,11 @@ export function SchedulerComposer({
         </div>
       )}
 
-      {/* Auto-approve — checkbox visible when entitlements unlock it,
-          OR when the explicit canAutoApprove override is true. When
-          the explicit override is false we hide outright. */}
-      {autoApproveAllowed && canAutoApprove !== false && (
+      {/* Auto-approve — checkbox visible when entitlements unlock it
+          OR when the explicit override forces it visible. The
+          request body still respects entitlements (authorization is
+          decoupled from display). */}
+      {autoApproveVisible && (
         <div className="flex items-start gap-2 rounded-md border bg-muted/30 p-3">
           <Checkbox
             id="auto-approve"
@@ -320,22 +342,30 @@ export function SchedulerComposer({
           </Label>
         </div>
       )}
-      {/* Show a teaser upgrade callout when the feature is locked but
-          the user is on a tier above Free (likely to convert). */}
-      {!autoApproveAllowed &&
-        entitlements &&
-        entitlements.plan !== "free" &&
+      {/* Upgrade teaser — surfaces for every tier that doesn't have
+          auto_approve unlocked, INCLUDING Free. Free users are the
+          highest-value upsell target; excluding them was a mistake. */}
+      {!autoApproveAuthorized &&
+        !entitlementsLoading &&
         canAutoApprove !== false && (
           <UpgradeCallout message="Auto-approve publishing is on Growth+ plans." />
         )}
 
       <Button
         onClick={submit}
-        // Disable only while actively submitting or with no channels.
-        // A failed preview (error !== null) shouldn't block commit —
-        // the server re-runs the stagger on commit and the user
-        // shouldn't be locked out by a transient preview API failure.
-        disabled={submitting || channels.length === 0 || loading}
+        // Disable rules:
+        //  - submitting / loading-preview (UX)
+        //  - empty channels (no-op)
+        //  - bundleExceedsCap or bundlesLocked (server would 402)
+        //    — we read the same entitlements the server checks; no
+        //    sense letting the user hit submit on a known-bad config.
+        disabled={
+          submitting ||
+          channels.length === 0 ||
+          loading ||
+          bundleExceedsCap ||
+          bundlesLocked
+        }
         className="w-full gap-2"
         size="lg"
       >
