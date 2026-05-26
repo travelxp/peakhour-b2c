@@ -3,6 +3,8 @@ export type { FacetedFilterOption, UseDataTableOptions } from "./data-table";
 export { CommandMenu } from "./command-menu";
 export { KpiCard } from "./kpi-card";
 export { EmptyState } from "./empty-state";
+export { ErrorFallback } from "./error-fallback";
+export { ErrorBoundary } from "./error-boundary";
 export { StatusBadge } from "./status-badge";
 export { ConfirmDialog } from "./confirm-dialog";
 export { ElapsedTimer } from "./elapsed-timer";
