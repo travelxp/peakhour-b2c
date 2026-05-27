@@ -96,7 +96,7 @@ function SettingsContent() {
   const [orgDetails, setOrgDetails] = useState<OrgDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [linkedInJustConnected, setLinkedInJustConnected] = useState(false);
+  const [justConnectedProvider, setJustConnectedProvider] = useState<string | null>(null);
 
   // Edit state
   const [editingBusiness, setEditingBusiness] = useState(false);
@@ -146,8 +146,8 @@ function SettingsContent() {
   }
 
   useEffect(() => {
-    if (searchParams?.get("linkedin") === "connected" || searchParams?.get("integration") === "connected") {
-      setLinkedInJustConnected(true);
+    if (searchParams?.get("integration") === "connected") {
+      setJustConnectedProvider(searchParams.get("provider") ?? "");
     }
   }, [searchParams]);
 
@@ -175,10 +175,10 @@ function SettingsContent() {
         </p>
       </div>
 
-      {linkedInJustConnected && (
+      {justConnectedProvider !== null && (
         <div className="flex items-center gap-2 rounded-lg bg-green-500/10 border border-green-500/20 p-4 text-sm text-green-700 dark:text-green-400">
           <CheckCircle2 className="h-4 w-4 shrink-0" />
-          LinkedIn account connected successfully!
+          {formatProviderName(justConnectedProvider)} connected successfully!
         </div>
       )}
 
@@ -374,6 +374,48 @@ function SettingsContent() {
         </Link>
       </div>
     </div>
+  );
+}
+
+// Display names for known provider slugs the OAuth callback can pass back via
+// ?integration=connected&provider=<slug>. Unknown slugs fall through to a
+// title-cased fallback so a brand-new provider doesn't render "undefined" —
+// it just looks a bit raw until added here. Source of truth for the canonical
+// labels is each provider's `displayName` in peakhour-api/src/v1/integrations/providers/*.
+const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
+  x: "X (Twitter)",
+  x_ads: "X Ads",
+  linkedin_content: "LinkedIn",
+  linkedin_ads: "LinkedIn Ads",
+  facebook: "Meta",
+  meta_ads: "Meta Ads",
+  instagram: "Instagram",
+  youtube: "YouTube",
+  beehiiv: "Beehiiv",
+  substack: "Substack",
+  kit: "Kit",
+  mailchimp: "Mailchimp",
+  ghost: "Ghost",
+  wordpress: "WordPress",
+  shopify: "Shopify",
+  discord: "Discord",
+  slack: "Slack",
+  teams: "Microsoft Teams",
+  telegram: "Telegram",
+  google_ads: "Google Ads",
+  google_analytics: "Google Analytics",
+  google_search_console: "Google Search Console",
+  google_business_profile: "Google Business Profile",
+};
+
+function formatProviderName(slug: string): string {
+  if (!slug) return "Account";
+  return (
+    PROVIDER_DISPLAY_NAMES[slug] ??
+    slug
+      .split("_")
+      .map((w) => (w[0] ? w[0].toUpperCase() + w.slice(1) : w))
+      .join(" ")
   );
 }
 
