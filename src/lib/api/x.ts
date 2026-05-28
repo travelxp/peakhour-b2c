@@ -82,6 +82,14 @@ export const xApi = {
 
   markMentionRead: (id: string) =>
     api.post<{ id: string; readAt: string }>(`/v1/x/content/mentions/${id}/read`),
+
+  suggestReplyForMention: (id: string) =>
+    api.post<{
+      mentionId: string;
+      replyToTweetId: string;
+      text: string;
+      reasoning: string | null;
+    }>(`/v1/x/content/mentions/${id}/suggest-reply`),
 };
 
 /**

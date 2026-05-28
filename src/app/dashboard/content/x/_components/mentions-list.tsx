@@ -16,6 +16,7 @@ import {
   ExternalLink,
   Check,
   Inbox,
+  Sparkles,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,7 @@ import { EmptyState } from "@/components/molecules/empty-state";
 import { formatDate } from "@/lib/locale";
 import { xApi, type XMention, type MentionsFilter } from "@/lib/api/x";
 import { ApiError } from "@/lib/api";
+import { ReplyDrawer } from "./reply-drawer";
 
 const PAGE_SIZE = 20;
 
@@ -44,6 +46,7 @@ const PAGE_SIZE = 20;
  */
 export function MentionsList() {
   const [filter, setFilter] = useState<MentionsFilter>("all");
+  const [replyTarget, setReplyTarget] = useState<XMention | null>(null);
   const queryClient = useQueryClient();
 
   const query = useInfiniteQuery({
@@ -170,6 +173,7 @@ export function MentionsList() {
               mention={m}
               onMarkRead={() => markRead.mutate(m.id)}
               markPending={markRead.isPending && markRead.variables === m.id}
+              onReply={() => setReplyTarget(m)}
             />
           ))}
           {query.hasNextPage && (
@@ -186,6 +190,14 @@ export function MentionsList() {
           )}
         </div>
       )}
+
+      <ReplyDrawer
+        mention={replyTarget}
+        open={replyTarget !== null}
+        onOpenChange={(o) => {
+          if (!o) setReplyTarget(null);
+        }}
+      />
     </div>
   );
 }
@@ -194,10 +206,12 @@ function MentionCard({
   mention,
   onMarkRead,
   markPending,
+  onReply,
 }: {
   mention: XMention;
   onMarkRead: () => void;
   markPending: boolean;
+  onReply: () => void;
 }) {
   const m = mention.metrics;
   const isUnread = !mention.readAt;
@@ -231,6 +245,15 @@ function MentionCard({
             </p>
           </div>
           <div className="flex flex-col items-end gap-1.5 shrink-0">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 px-2 gap-1 text-xs"
+              onClick={onReply}
+            >
+              <Sparkles className="size-3.5" />
+              Suggest reply
+            </Button>
             {mention.url && (
               <Button
                 variant="ghost"
