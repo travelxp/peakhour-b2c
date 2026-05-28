@@ -9,10 +9,38 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { KanbanBoard } from "./components/kanban-board";
-import { Sparkles, CalendarDays, Plus, Loader2, CheckCircle, Send } from "lucide-react";
+import { Sparkles, CalendarDays, Plus, Loader2, CheckCircle, Send, Mail, FileText, Megaphone, Newspaper } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { PipelineIdea } from "./components/kanban-card";
 import { ElapsedTimer } from "@/components/molecules/elapsed-timer";
+
+/**
+ * Content format the user wants the suggestion run to produce. Drives
+ * `cnt_ideas.contentFormat` on every returned idea and (once the api
+ * supervisor honors it, peakhour-api PR follow-up) biases the
+ * generator streams toward producing only that format. "any" lets
+ * the strategist pick per idea — today's default behavior.
+ *
+ * Per Amendment 3 of docs/idea/multi-format-writers-and-feedback-loop.md,
+ * surfacing this selector even when only newsletter has a wired writer
+ * end-to-end sets the mental model correctly for the multi-platform
+ * origination phase that follows.
+ */
+type ContentFormatChoice = "any" | "newsletter" | "article" | "pr" | "advertorial";
+
+const CONTENT_FORMAT_OPTIONS: Array<{
+  value: ContentFormatChoice;
+  label: string;
+  hint: string;
+  Icon: typeof Mail;
+}> = [
+  { value: "any", label: "Let AI decide", hint: "Mix of formats based on each idea's fit", Icon: Sparkles },
+  { value: "newsletter", label: "Newsletter", hint: "Email-first; subject + preview text + HTML body", Icon: Mail },
+  { value: "article", label: "Article", hint: "Web-first long-form; SEO meta + byline", Icon: FileText },
+  { value: "pr", label: "Press release", hint: "Dateline + lead + quote blocks + boilerplate", Icon: Newspaper },
+  { value: "advertorial", label: "Advertorial", hint: "Sponsor attribution + FTC disclosure + CTA", Icon: Megaphone },
+];
 
 const SKILL_LABELS: Record<string, string> = {
   analyse_library: "Analysing content library",
@@ -90,6 +118,7 @@ export default function StrategistPage() {
   const [newIdeaTitle, setNewIdeaTitle] = useState("");
   const [showTopicInput, setShowTopicInput] = useState(false);
   const [ideaTopic, setIdeaTopic] = useState("");
+  const [contentFormatChoice, setContentFormatChoice] = useState<ContentFormatChoice>("any");
 
   const { data, isLoading } = useQuery({
     queryKey: ["pipeline-ideas"],
@@ -97,7 +126,7 @@ export default function StrategistPage() {
       api.get<Record<string, PipelineIdea[]>>("/v1/content/ideas?grouped=true"),
   });
 
-  const handleGetIdeas = useCallback(async (topic?: string) => {
+  const handleGetIdeas = useCallback(async (topic?: string, format?: ContentFormatChoice) => {
     setGenerating(true);
     setGenMode("ideas");
     setGenProgress({ step: 0, label: "Starting..." });
@@ -105,8 +134,14 @@ export default function StrategistPage() {
     setShowTopicInput(false);
 
     try {
-      const body = topic?.trim() ? { topic: topic.trim() } : undefined;
-      const res = await api.streamPost("/v1/content/suggest", body);
+      // Build body conditionally — only include keys with values, so
+      // a default "any" format choice doesn't pollute the request and
+      // older api builds (that ignore contentFormat) keep working
+      // unchanged.
+      const body: { topic?: string; contentFormat?: Exclude<ContentFormatChoice, "any"> } = {};
+      if (topic?.trim()) body.topic = topic.trim();
+      if (format && format !== "any") body.contentFormat = format;
+      const res = await api.streamPost("/v1/content/suggest", Object.keys(body).length > 0 ? body : undefined);
       await readSSEStream(res, setGenProgress, setGenResult, (msg) => toast.error(msg));
       queryClient.invalidateQueries({ queryKey: ["pipeline-ideas"] });
     } catch (err) {
@@ -117,6 +152,7 @@ export default function StrategistPage() {
     setGenProgress(null);
     setGenMode(null);
     setIdeaTopic("");
+    setContentFormatChoice("any");
   }, [queryClient]);
 
   const handlePlanWeek = useCallback(async () => {
@@ -208,19 +244,54 @@ export default function StrategistPage() {
             value={ideaTopic}
             onChange={(e) => setIdeaTopic(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleGetIdeas(ideaTopic); }
+              if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleGetIdeas(ideaTopic, contentFormatChoice); }
               if (e.key === "Escape") { setShowTopicInput(false); setIdeaTopic(""); }
             }}
             placeholder="Optional: describe a topic, angle, or trend to focus on... (leave empty for AI to decide based on your content + latest news)"
             className="min-h-16 resize-none text-sm"
           />
+          {/* Content format selector + destination platform context (Amendment 3). */}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <label htmlFor="content-format-select" className="text-xs font-medium text-muted-foreground">
+                Format
+              </label>
+              <Select
+                value={contentFormatChoice}
+                onValueChange={(value) => setContentFormatChoice(value as ContentFormatChoice)}
+              >
+                <SelectTrigger id="content-format-select" className="h-8 w-44 text-xs" aria-label="Content format">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CONTENT_FORMAT_OPTIONS.map(({ value, label, hint, Icon }) => (
+                    <SelectItem key={value} value={value} className="text-xs">
+                      <div className="flex items-center gap-2">
+                        <Icon className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+                        <div className="flex flex-col">
+                          <span className="font-medium leading-tight">{label}</span>
+                          <span className="text-[10px] text-muted-foreground leading-tight">{hint}</span>
+                        </div>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <span className="font-medium">Destination:</span>
+              <span>Newsletter (Beehiiv)</span>
+              <span aria-hidden className="text-muted-foreground/50">·</span>
+              <span className="text-[10px]">more platforms coming</span>
+            </div>
+          </div>
           <div className="flex items-center justify-between">
             <p className="text-xs text-muted-foreground">
               AI will check latest news, analyse your library, and suggest 7 prioritised ideas
             </p>
             <div className="flex gap-2">
-              <Button variant="ghost" size="sm" onClick={() => { setShowTopicInput(false); setIdeaTopic(""); }}>Cancel</Button>
-              <Button size="sm" onClick={() => handleGetIdeas(ideaTopic)} className="gap-1.5">
+              <Button variant="ghost" size="sm" onClick={() => { setShowTopicInput(false); setIdeaTopic(""); setContentFormatChoice("any"); }}>Cancel</Button>
+              <Button size="sm" onClick={() => handleGetIdeas(ideaTopic, contentFormatChoice)} className="gap-1.5">
                 <Send className="h-3.5 w-3.5" />
                 Generate
               </Button>
