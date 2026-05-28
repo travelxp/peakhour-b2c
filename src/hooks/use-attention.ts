@@ -5,7 +5,7 @@ import { api } from "@/lib/api";
 
 export interface AttentionAlert {
   id: string;
-  kind: "webhook_health" | "scheduled_items_blocked";
+  kind: "webhook_health" | "scheduled_items_blocked" | "x_mentions_unread";
   severity: "red" | "yellow";
   title: string;
   description: string;
