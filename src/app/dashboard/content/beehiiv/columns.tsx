@@ -54,16 +54,21 @@ interface RetagResponse {
  */
 function friendlyRetagError(raw: string | undefined): string {
   if (!raw) return "Re-analyse completed without producing tags.";
+  // Ground-truth preflight codes come from helpers/draft-unprocessable.ts.
+  // Round-2 review F1: the previous "preflight:too_short" branch was
+  // dead — actual code is "content_too_short". Fixed.
   if (raw.startsWith("preflight:image_only")) {
     return "This newsletter is image-only and has no analysable text yet.";
   }
-  if (raw.startsWith("preflight:too_short")) {
+  if (raw.startsWith("preflight:content_too_short")) {
     return "Newsletter content is too short to analyse — wait for the full text to ingest, then try again.";
   }
   if (raw.startsWith("preflight:")) {
     return "Newsletter content didn't pass the preflight checks — open the draft to review.";
   }
-  if (raw.includes("All") && raw.includes("sub-skills failed")) {
+  // Slightly more robust than the round-1 `includes("All") && includes("sub-skills failed")` —
+  // load-bearing substring is "sub-skills failed" (review F4).
+  if (raw.includes("sub-skills failed")) {
     return "AI tagger is having a moment — wait a few seconds and try again.";
   }
   return raw;
