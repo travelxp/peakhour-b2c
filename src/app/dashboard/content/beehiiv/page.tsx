@@ -38,6 +38,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { FileX, LayoutGrid, List, Library, BrainCircuit, Share2, Info } from "lucide-react";
 import { RepurposeSheet } from "@/components/repurpose/repurpose-sheet";
 import type { RepurposeSource } from "@/lib/api/repurpose";
+import { DevCronButton } from "@/components/dev/dev-cron-button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -294,7 +295,37 @@ export default function ContentPage() {
               Your newsletters, AI-tagged and scored for ad potential
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center flex-wrap">
+            {/* Dev-only cron triggers — visible only on preview + local
+                dev (server returns 403 on production). These cover the
+                crons whose effects this page reflects: beehiiv-sync
+                pulls new newsletters, tag-catchup tags them, jobs-runner
+                drains content_analyse children. On prod they're scheduled;
+                here you click. Refetches the page's queries after each
+                trigger so KPIs update without a manual reload. */}
+            <DevCronButton
+              cron="beehiiv-sync"
+              label="Cron: beehiiv-sync"
+              onTriggered={() => {
+                queryClient.invalidateQueries({ queryKey: ["content-library-all"] });
+                queryClient.invalidateQueries({ queryKey: ["content-stats"] });
+              }}
+            />
+            <DevCronButton
+              cron="jobs-runner"
+              label="Cron: jobs-runner"
+              onTriggered={() => {
+                queryClient.invalidateQueries({ queryKey: ["content-stats"] });
+              }}
+            />
+            <DevCronButton
+              cron="tag-catchup"
+              label="Cron: tag-catchup"
+              onTriggered={() => {
+                queryClient.invalidateQueries({ queryKey: ["content-library-all"] });
+                queryClient.invalidateQueries({ queryKey: ["content-stats"] });
+              }}
+            />
             <Button
               variant="outline"
               onClick={() => syncBeehiiv()}
