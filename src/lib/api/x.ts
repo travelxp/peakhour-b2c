@@ -33,6 +33,13 @@ export interface XMention {
     id: string;
     handle: string | null;
     name: string | null;
+    /** Author follower count at sync time. M-4: surfaced in the
+     *  urgency badge tooltip. Null when the cron's user.fields
+     *  expansion was missing public_metrics. */
+    followerCount: number | null;
+    /** Twitter/X verified flag at sync time. Null when unknown
+     *  (legacy rows synced before M-4). */
+    verified: boolean | null;
   };
   text: string;
   url: string | null;
@@ -50,7 +57,16 @@ export interface XMention {
   sentiment: "positive" | "neutral" | "negative" | null;
   readAt: string | null;
   mentionedAt: string;
+  /** Urgency score + reason tags (Phase 1 M-4). Null on legacy rows
+   *  that pre-date the cron's scoring pass; readers treat null as
+   *  "unknown / no badge." */
+  urgency: {
+    score: number;
+    reasons: string[];
+  } | null;
 }
+
+export type MentionsSort = "urgency" | "recent";
 
 export interface ListMentionsResult {
   mentions: XMention[];
@@ -72,9 +88,15 @@ export const xApi = {
   deleteTweet: (id: string) =>
     api.delete<unknown>(`/v1/x/content/tweets/${id}`),
 
-  listMentions: (params: { filter?: MentionsFilter; limit?: number; cursor?: string } = {}) => {
+  listMentions: (params: {
+    filter?: MentionsFilter;
+    sort?: MentionsSort;
+    limit?: number;
+    cursor?: string;
+  } = {}) => {
     const query: Record<string, string> = {};
     if (params.filter) query.filter = params.filter;
+    if (params.sort) query.sort = params.sort;
     if (params.limit) query.limit = String(params.limit);
     if (params.cursor) query.cursor = params.cursor;
     return api.get<ListMentionsResult>("/v1/x/content/mentions", query);

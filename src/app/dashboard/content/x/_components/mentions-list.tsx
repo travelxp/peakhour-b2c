@@ -17,6 +17,7 @@ import {
   Check,
   Inbox,
   Sparkles,
+  Flame,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -26,9 +27,19 @@ import {
   ToggleGroupItem,
 } from "@/components/ui/toggle-group";
 import { Badge } from "@/components/ui/badge";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { EmptyState } from "@/components/molecules/empty-state";
 import { formatDate } from "@/lib/locale";
-import { xApi, type XMention, type MentionsFilter } from "@/lib/api/x";
+import {
+  xApi,
+  type XMention,
+  type MentionsFilter,
+  type MentionsSort,
+} from "@/lib/api/x";
 import { ApiError } from "@/lib/api";
 import { ReplyDrawer } from "./reply-drawer";
 
@@ -46,14 +57,21 @@ const PAGE_SIZE = 20;
  */
 export function MentionsList() {
   const [filter, setFilter] = useState<MentionsFilter>("all");
+  // M-4: default to urgency sort so hot mentions float to the top.
+  // Users who want strict reverse-chronological flip the toggle.
+  const [sort, setSort] = useState<MentionsSort>("urgency");
   const [replyTarget, setReplyTarget] = useState<XMention | null>(null);
   const queryClient = useQueryClient();
 
   const query = useInfiniteQuery({
-    queryKey: ["x-mentions", filter],
+    // Include sort in the queryKey so a sort flip refetches instead
+    // of reordering the existing cache (the cursor + page order would
+    // otherwise be inconsistent across sort modes).
+    queryKey: ["x-mentions", filter, sort],
     queryFn: ({ pageParam }) =>
       xApi.listMentions({
         filter,
+        sort,
         limit: PAGE_SIZE,
         cursor: pageParam,
       }),
@@ -64,13 +82,13 @@ export function MentionsList() {
   const markRead = useMutation({
     mutationFn: (id: string) => xApi.markMentionRead(id),
     onMutate: async (id) => {
-      // Optimistic: stamp readAt on the current filter's cache only.
-      // Scoping the write (and the rollback) to one query key prevents
-      // a race where the user switches filter mid-mutation and the
-      // rollback restores only one of two patched caches, leaving the
-      // other stale. onSettled's invalidate covers the OTHER filter's
-      // cache lazily — next time the user switches, it refetches.
-      const queryKey = ["x-mentions", filter] as const;
+      // Optimistic: stamp readAt on the current (filter, sort) cache
+      // only. Scoping the write + rollback to one query key prevents a
+      // race where the user switches filter/sort mid-mutation and the
+      // rollback restores only one of N patched caches, leaving the
+      // others stale. onSettled's invalidate covers the OTHER caches
+      // lazily — next time the user switches, they refetch.
+      const queryKey = ["x-mentions", filter, sort] as const;
       await queryClient.cancelQueries({ queryKey });
       const previous = queryClient.getQueryData(queryKey);
       queryClient.setQueryData(queryKey, (old: unknown) => {
@@ -135,17 +153,32 @@ export function MentionsList() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-2">
-        <ToggleGroup
-          type="single"
-          value={filter}
-          onValueChange={(v) => v && setFilter(v as MentionsFilter)}
-          variant="outline"
-          size="sm"
-        >
-          <ToggleGroupItem value="all">All</ToggleGroupItem>
-          <ToggleGroupItem value="unread">Unread</ToggleGroupItem>
-        </ToggleGroup>
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
+          <ToggleGroup
+            type="single"
+            value={filter}
+            onValueChange={(v) => v && setFilter(v as MentionsFilter)}
+            variant="outline"
+            size="sm"
+          >
+            <ToggleGroupItem value="all">All</ToggleGroupItem>
+            <ToggleGroupItem value="unread">Unread</ToggleGroupItem>
+          </ToggleGroup>
+          <ToggleGroup
+            type="single"
+            value={sort}
+            onValueChange={(v) => v && setSort(v as MentionsSort)}
+            variant="outline"
+            size="sm"
+            aria-label="Sort mentions"
+          >
+            <ToggleGroupItem value="urgency" className="gap-1.5">
+              <Flame className="size-3.5" /> Hot first
+            </ToggleGroupItem>
+            <ToggleGroupItem value="recent">Most recent</ToggleGroupItem>
+          </ToggleGroup>
+        </div>
         <p className="text-xs text-muted-foreground">
           Cron syncs every 10 min
         </p>
@@ -228,6 +261,11 @@ function MentionCard({
               {mention.author.handle && (
                 <span>@{mention.author.handle}</span>
               )}
+              {mention.author.verified && (
+                <Badge variant="secondary" className="text-xs h-4 px-1.5">
+                  Verified
+                </Badge>
+              )}
               <span>·</span>
               <span>{formatDate(mention.mentionedAt, null)}</span>
               {isUnread && (
@@ -235,6 +273,7 @@ function MentionCard({
                   New
                 </Badge>
               )}
+              {mention.urgency && <UrgencyBadge urgency={mention.urgency} />}
             </div>
             <p className="whitespace-pre-wrap text-sm leading-relaxed">
               {mention.text || (
@@ -294,6 +333,105 @@ function MentionCard({
       </CardContent>
     </Card>
   );
+}
+
+/**
+ * Urgency badge with hover tooltip explaining the reason tags
+ * (Phase 1 M-4). Color-tiered:
+ *   - red  (score ≥ 60): a triage-now mention. Typically combines
+ *                         negative sentiment + verified or viral.
+ *   - amber (40 ≤ score < 60): worth eyeballing.
+ *   - muted (score < 40): low-priority — informational.
+ *
+ * Reasons are rendered as a small bullet list in the tooltip so ops
+ * can see WHY a mention is hot (e.g. "sentiment:negative" + "verified")
+ * before clicking through. Missing urgency is rendered as no badge —
+ * see the conditional in MentionCard.
+ */
+function UrgencyBadge({
+  urgency,
+}: {
+  urgency: { score: number; reasons: string[] };
+}) {
+  const tier =
+    urgency.score >= 60
+      ? "high"
+      : urgency.score >= 40
+        ? "medium"
+        : "low";
+  const className =
+    tier === "high"
+      ? "bg-destructive/10 text-destructive border-destructive/40"
+      : tier === "medium"
+        ? "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/40"
+        : "bg-muted text-muted-foreground border-muted";
+  // TooltipProvider is mounted at the app root (dashboard layout) —
+  // a per-badge wrapper would add redundant context nodes. Keep the
+  // Badge keyboard-focusable via tabIndex so screen-reader / tab
+  // users can surface the reason tags too.
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Badge
+          tabIndex={0}
+          variant="outline"
+          aria-label={`Urgency ${urgency.score} of 100${
+            urgency.reasons.length > 0
+              ? `: ${urgency.reasons.map(formatReason).join(", ")}`
+              : ""
+          }`}
+          className={`text-xs h-4 px-1.5 gap-1 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring ${className}`}
+        >
+          <Flame className="size-3" />
+          <span className="tabular-nums">{urgency.score}</span>
+        </Badge>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-xs">
+        <p className="font-medium mb-1">Urgency {urgency.score}/100</p>
+        {urgency.reasons.length > 0 ? (
+          <ul className="space-y-0.5">
+            {urgency.reasons.map((r) => (
+              <li key={r} className="text-xs">
+                • {formatReason(r)}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            No specific signals — baseline score.
+          </p>
+        )}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+/**
+ * Map machine-readable reason tags to human-readable phrases for the
+ * tooltip. Unknown tags fall through verbatim — safer than dropping a
+ * tag a future scorer change introduces.
+ */
+function formatReason(tag: string): string {
+  switch (tag) {
+    case "sentiment:negative":
+      return "Negative sentiment";
+    case "sentiment:positive":
+      return "Positive sentiment";
+    case "sentiment:neutral":
+      return "Neutral sentiment";
+    case "verified":
+      return "Verified author";
+    case "followers:high":
+      return "High follower count (10k+)";
+    case "followers:medium":
+      return "Medium follower count (1k–10k)";
+    case "engagement:viral":
+      return "Viral engagement";
+    case "role_fit:support":
+      return "Support-role connection";
+    default:
+      return tag;
+  }
 }
 
 function Metric({
