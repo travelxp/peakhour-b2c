@@ -20,6 +20,45 @@ export interface PublishTweetInput {
   mediaIds?: string[];
 }
 
+/**
+ * X mention row served by GET /v1/x/content/mentions. Mirrors the
+ * soc_social_mentions schema; nullable fields are explicit nulls on
+ * the wire (the api projection defaults them) so the type stays free
+ * of `undefined` drift between the boundary and React state.
+ */
+export interface XMention {
+  id: string;
+  externalId: string;
+  author: {
+    id: string;
+    handle: string | null;
+    name: string | null;
+  };
+  text: string;
+  url: string | null;
+  mediaUrls: string[];
+  parentId: string | null;
+  conversationId: string | null;
+  metrics: {
+    likes: number;
+    replies: number;
+    reposts: number;
+    quotes: number;
+    impressions: number;
+    lastUpdated?: string;
+  } | null;
+  sentiment: "positive" | "neutral" | "negative" | null;
+  readAt: string | null;
+  mentionedAt: string;
+}
+
+export interface ListMentionsResult {
+  mentions: XMention[];
+  nextCursor: string | null;
+}
+
+export type MentionsFilter = "unread" | "all";
+
 export const xApi = {
   publish: (body: PublishTweetInput) =>
     api.post<{ id: string; text: string }>("/v1/x/content/publish", body),
@@ -32,6 +71,17 @@ export const xApi = {
 
   deleteTweet: (id: string) =>
     api.delete<unknown>(`/v1/x/content/tweets/${id}`),
+
+  listMentions: (params: { filter?: MentionsFilter; limit?: number; cursor?: string } = {}) => {
+    const query: Record<string, string> = {};
+    if (params.filter) query.filter = params.filter;
+    if (params.limit) query.limit = String(params.limit);
+    if (params.cursor) query.cursor = params.cursor;
+    return api.get<ListMentionsResult>("/v1/x/content/mentions", query);
+  },
+
+  markMentionRead: (id: string) =>
+    api.post<{ id: string; readAt: string }>(`/v1/x/content/mentions/${id}/read`),
 };
 
 /**
