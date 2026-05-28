@@ -453,8 +453,13 @@ export function getContentColumns(
     meta: {
       thClassName:
         "sticky right-0 bg-background z-10 shadow-[-4px_0_4px_-2px_rgba(0,0,0,0.05)]",
+      // `group-hover:bg-muted/50` mirrors the TableRow's hover background
+      // so the sticky cell doesn't form a visible seam — without this,
+      // hover paints muted/50 on every non-sticky cell and bg-background
+      // on the sticky one. The TableRow needs `group` set on it (see
+      // page.tsx) for this group-hover variant to fire.
       tdClassName:
-        "sticky right-0 bg-background z-10 shadow-[-4px_0_4px_-2px_rgba(0,0,0,0.05)]",
+        "sticky right-0 bg-background group-hover:bg-muted/50 z-10 shadow-[-4px_0_4px_-2px_rgba(0,0,0,0.05)]",
     },
     filterFn: (row, _id, value) => {
       // "Repurposable" filter chip → keep rows whose top platform-fit

@@ -553,7 +553,12 @@ export default function ContentPage() {
                 ))}
               </div>
             ) : (
-              <div className="overflow-hidden rounded-md border">
+              // `overflow-x-auto` (not overflow-hidden) — the sticky-right
+              // actions column needs a scroll container to pin against;
+              // overflow-hidden would clip wide columns silently and the
+              // sticky positioning would resolve against the document
+              // viewport instead of the table's box.
+              <div className="overflow-x-auto rounded-md border">
                 <Table>
                   <TableHeader>
                     {table.getHeaderGroups().map((headerGroup) => (
@@ -582,7 +587,12 @@ export default function ContentPage() {
                       table.getRowModel().rows.map((row) => (
                         <TableRow
                           key={row.id}
-                          className="cursor-pointer hover:bg-muted/50"
+                          // `group` exposes a hover variant to descendants
+                          // — the sticky-right actions cell uses
+                          // `group-hover:bg-muted/50` to match the row's
+                          // hover background and avoid the sticky-seam
+                          // visual artifact.
+                          className="group cursor-pointer hover:bg-muted/50"
                           onClick={() => router.push(`/dashboard/content/beehiiv/${row.original._id}`)}
                         >
                           {row.getVisibleCells().map((cell) => {
@@ -874,20 +884,34 @@ function ArticleCard({
           </span>
         </div>
 
-        {/* Repurpose action — stopPropagation so the card's onClick
-            (router.push to the detail page) doesn't fire when the
-            user only wanted to open the platform recommender. */}
+        {/* Repurpose action — coloured by the row's repurposeFit band,
+            same as the table-view RepurposeActionCell. The card view and
+            the table view sit in front of the same Draft data; keeping
+            their treatments consistent avoids "the table says green but
+            the card says nothing" confusion when the user toggles
+            between views. stopPropagation prevents the card's onClick
+            (router.push) firing on a Repurpose click. */}
         <div className="flex justify-end pt-1">
           <Button
             type="button"
             size="sm"
             variant="ghost"
-            className="h-7 text-xs"
+            className={`h-7 text-xs ${
+              draft.repurposeFit?.topBand === "green"
+                ? "text-green-700 hover:text-green-700 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-950/40"
+                : draft.repurposeFit?.topBand === "amber"
+                  ? "text-amber-700 hover:text-amber-700 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950/40"
+                  : ""
+            }`}
             onClick={(e) => {
               e.stopPropagation();
               onRepurpose();
             }}
-            title="Score connected platforms and generate variants"
+            title={
+              draft.repurposeFit
+                ? `Top fit: ${draft.repurposeFit.topChannel} (${draft.repurposeFit.topBand}) — ${draft.repurposeFit.topRationale}`
+                : "Score connected platforms and generate variants"
+            }
           >
             <Share2 className="mr-1 size-3" />
             Repurpose
