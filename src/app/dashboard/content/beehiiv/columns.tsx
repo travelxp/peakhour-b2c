@@ -25,7 +25,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Info } from "lucide-react";
+import { Info, Share2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 const FORMAT_LABELS: Record<string, string> = {
   article: "Article",
@@ -176,7 +177,17 @@ function RationaleTooltip({
   );
 }
 
-export function getContentColumns(prefs: UserPreferences | null): ColumnDef<Draft, unknown>[] {
+/**
+ * Build the table columns for the beehiiv content list. `onRepurpose`
+ * is the row-action callback that opens the shared RepurposeSheet for
+ * the clicked draft — added so the Repurpose entry-point is reachable
+ * from both card view AND table view (was card-only, missed by
+ * default-table-view users).
+ */
+export function getContentColumns(
+  prefs: UserPreferences | null,
+  onRepurpose: (draftId: string) => void,
+): ColumnDef<Draft, unknown>[] {
   return [
   {
     accessorKey: "title",
@@ -393,6 +404,36 @@ export function getContentColumns(prefs: UserPreferences | null): ColumnDef<Draf
       <span className="text-xs text-muted-foreground">
         {formatDate(row.original.publishedAt, prefs)}
       </span>
+    ),
+  },
+  {
+    // Repurpose row-action — opens the shared RepurposeSheet for the
+    // row's draft. stopPropagation on both click + pointerDown so the
+    // row's onClick (router.push to the detail page) doesn't fire when
+    // the user only wanted to open the platform recommender. Mirrors
+    // the card-view Repurpose pattern at page.tsx:800.
+    id: "actions",
+    enableSorting: false,
+    enableHiding: false,
+    header: "",
+    cell: ({ row }) => (
+      <div className="flex justify-end">
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="h-7 text-xs"
+          onClick={(e) => {
+            e.stopPropagation();
+            onRepurpose(row.original._id);
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+          title="Score connected platforms and generate variants"
+        >
+          <Share2 className="mr-1 size-3" />
+          Repurpose
+        </Button>
+      </div>
     ),
   },
   ];

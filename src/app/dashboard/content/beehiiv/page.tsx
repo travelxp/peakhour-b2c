@@ -62,6 +62,16 @@ interface ContentStats {
   total: number;
   tagged: number;
   taggedPercent: number;
+  /** Drafts at status="partial_tagged" — landed but a critical field
+   *  (audienceRelevance / contentType) was missing. The targeted
+   *  "Re-analyse N incomplete" button re-processes these. */
+  partialTagged?: number;
+  /** Drafts with errorClass=transient unprocessable stamp (AI infra
+   *  blip; permanent stamps stay since they need manual intervention). */
+  transientUnprocessable?: number;
+  /** partialTagged + transientUnprocessable — the re-eligible count
+   *  the targeted re-analyse button targets. */
+  incomplete?: number;
   highPotential: number;
   avgAdScore: number;
   evergreenPercent: number;
@@ -97,11 +107,17 @@ export default function ContentPage() {
   const queryClient = useQueryClient();
   const { user, business } = useAuth();
   const prefs = user?.preferences ?? null;
-  const contentColumns = useMemo(() => getContentColumns(prefs), [prefs]);
   const [view, setView] = useState<"card" | "table">("table");
   // Sheet state lives at page level so it survives any row re-render
   // during the sheet's open lifecycle.
   const [repurposeSource, setRepurposeSource] = useState<RepurposeSource | null>(null);
+  // contentColumns depends on `setRepurposeSource`, which has a stable
+  // identity from useState — so the memo invalidates only on prefs
+  // change (the row-action callback closes over a stable setter).
+  const contentColumns = useMemo(
+    () => getContentColumns(prefs, (draftId) => setRepurposeSource({ type: "draft", draftId })),
+    [prefs],
+  );
 
   const enqueueJob = useEnqueueJob();
   // useJobs("active") is already mounted at the dashboard layout level
@@ -213,15 +229,26 @@ export default function ContentPage() {
    * highlighted and can monitor progress. The runner handles the
    * actual fan-out (one tag_drafts child per 10 drafts).
    *
+   * `mode` is the reset scope (see content_analyse handler):
+   *   "untagged"   — default Analyse-N-untagged button: only process
+   *                  drafts with no tags. No reset.
+   *   "incomplete" — targeted Re-analyse-N-incomplete button: only
+   *                  re-process partial_tagged + transient
+   *                  unprocessable. Leaves working "tagged" rows
+   *                  untouched. The "finish what didn't land"
+   *                  blast-radius the b2c UI exposes.
+   *
+   * The all-or-nothing legacy mode="all" (wipes EVERY tag and re-tags
+   * everything) is NOT exposed in the b2c UI — abuse vector. Ops who
+   * need it call the API directly with mode="all" or use the cms
+   * drain script (scripts/_drain-quests-tagging.ts).
+   *
    * Idempotency: a single stable per-business key. The api's partial
    * unique index on (orgId, idempotencyKey, status:pending|running)
    * means a second submit while the first is still pending|running
-   * returns the existing jobId — no double-spend, regardless of
-   * whether the user picks Analyse-untagged or Re-analyse-all. Once
-   * the prior job terminates the key becomes reusable for the next
-   * run.
+   * returns the existing jobId — no double-spend.
    */
-  function startAnalysis(force: boolean) {
+  function startAnalysis(mode: "untagged" | "incomplete") {
     if (!business?._id) {
       toast.error("Pick a business first.");
       return;
@@ -229,7 +256,7 @@ export default function ContentPage() {
     enqueueJob.mutate(
       {
         kind: "content_analyse",
-        params: force ? { force: true } : undefined,
+        params: { mode },
         idempotencyKey: `content_analyse:${business._id}`,
       },
       {
@@ -292,7 +319,7 @@ export default function ContentPage() {
                     );
                     return;
                   }
-                  startAnalysis(false);
+                  startAnalysis("untagged");
                 }}
                 disabled={analysing || !businessReady}
                 variant={
@@ -306,20 +333,28 @@ export default function ContentPage() {
                     : `Analyse ${stats.total - stats.tagged} untagged`}
               </Button>
             )}
-            {stats && stats.tagged > 0 && (
+            {/* Targeted re-tag — only renders when something is actually
+                incomplete (partial_tagged + transient-unprocessable). The
+                old "Re-analyse all" button wiped EVERY tag and re-ran the
+                AI on the working rows too — a foot-gun (~$0.012 × every
+                draft per click). The targeted button is bounded by
+                `stats.incomplete`, so the worst case is re-processing
+                the rows that actually need it. Operators who legitimately
+                need to wipe-and-redo everything call mode="all" via the
+                API or run scripts/_drain-quests-tagging.ts. */}
+            {stats && (stats.incomplete ?? 0) > 0 && (
               <ConfirmDialog
                 trigger={
                   <Button
                     variant="outline"
                     disabled={analysing || !businessReady || hasPendingAnalyse}
                   >
-                    Re-analyse all
+                    Re-analyse {stats.incomplete} incomplete
                   </Button>
                 }
-                title="Re-analyse all content"
-                description="This will queue a background job that wipes existing tags and re-analyses every newsletter. You can track it on the Tasks page."
-                confirmLabel="Re-analyse"
-                variant="destructive"
+                title={`Re-analyse ${stats.incomplete} incomplete newsletter${stats.incomplete === 1 ? "" : "s"}`}
+                description={`This will re-process only the ${stats.partialTagged ?? 0} partial-tagged + ${stats.transientUnprocessable ?? 0} transiently-failed newsletters. Working tagged rows are left alone. Estimated cost ~$${(((stats.incomplete ?? 0) * 0.012)).toFixed(2)} (sub-skill path). You can track progress on the Tasks page.`}
+                confirmLabel="Re-analyse incomplete"
                 onConfirm={() => {
                   // Race guard: the trigger was disabled when this
                   // dialog opened, but the active-jobs poll can land
@@ -332,7 +367,7 @@ export default function ContentPage() {
                     );
                     return;
                   }
-                  startAnalysis(true);
+                  startAnalysis("incomplete");
                 }}
               />
             )}
