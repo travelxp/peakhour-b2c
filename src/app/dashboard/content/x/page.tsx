@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -22,8 +23,44 @@ interface ApiIntegration {
 
 const RECENT_TWEET_COUNT = 20;
 
+// Whitelist of accepted ?tab= values. Keeping this typed and explicit
+// means a malformed URL silently falls through to the default — we
+// don't render a tab the user can't see and we don't get a TS bypass.
+type XTab = "compose" | "recent" | "mentions";
+const X_TABS: readonly XTab[] = ["compose", "recent", "mentions"];
+
+/**
+ * Wraps the page content in a Suspense boundary so useSearchParams()
+ * doesn't bail the whole app's static render. Next.js 15+ requires
+ * any client component reading searchParams to be inside Suspense
+ * during prerender.
+ */
 export default function XContentDashboardPage() {
+  return (
+    <Suspense fallback={<PageShell loading />}>
+      <XContentDashboardInner />
+    </Suspense>
+  );
+}
+
+function XContentDashboardInner() {
   const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
+  const urlTab: XTab = useMemo(() => {
+    const raw = searchParams?.get("tab");
+    return raw && (X_TABS as readonly string[]).includes(raw) ? (raw as XTab) : "compose";
+  }, [searchParams]);
+  const [tab, setTab] = useState<XTab>(urlTab);
+  // Sync state to URL changes so clicking the AttentionBell while
+  // already on this page switches tabs (Link navigates without
+  // remounting the component, so useState's initial value alone
+  // wouldn't react). Tab clicks update state directly via Tabs'
+  // onValueChange; we don't rewrite the URL on tab clicks today —
+  // shallow URL sync is a follow-up if back/forward navigation
+  // between tabs becomes a desired UX.
+  useEffect(() => {
+    setTab(urlTab);
+  }, [urlTab]);
 
   const integrations = useQuery({
     queryKey: ["content-hub-integrations"],
@@ -108,7 +145,7 @@ export default function XContentDashboardPage() {
         />
       </div>
 
-      <Tabs defaultValue="compose">
+      <Tabs value={tab} onValueChange={(v) => setTab(v as XTab)}>
         <TabsList>
           <TabsTrigger value="compose" className="gap-1.5">
             <Send className="size-4" /> Compose
