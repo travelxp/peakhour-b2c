@@ -155,11 +155,19 @@ export default function ContentPage() {
   );
   const taxonomyContentTypes = useMemo(() => orgData?.taxonomy?.contentTypes || [], [orgData]);
 
-  // Client-side: fetch last 500 content pieces in one call
+  // Client-side: fetch last 500 content pieces in one call. Pass
+  // includeRepurposeFit=true so the api decorates each row with a
+  // rules-based platform-fit band (green/amber/grey) for the per-row
+  // Repurpose action color + the "Repurposable" filter chip + the
+  // platform-suitability rationale tooltip. No AI cost (rules-only).
   const { data: libraryRes, isLoading: libraryLoading } = useQuery({
     queryKey: ["content-library-all"],
     queryFn: () =>
-      api.get<Draft[]>("/v1/content/library", { limit: String(CONTENT_FETCH_LIMIT), sort: "publishedAt_desc" }),
+      api.get<Draft[]>("/v1/content/library", {
+        limit: String(CONTENT_FETCH_LIMIT),
+        sort: "publishedAt_desc",
+        includeRepurposeFit: "true",
+      }),
   });
 
   // Build faceted filter options from taxonomy
@@ -467,6 +475,22 @@ export default function ContentPage() {
                 options={shelfLifeFilterOptions}
                 align="start"
               />
+              {/* "Repurposable" filter — keys on the actions column's
+                  accessor (repurposeFit.topBand). Default selection is
+                  the most useful single filter ("green" = strong fit on
+                  ≥1 connected channel); we leave it as a multi-select
+                  so an operator can also include amber ("workable
+                  with caveats") if they want a broader pool. */}
+              <FacetedFilter
+                column={table.getColumn("actions")}
+                title="Repurposable"
+                options={[
+                  { value: "green", label: "Strong fit (green)" },
+                  { value: "amber", label: "Workable (amber)" },
+                  { value: "grey", label: "Not a fit (grey)" },
+                ]}
+                align="start"
+              />
               {hasActiveFilters && (
                 <Button variant="ghost" size="sm" onClick={clearFilters} className="h-8">
                   Clear all
@@ -529,18 +553,32 @@ export default function ContentPage() {
                 ))}
               </div>
             ) : (
-              <div className="overflow-hidden rounded-md border">
+              // `overflow-x-auto` (not overflow-hidden) — the sticky-right
+              // actions column needs a scroll container to pin against;
+              // overflow-hidden would clip wide columns silently and the
+              // sticky positioning would resolve against the document
+              // viewport instead of the table's box.
+              <div className="overflow-x-auto rounded-md border">
                 <Table>
                   <TableHeader>
                     {table.getHeaderGroups().map((headerGroup) => (
                       <TableRow key={headerGroup.id}>
-                        {headerGroup.headers.map((header) => (
-                          <TableHead key={header.id}>
-                            {header.isPlaceholder
-                              ? null
-                              : flexRender(header.column.columnDef.header, header.getContext())}
-                          </TableHead>
-                        ))}
+                        {headerGroup.headers.map((header) => {
+                          // Pull optional per-column header className from
+                          // the column def's `meta` (used by the sticky-
+                          // right actions column to pin Repurpose to the
+                          // viewport edge regardless of overflow).
+                          const meta = header.column.columnDef.meta as
+                            | { thClassName?: string }
+                            | undefined;
+                          return (
+                            <TableHead key={header.id} className={meta?.thClassName}>
+                              {header.isPlaceholder
+                                ? null
+                                : flexRender(header.column.columnDef.header, header.getContext())}
+                            </TableHead>
+                          );
+                        })}
                       </TableRow>
                     ))}
                   </TableHeader>
@@ -549,14 +587,27 @@ export default function ContentPage() {
                       table.getRowModel().rows.map((row) => (
                         <TableRow
                           key={row.id}
-                          className="cursor-pointer hover:bg-muted/50"
+                          // `group` exposes a hover variant to descendants
+                          // — the sticky-right actions cell uses
+                          // `group-hover:bg-muted/50` to match the row's
+                          // hover background and avoid the sticky-seam
+                          // visual artifact.
+                          className="group cursor-pointer hover:bg-muted/50"
                           onClick={() => router.push(`/dashboard/content/beehiiv/${row.original._id}`)}
                         >
-                          {row.getVisibleCells().map((cell) => (
-                            <TableCell key={cell.id}>
-                              {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                            </TableCell>
-                          ))}
+                          {row.getVisibleCells().map((cell) => {
+                            // Same per-column class hook for body cells.
+                            // The actions column reads meta.tdClassName to
+                            // stay sticky-right; other columns ignore it.
+                            const meta = cell.column.columnDef.meta as
+                              | { tdClassName?: string }
+                              | undefined;
+                            return (
+                              <TableCell key={cell.id} className={meta?.tdClassName}>
+                                {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                              </TableCell>
+                            );
+                          })}
                         </TableRow>
                       ))
                     ) : (
@@ -833,20 +884,34 @@ function ArticleCard({
           </span>
         </div>
 
-        {/* Repurpose action — stopPropagation so the card's onClick
-            (router.push to the detail page) doesn't fire when the
-            user only wanted to open the platform recommender. */}
+        {/* Repurpose action — coloured by the row's repurposeFit band,
+            same as the table-view RepurposeActionCell. The card view and
+            the table view sit in front of the same Draft data; keeping
+            their treatments consistent avoids "the table says green but
+            the card says nothing" confusion when the user toggles
+            between views. stopPropagation prevents the card's onClick
+            (router.push) firing on a Repurpose click. */}
         <div className="flex justify-end pt-1">
           <Button
             type="button"
             size="sm"
             variant="ghost"
-            className="h-7 text-xs"
+            className={`h-7 text-xs ${
+              draft.repurposeFit?.topBand === "green"
+                ? "text-green-700 hover:text-green-700 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-950/40"
+                : draft.repurposeFit?.topBand === "amber"
+                  ? "text-amber-700 hover:text-amber-700 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950/40"
+                  : ""
+            }`}
             onClick={(e) => {
               e.stopPropagation();
               onRepurpose();
             }}
-            title="Score connected platforms and generate variants"
+            title={
+              draft.repurposeFit
+                ? `Top fit: ${draft.repurposeFit.topChannel} (${draft.repurposeFit.topBand}) — ${draft.repurposeFit.topRationale}`
+                : "Score connected platforms and generate variants"
+            }
           >
             <Share2 className="mr-1 size-3" />
             Repurpose
