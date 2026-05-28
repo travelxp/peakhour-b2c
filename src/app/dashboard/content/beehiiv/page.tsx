@@ -614,9 +614,11 @@ export default function ContentPage() {
                               // its base class — every Subtype / Sectors /
                               // Sentiment / Format chip in the row reads as
                               // bold against the lighter surrounding text.
-                              // `[&_[data-slot=badge]]:!font-normal` targets
-                              // the badge by its shadcn data-slot marker;
-                              // the `!` prefix forces specificity over the
+                              // `**:data-[slot=badge]:font-normal!` is the
+                              // Tailwind v4 canonical form: `**` matches any
+                              // descendant, `data-[slot=badge]` filters to
+                              // shadcn's badge data-slot marker, and the
+                              // trailing `!` forces specificity over the
                               // baked-in font-medium. Scoped to the Beehiiv
                               // table's TableCells so other tables on the
                               // platform keep their default Badge weight.
