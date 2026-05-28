@@ -688,44 +688,80 @@ function BriefFormatMetaPanel({
 function ImagePlaceholderRail({
   placeholders,
   onDelete,
+  onGenerate,
   busy,
+  finalized,
+  generatingIndex,
 }: {
   placeholders: ImagePlaceholder[];
   onDelete: (index: number) => void;
+  onGenerate: (index: number) => void;
   busy: boolean;
+  finalized: boolean;
+  generatingIndex: number | null;
 }) {
   if (!placeholders.length) return null;
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-sm flex items-center gap-2"><ImageIcon className="h-4 w-4" /> Image placeholders <span className="text-muted-foreground font-normal">({placeholders.length})</span></CardTitle>
-        <CardDescription className="text-xs">Phase 1: text-only. Delete what you don&apos;t want; image generation runs after Finalize.</CardDescription>
+        <CardDescription className="text-xs">
+          {finalized
+            ? "Text finalized — Generate runs the AI image pipeline per placeholder. Delete what you don't want first."
+            : "Delete what you don't want; Finalize text to unlock image generation."}
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <ul className="grid gap-2 sm:grid-cols-2">
-          {placeholders.map((p, i) => (
-            <li key={i} className="rounded-md border bg-muted/20 p-3 text-sm flex items-start justify-between gap-2">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5 mb-1">
-                  <Badge variant="outline" className="text-[10px]">{p.position}</Badge>
-                  <Badge variant="secondary" className="text-[10px]">{p.dimensions}</Badge>
+          {placeholders.map((p, i) => {
+            const isGenerating = generatingIndex === i;
+            const isGenerated = p.status === "generated" && !!p.resolvedImageUrl;
+            return (
+              <li key={i} className={`rounded-md border p-3 text-sm flex items-start justify-between gap-2 ${isGenerated ? "bg-emerald-50/40 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900" : "bg-muted/20"}`}>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                    <Badge variant="outline" className="text-[10px]">{p.position}</Badge>
+                    <Badge variant="secondary" className="text-[10px]">{p.dimensions}</Badge>
+                    {isGenerated && <Badge variant="default" className="text-[10px]">Generated</Badge>}
+                  </div>
+                  <p className="font-medium truncate" title={p.purpose}>{p.purpose}</p>
+                  <p className="text-xs text-muted-foreground line-clamp-2">{p.description}</p>
+                  {p.suggestedCaption && <p className="text-xs italic mt-1 text-muted-foreground">&ldquo;{p.suggestedCaption}&rdquo;</p>}
+                  {isGenerated && p.resolvedImageUrl && (
+                    <div className="mt-2 rounded-md overflow-hidden border bg-background">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={p.resolvedImageUrl} alt={p.suggestedAltText} className="block w-full h-auto" />
+                    </div>
+                  )}
+                  <div className="mt-2 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => onGenerate(i)}
+                      disabled={busy || isGenerating || !finalized}
+                      className="text-xs font-medium px-2.5 py-1 rounded border bg-background hover:bg-accent disabled:opacity-40 flex items-center gap-1"
+                      title={finalized ? (isGenerated ? "Regenerate (overwrites the current image)" : "Generate image via AI") : "Finalize text first to unlock generation"}
+                    >
+                      {isGenerating
+                        ? <><Loader2 className="h-3 w-3 animate-spin" /> Generating…</>
+                        : isGenerated
+                          ? <><Sparkles className="h-3 w-3" /> Regenerate</>
+                          : <><Sparkles className="h-3 w-3" /> Generate</>}
+                    </button>
+                  </div>
                 </div>
-                <p className="font-medium truncate" title={p.purpose}>{p.purpose}</p>
-                <p className="text-xs text-muted-foreground line-clamp-2">{p.description}</p>
-                {p.suggestedCaption && <p className="text-xs italic mt-1 text-muted-foreground">&ldquo;{p.suggestedCaption}&rdquo;</p>}
-              </div>
-              <button
-                type="button"
-                onClick={() => onDelete(i)}
-                disabled={busy}
-                className="shrink-0 text-muted-foreground hover:text-destructive disabled:opacity-40"
-                aria-label={`Delete placeholder ${i + 1}`}
-                title="Delete placeholder"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </li>
-          ))}
+                <button
+                  type="button"
+                  onClick={() => onDelete(i)}
+                  disabled={busy || isGenerating}
+                  className="shrink-0 text-muted-foreground hover:text-destructive disabled:opacity-40"
+                  aria-label={`Delete placeholder ${i + 1}`}
+                  title="Delete placeholder"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </li>
+            );
+          })}
         </ul>
       </CardContent>
     </Card>
@@ -873,6 +909,23 @@ function WriteTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: strin
     setSaving(false);
   }
 
+  // Phase 2: per-placeholder AI image generation. Hard-gated on
+  // textFinalizedAt by the api (returns 400 TEXT_NOT_FINALIZED if
+  // user clicks Generate before Finalize). UI also disables the
+  // button when !finalized so the gate is enforced both sides.
+  const [generatingPlaceholderIdx, setGeneratingPlaceholderIdx] = useState<number | null>(null);
+  async function handleGeneratePlaceholder(index: number) {
+    setGeneratingPlaceholderIdx(index);
+    try {
+      await api.post(`/v1/content/ideas/${ideaId}/placeholders/${index}/generate`, {});
+      toast.success(`Image ${index + 1} generated`);
+      onRefresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Image generation failed");
+    }
+    setGeneratingPlaceholderIdx(null);
+  }
+
   const citations = idea.content?.dataCitations;
   const isNewsletter = !idea.contentFormat || idea.contentFormat === "newsletter";
 
@@ -936,7 +989,14 @@ function WriteTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: strin
             <FinalizeButton finalized={finalized} busy={saving} onFinalize={handleFinalize} />
           </div>
         </div>
-        <ImagePlaceholderRail placeholders={placeholders} onDelete={handleDeletePlaceholder} busy={saving || finalized} />
+        <ImagePlaceholderRail
+          placeholders={placeholders}
+          onDelete={handleDeletePlaceholder}
+          onGenerate={handleGeneratePlaceholder}
+          busy={saving}
+          finalized={finalized}
+          generatingIndex={generatingPlaceholderIdx}
+        />
       </div>
       {citations?.length ? <DataCitationsPanel citations={citations} /> : null}
     </div>
