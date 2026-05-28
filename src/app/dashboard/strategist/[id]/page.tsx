@@ -28,6 +28,9 @@ import {
   Eye,
   Star,
   StickyNote,
+  Image as ImageIcon,
+  X,
+  Lock,
 } from "lucide-react";
 
 /* ── SSE stream reader (reusable for any streaming action) ── */
@@ -98,6 +101,18 @@ async function consumeSSE(
   return lastEvent;
 }
 
+interface ImagePlaceholder {
+  position: "hero" | "inline-after-section-1" | "inline-after-section-2" | "inline-after-section-3" | "pull-quote" | "closing";
+  purpose: string;
+  description: string;
+  suggestedAltText: string;
+  suggestedCaption?: string;
+  dimensions: "16:9" | "1:1" | "4:5" | "9:16";
+  styleHints?: string[];
+  status: "placeholder" | "generated" | "uploaded" | "supplied" | "deleted";
+  resolvedImageUrl?: string;
+}
+
 interface IdeaDetail {
   _id: string;
   title: string;
@@ -107,6 +122,7 @@ interface IdeaDetail {
   sector?: string;
   targetAudience?: string;
   contentType?: string;
+  contentFormat?: "newsletter" | "article" | "pr" | "advertorial";
   angle?: string;
   aiScore?: number;
   channels?: string[];
@@ -122,11 +138,44 @@ interface IdeaDetail {
     outline: string[];
     estimatedLength: string; toneGuidance: string;
     suggestedPublishDay?: string; whyNow: string; generatedAt: string;
+    articleMeta?: {
+      metaDescription?: string;
+      slug?: string;
+      byline?: string;
+      seoKeywords?: string[];
+    };
+    prMeta?: {
+      dateline?: string;
+      embargoUntil?: string;
+      mediaContact?: { name: string; email: string; phone?: string };
+      quoteCandidates?: Array<{
+        attributedTo: string;
+        role: string;
+        suggestedQuote?: string;
+        status: "suggested" | "confirmed" | "user_provided" | "rejected";
+      }>;
+    };
+    advertorialMeta?: {
+      sponsorName?: string;
+      sponsorLogoUrl?: string;
+      disclosureCopy?: string;
+      ctaBlock?: { label: string; url: string; style?: "primary" | "secondary" | "ghost" };
+    };
   };
   content?: {
     html: string; subject: string; previewText?: string;
     wordCount: number; version: number; lastEditedAt?: string;
     dataCitations?: { claim: string; source?: string; sourceUrl?: string; confidence: "verified" | "inferred" | "ai_estimated" }[];
+    // PR 11 — per-format extras + image placeholders.
+    metaDescription?: string;
+    slug?: string;
+    canonicalUrl?: string;
+    byline?: string;
+    deck?: string;
+    imagePlaceholders?: ImagePlaceholder[];
+    writerSkill?: string;
+    finalAcceptanceRate?: number;
+    finalEditCount?: number;
   };
   review?: { submittedAt?: string; verdict?: string; notes?: string };
   publishing?: { beehiivPostId?: string; beehiivUrl?: string; publishedAt?: string };
@@ -467,7 +516,219 @@ function BriefTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: strin
           <CardContent><ol className="space-y-1.5">{b.outline.map((s, i) => <li key={i} className="text-sm"><span className="mr-2 text-muted-foreground">{i + 1}.</span>{s}</li>)}</ol></CardContent>
         </Card>
       </div>
+      <BriefFormatMetaPanel brief={b} contentFormat={idea.contentFormat} />
     </div>
+  );
+}
+
+/**
+ * Format-conditional brief metadata panel — renders only when the
+ * idea's contentFormat surfaces the matching meta sub-block from
+ * the brief. Newsletter has no meta block (subject/previewText live
+ * on content directly). Read-only in this PR — full editor lands in
+ * a follow-up; surfacing the data is the foundation.
+ */
+function BriefFormatMetaPanel({
+  brief,
+  contentFormat,
+}: {
+  brief: NonNullable<IdeaDetail["brief"]>;
+  contentFormat?: IdeaDetail["contentFormat"];
+}) {
+  if (!contentFormat || contentFormat === "newsletter") return null;
+
+  if (contentFormat === "article" && brief.articleMeta) {
+    const m = brief.articleMeta;
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">Article metadata</CardTitle>
+          <CardDescription className="text-xs">SEO + byline applied at publish</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-3 sm:grid-cols-2">
+          {m.byline && <div><p className="text-xs text-muted-foreground">Byline</p><p className="text-sm font-medium">{m.byline}</p></div>}
+          {m.slug && <div><p className="text-xs text-muted-foreground">Slug</p><p className="text-sm font-mono">{m.slug}</p></div>}
+          {m.metaDescription && <div className="sm:col-span-2"><p className="text-xs text-muted-foreground">Meta description (≤160 chars)</p><p className="text-sm">{m.metaDescription}</p></div>}
+          {m.seoKeywords?.length ? <div className="sm:col-span-2"><p className="text-xs text-muted-foreground">SEO keywords</p><div className="flex flex-wrap gap-1.5 mt-1">{m.seoKeywords.map((k) => <Badge key={k} variant="secondary" className="text-[10px]">{k}</Badge>)}</div></div> : null}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (contentFormat === "pr" && brief.prMeta) {
+    const m = brief.prMeta;
+    const blockingQuotes = (m.quoteCandidates ?? []).filter((q) => q.status === "suggested" && !q.suggestedQuote);
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">Press-release metadata</CardTitle>
+          <CardDescription className="text-xs">
+            {blockingQuotes.length > 0
+              ? <span className="text-red-600 font-medium">{blockingQuotes.length} quote(s) need confirmation before publish</span>
+              : "Dateline + quotes + contact for the wire"}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid gap-3 sm:grid-cols-2">
+            {m.dateline && <div><p className="text-xs text-muted-foreground">Dateline</p><p className="text-sm font-medium">{m.dateline}</p></div>}
+            {m.embargoUntil && <div><p className="text-xs text-muted-foreground">Embargo until</p><p className="text-sm">{new Date(m.embargoUntil).toLocaleDateString()}</p></div>}
+            {m.mediaContact && (
+              <div className="sm:col-span-2">
+                <p className="text-xs text-muted-foreground">Media contact</p>
+                <p className="text-sm">{m.mediaContact.name} · <a href={`mailto:${m.mediaContact.email}`} className="text-primary hover:underline">{m.mediaContact.email}</a>{m.mediaContact.phone ? ` · ${m.mediaContact.phone}` : ""}</p>
+              </div>
+            )}
+          </div>
+          {(m.quoteCandidates ?? []).length > 0 && (
+            <div>
+              <p className="text-xs text-muted-foreground mb-2">Quote candidates</p>
+              <ul className="space-y-2">
+                {m.quoteCandidates!.map((q, i) => {
+                  const statusTone =
+                    q.status === "confirmed" || q.status === "user_provided"
+                      ? "default"
+                      : q.status === "rejected"
+                        ? "outline"
+                        : "destructive";
+                  return (
+                    <li key={i} className="rounded-md border bg-muted/30 p-3 text-sm">
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <span className="font-medium">{q.attributedTo}</span>
+                        <Badge variant={statusTone} className="text-[10px]">{q.status}</Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground mb-1">{q.role}</p>
+                      {q.suggestedQuote
+                        ? <p className="italic">&ldquo;{q.suggestedQuote}&rdquo;</p>
+                        : <p className="text-xs text-muted-foreground italic">(empty — Suggest Quote helper not yet run, or quote pending confirmation from {q.attributedTo})</p>}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (contentFormat === "advertorial" && brief.advertorialMeta) {
+    const m = brief.advertorialMeta;
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">Advertorial metadata</CardTitle>
+          <CardDescription className="text-xs">
+            {m.disclosureCopy
+              ? "Sponsor + disclosure + CTA"
+              : <span className="text-amber-600 font-medium">No disclosure copy — Suggest Disclosure helper required before publish</span>}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid gap-3 sm:grid-cols-2">
+            {m.sponsorName && <div><p className="text-xs text-muted-foreground">Sponsor</p><p className="text-sm font-medium">{m.sponsorName}</p></div>}
+            {m.ctaBlock && (
+              <div>
+                <p className="text-xs text-muted-foreground">CTA</p>
+                <p className="text-sm">{m.ctaBlock.label} → <a href={m.ctaBlock.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{m.ctaBlock.url}</a></p>
+              </div>
+            )}
+          </div>
+          {m.disclosureCopy && (
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">Disclosure (FTC)</p>
+              <p className="text-sm bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-md p-3">{m.disclosureCopy}</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return null;
+}
+
+/**
+ * Image-placeholder rail — renders the writer's
+ * content.imagePlaceholders[] inline with a delete affordance.
+ * Phase 1: text-only; clicking a placeholder lets the user edit
+ * description or remove it entirely. Phase 2 (image gen via
+ * Vercel Gateway → Imagen) replaces status="placeholder" with
+ * status="generated" + resolvedImageUrl on the same array entry.
+ */
+function ImagePlaceholderRail({
+  placeholders,
+  onDelete,
+  busy,
+}: {
+  placeholders: ImagePlaceholder[];
+  onDelete: (index: number) => void;
+  busy: boolean;
+}) {
+  if (!placeholders.length) return null;
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-sm flex items-center gap-2"><ImageIcon className="h-4 w-4" /> Image placeholders <span className="text-muted-foreground font-normal">({placeholders.length})</span></CardTitle>
+        <CardDescription className="text-xs">Phase 1: text-only. Delete what you don&apos;t want; image generation runs after Finalize.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <ul className="grid gap-2 sm:grid-cols-2">
+          {placeholders.map((p, i) => (
+            <li key={i} className="rounded-md border bg-muted/20 p-3 text-sm flex items-start justify-between gap-2">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Badge variant="outline" className="text-[10px]">{p.position}</Badge>
+                  <Badge variant="secondary" className="text-[10px]">{p.dimensions}</Badge>
+                </div>
+                <p className="font-medium truncate" title={p.purpose}>{p.purpose}</p>
+                <p className="text-xs text-muted-foreground line-clamp-2">{p.description}</p>
+                {p.suggestedCaption && <p className="text-xs italic mt-1 text-muted-foreground">&ldquo;{p.suggestedCaption}&rdquo;</p>}
+              </div>
+              <button
+                type="button"
+                onClick={() => onDelete(i)}
+                disabled={busy}
+                className="shrink-0 text-muted-foreground hover:text-destructive disabled:opacity-40"
+                aria-label={`Delete placeholder ${i + 1}`}
+                title="Delete placeholder"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Finalize gate — locks the text content so the Images stage
+ * (Phase 2) can run without further text edits. Today emits a
+ * signal-style PUT to /v1/content/ideas/:id/content with a
+ * finalizedAt stamp; the b2c then surfaces a "Locked" badge.
+ * No status transition — that lands when Phase 2 ships the
+ * Images tab. In the interim, the visible Finalize button sets
+ * the mental model for the editorial gate.
+ */
+function FinalizeButton({
+  finalized,
+  busy,
+  onFinalize,
+}: {
+  finalized: boolean;
+  busy: boolean;
+  onFinalize: () => void;
+}) {
+  return (
+    <Button
+      variant={finalized ? "outline" : "default"}
+      onClick={onFinalize}
+      disabled={busy || finalized}
+      className="gap-1.5"
+    >
+      {finalized ? <><Lock className="h-3.5 w-3.5" /> Text finalized</> : <><Lock className="h-3.5 w-3.5" /> Finalize text</>}
+    </Button>
   );
 }
 
@@ -552,15 +813,56 @@ function WriteTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: strin
     setSaving(false);
   }
 
+  // Image placeholder + Finalize wiring (PR 11). Both write back via
+  // the existing /content PUT endpoint — keeps the route surface
+  // minimal. Deletion filters the array; finalize sets a stamp the
+  // backend reads when Phase 2 image-gen UI ships.
+  const placeholders = idea.content?.imagePlaceholders ?? [];
+  const finalized = !!(idea.content as { textFinalizedAt?: string } | undefined)?.textFinalizedAt;
+  async function handleDeletePlaceholder(index: number) {
+    setSaving(true);
+    try {
+      const next = placeholders.filter((_, i) => i !== index);
+      await api.put(`/v1/content/ideas/${ideaId}/content`, { imagePlaceholders: next });
+      toast.success("Placeholder removed");
+      onRefresh();
+    } catch {
+      toast.error("Failed to remove placeholder");
+    }
+    setSaving(false);
+  }
+  async function handleFinalize() {
+    setSaving(true);
+    try {
+      await api.put(`/v1/content/ideas/${ideaId}/content`, { textFinalizedAt: new Date().toISOString() });
+      toast.success("Text finalized — Images stage unlocks next");
+      onRefresh();
+    } catch {
+      toast.error("Failed to finalize");
+    }
+    setSaving(false);
+  }
+
   const citations = idea.content?.dataCitations;
+  const isNewsletter = !idea.contentFormat || idea.contentFormat === "newsletter";
 
   return (
     <div className={citations?.length ? "grid gap-4 lg:grid-cols-[1fr_320px]" : ""}>
       <div className="space-y-4">
-        <div>
-          <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Subject Line</label>
-          <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Email subject line..." />
-        </div>
+        {/* Subject line only for newsletter format. Article / PR /
+            advertorial outputs don't carry a subject; their headline
+            is in the HTML body already (write_article/pr/advertorial
+            emit subject = headline as a back-compat shim). */}
+        {isNewsletter ? (
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Subject Line</label>
+            <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Email subject line..." />
+          </div>
+        ) : (
+          <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
+            Format: <span className="font-medium text-foreground">{idea.contentFormat}</span>. Headline + metadata stamped on content; edit them in the body / dedicated panels below.
+          </div>
+        )}
         <div>
           <div className="mb-1.5 flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -592,15 +894,19 @@ function WriteTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: strin
             <textarea value={html} onChange={(e) => setHtml(e.target.value)} rows={20} className="w-full rounded-md border bg-background p-4 font-mono text-sm outline-none focus:ring-1 focus:ring-ring" placeholder="Newsletter content (HTML)..." />
           )}
         </div>
-        <div className="flex gap-2">
-          <Button onClick={handleSave} disabled={saving}>
+        <div className="flex flex-wrap gap-2 items-center">
+          <Button onClick={handleSave} disabled={saving || finalized}>
             {saving && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}Save
           </Button>
-          <Button variant="outline" onClick={generate} disabled={generating}>
+          <Button variant="outline" onClick={generate} disabled={generating || finalized}>
             {generating ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1.5 h-4 w-4" />}
             Regenerate
           </Button>
+          <div className="ml-auto">
+            <FinalizeButton finalized={finalized} busy={saving} onFinalize={handleFinalize} />
+          </div>
         </div>
+        <ImagePlaceholderRail placeholders={placeholders} onDelete={handleDeletePlaceholder} busy={saving || finalized} />
       </div>
       {citations?.length ? <DataCitationsPanel citations={citations} /> : null}
     </div>
