@@ -25,8 +25,73 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Info, Share2 } from "lucide-react";
+import { Info, Loader2, RefreshCw, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+
+/**
+ * Per-row Re-analyse button. Wired to POST /v1/content/drafts/:id/retag
+ * (api#406) — wipes the cnt_content_tags row + resets the draft +
+ * invokes tagDraft synchronously. Used in the Subtype cell so users
+ * have a click target when a row looks wrong (derived classification,
+ * unclassified sentinel, garbage value, missing rationale).
+ *
+ * Replaces the misleading text-only tooltip fallback at this file's
+ * RationaleTooltip ("re-run analyse to capture") which had no action.
+ */
+interface RetagResponse {
+  success: boolean;
+  error?: string;
+  status?: string;
+}
+
+function ReanalyseDraftButton({ draftId }: { draftId: string }) {
+  const qc = useQueryClient();
+  const mutation = useMutation({
+    // api.post unwraps the `data` envelope + throws ApiError on
+    // non-2xx (see src/lib/api.ts:160-167) — no manual res.ok check
+    // needed.
+    mutationFn: () =>
+      api.post<RetagResponse>(`/v1/content/drafts/${draftId}/retag`),
+    onSuccess: (data) => {
+      toast.success(
+        data.success
+          ? "Newsletter re-analysed."
+          : `Re-analyse completed: ${data.error ?? "no signal"}`,
+      );
+      // Same query keys the page.tsx uses (line 134-135) so the table
+      // refetches with the new tag row spliced in.
+      qc.invalidateQueries({ queryKey: ["content-library-all"] });
+      qc.invalidateQueries({ queryKey: ["content-stats"] });
+    },
+    onError: (err) => {
+      toast.error(err instanceof Error ? err.message : "Re-analyse failed");
+    },
+  });
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-5 w-5 shrink-0 text-muted-foreground hover:text-foreground"
+          onClick={() => mutation.mutate()}
+          disabled={mutation.isPending}
+          aria-label="Re-analyse this newsletter"
+        >
+          {mutation.isPending ? (
+            <Loader2 className="h-3 w-3 animate-spin" />
+          ) : (
+            <RefreshCw className="h-3 w-3" />
+          )}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="text-xs">
+        <p>Re-analyse this newsletter</p>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
 
 const FORMAT_LABELS: Record<string, string> = {
   article: "Article",
@@ -264,11 +329,35 @@ export function getContentColumns(
     cell: ({ row }) => {
       const ct = row.original.tags?.contentType;
       const derived = row.original.tags?.contentTypeDerived === true;
-      if (!ct) return <span className="text-muted-foreground">—</span>;
+      const rationale = row.original.tags?.contentTypeRationale;
+      // Show the Re-analyse icon when the row "looks problematic":
+      //   - contentType is the unclassified sentinel
+      //   - contentTypeDerived flag is on (synthetic origin)
+      //   - rationale is missing (the case the old text-only tooltip
+      //     "re-run analyse to capture" used to flag with no action)
+      // Closes the user-reported gap: "On hover shows reanalyse, but
+      // where to click?" — there is now a click target on every row
+      // where re-analysis would actually help.
+      const showRetry =
+        !ct || ct === "unclassified" || derived || !rationale;
+      if (!ct) {
+        // No badge to render — surface the Re-analyse action alone with
+        // an em-dash placeholder so the cell isn't empty.
+        return (
+          <div className="flex items-center gap-1.5">
+            <span className="text-muted-foreground">—</span>
+            <ReanalyseDraftButton draftId={row.original._id} />
+          </div>
+        );
+      }
       const badge = (
         <Badge
           variant="outline"
-          className={`text-xs ${ct === "unclassified" ? "text-muted-foreground italic" : ""}`}
+          // max-w + truncate prevents a malformed AI emission (or just a
+          // legitimately long taxonomy name) from blowing out the column
+          // width. The full string is visible via the RationaleTooltip
+          // wrapping the badge.
+          className={`max-w-45 truncate text-xs ${ct === "unclassified" ? "text-muted-foreground italic" : ""}`}
         >
           {label(undefined, ct)}
           {/* Inline "auto" marker — only when the deterministic source-derived
@@ -281,15 +370,18 @@ export function getContentColumns(
         </Badge>
       );
       return (
-        <RationaleTooltip
-          rationale={
-            derived
-              ? "AI tagger couldn't classify this content; we auto-filled the subtype from the source's default taxonomy. Open the draft to review."
-              : row.original.tags?.contentTypeRationale
-          }
-        >
-          {badge}
-        </RationaleTooltip>
+        <div className="flex items-center gap-1.5">
+          <RationaleTooltip
+            rationale={
+              derived
+                ? "AI tagger couldn't classify this content; we auto-filled the subtype from the source's default taxonomy. Click the refresh icon to re-analyse."
+                : rationale
+            }
+          >
+            {badge}
+          </RationaleTooltip>
+          {showRetry ? <ReanalyseDraftButton draftId={row.original._id} /> : null}
+        </div>
       );
     },
     filterFn: (row, id, value) => {
