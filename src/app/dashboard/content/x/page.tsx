@@ -12,6 +12,7 @@ import { MessageCircle, Send, Inbox, MessageSquare, RefreshCw } from "lucide-rea
 import { xApi, type XTweet } from "@/lib/api/x";
 import { TweetComposer } from "./_components/tweet-composer";
 import { TweetCard } from "./_components/tweet-card";
+import { MentionsList } from "./_components/mentions-list";
 
 interface ApiIntegration {
   provider: string;
@@ -169,16 +170,7 @@ export default function XContentDashboardPage() {
         </TabsContent>
 
         <TabsContent value="mentions" className="mt-4">
-          <Card>
-            <CardContent className="p-8 text-center space-y-2">
-              <Inbox className="size-8 text-muted-foreground mx-auto" />
-              <h3 className="font-semibold">Mentions inbox is warming up</h3>
-              <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                The mentions sync runs every 10 minutes. Replies, quotes and
-                @-mentions will appear here once they&apos;re ingested.
-              </p>
-            </CardContent>
-          </Card>
+          <MentionsList />
         </TabsContent>
       </Tabs>
     </PageShell>
