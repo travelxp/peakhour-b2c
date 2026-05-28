@@ -198,6 +198,39 @@ function flattenMetaIntegration(integrations: Integration[]): Integration[] {
 
 type ConnectionTab = "all" | "connected" | "disconnected";
 
+/**
+ * Translate a structured ApiError from /v1/integrations/:provider/repair-webhook
+ * into user-actionable copy. The api's raw messages ("X returned no
+ * webhook config — check provider logs") are ops-speak — users can't
+ * "check provider logs" and "missing something — check logs / Dismiss"
+ * leaves them stranded. Codes are stable per the route's fail() returns
+ * in peakhour-api src/v1/integrations/routes.ts.
+ *
+ * The translation always names the concrete next step the user CAN take.
+ * For most repair-failed cases that's "disconnect + reconnect" — the
+ * underlying problem is almost always a stale credential or a
+ * provider-side revocation, both of which the OAuth reconnect path
+ * fixes cleanly.
+ */
+function friendlyRepairWebhookError(err: ApiError, providerLabel: string): string {
+  switch (err.code) {
+    case "REPAIR_NOT_SUPPORTED":
+      return `${providerLabel} doesn't support automatic webhook repair. Please contact support.`;
+    case "PROVIDER_NOT_FOUND":
+      return `We don't recognise the ${providerLabel} integration. Please refresh the page and try again.`;
+    case "NOT_CONNECTED":
+      return `${providerLabel} isn't connected. Connect it from this page first.`;
+    case "NO_CREDENTIALS":
+      return `${providerLabel}'s credentials are missing. Disconnect and reconnect ${providerLabel} to restore access.`;
+    case "REPAIR_FAILED":
+      return `We couldn't re-register the ${providerLabel} webhook automatically. Disconnect and reconnect ${providerLabel} — that usually fixes it.`;
+    default:
+      // Fall back to the api's message, but lead with the providerLabel
+      // so the user knows what failed.
+      return `${providerLabel} webhook repair failed: ${err.message}`;
+  }
+}
+
 export default function IntegrationsPage() {
   const { org } = useAuth();
   const [integrations, setIntegrations] = useState<Integration[]>([]);
@@ -289,6 +322,8 @@ export default function IntegrationsPage() {
 
   async function handleRepairWebhook(provider: string) {
     const realProvider = resolveProvider(provider);
+    const providerLabel =
+      integrations.find((i) => i.provider === provider)?.name ?? provider;
     setRepairingWebhook(provider);
     setError("");
     try {
@@ -299,8 +334,18 @@ export default function IntegrationsPage() {
       // honest ("we re-registered; awaiting verification").
       await loadIntegrations();
     } catch (err) {
-      if (err instanceof ApiError) setError(err.message);
-      else setError("Re-register failed. Please try again.");
+      // Translate the api's structured error codes into user-actionable
+      // copy. The raw `err.message` from the api ("X returned no webhook
+      // config — check provider logs") is ops-speak — a user can't
+      // "check provider logs", and "missing something" leaves them
+      // staring at a Dismiss button with nothing to do. Codes are
+      // stable per the /v1/integrations/:provider/repair-webhook route
+      // (fail(c, ..., CODE, ...) returns ApiError.code on the b2c side).
+      if (err instanceof ApiError) {
+        setError(friendlyRepairWebhookError(err, providerLabel));
+      } else {
+        setError(`Couldn't re-register the ${providerLabel} webhook. Please try again.`);
+      }
     } finally {
       setRepairingWebhook(null);
     }
@@ -795,8 +840,15 @@ function IntegrationCard({
           <Icon className="h-5 w-5" />
         </div>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <CardTitle className="text-sm font-semibold leading-snug">
+          {/* `flex-wrap` lets the webhook health chip drop to a second
+              line instead of being clipped by the Card's overflow-hidden
+              when the title + Live + Webhook-issue + (optional)
+              Re-register button add up to more than the card's width.
+              `gap-y-1` keeps the wrapped chip visually tied to the
+              title row above. min-w-0 on CardTitle so the title can
+              truncate before pushing other items off-screen. */}
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+            <CardTitle className="min-w-0 truncate text-sm font-semibold leading-snug">
               {integration.name}
             </CardTitle>
             {integration.connected && (
@@ -1054,7 +1106,7 @@ function WebhookHealthChip({
           type="button"
           size="sm"
           variant="outline"
-          className="h-5 text-[10px] px-1.5 ml-1 shrink-0"
+          className="h-5 text-[10px] px-1.5 shrink-0"
           onClick={() => {
             void onRepair!();
           }}
