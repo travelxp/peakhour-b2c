@@ -71,11 +71,25 @@ export interface Draft {
   };
   tags: {
     sectors: { name: string; weight: number; rationale?: string }[];
+    /**
+     * TRUE when sectors were filled by the deterministic title-keyword
+     * fallback rather than the AI (peakhour-api#402, mongo#147). The
+     * column renders a small "auto" badge so users know this row's
+     * sector tagging is synthetic and may need review. Cohort math
+     * downstream already de-weights via the lower per-row `weight`.
+     */
+    sectorsDerived?: boolean;
     companies: { name: string; role: string; sentiment?: string }[];
     contentFormat?: ContentFormat;
     userOverriddenFormat?: boolean;
     contentType: string;
     contentTypeRationale?: string;
+    /**
+     * TRUE when contentType was filled by the deterministic source-derived
+     * fallback (newsletter-class source → first taxonomy entry) rather than
+     * the AI (peakhour-api#401, mongo#146). Same UX as sectorsDerived.
+     */
+    contentTypeDerived?: boolean;
     sentiment: string;
     sentimentRationale?: string;
     shelfLife: string;
@@ -249,15 +263,32 @@ export function getContentColumns(
     ),
     cell: ({ row }) => {
       const ct = row.original.tags?.contentType;
+      const derived = row.original.tags?.contentTypeDerived === true;
       if (!ct) return <span className="text-muted-foreground">—</span>;
+      const badge = (
+        <Badge
+          variant="outline"
+          className={`text-xs ${ct === "unclassified" ? "text-muted-foreground italic" : ""}`}
+        >
+          {label(undefined, ct)}
+          {/* Inline "auto" marker — only when the deterministic source-derived
+            * fallback fired (api#401). Tooltip explains so users don't think
+            * the AI confidently chose this. Same UX pattern as the
+            * sectors-derived badge below. */}
+          {derived ? (
+            <span className="ml-1 text-[10px] uppercase tracking-wide text-amber-700">auto</span>
+          ) : null}
+        </Badge>
+      );
       return (
-        <RationaleTooltip rationale={row.original.tags?.contentTypeRationale}>
-          <Badge
-            variant="outline"
-            className={`text-xs ${ct === "unclassified" ? "text-muted-foreground italic" : ""}`}
-          >
-            {label(undefined, ct)}
-          </Badge>
+        <RationaleTooltip
+          rationale={
+            derived
+              ? "AI tagger couldn't classify this content; we auto-filled the subtype from the source's default taxonomy. Open the draft to review."
+              : row.original.tags?.contentTypeRationale
+          }
+        >
+          {badge}
         </RationaleTooltip>
       );
     },
@@ -274,13 +305,27 @@ export function getContentColumns(
     header: "Sectors",
     cell: ({ row }) => {
       const sectors = row.original.tags?.sectors;
+      const derived = row.original.tags?.sectorsDerived === true;
       if (!sectors?.length) return <span className="text-muted-foreground">—</span>;
       return (
         <div className="flex flex-wrap gap-1">
-          {sectors.slice(0, 2).map((s) => (
-            <RationaleTooltip key={s.name} rationale={s.rationale}>
+          {sectors.slice(0, 2).map((s, i) => (
+            <RationaleTooltip
+              key={s.name}
+              rationale={
+                derived
+                  ? "AI tagger couldn't extract sectors; we derived these from the title's keywords. Open the draft to review or override."
+                  : s.rationale
+              }
+            >
               <Badge variant="secondary" className="text-xs">
                 {label(undefined, s.name)}
+                {/* "auto" marker only on the first chip when the title-keyword
+                  * fallback fired (api#402) — avoids polluting every row with
+                  * a chip-level marker but still flags the synthetic origin. */}
+                {derived && i === 0 ? (
+                  <span className="ml-1 text-[10px] uppercase tracking-wide text-amber-700">auto</span>
+                ) : null}
               </Badge>
             </RationaleTooltip>
           ))}
