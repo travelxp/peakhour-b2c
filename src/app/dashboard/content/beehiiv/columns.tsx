@@ -45,6 +45,30 @@ interface RetagResponse {
   status?: string;
 }
 
+/**
+ * Translate the api#406 retag-result `error` strings (which can carry
+ * codey internal prefixes like `preflight:image_only`) into copy users
+ * can actually act on. Unrecognised errors fall through unchanged —
+ * better to show an unfriendly string than to swallow real info
+ * (round-1 review F2 on api#406).
+ */
+function friendlyRetagError(raw: string | undefined): string {
+  if (!raw) return "Re-analyse completed without producing tags.";
+  if (raw.startsWith("preflight:image_only")) {
+    return "This newsletter is image-only and has no analysable text yet.";
+  }
+  if (raw.startsWith("preflight:too_short")) {
+    return "Newsletter content is too short to analyse — wait for the full text to ingest, then try again.";
+  }
+  if (raw.startsWith("preflight:")) {
+    return "Newsletter content didn't pass the preflight checks — open the draft to review.";
+  }
+  if (raw.includes("All") && raw.includes("sub-skills failed")) {
+    return "AI tagger is having a moment — wait a few seconds and try again.";
+  }
+  return raw;
+}
+
 function ReanalyseDraftButton({ draftId }: { draftId: string }) {
   const qc = useQueryClient();
   const mutation = useMutation({
@@ -54,17 +78,23 @@ function ReanalyseDraftButton({ draftId }: { draftId: string }) {
     mutationFn: () =>
       api.post<RetagResponse>(`/v1/content/drafts/${draftId}/retag`),
     onSuccess: (data) => {
-      toast.success(
-        data.success
-          ? "Newsletter re-analysed."
-          : `Re-analyse completed: ${data.error ?? "no signal"}`,
-      );
+      if (data.success) {
+        toast.success("Newsletter re-analysed.");
+      } else {
+        // Non-success path: surface the mapped reason via toast.warning
+        // (info-level — the call completed, the model just didn't
+        // produce usable tags).
+        toast.warning(friendlyRetagError(data.error));
+      }
       // Same query keys the page.tsx uses (line 134-135) so the table
       // refetches with the new tag row spliced in.
       qc.invalidateQueries({ queryKey: ["content-library-all"] });
       qc.invalidateQueries({ queryKey: ["content-stats"] });
     },
     onError: (err) => {
+      // api.post throws ApiError (extends Error) — message surfaces as
+      // err.message. For TAG_ATTEMPTS_CAP_EXCEEDED / RETAG_COOLDOWN
+      // the api returns 429 + the message already reads to users.
       toast.error(err instanceof Error ? err.message : "Re-analyse failed");
     },
   });
@@ -350,16 +380,21 @@ export function getContentColumns(
           </div>
         );
       }
+      // Truncation budget (round-1 review F3 on api#406):
+      //   - max-w-60 (= 240px) fits the canonical longest entry in
+      //     quests.travel taxonomy ("Daily intelligence digest
+      //     (newsletter)" ≈ 228px at text-xs) without truncation
+      //   - on lg screens, expand to max-w-80 (= 320px) so longer
+      //     taxonomies (some orgs run 12+ entries) get more room
+      //   - the badge keeps `truncate` as a defensive overflow guard
+      //     for the rare malformed AI emission the sanitiser misses
+      const labelText = label(undefined, ct);
       const badge = (
         <Badge
           variant="outline"
-          // max-w + truncate prevents a malformed AI emission (or just a
-          // legitimately long taxonomy name) from blowing out the column
-          // width. The full string is visible via the RationaleTooltip
-          // wrapping the badge.
-          className={`max-w-45 truncate text-xs ${ct === "unclassified" ? "text-muted-foreground italic" : ""}`}
+          className={`max-w-60 truncate text-xs lg:max-w-80 ${ct === "unclassified" ? "text-muted-foreground italic" : ""}`}
         >
-          {label(undefined, ct)}
+          {labelText}
           {/* Inline "auto" marker — only when the deterministic source-derived
             * fallback fired (api#401). Tooltip explains so users don't think
             * the AI confidently chose this. Same UX pattern as the
@@ -369,15 +404,19 @@ export function getContentColumns(
           ) : null}
         </Badge>
       );
+      // Tooltip preference: if the badge is visually truncated, the
+      // full contentType MUST be reachable somehow. Compose:
+      //   line 1 = full contentType (always — recovers truncated text)
+      //   line 2 = derivation explainer OR AI rationale
+      // This is what the round-1 review called the "tooltip should
+      // expose full truncated contentType" gap.
+      const explainer = derived
+        ? "AI tagger couldn't classify this content; we auto-filled the subtype from the source's default taxonomy. Click the refresh icon to re-analyse."
+        : rationale;
+      const tooltipText = explainer ? `${labelText}\n\n${explainer}` : labelText;
       return (
         <div className="flex items-center gap-1.5">
-          <RationaleTooltip
-            rationale={
-              derived
-                ? "AI tagger couldn't classify this content; we auto-filled the subtype from the source's default taxonomy. Click the refresh icon to re-analyse."
-                : rationale
-            }
-          >
+          <RationaleTooltip rationale={tooltipText}>
             {badge}
           </RationaleTooltip>
           {showRetry ? <ReanalyseDraftButton draftId={row.original._id} /> : null}
