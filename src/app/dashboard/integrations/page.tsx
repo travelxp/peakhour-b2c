@@ -1106,7 +1106,7 @@ function WebhookHealthChip({
           type="button"
           size="sm"
           variant="outline"
-          className="h-5 text-[10px] px-1.5 ml-1 shrink-0"
+          className="h-5 text-[10px] px-1.5 shrink-0"
           onClick={() => {
             void onRepair!();
           }}
