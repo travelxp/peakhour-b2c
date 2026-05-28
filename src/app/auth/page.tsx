@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { Sparkles } from "lucide-react";
 import { sendMagicLink } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,7 +16,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { ApiError } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import { SITE } from "@/lib/utils";
 
 /**
@@ -73,7 +75,38 @@ const TRUST_STATS = [
   { value: "24/7", label: "autonomous optimization" },
 ] as const;
 
+// Bounded length + character set so a tampered link can't smuggle
+// arbitrary strings into the waitlist payload. Mirrors the
+// referredByCode validator on /v1/waitlist/signup (string, min 4,
+// max 32). The mint alphabet is a stricter subset (0-9, A-Z minus
+// I/L/O/U/10 chars) — staying with the validator's bounds means a
+// mint-alphabet change doesn't require a client release.
+const REFERRAL_CODE_PATTERN = /^[0-9A-Z]{4,32}$/;
+
 export default function AuthPage() {
+  // useSearchParams() requires a Suspense boundary for streaming —
+  // wrap the inner component so the page works whether SSR streams
+  // or fully hydrates first.
+  return (
+    <Suspense fallback={null}>
+      <AuthPageContent />
+    </Suspense>
+  );
+}
+
+function AuthPageContent() {
+  const searchParams = useSearchParams();
+  // Sanitised against REFERRAL_CODE_PATTERN — any value that doesn't
+  // match the inviter-code shape is dropped silently so the rest of
+  // the flow behaves as a plain sign-in. `null` here means "no
+  // inviter context for this session."
+  const referralCode = (() => {
+    const raw = searchParams?.get("ref") ?? null;
+    if (!raw) return null;
+    const upper = raw.toUpperCase();
+    return REFERRAL_CODE_PATTERN.test(upper) ? upper : null;
+  })();
+
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   // Tick once per second while a cooldown is running so the button
@@ -150,6 +183,24 @@ export default function AuthPage() {
         : Date.now() + RESEND_COOLDOWN_SECONDS * 1000;
 
     try {
+      // Referral credit fires alongside (not before) the magic link so
+      // that a transient signup error doesn't block sign-in. The
+      // waitlist endpoint is idempotent on (email, active status), so
+      // repeat resends with the same code are safe. Only attempted on
+      // the initial send — resends shouldn't keep re-firing it.
+      if (referralCode && mode === "send") {
+        api
+          .post("/v1/waitlist/signup", {
+            email: targetEmail,
+            intent: "general",
+            referredByCode: referralCode,
+            channel: "direct",
+          })
+          .catch(() => {
+            // Inviter credit is best-effort. Don't surface a toast or
+            // disrupt the auth flow — the user is here to sign in.
+          });
+      }
       await sendMagicLink(targetEmail);
       setStatus({
         kind: "sent",
@@ -267,6 +318,22 @@ export default function AuthPage() {
 
       {/* Right panel — auth form */}
       <div className="flex flex-1 flex-col">
+        {referralCode ? (
+          // Avoid "skip 5 spots" copy: the backend's idempotent path
+          // (existing email on the waitlist) returns the prior row
+          // without recrediting the inviter, so the promise would be
+          // unbacked for recipients who are already in line. Backend
+          // fix tracked separately; copy stays honest until then.
+          <div
+            role="status"
+            className="border-b bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200"
+          >
+            <div className="mx-auto flex max-w-md items-center gap-2">
+              <Sparkles className="size-4 shrink-0" />
+              <span>You were invited by a friend. Sign up to claim your spot.</span>
+            </div>
+          </div>
+        ) : null}
         <div className="flex flex-1 items-center justify-center px-4 py-12">
           {isCoolingDown ? (
             <Card className="w-full max-w-md">

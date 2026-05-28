@@ -173,7 +173,10 @@ export function UpgradeDrawer(props: UpgradeDrawerProps) {
   function shareReferral() {
     if (!success) return;
     const base = typeof window !== "undefined" ? window.location.origin : "";
-    const url = `${base}/?ref=${success.referralCode}&n=${clientNonce()}`;
+    // /auth captures `ref` and stamps it onto the recipient's waitlist
+    // signup, crediting the inviter. The marketing root (`/`) ignores
+    // the param, so pointing referrals there silently drops attribution.
+    const url = `${base}/auth?ref=${success.referralCode}&n=${clientNonce()}`;
     if (navigator.share) {
       navigator.share({
         title: "Peakhour — early access",
