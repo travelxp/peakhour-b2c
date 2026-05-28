@@ -847,7 +847,7 @@ function IntegrationCard({
               `gap-y-1` keeps the wrapped chip visually tied to the
               title row above. min-w-0 on CardTitle so the title can
               truncate before pushing other items off-screen. */}
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
             <CardTitle className="min-w-0 truncate text-sm font-semibold leading-snug">
               {integration.name}
             </CardTitle>
