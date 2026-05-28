@@ -87,6 +87,27 @@ export interface Draft {
     topKeywords: string[];
     audienceRelevance: { segment: string; relevance: number }[];
   } | null;
+  /**
+   * Per-row platform-fit summary from the rules-based recommender
+   * (peakhour-api PR-F.1: GET /library?includeRepurposeFit=true). Drives:
+   *   - the Repurpose row-action button's colour (green/amber/grey)
+   *   - the "Repurposable" filter chip (greenBand=true)
+   *   - the platform-suitability rationale shown in the hover tooltip
+   *
+   * Absent when:
+   *   - the api wasn't passed includeRepurposeFit (old callsites)
+   *   - the business has zero connected channels
+   *   - the draft has no `plainText` hydrated (conservative — don't
+   *     score raw HTML; the persisting recommender re-scores when the
+   *     user opens the sheet)
+   */
+  repurposeFit?: {
+    topBand: "green" | "amber" | "grey";
+    topChannel: string;
+    topFitScore: number;
+    topRationale: string;
+    breakdown: { channel: string; band: "green" | "amber" | "grey"; fitScore: number }[];
+  };
 }
 
 /** Inline format Select — primary classification axis, user-controlled. */
@@ -412,29 +433,119 @@ export function getContentColumns(
     // row's onClick (router.push to the detail page) doesn't fire when
     // the user only wanted to open the platform recommender. Mirrors
     // the card-view Repurpose pattern at page.tsx:800.
+    //
+    // Colour band comes from the api's rules-based platform-fit preview
+    // (peakhour-api PR-F.1). When the band is absent (legacy callers,
+    // no plainText hydrated, no connected channels) the button keeps
+    // its neutral ghost styling — the user can still click and the
+    // persisting recommender will score on open.
     id: "actions",
     enableSorting: false,
     enableHiding: false,
     header: "",
-    cell: ({ row }) => (
-      <div className="flex justify-end">
-        <Button
-          type="button"
-          size="sm"
-          variant="ghost"
-          className="h-7 text-xs"
-          onClick={(e) => {
-            e.stopPropagation();
-            onRepurpose(row.original._id);
-          }}
-          onPointerDown={(e) => e.stopPropagation()}
-          title="Score connected platforms and generate variants"
-        >
-          <Share2 className="mr-1 size-3" />
-          Repurpose
-        </Button>
-      </div>
-    ),
+    // STICKY-RIGHT — the Repurpose action stays visible regardless of
+    // viewport width or horizontal overflow on the rest of the table.
+    // The wrapping `overflow-hidden` on the table container was clipping
+    // the actions column on narrow viewports (user-reported "Repurpose
+    // button hidden on the right"). With sticky, the cell pins to the
+    // right edge and the rest of the table content scrolls / shrinks
+    // behind it. Background + shadow provide a visual edge.
+    meta: {
+      thClassName:
+        "sticky right-0 bg-background z-10 shadow-[-4px_0_4px_-2px_rgba(0,0,0,0.05)]",
+      tdClassName:
+        "sticky right-0 bg-background z-10 shadow-[-4px_0_4px_-2px_rgba(0,0,0,0.05)]",
+    },
+    filterFn: (row, _id, value) => {
+      // "Repurposable" filter chip → keep rows whose top platform-fit
+      // band is in the selected set (typically [green], sometimes
+      // [green, amber]). Rows without a fit summary fall through ONLY
+      // when the filter is unset; an active filter excludes them.
+      if (!Array.isArray(value) || value.length === 0) return true;
+      const band = row.original.repurposeFit?.topBand;
+      if (!band) return false;
+      return value.includes(band);
+    },
+    accessorFn: (row) => row.repurposeFit?.topBand ?? "",
+    cell: ({ row }) => <RepurposeActionCell draft={row.original} onRepurpose={onRepurpose} />,
   },
   ];
+}
+
+/**
+ * Repurpose row-action cell. The button's variant + colour reflects the
+ * top platform-fit band:
+ *   green  → strong fit at least one channel  → emphasised default-ish
+ *   amber  → workable but not strongest        → muted amber
+ *   grey   → no fit (or only hard-blocks)      → ghost (unchanged)
+ *   absent → unknown (no preview)              → plain ghost
+ *
+ * Hover tooltip surfaces the recommender's rationale (the
+ * platform-suitability reason the user asked to see) + a per-channel
+ * breakdown.
+ */
+function RepurposeActionCell({
+  draft,
+  onRepurpose,
+}: {
+  draft: Draft;
+  onRepurpose: (draftId: string) => void;
+}) {
+  const fit = draft.repurposeFit;
+  // Band-specific class — only differentiate on the visually meaningful
+  // bands (green, amber). Grey + absent both use the neutral ghost so
+  // a draft with no preview doesn't look "worse" than a draft with a
+  // grey fit (they're functionally the same: nothing recommended).
+  const bandClass =
+    fit?.topBand === "green"
+      ? "text-green-700 hover:text-green-700 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-950/40"
+      : fit?.topBand === "amber"
+        ? "text-amber-700 hover:text-amber-700 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950/40"
+        : "";
+
+  const trigger = (
+    <Button
+      type="button"
+      size="sm"
+      variant="ghost"
+      className={`h-7 text-xs ${bandClass}`}
+      onClick={(e) => {
+        e.stopPropagation();
+        onRepurpose(draft._id);
+      }}
+      onPointerDown={(e) => e.stopPropagation()}
+    >
+      <Share2 className="mr-1 size-3" />
+      Repurpose
+    </Button>
+  );
+
+  // No preview available → keep the neutral button without a tooltip.
+  // The button itself still works; the user just doesn't get a peek
+  // until the recommender persists on click.
+  if (!fit) return <div className="flex justify-end">{trigger}</div>;
+
+  return (
+    <div className="flex justify-end">
+      <Tooltip>
+        <TooltipTrigger asChild>{trigger}</TooltipTrigger>
+        <TooltipContent className="max-w-sm">
+          <p className="font-medium text-xs">
+            Top fit: {fit.topChannel} ({fit.topBand})
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">{fit.topRationale}</p>
+          {fit.breakdown.length > 1 && (
+            <div className="mt-2 border-t pt-1 text-[10px] text-muted-foreground">
+              <p className="font-medium mb-0.5">All channels:</p>
+              {fit.breakdown.map((b) => (
+                <p key={b.channel} className="font-mono">
+                  {b.channel}: {b.band} ({b.fitScore})
+                </p>
+              ))}
+            </div>
+          )}
+        </TooltipContent>
+      </Tooltip>
+    </div>
+  );
 }

@@ -155,11 +155,19 @@ export default function ContentPage() {
   );
   const taxonomyContentTypes = useMemo(() => orgData?.taxonomy?.contentTypes || [], [orgData]);
 
-  // Client-side: fetch last 500 content pieces in one call
+  // Client-side: fetch last 500 content pieces in one call. Pass
+  // includeRepurposeFit=true so the api decorates each row with a
+  // rules-based platform-fit band (green/amber/grey) for the per-row
+  // Repurpose action color + the "Repurposable" filter chip + the
+  // platform-suitability rationale tooltip. No AI cost (rules-only).
   const { data: libraryRes, isLoading: libraryLoading } = useQuery({
     queryKey: ["content-library-all"],
     queryFn: () =>
-      api.get<Draft[]>("/v1/content/library", { limit: String(CONTENT_FETCH_LIMIT), sort: "publishedAt_desc" }),
+      api.get<Draft[]>("/v1/content/library", {
+        limit: String(CONTENT_FETCH_LIMIT),
+        sort: "publishedAt_desc",
+        includeRepurposeFit: "true",
+      }),
   });
 
   // Build faceted filter options from taxonomy
@@ -467,6 +475,22 @@ export default function ContentPage() {
                 options={shelfLifeFilterOptions}
                 align="start"
               />
+              {/* "Repurposable" filter — keys on the actions column's
+                  accessor (repurposeFit.topBand). Default selection is
+                  the most useful single filter ("green" = strong fit on
+                  ≥1 connected channel); we leave it as a multi-select
+                  so an operator can also include amber ("workable
+                  with caveats") if they want a broader pool. */}
+              <FacetedFilter
+                column={table.getColumn("actions")}
+                title="Repurposable"
+                options={[
+                  { value: "green", label: "Strong fit (green)" },
+                  { value: "amber", label: "Workable (amber)" },
+                  { value: "grey", label: "Not a fit (grey)" },
+                ]}
+                align="start"
+              />
               {hasActiveFilters && (
                 <Button variant="ghost" size="sm" onClick={clearFilters} className="h-8">
                   Clear all
@@ -534,13 +558,22 @@ export default function ContentPage() {
                   <TableHeader>
                     {table.getHeaderGroups().map((headerGroup) => (
                       <TableRow key={headerGroup.id}>
-                        {headerGroup.headers.map((header) => (
-                          <TableHead key={header.id}>
-                            {header.isPlaceholder
-                              ? null
-                              : flexRender(header.column.columnDef.header, header.getContext())}
-                          </TableHead>
-                        ))}
+                        {headerGroup.headers.map((header) => {
+                          // Pull optional per-column header className from
+                          // the column def's `meta` (used by the sticky-
+                          // right actions column to pin Repurpose to the
+                          // viewport edge regardless of overflow).
+                          const meta = header.column.columnDef.meta as
+                            | { thClassName?: string }
+                            | undefined;
+                          return (
+                            <TableHead key={header.id} className={meta?.thClassName}>
+                              {header.isPlaceholder
+                                ? null
+                                : flexRender(header.column.columnDef.header, header.getContext())}
+                            </TableHead>
+                          );
+                        })}
                       </TableRow>
                     ))}
                   </TableHeader>
@@ -552,11 +585,19 @@ export default function ContentPage() {
                           className="cursor-pointer hover:bg-muted/50"
                           onClick={() => router.push(`/dashboard/content/beehiiv/${row.original._id}`)}
                         >
-                          {row.getVisibleCells().map((cell) => (
-                            <TableCell key={cell.id}>
-                              {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                            </TableCell>
-                          ))}
+                          {row.getVisibleCells().map((cell) => {
+                            // Same per-column class hook for body cells.
+                            // The actions column reads meta.tdClassName to
+                            // stay sticky-right; other columns ignore it.
+                            const meta = cell.column.columnDef.meta as
+                              | { tdClassName?: string }
+                              | undefined;
+                            return (
+                              <TableCell key={cell.id} className={meta?.tdClassName}>
+                                {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                              </TableCell>
+                            );
+                          })}
                         </TableRow>
                       ))
                     ) : (
