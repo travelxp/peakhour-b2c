@@ -331,7 +331,11 @@ export function getContentColumns(
     ),
     cell: ({ row }) => (
       <div className="max-w-sm">
-        <span className="font-medium line-clamp-1">{row.getValue("title")}</span>
+        {/* Dropped `font-medium` on the title — the cell was reading
+          * as too bold against the surrounding row text. Default body
+          * weight (font-normal / 400) is sleeker; the title's visual
+          * primacy comes from its position + line-clamp-1, not weight. */}
+        <span className="line-clamp-1">{row.getValue("title")}</span>
         {row.original.subtitle && (
           <span className="block text-xs text-muted-foreground line-clamp-1">
             {row.original.subtitle}
@@ -568,7 +572,7 @@ export function getContentColumns(
                   style={{ width: `${score * 10}%` }}
                 />
               </div>
-              <span className="text-xs font-medium">{score}</span>
+              <span className="text-xs">{score}</span>
             </div>
           </TooltipTrigger>
           <TooltipContent>

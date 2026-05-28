@@ -576,27 +576,7 @@ export default function ContentPage() {
                             | { thClassName?: string }
                             | undefined;
                           return (
-                            // Sleekness pass (2026-05-28): override the
-                            // shadcn TableHead primitive's font-medium +
-                            // foreground colour with font-normal +
-                            // muted-foreground + uppercase tracking. The
-                            // table headers used to read as "thick";
-                            // dropping to weight-400 with a slightly
-                            // muted tone restores a minimalist hierarchy
-                            // without changing the cell typography below.
-                            // The Tailwind `!` prefix forces specificity
-                            // over the primitive's defaults.
-                            // [&_button]:!font-normal piercing-selector
-                            // forces the inner sortable-header Button (shadcn
-                            // Button defaults to font-medium) to inherit
-                            // the lighter weight; without it, the sortable
-                            // headers (Title / Format / etc.) would stay
-                            // bold while the non-sortable plain divs went
-                            // light, producing a mixed-weight look.
-                            <TableHead
-                              key={header.id}
-                              className={`!font-normal !text-muted-foreground !text-[11px] uppercase tracking-wide [&_button]:!font-normal [&_button]:!text-[11px] [&_button]:uppercase [&_button]:tracking-wide ${meta?.thClassName ?? ""}`}
-                            >
+                            <TableHead key={header.id} className={meta?.thClassName}>
                               {header.isPlaceholder
                                 ? null
                                 : flexRender(header.column.columnDef.header, header.getContext())}
@@ -627,7 +607,23 @@ export default function ContentPage() {
                               | { tdClassName?: string }
                               | undefined;
                             return (
-                              <TableCell key={cell.id} className={meta?.tdClassName}>
+                              // Sleekness pass on body row text (2026-05-28
+                              // round 2 — user reported "row text looks
+                              // bolder, sleekness missing"). The shadcn
+                              // Badge primitive bakes `font-medium` into
+                              // its base class — every Subtype / Sectors /
+                              // Sentiment / Format chip in the row reads as
+                              // bold against the lighter surrounding text.
+                              // `[&_[data-slot=badge]]:!font-normal` targets
+                              // the badge by its shadcn data-slot marker;
+                              // the `!` prefix forces specificity over the
+                              // baked-in font-medium. Scoped to the Beehiiv
+                              // table's TableCells so other tables on the
+                              // platform keep their default Badge weight.
+                              <TableCell
+                                key={cell.id}
+                                className={`**:data-[slot=badge]:font-normal! ${meta?.tdClassName ?? ""}`}
+                              >
                                 {flexRender(cell.column.columnDef.cell, cell.getContext())}
                               </TableCell>
                             );
