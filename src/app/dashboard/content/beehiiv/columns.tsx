@@ -25,8 +25,108 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Info, Share2 } from "lucide-react";
+import { Info, Loader2, RefreshCw, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+
+/**
+ * Per-row Re-analyse button. Wired to POST /v1/content/drafts/:id/retag
+ * (api#406) — wipes the cnt_content_tags row + resets the draft +
+ * invokes tagDraft synchronously. Used in the Subtype cell so users
+ * have a click target when a row looks wrong (derived classification,
+ * unclassified sentinel, garbage value, missing rationale).
+ *
+ * Replaces the misleading text-only tooltip fallback at this file's
+ * RationaleTooltip ("re-run analyse to capture") which had no action.
+ */
+interface RetagResponse {
+  success: boolean;
+  error?: string;
+  status?: string;
+}
+
+/**
+ * Translate the api#406 retag-result `error` strings (which can carry
+ * codey internal prefixes like `preflight:image_only`) into copy users
+ * can actually act on. Unrecognised errors fall through unchanged —
+ * better to show an unfriendly string than to swallow real info
+ * (round-1 review F2 on api#406).
+ */
+function friendlyRetagError(raw: string | undefined): string {
+  if (!raw) return "Re-analyse completed without producing tags.";
+  // Ground-truth preflight codes come from helpers/draft-unprocessable.ts.
+  // Round-2 review F1: the previous "preflight:too_short" branch was
+  // dead — actual code is "content_too_short". Fixed.
+  if (raw.startsWith("preflight:image_only")) {
+    return "This newsletter is image-only and has no analysable text yet.";
+  }
+  if (raw.startsWith("preflight:content_too_short")) {
+    return "Newsletter content is too short to analyse — wait for the full text to ingest, then try again.";
+  }
+  if (raw.startsWith("preflight:")) {
+    return "Newsletter content didn't pass the preflight checks — open the draft to review.";
+  }
+  // Slightly more robust than the round-1 `includes("All") && includes("sub-skills failed")` —
+  // load-bearing substring is "sub-skills failed" (review F4).
+  if (raw.includes("sub-skills failed")) {
+    return "AI tagger is having a moment — wait a few seconds and try again.";
+  }
+  return raw;
+}
+
+function ReanalyseDraftButton({ draftId }: { draftId: string }) {
+  const qc = useQueryClient();
+  const mutation = useMutation({
+    // api.post unwraps the `data` envelope + throws ApiError on
+    // non-2xx (see src/lib/api.ts:160-167) — no manual res.ok check
+    // needed.
+    mutationFn: () =>
+      api.post<RetagResponse>(`/v1/content/drafts/${draftId}/retag`),
+    onSuccess: (data) => {
+      if (data.success) {
+        toast.success("Newsletter re-analysed.");
+      } else {
+        // Non-success path: surface the mapped reason via toast.warning
+        // (info-level — the call completed, the model just didn't
+        // produce usable tags).
+        toast.warning(friendlyRetagError(data.error));
+      }
+      // Same query keys the page.tsx uses (line 134-135) so the table
+      // refetches with the new tag row spliced in.
+      qc.invalidateQueries({ queryKey: ["content-library-all"] });
+      qc.invalidateQueries({ queryKey: ["content-stats"] });
+    },
+    onError: (err) => {
+      // api.post throws ApiError (extends Error) — message surfaces as
+      // err.message. For TAG_ATTEMPTS_CAP_EXCEEDED / RETAG_COOLDOWN
+      // the api returns 429 + the message already reads to users.
+      toast.error(err instanceof Error ? err.message : "Re-analyse failed");
+    },
+  });
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-5 w-5 shrink-0 text-muted-foreground hover:text-foreground"
+          onClick={() => mutation.mutate()}
+          disabled={mutation.isPending}
+          aria-label="Re-analyse this newsletter"
+        >
+          {mutation.isPending ? (
+            <Loader2 className="h-3 w-3 animate-spin" />
+          ) : (
+            <RefreshCw className="h-3 w-3" />
+          )}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="text-xs">
+        <p>Re-analyse this newsletter</p>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
 
 const FORMAT_LABELS: Record<string, string> = {
   article: "Article",
@@ -264,13 +364,42 @@ export function getContentColumns(
     cell: ({ row }) => {
       const ct = row.original.tags?.contentType;
       const derived = row.original.tags?.contentTypeDerived === true;
-      if (!ct) return <span className="text-muted-foreground">—</span>;
+      const rationale = row.original.tags?.contentTypeRationale;
+      // Show the Re-analyse icon when the row "looks problematic":
+      //   - contentType is the unclassified sentinel
+      //   - contentTypeDerived flag is on (synthetic origin)
+      //   - rationale is missing (the case the old text-only tooltip
+      //     "re-run analyse to capture" used to flag with no action)
+      // Closes the user-reported gap: "On hover shows reanalyse, but
+      // where to click?" — there is now a click target on every row
+      // where re-analysis would actually help.
+      const showRetry =
+        !ct || ct === "unclassified" || derived || !rationale;
+      if (!ct) {
+        // No badge to render — surface the Re-analyse action alone with
+        // an em-dash placeholder so the cell isn't empty.
+        return (
+          <div className="flex items-center gap-1.5">
+            <span className="text-muted-foreground">—</span>
+            <ReanalyseDraftButton draftId={row.original._id} />
+          </div>
+        );
+      }
+      // Truncation budget (round-1 review F3 on api#406):
+      //   - max-w-60 (= 240px) fits the canonical longest entry in
+      //     quests.travel taxonomy ("Daily intelligence digest
+      //     (newsletter)" ≈ 228px at text-xs) without truncation
+      //   - on lg screens, expand to max-w-80 (= 320px) so longer
+      //     taxonomies (some orgs run 12+ entries) get more room
+      //   - the badge keeps `truncate` as a defensive overflow guard
+      //     for the rare malformed AI emission the sanitiser misses
+      const labelText = label(undefined, ct);
       const badge = (
         <Badge
           variant="outline"
-          className={`text-xs ${ct === "unclassified" ? "text-muted-foreground italic" : ""}`}
+          className={`max-w-60 truncate text-xs lg:max-w-80 ${ct === "unclassified" ? "text-muted-foreground italic" : ""}`}
         >
-          {label(undefined, ct)}
+          {labelText}
           {/* Inline "auto" marker — only when the deterministic source-derived
             * fallback fired (api#401). Tooltip explains so users don't think
             * the AI confidently chose this. Same UX pattern as the
@@ -280,16 +409,23 @@ export function getContentColumns(
           ) : null}
         </Badge>
       );
+      // Tooltip preference: if the badge is visually truncated, the
+      // full contentType MUST be reachable somehow. Compose:
+      //   line 1 = full contentType (always — recovers truncated text)
+      //   line 2 = derivation explainer OR AI rationale
+      // This is what the round-1 review called the "tooltip should
+      // expose full truncated contentType" gap.
+      const explainer = derived
+        ? "AI tagger couldn't classify this content; we auto-filled the subtype from the source's default taxonomy. Click the refresh icon to re-analyse."
+        : rationale;
+      const tooltipText = explainer ? `${labelText}\n\n${explainer}` : labelText;
       return (
-        <RationaleTooltip
-          rationale={
-            derived
-              ? "AI tagger couldn't classify this content; we auto-filled the subtype from the source's default taxonomy. Open the draft to review."
-              : row.original.tags?.contentTypeRationale
-          }
-        >
-          {badge}
-        </RationaleTooltip>
+        <div className="flex items-center gap-1.5">
+          <RationaleTooltip rationale={tooltipText}>
+            {badge}
+          </RationaleTooltip>
+          {showRetry ? <ReanalyseDraftButton draftId={row.original._id} /> : null}
+        </div>
       );
     },
     filterFn: (row, id, value) => {

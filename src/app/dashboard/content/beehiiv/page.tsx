@@ -378,7 +378,11 @@ export default function ContentPage() {
                   </Button>
                 }
                 title={`Re-analyse ${stats.incomplete} incomplete newsletter${stats.incomplete === 1 ? "" : "s"}`}
-                description={`This will re-process only the ${stats.partialTagged ?? 0} partial-tagged + ${stats.transientUnprocessable ?? 0} transiently-failed newsletters. Working tagged rows are left alone. Estimated cost ~$${(((stats.incomplete ?? 0) * 0.012)).toFixed(2)} (sub-skill path). You can track progress on the Tasks page.`}
+                // Per `feedback_ai_costs_cms_only`: AI costs are CMS-only.
+                // The previous `~$X.XX (sub-skill path)` exposure was
+                // dropped — the user already sees the row count, which is
+                // the user-facing signal that matters.
+                description={`This will re-process only the ${stats.partialTagged ?? 0} partial-tagged + ${stats.transientUnprocessable ?? 0} transiently-failed newsletters. Working tagged rows are left alone. You can track progress on the Tasks page.`}
                 confirmLabel="Re-analyse incomplete"
                 onConfirm={() => {
                   // Race guard: the trigger was disabled when this
@@ -572,7 +576,27 @@ export default function ContentPage() {
                             | { thClassName?: string }
                             | undefined;
                           return (
-                            <TableHead key={header.id} className={meta?.thClassName}>
+                            // Sleekness pass (2026-05-28): override the
+                            // shadcn TableHead primitive's font-medium +
+                            // foreground colour with font-normal +
+                            // muted-foreground + uppercase tracking. The
+                            // table headers used to read as "thick";
+                            // dropping to weight-400 with a slightly
+                            // muted tone restores a minimalist hierarchy
+                            // without changing the cell typography below.
+                            // The Tailwind `!` prefix forces specificity
+                            // over the primitive's defaults.
+                            // [&_button]:!font-normal piercing-selector
+                            // forces the inner sortable-header Button (shadcn
+                            // Button defaults to font-medium) to inherit
+                            // the lighter weight; without it, the sortable
+                            // headers (Title / Format / etc.) would stay
+                            // bold while the non-sortable plain divs went
+                            // light, producing a mixed-weight look.
+                            <TableHead
+                              key={header.id}
+                              className={`!font-normal !text-muted-foreground !text-[11px] uppercase tracking-wide [&_button]:!font-normal [&_button]:!text-[11px] [&_button]:uppercase [&_button]:tracking-wide ${meta?.thClassName ?? ""}`}
+                            >
                               {header.isPlaceholder
                                 ? null
                                 : flexRender(header.column.columnDef.header, header.getContext())}
