@@ -239,7 +239,7 @@ function MentionCard({
                 asChild
                 aria-label="Open on X"
               >
-                <a href={mention.url} target="_blank" rel="noreferrer">
+                <a href={mention.url} target="_blank" rel="noopener noreferrer">
                   <ExternalLink className="size-3.5" />
                 </a>
               </Button>
