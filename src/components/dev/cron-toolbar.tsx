@@ -21,7 +21,7 @@
  *      NEXT_PUBLIC_VERCEL_ENV === "production" — the api endpoint also
  *      server-side-blocks prod, so this is layered protection.
  *
- * Layout: a separate visual band (border-bordered, subtle bg) above the
+ * Layout: a separate visual band (border-dashed, subtle bg) above the
  * page action buttons. Keeps cron triggers out of the primary action
  * row (was the source of the "Re-analyse 53 incomplete" header
  * distortion — too many buttons in one flex row).
@@ -32,7 +32,7 @@
  *     onTriggered={() => queryClient.invalidateQueries(...)}
  *   />
  */
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -57,10 +57,11 @@ interface DevCronResult {
 interface Props {
   /** Ordered list of cron names. The toolbar renders one button per name. */
   crons: readonly string[];
-  /** Optional callback after a successful trigger — used by host pages to
-   *  refetch queries whose data the cron just mutated. Called for EVERY
-   *  trigger so the host can invalidate the right keys regardless of
-   *  which cron fired. */
+  /** Optional callback fired ONLY when the cron handler responded 2xx
+   *  (result.ok === true). Host pages typically use this to invalidate
+   *  the React Query keys whose data the cron just mutated; invalidating
+   *  on a known-failed cron run would be wasteful (and on a real error,
+   *  the toast already surfaces the failure to the user). */
   onTriggered?: (result: DevCronResult) => void;
 }
 
@@ -72,11 +73,19 @@ export function CronToolbar({ crons, onTriggered }: Props) {
   // Hooks must run unconditionally; the production gate decides what to
   // render below, not whether to mount.
   const [runningCron, setRunningCron] = useState<string | null>(null);
+  // Synchronous re-entry guard. `runningCron` (useState) is async — between
+  // a click handler firing setRunningCron and React committing the new
+  // disabled state to the DOM, a rapid double-click on the same button
+  // can call `trigger()` twice. Triggering tag-catchup twice burns real
+  // AI spend, so we belt-and-suspender with a ref check that's
+  // race-free at the JS-event level.
+  const runningRef = useRef<string | null>(null);
 
   if (isProductionEnv() || crons.length === 0) return null;
 
   async function trigger(cron: string) {
-    if (runningCron) return;
+    if (runningRef.current) return;
+    runningRef.current = cron;
     setRunningCron(cron);
     const meta = getCronMetadata(cron);
     try {
@@ -87,16 +96,20 @@ export function CronToolbar({ crons, onTriggered }: Props) {
             ? `${res.body.slice(0, 200)}${res.truncated ? "…" : ""}`
             : "(no output)",
         });
+        // Success-only callback — see Props.onTriggered jsdoc. A failed
+        // cron run already surfaced via the toast.error branch; the host
+        // page doesn't need to invalidate queries for a no-op or error.
+        onTriggered?.(res);
       } else {
         toast.error(`${meta.label} failed: HTTP ${res.status}`, {
           description: res.body?.slice(0, 200) ?? "no body",
         });
       }
-      onTriggered?.(res);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       toast.error(`${meta.label} request failed`, { description: msg });
     } finally {
+      runningRef.current = null;
       setRunningCron(null);
     }
   }

@@ -59,7 +59,7 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
   },
   "linkedin-retention-cleanup": {
     label: "Clean LinkedIn data",
-    frequency: "Runs daily",
+    frequency: "Runs every 6 hours",
     description:
       "Removes LinkedIn analytics rows past their retention window (compliance — keeps data scoped to what you actually need).",
   },
@@ -95,49 +95,52 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
   },
   "trial-expiry-sweep": {
     label: "Check trial expiries",
-    frequency: "Runs daily",
+    frequency: "Runs daily at 3:30 AM UTC",
     description:
       "Notifies businesses whose trial is ending soon and downgrades any that have lapsed.",
   },
   "publish-scheduled": {
     label: "Publish scheduled posts",
-    frequency: "Runs frequently",
+    frequency: "Runs every minute",
     description:
       "Sends any posts you've scheduled for the current time slot to the target platform.",
   },
   "publish-retry": {
     label: "Retry failed publishes",
-    frequency: "Runs frequently",
+    frequency: "Runs every minute",
     description:
       "Re-attempts any publish that failed (rate limit, transient API error) and is still within its retry budget.",
   },
   "recurring-spawn": {
     label: "Spawn recurring posts",
-    frequency: "Runs daily",
+    // recurring-spawn is registered as a manual /v1/cron route in peakhour-api
+    // but is NOT in vercel.json's schedules. Operators trigger it via this
+    // toolbar (or the cron-trigger CLI) until the schedule lands.
+    frequency: "Manual trigger only (no production schedule yet)",
     description:
       "Generates new posts from any recurring schedule rules you've set up.",
   },
   "outcome-backfill": {
     label: "Backfill post outcomes",
-    frequency: "Runs daily",
+    frequency: "Runs every hour",
     description:
       "Stamps engagement outcomes onto recent posts so the learning loop can score what worked.",
   },
   "pipeline-cost-rollup": {
     label: "Roll up AI costs",
-    frequency: "Runs daily",
+    frequency: "Runs every 5 minutes",
     description:
       "Aggregates AI spend by business + use-case for the /cms/ai-usage dashboard.",
   },
   "pipeline-run-janitor": {
     label: "Tidy pipeline runs",
-    frequency: "Runs daily",
+    frequency: "Runs every hour",
     description:
       "Trims old pipeline-run observability rows past their retention window.",
   },
   "per-stream-effectiveness-rollup": {
     label: "Roll up stream effectiveness",
-    frequency: "Runs daily",
+    frequency: "Runs daily at 6 AM UTC",
     description:
       "Aggregates which content streams (trusted-grounded / library-gap / seasonal) produced the best results.",
   },
