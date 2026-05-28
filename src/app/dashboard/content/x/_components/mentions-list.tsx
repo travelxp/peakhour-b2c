@@ -246,7 +246,7 @@ function MentionCard({
           </div>
           <div className="flex flex-col items-end gap-1.5 shrink-0">
             <Button
-              variant="default"
+              variant="outline"
               size="sm"
               className="h-7 px-2 gap-1 text-xs"
               onClick={onReply}
