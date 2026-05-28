@@ -721,8 +721,15 @@ function BeehiivConnectModal({
               disabled={connecting}
             />
             <p className="text-xs text-muted-foreground">
+              {/* Beehiiv moved both the API-key list AND the publication
+                * ID surface under /settings/workspace/api in their latest
+                * dashboard rev — both connection inputs now deep-link to
+                * the same place. Previously the API-key link pointed at
+                * the older /settings/integrations/api URL (404 today) and
+                * the publication-ID link pointed at /settings/general
+                * (no longer shows the pub_ ID). User-reported. */}
               <a
-                href="https://app.beehiiv.com/settings/integrations/api"
+                href="https://app.beehiiv.com/settings/workspace/api"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 font-medium text-primary underline underline-offset-2 hover:no-underline"
@@ -745,12 +752,12 @@ function BeehiivConnectModal({
             />
             <p className="text-xs text-muted-foreground">
               <a
-                href="https://app.beehiiv.com/settings/general"
+                href="https://app.beehiiv.com/settings/workspace/api"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 font-medium text-primary underline underline-offset-2 hover:no-underline"
               >
-                Open Beehiiv General Settings
+                Open Beehiiv API Settings
                 <ExternalLink className="h-3 w-3" />
               </a>
               {" "}&mdash; copy the ID that starts with <code className="rounded bg-muted px-1 py-0.5">pub_</code>
