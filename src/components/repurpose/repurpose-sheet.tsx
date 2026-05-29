@@ -422,12 +422,13 @@ export function RepurposeSheet({ open, onOpenChange, source }: Props) {
           {showingScheduler && schedulerProps && (
             <SchedulerComposer
               // Key on sourceTextHash — unique + deterministic per
-              // source (uses socialPostId or the djb2 fallback from
-              // sourceTextHashFor). Avoids the ad_hoc collision
-              // where two distinct ad_hoc sources share sourceRef
-              // ('undefined') and sourceType ('ad_hoc'); the hash
-              // discriminates them. Remount resets the composer's
-              // internal anchor/timezone/strategy when source flips.
+              // source (the shared 40-hex sourceTextHash fingerprint,
+              // computed over the socialPostId or the sorted adaptation
+              // contents). Avoids the ad_hoc collision where two
+              // distinct ad_hoc sources share sourceRef ('undefined')
+              // and sourceType ('ad_hoc'); the hash discriminates them.
+              // Remount resets the composer's internal anchor/timezone/
+              // strategy when source flips.
               key={schedulerProps.source.sourceTextHash}
               source={schedulerProps.source}
               title={schedulerProps.title}
