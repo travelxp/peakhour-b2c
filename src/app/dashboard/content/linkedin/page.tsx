@@ -211,7 +211,7 @@ function PageShell({ children, loading }: { children?: React.ReactNode; loading?
         crons={["linkedin-post-sync", "performance-sync", "linkedin-retention-cleanup"]}
         onTriggered={() => {
           queryClient.invalidateQueries({ queryKey: ["content-hub-integrations"] });
-          queryClient.invalidateQueries({ queryKey: ["linkedin-identity"] });
+          queryClient.invalidateQueries({ queryKey: ["linkedin-me"] });
         }}
       />
       <div>

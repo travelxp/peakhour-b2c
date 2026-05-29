@@ -72,6 +72,13 @@ export default function AnalyticsInsightsPage() {
   if (statusQ.isLoading) {
     return (
       <div className="p-6 space-y-4">
+        <CronToolbar
+          crons={["performance-sync", "outcome-backfill"]}
+          onTriggered={() => {
+            qc.invalidateQueries({ queryKey: ["integration-status"] });
+            qc.invalidateQueries({ queryKey: ["integration-cap"] });
+          }}
+        />
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-32 w-full" />
       </div>

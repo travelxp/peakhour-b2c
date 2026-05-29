@@ -1,5 +1,3 @@
-"use client";
-
 import { TrendingUp } from "lucide-react";
 
 import { EmptyState } from "@/components/molecules/empty-state";
