@@ -61,6 +61,7 @@ import {
 } from "@/lib/api/linkedin-content";
 import { ApiError } from "@/lib/api";
 import { rewriteContent, createDraft, updateDraft, type ComposerDraftRef } from "@/lib/api/content";
+import { insertAtCaret } from "@/lib/composer/caret";
 import {
   AiComposeToolbar,
   ComposerCommandPalette,
@@ -117,6 +118,21 @@ export function PostComposer({ identity, seedText }: Props) {
   // read live. composerWrapRef anchors the hashtag popover.
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const composerWrapRef = useRef<HTMLDivElement>(null);
+
+  // Mirror text + caret into refs so the ASYNC AI insert handler
+  // (handleAiAction awaits a network roundtrip before splicing) reads
+  // the live values, not the stale closure it was created with. Synced
+  // from state after every render — the AI roundtrip far outlasts a
+  // render, and emoji insert reads them after the on-blur caret capture
+  // has already committed.
+  const textRef = useRef("");
+  const caretRef = useRef(0);
+  useEffect(() => {
+    textRef.current = text;
+  }, [text]);
+  useEffect(() => {
+    caretRef.current = caret;
+  }, [caret]);
 
   // Seed the composer when the parent passes a fresh seedText (e.g.,
   // the user clicked "Use this draft" on the Suggested Drafts panel).
@@ -329,21 +345,62 @@ export function PostComposer({ identity, seedText }: Props) {
     publish.mutate(body);
   }
 
+  // ── Caret-aware snippet insertion ───────────────────────────────
+  // The ONE path every insert takes (emoji glyph, AI pull-quote, AI
+  // disclosure): splice at the tracked caret via the shared pure
+  // helper, sync state + refs, drop any stale hook variants (the body
+  // changed), and restore focus + selection just past the snippet so
+  // the user can keep typing. Reads caret/text from refs so it's safe
+  // to call from the async AI handler. Returns the new full text for
+  // callers that want it (the toolbar's onAiAction contract).
+  const insertSnippet = useCallback((snippet: string): string => {
+    const { text: next, caret: nextCaret } = insertAtCaret(
+      textRef.current,
+      caretRef.current,
+      snippet,
+    );
+    setText(next);
+    setCaret(nextCaret);
+    textRef.current = next;
+    caretRef.current = nextCaret;
+    setVariants(null); // stale once the body changed
+    requestAnimationFrame(() => {
+      const el = textareaRef.current;
+      if (!el) return;
+      // focus() before setSelectionRange — iOS Safari occasionally
+      // drops the selection if the order is reversed.
+      el.focus();
+      el.setSelectionRange(nextCaret, nextCaret);
+    });
+    return next;
+  }, []);
+
   // ── AI compose toolbar handler ──────────────────────────────────
   const handleAiAction = useCallback(
     async (ctx: AiActionContext): Promise<string> => {
-      const { text: newText } = await rewriteContent({
+      const res = await rewriteContent({
         op: ctx.op,
         text: ctx.text,
         platform: "linkedin",
         ...(ctx.extras ? { extras: ctx.extras } : {}),
       });
-      setText(newText);
-      setVariants(null); // stale once the body changed
+      // Insert ops (quote / disclosure) return a SNIPPET to splice at
+      // the caret. `insert` is optional on the wire — an API that
+      // predates the snippet contract omits it, so we check `=== true`
+      // (not truthy-on-undefined) and keep the legacy full-body replace
+      // as the safe default rather than wiping the draft with a snippet.
+      let newText: string;
+      if (res.insert === true) {
+        newText = insertSnippet(res.text);
+      } else {
+        newText = res.text;
+        setText(newText);
+        setVariants(null); // stale once the body changed
+      }
       toast.success(aiOpToastMessage(ctx.op));
       return newText;
     },
-    [],
+    [insertSnippet],
   );
 
   // No-op hashtag search — LinkedIn has no hashtag-history endpoint yet,
@@ -594,6 +651,11 @@ export function PostComposer({ identity, seedText }: Props) {
           onSelect={updateCaret}
           onClick={updateCaret}
           onKeyUp={updateCaret}
+          // Capture the caret on blur too — clicking the emoji trigger
+          // or an AI insert button blurs the textarea, and selectionStart
+          // still holds the last position at blur time. Without this the
+          // insert lands at the end/0 (the original emoji bug).
+          onBlur={updateCaret}
           placeholder="Share an update, story, or question…"
           rows={6}
           className="resize-none"
@@ -611,7 +673,7 @@ export function PostComposer({ identity, seedText }: Props) {
       />
 
       <div className="flex items-center gap-2">
-        <EmojiPickerTrigger targetRef={textareaRef} onChange={setText} />
+        <EmojiPickerTrigger onInsert={insertSnippet} />
         {!showLink && (
           <Button type="button" variant="ghost" size="sm" onClick={() => setShowLink(true)} className="h-7 gap-1.5 px-2 text-xs">
             <Link2 className="size-3.5" /> Add link
