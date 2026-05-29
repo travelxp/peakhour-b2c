@@ -30,6 +30,7 @@ import {
   PopoverContent,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { asMeasurableRef, defaultValidHashtag } from "./_helpers";
 import type { HashtagCandidate } from "./types";
 
 export interface HashtagSuggestProps {
@@ -40,6 +41,13 @@ export interface HashtagSuggestProps {
   onChange: (next: string) => void;
   onSearch: (query: string, signal: AbortSignal) => Promise<HashtagCandidate[]>;
   minQueryLength?: number;
+  /** Decides whether the "Create #{query}" affordance is surfaced.
+   *  Defaults to `defaultValidHashtag` (letters/digits/underscore,
+   *  min 2 chars). Hosts targeting a specific platform (X: ASCII
+   *  only; LinkedIn: alphanumeric+underscore) should pass their own
+   *  validator so users don't pick "Create #🔥" only to have the
+   *  publish call reject it. */
+  validateTag?: (query: string) => boolean;
 }
 
 const DEBOUNCE_MS = 200;
@@ -73,13 +81,19 @@ export function HashtagSuggest({
   onChange,
   onSearch,
   minQueryLength = 1,
+  validateTag = defaultValidHashtag,
 }: HashtagSuggestProps) {
   const detected = useMemo(() => detectHashtag(text, caret), [text, caret]);
-  const isOpen = detected !== null && detected.query.length >= minQueryLength;
+  const [escapedFromStart, setEscapedFromStart] = useState<number | null>(null);
+  const isOpen =
+    detected !== null &&
+    detected.query.length >= minQueryLength &&
+    escapedFromStart !== detected.start;
 
   const [candidates, setCandidates] = useState<HashtagCandidate[]>([]);
   const [loading, setLoading] = useState(false);
   const [highlightedIdx, setHighlightedIdx] = useState(0);
+  const lastHighlightTagRef = useRef<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -100,7 +114,12 @@ export function HashtagSuggest({
         .then((results) => {
           if (ctrl.signal.aborted) return;
           setCandidates(results);
-          setHighlightedIdx(0);
+          // Preserve highlight across re-queries (same pattern as
+          // MentionTypeahead). Keyed on tag string since hashtags
+          // don't carry an explicit id.
+          const prevTag = lastHighlightTagRef.current;
+          const prevIdx = prevTag ? results.findIndex((c) => c.tag === prevTag) : -1;
+          setHighlightedIdx(prevIdx >= 0 ? prevIdx : 0);
         })
         .catch((err) => {
           if (ctrl.signal.aborted) return;
@@ -120,16 +139,20 @@ export function HashtagSuggest({
   }, [isOpen, detected]);
 
   // The "Create #foo" affordance becomes an implicit extra candidate
-  // when the query is non-empty and the live results don't include
-  // an exact match. We append it to the candidates array for
-  // arrow-key + Enter navigation symmetry.
+  // when:
+  //  - search has resolved (not while loading, otherwise the spinner
+  //    and the Create row stack and look broken),
+  //  - the live results don't include an exact match,
+  //  - the query passes the `validateTag` guard so we don't surface
+  //    "Create #🔥" the publish API will then reject.
   const visibleCandidates = useMemo<(HashtagCandidate & { __create?: boolean })[]>(() => {
-    if (!detected || detected.query.length === 0) return candidates;
+    if (!detected || detected.query.length === 0 || loading) return candidates;
     const lower = detected.query.toLowerCase();
     const hasExact = candidates.some((c) => c.tag.toLowerCase() === lower);
     if (hasExact) return candidates;
+    if (!validateTag(detected.query)) return candidates;
     return [...candidates, { tag: detected.query, __create: true }];
-  }, [detected, candidates]);
+  }, [detected, candidates, loading, validateTag]);
 
   const handleSelect = useCallback(
     (c: HashtagCandidate) => {
@@ -159,23 +182,36 @@ export function HashtagSuggest({
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === "ArrowDown") {
         e.preventDefault();
-        setHighlightedIdx((i) => Math.min(i + 1, Math.max(0, visibleCandidates.length - 1)));
+        setHighlightedIdx((i) => {
+          const next = Math.min(i + 1, Math.max(0, visibleCandidates.length - 1));
+          const nextTag = visibleCandidates[next]?.tag ?? null;
+          lastHighlightTagRef.current = nextTag;
+          return next;
+        });
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
-        setHighlightedIdx((i) => Math.max(i - 1, 0));
+        setHighlightedIdx((i) => {
+          const next = Math.max(i - 1, 0);
+          const nextTag = visibleCandidates[next]?.tag ?? null;
+          lastHighlightTagRef.current = nextTag;
+          return next;
+        });
       } else if (e.key === "Enter" && visibleCandidates.length > 0) {
         e.preventDefault();
         const pick = visibleCandidates[highlightedIdx];
         if (pick) handleSelect(pick);
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        if (detected) setEscapedFromStart(detected.start);
       }
     }
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [isOpen, visibleCandidates, highlightedIdx, handleSelect]);
+  }, [isOpen, visibleCandidates, highlightedIdx, handleSelect, detected]);
 
   return (
     <Popover open={isOpen}>
-      <PopoverAnchor virtualRef={containerRef as RefObject<HTMLElement>} />
+      <PopoverAnchor virtualRef={asMeasurableRef(containerRef)} />
       <PopoverContent
         align="start"
         side="bottom"
@@ -193,6 +229,11 @@ export function HashtagSuggest({
               Searching…
             </li>
           )}
+          {!loading && visibleCandidates.length === 0 && (
+            <li className="px-3 py-6 text-center text-xs text-muted-foreground">
+              {detected ? `No matches for "#${detected.query}".` : "No matches."}
+            </li>
+          )}
           {visibleCandidates.map((c, idx) => {
             const isActive = idx === highlightedIdx;
             return (
@@ -204,7 +245,10 @@ export function HashtagSuggest({
                   e.preventDefault();
                   handleSelect(c);
                 }}
-                onMouseEnter={() => setHighlightedIdx(idx)}
+                onMouseEnter={() => {
+                  setHighlightedIdx(idx);
+                  lastHighlightTagRef.current = c.tag;
+                }}
                 className={cn(
                   "flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm transition-colors motion-reduce:transition-none",
                   isActive

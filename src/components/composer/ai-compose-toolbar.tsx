@@ -178,8 +178,16 @@ export function AiComposeToolbar({
 
   const tones = customTones ? [...DEFAULT_TONES, ...customTones] : DEFAULT_TONES;
 
+  // Shared key helper — used by both fire() and the render's
+  // running-flag lookup so the magic string only lives in one place.
+  // (If a future render call passes extras to a "primary" op we'd
+  // otherwise diverge — caller in render must use runningKey too.)
+  function runningKey(op: RewriteOp, extras?: Record<string, unknown>): string {
+    return `${op}:${JSON.stringify(extras ?? {})}`;
+  }
+
   async function fire(op: RewriteOp, extras?: Record<string, unknown>) {
-    const key = `${op}:${JSON.stringify(extras ?? {})}`;
+    const key = runningKey(op, extras);
     if (running[key]) return;
     setRunning((s) => ({ ...s, [key]: true }));
     try {
@@ -231,7 +239,7 @@ export function AiComposeToolbar({
 
           {/* Primary rewrite ops */}
           {visibleOps.map((meta) => {
-            const key = `${meta.op}:{}`;
+            const key = runningKey(meta.op);
             const isRunning = running[key];
             const disabled = isRunning || (meta.requiresText && text.trim().length === 0);
             const Icon = meta.icon;
@@ -290,7 +298,7 @@ export function AiComposeToolbar({
                     <CommandList>
                       <CommandGroup>
                         {tones.map((tone) => {
-                          const key = `tone:${JSON.stringify({ targetTone: tone.key })}`;
+                          const key = runningKey("tone", { targetTone: tone.key });
                           const isRunning = running[key];
                           return (
                             <CommandItem
@@ -327,7 +335,7 @@ export function AiComposeToolbar({
           <div className="flex flex-wrap items-center gap-1 md:ml-auto">
             <span className="text-muted-foreground/40">·</span>
             {visibleInsertOps.map((meta) => {
-              const key = `${meta.op}:{}`;
+              const key = runningKey(meta.op);
               const isRunning = running[key];
               const disabled = isRunning || (meta.requiresText && text.trim().length === 0);
               const Icon = meta.icon;

@@ -11,20 +11,24 @@
  * `@handle ` (trailing space), restores focus to the textarea, and
  * moves the caret past the inserted mention.
  *
- * INTERACTION MODEL (review #1 critical fix):
+ * INTERACTION MODEL:
  *   - Focus stays in the host textarea — never moves into the popover.
  *   - This primitive owns ArrowUp/Down/Enter/Escape handlers via a
  *     window-level keydown listener active only while the popover is
- *     open. Internal `highlightedIndex` state drives the visual focus.
+ *     open. Internal `highlightedIdx` state drives the visual focus.
+ *   - Escape dismisses the popover for the current trigger; typing
+ *     a new @ resets the dismissed flag.
  *   - The popover is anchored to the host's wrapper container (passed
- *     via `containerRef`), NOT the caret position. This is a Slack-
- *     style "popover under the field" affordance — not Notion-style
- *     caret-glued. Good enough for v1; saves us measuring text-area
- *     glyph positions.
+ *     via `containerRef`), NOT the caret position. Slack-style
+ *     "popover under the field" — not Notion-style caret-glued.
  *
  * REQUIRED HOST WIRING:
- *   <div ref={containerRef} className="relative">
- *     <Textarea ref={targetRef} value={text} onChange={...}
+ *   const containerRef = useRef<HTMLDivElement>(null);
+ *   const targetRef = useRef<HTMLTextAreaElement>(null);
+ *   const [caret, setCaret] = useState(0);
+ *
+ *   <div ref={containerRef} className="relative"> // ← MUST be position: relative
+ *     <Textarea ref={targetRef} value={text} onChange={(e) => setText(e.target.value)}
  *               onSelect={(e) => setCaret(e.currentTarget.selectionStart)}
  *               onKeyUp={(e) => setCaret(e.currentTarget.selectionStart)} />
  *     <MentionTypeahead
@@ -36,6 +40,19 @@
  *       onSearch={searchMentions}
  *     />
  *   </div>
+ *
+ * Notes:
+ * - The wrapper MUST have `position: relative` (or another non-static
+ *   value) for the popover to position correctly under the textarea.
+ *   Tailwind's `relative` class does the job.
+ * - `caret` MUST update on BOTH `onSelect` AND `onKeyUp` — arrow keys
+ *   inside the textarea fire selectionchange but not onChange, so
+ *   relying on onChange alone misses keyboard navigation.
+ *
+ * Single-instance assumption: if two MentionTypeahead instances mount
+ * simultaneously on the same page, the window-level Enter listener
+ * fires twice and could double-insert. Acceptable for v1; revisit if
+ * a split-view composer ships.
  */
 
 import {
@@ -55,6 +72,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { asMeasurableRef } from "./_helpers";
 import type { MentionCandidate } from "./types";
 
 export interface MentionTypeaheadProps {
@@ -119,11 +137,21 @@ export function MentionTypeahead({
   minQueryLength = 1,
 }: MentionTypeaheadProps) {
   const detected = useMemo(() => detectMention(text, caret), [text, caret]);
-  const isOpen = detected !== null && detected.query.length >= minQueryLength;
+  // Escape-dismissed flag, keyed by the @-trigger start position so a
+  // new mention later in the text reopens the popover automatically.
+  const [escapedFromStart, setEscapedFromStart] = useState<number | null>(null);
+  const isOpen =
+    detected !== null &&
+    detected.query.length >= minQueryLength &&
+    escapedFromStart !== detected.start;
 
   const [candidates, setCandidates] = useState<MentionCandidate[]>([]);
   const [loading, setLoading] = useState(false);
   const [highlightedIdx, setHighlightedIdx] = useState(0);
+  // Remember which candidate the user had highlighted before a
+  // re-query — so a typed extra char doesn't snap the selection back
+  // to row 0 if the previously-highlighted item is still in results.
+  const lastHighlightIdRef = useRef<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -151,7 +179,12 @@ export function MentionTypeahead({
         .then((results) => {
           if (ctrl.signal.aborted) return;
           setCandidates(results);
-          setHighlightedIdx(0);
+          // Preserve highlight across re-queries: if the previously-
+          // highlighted candidate id is still in results, point at
+          // its new index; otherwise fall back to row 0.
+          const prevId = lastHighlightIdRef.current;
+          const prevIdx = prevId ? results.findIndex((c) => c.id === prevId) : -1;
+          setHighlightedIdx(prevIdx >= 0 ? prevIdx : 0);
         })
         .catch((err) => {
           if (ctrl.signal.aborted) return;
@@ -206,29 +239,39 @@ export function MentionTypeahead({
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === "ArrowDown") {
         e.preventDefault();
-        setHighlightedIdx((i) => Math.min(i + 1, Math.max(0, candidates.length - 1)));
+        setHighlightedIdx((i) => {
+          const next = Math.min(i + 1, Math.max(0, candidates.length - 1));
+          lastHighlightIdRef.current = candidates[next]?.id ?? null;
+          return next;
+        });
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
-        setHighlightedIdx((i) => Math.max(i - 1, 0));
+        setHighlightedIdx((i) => {
+          const next = Math.max(i - 1, 0);
+          lastHighlightIdRef.current = candidates[next]?.id ?? null;
+          return next;
+        });
       } else if (e.key === "Enter" && candidates.length > 0) {
         e.preventDefault();
         const pick = candidates[highlightedIdx];
         if (pick) handleSelect(pick);
       } else if (e.key === "Escape") {
-        // Inserting whitespace closes the mention naturally — synthesise
-        // by calling onChange with a space appended to the trigger.
-        // Simpler: just let the host close by ignoring future picks
-        // until the user types another @-trigger. We don't add an
-        // explicit close-now contract today.
+        // Dismiss the popover for THIS @-trigger. Detected.start is
+        // stable while the user is editing within the same mention;
+        // typing past whitespace or starting a new @ later in the
+        // text will produce a new detected.start and the popover
+        // reopens automatically.
+        e.preventDefault();
+        if (detected) setEscapedFromStart(detected.start);
       }
     }
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [isOpen, candidates, highlightedIdx, handleSelect]);
+  }, [isOpen, candidates, highlightedIdx, handleSelect, detected]);
 
   return (
     <Popover open={isOpen}>
-      <PopoverAnchor virtualRef={containerRef as RefObject<HTMLElement>} />
+      <PopoverAnchor virtualRef={asMeasurableRef(containerRef)} />
       <PopoverContent
         align="start"
         side="bottom"
@@ -268,7 +311,10 @@ export function MentionTypeahead({
                   e.preventDefault();
                   handleSelect(c);
                 }}
-                onMouseEnter={() => setHighlightedIdx(idx)}
+                onMouseEnter={() => {
+                  setHighlightedIdx(idx);
+                  lastHighlightIdRef.current = c.id;
+                }}
                 className={cn(
                   "flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm transition-colors motion-reduce:transition-none",
                   isActive

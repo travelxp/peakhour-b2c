@@ -72,7 +72,7 @@ export function VoiceCardPreview({
             compact && "px-2 py-0",
             className,
           )}
-          aria-label={`Brand voice card: ${toneStr}. Click for signature and avoid phrases.`}
+          aria-label={`Brand voice card: ${toneStr}. Focus or hover to see signature and avoid phrases.`}
         >
           {!compact && <Mic className="size-3 text-muted-foreground group-hover:text-primary" />}
           <span className="truncate font-medium text-muted-foreground group-hover:text-foreground">

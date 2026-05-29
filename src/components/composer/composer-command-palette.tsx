@@ -116,26 +116,23 @@ export function ComposerCommandPalette({
   enableGlobalShortcut = false,
 }: ComposerCommandPaletteProps) {
   const [open, setOpen] = useState(false);
-  const [recentIds, setRecentIds] = useState<string[]>([]);
+  // Seed initial recents from localStorage synchronously (lazy init).
+  // Subsequent refreshes happen in runCommand after a successful pick,
+  // which is the only way recents actually mutate during this
+  // session — no need for an effect that re-reads on every open.
+  // (Cross-tab synchronisation is out of scope; if needed, add a
+  // `storage` event listener.)
+  const [recentIds, setRecentIds] = useState<string[]>(() => readRecents(paletteId));
 
-  // Hydrate recents whenever the palette opens (so a recent command
-  // added by another tab shows up next time). The repo's
-  // react-hooks/set-state-in-effect lint rule rejects direct setState
-  // in an effect body, so we schedule via Promise.resolve() — fires
-  // on the next microtask, still well before the user can interact
-  // with the open palette. The one-tick "no recents on first frame"
-  // flicker is invisible in practice because the open animation
-  // takes ~150ms.
-  useEffect(() => {
-    if (!open) return;
-    Promise.resolve().then(() => setRecentIds(readRecents(paletteId)));
-  }, [open, paletteId]);
-
-  // Global Cmd/Ctrl+K listener.
+  // Global Cmd/Ctrl+K listener. Matches the dashboard shell's
+  // CommandMenu listener (which uses case-sensitive `e.key === "k"`)
+  // — keeping the comparison case-sensitive avoids a subtle
+  // Cmd+Shift+K diverging only-this-palette opens when both are
+  // enabled in error.
   useEffect(() => {
     if (!enableGlobalShortcut) return;
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key.toLowerCase() === "k" && (e.metaKey || e.ctrlKey)) {
+      if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
         setOpen((o) => !o);
       }
@@ -168,6 +165,10 @@ export function ComposerCommandPalette({
       if (cmd.disabled) return;
       setOpen(false);
       pushRecent(paletteId, cmd.id);
+      // Keep React state in sync with localStorage so the next time
+      // the palette opens, the just-run command appears at the top of
+      // Recent without waiting for a remount.
+      setRecentIds(readRecents(paletteId));
       try {
         await cmd.run();
       } catch {

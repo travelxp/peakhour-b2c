@@ -485,7 +485,11 @@ function LibraryGrid({
                 value={altDraft}
                 onChange={(e) => onAltDraft(a.id, e.target.value)}
                 placeholder="Describe for screen readers…"
-                aria-label={`Alt text for ${a.alt ?? `${kindLabel} asset`}`}
+                // Per-asset discriminant (last 6 of id) so screen
+                // readers tabbing the grid can distinguish input
+                // fields even when alt-text is unset for multiple
+                // tiles.
+                aria-label={`Alt text for ${a.alt ?? `${kindLabel} ${a.id.slice(-6)}`}`}
                 className="h-7 border-0 bg-transparent px-0 text-xs shadow-none focus-visible:ring-0"
               />
             </div>

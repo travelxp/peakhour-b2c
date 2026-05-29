@@ -145,9 +145,17 @@ export function useDraftSaver<T>({
 
   const saveNow = useCallback(async () => {
     if (value == null) return;
+    // Dedup against the last successfully-attempted value (per the
+    // header doc). Skip the network round-trip when the host calls
+    // saveNow() during a publish flush and nothing has changed since
+    // the last successful save. We still fire if status === "error"
+    // — the caller explicitly wants a retry.
+    if (Object.is(value, lastAttemptedRef.current) && status === "saved") {
+      return;
+    }
     if (timerRef.current) clearTimeout(timerRef.current);
     await runSave(value);
-  }, [value, runSave]);
+  }, [value, status, runSave]);
 
   return { status, lastSavedAt, lastError, saveNow };
 }
@@ -188,7 +196,7 @@ export function DraftSaver({
   // "Ns ago" string live for the first minute; falls back to a 30s
   // tick after that since "Nm ago" updates only every minute.
   // Rendering cost is a single inline-flex span — negligible.
-  const [, forceTick] = useState(0);
+  const [tick, forceTick] = useState(0);
   useEffect(() => {
     if (status !== "saved" || !lastSavedAt) return;
     const ageSec = Math.floor((Date.now() - lastSavedAt.getTime()) / 1000);
@@ -197,12 +205,14 @@ export function DraftSaver({
     return () => clearInterval(id);
   }, [status, lastSavedAt]);
 
-  // `status` isn't a read input of formatAgo, but it's in the deps
-  // anyway so the memoised value recomputes whenever status changes
-  // (otherwise the pill text could lag a tick after a "saving" →
-  // "saved" transition where lastSavedAt is set in the same render).
+  // Include `tick` in the deps so the memo invalidates on every
+  // interval bump — otherwise the cached "Ns ago" string would never
+  // update between status changes, defeating the auto-tick. `status`
+  // is also a dep so the pill text refreshes correctly on a
+  // saving→saved transition where lastSavedAt is set in the same
+  // render as the status flip.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const ago = useMemo(() => formatAgo(lastSavedAt), [lastSavedAt, status]);
+  const ago = useMemo(() => formatAgo(lastSavedAt), [lastSavedAt, status, tick]);
 
   let icon: React.ReactNode;
   let label: string;
