@@ -43,7 +43,7 @@ import {
 } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
-import { getCronMetadata } from "./cron-metadata";
+import { getCronMetadata, summarizeCronBody } from "./cron-metadata";
 
 interface DevCronResult {
   cron: string;
@@ -92,23 +92,39 @@ export function CronToolbar({ crons, onTriggered }: Props) {
     try {
       const res = await api.post<DevCronResult>(`/v1/dev/cron/${cron}`, {});
       if (res.ok) {
-        toast.success(`${meta.label}: done in ${res.durationMs}ms`, {
-          description: res.body
-            ? `${res.body.slice(0, 200)}${res.truncated ? "…" : ""}`
-            : "(no output)",
-        });
+        // Show a clean, user-facing success line — never the raw cron
+        // JSON. The per-cron summarizer turns the response payload into
+        // something like "12 posts synced successfully."; absent one, we
+        // fall back to a generic "<label> complete". The raw body + timing
+        // still go to the dev console for debugging.
+        const summary = summarizeCronBody(cron, res.body);
+        toast.success(summary ?? `${meta.label} complete`);
+        if (res.body) {
+          console.debug(
+            `[CronToolbar] ${cron} ok in ${res.durationMs}ms:`,
+            res.body,
+          );
+        }
         // Success-only callback — see Props.onTriggered jsdoc. A failed
         // cron run already surfaced via the toast.error branch; the host
         // page doesn't need to invalidate queries for a no-op or error.
         onTriggered?.(res);
       } else {
-        toast.error(`${meta.label} failed: HTTP ${res.status}`, {
-          description: res.body?.slice(0, 200) ?? "no body",
+        // Keep the failure toast friendly too — the HTTP status + body are
+        // dev detail, not something to surface verbatim. Log them instead.
+        console.error(
+          `[CronToolbar] ${cron} failed: HTTP ${res.status}`,
+          res.body,
+        );
+        toast.error(`${meta.label} didn't complete`, {
+          description: "Please try again in a moment.",
         });
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      toast.error(`${meta.label} request failed`, { description: msg });
+      console.error(`[CronToolbar] ${cron} request failed:`, err);
+      toast.error(`${meta.label} couldn't run`, {
+        description: "Please try again in a moment.",
+      });
     } finally {
       inFlightCrons.delete(cron);
       setRunningCron(null);

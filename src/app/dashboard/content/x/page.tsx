@@ -224,6 +224,10 @@ function PageShell({ children, loading }: { children?: React.ReactNode; loading?
         onTriggered={() => {
           queryClient.invalidateQueries({ queryKey: ["x-tweets"] });
           queryClient.invalidateQueries({ queryKey: ["content-hub-integrations"] });
+          // x-mentions-sync writes the mentions inbox — invalidate it so
+          // the Mentions tab reflects a manual sync instead of keeping its
+          // cached page. Prefix match covers the [filter, sort] variants.
+          queryClient.invalidateQueries({ queryKey: ["x-mentions"] });
         }}
       />
       <div>
