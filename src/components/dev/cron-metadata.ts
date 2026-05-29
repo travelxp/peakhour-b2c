@@ -139,10 +139,10 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       "Aggregates AI spend by business + use-case for the /cms/ai-usage dashboard.",
   },
   "pipeline-run-janitor": {
-    label: "Tidy pipeline runs",
+    label: "Reap orphan pipeline runs",
     frequency: "Runs every hour",
     description:
-      "Trims old pipeline-run observability rows past their retention window.",
+      "Stamps endedAt + outcome=failed on orphan pipeline-run rows (older than 24h with no outcome) so they become eligible for the TTL index to evict.",
   },
   "per-stream-effectiveness-rollup": {
     label: "Roll up stream effectiveness",

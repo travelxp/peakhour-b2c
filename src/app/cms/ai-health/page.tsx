@@ -89,6 +89,7 @@ export default function AiHealthPage() {
         "x-mentions-sync",
         "x-ads-metrics-sync",
         "sync-ai-models",
+        "pipeline-run-janitor",
       ]}
       onTriggered={() => {
         queryClient.invalidateQueries({ queryKey: ["cms-ai-health"] });
