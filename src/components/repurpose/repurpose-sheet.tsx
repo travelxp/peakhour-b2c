@@ -424,10 +424,14 @@ export function RepurposeSheet({ open, onOpenChange, source }: Props) {
           )}
           {showingScheduler && schedulerProps && (
             <SchedulerComposer
-              // key on the source ref so SchedulerComposer remounts
-              // (and resets its internal anchor/timezone/strategy)
-              // when the parent flips to a different source mid-flow.
-              key={schedulerProps.source.sourceRef ?? schedulerProps.source.sourceType}
+              // Key on sourceTextHash — unique + deterministic per
+              // source (uses socialPostId or the djb2 fallback from
+              // sourceTextHashFor). Avoids the ad_hoc collision
+              // where two distinct ad_hoc sources share sourceRef
+              // ('undefined') and sourceType ('ad_hoc'); the hash
+              // discriminates them. Remount resets the composer's
+              // internal anchor/timezone/strategy when source flips.
+              key={schedulerProps.source.sourceTextHash}
               source={schedulerProps.source}
               title={schedulerProps.title}
               channels={schedulerProps.channels}
@@ -449,7 +453,11 @@ export function RepurposeSheet({ open, onOpenChange, source }: Props) {
             (column stack), which inverts the visual hierarchy of a
             ghost+primary pair on right-side sheets. Force a
             right-aligned row so primary actions land where the eye
-            expects them. */}
+            expects them.
+            Hidden during the 'loading' stage — there's no actionable
+            branch, and rendering empty footer chrome (border-t +
+            padding) reads as broken. */}
+        {stage !== "loading" && (
         <SheetFooter className="flex-row justify-end gap-2 border-t px-6 py-3">
           {stage === "recommend" && (
             <>
@@ -538,6 +546,7 @@ export function RepurposeSheet({ open, onOpenChange, source }: Props) {
             </Button>
           )}
         </SheetFooter>
+        )}
       </SheetContent>
     </Sheet>
   );
