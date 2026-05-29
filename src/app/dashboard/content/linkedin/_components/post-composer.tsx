@@ -78,6 +78,7 @@ import {
 } from "@/components/composer";
 import { SchedulerComposer } from "@/components/scheduler/scheduler-composer";
 import type { ScheduleSourceType } from "@/lib/scheduler/types";
+import { sourceTextHash } from "@/lib/scheduler/source-hash";
 import { cn } from "@/lib/utils";
 
 const MAX_LEN = 3000;
@@ -346,10 +347,12 @@ export function PostComposer({ identity, seedText }: Props) {
   );
 
   // No-op hashtag search — LinkedIn has no hashtag-history endpoint yet,
-  // so the typeahead surfaces only the inline "Create #tag" affordance
-  // (the primitive's default-valid-tag rule covers LinkedIn's
-  // letters/digits/underscore convention). Swaps to a real source when
-  // a hashtag endpoint ships.
+  // so the typeahead surfaces only the inline "Create #tag" affordance.
+  // We rely on the primitive's generic default validator (letters/
+  // digits/underscore, min 2 chars), which happens to match LinkedIn's
+  // tag rules; mounted with minQueryLength={2} so a single-char "#a"
+  // doesn't flash an empty "No matches" popover before the Create row
+  // qualifies. Swaps to a real source when a hashtag endpoint ships.
   const searchHashtags = useCallback(
     async (): Promise<HashtagCandidate[]> => [],
     [],
@@ -369,7 +372,7 @@ export function PostComposer({ identity, seedText }: Props) {
     () => ({
       sourceType: (draftId ? "draft" : "ad_hoc") as ScheduleSourceType,
       ...(draftId ? { sourceRef: draftId } : {}),
-      sourceTextHash: sourceTextHashFor(text),
+      sourceTextHash: sourceTextHash(text),
     }),
     [draftId, text],
   );
@@ -604,6 +607,7 @@ export function PostComposer({ identity, seedText }: Props) {
         caret={caret}
         onChange={setText}
         onSearch={searchHashtags}
+        minQueryLength={2}
       />
 
       <div className="flex items-center gap-2">
@@ -804,15 +808,6 @@ function aiOpToastMessage(op: RewriteOp): string {
   }
 }
 
-/** Stable, deterministic fingerprint of the composer text for the
- *  scheduler's required sourceTextHash. djb2a — good enough for the
- *  server's plan-dedup; not security-sensitive. */
-function sourceTextHashFor(text: string): string {
-  let h = 5381;
-  for (let i = 0; i < text.length; i++) h = (h * 33) ^ text.charCodeAt(i);
-  return `li:${(h >>> 0).toString(36)}`;
-}
-
 // ── Content-policy advisory pre-check ────────────────────────────────
 
 const POLICY_DEBOUNCE_MS = 800;
@@ -836,12 +831,17 @@ function usePolicyCheck(
 ): ComposerPolicyAdvisory | null | undefined {
   const trimmed = text.trim();
   const longEnough = trimmed.length >= POLICY_MIN_CHARS;
-  // Store only the async result tagged with the text it was computed
-  // for. The null (too-short) and undefined (pending) states are
-  // DERIVED below from the current text — no synchronous setState in
-  // the effect (avoids cascading renders), and the chip flips to
-  // "pending" the instant the text changes past the last checked value.
-  const [res, setRes] = useState<{ forText: string; advisory: ComposerPolicyAdvisory } | null>(null);
+  // Store only the async result, tagged with BOTH the text and the
+  // author type it was computed for. The null (too-short) and undefined
+  // (pending) states are DERIVED below from the current text+author —
+  // no synchronous setState in the effect (avoids cascading renders),
+  // and the chip flips to "pending" the instant either changes. Tagging
+  // by author matters: an org post has a different policy surface than a
+  // personal post, so a person-scoped result must not linger after the
+  // user switches to a company page without editing the text.
+  const [res, setRes] = useState<
+    { forText: string; forAuthor: "person" | "org"; advisory: ComposerPolicyAdvisory } | null
+  >(null);
 
   useEffect(() => {
     if (!longEnough) return;
@@ -850,13 +850,14 @@ function usePolicyCheck(
       linkedInContentApi
         .checkPolicy(trimmed, authorType)
         .then((advisory) => {
-          if (!cancelled) setRes({ forText: trimmed, advisory });
+          if (!cancelled) setRes({ forText: trimmed, forAuthor: authorType, advisory });
         })
         .catch(() => {
           // 429 / network / soft-fail — treat as "couldn't check".
           if (!cancelled) {
             setRes({
               forText: trimmed,
+              forAuthor: authorType,
               advisory: { overall: "ok", summary: "", findings: [], issueCount: 0, checked: false },
             });
           }
@@ -870,7 +871,8 @@ function usePolicyCheck(
   }, [trimmed, longEnough, authorType]);
 
   if (!longEnough) return null;
-  if (!res || res.forText !== trimmed) return undefined; // pending: no fresh result for current text
+  // pending: no fresh result for the current text + author
+  if (!res || res.forText !== trimmed || res.forAuthor !== authorType) return undefined;
   return res.advisory;
 }
 
@@ -887,7 +889,7 @@ function PolicyChip({ state }: { state: ComposerPolicyAdvisory | null | undefine
   if (state === null) return null;
   if (state === undefined) {
     return (
-      <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+      <span role="status" aria-live="polite" className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
         <Loader2 className="size-3 animate-spin motion-reduce:animate-none" />
         Checking policy…
       </span>
@@ -897,6 +899,8 @@ function PolicyChip({ state }: { state: ComposerPolicyAdvisory | null | undefine
   if (!state.checked) {
     return (
       <span
+        role="status"
+        aria-live="polite"
         className="inline-flex items-center gap-1.5 text-xs text-muted-foreground"
         title="We couldn't run the policy check just now — it doesn't block publishing."
       >
@@ -908,7 +912,7 @@ function PolicyChip({ state }: { state: ComposerPolicyAdvisory | null | undefine
 
   if (state.overall === "ok") {
     return (
-      <span className="inline-flex items-center gap-1.5 text-xs text-emerald-700 dark:text-emerald-400">
+      <span role="status" aria-live="polite" className="inline-flex items-center gap-1.5 text-xs text-emerald-700 dark:text-emerald-400">
         <ShieldCheck className="size-3.5" />
         Policy: OK
       </span>
