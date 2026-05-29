@@ -17,9 +17,7 @@
 export { AiComposeToolbar } from "./ai-compose-toolbar";
 export type { AiComposeToolbarProps } from "./ai-compose-toolbar";
 
-export {
-  ComposerCommandPalette,
-} from "./composer-command-palette";
+export { ComposerCommandPalette } from "./composer-command-palette";
 export type {
   ComposerCommandPaletteProps,
   ComposerCommand,

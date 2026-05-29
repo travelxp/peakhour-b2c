@@ -39,6 +39,7 @@ import {
   CommandSeparator,
   CommandShortcut,
 } from "@/components/ui/command";
+// CommandSeparator retained — used between Recent and the rest below.
 import type { LucideIcon } from "lucide-react";
 
 export interface ComposerCommand {
@@ -71,9 +72,14 @@ export interface ComposerCommandPaletteProps {
   commands: ReadonlyArray<ComposerCommand>;
   /** Optional placeholder for the search input. */
   placeholder?: string;
-  /** Whether the global Cmd/Ctrl+K listener is enabled. Default true.
-   *  Set false if the host already owns the shortcut (e.g. inside a
-   *  modal that has its own key handlers). */
+  /** Whether the global Cmd/Ctrl+K listener is enabled. **Default
+   *  false** because the dashboard shell already mounts a global
+   *  `<CommandMenu/>` (src/components/molecules/command-menu.tsx)
+   *  that owns Cmd+K. Set to `true` ONLY on surfaces that do NOT
+   *  render the global CommandMenu, otherwise both palettes open
+   *  simultaneously. The host should also document its own shortcut
+   *  (e.g. via a `<ComposerCommandPalette ... shortcutHint="⌘⇧K">`
+   *  affordance) if it picks a non-default chord. */
   enableGlobalShortcut?: boolean;
 }
 
@@ -107,15 +113,19 @@ export function ComposerCommandPalette({
   paletteId,
   commands,
   placeholder = "Search composer actions…",
-  enableGlobalShortcut = true,
+  enableGlobalShortcut = false,
 }: ComposerCommandPaletteProps) {
   const [open, setOpen] = useState(false);
   const [recentIds, setRecentIds] = useState<string[]>([]);
 
-  // Hydrate recents on mount + when the palette opens (so a recent
-  // command added by another tab shows up next time). Done via a
-  // microtask so the setState doesn't fire during the effect body
-  // (lint: no setState in effect).
+  // Hydrate recents whenever the palette opens (so a recent command
+  // added by another tab shows up next time). The repo's
+  // react-hooks/set-state-in-effect lint rule rejects direct setState
+  // in an effect body, so we schedule via Promise.resolve() — fires
+  // on the next microtask, still well before the user can interact
+  // with the open palette. The one-tick "no recents on first frame"
+  // flicker is invisible in practice because the open animation
+  // takes ~150ms.
   useEffect(() => {
     if (!open) return;
     Promise.resolve().then(() => setRecentIds(readRecents(paletteId)));
@@ -193,12 +203,13 @@ export function ComposerCommandPalette({
           </>
         )}
 
-        {groups.map(([heading, cmds], idx) => (
+        {/* cmdk CommandGroups already provide vertical rhythm via
+            their headings — no inter-group separator needed. */}
+        {groups.map(([heading, cmds]) => (
           <CommandGroup key={heading} heading={heading}>
             {cmds.map((cmd) => (
               <PaletteItem key={cmd.id} command={cmd} onRun={runCommand} />
             ))}
-            {idx < groups.length - 1 && <CommandSeparator className="my-1" />}
           </CommandGroup>
         ))}
       </CommandList>
@@ -219,7 +230,7 @@ function PaletteItem({
       value={`${command.label} ${command.hint ?? ""}`}
       disabled={command.disabled}
       onSelect={() => onRun(command)}
-      className="flex items-start gap-2 py-2"
+      className="group/item flex items-start gap-2 py-2"
     >
       {Icon && <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />}
       <div className="flex min-w-0 flex-1 flex-col">
@@ -228,7 +239,16 @@ function PaletteItem({
           <span className="truncate text-xs text-muted-foreground">{command.hint}</span>
         )}
       </div>
-      {command.shortcut && <CommandShortcut>{command.shortcut}</CommandShortcut>}
+      {/* Show the custom shortcut if defined; otherwise show a subtle
+          "↵" hint on the currently-active row (data-selected from
+          cmdk) so users know Enter runs the command. */}
+      {command.shortcut ? (
+        <CommandShortcut>{command.shortcut}</CommandShortcut>
+      ) : (
+        <CommandShortcut className="opacity-0 group-data-[selected=true]/item:opacity-100">
+          ↵
+        </CommandShortcut>
+      )}
     </CommandItem>
   );
 }

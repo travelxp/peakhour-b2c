@@ -44,10 +44,21 @@ export function VoiceCardPreview({
   className,
 }: VoiceCardPreviewProps) {
   if (!voiceCard) return null;
+  // Empty card (zero adjectives + zero phrases) carries no useful
+  // signal — render nothing rather than a generic "Voice card" pill
+  // that links to a popover with no content.
+  if (
+    voiceCard.toneAdjectives.length === 0 &&
+    voiceCard.signaturePhrases.length === 0 &&
+    voiceCard.avoidPhrases.length === 0
+  ) {
+    return null;
+  }
 
-  const toneStr = voiceCard.toneAdjectives.length > 0
-    ? voiceCard.toneAdjectives.slice(0, 3).join(" · ")
-    : "Voice card";
+  const toneStr =
+    voiceCard.toneAdjectives.length > 0
+      ? voiceCard.toneAdjectives.slice(0, 3).join(" · ")
+      : "Brand voice";
 
   return (
     <HoverCard openDelay={200} closeDelay={100}>
@@ -100,8 +111,12 @@ export function VoiceCardPreview({
               {voiceCard.signaturePhrases.slice(0, 6).map((p) => (
                 <li
                   key={p}
-                  className="rounded-sm bg-emerald-500/10 px-2 py-1 text-emerald-900 dark:text-emerald-200"
+                  className="rounded-sm bg-emerald-500/10 px-2 py-1 text-emerald-800 dark:text-emerald-300"
                 >
+                  {/* SR-only prefix so screen readers announce intent
+                      — visual users get the colour cue, SR users get
+                      "Keep: phrase". Mirrors the Avoid: pattern. */}
+                  <span className="sr-only">Keep: </span>
                   {p}
                 </li>
               ))}
@@ -125,6 +140,7 @@ export function VoiceCardPreview({
                   key={p}
                   className="rounded-sm bg-destructive/10 px-2 py-1 text-destructive line-through"
                 >
+                  <span className="sr-only">Avoid: </span>
                   {p}
                 </li>
               ))}

@@ -184,13 +184,16 @@ export function DraftSaver({
   onRetry,
   className,
 }: DraftSaverProps) {
-  // Tick once per 15s so the "ago" string stays accurate without
-  // re-rendering every second. (No requestAnimationFrame — the
-  // visual budget is tiny.)
+  // Tick faster while the timestamp matters most. 1s tick keeps the
+  // "Ns ago" string live for the first minute; falls back to a 30s
+  // tick after that since "Nm ago" updates only every minute.
+  // Rendering cost is a single inline-flex span — negligible.
   const [, forceTick] = useState(0);
   useEffect(() => {
     if (status !== "saved" || !lastSavedAt) return;
-    const id = setInterval(() => forceTick((n) => n + 1), 15_000);
+    const ageSec = Math.floor((Date.now() - lastSavedAt.getTime()) / 1000);
+    const interval = ageSec < 60 ? 1_000 : 30_000;
+    const id = setInterval(() => forceTick((n) => n + 1), interval);
     return () => clearInterval(id);
   }, [status, lastSavedAt]);
 
@@ -238,6 +241,11 @@ export function DraftSaver({
     >
       {icon}
       <span>{label}</span>
+      {/* Surface the underlying error message to screen readers via
+          visually-hidden text — `title` is not announced reliably. */}
+      {status === "error" && lastError && (
+        <span className="sr-only">: {lastError.message}</span>
+      )}
       {status === "error" && onRetry && (
         <Button
           type="button"

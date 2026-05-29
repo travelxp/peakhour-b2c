@@ -113,7 +113,10 @@ export function PlatformCharCounter({
           strokeWidth={stroke}
           className="stroke-muted"
         />
-        {/* Progress ring */}
+        {/* Progress ring — animate both the fill (stroke-dashoffset)
+            and the colour (stroke) so the green→amber→red transition
+            crossfades smoothly instead of snapping. motion-reduce
+            override respects the user's OS-level preference. */}
         <circle
           cx={dim / 2}
           cy={dim / 2}
@@ -123,7 +126,11 @@ export function PlatformCharCounter({
           strokeLinecap="round"
           strokeDasharray={circumference}
           strokeDashoffset={dash}
-          className={cn("transition-[stroke-dashoffset] duration-150", ringColor)}
+          className={cn(
+            "transition-[stroke-dashoffset,stroke] duration-150",
+            "motion-reduce:transition-none",
+            ringColor,
+          )}
         />
       </svg>
       {showCountResolved && (

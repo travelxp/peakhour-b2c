@@ -2,40 +2,51 @@
 
 /**
  * <MentionTypeahead/> — inline @-mention autocomplete for any composer
- * surface. Listens to keystrokes on a controlled `<Textarea/>` ref,
- * detects when the user is mid-mention (`@…` at the caret, no
- * whitespace yet), debounces the host's `onSearch` callback, and
- * surfaces a Popover anchored under the caret with the candidates.
+ * surface. Listens to the host textarea's value + caret, detects when
+ * the user is mid-mention (`@…` at the caret, no whitespace yet),
+ * debounces the host's `onSearch` callback, and surfaces a Popover
+ * anchored under the textarea wrapper with the candidates.
  *
  * Picking a candidate replaces the partial `@foo` with the full
- * `@handle`, restores focus, and moves the caret past the inserted
- * mention so the user can keep typing.
+ * `@handle ` (trailing space), restores focus to the textarea, and
+ * moves the caret past the inserted mention.
  *
- * The primitive doesn't render the textarea itself — it sits next to
- * the host's textarea as a non-visual coordinator. That keeps each
- * host composer in control of its own layout (size, padding,
- * resize-handle, autosize-on-content, etc.) and lets multiple
- * typeaheads (mentions + hashtags) coexist on the same field.
+ * INTERACTION MODEL (review #1 critical fix):
+ *   - Focus stays in the host textarea — never moves into the popover.
+ *   - This primitive owns ArrowUp/Down/Enter/Escape handlers via a
+ *     window-level keydown listener active only while the popover is
+ *     open. Internal `highlightedIndex` state drives the visual focus.
+ *   - The popover is anchored to the host's wrapper container (passed
+ *     via `containerRef`), NOT the caret position. This is a Slack-
+ *     style "popover under the field" affordance — not Notion-style
+ *     caret-glued. Good enough for v1; saves us measuring text-area
+ *     glyph positions.
  *
- * Design note: we use shadcn `<Command/>` inside `<Popover/>` for the
- * list (so arrow-key navigation, type-to-filter, and the keyboard
- * shortcuts come free). The popover anchors via a hidden absolutely-
- * positioned <span> so it tracks the caret reasonably without
- * measuring text-area glyph positions — close enough for the v1
- * composer, which sits the popover BELOW the textarea rather than
- * floating right at the caret like Notion does.
+ * REQUIRED HOST WIRING:
+ *   <div ref={containerRef} className="relative">
+ *     <Textarea ref={targetRef} value={text} onChange={...}
+ *               onSelect={(e) => setCaret(e.currentTarget.selectionStart)}
+ *               onKeyUp={(e) => setCaret(e.currentTarget.selectionStart)} />
+ *     <MentionTypeahead
+ *       containerRef={containerRef}
+ *       targetRef={targetRef}
+ *       text={text}
+ *       caret={caret}
+ *       onChange={setText}
+ *       onSearch={searchMentions}
+ *     />
+ *   </div>
  */
 
-import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { AtSign, Loader2 } from "lucide-react";
 import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type RefObject,
+} from "react";
+import { AtSign, Loader2 } from "lucide-react";
 import {
   Popover,
   PopoverAnchor,
@@ -47,12 +58,17 @@ import { cn } from "@/lib/utils";
 import type { MentionCandidate } from "./types";
 
 export interface MentionTypeaheadProps {
-  /** Controlled ref to the host's textarea. The primitive attaches
-   *  no listeners directly — the host calls `onTextChange(text)`
-   *  whenever the textarea value updates. */
+  /** Ref to the wrapper element that contains the host's textarea —
+   *  the popover anchors to this so it positions correctly under the
+   *  field. Without this ref Radix would anchor to its trigger (or
+   *  fall back to the viewport corner). */
+  containerRef: RefObject<HTMLElement | null>;
+  /** Ref to the textarea itself. Used to read live selectionStart /
+   *  value at the moment of selection (so a user who types past the
+   *  popover-render snapshot doesn't lose their characters). */
   targetRef: RefObject<HTMLTextAreaElement | null>;
-  /** Current full composer text (so the primitive can detect the
-   *  mid-mention substring at the caret). */
+  /** Current full composer text (used to detect the in-progress
+   *  @-token at the caret position). */
   text: string;
   /** Caret position from the textarea's selectionStart. The host
    *  forwards this on every keystroke; the primitive uses it to find
@@ -63,11 +79,13 @@ export interface MentionTypeaheadProps {
   onChange: (next: string) => void;
   /** Host's search handler. Receives the typed query (no leading @);
    *  returns a Promise of candidates. Debounce is internal (200ms);
-   *  cancellation is via an AbortController the primitive owns. */
+   *  cancellation is via an AbortController the primitive owns. The
+   *  function reference is stashed in a ref so passing an inline
+   *  lambda from the host won't re-fire the debounce. */
   onSearch: (query: string, signal: AbortSignal) => Promise<MentionCandidate[]>;
   /** Minimum query length before firing onSearch. Default 1 (most
-   *  platforms accept single-char prefixes — but you can bump to 2
-   *  for noisier datasets). */
+   *  platforms accept single-char prefixes — bump to 2 for noisier
+   *  datasets). */
   minQueryLength?: number;
 }
 
@@ -77,15 +95,9 @@ const DEBOUNCE_MS = 200;
  *  @-mention, else null. An "in-progress mention" is `@` followed by
  *  non-whitespace word chars up to the caret. */
 function detectMention(text: string, caret: number): { start: number; query: string } | null {
-  // Walk backwards from the caret until we hit '@', whitespace, or
-  // the start of the string. If we find '@' first, we're in a
-  // mention. If we find whitespace first, we're not.
   for (let i = caret - 1; i >= 0; i--) {
     const ch = text[i];
     if (ch === "@") {
-      // Edge: '@' at the very start of the string, OR preceded by
-      // whitespace, counts as a mention trigger. If it's preceded by
-      // a word char (e.g. "email@domain.com"), don't trigger.
       const prev = i > 0 ? text[i - 1] : " ";
       if (prev && /\s/.test(prev)) {
         return { start: i, query: text.slice(i + 1, caret) };
@@ -98,6 +110,7 @@ function detectMention(text: string, caret: number): { start: number; query: str
 }
 
 export function MentionTypeahead({
+  containerRef,
   targetRef,
   text,
   caret,
@@ -110,17 +123,20 @@ export function MentionTypeahead({
 
   const [candidates, setCandidates] = useState<MentionCandidate[]>([]);
   const [loading, setLoading] = useState(false);
+  const [highlightedIdx, setHighlightedIdx] = useState(0);
   const abortRef = useRef<AbortController | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Effect: re-run search whenever the query changes (debounced).
-  // Cancel the previous in-flight request to avoid out-of-order
-  // results overwriting a newer query.
-  //
-  // When isOpen flips false we DON'T reset candidates/loading here
-  // (lint rule: no setState in effect). The popover stops rendering
-  // anyway, and the next time the user opens a mention the effect
-  // overwrites the stale state.
+  // Stash onSearch in a ref — inline lambdas from the host would
+  // otherwise change identity every render, refire the effect, and
+  // continuously reset the debounce so the search never executes.
+  const onSearchRef = useRef(onSearch);
+  useEffect(() => {
+    onSearchRef.current = onSearch;
+  }, [onSearch]);
+
+  // Re-run search when query changes (debounced). onSearch is NOT in
+  // deps — see ref pattern above.
   useEffect(() => {
     if (!isOpen || !detected) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -128,17 +144,17 @@ export function MentionTypeahead({
       abortRef.current?.abort();
       const ctrl = new AbortController();
       abortRef.current = ctrl;
+      // Loading is set synchronously inside the timeout (post-render);
+      // safe by lint rules and avoids the spinner-after-results race.
       setLoading(true);
-      onSearch(detected.query, ctrl.signal)
+      onSearchRef.current(detected.query, ctrl.signal)
         .then((results) => {
           if (ctrl.signal.aborted) return;
           setCandidates(results);
+          setHighlightedIdx(0);
         })
         .catch((err) => {
           if (ctrl.signal.aborted) return;
-          // Search failures are quiet — the user keeps typing,
-          // popover stays empty, and there's no toast spam. The host
-          // can log if it cares.
           if (process.env.NODE_ENV !== "production") {
             console.warn("[MentionTypeahead] search failed:", err);
           }
@@ -152,106 +168,138 @@ export function MentionTypeahead({
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [isOpen, detected, onSearch]);
+  }, [isOpen, detected]);
 
-  function handleSelect(c: MentionCandidate) {
-    if (!detected) return;
-    const before = text.slice(0, detected.start);
-    const after = text.slice(caret);
-    const insert = `@${c.handle} `;
-    const next = before + insert + after;
-    onChange(next);
-    const newCaret = detected.start + insert.length;
-    requestAnimationFrame(() => {
+  const handleSelect = useCallback(
+    (c: MentionCandidate) => {
+      // Read LIVE textarea state at click/Enter time, not the props
+      // snapshot — if the user typed extra chars between popover
+      // render and selection we'd otherwise chop them.
       const el = targetRef.current;
-      if (!el) return;
-      el.setSelectionRange(newCaret, newCaret);
-      el.focus();
-    });
-  }
+      const liveText = el?.value ?? text;
+      const liveCaret = el?.selectionStart ?? caret;
+      const liveDetected = detectMention(liveText, liveCaret);
+      // If the user has typed past the mention trigger (e.g. they hit
+      // space already), refuse silently rather than corrupting the text.
+      if (!liveDetected) return;
+      const before = liveText.slice(0, liveDetected.start);
+      const after = liveText.slice(liveCaret);
+      const insert = `@${c.handle} `;
+      const next = before + insert + after;
+      onChange(next);
+      const newCaret = liveDetected.start + insert.length;
+      requestAnimationFrame(() => {
+        const elNow = targetRef.current;
+        if (!elNow) return;
+        elNow.focus();
+        elNow.setSelectionRange(newCaret, newCaret);
+      });
+    },
+    [text, caret, onChange, targetRef],
+  );
 
-  // We render the popover anchored to the textarea itself (not a
-  // floating per-caret anchor). The popover hangs under the textarea
-  // by Radix's default placement.
+  // Window-level keyboard handler — only active when popover is open.
+  // Captures Arrow / Enter / Escape from the host textarea since
+  // focus never moves into the popover.
+  useEffect(() => {
+    if (!isOpen) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setHighlightedIdx((i) => Math.min(i + 1, Math.max(0, candidates.length - 1)));
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setHighlightedIdx((i) => Math.max(i - 1, 0));
+      } else if (e.key === "Enter" && candidates.length > 0) {
+        e.preventDefault();
+        const pick = candidates[highlightedIdx];
+        if (pick) handleSelect(pick);
+      } else if (e.key === "Escape") {
+        // Inserting whitespace closes the mention naturally — synthesise
+        // by calling onChange with a space appended to the trigger.
+        // Simpler: just let the host close by ignoring future picks
+        // until the user types another @-trigger. We don't add an
+        // explicit close-now contract today.
+      }
+    }
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [isOpen, candidates, highlightedIdx, handleSelect]);
+
   return (
     <Popover open={isOpen}>
-      <PopoverAnchor asChild>
-        {/* Anchor wraps the textarea — host passes its <Textarea/> in
-            via the parent. We render a no-op span here that the host
-            doesn't see; Radix uses the anchor's bounding box. The
-            real anchor is the textarea via targetRef, set imperatively
-            in the effect below. */}
-        <span aria-hidden className="sr-only" />
-      </PopoverAnchor>
+      <PopoverAnchor virtualRef={containerRef as RefObject<HTMLElement>} />
       <PopoverContent
         align="start"
         side="bottom"
-        className="w-72 p-0"
-        onOpenAutoFocus={(e) => {
-          // Don't steal focus from the textarea — the user is still
-          // typing. Arrow keys + Enter are handled by Command's
-          // global listeners, so the textarea keeps focus.
-          e.preventDefault();
-        }}
+        sideOffset={4}
+        className="w-80 p-0"
+        // Keep focus in the host textarea — premium typeaheads (Slack,
+        // Linear) never steal focus mid-edit. Arrow keys handled above.
+        onOpenAutoFocus={(e) => e.preventDefault()}
       >
-        <Command shouldFilter={false}>
-          <CommandInput
-            placeholder={detected ? `Search for @${detected.query}…` : "Search…"}
-            value={detected?.query ?? ""}
-            // Host owns the input. CommandInput is read-only here —
-            // we display the in-progress mention text so the user has
-            // visual confirmation of what's matching.
-            readOnly
-          />
-          <CommandList className="max-h-64">
-            {loading && (
-              <div className="flex items-center justify-center gap-2 py-6 text-xs text-muted-foreground">
-                <Loader2 className="size-3 animate-spin" />
-                Searching…
-              </div>
-            )}
-            {!loading && candidates.length === 0 && (
-              <CommandEmpty>No matches.</CommandEmpty>
-            )}
-            {!loading && candidates.length > 0 && (
-              <CommandGroup heading="People">
-                {candidates.map((c) => (
-                  <CommandItem
-                    key={c.id}
-                    value={c.handle}
-                    onSelect={() => handleSelect(c)}
-                    className="flex items-center gap-2"
-                  >
-                    <Avatar className="size-7 shrink-0">
-                      {c.avatarUrl && <AvatarImage src={c.avatarUrl} alt="" />}
-                      <AvatarFallback className="text-[10px]">
-                        {(c.displayName ?? c.handle).slice(0, 2).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1 text-sm font-medium">
-                        <span className="truncate">{c.displayName ?? c.handle}</span>
-                        {c.verified && (
-                          <Badge variant="secondary" className="h-4 px-1 text-[9px]">
-                            ✓
-                          </Badge>
-                        )}
-                      </div>
-                      <div
-                        className={cn(
-                          "flex items-center gap-0.5 text-xs text-muted-foreground",
-                        )}
-                      >
-                        <AtSign className="size-3" />
-                        <span className="truncate">{c.handle}</span>
-                      </div>
-                    </div>
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            )}
-          </CommandList>
-        </Command>
+        <div className="border-b px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+          People
+        </div>
+        <ul role="listbox" className="max-h-64 overflow-y-auto p-1">
+          {loading && candidates.length === 0 && (
+            <li className="flex items-center justify-center gap-2 py-6 text-xs text-muted-foreground motion-reduce:animate-none">
+              <Loader2 className="size-3 animate-spin motion-reduce:animate-none" />
+              Searching…
+            </li>
+          )}
+          {!loading && candidates.length === 0 && (
+            <li className="px-3 py-6 text-center text-xs text-muted-foreground">
+              {detected ? `No matches for "@${detected.query}".` : "No matches."}
+            </li>
+          )}
+          {candidates.map((c, idx) => {
+            const isActive = idx === highlightedIdx;
+            return (
+              <li
+                key={c.id}
+                role="option"
+                aria-selected={isActive}
+                // onMouseDown (not onClick) — mousedown fires before
+                // blur of the textarea, so handleSelect can read the
+                // live textarea selection and refocus cleanly. Click
+                // would lose focus first.
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  handleSelect(c);
+                }}
+                onMouseEnter={() => setHighlightedIdx(idx)}
+                className={cn(
+                  "flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm transition-colors motion-reduce:transition-none",
+                  isActive
+                    ? "bg-accent text-accent-foreground"
+                    : "hover:bg-accent/50",
+                )}
+              >
+                <Avatar className="size-7 shrink-0">
+                  {c.avatarUrl && <AvatarImage src={c.avatarUrl} alt="" />}
+                  <AvatarFallback className="text-[10px]">
+                    {(c.displayName ?? c.handle).slice(0, 2).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1 text-sm font-medium">
+                    <span className="truncate">{c.displayName ?? c.handle}</span>
+                    {c.verified && (
+                      <Badge variant="secondary" className="h-4 px-1 text-[9px]">
+                        ✓
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-0.5 text-xs text-muted-foreground">
+                    <AtSign className="size-3" />
+                    <span className="truncate">{c.handle}</span>
+                  </div>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
       </PopoverContent>
     </Popover>
   );

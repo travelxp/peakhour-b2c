@@ -1,37 +1,39 @@
 "use client";
 
 /**
- * <HashtagSuggest/> — inline #-tag autocomplete. Same shape as
- * `<MentionTypeahead/>` but triggered on `#` and rendered as a
- * tag-list (no avatar / no verified badge). Usage count is shown
- * right-aligned per row when the host's search returns one.
+ * <HashtagSuggest/> — inline #-tag autocomplete. Same shape and
+ * interaction model as `<MentionTypeahead/>` (popover anchored to
+ * containerRef, arrow-key nav, live-read targetRef on selection,
+ * onSearch ref pattern). See that file for the full architectural
+ * notes.
  *
- * Architectural choice: NOT merged with mention typeahead into a
- * single "trigger-aware combobox" primitive — the two have different
- * candidate shapes, different list visual, and different host
- * backends (mentions hit a per-platform search API; hashtags hit
- * cnt_content_tags history + optional platform-trending). Keeping
- * them separate keeps each ~150 LOC and easier to specialise.
+ * Differences from mentions:
+ *   - Tag-list rendering instead of avatar rows.
+ *   - Usage-count chip right-aligned per row.
+ *   - "Create #{query}" affordance in the empty state — common UX
+ *     for hashtags (Twitter / Mastodon pattern) where new tags are
+ *     valid by definition.
  */
 
-import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { Hash, Loader2, TrendingUp } from "lucide-react";
 import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type RefObject,
+} from "react";
+import { Hash, Loader2, Plus, TrendingUp } from "lucide-react";
 import {
   Popover,
   PopoverAnchor,
   PopoverContent,
 } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 import type { HashtagCandidate } from "./types";
 
 export interface HashtagSuggestProps {
+  containerRef: RefObject<HTMLElement | null>;
   targetRef: RefObject<HTMLTextAreaElement | null>;
   text: string;
   caret: number;
@@ -42,10 +44,6 @@ export interface HashtagSuggestProps {
 
 const DEBOUNCE_MS = 200;
 
-/** Returns `{ start, query }` if the caret is inside an in-progress
- *  hashtag, else null. Same rules as mentions: `#` must be at the
- *  start of the string or follow whitespace; word chars only until
- *  the caret. */
 function detectHashtag(text: string, caret: number): { start: number; query: string } | null {
   for (let i = caret - 1; i >= 0; i--) {
     const ch = text[i];
@@ -68,6 +66,7 @@ function formatCount(n: number): string {
 }
 
 export function HashtagSuggest({
+  containerRef,
   targetRef,
   text,
   caret,
@@ -80,12 +79,15 @@ export function HashtagSuggest({
 
   const [candidates, setCandidates] = useState<HashtagCandidate[]>([]);
   const [loading, setLoading] = useState(false);
+  const [highlightedIdx, setHighlightedIdx] = useState(0);
   const abortRef = useRef<AbortController | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // When isOpen flips false we DON'T reset state here (lint: no
-  // setState in effect). The popover stops rendering; next open
-  // overwrites.
+  const onSearchRef = useRef(onSearch);
+  useEffect(() => {
+    onSearchRef.current = onSearch;
+  }, [onSearch]);
+
   useEffect(() => {
     if (!isOpen || !detected) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -94,10 +96,11 @@ export function HashtagSuggest({
       const ctrl = new AbortController();
       abortRef.current = ctrl;
       setLoading(true);
-      onSearch(detected.query, ctrl.signal)
+      onSearchRef.current(detected.query, ctrl.signal)
         .then((results) => {
           if (ctrl.signal.aborted) return;
           setCandidates(results);
+          setHighlightedIdx(0);
         })
         .catch((err) => {
           if (ctrl.signal.aborted) return;
@@ -114,74 +117,125 @@ export function HashtagSuggest({
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [isOpen, detected, onSearch]);
+  }, [isOpen, detected]);
 
-  function handleSelect(c: HashtagCandidate) {
-    if (!detected) return;
-    const before = text.slice(0, detected.start);
-    const after = text.slice(caret);
-    const insert = `#${c.tag} `;
-    const next = before + insert + after;
-    onChange(next);
-    const newCaret = detected.start + insert.length;
-    requestAnimationFrame(() => {
+  // The "Create #foo" affordance becomes an implicit extra candidate
+  // when the query is non-empty and the live results don't include
+  // an exact match. We append it to the candidates array for
+  // arrow-key + Enter navigation symmetry.
+  const visibleCandidates = useMemo<(HashtagCandidate & { __create?: boolean })[]>(() => {
+    if (!detected || detected.query.length === 0) return candidates;
+    const lower = detected.query.toLowerCase();
+    const hasExact = candidates.some((c) => c.tag.toLowerCase() === lower);
+    if (hasExact) return candidates;
+    return [...candidates, { tag: detected.query, __create: true }];
+  }, [detected, candidates]);
+
+  const handleSelect = useCallback(
+    (c: HashtagCandidate) => {
       const el = targetRef.current;
-      if (!el) return;
-      el.setSelectionRange(newCaret, newCaret);
-      el.focus();
-    });
-  }
+      const liveText = el?.value ?? text;
+      const liveCaret = el?.selectionStart ?? caret;
+      const liveDetected = detectHashtag(liveText, liveCaret);
+      if (!liveDetected) return;
+      const before = liveText.slice(0, liveDetected.start);
+      const after = liveText.slice(liveCaret);
+      const insert = `#${c.tag} `;
+      const next = before + insert + after;
+      onChange(next);
+      const newCaret = liveDetected.start + insert.length;
+      requestAnimationFrame(() => {
+        const elNow = targetRef.current;
+        if (!elNow) return;
+        elNow.focus();
+        elNow.setSelectionRange(newCaret, newCaret);
+      });
+    },
+    [text, caret, onChange, targetRef],
+  );
+
+  useEffect(() => {
+    if (!isOpen) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setHighlightedIdx((i) => Math.min(i + 1, Math.max(0, visibleCandidates.length - 1)));
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setHighlightedIdx((i) => Math.max(i - 1, 0));
+      } else if (e.key === "Enter" && visibleCandidates.length > 0) {
+        e.preventDefault();
+        const pick = visibleCandidates[highlightedIdx];
+        if (pick) handleSelect(pick);
+      }
+    }
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [isOpen, visibleCandidates, highlightedIdx, handleSelect]);
 
   return (
     <Popover open={isOpen}>
-      <PopoverAnchor asChild>
-        <span aria-hidden className="sr-only" />
-      </PopoverAnchor>
+      <PopoverAnchor virtualRef={containerRef as RefObject<HTMLElement>} />
       <PopoverContent
         align="start"
         side="bottom"
-        className="w-64 p-0"
+        sideOffset={4}
+        className="w-80 p-0"
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
-        <Command shouldFilter={false}>
-          <CommandInput
-            placeholder={detected ? `Search for #${detected.query}…` : "Search…"}
-            value={detected?.query ?? ""}
-            readOnly
-          />
-          <CommandList className="max-h-64">
-            {loading && (
-              <div className="flex items-center justify-center gap-2 py-6 text-xs text-muted-foreground">
-                <Loader2 className="size-3 animate-spin" />
-                Searching…
-              </div>
-            )}
-            {!loading && candidates.length === 0 && (
-              <CommandEmpty>No matches.</CommandEmpty>
-            )}
-            {!loading && candidates.length > 0 && (
-              <CommandGroup heading="Hashtags">
-                {candidates.map((c) => (
-                  <CommandItem
-                    key={c.tag}
-                    value={c.tag}
-                    onSelect={() => handleSelect(c)}
-                    className="flex items-center gap-2"
-                  >
-                    <Hash className="size-3.5 shrink-0 text-muted-foreground" />
-                    <span className="flex-1 truncate">{c.tag}</span>
-                    {typeof c.usageCount === "number" && c.usageCount > 0 && (
-                      <span className="flex items-center gap-0.5 text-xs text-muted-foreground tabular-nums">
-                        <TrendingUp className="size-3" />
-                        {formatCount(c.usageCount)}
-                      </span>
-                    )}
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            )}
-          </CommandList>
-        </Command>
+        <div className="border-b px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+          Hashtags
+        </div>
+        <ul role="listbox" className="max-h-64 overflow-y-auto p-1">
+          {loading && candidates.length === 0 && (
+            <li className="flex items-center justify-center gap-2 py-6 text-xs text-muted-foreground">
+              <Loader2 className="size-3 animate-spin motion-reduce:animate-none" />
+              Searching…
+            </li>
+          )}
+          {visibleCandidates.map((c, idx) => {
+            const isActive = idx === highlightedIdx;
+            return (
+              <li
+                key={c.__create ? `__create:${c.tag}` : c.tag}
+                role="option"
+                aria-selected={isActive}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  handleSelect(c);
+                }}
+                onMouseEnter={() => setHighlightedIdx(idx)}
+                className={cn(
+                  "flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm transition-colors motion-reduce:transition-none",
+                  isActive
+                    ? "bg-accent text-accent-foreground"
+                    : "hover:bg-accent/50",
+                )}
+              >
+                {c.__create ? (
+                  <Plus className="size-3.5 shrink-0 text-primary" />
+                ) : (
+                  <Hash className="size-3.5 shrink-0 text-muted-foreground" />
+                )}
+                <span className="flex-1 truncate">
+                  {c.__create ? (
+                    <>
+                      Create <span className="font-semibold">#{c.tag}</span>
+                    </>
+                  ) : (
+                    c.tag
+                  )}
+                </span>
+                {!c.__create && typeof c.usageCount === "number" && c.usageCount > 0 && (
+                  <span className="flex items-center gap-0.5 text-xs text-muted-foreground tabular-nums">
+                    <TrendingUp className="size-3" />
+                    {formatCount(c.usageCount)}
+                  </span>
+                )}
+              </li>
+            );
+          })}
+        </ul>
       </PopoverContent>
     </Popover>
   );

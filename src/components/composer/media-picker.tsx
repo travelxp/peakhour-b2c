@@ -46,7 +46,6 @@ import {
   Sparkles,
   Upload,
   Video,
-  X as XIcon,
   Check,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -67,6 +66,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { MediaAsset } from "./types";
 
@@ -119,19 +124,25 @@ export function MediaPicker({
   const [altDrafts, setAltDrafts] = useState<Map<string, string>>(new Map());
   const abortRef = useRef<AbortController | null>(null);
 
-  // Re-search whenever query / tab / accept changes. Debounced so a
-  // fast-typing user doesn't fire one search per keystroke. The
-  // setLoading inside .finally and setLibrary inside .then are NOT
-  // setState-in-effect-body — they fire inside async callbacks, which
-  // the lint rule permits (the anti-pattern is sync setState that
-  // would cause a re-render cascade in the same render pass).
+  // Stash onSearch in a ref — inline lambdas from the host would
+  // otherwise change identity every render and continuously reset
+  // the 150ms debounce, so the search would never execute.
+  const onSearchRef = useRef(onSearch);
+  useEffect(() => {
+    onSearchRef.current = onSearch;
+  }, [onSearch]);
+
+  // Debounced search. setLoading(true) is synchronous inside the
+  // timeout (which fires post-render), avoiding the spinner-after-
+  // results race that the previous microtask hack introduced.
   useEffect(() => {
     if (!open || activeTab !== "library") return;
     const id = setTimeout(() => {
       abortRef.current?.abort();
       const ctrl = new AbortController();
       abortRef.current = ctrl;
-      onSearch(query.trim(), accept, ctrl.signal)
+      setLoading(true);
+      onSearchRef.current(query.trim(), accept, ctrl.signal)
         .then((results) => {
           if (ctrl.signal.aborted) return;
           setLibrary(results);
@@ -145,14 +156,9 @@ export function MediaPicker({
           setLibrary([]);
           setLoading(false);
         });
-      // Set loading async (microtask) so it doesn't run during the
-      // current render pass.
-      Promise.resolve().then(() => {
-        if (!ctrl.signal.aborted) setLoading(true);
-      });
     }, 150);
     return () => clearTimeout(id);
-  }, [open, activeTab, query, accept, onSearch]);
+  }, [open, activeTab, query, accept]);
 
   function toggle(asset: MediaAsset) {
     setSelected((prev) => {
@@ -211,17 +217,46 @@ export function MediaPicker({
           className="flex flex-1 flex-col overflow-hidden"
         >
           <div className="border-b px-6 pt-3">
-            <TabsList className="w-full justify-start bg-transparent p-0">
-              <TabsTrigger value="library" className="data-[state=active]:bg-muted">
-                Library
-              </TabsTrigger>
-              <TabsTrigger value="upload" disabled={!onUpload} className="data-[state=active]:bg-muted">
-                Upload
-              </TabsTrigger>
-              <TabsTrigger value="generate" disabled={!onGenerate} className="data-[state=active]:bg-muted">
-                <Sparkles className="mr-1 size-3" /> Generate
-              </TabsTrigger>
-            </TabsList>
+            <TooltipProvider delayDuration={300}>
+              <TabsList className="w-full justify-start bg-transparent p-0">
+                <TabsTrigger value="library" className="data-[state=active]:bg-muted">
+                  Library
+                </TabsTrigger>
+                {onUpload ? (
+                  <TabsTrigger value="upload" className="data-[state=active]:bg-muted">
+                    Upload
+                  </TabsTrigger>
+                ) : (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      {/* Wrap in span so Tooltip can attach to a disabled element */}
+                      <span tabIndex={0}>
+                        <TabsTrigger value="upload" disabled className="data-[state=active]:bg-muted">
+                          Upload
+                        </TabsTrigger>
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent>Upload is not enabled for this composer.</TooltipContent>
+                  </Tooltip>
+                )}
+                {onGenerate ? (
+                  <TabsTrigger value="generate" className="data-[state=active]:bg-muted">
+                    <Sparkles className="mr-1 size-3" /> Generate
+                  </TabsTrigger>
+                ) : (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span tabIndex={0}>
+                        <TabsTrigger value="generate" disabled className="data-[state=active]:bg-muted">
+                          <Sparkles className="mr-1 size-3" /> Generate
+                        </TabsTrigger>
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent>AI generation is not enabled for this composer.</TooltipContent>
+                  </Tooltip>
+                )}
+              </TabsList>
+            </TooltipProvider>
           </div>
 
           {/* LIBRARY TAB */}
@@ -349,7 +384,7 @@ function LibraryGrid({
 }) {
   if (loading) {
     return (
-      <div className="grid grid-cols-3 gap-3 p-6">
+      <div className="grid grid-cols-2 gap-3 p-6 sm:grid-cols-3">
         {Array.from({ length: 9 }).map((_, i) => (
           <Skeleton key={i} className="aspect-square w-full rounded-md" />
         ))}
@@ -370,16 +405,25 @@ function LibraryGrid({
     );
   }
   return (
-    <div className="grid grid-cols-3 gap-3 p-6">
+    <div className="grid grid-cols-2 gap-3 p-6 sm:grid-cols-3">
       {items.map((a) => {
         const isSelected = selected.has(a.id);
         const isVideo = a.mime.startsWith("video/");
         const altDraft = altDrafts.get(a.id) ?? a.alt ?? "";
+        const kindLabel = isVideo ? "video" : "image";
+        // Source label — full words for screen readers + visual users
+        // alike. Tiles are wide enough at sm+ that the badge fits.
+        const sourceLabel =
+          a.source === "upload"
+            ? "Uploaded"
+            : a.source === "ai_image"
+            ? "AI Image"
+            : "AI Video";
         return (
           <div
             key={a.id}
             className={cn(
-              "group relative overflow-hidden rounded-md border bg-background transition-all",
+              "group relative overflow-hidden rounded-md border bg-background transition-all motion-reduce:transition-none",
               isSelected && "border-primary ring-2 ring-primary",
             )}
           >
@@ -388,7 +432,7 @@ function LibraryGrid({
               onClick={() => onToggle(a)}
               className="block aspect-square w-full overflow-hidden bg-muted"
               aria-pressed={isSelected}
-              aria-label={`Toggle ${a.alt ?? a.id}`}
+              aria-label={`${isSelected ? "Deselect" : "Select"} ${a.alt ?? kindLabel} asset`}
             >
               {isVideo ? (
                 <div className="flex h-full w-full items-center justify-center bg-black/80">
@@ -400,7 +444,7 @@ function LibraryGrid({
                   src={a.url}
                   alt={a.alt ?? ""}
                   loading="lazy"
-                  className="h-full w-full object-cover transition-transform group-hover:scale-105"
+                  className="h-full w-full object-cover transition-transform group-hover:scale-105 motion-reduce:transition-none motion-reduce:group-hover:scale-100"
                 />
               )}
               {/* Source badge */}
@@ -414,7 +458,7 @@ function LibraryGrid({
                   ) : (
                     <Upload className="size-2.5" />
                   )}
-                  {a.source === "upload" ? "Upload" : a.source === "ai_image" ? "AI img" : "AI vid"}
+                  {sourceLabel}
                 </Badge>
               </div>
               {/* Selected check */}
@@ -426,17 +470,22 @@ function LibraryGrid({
                 </div>
               )}
             </button>
-            {/* Alt-text input — appears on hover OR when selected */}
+            {/* Alt-text input — visible on hover, when selected, OR
+                when the input itself is focused (keyboard reachability
+                fix per review). */}
             <div
               className={cn(
-                "border-t bg-background px-2 py-1.5 transition-opacity",
-                isSelected ? "opacity-100" : "opacity-0 group-hover:opacity-100",
+                "border-t bg-background px-2 py-1.5 transition-opacity motion-reduce:transition-none",
+                isSelected
+                  ? "opacity-100"
+                  : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100",
               )}
             >
               <Input
                 value={altDraft}
                 onChange={(e) => onAltDraft(a.id, e.target.value)}
                 placeholder="Describe for screen readers…"
+                aria-label={`Alt text for ${a.alt ?? `${kindLabel} asset`}`}
                 className="h-7 border-0 bg-transparent px-0 text-xs shadow-none focus-visible:ring-0"
               />
             </div>
@@ -492,7 +541,7 @@ function UploadPanel({
     >
       <div className="rounded-full border bg-background p-3">
         {uploading ? (
-          <Loader2 className="size-6 animate-spin text-primary" />
+          <Loader2 className="size-6 animate-spin text-muted-foreground motion-reduce:animate-none" />
         ) : (
           <Upload className="size-6 text-muted-foreground" />
         )}
@@ -602,7 +651,7 @@ function GeneratePanel({
         disabled={running || prompt.trim().length === 0}
         className="w-full gap-1.5"
       >
-        {running ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
+        {running ? <Loader2 className="size-3.5 animate-spin motion-reduce:animate-none" /> : <Sparkles className="size-3.5" />}
         {running ? "Generating…" : `Generate ${kind}`}
       </Button>
       <p className="text-xs text-muted-foreground">
@@ -612,9 +661,3 @@ function GeneratePanel({
     </div>
   );
 }
-
-// Suppress the unused-but-imported XIcon — keeping the import in case
-// a future tweak wants a clear-search button. (Comment so the linter
-// is silent without removing for the future change.)
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const _retainXIcon = XIcon;

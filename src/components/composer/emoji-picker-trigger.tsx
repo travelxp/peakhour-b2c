@@ -26,6 +26,12 @@ import type { RefObject } from "react";
 import { Smile } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import EmojiPicker from "@/components/emoji-picker";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 export interface EmojiPickerTriggerProps {
@@ -72,8 +78,11 @@ export function EmojiPickerTrigger({
       const elNow = targetRef.current;
       if (!elNow) return;
       const caret = start + emoji.length;
-      elNow.setSelectionRange(caret, caret);
+      // focus() before setSelectionRange — iOS Safari occasionally
+      // drops the selection if the order is reversed (cross-browser
+      // safe ordering).
       elNow.focus();
+      elNow.setSelectionRange(caret, caret);
     });
   }
 
@@ -81,17 +90,23 @@ export function EmojiPickerTrigger({
     <EmojiPicker
       onEmojiSelect={handleEmojiSelect}
       trigger={
-        <Button
-          type="button"
-          size="sm"
-          variant="ghost"
-          className={cn("h-7 gap-1.5 px-2 text-xs", className)}
-          aria-label="Insert emoji"
-          title="Insert emoji"
-        >
-          <Smile className="size-3.5" />
-          {compact ? null : <span>Emoji</span>}
-        </Button>
+        <TooltipProvider delayDuration={300}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className={cn("h-7 gap-1.5 px-2 text-xs", className)}
+                aria-label="Insert emoji"
+              >
+                <Smile className="size-3.5" />
+                {compact ? null : <span>Emoji</span>}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Insert emoji</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       }
     />
   );

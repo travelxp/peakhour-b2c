@@ -43,6 +43,12 @@ import {
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
+  Command,
+  CommandGroup,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -202,20 +208,28 @@ export function AiComposeToolbar({
     <TooltipProvider delayDuration={250}>
       <div
         className={cn(
-          "flex flex-wrap items-center gap-1 rounded-md border border-dashed bg-muted/30 px-2 py-1.5",
+          // Flex-col on narrow viewports so the two visual groups
+          // (rewrites + inserts) stack cleanly instead of the previous
+          // ml-auto separator pushing inserts off-row on wrap. md:
+          // breakpoint becomes the single-row layout.
+          "flex flex-col gap-1.5 rounded-md border border-dashed bg-muted/30 px-2 py-1.5",
+          "md:flex-row md:flex-wrap md:items-center md:gap-1",
           className,
         )}
-        role="toolbar"
+        // Generic group role (not toolbar) — we do not implement the
+        // WAI-ARIA roving-tabindex toolbar pattern; every chip is its
+        // own tab stop, which matches the rest of the cmdk-driven kit.
+        role="group"
         aria-label="AI compose actions"
       >
-        <span className="flex items-center gap-1 px-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-          <Sparkles className="size-3" />
-          {compact ? null : <span>AI</span>}
-        </span>
-        <span className="text-muted-foreground/40">·</span>
+        <div className="flex flex-wrap items-center gap-1">
+          <span className="flex items-center gap-1 px-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            <Sparkles className="size-3" />
+            {compact ? null : <span>AI</span>}
+          </span>
+          <span className="text-muted-foreground/40">·</span>
 
-        {/* Primary rewrite ops */}
-        <div className="flex flex-wrap gap-0.5">
+          {/* Primary rewrite ops */}
           {visibleOps.map((meta) => {
             const key = `${meta.op}:{}`;
             const isRunning = running[key];
@@ -233,7 +247,7 @@ export function AiComposeToolbar({
                     disabled={disabled}
                   >
                     {isRunning ? (
-                      <Loader2 className="size-3.5 animate-spin" />
+                      <Loader2 className="size-3.5 animate-spin motion-reduce:animate-none" />
                     ) : (
                       <Icon className="size-3.5" />
                     )}
@@ -244,100 +258,103 @@ export function AiComposeToolbar({
               </Tooltip>
             );
           })}
-        </div>
 
-        {/* Tone popover — separate because it needs the chooser UI */}
-        {showTone && (
-          <>
-            <span className="text-muted-foreground/40">·</span>
-            <Popover open={tonePopoverOpen} onOpenChange={setTonePopoverOpen}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <PopoverTrigger asChild>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 gap-1.5 px-2 text-xs"
-                      disabled={text.trim().length === 0}
-                    >
-                      <Mic2 className="size-3.5" />
-                      {compact ? null : "Tone"}
-                    </Button>
-                  </PopoverTrigger>
-                </TooltipTrigger>
-                <TooltipContent>Rewrite in a different tone.</TooltipContent>
-              </Tooltip>
-              <PopoverContent align="start" className="w-64 p-1">
-                <div className="px-2 py-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                  Tone
-                </div>
-                {tones.map((tone) => {
-                  const key = `tone:${JSON.stringify({ targetTone: tone.key })}`;
-                  const isRunning = running[key];
-                  return (
-                    <button
-                      key={tone.key}
-                      type="button"
-                      disabled={isRunning}
-                      onClick={() => {
-                        setTonePopoverOpen(false);
-                        void fire("tone", { targetTone: tone.key });
-                      }}
-                      className={cn(
-                        "flex w-full flex-col items-start gap-0.5 rounded-sm px-2 py-1.5 text-left text-sm transition-colors",
-                        "hover:bg-accent hover:text-accent-foreground",
-                        "disabled:cursor-not-allowed disabled:opacity-50",
-                      )}
-                    >
-                      <span className="flex items-center gap-2 font-medium">
-                        {isRunning && <Loader2 className="size-3 animate-spin" />}
-                        {tone.label}
-                      </span>
-                      <span className="text-xs text-muted-foreground">{tone.hint}</span>
-                    </button>
-                  );
-                })}
-              </PopoverContent>
-            </Popover>
-          </>
-        )}
-
-        {/* Insert ops on the right */}
-        {visibleInsertOps.length > 0 && (
-          <>
-            <span className="ml-auto text-muted-foreground/40">·</span>
-            <div className="flex gap-0.5">
-              {visibleInsertOps.map((meta) => {
-                const key = `${meta.op}:{}`;
-                const isRunning = running[key];
-                const disabled = isRunning || (meta.requiresText && text.trim().length === 0);
-                const Icon = meta.icon;
-                return (
-                  <Tooltip key={meta.op}>
-                    <TooltipTrigger asChild>
+          {/* Tone popover — uses cmdk Command for arrow-key + type-
+              ahead navigation, mirroring the rest of the kit. */}
+          {showTone && (
+            <>
+              <span className="text-muted-foreground/40">·</span>
+              <Popover open={tonePopoverOpen} onOpenChange={setTonePopoverOpen}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <PopoverTrigger asChild>
                       <Button
                         type="button"
                         size="sm"
                         variant="ghost"
                         className="h-7 gap-1.5 px-2 text-xs"
-                        onClick={() => fire(meta.op)}
-                        disabled={disabled}
+                        disabled={text.trim().length === 0}
                       >
-                        {isRunning ? (
-                          <Loader2 className="size-3.5 animate-spin" />
-                        ) : (
-                          <Icon className="size-3.5" />
-                        )}
-                        {compact ? null : meta.label}
+                        <Mic2 className="size-3.5" />
+                        {compact ? null : "Tone"}
                       </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>{meta.tooltip}</TooltipContent>
-                  </Tooltip>
-                );
-              })}
-            </div>
-          </>
+                    </PopoverTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent>Rewrite in a different tone.</TooltipContent>
+                </Tooltip>
+                <PopoverContent align="start" className="w-64 p-0">
+                  <div className="border-b px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                    Tone
+                  </div>
+                  <Command className="bg-transparent">
+                    <CommandList>
+                      <CommandGroup>
+                        {tones.map((tone) => {
+                          const key = `tone:${JSON.stringify({ targetTone: tone.key })}`;
+                          const isRunning = running[key];
+                          return (
+                            <CommandItem
+                              key={tone.key}
+                              value={`${tone.label} ${tone.hint}`}
+                              disabled={isRunning}
+                              onSelect={() => {
+                                setTonePopoverOpen(false);
+                                void fire("tone", { targetTone: tone.key });
+                              }}
+                              className="flex flex-col items-start gap-0.5"
+                            >
+                              <span className="flex items-center gap-2 font-medium">
+                                {isRunning && <Loader2 className="size-3 animate-spin motion-reduce:animate-none" />}
+                                {tone.label}
+                              </span>
+                              <span className="text-xs text-muted-foreground">{tone.hint}</span>
+                            </CommandItem>
+                          );
+                        })}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </>
+          )}
+        </div>
+
+        {/* Insert ops — stack as their own row on mobile, push to the
+            right on md+ via the parent's md:flex-row + this group's
+            md:ml-auto. */}
+        {visibleInsertOps.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1 md:ml-auto">
+            <span className="text-muted-foreground/40">·</span>
+            {visibleInsertOps.map((meta) => {
+              const key = `${meta.op}:{}`;
+              const isRunning = running[key];
+              const disabled = isRunning || (meta.requiresText && text.trim().length === 0);
+              const Icon = meta.icon;
+              return (
+                <Tooltip key={meta.op}>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 gap-1.5 px-2 text-xs"
+                      onClick={() => fire(meta.op)}
+                      disabled={disabled}
+                    >
+                      {isRunning ? (
+                        <Loader2 className="size-3.5 animate-spin motion-reduce:animate-none" />
+                      ) : (
+                        <Icon className="size-3.5" />
+                      )}
+                      {compact ? null : meta.label}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{meta.tooltip}</TooltipContent>
+                </Tooltip>
+              );
+            })}
+          </div>
         )}
       </div>
     </TooltipProvider>
