@@ -132,32 +132,3 @@ export function staggerDescription(strategy: StaggerStrategy): string {
       return "Each channel picks its best time — based on adapter priors and your past engagement curve.";
   }
 }
-
-/** SHA-1 helper for sourceTextHash. Uses the browser SubtleCrypto so
- *  no bundle-cost dependency. Falls back to a textual hash for the
- *  edge case where SubtleCrypto isn't available (only relevant for
- *  ad_hoc paste-and-schedule — persisted sources have their hash
- *  computed server-side). */
-export async function sha1Hex(text: string): Promise<string> {
-  if (typeof crypto !== "undefined" && crypto.subtle) {
-    const buf = new TextEncoder().encode(text);
-    const hash = await crypto.subtle.digest("SHA-1", buf);
-    return Array.from(new Uint8Array(hash))
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("");
-  }
-  // Fallback: trivial non-crypto hash for environments without
-  // SubtleCrypto (notably old Node test runners). The server-side
-  // hash is the source of truth; this is only the b2c's local stamp
-  // for ad_hoc paste-and-schedule when SubtleCrypto isn't available.
-  // Not used for cryptographic verification — just a stable 40-hex
-  // digest that the schema accepts.
-  let h = 0x811c9dc5; // FNV-1a 32-bit seed
-  for (let i = 0; i < text.length; i++) {
-    h ^= text.charCodeAt(i);
-    h = Math.imul(h, 0x01000193) >>> 0;
-  }
-  const hex8 = h.toString(16).padStart(8, "0");
-  // Repeat the digest 5× to fill the 40-hex span the schema requires.
-  return (hex8 + hex8 + hex8 + hex8 + hex8).slice(0, 40);
-}
