@@ -36,6 +36,7 @@ import {
   type RepurposedAdaptation,
 } from "@/lib/api/repurpose";
 import { SchedulerComposer } from "@/components/scheduler/scheduler-composer";
+import { sourceTextHash } from "@/lib/scheduler/source-hash";
 import type {
   CommitPlanRequest,
   ScheduleSourceType,
@@ -123,28 +124,24 @@ function adaptationsToChannels(
 }
 
 /** Stable fingerprint for the scheduler's required `sourceTextHash`.
- *  Prefer the soc_social_posts id when the repurposer persisted at
- *  least one variant — same generation always returns the same id
- *  thanks to the idempotency layer. Fallback: synthesise from source
- *  title + ALL adaptation contents joined in a deterministic
- *  (sorted-by-platform) order — guarantees the same hash across
- *  sessions even if the engine returns adaptations in different
- *  order. Hash doesn't need to be cryptographically strong; the
- *  server uses it for plan dedup, not security. */
+ *  The scheduler commit route validates this against `^[a-f0-9]{40}$`
+ *  (40-char lowercase hex) and stores it verbatim, so it MUST be a
+ *  40-hex string — a raw socialPostId (24 hex) or a `rp:`-prefixed
+ *  base36 value is rejected with a 400. We build a deterministic input
+ *  string (preferring the soc_social_posts id when the repurposer
+ *  persisted a variant — same generation always returns the same id
+ *  thanks to the idempotency layer; else source title + ALL adaptation
+ *  contents joined in a deterministic sorted-by-platform order) and run
+ *  it through the shared 40-hex fingerprinter. */
 function sourceTextHashFor(response: RepurposeResponse): string {
-  if (response.socialPostId) return response.socialPostId;
+  if (response.socialPostId) return sourceTextHash(`sp:${response.socialPostId}`);
   // Sort by platform so a parallel-fanout engine that yields
   // adaptations out of order still produces the same hash.
   const sortedContents = [...response.adaptations]
     .sort((a, b) => a.platform.localeCompare(b.platform))
     .map((a) => `${a.platform}:${a.content}`)
     .join("|");
-  const fallback = (response.sourceTitle ?? "") + "||" + sortedContents;
-  // djb2a (XOR variant) — good enough for plan dedup, avoids a
-  // crypto dependency for this fallback path.
-  let h = 5381;
-  for (let i = 0; i < fallback.length; i++) h = (h * 33) ^ fallback.charCodeAt(i);
-  return `rp:${(h >>> 0).toString(36)}`;
+  return sourceTextHash((response.sourceTitle ?? "") + "||" + sortedContents);
 }
 
 /**
@@ -425,12 +422,13 @@ export function RepurposeSheet({ open, onOpenChange, source }: Props) {
           {showingScheduler && schedulerProps && (
             <SchedulerComposer
               // Key on sourceTextHash — unique + deterministic per
-              // source (uses socialPostId or the djb2 fallback from
-              // sourceTextHashFor). Avoids the ad_hoc collision
-              // where two distinct ad_hoc sources share sourceRef
-              // ('undefined') and sourceType ('ad_hoc'); the hash
-              // discriminates them. Remount resets the composer's
-              // internal anchor/timezone/strategy when source flips.
+              // source (the shared 40-hex sourceTextHash fingerprint,
+              // computed over the socialPostId or the sorted adaptation
+              // contents). Avoids the ad_hoc collision where two
+              // distinct ad_hoc sources share sourceRef ('undefined')
+              // and sourceType ('ad_hoc'); the hash discriminates them.
+              // Remount resets the composer's internal anchor/timezone/
+              // strategy when source flips.
               key={schedulerProps.source.sourceTextHash}
               source={schedulerProps.source}
               title={schedulerProps.title}

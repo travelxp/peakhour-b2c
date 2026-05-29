@@ -201,8 +201,46 @@ export interface EngagersResponse {
  *  private folder). */
 export const SUGGESTED_DRAFTS_QUERY_KEY = ["linkedin-suggested-drafts"] as const;
 
+/** One per-category finding from the content-policy classifier. */
+export interface PolicyFinding {
+  category: string;
+  verdict: "ok" | "warn" | "block";
+  /** One-sentence rationale; empty for "ok". */
+  rationale: string;
+}
+
+/**
+ * Advisory result from `POST /v1/linkedin/content/check-policy` — the
+ * proactive, pre-publish content-policy heads-up the composer chip
+ * renders. The hard publish-time block still runs server-side on
+ * publish; this is advisory only.
+ *
+ * `overall` is the RAW AI verdict (not the gate's mode-mapped
+ * decision) so warn-level issues surface even though the default
+ * publish posture would let them through. `checked` is false when the
+ * AI gate soft-failed — the chip should render a neutral "couldn't
+ * check" state, never a false "Policy: OK".
+ */
+export interface ComposerPolicyAdvisory {
+  overall: "ok" | "warn" | "block";
+  summary: string;
+  findings: PolicyFinding[];
+  issueCount: number;
+  checked: boolean;
+}
+
 export const linkedInContentApi = {
   me: () => api.get<LinkedInIdentity>("/v1/linkedin/content/me"),
+
+  /** Advisory content-policy pre-check for the composer chip. The route
+   *  is rate-limited (429 on burst) and fail-soft, so callers should
+   *  treat both a 429 and a thrown error as a transient "couldn't
+   *  check" state — never surface it as a publish failure. */
+  checkPolicy: (text: string, authorType?: "person" | "org") =>
+    api.post<ComposerPolicyAdvisory>("/v1/linkedin/content/check-policy", {
+      text,
+      ...(authorType ? { authorType } : {}),
+    }),
 
   publish: (body: PublishLinkedInPostInput) =>
     api.post<{ postId: string }>("/v1/linkedin/content/publish", body),

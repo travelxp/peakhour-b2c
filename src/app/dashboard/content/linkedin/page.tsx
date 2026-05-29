@@ -182,7 +182,7 @@ function LinkedInTabs({
           </CardContent>
         </Card>
         <p className="text-xs text-muted-foreground">
-          Text + link posts only for now — carousels, polls, and scheduling are coming.
+          Compose with AI, schedule for later, or publish now. Carousels and media are coming.
         </p>
       </TabsContent>
 
