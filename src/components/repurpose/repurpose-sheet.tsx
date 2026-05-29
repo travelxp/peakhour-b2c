@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   Sheet,
@@ -15,7 +15,16 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { Sparkles, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import {
+  Sparkles,
+  CheckCircle2,
+  AlertCircle,
+  Loader2,
+  CalendarClock,
+  ArrowLeft,
+  FileEdit,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
 import {
   recommendPlatforms,
   repurpose,
@@ -24,15 +33,118 @@ import {
   type RepurposeSource,
   type PlatformRecommendation,
   type RepurposeResponse,
+  type RepurposedAdaptation,
 } from "@/lib/api/repurpose";
+import { SchedulerComposer } from "@/components/scheduler/scheduler-composer";
+import type {
+  CommitPlanRequest,
+  ScheduleSourceType,
+} from "@/lib/scheduler/types";
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** Caller-provided source. When the sheet opens we fire
    *  /recommend-platforms with this source; when the user confirms
-   *  the platform picker, /repurpose runs with the same source. */
+   *  the platform picker, /repurpose runs with the same source.
+   *
+   *  IMPORTANT: must be referentially stable while the sheet is
+   *  open. The reset effect depends on `[open, source]`, so a parent
+   *  that passes a fresh object literal each render will refire the
+   *  recommend on every parent re-render (re-fetch storm). Memoise
+   *  with useMemo or hoist to a stable ref. */
   source: RepurposeSource | null;
+}
+
+/** Local state machine for the post-generation "what next?" step.
+ *  `choose` is the default after variants land; the user picks
+ *  Schedule (mounts <SchedulerComposer/>) or Save as draft (the
+ *  variants are already persisted in soc_social_posts so this is
+ *  effectively a toast + close). */
+type DoneIntent = "choose" | "schedule";
+
+/** Maps the repurposer's source-discriminant union to the scheduler's
+ *  ScheduleSourceType. `published_post` → `social_post` rename matches
+ *  the cnt_drafts vs soc_social_posts collection naming. */
+function toScheduleSourceType(s: RepurposeSource): ScheduleSourceType {
+  switch (s.type) {
+    case "draft":
+      return "draft";
+    case "idea":
+      return "idea";
+    case "published_post":
+      return "social_post";
+    case "ad_hoc":
+      return "ad_hoc";
+  }
+}
+
+/** Maps the repurposer source to the scheduler's optional sourceRef
+ *  (Mongo hex id where applicable; absent for ad_hoc inline content). */
+function toScheduleSourceRef(s: RepurposeSource): string | undefined {
+  switch (s.type) {
+    case "draft":
+      return s.draftId;
+    case "idea":
+      return s.ideaId;
+    case "published_post":
+      return s.socialPostId;
+    case "ad_hoc":
+      return undefined;
+  }
+}
+
+/** Builds the SchedulerComposer's `channels` prop from a successful
+ *  repurpose response. The engine returns up to N adaptations per
+ *  platform (X returns 2: "post" + "thread"); the scheduler wants
+ *  ONE row per channel. We take the FIRST adaptation per platform
+ *  as the canonical payload. X-thread support lives in PR #4 (X
+ *  composer rewrite) which will surface a thread builder UI that
+ *  packs metadata.tweets into payload.threadParts; foundation-PR
+ *  scheduler launch ships post-only.
+ *
+ *  Stub channels (Facebook / Instagram / Threads) never make it into
+ *  response.adaptations — the repurposer filters them before persist
+ *  — so the scheduler list naturally excludes them. */
+function adaptationsToChannels(
+  response: RepurposeResponse,
+): CommitPlanRequest["channels"] {
+  const seen = new Map<string, RepurposedAdaptation>();
+  for (const a of response.adaptations) {
+    if (!seen.has(a.platform)) seen.set(a.platform, a);
+  }
+  return Array.from(seen.values()).map((a) => ({
+    channel: a.platform,
+    payload: {
+      text: a.content,
+      ...(a.hashtags && a.hashtags.length > 0 ? { hashtags: a.hashtags } : {}),
+    },
+  }));
+}
+
+/** Stable fingerprint for the scheduler's required `sourceTextHash`.
+ *  Prefer the soc_social_posts id when the repurposer persisted at
+ *  least one variant — same generation always returns the same id
+ *  thanks to the idempotency layer. Fallback: synthesise from source
+ *  title + ALL adaptation contents joined in a deterministic
+ *  (sorted-by-platform) order — guarantees the same hash across
+ *  sessions even if the engine returns adaptations in different
+ *  order. Hash doesn't need to be cryptographically strong; the
+ *  server uses it for plan dedup, not security. */
+function sourceTextHashFor(response: RepurposeResponse): string {
+  if (response.socialPostId) return response.socialPostId;
+  // Sort by platform so a parallel-fanout engine that yields
+  // adaptations out of order still produces the same hash.
+  const sortedContents = [...response.adaptations]
+    .sort((a, b) => a.platform.localeCompare(b.platform))
+    .map((a) => `${a.platform}:${a.content}`)
+    .join("|");
+  const fallback = (response.sourceTitle ?? "") + "||" + sortedContents;
+  // djb2a (XOR variant) — good enough for plan dedup, avoids a
+  // crypto dependency for this fallback path.
+  let h = 5381;
+  for (let i = 0; i < fallback.length; i++) h = (h * 33) ^ fallback.charCodeAt(i);
+  return `rp:${(h >>> 0).toString(36)}`;
 }
 
 /**
@@ -97,10 +209,18 @@ export function RepurposeSheet({ open, onOpenChange, source }: Props) {
   // checked, grey unchecked unless hard-blocked).
   const [selected, setSelected] = useState<Record<string, boolean>>({});
 
+  // Post-variant intent — "choose" surfaces the Schedule / Save-as-
+  // draft CTA bar; "schedule" mounts <SchedulerComposer/> inline.
+  // Resets each time the sheet reopens with a new source.
+  const [doneIntent, setDoneIntent] = useState<DoneIntent>("choose");
+
+  const queryClient = useQueryClient();
+
   // Reset everything when the sheet opens with a new source.
   useEffect(() => {
     if (!open || !source) return;
     setSelected({});
+    setDoneIntent("choose");
     recommendMutation.reset();
     repurposeMutation.reset();
     recommendMutation.mutate(source);
@@ -186,18 +306,93 @@ export function RepurposeSheet({ open, onOpenChange, source }: Props) {
     onOpenChange(false);
   }
 
+  function handleSaveAsDraft() {
+    // The variants are ALREADY persisted to soc_social_posts by the
+    // /v1/content/repurpose call — "Save as draft" is the no-op
+    // confirmation that nothing further is auto-scheduled. The
+    // soc_social_posts surface on each channel's dashboard tab
+    // (e.g. /dashboard/content/linkedin → SuggestedDraftsPanel)
+    // shows the draft awaiting publish.
+    toast.success("Saved as drafts.", {
+      description:
+        "Your variants are saved in Peakhour. Open each channel's dashboard tab to publish or schedule them anytime.",
+    });
+    onOpenChange(false);
+  }
+
+  // No-arg handler — SchedulerComposer's onScheduled passes a
+  // CommitPlanResponse we don't need today (the composer's own
+  // success toast already surfaces the channel count; we'd just
+  // double-toast). TS callback variance allows the narrower signature.
+  function handleScheduled() {
+    // SchedulerComposer fires its own "Scheduled across N channels."
+    // toast inside submit() — we don't double-toast here. We DO
+    // invalidate the calendar's React Query key so a parallel
+    // /dashboard/calendar tab refreshes without manual reload.
+    // 'scheduler:plans' is not consumed today (no plans-list query
+    // anywhere); only invalidate the keys with live subscribers.
+    queryClient.invalidateQueries({ queryKey: ["scheduler:items"] });
+    onOpenChange(false);
+    // NOTE: doneIntent is NOT reset here — relies on the [open, source]
+    // reset effect (line above) firing when the sheet reopens. If
+    // that effect ever drops the doneIntent reset, this handler
+    // needs an explicit setDoneIntent('choose').
+  }
+
+  // Derived scheduler props — only valid when we're in the done +
+  // schedule branch with a source AND a successful repurpose
+  // response in hand. Computed unconditionally (memoised) so we
+  // don't lose the SchedulerComposer's local state between renders.
+  const schedulerProps = useMemo(() => {
+    if (!source || !repurposeMutation.data) return null;
+    const r = repurposeMutation.data;
+    const channels = adaptationsToChannels(r);
+    if (channels.length === 0) return null;
+    return {
+      source: {
+        sourceType: toScheduleSourceType(source),
+        sourceRef: toScheduleSourceRef(source),
+        sourceTextHash: sourceTextHashFor(r),
+      },
+      title: r.sourceTitle,
+      channels,
+    };
+  }, [source, repurposeMutation.data]);
+
+  // Sheet width: standard for picker/done; widen for the scheduler
+  // mount so the time picker + stagger chooser + confirm card don't
+  // crowd a 512px column.
+  const showingScheduler = stage === "done" && doneIntent === "schedule";
+  const sheetWidthClass = showingScheduler ? "sm:max-w-2xl" : "sm:max-w-lg";
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="flex w-full flex-col gap-0 p-0 sm:max-w-lg">
+      <SheetContent
+        className={cn(
+          "flex w-full flex-col gap-0 p-0",
+          sheetWidthClass,
+        )}
+      >
         <SheetHeader className="border-b px-6 py-4">
           <SheetTitle className="flex items-center gap-2 text-base">
-            <Sparkles className="size-4 text-primary" />
-            Repurpose to platforms
+            {showingScheduler ? (
+              <>
+                <CalendarClock className="size-4 text-primary" />
+                Schedule these variants
+              </>
+            ) : (
+              <>
+                <Sparkles className="size-4 text-primary" />
+                Repurpose to platforms
+              </>
+            )}
           </SheetTitle>
           <SheetDescription className="text-xs">
-            {stage === "done"
-              ? "Your variants are ready — open each in its composer to publish."
-              : "We score each connected channel. Tick the ones you want to generate."}
+            {showingScheduler
+              ? "Pick a time, a stagger strategy, and any per-channel timing preferences. The smart-time engine handles tier-A audience timing."
+              : stage === "done"
+                ? "Your variants are ready — schedule them or save as drafts."
+                : "We score each connected channel. Tick the ones you want to generate."}
           </SheetDescription>
         </SheetHeader>
 
@@ -224,12 +419,46 @@ export function RepurposeSheet({ open, onOpenChange, source }: Props) {
             />
           )}
           {stage === "generating" && <GeneratingRows platforms={finalPlatforms} />}
-          {stage === "done" && repurposeMutation.data && (
+          {stage === "done" && repurposeMutation.data && doneIntent === "choose" && (
             <DoneState response={repurposeMutation.data} />
+          )}
+          {showingScheduler && schedulerProps && (
+            <SchedulerComposer
+              // Key on sourceTextHash — unique + deterministic per
+              // source (uses socialPostId or the djb2 fallback from
+              // sourceTextHashFor). Avoids the ad_hoc collision
+              // where two distinct ad_hoc sources share sourceRef
+              // ('undefined') and sourceType ('ad_hoc'); the hash
+              // discriminates them. Remount resets the composer's
+              // internal anchor/timezone/strategy when source flips.
+              key={schedulerProps.source.sourceTextHash}
+              source={schedulerProps.source}
+              title={schedulerProps.title}
+              channels={schedulerProps.channels}
+              onScheduled={handleScheduled}
+            />
+          )}
+          {showingScheduler && !schedulerProps && (
+            // Defensive — only reachable if doneIntent flipped to
+            // schedule while source / response was unexpectedly null
+            // (parent bug or mid-render reset). Surface a friendly
+            // recoverable state instead of crashing the composer.
+            <div className="rounded-md border bg-muted/30 p-4 text-sm text-muted-foreground">
+              Could not build a schedule from these variants. Close and try again.
+            </div>
           )}
         </div>
 
-        <SheetFooter className="border-t px-6 py-3">
+        {/* Footer override: shadcn SheetFooter defaults to flex-col
+            (column stack), which inverts the visual hierarchy of a
+            ghost+primary pair on right-side sheets. Force a
+            right-aligned row so primary actions land where the eye
+            expects them.
+            Hidden during the 'loading' stage — there's no actionable
+            branch, and rendering empty footer chrome (border-t +
+            padding) reads as broken. */}
+        {stage !== "loading" && (
+        <SheetFooter className="flex-row justify-end gap-2 border-t px-6 py-3">
           {stage === "recommend" && (
             <>
               <Button
@@ -246,23 +475,78 @@ export function RepurposeSheet({ open, onOpenChange, source }: Props) {
                 onClick={handleConfirm}
                 disabled={finalPlatforms.length === 0 || !platformFitId}
               >
-                Generate {finalPlatforms.length || ""}{" "}
-                variant{finalPlatforms.length === 1 ? "" : "s"}
+                {finalPlatforms.length > 0
+                  ? `Generate ${finalPlatforms.length} variant${finalPlatforms.length === 1 ? "" : "s"}`
+                  : "Generate variants"}
               </Button>
             </>
           )}
-          {(stage === "done" || stage === "empty" || stage === "error") && (
+          {stage === "done" && doneIntent === "choose" && schedulerProps && (
+            <>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={handleSaveAsDraft}
+                className="gap-1.5"
+              >
+                <FileEdit className="size-3.5" />
+                Save as draft
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => setDoneIntent("schedule")}
+                className="gap-1.5"
+              >
+                <CalendarClock className="size-3.5" />
+                Schedule
+              </Button>
+            </>
+          )}
+          {stage === "done" && doneIntent === "choose" && !schedulerProps && (
+            // Repurpose succeeded but produced zero schedulable
+            // channels (e.g. all stubs filtered out). Only "Close"
+            // makes sense — no schedule target.
+            <Button type="button" size="sm" onClick={handleClose}>
+              Close
+            </Button>
+          )}
+          {showingScheduler && (
+            // Left-aligned via `mr-auto` so this back-arrow doesn't
+            // sit in the primary-action slot. The actual "Schedule"
+            // submit button lives INSIDE <SchedulerComposer/>'s body
+            // (with its own loading + entitlement gating).
+            //
+            // FOLLOW-UP: lifting that submit into this footer slot
+            // would be more discoverable on shorter viewports — needs
+            // a SchedulerComposer API change to expose either a
+            // footerSlot prop or an imperative submit ref. Tracked
+            // as a follow-up to this PR.
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setDoneIntent("choose")}
+              className="mr-auto gap-1.5"
+            >
+              <ArrowLeft className="size-3.5" />
+              Back to variants
+            </Button>
+          )}
+          {(stage === "empty" || stage === "error") && (
             <Button type="button" size="sm" onClick={handleClose}>
               Close
             </Button>
           )}
           {stage === "generating" && (
             <Button type="button" size="sm" disabled>
-              <Loader2 className="mr-2 size-3 animate-spin" />
+              <Loader2 className="mr-2 size-3 animate-spin motion-reduce:animate-none" />
               Generating
             </Button>
           )}
         </SheetFooter>
+        )}
       </SheetContent>
     </Sheet>
   );
