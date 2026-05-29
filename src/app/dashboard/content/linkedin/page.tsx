@@ -212,6 +212,14 @@ function PageShell({ children, loading }: { children?: React.ReactNode; loading?
         onTriggered={() => {
           queryClient.invalidateQueries({ queryKey: ["content-hub-integrations"] });
           queryClient.invalidateQueries({ queryKey: ["linkedin-me"] });
+          // The post-sync + retention crons write the very data these
+          // panels render — without invalidating them, a sync completes
+          // but the Boost / Audience tabs keep serving their cached
+          // (often empty) result, so nothing visibly changes. Both panels
+          // also set refetchOnMount:false, so invalidation is the only
+          // thing that refreshes them after a manual trigger.
+          queryClient.invalidateQueries({ queryKey: ["linkedin-boost-candidates"] });
+          queryClient.invalidateQueries({ queryKey: ["linkedin-engagers"] });
         }}
       />
       <div>

@@ -18,12 +18,24 @@
  *   - frequency   — human-readable schedule (NOT a cron expression)
  *   - description — one-sentence plain-English explanation of what fires
  *                   when the cron runs. Avoids implementation jargon.
+ *   - summarize   — OPTIONAL. Turns the cron's response payload (the
+ *                   `data` object the handler returns) into a clean,
+ *                   user-facing success sentence — e.g. "12 posts synced
+ *                   successfully." Without it, <CronToolbar/> falls back
+ *                   to a generic "<label> complete" message. NEVER let a
+ *                   summarizer throw on an unexpected shape; return null
+ *                   to defer to the generic fallback instead. The toolbar
+ *                   already wraps the call in a try/catch, but defensive
+ *                   reads keep the intent obvious.
  */
 
 export interface CronMetadata {
   label: string;
   frequency: string;
   description: string;
+  /** Maps the parsed cron `data` payload to a friendly one-line success
+   *  message, or null to fall back to the generic toast. */
+  summarize?: (data: unknown) => string | null;
 }
 
 export const CRON_METADATA: Record<string, CronMetadata> = {
@@ -32,6 +44,10 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
     frequency: "Runs every hour",
     description:
       "Pulls your newest Beehiiv newsletter sends into Peakhour so they show up in the library.",
+    // The handler enqueues a background fetch job rather than fetching
+    // inline, so there's no count to report yet — surface that the fetch
+    // is on its way and the library will fill in shortly.
+    summarize: () => "Fetching your latest newsletters — they'll appear in the library shortly.",
   },
   "tag-catchup": {
     label: "AI-tag newsletters",
@@ -50,18 +66,63 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
     frequency: "Runs every hour",
     description:
       "Pulls the latest engagement and impression numbers from every connected publishing platform.",
+    summarize: (data) => {
+      const overall = asRecord(asRecord(data)?.overall);
+      if (!overall) return "Performance refreshed.";
+      const total = num(overall.connectionsTotal);
+      if (total === 0) return "Performance refreshed — no connected platforms yet.";
+      if (num(overall.errors) > 0)
+        return "Performance refreshed, but some platforms reported errors.";
+      const run = num(overall.connectionsRun);
+      if (run > 0)
+        return `Performance refreshed across ${run} ${plural(run, "connection")}.`;
+      // total > 0 but nothing ran → every connection was lock-skipped,
+      // i.e. a refresh is already in progress (not "up to date").
+      return "A performance refresh is already running — check back shortly.";
+    },
   },
   "linkedin-post-sync": {
     label: "Sync LinkedIn posts",
     frequency: "Runs at 6 AM and 6 PM UTC",
     description:
       "Refreshes engagement (likes, comments, reshares) on your recent LinkedIn posts.",
+    summarize: (data) => {
+      const d = asRecord(data);
+      if (!d) return null;
+      if (num(d.scanned) === 0) return "No LinkedIn accounts connected yet.";
+      const results = Array.isArray(d.results) ? d.results : [];
+      let upserted = 0;
+      let fetched = 0;
+      for (const r of results) {
+        const rr = asRecord(r);
+        if (!rr) continue;
+        upserted += num(rr.postsUpserted);
+        fetched += num(rr.postsFetched);
+      }
+      if (num(d.synced) === 0 && num(d.failed) > 0)
+        return "LinkedIn sync didn't complete — please reconnect and try again.";
+      if (upserted > 0)
+        return `${upserted} ${plural(upserted, "post")} synced successfully.`;
+      if (fetched > 0) return "LinkedIn synced — your posts are already up to date.";
+      return "LinkedIn synced — no new posts in range yet.";
+    },
   },
   "linkedin-retention-cleanup": {
     label: "Clean LinkedIn data",
     frequency: "Runs every 6 hours",
     description:
       "Removes LinkedIn analytics rows past their retention window (compliance — keeps data scoped to what you actually need).",
+    summarize: (data) => {
+      const d = asRecord(data);
+      if (!d) return "LinkedIn data cleaned successfully.";
+      const total =
+        num(d.engagersDeleted) +
+        num(d.personPostsDeleted) +
+        num(d.orgPostsDeleted) +
+        num(d.legacyPostsDeleted);
+      if (total === 0) return "LinkedIn data cleaned — nothing to remove.";
+      return `LinkedIn data cleaned — ${total} ${plural(total, "row")} removed.`;
+    },
   },
   "voice-card-refresh": {
     label: "Refresh brand voice",
@@ -163,17 +224,32 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
     label: "Sync X metrics",
     frequency: "Runs every 30 minutes",
     description: "Refreshes engagement metrics on your recent X (Twitter) posts.",
+    summarize: (data) => {
+      const synced = num(asRecord(data)?.synced);
+      if (synced === 0) return "X metrics refreshed — no active accounts yet.";
+      return `X metrics refreshed across ${synced} ${plural(synced, "account")}.`;
+    },
   },
   "x-mentions-sync": {
     label: "Sync X mentions",
     frequency: "Runs every 10 minutes",
     description:
       "Pulls new mentions of your account from X so the inbox stays current.",
+    summarize: (data) => {
+      const synced = num(asRecord(data)?.synced);
+      if (synced === 0) return "Mentions refreshed — no active accounts yet.";
+      return "Mentions refreshed.";
+    },
   },
   "x-ads-metrics-sync": {
     label: "Sync X ad metrics",
     frequency: "Runs every hour",
     description: "Refreshes performance numbers on your active X ad campaigns.",
+    summarize: (data) => {
+      const synced = num(asRecord(data)?.synced);
+      if (synced === 0) return "X ad metrics refreshed — no active campaigns yet.";
+      return "X ad metrics refreshed.";
+    },
   },
 };
 
@@ -188,4 +264,51 @@ export function getCronMetadata(cron: string): CronMetadata {
       description: `Triggers the ${cron} cron handler. Add this cron to cron-metadata.ts for a friendly description.`,
     }
   );
+}
+
+// ── Summary plumbing ──────────────────────────────────────────────────
+// Shared by the per-cron `summarize` functions above and by
+// summarizeCronBody() below. Kept defensive — the cron response shape is
+// owned by peakhour-api and can drift, so every read narrows from unknown
+// and tolerates missing/wrong-typed fields rather than throwing.
+
+/** Narrow an unknown value to a plain object, or null. */
+function asRecord(v: unknown): Record<string, unknown> | null {
+  return typeof v === "object" && v !== null && !Array.isArray(v)
+    ? (v as Record<string, unknown>)
+    : null;
+}
+
+/** Read a numeric field, coercing absent / non-numeric values to 0. */
+function num(v: unknown): number {
+  return typeof v === "number" && Number.isFinite(v) ? v : 0;
+}
+
+/** Naive singular/plural — every noun we pluralize here just takes -s. */
+function plural(count: number, noun: string): string {
+  return count === 1 ? noun : `${noun}s`;
+}
+
+/**
+ * Turn a cron handler's raw HTTP response body into a clean, user-facing
+ * success line. <CronToolbar/> calls this on a 2xx run instead of dumping
+ * the raw JSON into the toast.
+ *
+ * The body is the cron's own envelope — `{ ok, data, meta }` — so we
+ * parse it, hand the inner `data` to the cron's `summarize`, and return
+ * whatever friendly string it produces. Returns null (→ caller shows a
+ * generic "<label> complete") whenever there's no summarizer, the body
+ * isn't parseable, or the summarizer opts out. Never throws.
+ */
+export function summarizeCronBody(cron: string, body: string): string | null {
+  const summarize = CRON_METADATA[cron]?.summarize;
+  if (!summarize || !body) return null;
+  try {
+    const parsed = JSON.parse(body) as unknown;
+    const data = asRecord(parsed)?.data;
+    return summarize(data);
+  } catch {
+    // Malformed / truncated body — defer to the generic toast.
+    return null;
+  }
 }
