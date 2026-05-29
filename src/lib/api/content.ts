@@ -21,14 +21,31 @@ export interface RewriteContentInput {
   extras?: RewriteExtras;
 }
 
+export interface RewriteContentResult {
+  /** Replace ops (compose/redraft/shorten/lengthen/tone): the new full
+   *  composer body. Insert ops (quote/disclosure): the snippet to
+   *  splice at the caret. Discriminate via `insert`. */
+  text: string;
+  /** True iff `text` is a caret-insert snippet rather than a full-body
+   *  replacement. OPTIONAL on the wire for forward/backward-compat: an
+   *  API that predates the snippet contract omits it, in which case the
+   *  caller MUST treat it as `false` (full-body replace = legacy
+   *  behavior). See peakhour-api#431. */
+  insert?: boolean;
+}
+
 /**
  * Run an AI rewrite op for the composer's `<AiComposeToolbar/>`.
- * Returns the NEW full composer text. The toolbar's `onAiAction`
- * contract resolves to a string, so callers typically do
- * `const { text } = await rewriteContent(...); setText(text);`.
+ *
+ * Returns `{ text, insert }`. For replace ops `text` is the new full
+ * body (`setText(text)`); for insert ops (`insert === true`) `text` is
+ * a short snippet the host splices at the tracked caret via
+ * `insertAtCaret`. When `insert` is absent (older API), treat it as
+ * `false` so the composer degrades to the legacy full-body replace
+ * rather than wiping the draft with a snippet.
  */
 export function rewriteContent(input: RewriteContentInput) {
-  return api.post<{ text: string }>("/v1/content/rewrite", {
+  return api.post<RewriteContentResult>("/v1/content/rewrite", {
     op: input.op,
     text: input.text,
     platform: input.platform,

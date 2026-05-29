@@ -144,11 +144,13 @@ export interface AiComposeToolbarProps {
   /** Platform the host composer targets. Threaded through the AI
    *  handler so the backend picks the right write-skill. */
   platform: PlatformKey;
-  /** Single handler the host wires to its AI API (today the consumer
-   *  in PR #3/#4 will wire to a new POST /v1/content/rewrite endpoint;
-   *  the foundation primitive doesn't care — handler shape is the
-   *  contract). Must return the NEW full composer text so the host
-   *  can call its setText after the toolbar fires onAiAction. */
+  /** Single handler the host wires to its AI API (POST /v1/content/
+   *  rewrite). The foundation primitive doesn't care how — handler
+   *  shape is the contract. Resolves to the resulting full composer
+   *  text; the host owns how it applies the op (a full-body replace for
+   *  rewrite ops, or a caret splice for insert ops like quote/
+   *  disclosure). The toolbar ignores the return value — it's there for
+   *  hosts that chain on it. */
   onAiAction: (ctx: AiActionContext) => Promise<string>;
   /** Optional extra tones (appended to DEFAULT_TONES). Lets a host
    *  expose org-configured tones without losing the four defaults. */
