@@ -119,10 +119,7 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
   },
   "recurring-spawn": {
     label: "Spawn recurring posts",
-    // recurring-spawn is registered as a manual /v1/cron route in peakhour-api
-    // but is NOT in vercel.json's schedules. Operators trigger it via this
-    // toolbar (or the cron-trigger CLI) until the schedule lands.
-    frequency: "Manual trigger only (no production schedule yet)",
+    frequency: "Runs every 15 minutes",
     description:
       "Generates new posts from any recurring schedule rules you've set up.",
   },
