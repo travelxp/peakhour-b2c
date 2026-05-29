@@ -3,7 +3,8 @@
 import { useMemo, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -41,6 +42,7 @@ const ALL_TAB = "All" as const;
 // The extra click is worth a discoverable hub.
 
 export default function ContentChannelsHubPage() {
+  const queryClient = useQueryClient();
   const { data, isLoading, isError } = useQuery({
     queryKey: ["content-hub-integrations"],
     queryFn: () => api.get<{ integrations: ApiIntegration[] }>("/v1/integrations"),
@@ -73,6 +75,12 @@ export default function ContentChannelsHubPage() {
 
   return (
     <div className="container max-w-5xl py-8 space-y-6">
+      <CronToolbar
+        crons={["tag-catchup", "jobs-runner"]}
+        onTriggered={() =>
+          queryClient.invalidateQueries({ queryKey: ["content-hub-integrations"] })
+        }
+      />
       <header className="space-y-2 border-b pb-6">
         <h1 className="text-2xl font-semibold tracking-tight">Content channels</h1>
         <p className="text-sm text-muted-foreground">

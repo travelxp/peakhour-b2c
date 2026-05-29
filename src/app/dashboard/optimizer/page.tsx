@@ -4,6 +4,7 @@ import { Sparkles, Target, TrendingUp, Zap, type LucideIcon } from "lucide-react
 import { Card, CardContent } from "@/components/ui/card";
 import { FeatureGate } from "@/components/upgrade/feature-gate";
 import { UpgradeButton } from "@/components/upgrade/upgrade-button";
+import { CronToolbar } from "@/components/dev/cron-toolbar";
 
 const FEATURE_KEY = "growth.optimizer";
 const FEATURE_NAME = "Optimizer";
@@ -37,6 +38,7 @@ const PILLARS: Pillar[] = [
 export default function OptimizerPage() {
   return (
     <div className="space-y-6">
+      <CronToolbar crons={["outcome-backfill", "per-stream-effectiveness-rollup"]} />
       <div>
         <h2 className="text-2xl font-bold tracking-tight">Optimizer</h2>
         <p className="text-muted-foreground">

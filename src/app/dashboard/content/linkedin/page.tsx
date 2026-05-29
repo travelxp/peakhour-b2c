@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { api, ApiError } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -203,8 +204,16 @@ function LinkedInTabs({
 }
 
 function PageShell({ children, loading }: { children?: React.ReactNode; loading?: boolean }) {
+  const queryClient = useQueryClient();
   return (
     <div className="space-y-6">
+      <CronToolbar
+        crons={["linkedin-post-sync", "performance-sync", "linkedin-retention-cleanup"]}
+        onTriggered={() => {
+          queryClient.invalidateQueries({ queryKey: ["content-hub-integrations"] });
+          queryClient.invalidateQueries({ queryKey: ["linkedin-identity"] });
+        }}
+      />
       <div>
         <h2 className="text-2xl font-bold tracking-tight">LinkedIn</h2>
         <p className="text-muted-foreground">

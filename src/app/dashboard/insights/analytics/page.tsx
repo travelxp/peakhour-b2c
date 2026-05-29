@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LineChart, RefreshCw, ExternalLink, AlertTriangle, ArrowRight } from "lucide-react";
+import { CronToolbar } from "@/components/dev/cron-toolbar";
 
 interface ConnectionStatus {
   provider: string;
@@ -89,6 +90,13 @@ export default function AnalyticsInsightsPage() {
 
   return (
     <div className="p-6 space-y-6">
+      <CronToolbar
+        crons={["performance-sync", "outcome-backfill"]}
+        onTriggered={() => {
+          qc.invalidateQueries({ queryKey: ["integration-status"] });
+          qc.invalidateQueries({ queryKey: ["integration-cap"] });
+        }}
+      />
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="rounded-lg bg-[#E37400] p-2">

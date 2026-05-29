@@ -32,6 +32,8 @@ import { TimeRangeSelector } from "@/components/cms/ai/time-range-selector";
 import { formatDateTime } from "@/components/cms/ai/format";
 import { StatusBadge } from "@/components/molecules/status-badge";
 import { useCmsJobs, useCmsJobDetail } from "@/hooks/use-jobs";
+import { useQueryClient } from "@tanstack/react-query";
+import { CronToolbar } from "@/components/dev/cron-toolbar";
 
 // Limit to the kinds the runner currently handles. Adding a new handler
 // in peakhour-api means adding it here too — drives the filter dropdown.
@@ -49,6 +51,7 @@ const STATUS_OPTIONS = ["pending", "running", "done", "failed", "cancelled"] as 
 const PAGE_SIZE = 50;
 
 export default function CmsJobsPage() {
+  const queryClient = useQueryClient();
   const [days, setDays] = useState("7");
   const [kind, setKind] = useState("all");
   const [status, setStatus] = useState("all");
@@ -91,6 +94,12 @@ export default function CmsJobsPage() {
 
   return (
     <div className="space-y-6">
+      <CronToolbar
+        crons={["jobs-runner", "pipeline-run-janitor"]}
+        onTriggered={() =>
+          queryClient.invalidateQueries({ queryKey: ["cms-jobs"] })
+        }
+      />
       <div>
         <h2 className="text-2xl font-bold tracking-tight">Background Jobs</h2>
         <p className="mt-1 text-muted-foreground">

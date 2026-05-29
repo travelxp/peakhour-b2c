@@ -54,6 +54,7 @@ import type {
   ScheduledItemStatus,
 } from "@/lib/scheduler/types";
 import { CalendarItemDrawer } from "./_components/calendar-item-drawer";
+import { CronToolbar } from "@/components/dev/cron-toolbar";
 
 type Mode = "week" | "month";
 
@@ -414,6 +415,12 @@ export default function CalendarPage() {
 
   return (
     <div className="flex flex-col gap-4 p-4 md:p-6">
+      <CronToolbar
+        crons={["publish-scheduled", "publish-retry", "recurring-spawn"]}
+        onTriggered={() =>
+          queryClient.invalidateQueries({ queryKey: ["scheduler:items"] })
+        }
+      />
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>

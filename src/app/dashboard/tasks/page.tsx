@@ -13,6 +13,8 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "@/components/molecules/status-badge";
+import { useQueryClient } from "@tanstack/react-query";
+import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { ElapsedTimer } from "@/components/molecules/elapsed-timer";
 import { EmptyState } from "@/components/molecules/empty-state";
 import { ConfirmDialog } from "@/components/molecules/confirm-dialog";
@@ -28,6 +30,7 @@ import {
 } from "@/hooks/use-jobs";
 
 export default function TasksPage() {
+  const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const focusJobId = searchParams.get("jobId");
 
@@ -36,6 +39,10 @@ export default function TasksPage() {
 
   return (
     <div className="space-y-6">
+      <CronToolbar
+        crons={["jobs-runner"]}
+        onTriggered={() => queryClient.invalidateQueries({ queryKey: ["jobs"] })}
+      />
       <div>
         <h2 className="text-2xl font-bold tracking-tight">Tasks</h2>
         <p className="text-muted-foreground">

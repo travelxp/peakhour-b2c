@@ -14,6 +14,8 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useQueryClient } from "@tanstack/react-query";
+import { CronToolbar } from "@/components/dev/cron-toolbar";
 
 // Mirrors the navbar PlanBadge tier accents so plan presentation stays
 // consistent across surfaces.
@@ -30,6 +32,7 @@ const PLAN_STYLES: Record<string, string> = {
 };
 
 export default function BillingPage() {
+  const queryClient = useQueryClient();
   const { formatDate } = useLocale();
   const { data: details, isLoading } = useDashboardOrg();
   const extend = useExtendTrial();
@@ -88,6 +91,12 @@ export default function BillingPage() {
 
   return (
     <div className="space-y-6">
+      <CronToolbar
+        crons={["trial-expiry-sweep"]}
+        onTriggered={() =>
+          queryClient.invalidateQueries({ queryKey: ["/v1/dashboard/org"] })
+        }
+      />
       <div>
         <h2 className="text-2xl font-bold tracking-tight">Billing</h2>
         <p className="text-muted-foreground mt-1">

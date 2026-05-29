@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { api } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -66,6 +67,7 @@ interface LogsResponse {
 }
 
 export default function AiLogsPage() {
+  const queryClient = useQueryClient();
   const [days, setDays] = useState("7");
   const [status, setStatus] = useState<string>("all");
   const [useCase, setUseCase] = useState("");
@@ -95,6 +97,12 @@ export default function AiLogsPage() {
 
   return (
     <div className="space-y-6">
+      <CronToolbar
+        crons={["pipeline-run-janitor"]}
+        onTriggered={() =>
+          queryClient.invalidateQueries({ queryKey: ["cms-ai-logs"] })
+        }
+      />
       <div>
         <h2 className="text-2xl font-bold tracking-tight">AI Logs</h2>
         <p className="text-muted-foreground mt-1">

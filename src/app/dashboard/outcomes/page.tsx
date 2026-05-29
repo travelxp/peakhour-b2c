@@ -1,10 +1,14 @@
+"use client";
+
 import { TrendingUp } from "lucide-react";
 
 import { EmptyState } from "@/components/molecules/empty-state";
+import { CronToolbar } from "@/components/dev/cron-toolbar";
 
 export default function OutcomesPage() {
   return (
     <div className="space-y-6">
+      <CronToolbar crons={["outcome-backfill", "per-stream-effectiveness-rollup"]} />
       <div>
         <h2 className="text-2xl font-bold">Outcomes</h2>
         <p className="text-muted-foreground">
