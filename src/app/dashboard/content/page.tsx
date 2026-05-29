@@ -69,18 +69,33 @@ export default function ContentChannelsHubPage() {
     // same content reference don't churn the map and re-render every row.
   }, [data?.integrations]);
 
+  const cronToolbar = (
+    <CronToolbar
+      crons={[
+        "beehiiv-sync",
+        "linkedin-post-sync",
+        "performance-sync",
+        "x-metrics-sync",
+        "x-ads-metrics-sync",
+      ]}
+      onTriggered={() =>
+        queryClient.invalidateQueries({ queryKey: ["content-hub-integrations"] })
+      }
+    />
+  );
+
   if (isLoading) {
-    return <HubSkeleton />;
+    return (
+      <div className="container max-w-5xl py-8 space-y-6">
+        {cronToolbar}
+        <HubSkeleton />
+      </div>
+    );
   }
 
   return (
     <div className="container max-w-5xl py-8 space-y-6">
-      <CronToolbar
-        crons={["tag-catchup", "jobs-runner"]}
-        onTriggered={() =>
-          queryClient.invalidateQueries({ queryKey: ["content-hub-integrations"] })
-        }
-      />
+      {cronToolbar}
       <header className="space-y-2 border-b pb-6">
         <h1 className="text-2xl font-semibold tracking-tight">Content channels</h1>
         <p className="text-sm text-muted-foreground">

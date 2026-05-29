@@ -159,8 +159,8 @@ function TrustedSourcesSurface() {
       <CronToolbar
         crons={["discovery-runner", "refresh-recommendations", "source-fetch-scheduler"]}
         onTriggered={() => {
-          queryClient.invalidateQueries({ queryKey: ["trusted-sources"] });
-          queryClient.invalidateQueries({ queryKey: ["citations"] });
+          void queryClient.invalidateQueries({ queryKey: ["trusted-sources"] });
+          void queryClient.invalidateQueries({ queryKey: ["citations"] });
         }}
       />
       <header className="flex items-start justify-between gap-4">

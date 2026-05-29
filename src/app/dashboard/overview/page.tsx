@@ -1,6 +1,7 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { CronToolbar } from "@/components/dev/cron-toolbar";
 import Link from "next/link";
 import { useAuth } from "@/providers/auth-provider";
 import { api } from "@/lib/api";
@@ -80,6 +81,7 @@ interface DashboardDiscovery {
 }
 
 export default function OverviewPage() {
+  const queryClient = useQueryClient();
   const { org, business } = useAuth();
 
   const {
@@ -106,6 +108,19 @@ export default function OverviewPage() {
 
   return (
     <div className="space-y-6">
+      <CronToolbar
+        crons={[
+          "discovery-runner",
+          "jobs-runner",
+          "tag-catchup",
+          "beehiiv-sync",
+          "linkedin-post-sync",
+        ]}
+        onTriggered={() => {
+          queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
+          queryClient.invalidateQueries({ queryKey: ["dashboard-discovery"] });
+        }}
+      />
       {/* Hero header */}
       <div className="flex items-end justify-between">
         <div>

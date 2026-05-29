@@ -2,7 +2,8 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { api } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -106,6 +107,7 @@ export default function IntegrationEventsPage() {
 }
 
 function IntegrationEventsInner() {
+  const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const [days, setDays] = useState(() => searchParams.get("days") || "7");
   const [provider, setProvider] = useState(() => searchParams.get("provider") || "all");
@@ -147,6 +149,19 @@ function IntegrationEventsInner() {
 
   return (
     <div className="space-y-6">
+      <CronToolbar
+        crons={[
+          "beehiiv-sync",
+          "linkedin-post-sync",
+          "performance-sync",
+          "x-metrics-sync",
+          "x-mentions-sync",
+          "x-ads-metrics-sync",
+        ]}
+        onTriggered={() =>
+          queryClient.invalidateQueries({ queryKey: ["cms-integration-events"] })
+        }
+      />
       <div>
         <h2 className="text-2xl font-bold tracking-tight">Integration Events</h2>
         <p className="text-muted-foreground mt-1">

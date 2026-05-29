@@ -95,7 +95,7 @@ export default function CmsJobsPage() {
   return (
     <div className="space-y-6">
       <CronToolbar
-        crons={["jobs-runner", "pipeline-run-janitor"]}
+        crons={["jobs-runner"]}
         onTriggered={() =>
           queryClient.invalidateQueries({ queryKey: ["cms-jobs"] })
         }

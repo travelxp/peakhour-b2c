@@ -35,7 +35,7 @@ const STATUS_COLORS: Record<string, string> = {
   archived: "bg-red-50 border-red-200 opacity-50",
 };
 
-export default function CalendarPage() {
+export default function IdeasCalendarPage() {
   const queryClient = useQueryClient();
   const { formatDate } = useLocale();
   const [view, setView] = useState<"week" | "month">("week");
