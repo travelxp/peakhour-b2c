@@ -28,9 +28,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
+          cache: "npm"
 
-      - name: Install minimal deps
-        run: npm install --no-save tsx dotenv
+      - name: Install deps from lockfile
+        run: npm ci
 
       - name: Refresh registry cache
         env:

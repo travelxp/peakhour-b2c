@@ -16,11 +16,24 @@
  * Auth: requires SHADCNBLOCKS_API_KEY in .env or the environment.
  */
 import "dotenv/config";
-import { writeFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const REGISTRY_URL = "https://shadcnblocks.com/r/registry.json";
-const OUTPUT_PATH = resolve(process.cwd(), "docs/cache/shadcnblocks-registry.json");
+// Resolve relative to THIS file, not process.cwd() — so the script
+// produces consistent output whether invoked from the repo root,
+// scripts/, or any subdir.
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const OUTPUT_PATH = resolve(__dirname, "..", "docs/cache/shadcnblocks-registry.json");
+
+// Guard against silent cache destruction. If the upstream registry
+// regresses (wipe, schema change, network corruption) and we write the
+// degraded payload, the next time anyone greps the cache they'll get a
+// false "block doesn't exist" answer. Refuse to write if the response
+// looks suspicious; ops can re-run with --force after investigating.
+const MIN_ITEMS = 1000;          // floor — registry has had >3000 since 2024
+const MAX_SHRINK_RATIO = 0.25;   // refuse if new payload has <75% of existing items
 
 async function main() {
   const apiKey = process.env.SHADCNBLOCKS_API_KEY;
@@ -41,10 +54,36 @@ async function main() {
 
   const json = (await res.json()) as { items?: { name: string }[] };
   const itemCount = Array.isArray(json.items) ? json.items.length : 0;
-  // Pretty-print so git diffs are reviewable (size delta is minor: ~1.2 MB
-  // → ~2.0 MB. Worth it — a 3000-block catalogue with no whitespace is
-  // unreadable in a PR.)
-  const payload = JSON.stringify(json, null, 2);
+  const force = process.argv.includes("--force");
+
+  // Floor check — refuses to write a degraded payload (empty / missing
+  // items / dramatically smaller than the current cache). `--force`
+  // bypasses for ops who have investigated and want the new payload
+  // anyway.
+  if (itemCount < MIN_ITEMS && !force) {
+    console.error(
+      `Refusing to write: only ${itemCount} items in upstream response (floor=${MIN_ITEMS}). ` +
+        `Re-run with --force if this is intentional.`,
+    );
+    process.exit(1);
+  }
+  if (existsSync(OUTPUT_PATH) && !force) {
+    const prev = JSON.parse(readFileSync(OUTPUT_PATH, "utf8")) as { items?: unknown[] };
+    const prevCount = Array.isArray(prev.items) ? prev.items.length : 0;
+    if (prevCount > 0 && itemCount < prevCount * (1 - MAX_SHRINK_RATIO)) {
+      console.error(
+        `Refusing to write: upstream items (${itemCount}) is more than ` +
+          `${Math.round(MAX_SHRINK_RATIO * 100)}% smaller than cached (${prevCount}). ` +
+          `Re-run with --force if this is intentional.`,
+      );
+      process.exit(1);
+    }
+  }
+
+  // Pretty-print so git diffs are reviewable. Trailing newline so the
+  // file is POSIX-clean and editor auto-newline doesn't cause spurious
+  // diffs on the next refresh.
+  const payload = JSON.stringify(json, null, 2) + "\n";
 
   writeFileSync(OUTPUT_PATH, payload);
   console.log(`Wrote ${OUTPUT_PATH} (${payload.length.toLocaleString()} bytes, ${itemCount} items).`);

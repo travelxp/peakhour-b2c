@@ -34,3 +34,7 @@
 *.ttf    binary
 *.otf    binary
 *.eot    binary
+
+# Auto-generated cache — collapse in GitHub PR diffs + skip by default
+# in `git log -p`. The file is human-greppable JSON, not source code.
+docs/cache/shadcnblocks-registry.json -diff linguist-generated=true
