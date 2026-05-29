@@ -58,13 +58,9 @@ export function EmojiPickerTrigger({
   compact = true,
   className,
 }: EmojiPickerTriggerProps) {
-  function handleEmojiSelect(emoji: string) {
-    onInsert(emoji);
-  }
-
   return (
     <EmojiPicker
-      onEmojiSelect={handleEmojiSelect}
+      onEmojiSelect={onInsert}
       trigger={
         <TooltipProvider delayDuration={300}>
           <Tooltip>

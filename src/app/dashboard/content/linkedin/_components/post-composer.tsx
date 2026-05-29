@@ -114,8 +114,11 @@ export function PostComposer({ identity, seedText }: Props) {
   const [draftId, setDraftId] = useState<string | null>(null);
   const createInFlightRef = useRef<Promise<ComposerDraftRef> | null>(null);
 
-  // Refs the caret-aware primitives (emoji insert, hashtag typeahead)
-  // read live. composerWrapRef anchors the hashtag popover.
+  // textareaRef: the host's controlled textarea. HashtagSuggest reads
+  // its live selection (the textarea keeps focus during hashtag pick);
+  // emoji + AI inserts route through insertSnippet() instead, using the
+  // tracked caret (which survives the popover/toolbar stealing focus).
+  // composerWrapRef anchors the hashtag popover.
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const composerWrapRef = useRef<HTMLDivElement>(null);
 
@@ -306,6 +309,9 @@ export function PostComposer({ identity, seedText }: Props) {
    *  Resets draftId so the next post starts a fresh cnt_drafts row. */
   function resetComposer() {
     setText("");
+    setCaret(0);
+    caretRef.current = 0;
+    textRef.current = "";
     setLinkUrl("");
     setLinkTitle("");
     setShowLink(false);
