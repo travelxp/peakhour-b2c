@@ -1,0 +1,54 @@
+# Weekly refresh of docs/cache/shadcnblocks-registry.json.
+#
+# Runs the refresh script, then opens a PR if (and only if) the JSON
+# changed. Avoids noisy weekly empty-diff commits and keeps the
+# catalogue grep-able for any contributor or agent without auth.
+#
+# Manual trigger via workflow_dispatch is also supported.
+
+name: refresh-shadcnblocks-registry
+
+on:
+  schedule:
+    # Mondays at 06:00 UTC — quiet time, well-separated from the
+    # Tuesday/Thursday product-iteration burst when most PRs land.
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install minimal deps
+        run: npm install --no-save tsx dotenv
+
+      - name: Refresh registry cache
+        env:
+          SHADCNBLOCKS_API_KEY: ${{ secrets.SHADCNBLOCKS_API_KEY }}
+        run: npx tsx scripts/refresh-shadcnblocks-registry.ts
+
+      - name: Open PR if changed
+        uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: "chore(cache): refresh shadcnblocks registry catalogue"
+          branch: chore/refresh-shadcnblocks-registry
+          delete-branch: true
+          title: "chore(cache): refresh shadcnblocks registry catalogue"
+          body: |
+            Automated weekly refresh of `docs/cache/shadcnblocks-registry.json`.
+
+            Diff shows new / renamed / removed blocks since the previous
+            snapshot. Merge if the catalogue changes look reasonable; the
+            scheduler will reopen this PR next week if there are further
+            changes.
+          add-paths: docs/cache/shadcnblocks-registry.json
