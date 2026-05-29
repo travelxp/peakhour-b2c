@@ -38,7 +38,6 @@ import {
 import { SchedulerComposer } from "@/components/scheduler/scheduler-composer";
 import type {
   CommitPlanRequest,
-  CommitPlanResponse,
   ScheduleSourceType,
 } from "@/lib/scheduler/types";
 
@@ -47,7 +46,13 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   /** Caller-provided source. When the sheet opens we fire
    *  /recommend-platforms with this source; when the user confirms
-   *  the platform picker, /repurpose runs with the same source. */
+   *  the platform picker, /repurpose runs with the same source.
+   *
+   *  IMPORTANT: must be referentially stable while the sheet is
+   *  open. The reset effect depends on `[open, source]`, so a parent
+   *  that passes a fresh object literal each render will refire the
+   *  recommend on every parent re-render (re-fetch storm). Memoise
+   *  with useMemo or hoist to a stable ref. */
   source: RepurposeSource | null;
 }
 
@@ -121,18 +126,22 @@ function adaptationsToChannels(
  *  Prefer the soc_social_posts id when the repurposer persisted at
  *  least one variant — same generation always returns the same id
  *  thanks to the idempotency layer. Fallback: synthesise from source
- *  title + first variant text (e.g. when every requested platform
- *  was a stub and socialPostId is null). Hash doesn't need to be
- *  cryptographically strong — server uses it for plan dedup, not
- *  security. */
+ *  title + ALL adaptation contents joined in a deterministic
+ *  (sorted-by-platform) order — guarantees the same hash across
+ *  sessions even if the engine returns adaptations in different
+ *  order. Hash doesn't need to be cryptographically strong; the
+ *  server uses it for plan dedup, not security. */
 function sourceTextHashFor(response: RepurposeResponse): string {
   if (response.socialPostId) return response.socialPostId;
-  const fallback =
-    (response.sourceTitle ?? "") +
-    "|" +
-    (response.adaptations[0]?.content ?? "");
-  // Tiny non-cryptographic hash (djb2) — good enough for plan dedup
-  // and avoids pulling in a crypto dependency for this fallback path.
+  // Sort by platform so a parallel-fanout engine that yields
+  // adaptations out of order still produces the same hash.
+  const sortedContents = [...response.adaptations]
+    .sort((a, b) => a.platform.localeCompare(b.platform))
+    .map((a) => `${a.platform}:${a.content}`)
+    .join("|");
+  const fallback = (response.sourceTitle ?? "") + "||" + sortedContents;
+  // djb2a (XOR variant) — good enough for plan dedup, avoids a
+  // crypto dependency for this fallback path.
   let h = 5381;
   for (let i = 0; i < fallback.length; i++) h = (h * 33) ^ fallback.charCodeAt(i);
   return `rp:${(h >>> 0).toString(36)}`;
@@ -300,26 +309,34 @@ export function RepurposeSheet({ open, onOpenChange, source }: Props) {
   function handleSaveAsDraft() {
     // The variants are ALREADY persisted to soc_social_posts by the
     // /v1/content/repurpose call — "Save as draft" is the no-op
-    // confirmation that nothing further is auto-scheduled. The host
-    // calendar page invalidates its own queries on next focus.
+    // confirmation that nothing further is auto-scheduled. The
+    // soc_social_posts surface on each channel's dashboard tab
+    // (e.g. /dashboard/content/linkedin → SuggestedDraftsPanel)
+    // shows the draft awaiting publish.
     toast.success("Saved as drafts.", {
-      description: "Your variants live in each channel's drafts until you schedule or publish them.",
+      description:
+        "Your variants are saved in Peakhour. Open each channel's dashboard tab to publish or schedule them anytime.",
     });
     onOpenChange(false);
   }
 
-  function handleScheduled(result: CommitPlanResponse) {
-    // Optimistic UX: the scheduler page (and any other surface
-    // watching scd_publish_plans / scd_scheduled_items) refetches
-    // the next time it mounts. Invalidate the calendar's keys here
-    // so a calendar tab opened in parallel updates without manual
-    // refresh.
+  // No-arg handler — SchedulerComposer's onScheduled passes a
+  // CommitPlanResponse we don't need today (the composer's own
+  // success toast already surfaces the channel count; we'd just
+  // double-toast). TS callback variance allows the narrower signature.
+  function handleScheduled() {
+    // SchedulerComposer fires its own "Scheduled across N channels."
+    // toast inside submit() — we don't double-toast here. We DO
+    // invalidate the calendar's React Query key so a parallel
+    // /dashboard/calendar tab refreshes without manual reload.
+    // 'scheduler:plans' is not consumed today (no plans-list query
+    // anywhere); only invalidate the keys with live subscribers.
     queryClient.invalidateQueries({ queryKey: ["scheduler:items"] });
-    queryClient.invalidateQueries({ queryKey: ["scheduler:plans"] });
-    toast.success("Scheduled.", {
-      description: `Plan ${result.planId.slice(-6)} · ${result.scheduledItemIds.length} item${result.scheduledItemIds.length === 1 ? "" : "s"} queued.`,
-    });
     onOpenChange(false);
+    // NOTE: doneIntent is NOT reset here — relies on the [open, source]
+    // reset effect (line above) firing when the sheet reopens. If
+    // that effect ever drops the doneIntent reset, this handler
+    // needs an explicit setDoneIntent('choose').
   }
 
   // Derived scheduler props — only valid when we're in the done +
@@ -352,7 +369,7 @@ export function RepurposeSheet({ open, onOpenChange, source }: Props) {
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         className={cn(
-          "flex w-full flex-col gap-0 p-0 transition-[max-width] duration-200 motion-reduce:transition-none",
+          "flex w-full flex-col gap-0 p-0",
           sheetWidthClass,
         )}
       >
@@ -407,6 +424,10 @@ export function RepurposeSheet({ open, onOpenChange, source }: Props) {
           )}
           {showingScheduler && schedulerProps && (
             <SchedulerComposer
+              // key on the source ref so SchedulerComposer remounts
+              // (and resets its internal anchor/timezone/strategy)
+              // when the parent flips to a different source mid-flow.
+              key={schedulerProps.source.sourceRef ?? schedulerProps.source.sourceType}
               source={schedulerProps.source}
               title={schedulerProps.title}
               channels={schedulerProps.channels}
@@ -424,7 +445,12 @@ export function RepurposeSheet({ open, onOpenChange, source }: Props) {
           )}
         </div>
 
-        <SheetFooter className="border-t px-6 py-3">
+        {/* Footer override: shadcn SheetFooter defaults to flex-col
+            (column stack), which inverts the visual hierarchy of a
+            ghost+primary pair on right-side sheets. Force a
+            right-aligned row so primary actions land where the eye
+            expects them. */}
+        <SheetFooter className="flex-row justify-end gap-2 border-t px-6 py-3">
           {stage === "recommend" && (
             <>
               <Button
@@ -441,8 +467,9 @@ export function RepurposeSheet({ open, onOpenChange, source }: Props) {
                 onClick={handleConfirm}
                 disabled={finalPlatforms.length === 0 || !platformFitId}
               >
-                Generate {finalPlatforms.length || ""}{" "}
-                variant{finalPlatforms.length === 1 ? "" : "s"}
+                {finalPlatforms.length > 0
+                  ? `Generate ${finalPlatforms.length} variant${finalPlatforms.length === 1 ? "" : "s"}`
+                  : "Generate variants"}
               </Button>
             </>
           )}
@@ -478,19 +505,26 @@ export function RepurposeSheet({ open, onOpenChange, source }: Props) {
             </Button>
           )}
           {showingScheduler && (
+            // Left-aligned via `mr-auto` so this back-arrow doesn't
+            // sit in the primary-action slot. The actual "Schedule"
+            // submit button lives INSIDE <SchedulerComposer/>'s body
+            // (with its own loading + entitlement gating).
+            //
+            // FOLLOW-UP: lifting that submit into this footer slot
+            // would be more discoverable on shorter viewports — needs
+            // a SchedulerComposer API change to expose either a
+            // footerSlot prop or an imperative submit ref. Tracked
+            // as a follow-up to this PR.
             <Button
               type="button"
               variant="ghost"
               size="sm"
               onClick={() => setDoneIntent("choose")}
-              className="gap-1.5"
+              className="mr-auto gap-1.5"
             >
               <ArrowLeft className="size-3.5" />
               Back to variants
             </Button>
-            // Note: the actual "Schedule" submit button lives INSIDE
-            // <SchedulerComposer/>'s body (with its own loading state
-            // + entitlement gating). Don't duplicate it here.
           )}
           {(stage === "empty" || stage === "error") && (
             <Button type="button" size="sm" onClick={handleClose}>
