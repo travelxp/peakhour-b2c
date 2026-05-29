@@ -81,6 +81,17 @@ export interface ComposerCommandPaletteProps {
    *  (e.g. via a `<ComposerCommandPalette ... shortcutHint="⌘⇧K">`
    *  affordance) if it picks a non-default chord. */
   enableGlobalShortcut?: boolean;
+  /** Controlled open state. When provided, the palette is controlled —
+   *  the host owns open/close (e.g. renders its own trigger button) and
+   *  the internal global-shortcut toggle is disabled (the host wires
+   *  its own shortcut if it wants one). Use this on surfaces that
+   *  already have a global Cmd+K (the dashboard shell) so the composer
+   *  palette opens from a button instead of fighting for the chord. */
+  open?: boolean;
+  /** Fires whenever the palette wants to open/close — both on a
+   *  command pick (closes) and on backdrop/Esc dismiss. Required for
+   *  the controlled path; harmless to pass in the uncontrolled path. */
+  onOpenChange?: (open: boolean) => void;
 }
 
 const RECENT_PREFIX = "peakhour:composer-palette:recent:";
@@ -114,8 +125,24 @@ export function ComposerCommandPalette({
   commands,
   placeholder = "Search composer actions…",
   enableGlobalShortcut = false,
+  open: controlledOpen,
+  onOpenChange,
 }: ComposerCommandPaletteProps) {
-  const [open, setOpen] = useState(false);
+  // Controlled / uncontrolled: when `controlledOpen` is provided the
+  // host owns open state; otherwise we keep it internally. `setOpen`
+  // updates the internal state only when uncontrolled, and always
+  // notifies the host via onOpenChange so a controlled parent stays in
+  // sync on command-pick / Esc / backdrop close.
+  const isControlled = controlledOpen !== undefined;
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = isControlled ? controlledOpen : internalOpen;
+  const setOpen = useCallback(
+    (next: boolean) => {
+      if (!isControlled) setInternalOpen(next);
+      onOpenChange?.(next);
+    },
+    [isControlled, onOpenChange],
+  );
   // Seed initial recents from localStorage synchronously (lazy init).
   // Subsequent refreshes happen in runCommand after a successful pick,
   // which is the only way recents actually mutate during this
@@ -130,16 +157,19 @@ export function ComposerCommandPalette({
   // Cmd+Shift+K diverging only-this-palette opens when both are
   // enabled in error.
   useEffect(() => {
-    if (!enableGlobalShortcut) return;
+    // Controlled hosts own the trigger (and their own shortcut, if
+    // any), so the internal global listener is disabled for them —
+    // avoids two owners fighting over the chord.
+    if (!enableGlobalShortcut || isControlled) return;
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
-        setOpen((o) => !o);
+        setInternalOpen((o) => !o);
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [enableGlobalShortcut]);
+  }, [enableGlobalShortcut, isControlled]);
 
   const groups = useMemo(() => {
     const map = new Map<string, ComposerCommand[]>();
@@ -175,7 +205,7 @@ export function ComposerCommandPalette({
         // The host owns failure UX (toast). Palette doesn't double-toast.
       }
     },
-    [paletteId],
+    [paletteId, setOpen],
   );
 
   return (
