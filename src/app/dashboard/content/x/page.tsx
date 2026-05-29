@@ -13,6 +13,7 @@ import { MessageCircle, Send, Inbox, MessageSquare, RefreshCw } from "lucide-rea
 import { xApi, type XTweet } from "@/lib/api/x";
 import { TweetComposer } from "./_components/tweet-composer";
 import { TweetCard } from "./_components/tweet-card";
+import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { MentionsList } from "./_components/mentions-list";
 
 interface ApiIntegration {
@@ -215,8 +216,16 @@ function XContentDashboardInner() {
 }
 
 function PageShell({ children, loading }: { children?: React.ReactNode; loading?: boolean }) {
+  const queryClient = useQueryClient();
   return (
     <div className="space-y-6">
+      <CronToolbar
+        crons={["x-metrics-sync", "x-mentions-sync", "performance-sync"]}
+        onTriggered={() => {
+          queryClient.invalidateQueries({ queryKey: ["x-tweets"] });
+          queryClient.invalidateQueries({ queryKey: ["content-hub-integrations"] });
+        }}
+      />
       <div>
         <h2 className="text-2xl font-bold tracking-tight">X (Twitter)</h2>
         <p className="text-muted-foreground">

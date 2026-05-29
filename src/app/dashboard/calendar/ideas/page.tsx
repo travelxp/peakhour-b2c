@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useLocale } from "@/hooks/use-locale";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/molecules";
+import { CronToolbar } from "@/components/dev/cron-toolbar";
 
 interface CalendarIdea {
   _id: string;
@@ -34,7 +35,8 @@ const STATUS_COLORS: Record<string, string> = {
   archived: "bg-red-50 border-red-200 opacity-50",
 };
 
-export default function CalendarPage() {
+export default function IdeasCalendarPage() {
+  const queryClient = useQueryClient();
   const { formatDate } = useLocale();
   const [view, setView] = useState<"week" | "month">("week");
   const [weekOffset, setWeekOffset] = useState(0);
@@ -75,6 +77,12 @@ export default function CalendarPage() {
 
   return (
     <div className="space-y-6">
+      <CronToolbar
+        crons={["jobs-runner"]}
+        onTriggered={() =>
+          queryClient.invalidateQueries({ queryKey: ["content-ideas"] })
+        }
+      />
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

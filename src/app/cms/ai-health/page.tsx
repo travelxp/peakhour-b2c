@@ -1,8 +1,9 @@
 "use client";
 
 import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -71,16 +72,38 @@ const CHECKLIST_LABELS: Record<keyof HealthResponse["checklist"], string> = {
 };
 
 export default function AiHealthPage() {
+  const queryClient = useQueryClient();
   const { data, isLoading, error } = useQuery({
     queryKey: ["cms-ai-health"],
     queryFn: () => api.get<HealthResponse>(`/v1/cms/ai-health`),
     refetchInterval: 30_000,
   });
 
+  const cronToolbar = (
+    <CronToolbar
+      crons={[
+        "beehiiv-sync",
+        "linkedin-post-sync",
+        "performance-sync",
+        "x-metrics-sync",
+        "x-mentions-sync",
+        "x-ads-metrics-sync",
+        "sync-ai-models",
+      ]}
+      onTriggered={() => {
+        queryClient.invalidateQueries({ queryKey: ["cms-ai-health"] });
+        queryClient.invalidateQueries({ queryKey: ["cms-ingest-health"] });
+      }}
+    />
+  );
+
   if (error) {
     return (
-      <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-800">
-        Failed to load health: {(error as Error).message}
+      <div className="space-y-6">
+        {cronToolbar}
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-800">
+          Failed to load health: {(error as Error).message}
+        </div>
       </div>
     );
   }
@@ -94,6 +117,7 @@ export default function AiHealthPage() {
 
   return (
     <div className="space-y-6">
+      {cronToolbar}
       <div>
         <h2 className="text-2xl font-bold tracking-tight">AI Health</h2>
         <p className="text-muted-foreground mt-1">

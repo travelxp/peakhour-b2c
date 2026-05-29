@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Search, RefreshCw, ExternalLink, AlertTriangle, ArrowRight } from "lucide-react";
+import { CronToolbar } from "@/components/dev/cron-toolbar";
 
 interface ConnectionStatus {
   provider: string;
@@ -64,9 +65,20 @@ export default function SearchConsoleInsightsPage() {
     onError: (e: Error) => toast.error(e.message ?? "Sync failed"),
   });
 
+  const cronToolbar = (
+    <CronToolbar
+      crons={["performance-sync"]}
+      onTriggered={() => {
+        qc.invalidateQueries({ queryKey: ["integration-status"] });
+        qc.invalidateQueries({ queryKey: ["integration-cap"] });
+      }}
+    />
+  );
+
   if (statusQ.isLoading) {
     return (
       <div className="p-6 space-y-4">
+        {cronToolbar}
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-32 w-full" />
       </div>
@@ -88,6 +100,7 @@ export default function SearchConsoleInsightsPage() {
 
   return (
     <div className="p-6 space-y-6">
+      {cronToolbar}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="rounded-lg bg-[#458CF7] p-2">

@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/table";
 import { RefreshCw } from "lucide-react";
 import { formatUsd, formatMs, formatDateTime } from "@/components/cms/ai/format";
+import { CronToolbar } from "@/components/dev/cron-toolbar";
 
 interface ModelRow {
   _id: string;
@@ -62,6 +63,13 @@ export default function AiModelsPage() {
 
   return (
     <div className="space-y-6">
+      <CronToolbar
+        crons={["sync-ai-models"]}
+        onTriggered={() => {
+          qc.invalidateQueries({ queryKey: ["cms-ai-models"] });
+          qc.invalidateQueries({ queryKey: ["cms-ai-health"] });
+        }}
+      />
       <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold tracking-tight">AI Model Registry</h2>

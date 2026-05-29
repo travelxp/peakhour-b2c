@@ -13,6 +13,7 @@ import { Sparkles, CalendarDays, Plus, Loader2, CheckCircle, Send, Mail, FileTex
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { PipelineIdea } from "./components/kanban-card";
+import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { ElapsedTimer } from "@/components/molecules/elapsed-timer";
 
 /**
@@ -189,6 +190,18 @@ export default function StrategistPage() {
 
   return (
     <div className="space-y-6">
+      <CronToolbar
+        crons={[
+          "voice-card-refresh",
+          "voice-card-learning",
+          "archetype-centroids",
+          "tier-a-builder",
+          "per-stream-effectiveness-rollup",
+        ]}
+        onTriggered={() =>
+          queryClient.invalidateQueries({ queryKey: ["pipeline-ideas"] })
+        }
+      />
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>

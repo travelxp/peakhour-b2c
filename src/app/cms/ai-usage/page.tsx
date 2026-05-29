@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { api } from "@/lib/api";
 import {
   Card,
@@ -57,6 +58,7 @@ function formatMs(ms: number): string {
 }
 
 export default function AiUsagePage() {
+  const queryClient = useQueryClient();
   const [days, setDays] = useState("30");
 
   const { data, isLoading } = useQuery({
@@ -71,6 +73,12 @@ export default function AiUsagePage() {
 
   return (
     <div className="space-y-6">
+      <CronToolbar
+        crons={["pipeline-cost-rollup"]}
+        onTriggered={() =>
+          queryClient.invalidateQueries({ queryKey: ["cms-ai-usage"] })
+        }
+      />
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold tracking-tight">AI Usage</h2>

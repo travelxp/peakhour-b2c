@@ -45,6 +45,7 @@ import {
   microsToDollars,
   type XCampaign,
 } from "@/lib/api/x-ads";
+import { CronToolbar } from "@/components/dev/cron-toolbar";
 
 interface ApiIntegration {
   provider: string;
@@ -492,8 +493,16 @@ function CreateCampaignDialog({
 }
 
 function PageShell({ children, loading }: { children?: React.ReactNode; loading?: boolean }) {
+  const queryClient = useQueryClient();
   return (
     <div className="space-y-6">
+      <CronToolbar
+        crons={["x-ads-metrics-sync"]}
+        onTriggered={() => {
+          queryClient.invalidateQueries({ queryKey: ["x-ads-analytics"] });
+          queryClient.invalidateQueries({ queryKey: ["x-ads-campaigns"] });
+        }}
+      />
       <div>
         <h2 className="text-2xl font-bold tracking-tight">X Ads</h2>
         <p className="text-muted-foreground">

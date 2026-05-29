@@ -69,6 +69,12 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
     description:
       "Re-synthesises your business's brand voice from your recent published content.",
   },
+  "voice-card-learning": {
+    label: "Learn from sent content",
+    frequency: "Runs weekly (Monday 7 AM UTC)",
+    description:
+      "Scans recently-sent content vs. the AI draft and promotes phrases your team kept (signatures) or edited out (avoid) onto the matching voice card.",
+  },
   "sync-ai-models": {
     label: "Sync AI model catalog",
     frequency: "Runs daily at 3 AM UTC",

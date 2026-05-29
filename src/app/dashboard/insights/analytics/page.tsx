@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LineChart, RefreshCw, ExternalLink, AlertTriangle, ArrowRight } from "lucide-react";
+import { CronToolbar } from "@/components/dev/cron-toolbar";
 
 interface ConnectionStatus {
   provider: string;
@@ -68,15 +69,6 @@ export default function AnalyticsInsightsPage() {
     onError: (e: Error) => toast.error(e.message ?? "Sync failed"),
   });
 
-  if (statusQ.isLoading) {
-    return (
-      <div className="p-6 space-y-4">
-        <Skeleton className="h-8 w-64" />
-        <Skeleton className="h-32 w-full" />
-      </div>
-    );
-  }
-
   const status = statusQ.data;
   const properties = capQ.data?.account?.extra?.properties ?? [];
   const selectedPropertyId = (capQ.data?.capabilities as Record<string, unknown> | undefined)
@@ -87,8 +79,32 @@ export default function AnalyticsInsightsPage() {
   const isWorking = status?.status === "active" || status?.status === "error";
   const needsReconnect = status?.status === "expired";
 
+  // Single toolbar instance survives the loading→loaded transition so
+  // the dev trigger is reachable during the very query its data refreshes,
+  // and so the toolbar's in-flight state isn't lost on remount.
+  const cronToolbar = (
+    <CronToolbar
+      crons={["performance-sync", "outcome-backfill"]}
+      onTriggered={() => {
+        qc.invalidateQueries({ queryKey: ["integration-status"] });
+        qc.invalidateQueries({ queryKey: ["integration-cap"] });
+      }}
+    />
+  );
+
+  if (statusQ.isLoading) {
+    return (
+      <div className="p-6 space-y-4">
+        {cronToolbar}
+        <Skeleton className="h-8 w-64" />
+        <Skeleton className="h-32 w-full" />
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 space-y-6">
+      {cronToolbar}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="rounded-lg bg-[#E37400] p-2">

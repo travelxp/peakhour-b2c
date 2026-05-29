@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { Activity, AlertCircle, BookMarked, FileSearch, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -92,6 +93,7 @@ export default function TrustedSourcesPage() {
 }
 
 function TrustedSourcesSurface() {
+  const queryClient = useQueryClient();
   // Pull all rows up front (cap at 200 — current schema validation
   // ceiling on the listing endpoint). Per-status counts come from
   // the in-memory split below; saves four sequential round-trips
@@ -154,6 +156,13 @@ function TrustedSourcesSurface() {
 
   return (
     <div className="space-y-6">
+      <CronToolbar
+        crons={["discovery-runner", "refresh-recommendations", "source-fetch-scheduler"]}
+        onTriggered={() => {
+          void queryClient.invalidateQueries({ queryKey: ["trusted-sources"] });
+          void queryClient.invalidateQueries({ queryKey: ["citations"] });
+        }}
+      />
       <header className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold tracking-tight">Trusted Sources</h2>

@@ -32,7 +32,7 @@
  *     onTriggered={() => queryClient.invalidateQueries(...)}
  *   />
  */
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -69,23 +69,24 @@ function isProductionEnv(): boolean {
   return process.env.NEXT_PUBLIC_VERCEL_ENV === "production";
 }
 
+// Module-scoped re-entry guard. Per-instance refs would still race in
+// rare double-mount scenarios (e.g. loading→loaded branch swap that
+// remounts the toolbar mid-flight, or two toolbars on the same page
+// sharing a cron). Triggering tag-catchup twice burns real AI spend, so
+// the guard is hoisted to module scope and keyed by cron name — every
+// in-flight cron registers itself here and unregisters in the finally.
+const inFlightCrons = new Set<string>();
+
 export function CronToolbar({ crons, onTriggered }: Props) {
   // Hooks must run unconditionally; the production gate decides what to
   // render below, not whether to mount.
   const [runningCron, setRunningCron] = useState<string | null>(null);
-  // Synchronous re-entry guard. `runningCron` (useState) is async — between
-  // a click handler firing setRunningCron and React committing the new
-  // disabled state to the DOM, a rapid double-click on the same button
-  // can call `trigger()` twice. Triggering tag-catchup twice burns real
-  // AI spend, so we belt-and-suspender with a ref check that's
-  // race-free at the JS-event level.
-  const runningRef = useRef<string | null>(null);
 
   if (isProductionEnv() || crons.length === 0) return null;
 
   async function trigger(cron: string) {
-    if (runningRef.current) return;
-    runningRef.current = cron;
+    if (inFlightCrons.has(cron)) return;
+    inFlightCrons.add(cron);
     setRunningCron(cron);
     const meta = getCronMetadata(cron);
     try {
@@ -109,7 +110,7 @@ export function CronToolbar({ crons, onTriggered }: Props) {
       const msg = err instanceof Error ? err.message : String(err);
       toast.error(`${meta.label} request failed`, { description: msg });
     } finally {
-      runningRef.current = null;
+      inFlightCrons.delete(cron);
       setRunningCron(null);
     }
   }
@@ -132,7 +133,11 @@ export function CronToolbar({ crons, onTriggered }: Props) {
           {crons.map((cron) => {
             const meta = getCronMetadata(cron);
             const running = runningCron === cron;
-            const disabled = runningCron !== null;
+            // Only disable the in-flight cron's button. Independent crons
+            // can fire in parallel — strategist surfaces 5 of them and
+            // serializing here would force a ~minute of waiting to
+            // exercise the whole row.
+            const disabled = running;
             return (
               <Tooltip key={cron}>
                 <TooltipTrigger asChild>
