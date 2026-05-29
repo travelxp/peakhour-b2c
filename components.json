@@ -23,7 +23,7 @@
     "@shadcnblocks": {
       "url": "https://shadcnblocks.com/r/{name}",
       "headers": {
-        "x-api-key": "${SHADCNBLOCKS_API_KEY}"
+        "Authorization": "Bearer ${SHADCNBLOCKS_API_KEY}"
       }
     }
   }
