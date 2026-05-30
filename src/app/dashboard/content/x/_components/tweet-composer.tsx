@@ -214,30 +214,30 @@ export function TweetComposer() {
     requestAnimationFrame(() => textareaRefs.current.get(seg.id)?.focus());
   }, []);
 
-  const removeSegment = useCallback(
-    (id: string) => {
-      setSegments((prev) => {
-        if (prev.length <= 1) return prev;
-        const idx = prev.findIndex((s) => s.id === id);
-        const next = prev.filter((s) => s.id !== id);
-        // If the active segment is the one being removed, move focus to
-        // the previous tweet (or the new first) — tracked by id, so no
-        // index drift when an earlier segment is removed.
-        if (activeIdRef.current === id) {
-          const newActive = next[Math.max(0, idx - 1)] ?? next[0]!;
-          setActiveId(newActive.id);
-          activeIdRef.current = newActive.id;
-          const len = newActive.text.length;
-          setCaret(len);
-          caretRef.current = len;
-        }
-        return next;
-      });
-      textareaRefs.current.delete(id);
-      wrapRefs.current.delete(id);
-    },
-    [],
-  );
+  const removeSegment = useCallback((id: string) => {
+    // Read current segments from the ref (kept in sync by the effect)
+    // so the setSegments updater stays PURE — computing the next active
+    // segment + caret outside it avoids the StrictMode double-invoke
+    // hazard of calling setState / mutating refs inside an updater.
+    const prev = segmentsRef.current;
+    if (prev.length <= 1) return;
+    const idx = prev.findIndex((s) => s.id === id);
+    const next = prev.filter((s) => s.id !== id);
+    setSegments(next);
+    // If the active segment was the one removed, move focus to the
+    // previous tweet (or the new first) — tracked by id, so removing an
+    // earlier segment never drifts the active target.
+    if (activeIdRef.current === id) {
+      const newActive = next[Math.max(0, idx - 1)] ?? next[0]!;
+      setActiveId(newActive.id);
+      activeIdRef.current = newActive.id;
+      const len = newActive.text.length;
+      setCaret(len);
+      caretRef.current = len;
+    }
+    textareaRefs.current.delete(id);
+    wrapRefs.current.delete(id);
+  }, []);
 
   function captureCaret(id: string, el: HTMLTextAreaElement) {
     setActiveId(id);
