@@ -35,6 +35,8 @@ import {
   X,
   Lock,
   GitCompare,
+  Link2,
+  Check,
 } from "lucide-react";
 
 /* ── SSE stream reader (reusable for any streaming action) ── */
