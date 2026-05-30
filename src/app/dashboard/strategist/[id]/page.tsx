@@ -15,6 +15,7 @@ import { ChannelIcon } from "@/components/ui/channel-icon";
 import { PipelineStatusBadge } from "../components/status-badge";
 import { PipelineStepper, STAGE_PANEL_MAP } from "../components/pipeline-stepper";
 import { RejectReasonDialog } from "@/components/molecules/reject-reason-dialog";
+import { ComposerShell } from "@/components/composer";
 import { SchedulerComposer } from "@/components/scheduler/scheduler-composer";
 import type { ScheduleSourceType } from "@/lib/scheduler/types";
 import { sourceTextHash } from "@/lib/scheduler/source-hash";
@@ -1105,7 +1106,13 @@ function WriteTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: strin
 
   return (
     <div className={citations?.length ? "grid gap-4 lg:grid-cols-[1fr_320px]" : ""}>
-      <div className="space-y-4">
+      {/* Routed through the shared <ComposerShell> for cross-surface
+          consistency. The strategist editor has no voice chip / command
+          palette today, so the shell renders chrome-free (no empty row);
+          its mid-column action row + rail stay as children to preserve
+          the exact current order. When WriteTab is later enhanced with
+          the AI toolbar / voice chip, switch those on via shell props. */}
+      <ComposerShell mode="compose">
         {/* Subject line only for newsletter format. Article / PR /
             advertorial outputs don't carry a subject; their headline
             is in the HTML body already (write_article/pr/advertorial
@@ -1173,7 +1180,7 @@ function WriteTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: strin
           generatingIndex={generatingPlaceholderIdx}
           resolvingIndex={resolvingPlaceholderIdx}
         />
-      </div>
+      </ComposerShell>
       {citations?.length ? <DataCitationsPanel citations={citations} /> : null}
     </div>
   );
