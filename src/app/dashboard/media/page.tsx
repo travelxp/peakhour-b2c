@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, useCallback } from "react";
+import { useMemo, useState, useCallback } from "react";
 import {
   useInfiniteQuery,
   useQuery,
@@ -9,11 +9,9 @@ import {
 } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
-  Upload,
   Search,
   Image as ImageIcon,
   Trash2,
-  Loader2,
   Sparkles,
   AlertTriangle,
 } from "lucide-react";
@@ -21,14 +19,14 @@ import {
   listMedia,
   getMedia,
   getStorageUsage,
-  uploadMedia,
   deleteMedia,
   formatBytes,
   type MediaItem,
   type MediaSource,
 } from "@/lib/api/media";
-import { ApiError } from "@/lib/api";
+import { MediaUploader } from "@/components/media/media-uploader";
 import { StorageMeter } from "./storage-meter";
+import { SmartDelete } from "./smart-delete";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -75,19 +73,12 @@ const SUGGESTION_LABELS: Record<string, string> = {
   orphan_generated: "Never used",
 };
 
-// Client-side upload guards (server re-validates). SVG excluded to match the
-// api upload allowlist (stored-XSS decision).
-const ACCEPTED_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"];
-const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
-
 export default function MediaManagerPage() {
   const queryClient = useQueryClient();
   const [source, setSource] = useState<MediaSource | undefined>(undefined);
   const [status, setStatus] = useState<"active" | "deleted">("active");
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<MediaItem | null>(null);
-  const [dragOver, setDragOver] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const usageQuery = useQuery({
     queryKey: ["storage-usage"],
@@ -125,23 +116,6 @@ export default function MediaManagerPage() {
     void queryClient.invalidateQueries({ queryKey: ["storage-usage"] });
   }, [queryClient]);
 
-  const uploadMutation = useMutation({
-    mutationFn: uploadMedia,
-    onSuccess: (res) => {
-      toast.success(res.deduped ? "Image already in your library" : "Image uploaded");
-      invalidate();
-    },
-    onError: (err) => {
-      const msg =
-        err instanceof ApiError && err.code === "STORAGE_QUOTA_EXCEEDED"
-          ? "Storage limit reached — clean up or upgrade to upload more."
-          : err instanceof ApiError
-            ? err.message
-            : "Upload failed";
-      toast.error(msg);
-    },
-  });
-
   const deleteMutation = useMutation({
     mutationFn: deleteMedia,
     onSuccess: (res) => {
@@ -152,57 +126,15 @@ export default function MediaManagerPage() {
     onError: () => toast.error("Couldn't delete that item"),
   });
 
-  const handleFiles = useCallback(
-    (files: FileList | null) => {
-      if (!files?.length) return;
-      for (const file of Array.from(files)) {
-        if (!ACCEPTED_TYPES.includes(file.type)) {
-          toast.error(`${file.name}: unsupported type (PNG/JPEG/WebP/GIF only)`);
-          continue;
-        }
-        if (file.size > MAX_UPLOAD_BYTES) {
-          toast.error(`${file.name}: too large (max 15 MB)`);
-          continue;
-        }
-        uploadMutation.mutate(file);
-      }
-    },
-    [uploadMutation],
-  );
-
   return (
     <div className="space-y-4">
       <CronToolbar crons={MEDIA_CRONS} onTriggered={invalidate} />
 
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Media</h1>
-          <p className="text-sm text-muted-foreground">
-            Images generated and uploaded across your content.
-          </p>
-        </div>
-        <Button
-          onClick={() => fileInputRef.current?.click()}
-          disabled={uploadMutation.isPending}
-        >
-          {uploadMutation.isPending ? (
-            <Loader2 className="size-4 animate-spin" />
-          ) : (
-            <Upload className="size-4" />
-          )}
-          Upload
-        </Button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept={ACCEPTED_TYPES.join(",")}
-          multiple
-          hidden
-          onChange={(e) => {
-            handleFiles(e.target.files);
-            e.target.value = "";
-          }}
-        />
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">Media</h1>
+        <p className="text-sm text-muted-foreground">
+          Images generated and uploaded across your content.
+        </p>
       </div>
 
       {usageQuery.data && (
@@ -210,6 +142,10 @@ export default function MediaManagerPage() {
           <StorageMeter usage={usageQuery.data} />
         </div>
       )}
+
+      <SmartDelete />
+
+      <MediaUploader onUploaded={() => invalidate()} multiple />
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2">
@@ -250,22 +186,8 @@ export default function MediaManagerPage() {
         </ToggleGroup>
       </div>
 
-      {/* Drop zone + grid */}
-      <div
-        onDragOver={(e) => {
-          e.preventDefault();
-          setDragOver(true);
-        }}
-        onDragLeave={() => setDragOver(false)}
-        onDrop={(e) => {
-          e.preventDefault();
-          setDragOver(false);
-          handleFiles(e.dataTransfer.files);
-        }}
-        className={`rounded-lg border-2 border-dashed p-4 transition-colors ${
-          dragOver ? "border-primary bg-primary/5" : "border-transparent"
-        }`}
-      >
+      {/* Grid (drag-to-upload lives in the MediaUploader dropzone above) */}
+      <div>
         {mediaQuery.isLoading ? (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
             {Array.from({ length: 12 }).map((_, i) => (
