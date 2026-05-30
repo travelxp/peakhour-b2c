@@ -192,6 +192,41 @@ class ApiClient {
     return this.request<T>(path, { method: "GET", params });
   }
 
+  /**
+   * GET that also returns the response envelope's `meta` (pagination etc.).
+   * Mirrors request()'s 401-refresh + error handling and throws ApiError,
+   * unlike a raw fetch — so list views keep auto-refresh + typed errors.
+   */
+  async getWithMeta<T>(
+    path: string,
+    params?: Record<string, string>,
+  ): Promise<{ data: T; meta: Record<string, unknown> }> {
+    if (!this.baseUrl) {
+      throw new ApiError("CONFIG_ERROR", "NEXT_PUBLIC_API_URL is not configured", 0);
+    }
+    let url = `${this.baseUrl}${path}`;
+    if (params) url += `?${new URLSearchParams(params).toString()}`;
+    const doFetch = () => fetch(url, { credentials: "include" });
+
+    let res = await doFetch();
+    if (res.status === 401 && !path.includes("/auth/refresh")) {
+      const refreshed = await this.tryRefresh();
+      if (refreshed) res = await doFetch();
+    }
+
+    let json: Record<string, unknown>;
+    try {
+      json = (await res.json()) as Record<string, unknown>;
+    } catch {
+      throw new ApiError("PARSE_ERROR", `Server returned non-JSON response (${res.status})`, res.status);
+    }
+    if (!res.ok || !json.ok) {
+      const error = (json.error as { code?: string; message?: string }) || { message: "Request failed" };
+      throw new ApiError(error.code || "UNKNOWN", error.message || "Request failed", res.status);
+    }
+    return { data: json.data as T, meta: (json.meta as Record<string, unknown>) ?? {} };
+  }
+
   post<T>(path: string, body?: unknown) {
     return this.request<T>(path, {
       method: "POST",
@@ -215,6 +250,46 @@ class ApiClient {
 
   delete<T>(path: string) {
     return this.request<T>(path, { method: "DELETE" });
+  }
+
+  /**
+   * POST multipart/form-data (file uploads). Unlike post(), this does NOT
+   * set Content-Type — the browser sets the multipart boundary itself.
+   * Handles CSRF + a single 401-refresh retry like request().
+   */
+  async postForm<T>(path: string, form: FormData): Promise<T> {
+    if (!this.baseUrl) {
+      throw new ApiError("CONFIG_ERROR", "NEXT_PUBLIC_API_URL is not configured", 0);
+    }
+    const headers: Record<string, string> = {};
+    const token = await this.getCsrfToken();
+    if (token) headers["X-CSRF-Token"] = token;
+
+    const doFetch = () =>
+      fetch(`${this.baseUrl}${path}`, {
+        method: "POST",
+        credentials: "include",
+        headers,
+        body: form,
+      });
+
+    let res = await doFetch();
+    if (res.status === 401 && !path.includes("/auth/refresh")) {
+      const refreshed = await this.tryRefresh();
+      if (refreshed) res = await doFetch();
+    }
+
+    let json: Record<string, unknown>;
+    try {
+      json = (await res.json()) as Record<string, unknown>;
+    } catch {
+      throw new ApiError("PARSE_ERROR", `Server returned non-JSON response (${res.status})`, res.status);
+    }
+    if (!res.ok || !json.ok) {
+      const error = (json.error as { code?: string; message?: string }) || { message: "Upload failed" };
+      throw new ApiError(error.code || "UNKNOWN", error.message || "Upload failed", res.status);
+    }
+    return json.data as T;
   }
 
   /**
