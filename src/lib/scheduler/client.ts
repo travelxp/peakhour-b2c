@@ -20,6 +20,9 @@ import type {
   PublishPlanStatus,
   PublishPlanApprovalState,
   SchedulerEntitlementsResponse,
+  ListRecurringRulesResponse,
+  RecurringRuleDto,
+  RecurringRuleStatus,
 } from "./types";
 
 export interface ListPlansQuery {
@@ -140,5 +143,34 @@ export const scheduler = {
     return api.get<SchedulerEntitlementsResponse>(
       "/v1/scheduler/entitlements",
     );
+  },
+
+  // ── Recurring rules ─────────────────────────────────────
+  listRecurringRules(query: { status?: RecurringRuleStatus; limit?: number } = {}) {
+    return api.get<ListRecurringRulesResponse>(
+      "/v1/scheduler/recurring-rules",
+      buildQuery({ status: query.status, limit: query.limit }),
+    );
+  },
+
+  /** Pause an active rule (DELETE flips status → paused; `reason` is
+   *  stored as pauseReason). */
+  pauseRecurringRule(ruleId: string, reason?: string) {
+    const path = `/v1/scheduler/recurring-rules/${ruleId}${
+      reason ? `?reason=${encodeURIComponent(reason)}` : ""
+    }`;
+    return api.delete<{ paused: boolean }>(path);
+  },
+
+  /** Resume a paused rule (→ active, nextSpawnAt recomputed server-side). */
+  resumeRecurringRule(ruleId: string) {
+    return api.post<{ resumed: boolean; nextSpawnAt: string }>(
+      `/v1/scheduler/recurring-rules/${ruleId}/resume`,
+      {},
+    );
+  },
+
+  getRecurringRule(ruleId: string) {
+    return api.get<RecurringRuleDto>(`/v1/scheduler/recurring-rules/${ruleId}`);
   },
 };

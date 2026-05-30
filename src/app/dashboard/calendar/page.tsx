@@ -36,6 +36,7 @@ import {
   CalendarRange,
   RefreshCw,
   Plus,
+  Repeat,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -463,6 +464,11 @@ export default function CalendarPage() {
             <RefreshCw
               className={cn("h-3.5 w-3.5", isFetching && "animate-spin")}
             />
+          </Button>
+          <Button asChild size="sm" variant="outline" className="h-8 gap-1.5">
+            <Link href="/dashboard/calendar/recurring">
+              <Repeat className="h-3.5 w-3.5" /> Recurring
+            </Link>
           </Button>
           <Button
             size="sm"
