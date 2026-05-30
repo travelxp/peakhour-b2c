@@ -1014,17 +1014,22 @@ function WriteTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: strin
   // popover/toolbar steals focus, so a live selectionStart read would
   // fall back to 0/end; capturing on blur is the fix the kit uses).
   const htmlRef = useRef<HTMLTextAreaElement>(null);
-  const [caret, setCaret] = useState(0);
+  // Caret lives in a ref only (no state): the textarea is controlled by
+  // `value={html}`, not the caret, and insertSnippet reads the freshest
+  // position off the live element (falling back to this ref when the
+  // textarea isn't focused). A state caret would just be an unused
+  // re-render. Captured on select/click/keyup/blur via updateCaret.
+  const caretRef = useRef(0);
   const updateCaret = useCallback(() => {
     const el = htmlRef.current;
-    if (el) setCaret(el.selectionStart ?? el.value.length);
+    if (el) caretRef.current = el.selectionStart ?? el.value.length;
   }, []);
 
   // Voice-card chip — newsletter category, matched like the other
   // composers. Read-only display; the rewrite skill pulls the live
   // brand voice server-side.
   const voiceCardQuery = useQuery({
-    queryKey: ["voice-cards", "newsletter", idea.contentFormat ?? "newsletter"],
+    queryKey: ["voice-cards", "newsletter"],
     queryFn: () => getVoiceCards({ channel: "newsletter" }),
     staleTime: 300_000,
   });
@@ -1035,22 +1040,30 @@ function WriteTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: strin
 
   // Insert a snippet (emoji glyph or AI quote/disclosure) at the tracked
   // caret in the HTML body, then restore focus + selection. Returns the
-  // new body so callers can chain. Mirrors LinkedIn/X insertSnippet.
+  // new body so callers can chain. Mirrors LinkedIn/X: reads the LIVE
+  // body + caret off the textarea element (not closed-over state) so a
+  // splice during an in-flight AI insert lands on the freshest text and
+  // doesn't drop keystrokes typed mid-call. Stable identity (no deps) →
+  // handleAiAction stays stable too. Falls back to the tracked `caret`
+  // state when the element isn't focused/mounted.
   const insertSnippet = useCallback(
     (snippet: string): string => {
-      const { text: next, caret: nextCaret } = insertAtCaret(html, caret, snippet);
+      const el = htmlRef.current;
+      const baseText = el ? el.value : "";
+      const baseCaret = el ? (el.selectionStart ?? baseText.length) : caretRef.current;
+      const { text: next, caret: nextCaret } = insertAtCaret(baseText, baseCaret, snippet);
       setHtml(next);
-      setCaret(nextCaret);
+      caretRef.current = nextCaret;
       requestAnimationFrame(() => {
-        const el = htmlRef.current;
-        if (el) {
-          el.focus();
-          el.setSelectionRange(nextCaret, nextCaret);
+        const node = htmlRef.current;
+        if (node) {
+          node.focus();
+          node.setSelectionRange(nextCaret, nextCaret);
         }
       });
       return next;
     },
-    [html, caret],
+    [],
   );
 
   // AI compose toolbar handler. format:"html" so the rewrite skill
@@ -1309,7 +1322,7 @@ function WriteTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: strin
             <textarea
               ref={htmlRef}
               value={html}
-              onChange={(e) => { setHtml(e.target.value); setCaret(e.target.selectionStart ?? e.target.value.length); }}
+              onChange={(e) => { setHtml(e.target.value); caretRef.current = e.target.selectionStart ?? e.target.value.length; }}
               onSelect={updateCaret}
               onClick={updateCaret}
               onKeyUp={updateCaret}
