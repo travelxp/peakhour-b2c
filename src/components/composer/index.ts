@@ -17,6 +17,9 @@
 export { AiComposeToolbar } from "./ai-compose-toolbar";
 export type { AiComposeToolbarProps } from "./ai-compose-toolbar";
 
+export { ComposerShell } from "./composer-shell";
+export type { ComposerShellProps, ComposerScheduleView } from "./composer-shell";
+
 export { ComposerCommandPalette } from "./composer-command-palette";
 export type {
   ComposerCommandPaletteProps,

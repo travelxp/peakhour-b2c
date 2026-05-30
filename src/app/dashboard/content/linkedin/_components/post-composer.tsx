@@ -32,10 +32,8 @@ import {
   HoverCardTrigger,
 } from "@/components/ui/hover-card";
 import {
-  ArrowLeft,
   CalendarClock,
   ChevronDown,
-  Command as CommandIcon,
   Link2,
   Loader2,
   Mic,
@@ -64,12 +62,12 @@ import { rewriteContent, createDraft, updateDraft, type ComposerDraftRef } from 
 import { insertAtCaret } from "@/lib/composer/caret";
 import {
   AiComposeToolbar,
+  ComposerShell,
   ComposerCommandPalette,
   DraftSaver,
   EmojiPickerTrigger,
   HashtagSuggest,
   PlatformCharCounter,
-  VoiceCardPreview,
   useDraftSaver,
   type AiActionContext,
   type ComposerCommand,
@@ -529,120 +527,153 @@ export function PostComposer({ identity, seedText }: Props) {
   // Early return is AFTER all hooks above — safe.
   if (mode === "schedule") {
     return (
-      <div className="space-y-4">
-        <div className="flex items-center justify-between gap-3 border-b pb-3">
-          <div className="flex items-center gap-2 text-sm font-medium">
-            <CalendarClock className="size-4 text-primary" />
-            Schedule this post
-          </div>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => setMode("compose")}
-            className="gap-1.5"
-          >
-            <ArrowLeft className="size-3.5" /> Back to editing
-          </Button>
-        </div>
-        <SchedulerComposer
-          key={schedulerSource.sourceTextHash}
-          source={schedulerSource}
-          title={scheduleTitle}
-          channels={schedulerChannels}
-          onScheduled={handleScheduled}
-        />
-      </div>
+      <ComposerShell
+        mode="schedule"
+        scheduleView={{
+          noun: "post",
+          onBack: () => setMode("compose"),
+          scheduler: (
+            <SchedulerComposer
+              key={schedulerSource.sourceTextHash}
+              source={schedulerSource}
+              title={scheduleTitle}
+              channels={schedulerChannels}
+              onScheduled={handleScheduled}
+            />
+          ),
+        }}
+      />
     );
   }
 
   return (
-    <div className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="space-y-1.5">
-          <Label htmlFor="li-author" className="text-xs uppercase tracking-wide text-muted-foreground">
-            Post as
-          </Label>
-          <Select value={authorKey} onValueChange={setAuthorKey}>
-            <SelectTrigger id="li-author">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {authorOptions.map((opt) => (
-                <SelectItem key={opt.value} value={opt.value}>
-                  <span className="flex flex-col">
-                    <span>{opt.label}</span>
-                    {opt.sublabel && (
-                      <span className="text-xs text-muted-foreground">{opt.sublabel}</span>
-                    )}
-                  </span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {!identity.scopes.includes(HAS_ORG_SCOPE) && identity.pages.length > 0 && (
-            <p className="text-xs text-muted-foreground">
-              Reconnect LinkedIn to enable posting from your company pages.
-            </p>
-          )}
-          {identity.scopes.includes(HAS_ORG_SCOPE) && identity.pages.length === 0 && (
-            <p className="text-xs text-muted-foreground">
-              No pages enabled.{" "}
-              <a
-                href="/dashboard/integrations"
-                className="font-medium text-primary underline underline-offset-2 hover:no-underline"
-              >
-                Manage pages
-              </a>
-              .
-            </p>
-          )}
-        </div>
+    <ComposerShell
+      mode="compose"
+      voiceCard={voiceSummary}
+      onOpenPalette={() => setPaletteOpen(true)}
+      headerSlot={
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="li-author" className="text-xs uppercase tracking-wide text-muted-foreground">
+              Post as
+            </Label>
+            <Select value={authorKey} onValueChange={setAuthorKey}>
+              <SelectTrigger id="li-author">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {authorOptions.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    <span className="flex flex-col">
+                      <span>{opt.label}</span>
+                      {opt.sublabel && (
+                        <span className="text-xs text-muted-foreground">{opt.sublabel}</span>
+                      )}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {!identity.scopes.includes(HAS_ORG_SCOPE) && identity.pages.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                Reconnect LinkedIn to enable posting from your company pages.
+              </p>
+            )}
+            {identity.scopes.includes(HAS_ORG_SCOPE) && identity.pages.length === 0 && (
+              <p className="text-xs text-muted-foreground">
+                No pages enabled.{" "}
+                <a
+                  href="/dashboard/integrations"
+                  className="font-medium text-primary underline underline-offset-2 hover:no-underline"
+                >
+                  Manage pages
+                </a>
+                .
+              </p>
+            )}
+          </div>
 
-        <div className="space-y-1.5">
-          <Label htmlFor="li-visibility" className="text-xs uppercase tracking-wide text-muted-foreground">
-            Visibility
-          </Label>
-          <Select
-            value={effectiveVisibility}
-            onValueChange={(v) => setVisibility(v as LinkedInVisibility)}
-            disabled={isOrgAuthor}
+          <div className="space-y-1.5">
+            <Label htmlFor="li-visibility" className="text-xs uppercase tracking-wide text-muted-foreground">
+              Visibility
+            </Label>
+            <Select
+              value={effectiveVisibility}
+              onValueChange={(v) => setVisibility(v as LinkedInVisibility)}
+              disabled={isOrgAuthor}
+            >
+              <SelectTrigger id="li-visibility">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="PUBLIC">Public — anyone on LinkedIn</SelectItem>
+                <SelectItem value="CONNECTIONS">Connections only</SelectItem>
+                <SelectItem value="LOGGED_IN">Signed-in members</SelectItem>
+              </SelectContent>
+            </Select>
+            {isOrgAuthor && (
+              <p className="text-xs text-muted-foreground">
+                Company page posts are always public.
+              </p>
+            )}
+          </div>
+        </div>
+      }
+      subHeaderSlot={<VoiceCardPanel />}
+      toolbarSlot={<AiComposeToolbar text={text} platform="linkedin" onAiAction={handleAiAction} />}
+      statusSlot={
+        <>
+          <PlatformCharCounter platform="linkedin" value={text} />
+          <DraftSaver
+            status={draftStatus}
+            lastSavedAt={lastSavedAt}
+            lastError={draftError}
+            onRetry={saveNow}
+          />
+        </>
+      }
+      actionsSlot={
+        <>
+          <PolicyChip state={policy} />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setMode("schedule")}
+            disabled={scheduleDisabled}
+            className="gap-1.5"
           >
-            <SelectTrigger id="li-visibility">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="PUBLIC">Public — anyone on LinkedIn</SelectItem>
-              <SelectItem value="CONNECTIONS">Connections only</SelectItem>
-              <SelectItem value="LOGGED_IN">Signed-in members</SelectItem>
-            </SelectContent>
-          </Select>
-          {isOrgAuthor && (
-            <p className="text-xs text-muted-foreground">
-              Company page posts are always public.
-            </p>
-          )}
-        </div>
-      </div>
-
-      {/* Voice chip + command palette trigger */}
-      <div className="flex items-center justify-between gap-2">
-        <VoiceCardPreview voiceCard={voiceSummary} />
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={() => setPaletteOpen(true)}
-          className="gap-1.5 text-xs text-muted-foreground"
-        >
-          <CommandIcon className="size-3.5" /> Actions
-        </Button>
-      </div>
-
-      <VoiceCardPanel />
-
-      <AiComposeToolbar text={text} platform="linkedin" onAiAction={handleAiAction} />
-
+            <CalendarClock className="size-4" /> Schedule
+          </Button>
+          <Button onClick={onSubmit} disabled={publishDisabled} aria-busy={publish.isPending}>
+            <Send className="size-4 mr-1.5" />
+            {publish.isPending ? "Publishing…" : "Publish"}
+          </Button>
+        </>
+      }
+      footerSlot={
+        feedback ? (
+          <p
+            role="status"
+            className={
+              feedback.kind === "error"
+                ? "rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+                : "rounded-md border border-green-200 bg-green-50/60 px-3 py-2 text-sm text-green-800 dark:border-green-900 dark:bg-green-950/40 dark:text-green-300"
+            }
+          >
+            {feedback.message}
+          </p>
+        ) : undefined
+      }
+      paletteSlot={
+        <ComposerCommandPalette
+          paletteId="linkedin-composer"
+          commands={commands}
+          open={paletteOpen}
+          onOpenChange={setPaletteOpen}
+        />
+      }
+    >
       <div ref={composerWrapRef} className="relative">
         <Textarea
           ref={textareaRef}
@@ -744,55 +775,7 @@ export function PostComposer({ identity, seedText }: Props) {
         </div>
       )}
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <PlatformCharCounter platform="linkedin" value={text} />
-          <DraftSaver
-            status={draftStatus}
-            lastSavedAt={lastSavedAt}
-            lastError={draftError}
-            onRetry={saveNow}
-          />
-        </div>
-        <div className="flex items-center gap-2">
-          <PolicyChip state={policy} />
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setMode("schedule")}
-            disabled={scheduleDisabled}
-            className="gap-1.5"
-          >
-            <CalendarClock className="size-4" /> Schedule
-          </Button>
-          <Button onClick={onSubmit} disabled={publishDisabled} aria-busy={publish.isPending}>
-            <Send className="size-4 mr-1.5" />
-            {publish.isPending ? "Publishing…" : "Publish"}
-          </Button>
-        </div>
-      </div>
-
-      {feedback && (
-        <p
-          role="status"
-          className={
-            feedback.kind === "error"
-              ? "rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
-              : "rounded-md border border-green-200 bg-green-50/60 px-3 py-2 text-sm text-green-800 dark:border-green-900 dark:bg-green-950/40 dark:text-green-300"
-          }
-        >
-          {feedback.message}
-        </p>
-      )}
-
-      <ComposerCommandPalette
-        paletteId="linkedin-composer"
-        commands={commands}
-        open={paletteOpen}
-        onOpenChange={setPaletteOpen}
-      />
-    </div>
+    </ComposerShell>
   );
 }
 

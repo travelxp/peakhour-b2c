@@ -14,9 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  ArrowLeft,
   CalendarClock,
-  Command as CommandIcon,
   Loader2,
   Plus,
   Quote,
@@ -39,12 +37,12 @@ import {
 } from "@/lib/api/content";
 import {
   AiComposeToolbar,
+  ComposerShell,
   ComposerCommandPalette,
   DraftSaver,
   EmojiPickerTrigger,
   HashtagSuggest,
   PlatformCharCounter,
-  VoiceCardPreview,
   useDraftSaver,
   type AiActionContext,
   type ComposerCommand,
@@ -501,67 +499,96 @@ export function TweetComposer() {
   // ── Schedule view ───────────────────────────────────────────────
   if (mode === "schedule") {
     return (
-      <div className="space-y-4">
-        <div className="flex items-center justify-between gap-3 border-b pb-3">
-          <div className="flex items-center gap-2 text-sm font-medium">
-            <CalendarClock className="size-4 text-primary" />
-            Schedule this {isThread ? "thread" : "tweet"}
-          </div>
-          <Button type="button" variant="ghost" size="sm" onClick={() => setMode("compose")} className="gap-1.5">
-            <ArrowLeft className="size-3.5" /> Back to editing
-          </Button>
-        </div>
-        <SchedulerComposer
-          key={schedulerSource.sourceTextHash}
-          source={schedulerSource}
-          title={scheduleTitle}
-          channels={schedulerChannels}
-          onScheduled={handleScheduled}
-        />
-      </div>
+      <ComposerShell
+        mode="schedule"
+        scheduleView={{
+          noun: isThread ? "thread" : "tweet",
+          onBack: () => setMode("compose"),
+          scheduler: (
+            <SchedulerComposer
+              key={schedulerSource.sourceTextHash}
+              source={schedulerSource}
+              title={scheduleTitle}
+              channels={schedulerChannels}
+              onScheduled={handleScheduled}
+            />
+          ),
+        }}
+      />
     );
   }
 
   // ── Compose view ────────────────────────────────────────────────
   return (
-    <div className="space-y-4">
-      {/* Voice chip + actions */}
-      <div className="flex items-center justify-between gap-2">
-        <VoiceCardPreview voiceCard={voiceSummary} />
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={() => setPaletteOpen(true)}
-          className="gap-1.5 text-xs text-muted-foreground"
-        >
-          <CommandIcon className="size-3.5" /> Actions
-        </Button>
-      </div>
-
-      {/* Reply/quote reference chip */}
-      {refMode.kind !== "none" && (
-        <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
-          {refMode.kind === "reply" ? <Reply className="size-4" /> : <Quote className="size-4" />}
-          <span className="text-muted-foreground">
-            {refMode.kind === "reply" ? "Replying to" : "Quoting"}
-          </span>
-          <span className="truncate font-mono text-xs">{refMode.raw}</span>
+    <ComposerShell
+      mode="compose"
+      voiceCard={voiceSummary}
+      onOpenPalette={() => setPaletteOpen(true)}
+      subHeaderSlot={
+        refMode.kind !== "none" ? (
+          <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
+            {refMode.kind === "reply" ? <Reply className="size-4" /> : <Quote className="size-4" />}
+            <span className="text-muted-foreground">
+              {refMode.kind === "reply" ? "Replying to" : "Quoting"}
+            </span>
+            <span className="truncate font-mono text-xs">{refMode.raw}</span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="ml-auto h-6 px-2"
+              onClick={clearReference}
+              aria-label="Remove reference"
+            >
+              <XIcon className="size-3" />
+            </Button>
+          </div>
+        ) : undefined
+      }
+      toolbarSlot={<AiComposeToolbar text={activeText} platform="x" onAiAction={handleAiAction} />}
+      actionsBordered
+      actionsSlot={
+        <>
           <Button
             type="button"
-            variant="ghost"
+            variant="outline"
             size="sm"
-            className="ml-auto h-6 px-2"
-            onClick={clearReference}
-            aria-label="Remove reference"
+            onClick={() => setMode("schedule")}
+            disabled={scheduleDisabled}
+            className="gap-1.5"
           >
-            <XIcon className="size-3" />
+            <CalendarClock className="size-4" /> Schedule
           </Button>
-        </div>
-      )}
-
-      <AiComposeToolbar text={activeText} platform="x" onAiAction={handleAiAction} />
-
+          <Button onClick={() => publish.mutate()} disabled={publishDisabled} aria-busy={publish.isPending} className="gap-1.5">
+            {publish.isPending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+            {publish.isPending ? "Publishing…" : isThread ? "Publish thread" : "Publish"}
+          </Button>
+        </>
+      }
+      footerSlot={
+        feedback ? (
+          <p
+            role="status"
+            className={
+              feedback.kind === "error"
+                ? "rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+                : "rounded-md border border-green-200 bg-green-50/60 px-3 py-2 text-sm text-green-800 dark:border-green-900 dark:bg-green-950/40 dark:text-green-300"
+            }
+          >
+            {feedback.message}
+          </p>
+        ) : undefined
+      }
+      paletteSlot={
+        <ComposerCommandPalette
+          paletteId="x-composer"
+          commands={commands}
+          open={paletteOpen}
+          onOpenChange={setPaletteOpen}
+          placeholder="Compose, schedule, add to thread…"
+        />
+      }
+    >
       {/* Thread segments */}
       <div className="space-y-3">
         {segments.map((seg, index) => {
@@ -681,45 +708,6 @@ export function TweetComposer() {
           className="ml-auto"
         />
       </div>
-
-      {/* Footer actions */}
-      <div className="flex items-center justify-end gap-2 border-t pt-3">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => setMode("schedule")}
-          disabled={scheduleDisabled}
-          className="gap-1.5"
-        >
-          <CalendarClock className="size-4" /> Schedule
-        </Button>
-        <Button onClick={() => publish.mutate()} disabled={publishDisabled} aria-busy={publish.isPending} className="gap-1.5">
-          {publish.isPending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
-          {publish.isPending ? "Publishing…" : isThread ? "Publish thread" : "Publish"}
-        </Button>
-      </div>
-
-      {feedback && (
-        <p
-          role="status"
-          className={
-            feedback.kind === "error"
-              ? "rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
-              : "rounded-md border border-green-200 bg-green-50/60 px-3 py-2 text-sm text-green-800 dark:border-green-900 dark:bg-green-950/40 dark:text-green-300"
-          }
-        >
-          {feedback.message}
-        </p>
-      )}
-
-      <ComposerCommandPalette
-        paletteId="x-composer"
-        commands={commands}
-        open={paletteOpen}
-        onOpenChange={setPaletteOpen}
-        placeholder="Compose, schedule, add to thread…"
-      />
-    </div>
+    </ComposerShell>
   );
 }
