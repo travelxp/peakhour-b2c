@@ -232,7 +232,12 @@ function XContentDashboardInner() {
                 <TweetCard
                   key={t.id}
                   tweet={t}
-                  onRepurpose={(tweet) => prepareRepurpose.mutate(tweet)}
+                  onRepurpose={(tweet) => {
+                    // Ignore a second click while a prepare is already in
+                    // flight — avoids creating an orphan draft from a
+                    // rapid click on another card before the first lands.
+                    if (!prepareRepurpose.isPending) prepareRepurpose.mutate(tweet);
+                  }}
                   repurposing={repurposingId === t.id}
                 />
               ))}
