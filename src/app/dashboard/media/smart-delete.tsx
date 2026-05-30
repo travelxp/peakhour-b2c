@@ -40,7 +40,14 @@ const CATEGORIES: { kind: SuggestedActionKind; label: string; hint: string }[] =
 interface CategoryGroup {
   kind: SuggestedActionKind;
   items: MediaItem[];
+  /** True category size (may exceed the 100 loaded for selection). */
+  total: number;
 }
+
+/** API caps bulk-delete at 200 ids/call; chunk larger selections. */
+const BULK_DELETE_CHUNK = 200;
+/** Per-category fetch cap (API list limit max). */
+const CATEGORY_FETCH_LIMIT = 100;
 
 export function SmartDelete() {
   const queryClient = useQueryClient();
@@ -52,31 +59,55 @@ export function SmartDelete() {
     queryFn: async (): Promise<CategoryGroup[]> => {
       const results = await Promise.all(
         CATEGORIES.map((c) =>
-          listMedia({ suggestedAction: c.kind, status: "active", limit: 100 }),
+          listMedia({ suggestedAction: c.kind, status: "active", limit: CATEGORY_FETCH_LIMIT }),
         ),
       );
-      return CATEGORIES.map((c, i) => ({ kind: c.kind, items: results[i]!.items }));
+      return CATEGORIES.map((c, i) => ({
+        kind: c.kind,
+        items: results[i]!.items,
+        total: results[i]!.meta.total,
+      }));
     },
     staleTime: 60_000,
   });
 
+  // True suggestion count (uses meta.total, not just the loaded page).
   const totalSuggested = useMemo(
-    () => groups.reduce((sum, g) => sum + g.items.length, 0),
+    () => groups.reduce((sum, g) => sum + g.total, 0),
+    [groups],
+  );
+  // Whether any category has more than the loaded cap — informs a "re-run" hint.
+  const hasMoreThanLoaded = useMemo(
+    () => groups.some((g) => g.total > g.items.length),
     [groups],
   );
 
   const allItems = useMemo(() => groups.flatMap((g) => g.items), [groups]);
 
+  // Estimate trusts reclaimableBytes (duplicates can be 0 — they share bytes
+  // with the surviving copy); never falls back to sizeBytes, which would
+  // overstate what delete actually frees.
   const reclaimable = useMemo(
     () =>
       allItems
         .filter((m) => selected.has(m.id))
-        .reduce((sum, m) => sum + (m.suggestedAction?.reclaimableBytes ?? m.sizeBytes), 0),
+        .reduce((sum, m) => sum + (m.suggestedAction?.reclaimableBytes ?? 0), 0),
     [allItems, selected],
   );
 
   const bulkDelete = useMutation({
-    mutationFn: () => bulkDeleteMedia([...selected]),
+    mutationFn: async () => {
+      const ids = [...selected];
+      let deletedCount = 0;
+      let freedBytes = 0;
+      // Chunk to the API's 200-id cap so a large selection doesn't 400.
+      for (let i = 0; i < ids.length; i += BULK_DELETE_CHUNK) {
+        const res = await bulkDeleteMedia(ids.slice(i, i + BULK_DELETE_CHUNK));
+        deletedCount += res.deletedCount;
+        freedBytes += res.freedBytes;
+      }
+      return { deletedCount, freedBytes };
+    },
     onSuccess: (res) => {
       toast.success(`${res.deletedCount} item(s) moved to trash — ${formatBytes(res.freedBytes)} freed`);
       setSelected(new Set());
@@ -138,7 +169,7 @@ export function SmartDelete() {
                 const group = groups.find((g) => g.kind === cat.kind);
                 if (!group || group.items.length === 0) return null;
                 const groupBytes = group.items.reduce(
-                  (s, m) => s + (m.suggestedAction?.reclaimableBytes ?? m.sizeBytes),
+                  (s, m) => s + (m.suggestedAction?.reclaimableBytes ?? 0),
                   0,
                 );
                 const allOn = group.items.every((m) => selected.has(m.id));
@@ -151,7 +182,10 @@ export function SmartDelete() {
                       />
                       {cat.label}
                       <span className="text-xs font-normal text-muted-foreground">
-                        ({group.items.length} · {formatBytes(groupBytes)})
+                        ({group.total > group.items.length
+                          ? `${group.items.length} of ${group.total}`
+                          : group.items.length}{" "}
+                        · {formatBytes(groupBytes)})
                       </span>
                     </label>
                     <p className="ml-6 text-xs text-muted-foreground">{cat.hint}</p>
@@ -181,6 +215,12 @@ export function SmartDelete() {
               })}
             </div>
           </ScrollArea>
+
+          {hasMoreThanLoaded && (
+            <p className="text-xs text-muted-foreground">
+              Showing the first {CATEGORY_FETCH_LIMIT} per category. Delete these and re-run to review the rest.
+            </p>
+          )}
 
           <DialogFooter className="items-center gap-2 sm:justify-between">
             <span className="text-sm text-muted-foreground">
