@@ -35,6 +35,7 @@ import {
   CalendarDays,
   CalendarRange,
   RefreshCw,
+  Plus,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -54,6 +55,7 @@ import type {
   ScheduledItemStatus,
 } from "@/lib/scheduler/types";
 import { CalendarItemDrawer } from "./_components/calendar-item-drawer";
+import { ComposeNewSheet } from "./_components/compose-new-sheet";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
 
 type Mode = "week" | "month";
@@ -146,6 +148,7 @@ export default function CalendarPage() {
   // two queries.
   const [tz, setTz] = useState("UTC");
   const [anchor, setAnchor] = useState<Date | null>(null);
+  const [composeOpen, setComposeOpen] = useState(false);
   useEffect(() => {
     setTz(detectTimezone());
     setAnchor(new Date());
@@ -461,8 +464,17 @@ export default function CalendarPage() {
               className={cn("h-3.5 w-3.5", isFetching && "animate-spin")}
             />
           </Button>
+          <Button
+            size="sm"
+            className="h-8 gap-1.5"
+            onClick={() => setComposeOpen(true)}
+          >
+            <Plus className="h-3.5 w-3.5" /> Compose
+          </Button>
         </div>
       </div>
+
+      <ComposeNewSheet open={composeOpen} onOpenChange={setComposeOpen} />
 
       {/* Date navigation */}
       <div className="flex flex-wrap items-center justify-between gap-2">
