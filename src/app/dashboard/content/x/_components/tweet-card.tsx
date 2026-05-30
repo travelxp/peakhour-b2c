@@ -18,12 +18,26 @@ import {
   Quote,
   BarChart3,
   MoreHorizontal,
+  Sparkles,
+  Loader2,
 } from "lucide-react";
 import { formatDate } from "@/lib/locale";
 import { xApi, type XTweet } from "@/lib/api/x";
 import { ApiError } from "@/lib/api";
 
-export function TweetCard({ tweet }: { tweet: XTweet }) {
+export interface TweetCardProps {
+  tweet: XTweet;
+  /** Repurpose this tweet to other platforms. The host (X page) creates
+   *  a draft from the tweet text and opens the RepurposeSheet; the card
+   *  just signals intent + reflects the in-flight state. Omitted = the
+   *  Repurpose action is hidden (e.g. a surface without the sheet). */
+  onRepurpose?: (tweet: XTweet) => void;
+  /** True while the host is preparing this tweet's repurpose (draft
+   *  create in flight) — disables the menu item + shows a spinner. */
+  repurposing?: boolean;
+}
+
+export function TweetCard({ tweet, onRepurpose, repurposing }: TweetCardProps) {
   const queryClient = useQueryClient();
   const del = useMutation({
     mutationFn: () => xApi.deleteTweet(tweet.id),
@@ -51,6 +65,20 @@ export function TweetCard({ tweet }: { tweet: XTweet }) {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              {onRepurpose && (
+                <DropdownMenuItem
+                  onSelect={() => onRepurpose(tweet)}
+                  disabled={repurposing}
+                  className="gap-2"
+                >
+                  {repurposing ? (
+                    <Loader2 className="size-3.5 animate-spin motion-reduce:animate-none" />
+                  ) : (
+                    <Sparkles className="size-3.5" />
+                  )}
+                  Repurpose to other platforms
+                </DropdownMenuItem>
+              )}
               <ConfirmDialog
                 trigger={
                   <DropdownMenuItem
