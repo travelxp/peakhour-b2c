@@ -33,12 +33,6 @@
 import { Smile } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import EmojiPicker from "@/components/emoji-picker";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 export interface EmojiPickerTriggerProps {
@@ -62,23 +56,23 @@ export function EmojiPickerTrigger({
     <EmojiPicker
       onEmojiSelect={onInsert}
       trigger={
-        <TooltipProvider delayDuration={300}>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                className={cn("h-7 gap-1.5 px-2 text-xs", className)}
-                aria-label="Insert emoji"
-              >
-                <Smile className="size-3.5" />
-                {compact ? null : <span>Emoji</span>}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Insert emoji</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+        // Plain <Button> as the OUTERMOST element so
+        // `<PopoverTrigger asChild>` can Slot its onClick/ref directly
+        // onto a DOM node. The previous TooltipProvider/Tooltip wrapper
+        // swallowed those (a context provider isn't a Slot target), so
+        // clicking the icon opened nothing. Tooltip dropped in favour of
+        // a native `title` to keep the trigger Slot-safe.
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className={cn("h-7 gap-1.5 px-2 text-xs", className)}
+          aria-label="Insert emoji"
+          title="Insert emoji"
+        >
+          <Smile className="size-3.5" />
+          {compact ? null : <span>Emoji</span>}
+        </Button>
       }
     />
   );

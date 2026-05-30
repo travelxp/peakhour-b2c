@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo, useRef } from "react";
 import DOMPurify from "isomorphic-dompurify";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -15,7 +15,21 @@ import { ChannelIcon } from "@/components/ui/channel-icon";
 import { PipelineStatusBadge } from "../components/status-badge";
 import { PipelineStepper, STAGE_PANEL_MAP } from "../components/pipeline-stepper";
 import { RejectReasonDialog } from "@/components/molecules/reject-reason-dialog";
-import { ComposerShell } from "@/components/composer";
+import {
+  ComposerShell,
+  AiComposeToolbar,
+  EmojiPickerTrigger,
+  DraftSaver,
+  useDraftSaver,
+  type AiActionContext,
+  type VoiceCardSummary,
+} from "@/components/composer";
+import {
+  getVoiceCards,
+  rewriteContent,
+  type VoiceCardDoc,
+} from "@/lib/api/content";
+import { insertAtCaret } from "@/lib/composer/caret";
 import { SchedulerComposer } from "@/components/scheduler/scheduler-composer";
 import type { ScheduleSourceType } from "@/lib/scheduler/types";
 import { sourceTextHash } from "@/lib/scheduler/source-hash";
@@ -942,6 +956,38 @@ function FinalizeButton({
   );
 }
 
+/** Map a newsletter voice-card doc to the composer chip summary. */
+function mapNewsletterVoiceCard(cards: VoiceCardDoc[] | undefined): VoiceCardSummary | null {
+  if (!cards || cards.length === 0) return null;
+  const card = cards[0];
+  return {
+    id: card._id ?? "newsletter-voice",
+    // VoiceCardSummary.channel is a PlatformKey; the newsletter platform
+    // key is "beehiiv" (the cnt_voice_cards.channel scope "newsletter" is
+    // the query param, not this display key).
+    channel: "beehiiv",
+    category: card.category,
+    toneAdjectives: card.voice?.tone ?? [],
+    signaturePhrases: card.voice?.signaturePhrases ?? [],
+    avoidPhrases: card.voice?.avoidPhrases ?? [],
+    refreshedAt: card.lastGeneratedAt ?? card.updatedAt,
+  };
+}
+
+/** Success-toast copy per AI op (newsletter-flavoured). */
+function aiOpToast(op: AiActionContext["op"]): string {
+  switch (op) {
+    case "compose": return "Draft generated.";
+    case "redraft": return "Newsletter rewritten.";
+    case "shorten": return "Newsletter shortened.";
+    case "lengthen": return "Newsletter expanded.";
+    case "tone": return "Tone updated.";
+    case "quote": return "Quote inserted.";
+    case "disclosure": return "Disclosure inserted.";
+    default: return "Done.";
+  }
+}
+
 function WriteTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: string; onRefresh: () => void }) {
   const [html, setHtml] = useState(idea.content?.html || "");
   const [subject, setSubject] = useState(idea.content?.subject || "");
@@ -961,6 +1007,97 @@ function WriteTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: strin
   const [generatingPlaceholderIdx, setGeneratingPlaceholderIdx] = useState<number | null>(null);
   // Per-placeholder resolution busy index (paste-URL / library pick).
   const [resolvingPlaceholderIdx, setResolvingPlaceholderIdx] = useState<number | null>(null);
+
+  // ── Shared composer chrome (parity with LinkedIn/X) ─────────────
+  // The HTML body textarea + a caret tracked on every selection change
+  // and on blur — emoji / AI-insert ops splice at this caret (the
+  // popover/toolbar steals focus, so a live selectionStart read would
+  // fall back to 0/end; capturing on blur is the fix the kit uses).
+  const htmlRef = useRef<HTMLTextAreaElement>(null);
+  const [caret, setCaret] = useState(0);
+  const updateCaret = useCallback(() => {
+    const el = htmlRef.current;
+    if (el) setCaret(el.selectionStart ?? el.value.length);
+  }, []);
+
+  // Voice-card chip — newsletter category, matched like the other
+  // composers. Read-only display; the rewrite skill pulls the live
+  // brand voice server-side.
+  const voiceCardQuery = useQuery({
+    queryKey: ["voice-cards", "newsletter", idea.contentFormat ?? "newsletter"],
+    queryFn: () => getVoiceCards({ channel: "newsletter" }),
+    staleTime: 300_000,
+  });
+  const voiceSummary = useMemo(
+    () => mapNewsletterVoiceCard(voiceCardQuery.data),
+    [voiceCardQuery.data],
+  );
+
+  // Insert a snippet (emoji glyph or AI quote/disclosure) at the tracked
+  // caret in the HTML body, then restore focus + selection. Returns the
+  // new body so callers can chain. Mirrors LinkedIn/X insertSnippet.
+  const insertSnippet = useCallback(
+    (snippet: string): string => {
+      const { text: next, caret: nextCaret } = insertAtCaret(html, caret, snippet);
+      setHtml(next);
+      setCaret(nextCaret);
+      requestAnimationFrame(() => {
+        const el = htmlRef.current;
+        if (el) {
+          el.focus();
+          el.setSelectionRange(nextCaret, nextCaret);
+        }
+      });
+      return next;
+    },
+    [html, caret],
+  );
+
+  // AI compose toolbar handler. format:"html" so the rewrite skill
+  // preserves the newsletter body's semantic structure instead of
+  // flattening it to prose. Replace ops swap the whole body; insert
+  // ops (quote/disclosure) splice a plain-text snippet at the caret.
+  const handleAiAction = useCallback(
+    async (ctx: AiActionContext): Promise<string> => {
+      const res = await rewriteContent({
+        op: ctx.op,
+        text: ctx.text,
+        platform: "beehiiv",
+        format: "html",
+        ...(ctx.extras ? { extras: ctx.extras } : {}),
+      });
+      let newText: string;
+      if (res.insert === true) {
+        newText = insertSnippet(res.text);
+      } else {
+        newText = res.text;
+        setHtml(newText);
+      }
+      toast.success(aiOpToast(ctx.op));
+      return newText;
+    },
+    [insertSnippet],
+  );
+
+  // Auto-save the in-progress body to the idea's content. Suspended once
+  // the text is finalized (the finalize stamp locks editing) and while
+  // there's no body yet. Debounced 2s — same cadence as the publish
+  // composers. The manual Save button stays as an explicit affordance.
+  const finalizedForSave = !!(idea.content as { textFinalizedAt?: string } | undefined)?.textFinalizedAt;
+  const autoSaveValue = finalizedForSave ? null : html;
+  const saveBody = useCallback(
+    async (value: string) => {
+      await api.put(`/v1/content/ideas/${ideaId}/content`, { html: value, subject });
+    },
+    [ideaId, subject],
+  );
+  const {
+    status: draftStatus,
+    lastSavedAt,
+    lastError: draftError,
+    saveNow,
+  } = useDraftSaver<string>({ value: autoSaveValue, save: saveBody });
+
   if (idea.content?.html && idea.content.html !== lastSyncedHtml) {
     setLastSyncedHtml(idea.content.html);
     setHtml(idea.content.html);
@@ -1107,12 +1244,26 @@ function WriteTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: strin
   return (
     <div className={citations?.length ? "grid gap-4 lg:grid-cols-[1fr_320px]" : ""}>
       {/* Routed through the shared <ComposerShell> for cross-surface
-          consistency. The strategist editor has no voice chip / command
-          palette today, so the shell renders chrome-free (no empty row);
-          its mid-column action row + rail stay as children to preserve
-          the exact current order. When WriteTab is later enhanced with
-          the AI toolbar / voice chip, switch those on via shell props. */}
-      <ComposerShell mode="compose">
+          consistency with LinkedIn / X. Voice chip + AI toolbar mounted;
+          the AI toolbar is gated to Edit mode (it operates on the HTML
+          body, which Preview doesn't expose for editing) and suppressed
+          once the text is finalized. format:"html" keeps the rewrite
+          from flattening the newsletter's semantic structure. The
+          mid-column Save/Regenerate/Finalize row + image rail stay as
+          children to preserve the existing order. */}
+      <ComposerShell
+        mode="compose"
+        voiceCard={voiceSummary}
+        toolbarSlot={
+          !preview && !finalized ? (
+            <AiComposeToolbar
+              text={html}
+              platform="beehiiv"
+              onAiAction={handleAiAction}
+            />
+          ) : undefined
+        }
+      >
         {/* Subject line only for newsletter format. Article / PR /
             advertorial outputs don't carry a subject; their headline
             is in the HTML body already (write_article/pr/advertorial
@@ -1155,7 +1306,22 @@ function WriteTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: strin
               dangerouslySetInnerHTML={{ __html: sanitizeContentHtml(html) }}
             />
           ) : (
-            <textarea value={html} onChange={(e) => setHtml(e.target.value)} rows={20} className="w-full rounded-md border bg-background p-4 font-mono text-sm outline-none focus:ring-1 focus:ring-ring" placeholder="Newsletter content (HTML)..." />
+            <textarea
+              ref={htmlRef}
+              value={html}
+              onChange={(e) => { setHtml(e.target.value); setCaret(e.target.selectionStart ?? e.target.value.length); }}
+              onSelect={updateCaret}
+              onClick={updateCaret}
+              onKeyUp={updateCaret}
+              // Capture caret on blur too — the emoji popover / AI insert
+              // buttons steal focus, and selectionStart still holds the
+              // last position at blur time. Without this an insert lands
+              // at 0/end (the kit-wide emoji bug).
+              onBlur={updateCaret}
+              rows={20}
+              className="w-full rounded-md border bg-background p-4 font-mono text-sm outline-none focus:ring-1 focus:ring-ring"
+              placeholder="Newsletter content (HTML)..."
+            />
           )}
         </div>
         <div className="flex flex-wrap gap-2 items-center">
@@ -1166,6 +1332,17 @@ function WriteTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: strin
             {generating ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1.5 h-4 w-4" />}
             Regenerate
           </Button>
+          {/* Emoji insert — only in Edit mode (operates on the textarea
+              caret) and before finalize. */}
+          {!preview && !finalized && <EmojiPickerTrigger onInsert={insertSnippet} />}
+          {/* Auto-save status pill — sits next to the manual Save so the
+              user sees the debounced save land. */}
+          <DraftSaver
+            status={draftStatus}
+            lastSavedAt={lastSavedAt}
+            lastError={draftError}
+            onRetry={saveNow}
+          />
           <div className="ml-auto">
             <FinalizeButton finalized={finalized} busy={saving} onFinalize={handleFinalize} />
           </div>
