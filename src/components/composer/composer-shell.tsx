@@ -174,7 +174,10 @@ export function ComposerShell({
             actionsBordered && "border-t pt-3",
           )}
         >
-          <div className="flex items-center gap-3">{statusSlot}</div>
+          {/* Only render the left cell when there's status content, so a
+              status-less bar (X) collapses to a clean right-aligned row
+              rather than an empty flex child. */}
+          {statusSlot ? <div className="flex items-center gap-3">{statusSlot}</div> : null}
           <div className="flex items-center gap-2">{actionsSlot}</div>
         </div>
       )}
