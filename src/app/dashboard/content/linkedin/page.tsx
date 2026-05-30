@@ -8,7 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EmptyState } from "@/components/molecules/empty-state";
-import { MessageSquare, RefreshCw, Rocket, Send, Users } from "lucide-react";
+import { MessageSquare, Newspaper, RefreshCw, Rocket, Send, Users } from "lucide-react";
 import {
   PostComposer,
   PostComposerSkeleton,
@@ -16,6 +16,7 @@ import {
 } from "./_components/post-composer";
 import { AudiencePanel } from "./_components/audience-panel";
 import { BoostCandidatesPanel } from "./_components/boost-candidates-panel";
+import { FeedPanel } from "./_components/feed-panel";
 import { SuggestedDraftsPanel } from "./_components/suggested-drafts-panel";
 
 interface ApiIntegration {
@@ -136,7 +137,8 @@ function LinkedInTabs({
   identity: ReturnType<typeof useLinkedInIdentity>;
   enabledIdentity: ReturnType<typeof useLinkedInIdentity> | null;
 }) {
-  const [tab, setTab] = useState<"compose" | "audience" | "boost">("compose");
+  const [tab, setTab] = useState<"compose" | "feed" | "audience" | "boost">("compose");
+  const [feedOpened, setFeedOpened] = useState(false);
   const [audienceOpened, setAudienceOpened] = useState(false);
   const [boostOpened, setBoostOpened] = useState(false);
   // Composer seed text — set when the user clicks "Use this draft" on
@@ -146,8 +148,9 @@ function LinkedInTabs({
   const [composerSeed, setComposerSeed] = useState<string | undefined>(undefined);
 
   function handleTabChange(value: string) {
-    if (value === "compose" || value === "audience" || value === "boost") {
+    if (value === "compose" || value === "feed" || value === "audience" || value === "boost") {
       setTab(value);
+      if (value === "feed") setFeedOpened(true);
       if (value === "audience") setAudienceOpened(true);
       if (value === "boost") setBoostOpened(true);
     }
@@ -158,6 +161,9 @@ function LinkedInTabs({
       <TabsList>
         <TabsTrigger value="compose" className="gap-1.5">
           <Send className="size-4" /> Compose
+        </TabsTrigger>
+        <TabsTrigger value="feed" className="gap-1.5">
+          <Newspaper className="size-4" /> Feed
         </TabsTrigger>
         <TabsTrigger value="audience" className="gap-1.5">
           <Users className="size-4" /> Audience
@@ -184,6 +190,10 @@ function LinkedInTabs({
         <p className="text-xs text-muted-foreground">
           Compose with AI, schedule for later, or publish now. Carousels and media are coming.
         </p>
+      </TabsContent>
+
+      <TabsContent value="feed" className="mt-4">
+        {feedOpened ? <FeedPanel /> : null}
       </TabsContent>
 
       <TabsContent value="audience" className="mt-4">
@@ -220,6 +230,8 @@ function PageShell({ children, loading }: { children?: React.ReactNode; loading?
           // thing that refreshes them after a manual trigger.
           queryClient.invalidateQueries({ queryKey: ["linkedin-boost-candidates"] });
           queryClient.invalidateQueries({ queryKey: ["linkedin-engagers"] });
+          // post-sync writes the feed rows too — refresh the Feed tab.
+          queryClient.invalidateQueries({ queryKey: ["linkedin-feed"] });
         }}
       />
       <div>

@@ -307,7 +307,53 @@ export const linkedInContentApi = {
       `/v1/linkedin/content/boost-candidates${q ? `?${q}` : ""}`,
     );
   },
+
+  /** The user's own PUBLISHED LinkedIn posts (personal + org), newest
+   *  first, read from soc_linkedin_posts (the post-sync cron's output).
+   *  Keyset pagination: pass the previous response's `nextCursor`. Server
+   *  returns an empty array (not 404) when nothing's been synced yet, so
+   *  the Feed tab renders an empty state. limit clamped ≤50 server-side. */
+  feed: (params?: { limit?: number; cursor?: string; authorType?: "person" | "org" }) => {
+    const qs = new URLSearchParams();
+    if (typeof params?.limit === "number" && params.limit > 0) {
+      qs.set("limit", String(params.limit));
+    }
+    if (params?.cursor) qs.set("cursor", params.cursor);
+    if (params?.authorType) qs.set("authorType", params.authorType);
+    const q = qs.toString();
+    return api.get<LinkedInFeedResponse>(
+      `/v1/linkedin/content/feed${q ? `?${q}` : ""}`,
+    );
+  },
 };
+
+/** One published post in the LinkedIn Feed tab (GET /feed). */
+export interface LinkedInFeedPost {
+  /** soc_linkedin_posts._id hex. */
+  id: string;
+  content: string;
+  /** LinkedIn's own post id/urn (for a "View on LinkedIn" deep link);
+   *  null on rows synced before the id was captured. */
+  linkedInPostId: string | null;
+  authorType: "person" | "org" | null;
+  /** Raw author URN — distinguishes the specific person/page. */
+  authorUrn: string | null;
+  /** ISO publish time; null only on malformed legacy rows. */
+  publishedAt: string | null;
+  performance: {
+    impressions: number;
+    likes: number;
+    comments: number;
+    shares: number;
+    clicks: number;
+  };
+}
+
+export interface LinkedInFeedResponse {
+  posts: LinkedInFeedPost[];
+  /** Pass back as `cursor` to fetch the next page; null = no more. */
+  nextCursor: string | null;
+}
 
 /** One generated LinkedIn post draft returned by `generateFromProfile`.
  *  Mirrors the api's response shape exactly — `draftId` is the
