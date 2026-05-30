@@ -9,6 +9,7 @@ import { api } from "@/lib/api";
 import { useLocale } from "@/hooks/use-locale";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { LibraryMediaPicker } from "@/components/media/library-media-picker";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { ChannelIcon } from "@/components/ui/channel-icon";
@@ -175,6 +176,8 @@ interface ImagePlaceholder {
   styleHints?: string[];
   status: "placeholder" | "generated" | "uploaded" | "supplied" | "deleted";
   resolvedImageUrl?: string;
+  /** cnt_media row backing resolvedImageUrl (set on library-pick / upload). */
+  mediaId?: string;
 }
 
 interface IdeaDetail {
@@ -753,6 +756,7 @@ function ImagePlaceholderRail({
   onDelete,
   onGenerate,
   onSupplyUrl,
+  onPickFromLibrary,
   busy,
   finalized,
   generatingIndex,
@@ -763,6 +767,8 @@ function ImagePlaceholderRail({
   onGenerate: (index: number) => void;
   /** Resolve a placeholder from an external URL (status "supplied"). */
   onSupplyUrl: (index: number, url: string) => void;
+  /** Resolve from the media library / an upload (status "uploaded"). */
+  onPickFromLibrary: (index: number, url: string, mediaId: string) => void;
   busy: boolean;
   finalized: boolean;
   generatingIndex: number | null;
@@ -775,7 +781,7 @@ function ImagePlaceholderRail({
         <CardTitle className="text-sm flex items-center gap-2"><ImageIcon className="h-4 w-4" /> Image placeholders <span className="text-muted-foreground font-normal">({placeholders.length})</span></CardTitle>
         <CardDescription className="text-xs">
           {finalized
-            ? "Text finalized — Generate an image with AI or paste an image URL per placeholder. Delete what you don't want first."
+            ? "Text finalized — per placeholder: Generate with AI, paste an image URL, or pick from your media library (Library also uploads). Delete what you don't want first."
             : "Delete what you don't want; Finalize text to unlock image generation."}
         </CardDescription>
       </CardHeader>
@@ -789,6 +795,7 @@ function ImagePlaceholderRail({
               onDelete={onDelete}
               onGenerate={onGenerate}
               onSupplyUrl={onSupplyUrl}
+              onPickFromLibrary={onPickFromLibrary}
               busy={busy}
               finalized={finalized}
               isGenerating={generatingIndex === i}
@@ -806,8 +813,9 @@ function ImagePlaceholderRail({
  * parent rail stays stateless. Resolution paths:
  *   - Generate  → AI image pipeline (status "generated"), gated on finalize
  *   - Paste URL → external URL        (status "supplied"),  gated on finalize
- * (Library pick — status "uploaded" — lands with the Media Manager / R2
- * workstream; the data model + handler already accept it.)
+ *   - Library   → pick from cnt_media OR upload (status "uploaded" + mediaId),
+ *                 gated on finalize — via <LibraryMediaPicker> (Media Manager
+ *                 / R2). Closes the newsletter image-placeholder gap.
  */
 function PlaceholderCard({
   p,
@@ -815,6 +823,7 @@ function PlaceholderCard({
   onDelete,
   onGenerate,
   onSupplyUrl,
+  onPickFromLibrary,
   busy,
   finalized,
   isGenerating,
@@ -825,6 +834,7 @@ function PlaceholderCard({
   onDelete: (index: number) => void;
   onGenerate: (index: number) => void;
   onSupplyUrl: (index: number, url: string) => void;
+  onPickFromLibrary: (index: number, url: string, mediaId: string) => void;
   busy: boolean;
   finalized: boolean;
   isGenerating: boolean;
@@ -889,6 +899,23 @@ function PlaceholderCard({
           >
             {isResolving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Link2 className="h-3 w-3" />} Paste URL
           </button>
+          <LibraryMediaPicker
+            maxSelection={1}
+            onSelect={(assets) => {
+              const a = assets[0];
+              if (a) onPickFromLibrary(index, a.url, a.id);
+            }}
+            trigger={
+              <button
+                type="button"
+                disabled={rowBusy || !finalized}
+                className="text-xs font-medium px-2.5 py-1 rounded border bg-background hover:bg-accent disabled:opacity-40 flex items-center gap-1"
+                title={finalized ? "Choose from your media library or upload" : "Finalize text first to unlock"}
+              >
+                <ImageIcon className="h-3 w-3" /> Library
+              </button>
+            }
+          />
         </div>
         {urlOpen && (
           <div className="mt-2 flex items-center gap-1.5">
@@ -1236,11 +1263,14 @@ function WriteTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: strin
     index: number,
     resolvedImageUrl: string,
     status: "supplied" | "uploaded",
+    mediaId?: string,
   ) {
     setResolvingPlaceholderIdx(index);
     try {
       const next = placeholders.map((p, i) =>
-        i === index ? { ...p, resolvedImageUrl, status } : p,
+        i === index
+          ? { ...p, resolvedImageUrl, status, ...(mediaId ? { mediaId } : {}) }
+          : p,
       );
       await api.put(`/v1/content/ideas/${ideaId}/content`, { imagePlaceholders: next });
       toast.success(`Image ${index + 1} set`);
@@ -1365,7 +1395,12 @@ function WriteTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: strin
           onDelete={handleDeletePlaceholder}
           onGenerate={handleGeneratePlaceholder}
           onSupplyUrl={(i, url) => handleResolvePlaceholder(i, url, "supplied")}
-          busy={saving}
+          onPickFromLibrary={(i, url, mediaId) => handleResolvePlaceholder(i, url, "uploaded", mediaId)}
+          /* Disable ALL per-row actions while any row is resolving/generating:
+             each handler maps over the prop-derived placeholders array, so a
+             concurrent second-row write would build on a stale array and clobber
+             the first row's just-set resolution (review M4). */
+          busy={saving || generatingPlaceholderIdx !== null || resolvingPlaceholderIdx !== null}
           finalized={finalized}
           generatingIndex={generatingPlaceholderIdx}
           resolvingIndex={resolvingPlaceholderIdx}
