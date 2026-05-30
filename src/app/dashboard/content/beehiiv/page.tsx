@@ -35,7 +35,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FileX, LayoutGrid, List, Library, BrainCircuit, Share2, Info } from "lucide-react";
+import { FileX, LayoutGrid, List, Library, BrainCircuit, Share2, Info, Plus } from "lucide-react";
 import { RepurposeSheet } from "@/components/repurpose/repurpose-sheet";
 import type { RepurposeSource } from "@/lib/api/repurpose";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
@@ -109,6 +109,9 @@ export default function ContentPage() {
   const { user, business } = useAuth();
   const prefs = user?.preferences ?? null;
   const [view, setView] = useState<"card" | "table">("table");
+  // "Write from scratch" CTA busy guard — creates a blank idea then
+  // routes into the strategist write flow.
+  const [creatingDraft, setCreatingDraft] = useState(false);
   // Sheet state lives at page level so it survives any row re-render
   // during the sheet's open lifecycle.
   const [repurposeSource, setRepurposeSource] = useState<RepurposeSource | null>(null);
@@ -136,6 +139,26 @@ export default function ContentPage() {
       queryClient.invalidateQueries({ queryKey: ["content-gaps"] });
     },
   });
+
+  // "Write newsletter from scratch" — create a blank manual idea and
+  // route into the strategist write flow (Generate Brief → Write). The
+  // generator defaults to the newsletter format when contentFormat is
+  // unset, so a title-only idea lands as a newsletter draft. Mirrors the
+  // strategist list's New-Idea create-then-navigate pattern.
+  async function handleWriteFromScratch() {
+    if (creatingDraft) return;
+    setCreatingDraft(true);
+    try {
+      const idea = await api.post<{ _id: string }>("/v1/content/ideas", {
+        title: "Untitled newsletter",
+      });
+      router.push(`/dashboard/strategist/${idea._id}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't start a new newsletter");
+      setCreatingDraft(false);
+    }
+    // On success we navigate away, so no need to clear creatingDraft.
+  }
 
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ["content-stats"],
@@ -320,6 +343,14 @@ export default function ContentPage() {
             </p>
           </div>
           <div className="flex gap-2 items-center flex-wrap">
+            <Button
+              onClick={handleWriteFromScratch}
+              disabled={creatingDraft || !businessReady}
+              aria-busy={creatingDraft}
+            >
+              <Plus className="mr-1.5 h-4 w-4" />
+              {creatingDraft ? "Starting…" : "Write from scratch"}
+            </Button>
             <Button
               variant="outline"
               onClick={() => syncBeehiiv()}
