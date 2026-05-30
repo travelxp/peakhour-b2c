@@ -109,12 +109,17 @@ export function getStorageUsage(): Promise<StorageUsage> {
   return api.get<StorageUsage>(`/v1/storage/usage`);
 }
 
-export function uploadMedia(
-  file: File,
-): Promise<{ mediaId: string; publicUrl: string; sizeBytes: number; deduped: boolean }> {
+export interface MediaUploadResult {
+  mediaId: string;
+  publicUrl: string;
+  sizeBytes: number;
+  deduped: boolean;
+}
+
+export function uploadMedia(file: File): Promise<MediaUploadResult> {
   const form = new FormData();
   form.append("file", file);
-  return api.postForm(`/v1/media/upload`, form);
+  return api.postForm<MediaUploadResult>(`/v1/media/upload`, form);
 }
 
 export function deleteMedia(id: string): Promise<{ deletedCount: number; freedBytes: number }> {

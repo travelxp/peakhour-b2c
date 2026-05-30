@@ -38,6 +38,7 @@ import { PlanBadge } from "@/components/dashboard/plan-badge";
 import { AttentionBell } from "@/components/dashboard/attention-bell";
 import { TrialExpiryBanner } from "@/components/dashboard/trial-expiry-banner";
 import { CommandMenu } from "@/components/molecules/command-menu";
+import { SidebarStorageMeter } from "@/components/dashboard/sidebar-storage-meter";
 import { FeedbackWidget } from "@/components/molecules/feedback-widget";
 import { ChatPanel } from "@/components/molecules/chat-panel";
 import {
@@ -315,8 +316,9 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           ))}
         </SidebarContent>
 
-        {/* ── Footer: User ──────────────────────────────────── */}
+        {/* ── Footer: Storage meter + User ──────────────────── */}
         <SidebarFooter>
+          <SidebarStorageMeter />
           <SidebarMenu>
             <SidebarMenuItem>
               <DropdownMenu>
