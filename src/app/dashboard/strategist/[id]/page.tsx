@@ -1396,7 +1396,11 @@ function WriteTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: strin
           onGenerate={handleGeneratePlaceholder}
           onSupplyUrl={(i, url) => handleResolvePlaceholder(i, url, "supplied")}
           onPickFromLibrary={(i, url, mediaId) => handleResolvePlaceholder(i, url, "uploaded", mediaId)}
-          busy={saving}
+          /* Disable ALL per-row actions while any row is resolving/generating:
+             each handler maps over the prop-derived placeholders array, so a
+             concurrent second-row write would build on a stale array and clobber
+             the first row's just-set resolution (review M4). */
+          busy={saving || generatingPlaceholderIdx !== null || resolvingPlaceholderIdx !== null}
           finalized={finalized}
           generatingIndex={generatingPlaceholderIdx}
           resolvingIndex={resolvingPlaceholderIdx}
