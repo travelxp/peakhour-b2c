@@ -39,6 +39,48 @@ export interface CronMetadata {
 }
 
 export const CRON_METADATA: Record<string, CronMetadata> = {
+  "media-cleanup-suggestions": {
+    label: "Find cleanup suggestions",
+    frequency: "Runs weekly (Sun 4:00 AM UTC)",
+    description:
+      "Scans your media library for unused, duplicate, oversized, or never-used AI images and flags them for the Smart Delete review (advisory only — nothing is deleted automatically).",
+    summarize: (data) => {
+      const d = data as { totalTagged?: number } | null;
+      return typeof d?.totalTagged === "number"
+        ? `${d.totalTagged} cleanup suggestion${d.totalTagged === 1 ? "" : "s"} found.`
+        : null;
+    },
+  },
+  "media-hard-delete": {
+    label: "Purge expired deletions",
+    frequency: "Runs nightly (3:00 AM UTC)",
+    description:
+      "Permanently removes media that has been in the trash past its 30-day recovery window, freeing the storage for good.",
+    summarize: (data) => {
+      const d = data as { purged?: number } | null;
+      return typeof d?.purged === "number" ? `${d.purged} expired item${d.purged === 1 ? "" : "s"} purged.` : null;
+    },
+  },
+  "media-storage-reconcile": {
+    label: "Reconcile storage usage",
+    frequency: "Runs weekly (Sun 5:00 AM UTC)",
+    description:
+      "Recomputes each organisation's storage meter from the media library so the usage numbers stay exact.",
+    summarize: (data) => {
+      const d = data as { orgsReconciled?: number } | null;
+      return typeof d?.orgsReconciled === "number" ? `${d.orgsReconciled} org meter(s) reconciled.` : null;
+    },
+  },
+  "media-usage-scan": {
+    label: "Scan media usage",
+    frequency: "Runs daily (1:00 AM UTC)",
+    description:
+      "Refreshes which ideas each image is used in, so the cleanup suggestions know what's safe to remove.",
+    summarize: (data) => {
+      const d = data as { mediaUpdated?: number } | null;
+      return typeof d?.mediaUpdated === "number" ? `Usage refreshed for ${d.mediaUpdated} asset(s).` : null;
+    },
+  },
   "beehiiv-sync": {
     label: "Fetch newsletters",
     frequency: "Runs every hour",

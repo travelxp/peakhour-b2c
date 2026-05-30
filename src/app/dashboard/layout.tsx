@@ -95,6 +95,7 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/dashboard/content/sources", label: "Sources" },
           { href: "/dashboard/strategist", label: "Strategist" },
           { href: "/dashboard/calendar", label: "Calendar" },
+          { href: "/dashboard/media", label: "Media" },
           { href: "/dashboard/content/seasonal-events", label: "Seasonal Events" },
         ],
       },

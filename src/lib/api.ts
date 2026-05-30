@@ -218,6 +218,46 @@ class ApiClient {
   }
 
   /**
+   * POST multipart/form-data (file uploads). Unlike post(), this does NOT
+   * set Content-Type — the browser sets the multipart boundary itself.
+   * Handles CSRF + a single 401-refresh retry like request().
+   */
+  async postForm<T>(path: string, form: FormData): Promise<T> {
+    if (!this.baseUrl) {
+      throw new ApiError("CONFIG_ERROR", "NEXT_PUBLIC_API_URL is not configured", 0);
+    }
+    const headers: Record<string, string> = {};
+    const token = await this.getCsrfToken();
+    if (token) headers["X-CSRF-Token"] = token;
+
+    const doFetch = () =>
+      fetch(`${this.baseUrl}${path}`, {
+        method: "POST",
+        credentials: "include",
+        headers,
+        body: form,
+      });
+
+    let res = await doFetch();
+    if (res.status === 401 && !path.includes("/auth/refresh")) {
+      const refreshed = await this.tryRefresh();
+      if (refreshed) res = await doFetch();
+    }
+
+    let json: Record<string, unknown>;
+    try {
+      json = (await res.json()) as Record<string, unknown>;
+    } catch {
+      throw new ApiError("PARSE_ERROR", `Server returned non-JSON response (${res.status})`, res.status);
+    }
+    if (!res.ok || !json.ok) {
+      const error = (json.error as { code?: string; message?: string }) || { message: "Upload failed" };
+      throw new ApiError(error.code || "UNKNOWN", error.message || "Upload failed", res.status);
+    }
+    return json.data as T;
+  }
+
+  /**
    * POST that returns a raw Response for SSE streaming.
    * Handles CSRF + credentials like other methods, but
    * does NOT parse JSON — caller reads the stream.
