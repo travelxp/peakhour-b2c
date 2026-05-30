@@ -95,3 +95,33 @@ export function updateDraft(draftId: string, input: { text: string; title?: stri
     ...(input.title ? { title: input.title } : {}),
   });
 }
+
+// ── Voice cards (GET /v1/content/voice-cards) ──────────────
+
+/** A cnt_voice_cards doc as served by GET /v1/content/voice-cards.
+ *  Trimmed to the fields the composer's <VoiceCardPreview/> renders —
+ *  the route returns the full doc, we read defensively. */
+export interface VoiceCardDoc {
+  _id?: string;
+  channel?: string;
+  category?: string;
+  voice?: {
+    tone?: string[];
+    signaturePhrases?: string[];
+    avoidPhrases?: string[];
+  };
+  lastGeneratedAt?: string;
+  updatedAt?: string;
+}
+
+/** Fetch voice cards for a channel (+ optional category). Generic
+ *  across composers — LinkedIn has its own richer endpoint, but X /
+ *  Beehiiv / calendar use this one for the informational voice chip.
+ *  (Brand voice is also injected server-side by the rewrite skill, so
+ *  the chip is purely a "here's the voice we're writing in" cue.) */
+export function getVoiceCards(params: { channel?: string; category?: string } = {}) {
+  const query: Record<string, string> = {};
+  if (params.channel) query.channel = params.channel;
+  if (params.category) query.category = params.category;
+  return api.get<VoiceCardDoc[]>("/v1/content/voice-cards", query);
+}
