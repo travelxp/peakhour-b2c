@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import {
   listMedia,
+  getMedia,
   getStorageUsage,
   uploadMedia,
   deleteMedia,
@@ -114,7 +115,7 @@ export default function MediaManagerPage() {
     return items.filter(
       (m) =>
         m.aiOrigin?.prompt?.toLowerCase().includes(q) ||
-        SOURCE_LABELS[m.source].toLowerCase().includes(q) ||
+        (SOURCE_LABELS[m.source] ?? m.source).toLowerCase().includes(q) ||
         m.mimeType.toLowerCase().includes(q),
     );
   }, [items, search]);
@@ -271,6 +272,13 @@ export default function MediaManagerPage() {
               <Skeleton key={i} className="aspect-square rounded-md" />
             ))}
           </div>
+        ) : mediaQuery.isError ? (
+          <EmptyState
+            icon={AlertTriangle}
+            title="Couldn't load your media"
+            description="Something went wrong fetching the library. Please try again."
+            action={{ label: "Retry", onClick: () => void mediaQuery.refetch() }}
+          />
         ) : filtered.length === 0 ? (
           <EmptyState
             icon={ImageIcon}
@@ -289,7 +297,12 @@ export default function MediaManagerPage() {
               <button
                 key={m.id}
                 type="button"
-                onClick={() => setSelected(m)}
+                onClick={() => {
+                  setSelected(m);
+                  // Fire-and-forget: bumps lastAccessedAt server-side
+                  // (feeds unused-90d detection). UI keeps the list row.
+                  void getMedia(m.id).catch(() => {});
+                }}
                 className="group relative overflow-hidden rounded-md border bg-muted text-left transition-shadow hover:shadow-md focus:outline-none focus:ring-2 focus:ring-ring"
               >
                 <div className="aspect-square overflow-hidden">
@@ -304,7 +317,7 @@ export default function MediaManagerPage() {
                 <div className="flex items-center justify-between gap-1 p-1.5 text-[11px]">
                   <Badge variant="secondary" className="gap-1 px-1 py-0">
                     {m.source === "ai_generated" && <Sparkles className="size-3" />}
-                    {SOURCE_LABELS[m.source]}
+                    {SOURCE_LABELS[m.source] ?? m.source}
                   </Badge>
                   <span className="text-muted-foreground">{formatBytes(m.sizeBytes)}</span>
                 </div>

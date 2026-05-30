@@ -86,25 +86,18 @@ export async function listMedia(
   if (params.page) qs.page = String(params.page);
   if (params.limit) qs.limit = String(params.limit);
 
-  // api.get returns `data` only; pagination lives in `meta`. Fetch the
-  // envelope directly so we keep total/hasMore.
-  const search = new URLSearchParams(qs).toString();
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_API_URL ?? ""}/v1/media${search ? `?${search}` : ""}`,
-    { credentials: "include" },
-  );
-  const json = (await res.json()) as {
-    ok: boolean;
-    data?: MediaItem[];
-    meta?: MediaListMeta;
-    error?: { message?: string };
-  };
-  if (!res.ok || !json.ok) {
-    throw new Error(json.error?.message ?? "Failed to load media");
-  }
+  // getWithMeta keeps the shared client's 401-refresh + typed ApiError and
+  // returns the envelope's `meta` (pagination lives there, not in `data`).
+  const { data, meta } = await api.getWithMeta<MediaItem[]>("/v1/media", qs);
+  const m = meta as Partial<MediaListMeta>;
   return {
-    items: json.data ?? [],
-    meta: json.meta ?? { page: 1, limit: 40, total: json.data?.length ?? 0, hasMore: false },
+    items: data ?? [],
+    meta: {
+      page: m.page ?? 1,
+      limit: m.limit ?? 40,
+      total: m.total ?? data?.length ?? 0,
+      hasMore: m.hasMore ?? false,
+    },
   };
 }
 

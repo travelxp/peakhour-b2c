@@ -18,8 +18,11 @@ export function StorageMeter({
   compact?: boolean;
   className?: string;
 }) {
-  const pct = usage.percentUsed ?? 0;
   const unbounded = usage.limitBytes === null;
+  // A 0 GB quota (or any limit with no positive denominator) reports
+  // percentUsed=null from the api but is fully blocked, not unbounded.
+  const blockedZeroQuota = !unbounded && usage.limitBytes === 0;
+  const pct = blockedZeroQuota ? 100 : (usage.percentUsed ?? 0);
   const tone = pct >= 90 ? "red" : pct >= 75 ? "amber" : "normal";
 
   const barColor =
@@ -35,7 +38,7 @@ export function StorageMeter({
           ) : (
             <>
               {usage.gbUsed.toFixed(usage.gbUsed < 1 ? 2 : 1)} /{" "}
-              {usage.gbIncluded} GB
+              {usage.gbIncluded?.toFixed(usage.gbIncluded < 1 ? 2 : 0)} GB
               {usage.isOverage ? " · overage" : ""}
             </>
           )}
