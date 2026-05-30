@@ -59,9 +59,24 @@ import { cn } from "@/lib/utils";
 
 const MAX_LEN = 280;
 
-/** Compose vs. schedule view of the same composer — mirrors the
- *  LinkedIn composer. "schedule" mounts <SchedulerComposer/> with the
- *  current tweet/thread as the payload. */
+/** A single tweet in the composer. `id` is STABLE for the life of the
+ *  segment (not the array index) so React keys + the ref maps survive
+ *  removing/reordering a middle tweet — the index-keyed approach made
+ *  the DOM caret/IME state stick to the wrong tweet. */
+interface Segment {
+  id: string;
+  text: string;
+}
+
+// Monotonic id source. Module-level (not Date/random) so ids are stable
+// + collision-free across the session without pulling in a uuid dep.
+let segmentSeq = 0;
+function makeSegment(text = ""): Segment {
+  segmentSeq += 1;
+  return { id: `seg-${segmentSeq}`, text };
+}
+
+/** Compose vs. schedule view — mirrors the LinkedIn composer. */
 type ComposerMode = "compose" | "schedule";
 
 /** Reply / quote reference attached to the ROOT tweet (segment 0). */
@@ -69,6 +84,13 @@ type RefMode =
   | { kind: "none" }
   | { kind: "reply"; id: string; raw: string }
   | { kind: "quote"; id: string; raw: string };
+
+/** X hashtags are ASCII letters/digits/underscore only — pass this to
+ *  HashtagSuggest so users don't pick "Create #🔥" the publish API then
+ *  rejects (the primitive's default validator allows Unicode letters). */
+function isValidXHashtag(query: string): boolean {
+  return /^[A-Za-z0-9_]{2,}$/.test(query);
+}
 
 function aiOpToast(op: AiActionContext["op"]): string {
   switch (op) {
@@ -111,36 +133,37 @@ export function TweetComposer() {
 
   // ── Thread state ────────────────────────────────────────────────
   // segments[0] is the root tweet; length > 1 = a thread. The composer
-  // edits the ACTIVE segment; the AI toolbar / emoji / hashtag
-  // primitives all operate on it. activeIndex + caret are the single
-  // source of truth for "where an insert lands"; caretRef mirrors caret
-  // for the async AI handler (same pattern as the LinkedIn composer).
-  const [segments, setSegments] = useState<string[]>([""]);
-  const [activeIndex, setActiveIndex] = useState(0);
+  // edits the ACTIVE segment (tracked by id, not index); the AI toolbar
+  // / emoji / hashtag primitives all operate on it. activeId + caret
+  // are the source of truth for "where an insert lands"; refs mirror
+  // them for the async AI handler (same pattern as the LinkedIn
+  // composer).
+  const [segments, setSegments] = useState<Segment[]>(() => [makeSegment()]);
+  const [activeId, setActiveId] = useState<string>(() => segments[0]!.id);
   const [caret, setCaret] = useState(0);
-  const segmentsRef = useRef<string[]>([""]);
-  const activeIndexRef = useRef(0);
+  const segmentsRef = useRef<Segment[]>(segments);
+  const activeIdRef = useRef<string>(activeId);
   const caretRef = useRef(0);
   useEffect(() => {
     segmentsRef.current = segments;
   }, [segments]);
   useEffect(() => {
-    activeIndexRef.current = activeIndex;
-  }, [activeIndex]);
+    activeIdRef.current = activeId;
+  }, [activeId]);
   useEffect(() => {
     caretRef.current = caret;
   }, [caret]);
 
-  // One textarea ref per segment (for focus restore after insert) +
-  // one wrapper per segment (hashtag popover anchor for the active one).
-  const textareaRefs = useRef<(HTMLTextAreaElement | null)[]>([]);
-  const wrapRefs = useRef<(HTMLDivElement | null)[]>([]);
-  // Stable ref object the HashtagSuggest reads for the active segment —
-  // updated to point at the active textarea/wrapper each render.
+  // Element maps keyed by STABLE segment id (not index) — survive a
+  // middle-segment removal without mis-associating DOM nodes.
+  const textareaRefs = useRef<Map<string, HTMLTextAreaElement | null>>(new Map());
+  const wrapRefs = useRef<Map<string, HTMLDivElement | null>>(new Map());
+  // Stable ref objects the single HashtagSuggest reads — repointed each
+  // render to the active segment's elements.
   const activeTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const activeWrapRef = useRef<HTMLDivElement | null>(null);
-  activeTextareaRef.current = textareaRefs.current[activeIndex] ?? null;
-  activeWrapRef.current = wrapRefs.current[activeIndex] ?? null;
+  activeTextareaRef.current = textareaRefs.current.get(activeId) ?? null;
+  activeWrapRef.current = wrapRefs.current.get(activeId) ?? null;
 
   // ── Other composer state ────────────────────────────────────────
   const [mode, setMode] = useState<ComposerMode>("compose");
@@ -155,15 +178,14 @@ export function TweetComposer() {
   const [feedback, setFeedback] = useState<{ kind: "success" | "error"; message: string } | null>(null);
 
   const isThread = segments.length > 1;
-  const activeText = segments[activeIndex] ?? "";
+  const activeText = segments.find((s) => s.id === activeId)?.text ?? "";
 
-  // Combined text — used for the draft body + scheduler source hash.
   const combinedText = useMemo(
-    () => segments.map((s) => s.trim()).filter(Boolean).join("\n\n"),
+    () => segments.map((s) => s.text.trim()).filter(Boolean).join("\n\n"),
     [segments],
   );
   const empty = combinedText.length === 0;
-  const anyTooLong = segments.some((s) => s.length > MAX_LEN);
+  const anyTooLong = segments.some((s) => s.text.length > MAX_LEN);
 
   // ── Voice card chip (informational) ─────────────────────────────
   const voiceCardQuery = useQuery({
@@ -178,66 +200,72 @@ export function TweetComposer() {
   const voiceSummary = useMemo(() => mapXVoiceCard(voiceCardQuery.data), [voiceCardQuery.data]);
 
   // ── Segment helpers ─────────────────────────────────────────────
-  function updateSegment(index: number, value: string) {
-    setSegments((prev) => {
-      const next = [...prev];
-      next[index] = value;
-      segmentsRef.current = next;
-      return next;
-    });
-  }
+  const updateSegment = useCallback((id: string, value: string) => {
+    setSegments((prev) => prev.map((s) => (s.id === id ? { ...s, text: value } : s)));
+  }, []);
 
-  function addSegment() {
-    setSegments((prev) => {
-      const next = [...prev, ""];
-      segmentsRef.current = next;
-      return next;
-    });
-    const newIndex = segments.length;
-    setActiveIndex(newIndex);
-    activeIndexRef.current = newIndex;
+  const addSegment = useCallback(() => {
+    const seg = makeSegment();
+    setSegments((prev) => [...prev, seg]);
+    setActiveId(seg.id);
+    activeIdRef.current = seg.id;
     setCaret(0);
     caretRef.current = 0;
-    // Focus the new segment once it mounts.
-    requestAnimationFrame(() => textareaRefs.current[newIndex]?.focus());
-  }
+    requestAnimationFrame(() => textareaRefs.current.get(seg.id)?.focus());
+  }, []);
 
-  function removeSegment(index: number) {
-    if (segments.length <= 1) return;
-    setSegments((prev) => {
-      const next = prev.filter((_, i) => i !== index);
-      segmentsRef.current = next;
-      return next;
-    });
-    const nextActive = Math.max(0, Math.min(activeIndex, segments.length - 2));
-    setActiveIndex(nextActive);
-    activeIndexRef.current = nextActive;
-  }
+  const removeSegment = useCallback(
+    (id: string) => {
+      setSegments((prev) => {
+        if (prev.length <= 1) return prev;
+        const idx = prev.findIndex((s) => s.id === id);
+        const next = prev.filter((s) => s.id !== id);
+        // If the active segment is the one being removed, move focus to
+        // the previous tweet (or the new first) — tracked by id, so no
+        // index drift when an earlier segment is removed.
+        if (activeIdRef.current === id) {
+          const newActive = next[Math.max(0, idx - 1)] ?? next[0]!;
+          setActiveId(newActive.id);
+          activeIdRef.current = newActive.id;
+          const len = newActive.text.length;
+          setCaret(len);
+          caretRef.current = len;
+        }
+        return next;
+      });
+      textareaRefs.current.delete(id);
+      wrapRefs.current.delete(id);
+    },
+    [],
+  );
 
-  function captureCaret(index: number, el: HTMLTextAreaElement) {
-    setActiveIndex(index);
-    activeIndexRef.current = index;
+  function captureCaret(id: string, el: HTMLTextAreaElement) {
+    setActiveId(id);
+    activeIdRef.current = id;
     const pos = el.selectionStart ?? el.value.length;
     setCaret(pos);
     caretRef.current = pos;
   }
 
   // ── Caret-aware snippet insertion (emoji + AI insert ops) ───────
-  const insertSnippet = useCallback((snippet: string): string => {
-    const idx = activeIndexRef.current;
-    const current = segmentsRef.current[idx] ?? "";
-    const { text: next, caret: nextCaret } = insertAtCaret(current, caretRef.current, snippet);
-    updateSegment(idx, next);
-    setCaret(nextCaret);
-    caretRef.current = nextCaret;
-    requestAnimationFrame(() => {
-      const el = textareaRefs.current[idx];
-      if (!el) return;
-      el.focus();
-      el.setSelectionRange(nextCaret, nextCaret);
-    });
-    return next;
-  }, []);
+  const insertSnippet = useCallback(
+    (snippet: string): string => {
+      const id = activeIdRef.current;
+      const current = segmentsRef.current.find((s) => s.id === id)?.text ?? "";
+      const { text: next, caret: nextCaret } = insertAtCaret(current, caretRef.current, snippet);
+      updateSegment(id, next);
+      setCaret(nextCaret);
+      caretRef.current = nextCaret;
+      requestAnimationFrame(() => {
+        const el = textareaRefs.current.get(id);
+        if (!el) return;
+        el.focus();
+        el.setSelectionRange(nextCaret, nextCaret);
+      });
+      return next;
+    },
+    [updateSegment],
+  );
 
   // ── AI compose toolbar handler (operates on the active segment) ──
   const handleAiAction = useCallback(
@@ -255,17 +283,16 @@ export function TweetComposer() {
         newText = insertSnippet(res.text);
       } else {
         newText = res.text;
-        updateSegment(activeIndexRef.current, newText);
+        updateSegment(activeIdRef.current, newText);
       }
       toast.success(aiOpToast(ctx.op));
       return newText;
     },
-    [insertSnippet],
+    [insertSnippet, updateSegment],
   );
 
   // No hashtag-history endpoint for X yet — surface only the inline
-  // "Create #tag" affordance via the primitive's default validator
-  // (letters/digits/underscore), which matches X's tag rules.
+  // "Create #tag" affordance, gated by the X-ASCII validator.
   const searchHashtags = useCallback(async (): Promise<HashtagCandidate[]> => [], []);
 
   // ── Draft auto-save ─────────────────────────────────────────────
@@ -306,12 +333,14 @@ export function TweetComposer() {
 
   // ── Reset after publish/schedule ────────────────────────────────
   const resetComposer = useCallback(() => {
-    setSegments([""]);
-    segmentsRef.current = [""];
-    setActiveIndex(0);
-    activeIndexRef.current = 0;
+    const fresh = makeSegment();
+    setSegments([fresh]);
+    setActiveId(fresh.id);
+    activeIdRef.current = fresh.id;
     setCaret(0);
     caretRef.current = 0;
+    textareaRefs.current.clear();
+    wrapRefs.current.clear();
     setRefMode({ kind: "none" });
     setRefInput("");
     setShowRefs(false);
@@ -322,29 +351,24 @@ export function TweetComposer() {
   // ── Instant publish (single tweet OR reply-chained thread) ──────
   const publish = useMutation({
     mutationFn: async () => {
-      const segs = segments.map((s) => s.trim());
-      // Drop trailing empty segments (an "Add tweet" the user left blank)
-      // but keep interior order intact.
-      while (segs.length > 1 && segs[segs.length - 1] === "") segs.pop();
-
+      // Filter ALL empties (not just trailing) so an emptied interior
+      // tweet can't post a blank that X rejects mid-chain.
+      const segs = segments.map((s) => s.text.trim()).filter(Boolean);
       let posted = 0;
       let prevId: string | undefined;
       for (let i = 0; i < segs.length; i++) {
-        const body: PublishTweetInput = { text: segs[i] };
+        const body: PublishTweetInput = { text: segs[i]! };
         if (i === 0) {
           if (refMode.kind === "reply") body.replyToTweetId = refMode.id;
           if (refMode.kind === "quote") body.quoteTweetId = refMode.id;
         } else {
-          // Chain: each subsequent tweet replies to the previous one's id.
           body.replyToTweetId = prevId;
         }
         try {
           const res = await xApi.publish(body);
           prevId = res.id;
-          posted++;
+          posted += 1;
         } catch (err) {
-          // Partial-thread failure: surface how far we got so the user
-          // isn't left guessing. Re-throw to hit onError.
           const detail =
             segs.length > 1 ? ` (${posted}/${segs.length} posted before this failed)` : "";
           const base = err instanceof ApiError ? err.message : "Failed to publish.";
@@ -399,12 +423,12 @@ export function TweetComposer() {
   );
 
   const scheduleTitle = useMemo(() => {
-    const first = segments[0]?.trim().split(/\r?\n/).find((l) => l.trim().length > 0);
+    const first = segments[0]?.text.trim().split(/\r?\n/).find((l) => l.trim().length > 0);
     return first ? first.slice(0, 120).trim() : undefined;
   }, [segments]);
 
   const schedulerChannels = useMemo(() => {
-    const trimmed = segments.map((s) => s.trim()).filter(Boolean);
+    const trimmed = segments.map((s) => s.text.trim()).filter(Boolean);
     const channelOptions: Record<string, unknown> = {};
     if (refMode.kind === "reply") channelOptions.replyToTweetId = refMode.id;
     if (refMode.kind === "quote") channelOptions.quoteTweetId = refMode.id;
@@ -414,8 +438,7 @@ export function TweetComposer() {
         payload: {
           text: trimmed[0] ?? "",
           // threadParts drives the scheduler's X publisher (posts each
-          // part sequentially). Only set it for an actual thread so a
-          // single tweet schedules as a plain post.
+          // part sequentially). Only set it for an actual thread.
           ...(trimmed.length > 1 ? { threadParts: trimmed } : {}),
           ...(Object.keys(channelOptions).length > 0 ? { channelOptions } : {}),
         },
@@ -472,8 +495,7 @@ export function TweetComposer() {
         run: () => setShowRefs(true),
       },
     ],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [handleAiAction, activeText, scheduleDisabled, refMode.kind, segments.length],
+    [handleAiAction, activeText, scheduleDisabled, refMode.kind, addSegment],
   );
 
   // ── Schedule view ───────────────────────────────────────────────
@@ -543,12 +565,12 @@ export function TweetComposer() {
       {/* Thread segments */}
       <div className="space-y-3">
         {segments.map((seg, index) => {
-          const isActive = index === activeIndex;
+          const isActive = seg.id === activeId;
           return (
             <div
-              key={index}
+              key={seg.id}
               ref={(el) => {
-                wrapRefs.current[index] = el;
+                wrapRefs.current.set(seg.id, el);
               }}
               className={cn(
                 "relative rounded-md border p-2 transition-colors",
@@ -565,7 +587,7 @@ export function TweetComposer() {
                     variant="ghost"
                     size="sm"
                     className="h-6 px-1.5 text-muted-foreground hover:text-destructive"
-                    onClick={() => removeSegment(index)}
+                    onClick={() => removeSegment(seg.id)}
                     aria-label={`Remove tweet ${index + 1}`}
                   >
                     <Trash2 className="size-3.5" />
@@ -574,27 +596,27 @@ export function TweetComposer() {
               )}
               <Textarea
                 ref={(el) => {
-                  textareaRefs.current[index] = el;
+                  textareaRefs.current.set(seg.id, el);
                 }}
-                value={seg}
+                value={seg.text}
                 onChange={(e) => {
-                  updateSegment(index, e.target.value);
-                  captureCaret(index, e.target);
+                  updateSegment(seg.id, e.target.value);
+                  captureCaret(seg.id, e.target);
                 }}
-                onSelect={(e) => captureCaret(index, e.currentTarget)}
-                onClick={(e) => captureCaret(index, e.currentTarget)}
-                onKeyUp={(e) => captureCaret(index, e.currentTarget)}
-                onFocus={(e) => captureCaret(index, e.currentTarget)}
+                onSelect={(e) => captureCaret(seg.id, e.currentTarget)}
+                onClick={(e) => captureCaret(seg.id, e.currentTarget)}
+                onKeyUp={(e) => captureCaret(seg.id, e.currentTarget)}
+                onFocus={(e) => captureCaret(seg.id, e.currentTarget)}
                 // Capture caret on blur so an emoji/AI insert (which blurs
                 // the textarea) lands at the right spot.
-                onBlur={(e) => captureCaret(index, e.currentTarget)}
+                onBlur={(e) => captureCaret(seg.id, e.currentTarget)}
                 placeholder={index === 0 ? "What's happening?" : "Continue the thread…"}
                 rows={index === 0 ? 4 : 3}
                 className="resize-none border-0 bg-transparent p-1 shadow-none focus-visible:ring-0"
                 aria-label={isThread ? `Tweet ${index + 1} text` : "Tweet text"}
               />
               <div className="flex items-center justify-end px-1">
-                <PlatformCharCounter value={seg} platform="x" size="sm" showCount />
+                <PlatformCharCounter value={seg.text} platform="x" size="sm" showCount />
               </div>
             </div>
           );
@@ -606,8 +628,9 @@ export function TweetComposer() {
           targetRef={activeTextareaRef}
           text={activeText}
           caret={caret}
-          onChange={(next) => updateSegment(activeIndex, next)}
+          onChange={(next) => updateSegment(activeId, next)}
           onSearch={searchHashtags}
+          validateTag={isValidXHashtag}
           minQueryLength={2}
         />
       </div>
