@@ -45,6 +45,47 @@ export interface PreflightAudit {
   compositeScore?: number;
 }
 
+/** A recurring schedule rule (scd_recurring_rules) as served by
+ *  GET /v1/scheduler/recurring-rules. Mirrors the API's
+ *  normaliseRuleForApi allowlist; only the fields the management page
+ *  renders are typed here. */
+export type RecurringRuleStatus = "active" | "paused" | "completed" | "expired";
+export type RecurringFreq = "daily" | "weekly" | "monthly" | "custom_cron";
+
+export interface RecurringRuleDto {
+  _id: string;
+  name?: string;
+  freq: RecurringFreq;
+  interval: number;
+  /** 0–6 (Sun–Sat) for weekly rules. */
+  weekdays?: number[];
+  /** 1–31 for monthly rules. */
+  dayOfMonth?: number;
+  /** HH:mm local. */
+  localTime: string;
+  timezone: string;
+  effectiveFrom?: string;
+  effectiveUntil?: string;
+  maxRuns?: number;
+  runsSpawned: number;
+  runsCompleted: number;
+  lastSpawnedAt?: string;
+  nextSpawnAt?: string;
+  status: RecurringRuleStatus;
+  pauseReason?: string;
+  lastSpawnError?: string;
+  planTemplate?: {
+    channels?: { channel: ChannelKey }[];
+    titleTemplate?: string;
+  };
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface ListRecurringRulesResponse {
+  rules: RecurringRuleDto[];
+}
+
 export interface PayloadSnapshot {
   text: string;
   hashtags?: string[];
