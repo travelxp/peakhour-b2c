@@ -735,16 +735,21 @@ function ImagePlaceholderRail({
   placeholders,
   onDelete,
   onGenerate,
+  onSupplyUrl,
   busy,
   finalized,
   generatingIndex,
+  resolvingIndex,
 }: {
   placeholders: ImagePlaceholder[];
   onDelete: (index: number) => void;
   onGenerate: (index: number) => void;
+  /** Resolve a placeholder from an external URL (status "supplied"). */
+  onSupplyUrl: (index: number, url: string) => void;
   busy: boolean;
   finalized: boolean;
   generatingIndex: number | null;
+  resolvingIndex: number | null;
 }) {
   if (!placeholders.length) return null;
   return (
@@ -753,64 +758,154 @@ function ImagePlaceholderRail({
         <CardTitle className="text-sm flex items-center gap-2"><ImageIcon className="h-4 w-4" /> Image placeholders <span className="text-muted-foreground font-normal">({placeholders.length})</span></CardTitle>
         <CardDescription className="text-xs">
           {finalized
-            ? "Text finalized — Generate runs the AI image pipeline per placeholder. Delete what you don't want first."
+            ? "Text finalized — Generate an image with AI or paste an image URL per placeholder. Delete what you don't want first."
             : "Delete what you don't want; Finalize text to unlock image generation."}
         </CardDescription>
       </CardHeader>
       <CardContent>
         <ul className="grid gap-2 sm:grid-cols-2">
-          {placeholders.map((p, i) => {
-            const isGenerating = generatingIndex === i;
-            const isGenerated = p.status === "generated" && !!p.resolvedImageUrl;
-            return (
-              <li key={i} className={`rounded-md border p-3 text-sm flex items-start justify-between gap-2 ${isGenerated ? "bg-emerald-50/40 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900" : "bg-muted/20"}`}>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5 mb-1 flex-wrap">
-                    <Badge variant="outline" className="text-[10px]">{p.position}</Badge>
-                    <Badge variant="secondary" className="text-[10px]">{p.dimensions}</Badge>
-                    {isGenerated && <Badge variant="default" className="text-[10px]">Generated</Badge>}
-                  </div>
-                  <p className="font-medium truncate" title={p.purpose}>{p.purpose}</p>
-                  <p className="text-xs text-muted-foreground line-clamp-2">{p.description}</p>
-                  {p.suggestedCaption && <p className="text-xs italic mt-1 text-muted-foreground">&ldquo;{p.suggestedCaption}&rdquo;</p>}
-                  {isGenerated && p.resolvedImageUrl && (
-                    <div className="mt-2 rounded-md overflow-hidden border bg-background">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={p.resolvedImageUrl} alt={p.suggestedAltText} className="block w-full h-auto" />
-                    </div>
-                  )}
-                  <div className="mt-2 flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => onGenerate(i)}
-                      disabled={busy || isGenerating || !finalized}
-                      className="text-xs font-medium px-2.5 py-1 rounded border bg-background hover:bg-accent disabled:opacity-40 flex items-center gap-1"
-                      title={finalized ? (isGenerated ? "Regenerate (overwrites the current image)" : "Generate image via AI") : "Finalize text first to unlock generation"}
-                    >
-                      {isGenerating
-                        ? <><Loader2 className="h-3 w-3 animate-spin" /> Generating…</>
-                        : isGenerated
-                          ? <><Sparkles className="h-3 w-3" /> Regenerate</>
-                          : <><Sparkles className="h-3 w-3" /> Generate</>}
-                    </button>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => onDelete(i)}
-                  disabled={busy || isGenerating}
-                  className="shrink-0 text-muted-foreground hover:text-destructive disabled:opacity-40"
-                  aria-label={`Delete placeholder ${i + 1}`}
-                  title="Delete placeholder"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </li>
-            );
-          })}
+          {placeholders.map((p, i) => (
+            <PlaceholderCard
+              key={i}
+              p={p}
+              index={i}
+              onDelete={onDelete}
+              onGenerate={onGenerate}
+              onSupplyUrl={onSupplyUrl}
+              busy={busy}
+              finalized={finalized}
+              isGenerating={generatingIndex === i}
+              isResolving={resolvingIndex === i}
+            />
+          ))}
         </ul>
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * One placeholder card. Owns its local paste-URL input toggle so the
+ * parent rail stays stateless. Resolution paths:
+ *   - Generate  → AI image pipeline (status "generated"), gated on finalize
+ *   - Paste URL → external URL        (status "supplied"),  gated on finalize
+ * (Library pick — status "uploaded" — lands with the Media Manager / R2
+ * workstream; the data model + handler already accept it.)
+ */
+function PlaceholderCard({
+  p,
+  index,
+  onDelete,
+  onGenerate,
+  onSupplyUrl,
+  busy,
+  finalized,
+  isGenerating,
+  isResolving,
+}: {
+  p: ImagePlaceholder;
+  index: number;
+  onDelete: (index: number) => void;
+  onGenerate: (index: number) => void;
+  onSupplyUrl: (index: number, url: string) => void;
+  busy: boolean;
+  finalized: boolean;
+  isGenerating: boolean;
+  isResolving: boolean;
+}) {
+  const [urlOpen, setUrlOpen] = useState(false);
+  const [urlValue, setUrlValue] = useState("");
+  const resolved = !!p.resolvedImageUrl &&
+    (p.status === "generated" || p.status === "supplied" || p.status === "uploaded");
+  const rowBusy = busy || isGenerating || isResolving;
+
+  const statusLabel = p.status === "generated" ? "Generated"
+    : p.status === "supplied" ? "From URL"
+    : p.status === "uploaded" ? "From library"
+    : null;
+
+  function submitUrl() {
+    const trimmed = urlValue.trim();
+    if (!trimmed) return;
+    onSupplyUrl(index, trimmed);
+    setUrlOpen(false);
+    setUrlValue("");
+  }
+
+  return (
+    <li className={`rounded-md border p-3 text-sm flex items-start justify-between gap-2 ${resolved ? "bg-emerald-50/40 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900" : "bg-muted/20"}`}>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+          <Badge variant="outline" className="text-[10px]">{p.position}</Badge>
+          <Badge variant="secondary" className="text-[10px]">{p.dimensions}</Badge>
+          {statusLabel && <Badge variant="default" className="text-[10px]">{statusLabel}</Badge>}
+        </div>
+        <p className="font-medium truncate" title={p.purpose}>{p.purpose}</p>
+        <p className="text-xs text-muted-foreground line-clamp-2">{p.description}</p>
+        {p.suggestedCaption && <p className="text-xs italic mt-1 text-muted-foreground">&ldquo;{p.suggestedCaption}&rdquo;</p>}
+        {resolved && p.resolvedImageUrl && (
+          <div className="mt-2 rounded-md overflow-hidden border bg-background">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={p.resolvedImageUrl} alt={p.suggestedAltText} className="block w-full h-auto" />
+          </div>
+        )}
+        <div className="mt-2 flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={() => onGenerate(index)}
+            disabled={rowBusy || !finalized}
+            className="text-xs font-medium px-2.5 py-1 rounded border bg-background hover:bg-accent disabled:opacity-40 flex items-center gap-1"
+            title={finalized ? (resolved ? "Regenerate (overwrites the current image)" : "Generate image via AI") : "Finalize text first to unlock generation"}
+          >
+            {isGenerating
+              ? <><Loader2 className="h-3 w-3 animate-spin" /> Generating…</>
+              : resolved
+                ? <><Sparkles className="h-3 w-3" /> Regenerate</>
+                : <><Sparkles className="h-3 w-3" /> Generate</>}
+          </button>
+          <button
+            type="button"
+            onClick={() => setUrlOpen((v) => !v)}
+            disabled={rowBusy || !finalized}
+            className="text-xs font-medium px-2.5 py-1 rounded border bg-background hover:bg-accent disabled:opacity-40 flex items-center gap-1"
+            title={finalized ? "Paste an image URL" : "Finalize text first to unlock"}
+          >
+            {isResolving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Link2 className="h-3 w-3" />} Paste URL
+          </button>
+        </div>
+        {urlOpen && (
+          <div className="mt-2 flex items-center gap-1.5">
+            <Input
+              value={urlValue}
+              onChange={(e) => setUrlValue(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); submitUrl(); } }}
+              placeholder="https://…/image.jpg"
+              className="h-7 text-xs"
+              autoFocus
+            />
+            <button
+              type="button"
+              onClick={submitUrl}
+              disabled={rowBusy || !urlValue.trim()}
+              className="shrink-0 text-xs font-medium px-2 py-1 rounded border bg-background hover:bg-accent disabled:opacity-40 flex items-center gap-1"
+              aria-label="Set image URL"
+            >
+              <Check className="h-3 w-3" /> Set
+            </button>
+          </div>
+        )}
+      </div>
+      <button
+        type="button"
+        onClick={() => onDelete(index)}
+        disabled={rowBusy}
+        className="shrink-0 text-muted-foreground hover:text-destructive disabled:opacity-40"
+        aria-label={`Delete placeholder ${index + 1}`}
+        title="Delete placeholder"
+      >
+        <X className="h-4 w-4" />
+      </button>
+    </li>
   );
 }
 
@@ -856,6 +951,13 @@ function WriteTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: strin
   // (e.g. after generation/save). Track last-seen values; reset on change.
   const [lastSyncedHtml, setLastSyncedHtml] = useState(idea.content?.html || "");
   const [lastSyncedSubject, setLastSyncedSubject] = useState(idea.content?.subject || "");
+  // Phase 2 per-placeholder image generation index. Declared with the
+  // other hooks at the top — MUST be unconditional (it previously sat
+  // after this component's early returns, a react-hooks/rules-of-hooks
+  // violation).
+  const [generatingPlaceholderIdx, setGeneratingPlaceholderIdx] = useState<number | null>(null);
+  // Per-placeholder resolution busy index (paste-URL / library pick).
+  const [resolvingPlaceholderIdx, setResolvingPlaceholderIdx] = useState<number | null>(null);
   if (idea.content?.html && idea.content.html !== lastSyncedHtml) {
     setLastSyncedHtml(idea.content.html);
     setHtml(idea.content.html);
@@ -959,7 +1061,7 @@ function WriteTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: strin
   // textFinalizedAt by the api (returns 400 TEXT_NOT_FINALIZED if
   // user clicks Generate before Finalize). UI also disables the
   // button when !finalized so the gate is enforced both sides.
-  const [generatingPlaceholderIdx, setGeneratingPlaceholderIdx] = useState<number | null>(null);
+  // (state declared with the other hooks at the top — see note there.)
   async function handleGeneratePlaceholder(index: number) {
     setGeneratingPlaceholderIdx(index);
     try {
@@ -970,6 +1072,30 @@ function WriteTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: strin
       toast.error(err instanceof Error ? err.message : "Image generation failed");
     }
     setGeneratingPlaceholderIdx(null);
+  }
+
+  // Resolve a placeholder by SUPPLYING an external URL (status
+  // "supplied") or PICKING from the media library (status "uploaded").
+  // Both write the chosen URL onto the placeholder via the same /content
+  // PUT the rest of the rail uses. Gated on finalize like Generate, so
+  // images are only resolved once the text is locked.
+  async function handleResolvePlaceholder(
+    index: number,
+    resolvedImageUrl: string,
+    status: "supplied" | "uploaded",
+  ) {
+    setResolvingPlaceholderIdx(index);
+    try {
+      const next = placeholders.map((p, i) =>
+        i === index ? { ...p, resolvedImageUrl, status } : p,
+      );
+      await api.put(`/v1/content/ideas/${ideaId}/content`, { imagePlaceholders: next });
+      toast.success(`Image ${index + 1} set`);
+      onRefresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to set image");
+    }
+    setResolvingPlaceholderIdx(null);
   }
 
   const citations = idea.content?.dataCitations;
@@ -1039,9 +1165,11 @@ function WriteTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: strin
           placeholders={placeholders}
           onDelete={handleDeletePlaceholder}
           onGenerate={handleGeneratePlaceholder}
+          onSupplyUrl={(i, url) => handleResolvePlaceholder(i, url, "supplied")}
           busy={saving}
           finalized={finalized}
           generatingIndex={generatingPlaceholderIdx}
+          resolvingIndex={resolvingPlaceholderIdx}
         />
       </div>
       {citations?.length ? <DataCitationsPanel citations={citations} /> : null}
