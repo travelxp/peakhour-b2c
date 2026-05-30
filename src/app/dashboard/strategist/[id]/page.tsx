@@ -15,6 +15,9 @@ import { ChannelIcon } from "@/components/ui/channel-icon";
 import { PipelineStatusBadge } from "../components/status-badge";
 import { PipelineStepper, STAGE_PANEL_MAP } from "../components/pipeline-stepper";
 import { RejectReasonDialog } from "@/components/molecules/reject-reason-dialog";
+import { SchedulerComposer } from "@/components/scheduler/scheduler-composer";
+import type { ScheduleSourceType } from "@/lib/scheduler/types";
+import { sourceTextHash } from "@/lib/scheduler/source-hash";
 import {
   ArrowLeft,
   Loader2,
@@ -24,7 +27,6 @@ import {
   Send,
   CheckCircle,
   XCircle,
-  Calendar,
   ExternalLink,
   Eye,
   Star,
@@ -381,7 +383,7 @@ export default function IdeaDetailPage() {
             }}
           />
         )}
-        {activePanel === "publish" && <PublishTab idea={idea} loading={loading} onSchedule={(date: string) => action("schedule", { scheduledAt: date })} onPublish={() => action("publish")} />}
+        {activePanel === "publish" && <PublishTab idea={idea} loading={loading} onPublish={() => action("publish")} onScheduled={refresh} />}
         {activePanel === "versions" && <VersionsTab ideaId={ideaId} />}
       </div>
     </div>
@@ -1171,9 +1173,8 @@ function DataCitationsPanel({ citations }: { citations: NonNullable<IdeaDetail["
   );
 }
 
-function PublishTab({ idea, loading, onSchedule, onPublish }: { idea: IdeaDetail; loading: string | null; onSchedule: (d: string) => void; onPublish: () => void }) {
+function PublishTab({ idea, loading, onPublish, onScheduled }: { idea: IdeaDetail; loading: string | null; onPublish: () => void; onScheduled: () => void }) {
   const { formatDateTime } = useLocale();
-  const [scheduleDate, setScheduleDate] = useState("");
 
   if (idea.publishing?.beehiivPostId) {
     return (
@@ -1191,21 +1192,59 @@ function PublishTab({ idea, loading, onSchedule, onPublish }: { idea: IdeaDetail
     return <Card><CardContent className="py-12 text-center text-muted-foreground">Content must be approved before publishing.</CardContent></Card>;
   }
 
+  const html = idea.content?.html ?? "";
+  const subject = idea.content?.subject?.trim() || idea.title || "Untitled";
+
+  if (!html) {
+    return <Card><CardContent className="py-12 text-center text-muted-foreground">No content to publish yet. Generate the newsletter in the Write step first.</CardContent></Card>;
+  }
+
+  // Newsletter channel = the W8 Beehiiv publisher adapter (channel key
+  // "newsletter"). It REQUIRES channelOptions.title and reads
+  // channelOptions.contentHtml; payload.text is the fallback body. At
+  // the scheduled tick the publish-scheduled cron creates a Beehiiv
+  // DRAFT (same artefact as "Push to Beehiiv" below — Beehiiv free tier
+  // has no server-side send), which the user then sends from Beehiiv.
+  const hash = sourceTextHash(html);
+  const schedulerSource = {
+    sourceType: "idea" as ScheduleSourceType,
+    sourceRef: idea._id,
+    sourceTextHash: hash,
+  };
+  const schedulerChannels = [
+    {
+      channel: "newsletter",
+      payload: {
+        text: html,
+        channelOptions: {
+          title: subject,
+          contentHtml: html,
+          ...(idea.content?.previewText ? { previewText: idea.content.previewText } : {}),
+        },
+      },
+    },
+  ];
+
   return (
     <Card>
-      <CardHeader><CardTitle>Schedule & Publish</CardTitle></CardHeader>
+      <CardHeader>
+        <CardTitle>Schedule &amp; Publish</CardTitle>
+        <CardDescription>
+          Schedule the newsletter to post automatically, or push it to Beehiiv as a draft now.
+        </CardDescription>
+      </CardHeader>
       <CardContent className="space-y-6">
-        <div className="flex items-end gap-3">
-          <div className="flex-1">
-            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Schedule Date</label>
-            <Input type="datetime-local" value={scheduleDate} onChange={(e) => setScheduleDate(e.target.value)} />
-          </div>
-          <Button variant="outline" onClick={() => { if (!scheduleDate) { toast.warning("Select a date first"); return; } onSchedule(new Date(scheduleDate).toISOString()); }} disabled={loading === "schedule"}>
-            <Calendar className="mr-1.5 h-4 w-4" />Schedule
-          </Button>
-        </div>
+        {/* Schedule via the shared W8 scheduler — replaces the old
+            datetime-local stamp, which never actually published. */}
+        <SchedulerComposer
+          key={hash}
+          source={schedulerSource}
+          title={subject}
+          channels={schedulerChannels}
+          onScheduled={onScheduled}
+        />
         <div className="border-t pt-4">
-          <p className="mb-3 text-sm text-muted-foreground">Push as a draft to Beehiiv. You can finalize and send from your Beehiiv dashboard.</p>
+          <p className="mb-3 text-sm text-muted-foreground">Or push as a draft to Beehiiv right now. You can finalize and send from your Beehiiv dashboard.</p>
           <Button onClick={onPublish} disabled={loading === "publish"}>
             {loading === "publish" ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Send className="mr-1.5 h-4 w-4" />}
             Push to Beehiiv
