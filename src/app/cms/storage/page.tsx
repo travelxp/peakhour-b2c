@@ -104,7 +104,7 @@ function Dashboard({ data }: { data: StorageIntelligence }) {
           icon={DollarSign}
           label="R2 cost / mo"
           value={usd(data.pnl.r2CostUsd)}
-          sub={`@ $${data.r2CostPerGbMo}/GB · incl. ${gbStr(data.totals.softDeletedGb)} grace carry`}
+          sub={`@ $${data.r2CostPerGbMo.toFixed(3)}/GB · incl. ${gbStr(data.totals.softDeletedGb)} grace carry`}
         />
         <Kpi
           icon={TrendingUp}
@@ -185,7 +185,7 @@ function Dashboard({ data }: { data: StorageIntelligence }) {
                 <TableRow key={t.orgId}>
                   <TableCell className="font-medium">{t.name}</TableCell>
                   <TableCell>
-                    <Badge variant="secondary">{t.plan}</Badge>
+                    <Badge variant="secondary" className="capitalize">{t.plan}</Badge>
                   </TableCell>
                   <TableCell className="text-right">{gbStr(t.gb)}</TableCell>
                   <TableCell className="text-right">{t.fileCount.toLocaleString()}</TableCell>

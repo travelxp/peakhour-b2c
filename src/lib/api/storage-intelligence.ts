@@ -1,6 +1,6 @@
 import { api } from "@/lib/api";
 
-/** CMS Storage Intelligence / P&L summary (peakhour-api PR12a). CMS-only. */
+/** CMS Storage Intelligence / P&L summary (Media Manager / R2 plan §18). CMS-only. */
 export interface StorageIntelligence {
   asOf: string;
   r2CostPerGbMo: number;
