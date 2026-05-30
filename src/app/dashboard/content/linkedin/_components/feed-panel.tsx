@@ -211,7 +211,11 @@ function Metric({
   value: number;
 }) {
   return (
-    <span className="flex items-center gap-1" title={`${value.toLocaleString()} ${label}`}>
+    <span
+      className="flex items-center gap-1"
+      aria-label={`${value.toLocaleString()} ${label}`}
+      title={`${value.toLocaleString()} ${label}`}
+    >
       <Icon className="size-3.5" aria-hidden />
       {formatCount(value)}
     </span>
@@ -226,7 +230,11 @@ function Metric({
 function linkedInPostUrl(linkedInPostId: string | null): string | null {
   if (!linkedInPostId) return null;
   if (!linkedInPostId.includes("urn:li:")) return null;
-  return `https://www.linkedin.com/feed/update/${encodeURIComponent(linkedInPostId)}/`;
+  // Keep RAW colons (no encodeURIComponent) + no trailing slash to match
+  // the backend's permalink convention (peakhour-api adapters/publisher/
+  // linkedin.ts): encoding produces %3A%3A URLs some browser caches
+  // mishandle.
+  return `https://www.linkedin.com/feed/update/${linkedInPostId}`;
 }
 
 function formatCount(n: number): string {
