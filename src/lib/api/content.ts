@@ -18,6 +18,10 @@ export interface RewriteContentInput {
   op: RewriteOp;
   text: string;
   platform: PlatformKey;
+  /** Body format. Omit (default "text") for plain-text/social composers.
+   *  "html" for the strategist newsletter/article editor so the rewrite
+   *  preserves semantic HTML structure instead of flattening to prose. */
+  format?: "text" | "html";
   extras?: RewriteExtras;
 }
 
@@ -49,6 +53,7 @@ export function rewriteContent(input: RewriteContentInput) {
     op: input.op,
     text: input.text,
     platform: input.platform,
+    ...(input.format ? { format: input.format } : {}),
     ...(input.extras ? { extras: input.extras } : {}),
   });
 }
