@@ -2,8 +2,9 @@
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { api, ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -11,6 +12,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EmptyState } from "@/components/molecules/empty-state";
 import { MessageCircle, Send, Inbox, MessageSquare, RefreshCw } from "lucide-react";
 import { xApi, type XTweet } from "@/lib/api/x";
+import { createDraft } from "@/lib/api/content";
+import { RepurposeSheet } from "@/components/repurpose/repurpose-sheet";
+import type { RepurposeSource } from "@/lib/api/repurpose";
 import { TweetComposer } from "./_components/tweet-composer";
 import { TweetCard } from "./_components/tweet-card";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
@@ -80,6 +84,30 @@ function XContentDashboardInner() {
     queryKey: ["x-tweets", RECENT_TWEET_COUNT],
     queryFn: () => xApi.listTweets(RECENT_TWEET_COUNT),
     enabled: isConnected,
+  });
+
+  // ── Repurpose-this-tweet ────────────────────────────────────────
+  // The repurpose engine is draft-keyed, so we persist the tweet text
+  // as a cnt_drafts row first, then open the shared RepurposeSheet with
+  // a {type:"draft"} source — reusing the proven path with no engine
+  // change. `repurposeSource` drives the sheet's open state; the
+  // in-flight tweet id disables that card's menu item while the draft
+  // is created.
+  const [repurposeSource, setRepurposeSource] = useState<RepurposeSource | null>(null);
+  const [repurposingId, setRepurposingId] = useState<string | null>(null);
+  const prepareRepurpose = useMutation({
+    mutationFn: (tweet: XTweet) =>
+      createDraft({ text: tweet.text, channel: "x" }),
+    onMutate: (tweet: XTweet) => setRepurposingId(tweet.id),
+    onSuccess: (ref) => {
+      setRepurposeSource({ type: "draft", draftId: ref.draftId });
+    },
+    onError: (err: unknown) => {
+      const message =
+        err instanceof ApiError ? err.message : "Couldn't prepare this tweet for repurposing.";
+      toast.error(message);
+    },
+    onSettled: () => setRepurposingId(null),
   });
 
   const stats = useMemo(() => {
@@ -201,7 +229,17 @@ function XContentDashboardInner() {
           ) : (
             <div className="space-y-3">
               {(tweets.data ?? []).map((t: XTweet) => (
-                <TweetCard key={t.id} tweet={t} />
+                <TweetCard
+                  key={t.id}
+                  tweet={t}
+                  onRepurpose={(tweet) => {
+                    // Ignore a second click while a prepare is already in
+                    // flight — avoids creating an orphan draft from a
+                    // rapid click on another card before the first lands.
+                    if (!prepareRepurpose.isPending) prepareRepurpose.mutate(tweet);
+                  }}
+                  repurposing={repurposingId === t.id}
+                />
               ))}
             </div>
           )}
@@ -211,6 +249,14 @@ function XContentDashboardInner() {
           <MentionsList />
         </TabsContent>
       </Tabs>
+
+      <RepurposeSheet
+        open={repurposeSource !== null}
+        onOpenChange={(o) => {
+          if (!o) setRepurposeSource(null);
+        }}
+        source={repurposeSource}
+      />
     </PageShell>
   );
 }
