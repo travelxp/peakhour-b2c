@@ -17,8 +17,9 @@ import type { NewsIdea } from "./types";
  * /dashboard/content/news — News Desk (N5). The autonomous newsroom's approval
  * queue: corroborated, brand-voice, plagiarism-checked news drafts awaiting a
  * human's go (cnt_ideas source="trending", status="review"), each showing the
- * sources that back it. Read-only v1 — the 1-tap approve (reusing the scheduler)
- * is a follow-up.
+ * sources that back it. Each draft can be approved (= scheduled) in one tap via
+ * the shared SchedulerComposer, which commits through POST
+ * /v1/content/ideas/:id/approve-schedule.
  */
 export default function NewsDeskPage() {
   const queryClient = useQueryClient();

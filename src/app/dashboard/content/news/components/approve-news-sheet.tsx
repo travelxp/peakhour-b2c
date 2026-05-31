@@ -94,7 +94,7 @@ function ApproveBody({
   // per-channel payloads and the source (both derived server-side from
   // the reviewed idea); forwards only the scheduling parameters.
   const commit = (body: CommitPlanRequest): Promise<CommitPlanResponse> =>
-    api.post<CommitPlanResponse>(`/v1/content/ideas/${idea._id}/schedule`, {
+    api.post<CommitPlanResponse>(`/v1/content/ideas/${idea._id}/approve-schedule`, {
       channels: body.channels.map((c) => ({
         channel: c.channel,
         ...(c.connectionId ? { connectionId: c.connectionId } : {}),

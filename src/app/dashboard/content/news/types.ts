@@ -1,7 +1,7 @@
 /**
  * News Desk (N5) — the autonomous newsroom's approval queue. Shows corroborated,
  * brand-voice news drafts (cnt_ideas source="trending", status="review") with the
- * sources that back each story. Read-only v1 (1-tap approve is a follow-up).
+ * sources that back each story. Drafts are approved (= scheduled) in one tap.
  *
  * Shapes mirror GET /v1/content/ideas (peakhour-api content route).
  */
