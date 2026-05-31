@@ -84,6 +84,18 @@ export interface SchedulerComposerProps {
   /** Called after a successful commit; the parent typically closes
    *  the sheet or navigates to /dashboard/calendar. */
   onScheduled?: (result: CommitPlanResponse) => void;
+  /**
+   * Override for the commit call. Defaults to `scheduler.commitPlan`
+   * (POST /v1/scheduler/plans). Surfaces that need the commit to run
+   * through a different endpoint — e.g. the News Desk approve, which
+   * POSTs to /v1/content/ideas/:id/schedule so the idea status flip and
+   * the plan commit happen atomically server-side — pass their own
+   * function. It receives the exact body the composer would have sent
+   * and must return the same CommitPlanResponse shape.
+   */
+  commit?: (body: CommitPlanRequest) => Promise<CommitPlanResponse>;
+  /** Override the commit button label (default "Schedule"). */
+  submitLabel?: string;
   className?: string;
 }
 
@@ -102,6 +114,8 @@ export function SchedulerComposer({
   initialAnchor,
   initialTimezone,
   onScheduled,
+  commit,
+  submitLabel,
   className,
 }: SchedulerComposerProps) {
   const [anchor, setAnchor] = useState<Date>(initialAnchor ?? defaultAnchor());
@@ -197,7 +211,7 @@ export function SchedulerComposer({
         // the server's plan check.
         ...(autoApproveAuthorized && autoApprove ? { autoApprove: true } : {}),
       };
-      const result = await scheduler.commitPlan(body);
+      const result = await (commit ?? scheduler.commitPlan)(body);
       toast.success(
         `Scheduled across ${result.scheduledItemIds.length} channel${
           result.scheduledItemIds.length === 1 ? "" : "s"
@@ -370,7 +384,7 @@ export function SchedulerComposer({
         size="lg"
       >
         <CalendarPlus className="h-4 w-4" />
-        {submitting ? "Scheduling…" : "Schedule"}
+        {submitting ? "Scheduling…" : (submitLabel ?? "Schedule")}
       </Button>
     </div>
   );
