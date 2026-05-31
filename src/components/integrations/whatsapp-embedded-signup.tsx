@@ -11,6 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { WhatsAppIcon } from "@/components/ui/brand-icons";
 import { CheckCircle2, AlertCircle, Loader2, Sparkles, Info } from "lucide-react";
 
@@ -35,14 +36,35 @@ interface ConnectResult {
   };
 }
 
-type Phase = "idle" | "launching" | "connecting" | "connected" | "error";
+/** Result of GET /v1/meta/whatsapp/connection (status-on-mount). */
+interface StatusResult {
+  connected: boolean;
+  needsReauth?: boolean;
+  name?: string;
+  phoneNumber?: string;
+  phoneRegistered?: boolean;
+}
+
+/** The connected-account info the UI renders, from either source. */
+interface ConnectionInfo {
+  name?: string;
+  phoneNumber?: string;
+  phoneRegistered: boolean;
+}
+
+type Phase =
+  | "checking"
+  | "idle"
+  | "launching"
+  | "connecting"
+  | "connected"
+  | "disconnecting";
 
 /**
  * Deep-search a parsed postMessage payload for the WABA + phone-number ids.
  * Meta's Embedded Signup session-info event has varied in nesting across SDK
- * versions (`data.waba_id` vs `data.data.waba_id`); searching by key name is
- * robust to that and to future shape changes. Only string id values are read —
- * nothing from the payload is executed.
+ * versions; searching by key name is robust to that. Only string id values are
+ * read — nothing from the payload is executed.
  */
 function findSignupIds(obj: unknown): { wabaId?: string; phoneNumberId?: string } {
   const out: { wabaId?: string; phoneNumberId?: string } = {};
@@ -76,9 +98,10 @@ export function WhatsAppEmbeddedSignup({
   const sdkState = useFacebookSdk(APP_ID);
   const configured = Boolean(APP_ID && CONFIG_ID);
 
-  const [phase, setPhase] = useState<Phase>("idle");
+  const [phase, setPhase] = useState<Phase>("checking");
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<ConnectResult | null>(null);
+  const [connection, setConnection] = useState<ConnectionInfo | null>(null);
+  const [needsReauth, setNeedsReauth] = useState(false);
 
   // The code (from FB.login) and the WABA/phone ids (from the session-info
   // postMessage) can arrive in either order — collect both in refs and POST
@@ -101,6 +124,34 @@ export function WhatsAppEmbeddedSignup({
     completingRef.current = false;
   };
 
+  // ── Status on mount: reflect an existing connection instead of always
+  //    showing "Connect" (and surface needs-reauth as a repair prompt). ──
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const s = await api.get<StatusResult>("/v1/meta/whatsapp/connection");
+        if (cancelled) return;
+        if (s.connected && !s.needsReauth) {
+          setConnection({
+            name: s.name,
+            phoneNumber: s.phoneNumber,
+            phoneRegistered: Boolean(s.phoneRegistered),
+          });
+          setPhase("connected");
+        } else {
+          setNeedsReauth(Boolean(s.connected && s.needsReauth));
+          setPhase("idle");
+        }
+      } catch {
+        if (!cancelled) setPhase("idle"); // degrade to the connect card
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const complete = useCallback(async () => {
     if (completingRef.current) return;
     if (!codeRef.current || !sessionRef.current) return;
@@ -117,11 +168,16 @@ export function WhatsAppEmbeddedSignup({
           phoneNumberId: sessionRef.current.phoneNumberId,
         },
       );
-      setResult(res);
+      setConnection({
+        name: res.account.name,
+        phoneNumber: res.account.phoneNumbers[0]?.displayPhoneNumber,
+        phoneRegistered: res.phoneRegistered,
+      });
+      setNeedsReauth(false);
       setPhase("connected");
       onConnected?.(res);
     } catch (err) {
-      setPhase("error");
+      setPhase("idle");
       setError(
         err instanceof ApiError
           ? err.message
@@ -145,7 +201,6 @@ export function WhatsAppEmbeddedSignup({
       if (payload?.type !== "WA_EMBEDDED_SIGNUP") return;
 
       if (payload.event === "CANCEL") {
-        // User closed the flow before finishing.
         clearWatchdog();
         if (phase === "launching") setPhase("idle");
         resetPieces();
@@ -170,26 +225,19 @@ export function WhatsAppEmbeddedSignup({
     resetPieces();
     clearWatchdog();
     setError(null);
-    setResult(null);
     setPhase("launching");
 
-    // Watchdog: if we never collect both code + ids (e.g. Meta's FINISH event
-    // is blocked or never arrives), don't spin forever.
     watchdogRef.current = setTimeout(() => {
       if (completingRef.current) return; // POST already started
       resetPieces();
-      setPhase("error");
-      setError(
-        "We didn’t hear back from WhatsApp. Please try connecting again.",
-      );
+      setPhase("idle");
+      setError("We didn’t hear back from WhatsApp. Please try connecting again.");
     }, WATCHDOG_MS);
 
     window.FB.login(
       (response: FacebookLoginResponse) => {
         const code = response?.authResponse?.code;
         if (!code) {
-          // User closed/declined the popup, or no code came back. If the
-          // session ids haven't arrived either, return to idle.
           if (!sessionRef.current) {
             clearWatchdog();
             setPhase("idle");
@@ -209,9 +257,42 @@ export function WhatsAppEmbeddedSignup({
     );
   }, [sdkState, complete]);
 
+  const disconnect = useCallback(async () => {
+    setPhase("disconnecting");
+    setError(null);
+    try {
+      await api.delete("/v1/meta/whatsapp/connection");
+      setConnection(null);
+      setNeedsReauth(false);
+      setPhase("idle");
+    } catch (err) {
+      setPhase("connected"); // stay connected on failure
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : "We couldn’t disconnect WhatsApp. Please try again.",
+      );
+    }
+  }, []);
+
+  // ── Checking (status-on-mount) ───────────────────────────────
+  if (phase === "checking") {
+    return (
+      <Card>
+        <CardHeader>
+          <Skeleton className="h-5 w-40" />
+          <Skeleton className="mt-2 h-4 w-64" />
+        </CardHeader>
+        <CardContent>
+          <Skeleton className="h-10 w-44" />
+        </CardContent>
+      </Card>
+    );
+  }
+
   // ── Connected state ──────────────────────────────────────────
-  if (phase === "connected" && result) {
-    const phone = result.account.phoneNumbers[0];
+  if (phase === "connected" || phase === "disconnecting") {
+    const disconnecting = phase === "disconnecting";
     return (
       <Card className="border-green-500/40 bg-green-500/5">
         <CardHeader>
@@ -222,19 +303,37 @@ export function WhatsAppEmbeddedSignup({
             <div>
               <CardTitle className="text-base">WhatsApp connected</CardTitle>
               <CardDescription>
-                {result.account.name}
-                {phone ? ` · ${phone.displayPhoneNumber}` : ""}
+                {connection?.name ?? "WhatsApp Business"}
+                {connection?.phoneNumber ? ` · ${connection.phoneNumber}` : ""}
               </CardDescription>
             </div>
           </div>
         </CardHeader>
-        <CardContent className="text-sm text-muted-foreground">
-          You’re live. You can reply to customers right away; sending campaigns
-          needs an approved message template.
-          {!result.phoneRegistered && (
-            <p className="mt-2 text-amber-600">
+        <CardContent className="space-y-3 text-sm text-muted-foreground">
+          <p>
+            You’re live. You can reply to customers right away; sending campaigns
+            needs an approved message template.
+          </p>
+          {connection && !connection.phoneRegistered && (
+            <p className="text-amber-600">
               We’re finishing your number setup in the background — if sending
               isn’t available yet, give it a minute.
+            </p>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={disconnect}
+            disabled={disconnecting}
+            className="gap-2"
+          >
+            {disconnecting && <Loader2 className="size-4 animate-spin" />}
+            {disconnecting ? "Disconnecting…" : "Disconnect WhatsApp"}
+          </Button>
+          {error && (
+            <p role="alert" className="flex items-start gap-2 text-red-600">
+              <AlertCircle className="mt-0.5 size-4 shrink-0" />
+              {error}
             </p>
           )}
         </CardContent>
@@ -242,7 +341,7 @@ export function WhatsAppEmbeddedSignup({
     );
   }
 
-  // ── Connect card ─────────────────────────────────────────────
+  // ── Connect card (idle / launching / connecting) ─────────────
   const busy = phase === "launching" || phase === "connecting";
   const disabled = !configured || sdkState !== "ready" || busy;
 
@@ -255,7 +354,7 @@ export function WhatsAppEmbeddedSignup({
           </span>
           <div>
             <CardTitle className="flex items-center gap-2 text-base">
-              Connect WhatsApp
+              {needsReauth ? "Reconnect WhatsApp" : "Connect WhatsApp"}
               <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
                 <Sparkles className="size-3" /> Live in a minute
               </span>
@@ -268,6 +367,14 @@ export function WhatsAppEmbeddedSignup({
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
+        {needsReauth && (
+          <p role="alert" className="flex items-start gap-2 text-sm text-amber-600">
+            <AlertCircle className="mt-0.5 size-4 shrink-0" />
+            Your WhatsApp connection needs to be refreshed. Reconnect below to
+            keep messaging.
+          </p>
+        )}
+
         <p className="flex items-start gap-2 rounded-md bg-muted/50 p-3 text-sm text-muted-foreground">
           <Info className="mt-0.5 size-4 shrink-0" />
           Have ready a phone number that can receive an SMS or call and is{" "}
@@ -285,7 +392,7 @@ export function WhatsAppEmbeddedSignup({
           ) : (
             <>
               <WhatsAppIcon className="size-4" />
-              Connect WhatsApp
+              {needsReauth ? "Reconnect WhatsApp" : "Connect WhatsApp"}
             </>
           )}
         </Button>
@@ -304,21 +411,15 @@ export function WhatsAppEmbeddedSignup({
           <p className="text-sm text-muted-foreground">Loading WhatsApp…</p>
         )}
         {configured && sdkState === "error" && (
-          <p
-            role="alert"
-            className="flex items-center gap-2 text-sm text-red-600"
-          >
+          <p role="alert" className="flex items-center gap-2 text-sm text-red-600">
             <AlertCircle className="size-4" />
             Couldn’t load the WhatsApp connector. Check your connection and
             refresh.
           </p>
         )}
 
-        {phase === "error" && error && (
-          <p
-            role="alert"
-            className="flex items-start gap-2 text-sm text-red-600"
-          >
+        {error && (
+          <p role="alert" className="flex items-start gap-2 text-sm text-red-600">
             <AlertCircle className="mt-0.5 size-4 shrink-0" />
             {error}
           </p>
