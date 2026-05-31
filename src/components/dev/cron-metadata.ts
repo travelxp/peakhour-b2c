@@ -202,6 +202,20 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
     description:
       "Decides which of your trusted sources are due for a refresh and queues their fetch.",
   },
+  "news-classify": {
+    label: "Classify breaking news",
+    frequency: "Runs every 15 minutes",
+    description:
+      "For each News Desk business, queues classification of recently-fetched news (breaking status, urgency, topic, geography) so the corroboration gate can cluster the breaking items.",
+    summarize: (data) => {
+      const d = asRecord(data);
+      if (!d) return null;
+      const businesses = num(d.businesses);
+      if (businesses === 0) return "No News Desk businesses are enabled yet.";
+      const jobs = num(d.enqueued);
+      return `Queued news classification for ${businesses} ${plural(businesses, "business")} (${jobs} ${plural(jobs, "job")}).`;
+    },
+  },
   "trial-expiry-sweep": {
     label: "Check trial expiries",
     frequency: "Runs daily at 3:30 AM UTC",
