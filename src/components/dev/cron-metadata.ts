@@ -210,9 +210,10 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
     summarize: (data) => {
       const d = asRecord(data);
       if (!d) return null;
-      const enqueued = num(d.enqueued);
-      if (num(d.businesses) === 0) return "No News Desk businesses are enabled yet.";
-      return `Queued news classification for ${enqueued} ${plural(enqueued, "business")}.`;
+      const businesses = num(d.businesses);
+      if (businesses === 0) return "No News Desk businesses are enabled yet.";
+      const jobs = num(d.enqueued);
+      return `Queued news classification for ${businesses} ${plural(businesses, "business")} (${jobs} ${plural(jobs, "job")}).`;
     },
   },
   "trial-expiry-sweep": {
