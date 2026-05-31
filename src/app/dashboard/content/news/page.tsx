@@ -1,24 +1,29 @@
 "use client";
 
+import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Newspaper, AlertCircle } from "lucide-react";
+import { Newspaper, AlertCircle, CalendarPlus } from "lucide-react";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { api, ApiError } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SourcesPanel } from "./components/sources-panel";
+import { ApproveNewsSheet } from "./components/approve-news-sheet";
 import type { NewsIdea } from "./types";
 
 /**
  * /dashboard/content/news — News Desk (N5). The autonomous newsroom's approval
  * queue: corroborated, brand-voice, plagiarism-checked news drafts awaiting a
  * human's go (cnt_ideas source="trending", status="review"), each showing the
- * sources that back it. Read-only v1 — the 1-tap approve (reusing the scheduler)
- * is a follow-up.
+ * sources that back it. Each draft can be approved (= scheduled) in one tap via
+ * the shared SchedulerComposer, which commits through POST
+ * /v1/content/ideas/:id/approve-schedule.
  */
 export default function NewsDeskPage() {
   const queryClient = useQueryClient();
+  const [approving, setApproving] = useState<NewsIdea | null>(null);
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["news-ideas"],
@@ -29,13 +34,14 @@ export default function NewsDeskPage() {
 
   const ideas = data ?? [];
 
+  const invalidateQueue = () =>
+    void queryClient.invalidateQueries({ queryKey: ["news-ideas"] });
+
   return (
     <div className="space-y-6">
       <CronToolbar
         crons={["news-classify", "news-corroborate", "news-compose"]}
-        onTriggered={() => {
-          void queryClient.invalidateQueries({ queryKey: ["news-ideas"] });
-        }}
+        onTriggered={invalidateQueue}
       />
 
       <header>
@@ -62,15 +68,27 @@ export default function NewsDeskPage() {
       ) : (
         <div className="space-y-4">
           {ideas.map((idea) => (
-            <NewsCard key={idea._id} idea={idea} />
+            <NewsCard key={idea._id} idea={idea} onApprove={() => setApproving(idea)} />
           ))}
         </div>
       )}
+
+      <ApproveNewsSheet
+        idea={approving}
+        open={approving !== null}
+        onOpenChange={(next) => {
+          if (!next) setApproving(null);
+        }}
+        onApproved={() => {
+          setApproving(null);
+          invalidateQueue();
+        }}
+      />
     </div>
   );
 }
 
-function NewsCard({ idea }: { idea: NewsIdea }) {
+function NewsCard({ idea, onApprove }: { idea: NewsIdea; onApprove: () => void }) {
   const preview = idea.content?.plainText ?? idea.description ?? "";
   const confidence = typeof idea.recommendationStrength === "number" ? idea.recommendationStrength : undefined;
   return (
@@ -90,6 +108,11 @@ function NewsCard({ idea }: { idea: NewsIdea }) {
         {preview && <p className="line-clamp-4 whitespace-pre-wrap text-sm text-muted-foreground">{preview}</p>}
         <div className="rounded-md border bg-muted/30 p-3">
           <SourcesPanel provenance={idea.sourceProvenance} />
+        </div>
+        <div className="flex justify-end">
+          <Button size="sm" onClick={onApprove} className="gap-1.5">
+            <CalendarPlus className="size-3.5" /> Approve &amp; schedule
+          </Button>
         </div>
       </CardContent>
     </Card>
