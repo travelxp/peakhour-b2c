@@ -23,8 +23,8 @@ import type { NewsIdea } from "../types";
  *
  * Approving an idea = scheduling it: the human's "go" IS the approval.
  * The commit is routed (via SchedulerComposer's `commit` override) to
- * POST /v1/content/ideas/:id/schedule, which flips the idea out of the
- * queue AND commits the publish plan atomically server-side — so a
+ * POST /v1/content/ideas/:id/approve-schedule, which flips the idea out
+ * of the queue AND commits the publish plan atomically server-side — so a
  * failed commit can't leave an orphan plan or a stuck idea.
  *
  * The publish text + source are derived server-side from the reviewed

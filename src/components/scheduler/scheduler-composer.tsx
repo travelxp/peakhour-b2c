@@ -88,8 +88,8 @@ export interface SchedulerComposerProps {
    * Override for the commit call. Defaults to `scheduler.commitPlan`
    * (POST /v1/scheduler/plans). Surfaces that need the commit to run
    * through a different endpoint — e.g. the News Desk approve, which
-   * POSTs to /v1/content/ideas/:id/schedule so the idea status flip and
-   * the plan commit happen atomically server-side — pass their own
+   * POSTs to /v1/content/ideas/:id/approve-schedule so the idea status
+   * flip and the plan commit happen atomically server-side — pass their own
    * function. It receives the exact body the composer would have sent
    * and must return the same CommitPlanResponse shape.
    */
