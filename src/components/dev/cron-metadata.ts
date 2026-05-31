@@ -216,6 +216,19 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       return `Queued news classification for ${businesses} ${plural(businesses, "business")} (${jobs} ${plural(jobs, "job")}).`;
     },
   },
+  "news-corroborate": {
+    label: "Corroborate breaking news",
+    frequency: "Runs hourly",
+    description:
+      "For each News Desk business, queues the corroboration gate — clusters breaking items across independent sources, scores a confidence tier, and records which sources back each story. Records clusters only; it does not publish anything.",
+    summarize: (data) => {
+      const d = asRecord(data);
+      if (!d) return null;
+      const businesses = num(d.businesses);
+      if (businesses === 0) return "No News Desk businesses are enabled yet.";
+      return `Queued news corroboration for ${businesses} ${plural(businesses, "business")}.`;
+    },
+  },
   "trial-expiry-sweep": {
     label: "Check trial expiries",
     frequency: "Runs daily at 3:30 AM UTC",
