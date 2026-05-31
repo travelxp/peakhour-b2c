@@ -94,6 +94,7 @@ const NAV_GROUPS: NavGroup[] = [
         subItems: [
           { href: "/dashboard/content", label: "Library" },
           { href: "/dashboard/content/sources", label: "Sources" },
+          { href: "/dashboard/content/news", label: "News Desk" },
           { href: "/dashboard/strategist", label: "Strategist" },
           { href: "/dashboard/calendar", label: "Calendar" },
           { href: "/dashboard/media", label: "Media" },
