@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/table";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { formatDateTime } from "@/components/cms/ai/format";
+import { ModelSelect, ModelChainEditor } from "@/components/cms/model-select";
 
 interface ConfigRow {
   _id: string;
@@ -45,6 +46,7 @@ interface ConfigRow {
   description?: string;
   modelId: string;
   fallbackModelId?: string;
+  fallbackModelIds?: string[];
   provider?: string;
   modelType?: string;
   maxOutputTokens?: number;
@@ -238,19 +240,27 @@ export default function AiConfigPage() {
               </FormRow>
               <div className="grid grid-cols-2 gap-3">
                 <FormRow label="Model ID">
-                  <Input
+                  <ModelSelect
                     value={form.modelId || ""}
-                    onChange={(e) => setForm({ ...form, modelId: e.target.value })}
+                    onChange={(v) => setForm({ ...form, modelId: v })}
                     placeholder="anthropic/claude-sonnet-4.5"
                   />
                 </FormRow>
-                <FormRow label="Fallback model ID">
-                  <Input
+                <FormRow label="Fallback model ID (single)">
+                  <ModelSelect
                     value={form.fallbackModelId || ""}
-                    onChange={(e) => setForm({ ...form, fallbackModelId: e.target.value })}
+                    onChange={(v) => setForm({ ...form, fallbackModelId: v || undefined })}
+                    allowClear
+                    placeholder="(optional)"
                   />
                 </FormRow>
               </div>
+              <FormRow label="Fallback chain (multi-provider — tried in order; overrides the single fallback)">
+                <ModelChainEditor
+                  value={form.fallbackModelIds}
+                  onChange={(v) => setForm({ ...form, fallbackModelIds: v.length ? v : undefined })}
+                />
+              </FormRow>
               <div className="grid grid-cols-3 gap-3">
                 <FormRow label="Max tokens">
                   <Input
