@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { SITE } from "@/lib/utils";
 import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
@@ -11,7 +12,6 @@ export const metadata: Metadata = {
 
 type DeletionStatus = {
   status: "received" | "processing" | "completed" | "failed";
-  trigger: string;
   requestedAt: string;
   completedAt?: string;
 };
@@ -177,9 +177,9 @@ export default async function DataDeletionPage({
               Content created within a PeakHour organization (for example, published posts and
               business records) is owned and controlled by that organization and is governed by
               our{" "}
-              <a className="text-foreground underline" href="/privacy-policy">
+              <Link className="text-foreground underline" href="/privacy-policy">
                 Privacy Policy
-              </a>{" "}
+              </Link>{" "}
               and the organization’s own retention settings.
             </p>
           </section>
