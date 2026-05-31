@@ -176,7 +176,7 @@ export function ModelChainEditor({
         <ol className="space-y-1">
           {chain.map((m, i) => (
             <li
-              key={`${m}-${i}`}
+              key={m}
               className="flex items-center gap-1 rounded-md border bg-muted/30 px-2 py-1"
             >
               <span className="w-5 shrink-0 text-xs text-muted-foreground">{i + 1}.</span>
