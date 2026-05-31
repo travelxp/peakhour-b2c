@@ -12,10 +12,15 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { WhatsAppIcon } from "@/components/ui/brand-icons";
-import { CheckCircle2, AlertCircle, Loader2, Sparkles } from "lucide-react";
+import { CheckCircle2, AlertCircle, Loader2, Sparkles, Info } from "lucide-react";
 
 const APP_ID = process.env.NEXT_PUBLIC_META_APP_ID;
 const CONFIG_ID = process.env.NEXT_PUBLIC_META_ES_CONFIG_ID;
+
+/** How long to wait for BOTH the auth code and the WABA/phone ids before
+ *  giving up — guards against a missed Meta FINISH event leaving the UI
+ *  spinning forever. */
+const WATCHDOG_MS = 90_000;
 
 /** Result returned by POST /v1/meta/whatsapp/embedded-signup. */
 interface ConnectResult {
@@ -32,18 +37,36 @@ interface ConnectResult {
 
 type Phase = "idle" | "launching" | "connecting" | "connected" | "error";
 
-/** Meta's session-info postMessage payload (the slice we use). */
-interface SessionInfoMessage {
-  type?: string;
-  event?: string;
-  data?: { waba_id?: string; phone_number_id?: string };
+/**
+ * Deep-search a parsed postMessage payload for the WABA + phone-number ids.
+ * Meta's Embedded Signup session-info event has varied in nesting across SDK
+ * versions (`data.waba_id` vs `data.data.waba_id`); searching by key name is
+ * robust to that and to future shape changes. Only string id values are read —
+ * nothing from the payload is executed.
+ */
+function findSignupIds(obj: unknown): { wabaId?: string; phoneNumberId?: string } {
+  const out: { wabaId?: string; phoneNumberId?: string } = {};
+  const visit = (o: unknown, depth: number) => {
+    if (!o || typeof o !== "object" || depth > 6) return;
+    for (const [k, v] of Object.entries(o as Record<string, unknown>)) {
+      if (k === "waba_id" && typeof v === "string") out.wabaId = v;
+      else if (k === "phone_number_id" && typeof v === "string") out.phoneNumberId = v;
+      else if (v && typeof v === "object") visit(v, depth + 1);
+    }
+  };
+  visit(obj, 0);
+  return out;
 }
 
-const FB_ORIGINS = new Set([
-  "https://www.facebook.com",
-  "https://web.facebook.com",
-  "https://business.facebook.com",
-]);
+/** Accept messages only from Facebook origins. */
+function isFacebookOrigin(origin: string): boolean {
+  try {
+    const host = new URL(origin).hostname;
+    return host === "facebook.com" || host.endsWith(".facebook.com");
+  } catch {
+    return false;
+  }
+}
 
 export function WhatsAppEmbeddedSignup({
   onConnected,
@@ -59,13 +82,20 @@ export function WhatsAppEmbeddedSignup({
 
   // The code (from FB.login) and the WABA/phone ids (from the session-info
   // postMessage) can arrive in either order — collect both in refs and POST
-  // only once both are present. `completing` guards against a double-submit
-  // when the second piece lands.
+  // only once both are present. `completingRef` guards against a double-submit.
   const codeRef = useRef<string | null>(null);
   const sessionRef = useRef<{ wabaId: string; phoneNumberId: string } | null>(null);
   const completingRef = useRef(false);
+  const watchdogRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const reset = () => {
+  const clearWatchdog = () => {
+    if (watchdogRef.current) {
+      clearTimeout(watchdogRef.current);
+      watchdogRef.current = null;
+    }
+  };
+
+  const resetPieces = () => {
     codeRef.current = null;
     sessionRef.current = null;
     completingRef.current = false;
@@ -75,6 +105,7 @@ export function WhatsAppEmbeddedSignup({
     if (completingRef.current) return;
     if (!codeRef.current || !sessionRef.current) return;
     completingRef.current = true;
+    clearWatchdog(); // both pieces in hand — the POST owns the outcome now
     setPhase("connecting");
     setError(null);
     try {
@@ -97,32 +128,31 @@ export function WhatsAppEmbeddedSignup({
           : "We couldn’t finish connecting your WhatsApp account. Please try again.",
       );
     } finally {
-      reset();
+      resetPieces();
     }
   }, [onConnected]);
 
   // Capture the WABA + phone ids from Meta's Embedded Signup session-info event.
   useEffect(() => {
     function onMessage(event: MessageEvent) {
-      if (!FB_ORIGINS.has(event.origin)) return;
-      let payload: SessionInfoMessage;
+      if (!isFacebookOrigin(event.origin)) return;
+      let payload: { type?: string; event?: string } & Record<string, unknown>;
       try {
         payload = typeof event.data === "string" ? JSON.parse(event.data) : event.data;
       } catch {
         return;
       }
       if (payload?.type !== "WA_EMBEDDED_SIGNUP") return;
-      // FINISH (and the legacy FINISH_ONLY_WABA) carry the ids. A CANCEL means
-      // the user closed the flow before finishing.
+
       if (payload.event === "CANCEL") {
-        if (phase === "launching") {
-          setPhase("idle");
-          reset();
-        }
+        // User closed the flow before finishing.
+        clearWatchdog();
+        if (phase === "launching") setPhase("idle");
+        resetPieces();
         return;
       }
-      const wabaId = payload.data?.waba_id;
-      const phoneNumberId = payload.data?.phone_number_id;
+
+      const { wabaId, phoneNumberId } = findSignupIds(payload);
       if (wabaId && phoneNumberId) {
         sessionRef.current = { wabaId, phoneNumberId };
         void complete();
@@ -132,21 +162,38 @@ export function WhatsAppEmbeddedSignup({
     return () => window.removeEventListener("message", onMessage);
   }, [complete, phase]);
 
+  // Tear down the watchdog if the component unmounts mid-flow.
+  useEffect(() => () => clearWatchdog(), []);
+
   const launch = useCallback(() => {
     if (sdkState !== "ready" || !window.FB || !CONFIG_ID) return;
-    reset();
+    resetPieces();
+    clearWatchdog();
     setError(null);
     setResult(null);
     setPhase("launching");
+
+    // Watchdog: if we never collect both code + ids (e.g. Meta's FINISH event
+    // is blocked or never arrives), don't spin forever.
+    watchdogRef.current = setTimeout(() => {
+      if (completingRef.current) return; // POST already started
+      resetPieces();
+      setPhase("error");
+      setError(
+        "We didn’t hear back from WhatsApp. Please try connecting again.",
+      );
+    }, WATCHDOG_MS);
 
     window.FB.login(
       (response: FacebookLoginResponse) => {
         const code = response?.authResponse?.code;
         if (!code) {
-          // User closed/declined the popup, or no code came back.
+          // User closed/declined the popup, or no code came back. If the
+          // session ids haven't arrived either, return to idle.
           if (!sessionRef.current) {
+            clearWatchdog();
             setPhase("idle");
-            reset();
+            resetPieces();
           }
           return;
         }
@@ -221,6 +268,14 @@ export function WhatsAppEmbeddedSignup({
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
+        <p className="flex items-start gap-2 rounded-md bg-muted/50 p-3 text-sm text-muted-foreground">
+          <Info className="mt-0.5 size-4 shrink-0" />
+          Have ready a phone number that can receive an SMS or call and is{" "}
+          <strong className="font-medium text-foreground">not</strong> currently
+          active on the WhatsApp or WhatsApp Business app — Meta verifies it in
+          the popup.
+        </p>
+
         <Button onClick={launch} disabled={disabled} size="lg" className="gap-2">
           {busy ? (
             <>
@@ -249,7 +304,10 @@ export function WhatsAppEmbeddedSignup({
           <p className="text-sm text-muted-foreground">Loading WhatsApp…</p>
         )}
         {configured && sdkState === "error" && (
-          <p className="flex items-center gap-2 text-sm text-red-600">
+          <p
+            role="alert"
+            className="flex items-center gap-2 text-sm text-red-600"
+          >
             <AlertCircle className="size-4" />
             Couldn’t load the WhatsApp connector. Check your connection and
             refresh.
@@ -257,7 +315,10 @@ export function WhatsAppEmbeddedSignup({
         )}
 
         {phase === "error" && error && (
-          <p className="flex items-start gap-2 text-sm text-red-600">
+          <p
+            role="alert"
+            className="flex items-start gap-2 text-sm text-red-600"
+          >
             <AlertCircle className="mt-0.5 size-4 shrink-0" />
             {error}
           </p>

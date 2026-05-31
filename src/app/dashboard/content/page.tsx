@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -53,21 +53,23 @@ export default function ContentChannelsHubPage() {
     // auto-redirect from re-firing on tab focus, but that's gone now.)
   });
 
+  // Bind `data?.integrations` to a local so the memo's source dep matches what
+  // React Compiler infers (it widened `data?.integrations` to `data`). Stable
+  // reference across refetches that return the same content → no map churn.
+  const integrations = data?.integrations;
   const connections = useMemo<ConnectionMap>(() => {
     const map: ConnectionMap = new Map();
     // Flatten Meta — one `facebook` connection becomes 4 virtual rows
     // (facebook_pages, instagram, meta_ads, whatsapp) so per-capability
     // connection state lights up independently in the hub.
     const flat = flattenMetaIntegration(
-      Array.isArray(data?.integrations) ? data.integrations : [],
+      Array.isArray(integrations) ? integrations : [],
     );
     for (const integ of flat) {
       map.set(integ.provider, integ);
     }
     return map;
-    // Memo on `data?.integrations` (not `data`) so refetches that return the
-    // same content reference don't churn the map and re-render every row.
-  }, [data?.integrations]);
+  }, [integrations]);
 
   const cronToolbar = (
     <CronToolbar
@@ -163,7 +165,11 @@ function ChannelRow({ channel, integration, connectionStateUnknown }: ChannelRow
 
   const handleAction = () => {
     if (channel.status === "coming_soon" || connectionStateUnknown) return;
-    if (isConnected && channel.dashboardPath) {
+    // Channels that connect via their own in-app page (e.g. WhatsApp Embedded
+    // Signup, status "available") route there for both connect and manage;
+    // "live" channels route to their dashboard once connected. Everything else
+    // falls back to the integrations OAuth grid.
+    if (channel.dashboardPath && (isConnected || channel.status === "available")) {
       router.push(channel.dashboardPath);
     } else {
       router.push("/dashboard/integrations");
@@ -270,13 +276,32 @@ function ChannelLogo({ channel }: { channel: ChannelConfig }) {
  * for a brand-new connection that has never run).
  */
 function useLastSyncedLabel(lastSyncAt: string | undefined): string | undefined {
+  // Sample "now" in an effect, never during render: calling Date.now() /
+  // new Date() during render is impure and defeats React Compiler memoization.
+  // Null until mounted → no label flash and SSR-safe (server + first client
+  // render agree on `undefined`).
+  const [now, setNow] = useState<number | null>(null);
+  useEffect(() => {
+    // Defer to a microtask so it's neither an impure render-time read nor a
+    // synchronous effect setState (both are lint-flagged); guard unmount.
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) setNow(Date.now());
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [lastSyncAt]);
+
   return useMemo(() => {
-    if (!lastSyncAt) return undefined;
-    const ts = new Date(lastSyncAt).getTime();
+    if (!lastSyncAt || now === null) return undefined;
+    // Date.parse is pure (deterministic for a given string); new Date(str) is
+    // flagged impure by the compiler.
+    const ts = Date.parse(lastSyncAt);
     if (Number.isNaN(ts)) return undefined;
     // Clamp to 0 — server/client clock skew can produce a small negative
     // diff right after a fresh sync; show "Just synced" instead of nothing.
-    const diffMs = Math.max(0, Date.now() - ts);
+    const diffMs = Math.max(0, now - ts);
     if (diffMs < 30_000) return "Just synced";
 
     const minute = 60_000;
@@ -296,7 +321,7 @@ function useLastSyncedLabel(lastSyncAt: string | undefined): string | undefined 
       return `Last synced ${days} days ago — check connection`;
     }
     return `Last synced ${days} day${days === 1 ? "" : "s"} ago`;
-  }, [lastSyncAt]);
+  }, [lastSyncAt, now]);
 }
 
 function HubSkeleton() {

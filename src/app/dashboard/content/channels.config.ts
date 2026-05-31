@@ -225,6 +225,9 @@ export const CHANNELS: readonly ChannelConfig[] = [
     // Virtual Meta capability — see facebook-pages note above.
     providerKey: "whatsapp",
     status: "available",
+    // Self-serve connect via Embedded Signup lives on its own in-app page
+    // (not the generic /dashboard/integrations OAuth grid).
+    dashboardPath: "/dashboard/content/whatsapp",
   },
   {
     slug: "slack",
