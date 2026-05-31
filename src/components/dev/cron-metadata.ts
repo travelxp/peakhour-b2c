@@ -229,6 +229,19 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       return `Queued news corroboration for ${businesses} ${plural(businesses, "business")}.`;
     },
   },
+  "news-compose": {
+    label: "Compose news drafts",
+    frequency: "Runs hourly",
+    description:
+      "For each News Desk business, queues the Wire Desk — turns corroborated clusters into brand-voice news drafts (factual, plagiarism-checked via the originality gate) and adds them to the approval queue. Composes only; it never auto-publishes.",
+    summarize: (data) => {
+      const d = asRecord(data);
+      if (!d) return null;
+      const businesses = num(d.businesses);
+      if (businesses === 0) return "No News Desk businesses are enabled yet.";
+      return `Queued news composition for ${businesses} ${plural(businesses, "business")}.`;
+    },
+  },
   "trial-expiry-sweep": {
     label: "Check trial expiries",
     frequency: "Runs daily at 3:30 AM UTC",
