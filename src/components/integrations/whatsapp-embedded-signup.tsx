@@ -110,6 +110,9 @@ export function WhatsAppEmbeddedSignup({
   const sessionRef = useRef<{ wabaId: string; phoneNumberId: string } | null>(null);
   const completingRef = useRef(false);
   const watchdogRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Set once the user starts a connect/disconnect — so a slow status-on-mount
+  // fetch can't resolve late and clobber a user-initiated transition.
+  const interactedRef = useRef(false);
 
   const clearWatchdog = () => {
     if (watchdogRef.current) {
@@ -131,7 +134,7 @@ export function WhatsAppEmbeddedSignup({
     (async () => {
       try {
         const s = await api.get<StatusResult>("/v1/meta/whatsapp/connection");
-        if (cancelled) return;
+        if (cancelled || interactedRef.current) return;
         if (s.connected && !s.needsReauth) {
           setConnection({
             name: s.name,
@@ -144,7 +147,7 @@ export function WhatsAppEmbeddedSignup({
           setPhase("idle");
         }
       } catch {
-        if (!cancelled) setPhase("idle"); // degrade to the connect card
+        if (!cancelled && !interactedRef.current) setPhase("idle"); // degrade to the connect card
       }
     })();
     return () => {
@@ -222,6 +225,7 @@ export function WhatsAppEmbeddedSignup({
 
   const launch = useCallback(() => {
     if (sdkState !== "ready" || !window.FB || !CONFIG_ID) return;
+    interactedRef.current = true;
     resetPieces();
     clearWatchdog();
     setError(null);
@@ -258,6 +262,7 @@ export function WhatsAppEmbeddedSignup({
   }, [sdkState, complete]);
 
   const disconnect = useCallback(async () => {
+    interactedRef.current = true;
     setPhase("disconnecting");
     setError(null);
     try {
