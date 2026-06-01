@@ -48,10 +48,25 @@ export function KanbanBoard({ data, onRefresh }: KanbanBoardProps) {
     if (!over) return;
 
     const ideaId = active.id as string;
-    const dropColumnKey = over.id as string;
+    const overId = over.id as string;
 
-    // Map column key to the first status in that group (drop target)
-    const targetCol = PIPELINE_COLUMNS.find((c) => c.key === dropColumnKey);
+    // Resolve which COLUMN was dropped onto. `over` is either the column
+    // droppable (id = column key) OR — when dropping onto a column that
+    // already has cards — one of its cards (a sortable droppable, id =
+    // idea._id). Previously we only handled the column-key case, so any
+    // drop onto a populated column silently no-opped (the visible "drag
+    // and drop not working" bug). Map a card-over back to its column.
+    let targetCol = PIPELINE_COLUMNS.find((c) => c.key === overId);
+    if (!targetCol) {
+      for (const [status, ideas] of Object.entries(localData)) {
+        if (ideas.some((i) => i._id === overId)) {
+          targetCol = PIPELINE_COLUMNS.find((c) =>
+            (c.statuses as readonly string[]).includes(status),
+          );
+          break;
+        }
+      }
+    }
     if (!targetCol) return;
 
     // Find the idea's current status
