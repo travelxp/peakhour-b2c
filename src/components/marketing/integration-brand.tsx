@@ -64,10 +64,11 @@ export function IntegrationBrandIcon({
 }
 
 /** Tailwind bg class for the icon tile — the brand color, or a neutral that
- *  still contrasts with the tile's white foreground (the tile sets text-white,
- *  so the fallback must be dark enough; a `text-foreground` fallback rendered
- *  the initial white-on-light = invisible). */
+ *  contrasts with the tile's white foreground in BOTH themes. A theme-relative
+ *  token (`muted`/`primary`) inverts to a light value in dark mode and fails
+ *  contrast against the tile's hardcoded `text-white`, so use a fixed dark
+ *  neutral (~6:1 vs white in both themes). */
 export function integrationBrandColor(groupKey?: string, integrationKey?: string): string {
   const brand = (groupKey && BRANDS[groupKey]) || (integrationKey ? BRANDS[integrationKey] : undefined);
-  return brand?.color ?? "bg-muted-foreground";
+  return brand?.color ?? "bg-zinc-700";
 }
