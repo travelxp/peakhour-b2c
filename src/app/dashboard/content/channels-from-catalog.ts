@@ -49,9 +49,19 @@ const DROP_CATEGORIES = new Set([
 
 const FALLBACK_TAB: ChannelCategory = "Web & SEO";
 
+// Connectors that connect via their OWN in-app page (not the OAuth grid) — e.g.
+// WhatsApp Embedded Signup. The old config encoded this as status:"available"
+// + dashboardPath, but the seed collapses "available"→"live", losing the
+// distinction. Forcing these back to "available" preserves the correct routing
+// (ChannelRow routes "available" + dashboardPath to the in-app page for a
+// not-yet-connected channel). STOPGAP: replace with a `connectInApp` flag on
+// cfg_integrations once the schema/seed carry it.
+const IN_APP_CONNECT_KEYS = new Set(["whatsapp"]);
+
 function toLifecycle(i: ResolvedIntegration): ChannelLifecycle {
   switch (i.surfacedState) {
     case "connectable":
+      if (IN_APP_CONNECT_KEYS.has(i.key)) return "available";
       return i.display?.dashboardPath ? "live" : "available";
     case "coming_soon":
       return "coming_soon";
@@ -63,18 +73,20 @@ function toLifecycle(i: ResolvedIntegration): ChannelLifecycle {
 }
 
 export function mapCatalogToChannels(integrations: ResolvedIntegration[]): ChannelConfig[] {
-  // The resolver already strips adminOnly/internal in all envs and
-  // in_development/hidden in prod; dev_only rows are intentionally shown in
-  // non-prod so testers can exercise them. We additionally drop pure-infra
-  // categories that aren't content connectors.
+  // The resolver strips adminOnly/internal rows in all envs and
+  // in_development/hidden in prod; this filter ADDITIONALLY drops infra
+  // categories (a separate gate the resolver doesn't apply). dev_only rows are
+  // intentionally shown in non-prod so testers can exercise them.
   return integrations
     .filter((i) => !DROP_CATEGORIES.has(i.category))
     .map((i) => ({
       slug: i.key,
       name: i.name,
       // Seed writes the one-liner into `description`; `tagline` is the
-      // CMS-curated override. Fall back through both so the row never blanks.
-      description: i.tagline ?? i.description ?? i.comingSoon?.copy ?? "",
+      // CMS-curated override. Truthiness pick (not ??) so an operator-blanked
+      // "" tagline still falls through to the seed description.
+      description:
+        i.tagline?.trim() || i.description?.trim() || i.comingSoon?.copy?.trim() || "",
       category: CATEGORY_TO_TAB[i.category] ?? FALLBACK_TAB,
       // The catalog `key` is the int_connections.provider value, so it doubles
       // as the connection-lookup key (matches flattenMetaIntegration output).
