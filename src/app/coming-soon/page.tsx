@@ -52,9 +52,27 @@ export default function ComingSoonPage() {
         </div>
       </div>
 
-      <p className="absolute bottom-6 text-xs text-muted-foreground">
-        © {SITE.name}. All rights reserved.
-      </p>
+      <footer className="absolute inset-x-0 bottom-6 flex flex-col items-center gap-3 px-6 text-xs text-muted-foreground">
+        {/* Plain <a> (not next/link) so these resolve straight through the
+            coming-soon gate, which allowlists the legal routes. */}
+        <nav className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
+          <a href="/privacy-policy" className="transition-colors hover:text-foreground">
+            Privacy Policy
+          </a>
+          <a href="/terms" className="transition-colors hover:text-foreground">
+            Terms of Service
+          </a>
+          <a href="/cookie-policy" className="transition-colors hover:text-foreground">
+            Cookie Policy
+          </a>
+          <a href="/data-deletion" className="transition-colors hover:text-foreground">
+            Data Deletion
+          </a>
+        </nav>
+        <p>
+          © {new Date().getFullYear()} {SITE.company.legalName}. All rights reserved.
+        </p>
+      </footer>
     </main>
   );
 }
