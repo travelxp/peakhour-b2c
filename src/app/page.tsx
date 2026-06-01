@@ -1,6 +1,15 @@
 import Link from "next/link";
 import { headers } from "next/headers";
-import { ArrowRight, Sparkles, Brain, Zap, BarChart3 } from "lucide-react";
+import {
+  ArrowRight,
+  Sparkles,
+  Brain,
+  Zap,
+  BarChart3,
+  AlertTriangle,
+  CheckCircle2,
+  Info,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -120,7 +129,7 @@ export default async function Home() {
     ? dedupePublicIntegrations(catalog.integrations).map((i) => ({
         id: i.key,
         name: i.name,
-        description: i.tagline ?? i.comingSoon?.copy ?? "",
+        description: i.tagline ?? i.description ?? i.comingSoon?.copy ?? "",
         colorClass: integrationBrandColor(i.display?.groupKey, i.key),
         icon: (
           <IntegrationBrandIcon
@@ -149,7 +158,7 @@ export default async function Home() {
         <div
           role="status"
           className={
-            "border-b px-4 py-2 text-center text-sm " +
+            "flex items-center justify-center gap-2 border-b px-4 py-2 text-center text-sm " +
             (platform.banner.tone === "warn"
               ? "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200"
               : platform.banner.tone === "success"
@@ -157,7 +166,15 @@ export default async function Home() {
                 : "bg-blue-100 text-blue-900 dark:bg-blue-950 dark:text-blue-200")
           }
         >
-          {platform.banner.copy}
+          {/* Leading icon so the tone isn't conveyed by color alone (a11y). */}
+          {platform.banner.tone === "warn" ? (
+            <AlertTriangle className="size-4 shrink-0" aria-hidden />
+          ) : platform.banner.tone === "success" ? (
+            <CheckCircle2 className="size-4 shrink-0" aria-hidden />
+          ) : (
+            <Info className="size-4 shrink-0" aria-hidden />
+          )}
+          <span>{platform.banner.copy}</span>
         </div>
       ) : null}
       <Header />
@@ -181,7 +198,7 @@ export default async function Home() {
               </p>
               <div className="flex w-full flex-col justify-center gap-3 sm:flex-row">
                 {cta.disabled ? (
-                  <Button size="lg" className="gap-2" disabled>
+                  <Button size="lg" disabled>
                     {cta.label}
                   </Button>
                 ) : (
@@ -263,13 +280,13 @@ export default async function Home() {
                       <CardTitle className="flex items-center gap-2 text-sm font-semibold">
                         <span className="truncate">{item.name}</span>
                         {item.comingSoon && (
-                          <Badge variant="outline" className="shrink-0 px-1.5 py-0 text-[10px] uppercase">
-                            Soon
+                          <Badge variant="outline" className="shrink-0 px-1.5 py-0 text-[10px]">
+                            Coming soon
                           </Badge>
                         )}
                       </CardTitle>
                       {item.description && (
-                        <CardDescription className="text-xs">
+                        <CardDescription className="text-xs line-clamp-2">
                           {item.description}
                         </CardDescription>
                       )}
