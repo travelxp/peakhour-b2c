@@ -1284,8 +1284,14 @@ function WriteTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: strin
   const citations = idea.content?.dataCitations;
   const isNewsletter = !idea.contentFormat || idea.contentFormat === "newsletter";
 
+  // minmax(0,1fr) — NOT 1fr — so the editor column can shrink below its
+  // content's min-content width. A bare `1fr` track keeps its implicit
+  // `min-width:auto`, so a long unbreakable token (a URL in a citation, a
+  // mono HTML line in the editor) forces the track wider than the
+  // viewport, pushing the fixed 320px rail out and creating the empty gap
+  // + horizontal scroll on the right.
   return (
-    <div className={citations?.length ? "grid gap-4 lg:grid-cols-[1fr_320px]" : ""}>
+    <div className={citations?.length ? "grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]" : ""}>
       {/* Routed through the shared <ComposerShell> for cross-surface
           consistency with LinkedIn / X. Voice chip + AI toolbar mounted;
           the AI toolbar is gated to Edit mode (it operates on the HTML
