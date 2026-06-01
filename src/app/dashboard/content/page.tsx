@@ -13,11 +13,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollableTabsList } from "@/components/scrollable-tabslist";
 import { flattenMetaIntegration } from "@/lib/integrations-meta";
+import type { ResolvedCatalog } from "@/lib/catalog";
 import {
   CHANNELS,
   CHANNEL_CATEGORIES,
   type ChannelConfig,
 } from "./channels.config";
+import { mapCatalogToChannels } from "./channels-from-catalog";
 
 interface ApiIntegration {
   provider: string;
@@ -56,6 +58,22 @@ export default function ContentChannelsHubPage() {
   // Bind `data?.integrations` to a local so the memo's source dep matches what
   // React Compiler infers (it widened `data?.integrations` to `data`). Stable
   // reference across refetches that return the same content → no map churn.
+  // Channel list is now CMS-driven: resolved from the org-personalized platform
+  // catalog. Falls back to the static channels.config.ts if the catalog can't
+  // be loaded, so the hub never renders empty.
+  const { data: catalog } = useQuery({
+    queryKey: ["content-hub-catalog"],
+    queryFn: () => api.get<ResolvedCatalog>("/v1/platform/catalog"),
+    staleTime: 30_000,
+  });
+  const channels = useMemo<ChannelConfig[]>(
+    () =>
+      catalog?.integrations?.length
+        ? mapCatalogToChannels(catalog.integrations)
+        : [...CHANNELS],
+    [catalog],
+  );
+
   const integrations = data?.integrations;
   const connections = useMemo<ConnectionMap>(() => {
     const map: ConnectionMap = new Map();
@@ -123,7 +141,7 @@ export default function ContentChannelsHubPage() {
         </ScrollableTabsList>
 
         <TabsContent value={ALL_TAB} className="mt-6 space-y-3">
-          {CHANNELS.map((channel) => (
+          {channels.map((channel) => (
             <ChannelRow
               key={channel.slug}
               channel={channel}
@@ -135,7 +153,7 @@ export default function ContentChannelsHubPage() {
 
         {CHANNEL_CATEGORIES.map((category) => (
           <TabsContent key={category} value={category} className="mt-6 space-y-3">
-            {CHANNELS.filter((c) => c.category === category).map((channel) => (
+            {channels.filter((c) => c.category === category).map((channel) => (
               <ChannelRow
                 key={channel.slug}
                 channel={channel}
