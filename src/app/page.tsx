@@ -147,6 +147,7 @@ export default async function Home() {
     <div className="flex min-h-screen flex-col">
       {platform?.banner?.enabled && platform.banner.copy ? (
         <div
+          role="status"
           className={
             "border-b px-4 py-2 text-center text-sm " +
             (platform.banner.tone === "warn"

@@ -73,25 +73,41 @@ export interface ResolvedCatalog {
   platform: PlatformBlock;
 }
 
-async function fetchCatalog(): Promise<ResolvedCatalog | null> {
+/**
+ * Inner fetch — THROWS on any failure so the cache layer below never
+ * memoizes a failed/null result. A transient API 5xx must not pin the static
+ * fallback (degraded CTA + no banner) for the whole revalidate window; throwing
+ * keeps the failure out of the cache so the next request retries.
+ */
+async function fetchCatalogOrThrow(): Promise<ResolvedCatalog> {
+  const res = await fetch(`${API_URL}/v1/platform/catalog`, {
+    next: { revalidate: 120, tags: ["platform-catalog"] },
+  });
+  if (!res.ok) throw new Error(`catalog ${res.status}`);
+  const json = (await res.json()) as { ok?: boolean; data?: ResolvedCatalog };
+  if (!json.ok || !json.data) throw new Error("catalog malformed response");
+  return json.data;
+}
+
+const getCachedCatalog = cache(fetchCatalogOrThrow, ["platform-catalog"], {
+  revalidate: 120,
+  tags: ["platform-catalog"],
+});
+
+/**
+ * Public catalog, or `null` when the API is unreachable/unconfigured — callers
+ * render the static fallback. Only SUCCESSFUL responses are cached (the inner
+ * fn throws on failure), so a transient blip recovers on the next request
+ * rather than being pinned for 120s.
+ */
+export async function getPublicCatalog(): Promise<ResolvedCatalog | null> {
   if (!API_URL) return null;
   try {
-    const res = await fetch(`${API_URL}/v1/platform/catalog`, {
-      next: { revalidate: 120, tags: ["platform-catalog"] },
-    });
-    if (!res.ok) return null;
-    const json = (await res.json()) as { ok?: boolean; data?: ResolvedCatalog };
-    if (!json.ok || !json.data) return null;
-    return json.data;
+    return await getCachedCatalog();
   } catch {
     return null;
   }
 }
-
-export const getPublicCatalog = cache(fetchCatalog, ["platform-catalog"], {
-  revalidate: 120,
-  tags: ["platform-catalog"],
-});
 
 /**
  * Collapse the resolved catalog into one card per logical product
