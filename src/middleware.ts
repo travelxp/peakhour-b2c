@@ -10,6 +10,49 @@ const apiOrigin = (() => {
   }
 })();
 
+/**
+ * Build the per-request CSP + the request headers that carry the nonce (so
+ * Next.js can stamp it onto framework `<script>` tags for 'strict-dynamic').
+ * Only needed for full-document requests — prefetch/rsc/server-action requests
+ * deliberately get no nonce/CSP (it can break RSC streaming).
+ */
+function buildCsp(req: NextRequest): { csp: string; reqHeaders: Headers } {
+  const nonce = btoa(
+    String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16))),
+  );
+  const scriptSrc = isDev
+    ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
+    : `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`;
+  const connectSrc = [
+    "connect-src 'self'",
+    apiOrigin,
+    "https://*.vercel-insights.com",
+    "https://vitals.vercel-insights.com",
+    "https://*.vercel-analytics.com",
+    isDev ? "ws: wss: http://localhost:* ws://localhost:*" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const csp = [
+    "default-src 'self'",
+    scriptSrc,
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob: https:",
+    "font-src 'self' data:",
+    connectSrc,
+    "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "object-src 'none'",
+    "upgrade-insecure-requests",
+  ].join("; ");
+
+  const reqHeaders = new Headers(req.headers);
+  reqHeaders.set("x-nonce", nonce);
+  reqHeaders.set("content-security-policy", csp);
+  return { csp, reqHeaders };
+}
+
 export function middleware(req: NextRequest) {
   const { pathname, searchParams } = req.nextUrl;
 
@@ -49,58 +92,26 @@ export function middleware(req: NextRequest) {
     !grantPreview &&
     !hasPreviewCookie;
 
-  // CSP + nonce — computed for the full-document path only.
-  const nonce = btoa(
-    String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16))),
-  );
-  const scriptSrc = isDev
-    ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
-    : `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`;
-  const connectSrc = [
-    "connect-src 'self'",
-    apiOrigin,
-    "https://*.vercel-insights.com",
-    "https://vitals.vercel-insights.com",
-    "https://*.vercel-analytics.com",
-    isDev ? "ws: wss: http://localhost:* ws://localhost:*" : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
-  const csp = [
-    "default-src 'self'",
-    scriptSrc,
-    "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob: https:",
-    "font-src 'self' data:",
-    connectSrc,
-    "frame-ancestors 'none'",
-    "base-uri 'self'",
-    "form-action 'self'",
-    "object-src 'none'",
-    "upgrade-insecure-requests",
-  ].join("; ");
-
-  const reqHeaders = new Headers(req.headers);
-  reqHeaders.set("x-nonce", nonce);
-  // Next.js extracts the nonce from this request header and stamps it onto
-  // framework-injected <script> tags. Required for 'strict-dynamic' to work.
-  reqHeaders.set("content-security-policy", csp);
-
   let res: NextResponse;
   if (gated) {
     const url = req.nextUrl.clone();
     url.pathname = "/coming-soon";
     url.search = "";
-    // Full-document gated request → carry the nonce so the teaser HTML matches;
-    // passthrough (rsc/prefetch/action) gated request → plain rewrite.
-    res = isPassthrough
-      ? NextResponse.rewrite(url)
-      : NextResponse.rewrite(url, { request: { headers: reqHeaders } });
+    if (isPassthrough) {
+      res = NextResponse.rewrite(url);
+    } else {
+      // Full-document gated request → carry the nonce so the teaser HTML matches.
+      const { csp, reqHeaders } = buildCsp(req);
+      res = NextResponse.rewrite(url, { request: { headers: reqHeaders } });
+      res.headers.set("Content-Security-Policy", csp);
+    }
   } else if (isPassthrough) {
     // Preserve prior behavior: middleware did not modify these requests.
     res = NextResponse.next();
   } else {
+    const { csp, reqHeaders } = buildCsp(req);
     res = NextResponse.next({ request: { headers: reqHeaders } });
+    res.headers.set("Content-Security-Policy", csp);
   }
 
   if (grantPreview) {
@@ -115,7 +126,6 @@ export function middleware(req: NextRequest) {
     res.cookies.delete(PREVIEW_COOKIE);
   }
 
-  if (!isPassthrough) res.headers.set("Content-Security-Policy", csp);
   return res;
 }
 
