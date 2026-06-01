@@ -1474,11 +1474,11 @@ function WriteTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: strin
             />
           )}
         </div>
-        <div className="flex flex-wrap gap-2 items-center">
-          <Button onClick={handleSave} disabled={saving || finalized}>
+        <div className="flex flex-wrap gap-1.5 items-center">
+          <Button size="sm" onClick={handleSave} disabled={saving || finalized}>
             {saving && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}Save
           </Button>
-          <Button variant="outline" onClick={generate} disabled={generating || finalized}>
+          <Button size="sm" variant="outline" onClick={generate} disabled={generating || finalized}>
             {generating ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1.5 h-4 w-4" />}
             Regenerate
           </Button>

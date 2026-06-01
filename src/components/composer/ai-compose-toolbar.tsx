@@ -252,7 +252,7 @@ export function AiComposeToolbar({
                     type="button"
                     size="sm"
                     variant="ghost"
-                    className="h-7 gap-1.5 px-2 text-xs"
+                    className="h-7 gap-1 px-1.5 text-xs"
                     onClick={() => fire(meta.op)}
                     disabled={disabled}
                   >
@@ -282,7 +282,7 @@ export function AiComposeToolbar({
                         type="button"
                         size="sm"
                         variant="ghost"
-                        className="h-7 gap-1.5 px-2 text-xs"
+                        className="h-7 gap-1 px-1.5 text-xs"
                         disabled={text.trim().length === 0}
                       >
                         <Mic2 className="size-3.5" />
@@ -348,7 +348,7 @@ export function AiComposeToolbar({
                       type="button"
                       size="sm"
                       variant="ghost"
-                      className="h-7 gap-1.5 px-2 text-xs"
+                      className="h-7 gap-1 px-1.5 text-xs"
                       onClick={() => fire(meta.op)}
                       disabled={disabled}
                     >
