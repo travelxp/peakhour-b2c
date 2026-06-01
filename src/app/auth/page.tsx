@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { sendMagicLink } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -73,7 +74,24 @@ const TRUST_STATS = [
   { value: "24/7", label: "autonomous optimization" },
 ] as const;
 
-export default function AuthPage() {
+// Landing CTAs route here with ?intent=waitlist|invite when the platform is
+// pre-launch (driven by cfg_platform_stage.signupMode), so the heading matches
+// the button the visitor clicked. The magic-link flow itself is unchanged —
+// only the framing differs.
+const INTENT_COPY: Record<string, { title: string; subtitle: string }> = {
+  waitlist: {
+    title: "Join the waitlist",
+    subtitle: "Enter your email — we'll send your access link as we roll out. No password needed.",
+  },
+  invite: {
+    title: "Request an invite",
+    subtitle: "Enter your email to request access. We'll be in touch with your link. No password needed.",
+  },
+};
+
+function AuthPageInner() {
+  const searchParams = useSearchParams();
+  const intentCopy = INTENT_COPY[searchParams.get("intent") ?? ""];
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   // Tick once per second while a cooldown is running so the button
@@ -329,11 +347,11 @@ export default function AuthPage() {
             <div className="w-full max-w-md space-y-8">
               <div className="text-center">
                 <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">
-                  Welcome to {SITE.name}
+                  {intentCopy?.title ?? `Welcome to ${SITE.name}`}
                 </h2>
                 <p className="mt-2 text-muted-foreground">
-                  Enter your email to sign in or create your account. No
-                  password needed.
+                  {intentCopy?.subtitle ??
+                    "Enter your email to sign in or create your account. No password needed."}
                 </p>
               </div>
 
@@ -396,5 +414,22 @@ export default function AuthPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+// useSearchParams() must be inside a Suspense boundary (Next.js App Router).
+// A minimal full-height fallback avoids a blank prerender flash on this entry
+// flow before the client fills in the (searchParams-dependent) heading.
+export default function AuthPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center" aria-hidden>
+          <div className="size-6 animate-spin rounded-full border-2 border-muted border-t-foreground" />
+        </div>
+      }
+    >
+      <AuthPageInner />
+    </Suspense>
   );
 }
