@@ -418,9 +418,17 @@ function AuthPageInner() {
 }
 
 // useSearchParams() must be inside a Suspense boundary (Next.js App Router).
+// A minimal full-height fallback avoids a blank prerender flash on this entry
+// flow before the client fills in the (searchParams-dependent) heading.
 export default function AuthPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center" aria-hidden>
+          <div className="size-6 animate-spin rounded-full border-2 border-muted border-t-foreground" />
+        </div>
+      }
+    >
       <AuthPageInner />
     </Suspense>
   );
