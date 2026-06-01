@@ -15,6 +15,15 @@ import { Footer } from "@/components/shared/footer";
 import { PricingGrid } from "@/components/marketing/pricing-grid";
 import { getPricing } from "@/lib/pricing";
 import {
+  getPublicCatalog,
+  dedupePublicIntegrations,
+  signupCta,
+} from "@/lib/catalog";
+import {
+  IntegrationBrandIcon,
+  integrationBrandColor,
+} from "@/components/marketing/integration-brand";
+import {
   LinkedinIcon,
   FacebookIcon,
   InstagramIcon,
@@ -100,8 +109,56 @@ export default async function Home() {
       ? vercelCountry.toUpperCase()
       : "DEFAULT";
   const pricing = await getPricing(country);
+
+  // Integration catalog from the platform resolver (CMS-driven, env-gated,
+  // stage-capped). Falls back to the static list below if the API is
+  // unreachable so the landing never hard-fails (mirrors the pricing fallback).
+  const catalog = await getPublicCatalog();
+  const platform = catalog?.platform;
+  const cta = signupCta(platform?.signupMode ?? "open");
+  const integrationCards = catalog
+    ? dedupePublicIntegrations(catalog.integrations).map((i) => ({
+        id: i.key,
+        name: i.name,
+        description: i.tagline ?? i.comingSoon?.copy ?? "",
+        colorClass: integrationBrandColor(i.display?.groupKey, i.key),
+        icon: (
+          <IntegrationBrandIcon
+            groupKey={i.display?.groupKey}
+            integrationKey={i.key}
+            name={i.name}
+          />
+        ),
+        comingSoon: i.surfacedState === "coming_soon",
+      }))
+    : INTEGRATIONS.map((item) => {
+        const IntIcon = item.icon;
+        return {
+          id: item.name,
+          name: item.name,
+          description: item.description,
+          colorClass: item.color,
+          icon: <IntIcon className="h-5 w-5" />,
+          comingSoon: false,
+        };
+      });
+
   return (
     <div className="flex min-h-screen flex-col">
+      {platform?.banner?.enabled && platform.banner.copy ? (
+        <div
+          className={
+            "border-b px-4 py-2 text-center text-sm " +
+            (platform.banner.tone === "warn"
+              ? "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200"
+              : platform.banner.tone === "success"
+                ? "bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200"
+                : "bg-blue-100 text-blue-900 dark:bg-blue-950 dark:text-blue-200")
+          }
+        >
+          {platform.banner.copy}
+        </div>
+      ) : null}
       <Header />
 
       <main>
@@ -122,12 +179,18 @@ export default async function Home() {
                 engine — all powered by AI, all on autopilot.
               </p>
               <div className="flex w-full flex-col justify-center gap-3 sm:flex-row">
-                <Button asChild size="lg" className="gap-2">
-                  <Link href="/auth">
-                    Start free
-                    <ArrowRight className="size-4" />
-                  </Link>
-                </Button>
+                {cta.disabled ? (
+                  <Button size="lg" className="gap-2" disabled>
+                    {cta.label}
+                  </Button>
+                ) : (
+                  <Button asChild size="lg" className="gap-2">
+                    <Link href={cta.href}>
+                      {cta.label}
+                      <ArrowRight className="size-4" />
+                    </Link>
+                  </Button>
+                )}
                 <Button asChild variant="outline" size="lg">
                   <Link href="#how-it-works">How it works</Link>
                 </Button>
@@ -189,33 +252,49 @@ export default async function Home() {
               </p>
             </div>
             <div className="mx-auto mt-12 grid max-w-4xl grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {INTEGRATIONS.map((item) => {
-                const IntIcon = item.icon;
-                return (
-                  <Card key={item.name} className="py-2 transition-shadow hover:shadow-md">
-                    <CardHeader className="flex flex-row items-center gap-3 space-y-0 pb-0">
-                      <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-white ${item.color}`}>
-                        <IntIcon className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <CardTitle className="text-sm font-semibold">{item.name}</CardTitle>
+              {integrationCards.map((item) => (
+                <Card key={item.id} className="py-2 transition-shadow hover:shadow-md">
+                  <CardHeader className="flex flex-row items-center gap-3 space-y-0 pb-0">
+                    <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-white ${item.colorClass}`}>
+                      {item.icon}
+                    </div>
+                    <div className="min-w-0">
+                      <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+                        <span className="truncate">{item.name}</span>
+                        {item.comingSoon && (
+                          <Badge variant="outline" className="shrink-0 px-1.5 py-0 text-[10px] uppercase">
+                            Soon
+                          </Badge>
+                        )}
+                      </CardTitle>
+                      {item.description && (
                         <CardDescription className="text-xs">
                           {item.description}
                         </CardDescription>
-                      </div>
-                    </CardHeader>
-                  </Card>
-                );
-              })}
+                      )}
+                    </div>
+                  </CardHeader>
+                </Card>
+              ))}
             </div>
             <div className="mt-8 flex items-center justify-center gap-3 text-sm text-muted-foreground">
-              <span>More integrations coming soon</span>
-              <Button asChild variant="outline" size="sm">
-                <Link href="/auth">
-                  Get started
-                  <ArrowRight className="ml-1 size-3" />
-                </Link>
-              </Button>
+              <span>
+                {platform && platform.stage !== "live"
+                  ? "More integrations rolling out as we launch"
+                  : "More integrations coming soon"}
+              </span>
+              {cta.disabled ? (
+                <Button variant="outline" size="sm" disabled>
+                  {cta.label}
+                </Button>
+              ) : (
+                <Button asChild variant="outline" size="sm">
+                  <Link href={cta.href}>
+                    {cta.label}
+                    <ArrowRight className="ml-1 size-3" />
+                  </Link>
+                </Button>
+              )}
             </div>
           </div>
         </section>
