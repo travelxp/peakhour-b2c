@@ -3,9 +3,9 @@ import { Sparkles } from "lucide-react";
 import { SITE } from "@/lib/utils";
 
 export const metadata: Metadata = {
-  title: "PeakHour — Agentic AI Marketing Platform",
+  title: "Peakhour — Agentic AI Marketing Platform",
   description:
-    "PeakHour is an agentic AI marketing platform. Autonomous AI agents analyze your content, create campaigns, and optimize performance across every channel — around the clock. Launching soon.",
+    "Peakhour is an agentic AI marketing platform. Autonomous AI agents analyze your content, create campaigns, and optimize performance across every channel — around the clock. Launching soon.",
 };
 
 /**

@@ -4,8 +4,8 @@ import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
 
 export const metadata: Metadata = {
-  title: "Terms of Service - PeakHour",
-  description: "PeakHour terms of service — the agreement between you and PeakHour.",
+  title: "Terms of Service - Peakhour",
+  description: "Peakhour terms of service — the agreement between you and Peakhour.",
 };
 
 export default function TermsPage() {
@@ -42,7 +42,7 @@ export default function TermsPage() {
           <section>
             <h2 className="text-lg font-semibold text-foreground">2. Description of Service</h2>
             <p className="mt-2">
-              PeakHour is an AI-powered marketing automation platform that:
+              Peakhour is an AI-powered marketing automation platform that:
             </p>
             <ul className="mt-2 list-disc space-y-1 pl-6">
               <li>Analyzes your content across multiple dimensions using artificial intelligence.</li>
@@ -170,7 +170,7 @@ export default function TermsPage() {
               </li>
               <li>
                 Advertising spend is charged directly by the advertising platforms (e.g.,
-                LinkedIn), not by PeakHour. You are responsible for all charges incurred on
+                LinkedIn), not by Peakhour. You are responsible for all charges incurred on
                 your advertising platform accounts.
               </li>
               <li>
@@ -307,7 +307,7 @@ export default function TermsPage() {
             <h2 className="text-lg font-semibold text-foreground">10. Intellectual Property</h2>
             <p className="mt-2">
               The Service, including its design, features, code, AI models, and documentation,
-              is owned by PeakHour and protected by intellectual property laws. Nothing in
+              is owned by Peakhour and protected by intellectual property laws. Nothing in
               these Terms grants you any right to our trademarks, logos, or brand assets.
             </p>
           </section>
@@ -345,7 +345,7 @@ export default function TermsPage() {
           <section>
             <h2 className="text-lg font-semibold text-foreground">13. Indemnification</h2>
             <p className="mt-2">
-              You agree to indemnify and hold PeakHour harmless from any claims, damages,
+              You agree to indemnify and hold Peakhour harmless from any claims, damages,
               losses, or expenses (including reasonable attorneys&apos; fees) arising from:
             </p>
             <ul className="mt-2 list-disc space-y-1 pl-6">
@@ -409,7 +409,7 @@ export default function TermsPage() {
             <ul className="mt-2 list-disc space-y-1 pl-6">
               <li>
                 <strong>Entire Agreement:</strong> these Terms, together with the Privacy
-                Policy, constitute the entire agreement between you and PeakHour.
+                Policy, constitute the entire agreement between you and Peakhour.
               </li>
               <li>
                 <strong>Severability:</strong> if any provision is held invalid or

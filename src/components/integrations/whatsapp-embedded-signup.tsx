@@ -366,7 +366,7 @@ export function WhatsAppEmbeddedSignup({
             </CardTitle>
             <CardDescription>
               Connect your WhatsApp Business number to message customers from
-              PeakHour. No account yet? You can create one in the same step.
+              Peakhour. No account yet? You can create one in the same step.
             </CardDescription>
           </div>
         </div>

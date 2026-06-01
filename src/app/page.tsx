@@ -189,7 +189,7 @@ export default async function Home() {
                 Agentic AI Marketing Platform
               </Badge>
               <h1 className="text-4xl font-bold tracking-tight text-pretty sm:text-5xl lg:text-6xl">
-                Every hour is PeakHour
+                Every hour is Peakhour
               </h1>
               <p className="max-w-2xl text-lg text-muted-foreground lg:text-xl">
                 Autonomous AI agents turn your content into high-performing campaigns

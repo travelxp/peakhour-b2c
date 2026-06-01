@@ -4,15 +4,15 @@ import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
 
 export const metadata: Metadata = {
-  title: "Contact Us - PeakHour",
+  title: "Contact Us - Peakhour",
   description:
-    "Get in touch with the PeakHour team — we'd love to hear from you.",
+    "Get in touch with the Peakhour team — we'd love to hear from you.",
 };
 
 const CONTACT_CHANNELS = [
   {
     title: "General Inquiries",
-    description: "Questions about PeakHour, partnerships, or anything else.",
+    description: "Questions about Peakhour, partnerships, or anything else.",
     email: "hello@peakhour.ai",
     icon: (
       <svg
@@ -88,7 +88,7 @@ export default function ContactPage() {
             Get in touch
           </h1>
           <p className="mx-auto mt-4 max-w-xl text-lg text-muted-foreground">
-            Have a question, feedback, or want to explore how PeakHour can work
+            Have a question, feedback, or want to explore how Peakhour can work
             for your business? We&apos;d love to hear from you.
           </p>
         </section>
@@ -137,7 +137,7 @@ export default function ContactPage() {
 
             <div className="mt-12">
               <p className="text-muted-foreground">
-                Ready to see PeakHour in action?
+                Ready to see Peakhour in action?
               </p>
               <Link
                 href="/auth"

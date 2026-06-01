@@ -213,7 +213,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                   </div>
                   <div className="grid flex-1 text-left leading-tight">
                     <span className="truncate text-sm font-semibold">
-                      PeakHour
+                      Peakhour
                     </span>
                     <span className="truncate text-xs text-muted-foreground">
                       AI Marketing

@@ -119,7 +119,7 @@ function AcceptInviteContent() {
                 You&apos;re invited to {orgName}
               </h2>
               <p className="text-muted-foreground">
-                Create your PeakHour account to join the team. We&apos;ll send a
+                Create your Peakhour account to join the team. We&apos;ll send a
                 sign-in link to <strong>{email}</strong>.
               </p>
               <Button onClick={handleSignup} className="w-full">

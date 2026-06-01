@@ -67,7 +67,7 @@ export function ChatPanel() {
               <Bot className="size-4 text-primary" />
             </div>
             <div className="flex-1">
-              <p className="text-sm font-semibold leading-none">PeakHour AI</p>
+              <p className="text-sm font-semibold leading-none">Peakhour AI</p>
               <p className="text-[11px] text-muted-foreground">Ask me anything about your content strategy</p>
             </div>
             <Button variant="ghost" size="icon" className="size-7" onClick={clearChat} title="Clear chat">

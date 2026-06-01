@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 
 /**
- * PeakHour branded elapsed timer — shows time ticking while an async
+ * Peakhour branded elapsed timer — shows time ticking while an async
  * operation is in progress. Reusable across strategist, content gen, etc.
  *
  * Modes:

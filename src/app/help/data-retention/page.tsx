@@ -5,9 +5,9 @@ import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
 
 export const metadata: Metadata = {
-  title: "Data Retention - PeakHour",
+  title: "Data Retention - Peakhour",
   description:
-    "How long PeakHour keeps the data it pulls from connected platforms, and why.",
+    "How long Peakhour keeps the data it pulls from connected platforms, and why.",
 };
 
 /**
@@ -36,7 +36,7 @@ export default function DataRetentionPage() {
             <p className="mt-2">
               Connected platforms (LinkedIn, Meta, X, and others) place limits
               on how long partners are allowed to keep the data their APIs
-              return. PeakHour respects those limits. When a panel in your
+              return. Peakhour respects those limits. When a panel in your
               dashboard says &ldquo;last 48 hours&rdquo; or &ldquo;last 2
               days&rdquo;, that&apos;s not a product choice &mdash; it&apos;s
               the platform&apos;s data-storage rule.
@@ -58,7 +58,7 @@ export default function DataRetentionPage() {
               >
                 published here
               </a>
-              ) classify the data in three groups. PeakHour applies the
+              ) classify the data in three groups. Peakhour applies the
               corresponding storage limit to each:
             </p>
             <div className="mt-4 overflow-x-auto">
@@ -69,7 +69,7 @@ export default function DataRetentionPage() {
                     <th className="py-2 pr-4 font-medium">
                       What it includes
                     </th>
-                    <th className="py-2 font-medium">PeakHour retention</th>
+                    <th className="py-2 font-medium">Peakhour retention</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -94,7 +94,7 @@ export default function DataRetentionPage() {
                     </td>
                     <td className="py-3 pr-4 align-top">
                       Posts from a LinkedIn Company Page that you, the
-                      authenticated administrator, manage through PeakHour.
+                      authenticated administrator, manage through Peakhour.
                     </td>
                     <td className="py-3 align-top">
                       <span className="font-medium text-foreground">
@@ -162,7 +162,7 @@ export default function DataRetentionPage() {
                 <span className="font-medium text-foreground">
                   Long-term trends (planned):
                 </span>{" "}
-                under the aggregated-marketing-data allowance, PeakHour
+                under the aggregated-marketing-data allowance, Peakhour
                 will retain anonymous counts, scores, and recency markers
                 so the trend in engagement survives even after the raw
                 comment trail is deleted. The writer that populates this
@@ -176,7 +176,7 @@ export default function DataRetentionPage() {
               4. Disconnecting a LinkedIn account
             </h2>
             <p className="mt-2">
-              When you disconnect a LinkedIn account from PeakHour, we
+              When you disconnect a LinkedIn account from Peakhour, we
               stop calling the LinkedIn API on its behalf. The
               social-activity rows we already collected drop out at the
               next scheduled cleanup under the same retention rules
@@ -201,9 +201,9 @@ export default function DataRetentionPage() {
             </h2>
             <p className="mt-2">
               Today this page covers LinkedIn, the only platform whose
-              dashboard PeakHour ships to users. Meta, X, and other
+              dashboard Peakhour ships to users. Meta, X, and other
               platforms each publish their own data-retention rules. As
-              PeakHour adds dashboards for each platform, this page will
+              Peakhour adds dashboards for each platform, this page will
               gain a section per platform with the same structure as the
               LinkedIn table above.
             </p>
@@ -221,7 +221,7 @@ export default function DataRetentionPage() {
               >
                 Contact
               </Link>
-              . For the full picture of what PeakHour stores and why, see
+              . For the full picture of what Peakhour stores and why, see
               the{" "}
               <Link
                 href="/privacy-policy"
