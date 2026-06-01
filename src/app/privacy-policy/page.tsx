@@ -23,10 +23,19 @@ export default function PrivacyPolicyPage() {
           <section>
             <h2 className="text-lg font-semibold text-foreground">1. Introduction</h2>
             <p className="mt-2">
-              PeakHour (&quot;we&quot;, &quot;us&quot;, or &quot;our&quot;) operates the PeakHour platform
-              (peakhour.ai), an AI-powered marketing automation service. This Privacy Policy
-              explains how we collect, use, disclose, and safeguard your information when you
-              use our website and services (collectively, the &quot;Service&quot;).
+              This Privacy Policy explains how {SITE.company.legalName} (&quot;{SITE.name}&quot;,
+              &quot;we&quot;, &quot;us&quot;, or &quot;our&quot;) — the company that operates the {SITE.name}{" "}
+              platform at peakhour.ai, an AI-powered marketing automation service (the
+              &quot;Service&quot;) — collects, uses, discloses, and safeguards your information when
+              you use our website and services.
+            </p>
+            <p className="mt-2">
+              {SITE.name} is a product of {SITE.company.legalName}, registered office at{" "}
+              {SITE.company.address}. For the EU/UK General Data Protection Regulation
+              (&quot;GDPR&quot;), {SITE.company.legalName} is the data &quot;controller&quot;; under
+              India&apos;s Digital Personal Data Protection Act, 2023 (&quot;DPDP Act&quot;), it is the
+              &quot;Data Fiduciary&quot; that determines the purpose and means of processing your
+              personal data.
             </p>
             <p className="mt-2">
               By accessing or using the Service, you agree to this Privacy Policy. If you do
@@ -59,17 +68,43 @@ export default function PrivacyPolicyPage() {
 
             <h3 className="mt-4 font-medium text-foreground">2.2 Information from Third-Party Platforms</h3>
             <p className="mt-2">
-              When you connect third-party accounts (e.g., LinkedIn, Beehiiv), we receive:
+              When you connect a third-party account, you authorize that platform — through
+              its OAuth consent screen — to share specific data with us. We request only the
+              permissions (&quot;scopes&quot;) needed to provide the features you enable, and we
+              process that data solely to deliver the Service to you (see Section 12,
+              &quot;Third-Party Platform Data &amp; Developer-Program Compliance&quot;). Depending on
+              the integrations you connect, we may receive:
             </p>
             <ul className="mt-2 list-disc space-y-1 pl-6">
               <li>
-                <strong>LinkedIn:</strong> basic profile information, ad account details,
-                company page information, campaign performance metrics, and lead generation
-                form responses, as authorized through OAuth.
+                <strong>Meta (Facebook, Instagram, Ads &amp; WhatsApp Business):</strong> your
+                public profile and email; the Facebook Pages and Instagram Business accounts
+                you manage, their content and engagement/insights metrics; ad accounts,
+                campaigns and performance data; and, where you connect WhatsApp Business,
+                your WhatsApp Business Account(s), phone numbers, message templates and
+                messaging metadata — each only as authorized through Meta&apos;s OAuth and
+                subject to the Meta Platform Terms and Developer Policies.
               </li>
               <li>
-                <strong>Beehiiv:</strong> newsletter content, subscriber metrics, and
-                publication details via API integration.
+                <strong>X (formerly Twitter):</strong> basic profile information and the
+                posts, engagement metrics and advertising data you authorize, subject to the
+                X Developer Agreement and Policy.
+              </li>
+              <li>
+                <strong>LinkedIn:</strong> basic profile information, organization/company
+                page information, ad account details, campaign performance metrics, and lead
+                generation form responses, as authorized through OAuth and subject to the
+                LinkedIn API Terms of Use.
+              </li>
+              <li>
+                <strong>Google:</strong> where you connect Google services (e.g., analytics
+                or business profiles), the account, profile and metrics data you authorize,
+                handled in accordance with the Google API Services User Data Policy,
+                including its Limited Use requirements.
+              </li>
+              <li>
+                <strong>Beehiiv and other publishing tools:</strong> newsletter content,
+                subscriber metrics, and publication details via API integration.
               </li>
             </ul>
 
@@ -241,14 +276,25 @@ export default function PrivacyPolicyPage() {
             <p className="mt-2">We do not sell your personal information. We share information only as follows:</p>
             <ul className="mt-2 list-disc space-y-1 pl-6">
               <li>
-                <strong>Service providers:</strong> third-party vendors that help us operate
-                the Service (hosting, payment processing, AI providers, email delivery).
-                These providers are contractually bound to protect your data.
+                <strong>Service providers (sub-processors):</strong> vetted third-party
+                vendors that help us operate the Service — including cloud hosting,
+                database and object storage, AI/ML model providers, payment processing
+                (Stripe), and transactional email delivery. These providers act on our
+                instructions under written contracts (including data-processing terms and,
+                where applicable, Standard Contractual Clauses) that require them to protect
+                your data and use it only to provide their service to us. A current list of
+                material sub-processors is available on request from{" "}
+                <a href={`mailto:${SITE.contactPrivacy}`} className="text-foreground underline">
+                  {SITE.contactPrivacy}
+                </a>
+                .
               </li>
               <li>
-                <strong>Connected platforms:</strong> when you authorize us to manage
-                campaigns, we share ad creatives and targeting data with platforms like
-                LinkedIn as necessary to run your campaigns.
+                <strong>Connected platforms:</strong> when you authorize us to publish
+                content or manage campaigns, we share the content, ad creatives, targeting
+                and configuration data necessary to carry out your instructions with the
+                platforms you connect (e.g., Meta, X, LinkedIn, Google). We share with each
+                platform only what is needed to perform the action you requested.
               </li>
               <li>
                 <strong>Legal requirements:</strong> when required by law, regulation, legal
@@ -295,7 +341,12 @@ export default function PrivacyPolicyPage() {
             </ul>
             <p className="mt-2">
               We do not use advertising or tracking cookies. You can configure your browser
-              to block cookies, but this may prevent you from using the Service.
+              to block cookies, but this may prevent you from using the Service. For full
+              details of the cookies we set and their purposes, see our{" "}
+              <a href="/cookie-policy" className="text-foreground underline">
+                Cookie Policy
+              </a>
+              .
             </p>
           </section>
 
@@ -374,7 +425,181 @@ export default function PrivacyPolicyPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-foreground">12. Changes to This Policy</h2>
+            <h2 className="text-lg font-semibold text-foreground">
+              12. Third-Party Platform Data &amp; Developer-Program Compliance
+            </h2>
+            <p className="mt-2">
+              Where the Service accesses data through a third-party platform&apos;s API
+              (&quot;Platform Data&quot;), we comply with that platform&apos;s developer terms and
+              policies. As a general rule, we use Platform Data <strong>only</strong> to
+              provide and improve the features you have enabled, we do <strong>not</strong>{" "}
+              sell or rent Platform Data, we do <strong>not</strong> use it for our own
+              advertising or to build independent user profiles, we retain it only for as
+              long as needed to deliver the Service, and we delete it when you disconnect the
+              integration, close your account, or ask us to.
+            </p>
+
+            <h3 className="mt-4 font-medium text-foreground">12.1 Meta Platform (Facebook, Instagram, Ads, WhatsApp)</h3>
+            <p className="mt-2">
+              Our use and transfer of information received from Meta APIs adheres to the{" "}
+              <a href="https://developers.facebook.com/terms/" className="text-foreground underline" target="_blank" rel="noopener noreferrer">
+                Meta Platform Terms
+              </a>{" "}
+              and Developer Policies. Meta Platform Data is used solely to provide the
+              publishing, analytics, advertising and WhatsApp Business features you enable; it
+              is never sold, and it is not used for any purpose other than delivering those
+              features to you. You may revoke our access at any time from your Meta account
+              settings, and you may request deletion of data we hold via our{" "}
+              <a href="/data-deletion" className="text-foreground underline">
+                Data Deletion
+              </a>{" "}
+              page.
+            </p>
+
+            <h3 className="mt-4 font-medium text-foreground">12.2 Google</h3>
+            <p className="mt-2">
+              Where you connect Google services, our use and transfer of information received
+              from Google APIs adheres to the{" "}
+              <a href="https://developers.google.com/terms/api-services-user-data-policy" className="text-foreground underline" target="_blank" rel="noopener noreferrer">
+                Google API Services User Data Policy
+              </a>
+              , including its <strong>Limited Use</strong> requirements. We do not transfer or
+              use Google user data for serving advertisements, we do not sell it, and we do not
+              allow humans to read it except as expressly permitted (e.g., with your consent,
+              for security, or to comply with law).
+            </p>
+
+            <h3 className="mt-4 font-medium text-foreground">12.3 X (formerly Twitter)</h3>
+            <p className="mt-2">
+              Our access to and use of X content and data complies with the X Developer
+              Agreement and Policy. We use X data only to provide the features you enable and
+              cease using, and delete, such data when you revoke access or as required by X.
+            </p>
+
+            <h3 className="mt-4 font-medium text-foreground">12.4 LinkedIn</h3>
+            <p className="mt-2">
+              Our use of LinkedIn data complies with the LinkedIn API Terms of Use and is
+              limited to the authorized purposes for which you connected your LinkedIn account.
+            </p>
+
+            <h3 className="mt-4 font-medium text-foreground">12.5 Microsoft and other providers</h3>
+            <p className="mt-2">
+              Where you connect Microsoft or other third-party services, we comply with the
+              applicable provider&apos;s API terms and use the data only to deliver the features
+              you have enabled.
+            </p>
+
+            <h3 className="mt-4 font-medium text-foreground">12.6 Revoking access</h3>
+            <p className="mt-2">
+              You can disconnect any integration at any time from your account settings or
+              from the relevant platform&apos;s app/connected-apps settings. On disconnection we
+              revoke the stored access tokens and stop accessing that platform&apos;s data.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-lg font-semibold text-foreground">13. Legal Bases for Processing (EEA / UK)</h2>
+            <p className="mt-2">
+              If you are in the European Economic Area or the United Kingdom, we process your
+              personal data on one or more of the following legal bases under the GDPR:
+            </p>
+            <ul className="mt-2 list-disc space-y-1 pl-6">
+              <li>
+                <strong>Performance of a contract</strong> (Art. 6(1)(b)) — to create and
+                operate your account and provide the Service you request.
+              </li>
+              <li>
+                <strong>Legitimate interests</strong> (Art. 6(1)(f)) — to secure, maintain,
+                analyze and improve the Service, prevent fraud and abuse, and communicate with
+                you about the Service, balanced against your rights and freedoms.
+              </li>
+              <li>
+                <strong>Consent</strong> (Art. 6(1)(a)) — where we rely on your consent (for
+                example, certain optional integrations or communications); you may withdraw it
+                at any time without affecting prior processing.
+              </li>
+              <li>
+                <strong>Legal obligation</strong> (Art. 6(1)(c)) — to comply with applicable
+                law, tax and accounting requirements, and lawful requests.
+              </li>
+            </ul>
+          </section>
+
+          <section>
+            <h2 className="text-lg font-semibold text-foreground">14. Region-Specific Privacy Rights</h2>
+
+            <h3 className="mt-4 font-medium text-foreground">14.1 European Economic Area &amp; United Kingdom (GDPR)</h3>
+            <p className="mt-2">
+              In addition to the rights in Section 9, you have the right to lodge a complaint
+              with your local supervisory authority (in the UK, the Information
+              Commissioner&apos;s Office). Where processing is based on consent or contract and is
+              carried out by automated means, you also have the right to data portability.
+            </p>
+
+            <h3 className="mt-4 font-medium text-foreground">14.2 California (CCPA / CPRA)</h3>
+            <p className="mt-2">
+              If you are a California resident, you have the right to know what personal
+              information we collect and how we use and disclose it, to request access and
+              deletion, to correct inaccurate information, and to be free from discrimination
+              for exercising these rights. You may use an authorized agent to submit requests.
+            </p>
+            <p className="mt-2">
+              <strong>
+                We do not &quot;sell&quot; or &quot;share&quot; your personal information as those terms are
+                defined under the CCPA/CPRA,
+              </strong>{" "}
+              and we have not done so in the preceding twelve months.
+            </p>
+
+            <h3 className="mt-4 font-medium text-foreground">14.3 India (DPDP Act, 2023)</h3>
+            <p className="mt-2">
+              If you are in India, you have the right to access a summary of your personal data
+              and our processing, to correction and erasure of your data, to nominate another
+              person to exercise your rights in the event of death or incapacity, and to
+              readily-available grievance redressal (see Section 15). Where we process your
+              data on the basis of consent, you may withdraw that consent at any time with
+              effect going forward. If you remain dissatisfied after contacting our Grievance
+              Officer, you may approach the Data Protection Board of India.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-lg font-semibold text-foreground">15. Grievance Redressal (India)</h2>
+            <p className="mt-2">
+              In accordance with the DPDP Act, 2023 and applicable Information Technology
+              rules, {SITE.company.legalName} has appointed a Grievance Officer to address
+              questions or complaints about this Privacy Policy and the processing of your
+              personal data:
+            </p>
+            <p className="mt-2">
+              {SITE.grievanceOfficer.name}, {SITE.company.legalName}
+              <br />
+              {SITE.company.address}
+              <br />
+              Email:{" "}
+              <a href={`mailto:${SITE.grievanceOfficer.email}`} className="text-foreground underline">
+                {SITE.grievanceOfficer.email}
+              </a>
+            </p>
+            <p className="mt-2">
+              We will acknowledge grievances promptly and aim to resolve them within the
+              timeframes required by applicable law.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-lg font-semibold text-foreground">16. Governing Law &amp; Jurisdiction</h2>
+            <p className="mt-2">
+              This Privacy Policy and any dispute arising out of or relating to it or the
+              processing of your personal data are governed by the laws of India, and the
+              courts at Mumbai, Maharashtra shall have exclusive jurisdiction, without
+              prejudice to any mandatory data-protection or consumer rights available to you
+              under the laws of your country of residence.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-lg font-semibold text-foreground">17. Changes to This Policy</h2>
             <p className="mt-2">
               We may update this Privacy Policy from time to time. We will notify you of
               material changes by posting the new policy on this page and updating the
@@ -384,14 +609,23 @@ export default function PrivacyPolicyPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-foreground">13. Contact Us</h2>
+            <h2 className="text-lg font-semibold text-foreground">18. Contact Us</h2>
             <p className="mt-2">
-              If you have questions about this Privacy Policy or our data practices, contact us at:
+              If you have questions about this Privacy Policy or our data practices, contact:
             </p>
             <p className="mt-2">
-              Email:{" "}
+              {SITE.company.legalName}
+              <br />
+              {SITE.company.address}
+              <br />
+              Privacy:{" "}
               <a href={`mailto:${SITE.contactPrivacy}`} className="text-foreground underline">
                 {SITE.contactPrivacy}
+              </a>
+              <br />
+              Grievance Officer (India):{" "}
+              <a href={`mailto:${SITE.grievanceOfficer.email}`} className="text-foreground underline">
+                {SITE.grievanceOfficer.email}
               </a>
             </p>
           </section>

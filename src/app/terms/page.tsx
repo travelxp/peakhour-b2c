@@ -24,9 +24,12 @@ export default function TermsPage() {
             <h2 className="text-lg font-semibold text-foreground">1. Agreement to Terms</h2>
             <p className="mt-2">
               These Terms of Service (&quot;Terms&quot;) constitute a legally binding
-              agreement between you (&quot;you&quot; or &quot;User&quot;) and PeakHour
-              (&quot;we&quot;, &quot;us&quot;, or &quot;Company&quot;) governing your access
-              to and use of peakhour.ai and all associated services (the &quot;Service&quot;).
+              agreement between you (&quot;you&quot; or &quot;User&quot;) and{" "}
+              {SITE.company.legalName}, a company incorporated in India with its registered
+              office at {SITE.company.address}, which operates the {SITE.name} platform
+              (&quot;{SITE.name}&quot;, &quot;we&quot;, &quot;us&quot;, or &quot;Company&quot;), governing your
+              access to and use of peakhour.ai and all associated services (the
+              &quot;Service&quot;).
             </p>
             <p className="mt-2">
               By creating an account or using the Service, you agree to be bound by these
@@ -389,10 +392,15 @@ export default function TermsPage() {
             <h2 className="text-lg font-semibold text-foreground">16. Governing Law and Disputes</h2>
             <p className="mt-2">
               These Terms shall be governed by and construed in accordance with the laws of
-              the jurisdiction in which PeakHour is incorporated, without regard to conflict
-              of law principles. Any disputes arising from these Terms or the Service shall
-              be resolved through binding arbitration, except where prohibited by applicable
-              law.
+              India, without regard to conflict-of-law principles. Subject to the arbitration
+              provision below, the courts at Mumbai, Maharashtra shall have exclusive
+              jurisdiction over any dispute arising out of or relating to these Terms or the
+              Service. Any such dispute shall be referred to and finally resolved by binding
+              arbitration seated in Mumbai, India, conducted in English by a sole arbitrator
+              under the Arbitration and Conciliation Act, 1996, except where such arbitration
+              is prohibited by applicable law. Nothing in this clause limits any mandatory
+              consumer or data-protection rights available to you under the laws of your
+              country of residence.
             </p>
           </section>
 
@@ -424,6 +432,10 @@ export default function TermsPage() {
               For questions about these Terms, contact us at:
             </p>
             <p className="mt-2">
+              {SITE.company.legalName}
+              <br />
+              {SITE.company.address}
+              <br />
               Email:{" "}
               <a href={`mailto:${SITE.contactLegal}`} className="text-foreground underline">
                 {SITE.contactLegal}

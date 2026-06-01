@@ -86,9 +86,23 @@ export function middleware(req: NextRequest) {
     !revokePreview &&
     !!previewSecret &&
     req.cookies.get(PREVIEW_COOKIE)?.value === previewSecret;
+  // Legal / compliance pages stay PUBLICLY reachable even while the
+  // coming-soon gate is on — Meta, Google, X, LinkedIn etc. fetch these
+  // URLs to validate app/developer onboarding, and they must resolve to
+  // the real document (not the teaser) before launch.
+  const PUBLIC_LEGAL_PATHS = [
+    "/privacy-policy",
+    "/terms",
+    "/cookie-policy",
+    "/data-deletion",
+  ];
+  const isPublicLegal = PUBLIC_LEGAL_PATHS.some(
+    (p) => pathname === p || pathname.startsWith(`${p}/`),
+  );
   const gated =
     comingSoon &&
     pathname !== "/coming-soon" &&
+    !isPublicLegal &&
     !grantPreview &&
     !hasPreviewCookie;
 
