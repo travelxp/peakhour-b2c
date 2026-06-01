@@ -6,12 +6,14 @@ import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Sparkles, GripVertical } from "lucide-react";
+import { IdeaCardActions } from "./idea-card-actions";
 
 export interface PipelineIdea {
   _id: string;
   title: string;
   description?: string;
   status: string;
+  starred?: boolean;
   source?: string;
   sector?: string;
   targetAudience?: string;
@@ -51,7 +53,7 @@ function getPriorityLabel(score?: number): { label: string; className: string } 
   return { label: "Low", className: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400" };
 }
 
-export function KanbanCard({ idea }: { idea: PipelineIdea }) {
+export function KanbanCard({ idea, onChanged }: { idea: PipelineIdea; onChanged?: () => void }) {
   const router = useRouter();
   const {
     attributes,
@@ -98,6 +100,21 @@ export function KanbanCard({ idea }: { idea: PipelineIdea }) {
         {idea.source === "ai_suggested" && (
           <Sparkles className="size-3 shrink-0 text-amber-500 mt-0.5" />
         )}
+        {/* Star/Delete — always visible when starred (shows the pin), else
+            revealed on hover like the drag handle. */}
+        <div
+          className={cn(
+            "shrink-0 transition-opacity",
+            idea.starred ? "opacity-100" : "opacity-0 group-hover:opacity-100",
+          )}
+        >
+          <IdeaCardActions
+            ideaId={idea._id}
+            title={idea.title}
+            starred={!!idea.starred}
+            onChanged={() => onChanged?.()}
+          />
+        </div>
       </div>
 
       {/* Tags + priority row */}

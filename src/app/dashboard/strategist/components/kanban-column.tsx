@@ -18,10 +18,12 @@ export function KanbanColumn({
   id,
   label,
   ideas,
+  onChanged,
 }: {
   id: string;
   label: string;
   ideas: PipelineIdea[];
+  onChanged?: () => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id });
   const dotColor = COLUMN_COLORS[id] || "bg-muted-foreground";
@@ -56,7 +58,7 @@ export function KanbanColumn({
             </div>
           )}
           {ideas.map((idea) => (
-            <KanbanCard key={idea._id} idea={idea} />
+            <KanbanCard key={idea._id} idea={idea} onChanged={onChanged} />
           ))}
         </div>
       </SortableContext>
