@@ -32,7 +32,20 @@ const CATEGORY_TO_TAB: Record<string, ChannelCategory> = {
   analytics: "Web & SEO",
   messaging: "Messaging",
   telephony: "Messaging",
+  crm: "Web & SEO",
 };
+
+// Pure-infra categories that are NOT content connectors — drop them from the
+// hub even if a future CMS row makes one public (the content hub is a curated
+// connector surface; the integrations grid shows everything). `other` is NOT
+// here — it's the bucket WordPress ships under, so it keeps the Web & SEO tab.
+const DROP_CATEGORIES = new Set([
+  "ai_provider",
+  "data_provider",
+  "webhook",
+  "payment",
+  "storage",
+]);
 
 const FALLBACK_TAB: ChannelCategory = "Web & SEO";
 
@@ -50,14 +63,18 @@ function toLifecycle(i: ResolvedIntegration): ChannelLifecycle {
 }
 
 export function mapCatalogToChannels(integrations: ResolvedIntegration[]): ChannelConfig[] {
-  // No filtering here — the resolver already strips adminOnly/internal in all
-  // envs and in_development/hidden in prod; dev_only rows are intentionally
-  // shown in non-prod so testers can exercise them.
+  // The resolver already strips adminOnly/internal in all envs and
+  // in_development/hidden in prod; dev_only rows are intentionally shown in
+  // non-prod so testers can exercise them. We additionally drop pure-infra
+  // categories that aren't content connectors.
   return integrations
+    .filter((i) => !DROP_CATEGORIES.has(i.category))
     .map((i) => ({
       slug: i.key,
       name: i.name,
-      description: i.tagline ?? i.comingSoon?.copy ?? "",
+      // Seed writes the one-liner into `description`; `tagline` is the
+      // CMS-curated override. Fall back through both so the row never blanks.
+      description: i.tagline ?? i.description ?? i.comingSoon?.copy ?? "",
       category: CATEGORY_TO_TAB[i.category] ?? FALLBACK_TAB,
       // The catalog `key` is the int_connections.provider value, so it doubles
       // as the connection-lookup key (matches flattenMetaIntegration output).
