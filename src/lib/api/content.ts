@@ -130,3 +130,16 @@ export function getVoiceCards(params: { channel?: string; category?: string } = 
   if (params.category) query.category = params.category;
   return api.get<VoiceCardDoc[]>("/v1/content/voice-cards", query);
 }
+
+// ── Pipeline card actions: star (pin / delete-protection) + delete ──────
+
+/** Set or clear the star on an idea. A starred idea is protected from
+ *  deletion (the delete endpoint refuses until it's unstarred). */
+export function setIdeaStarred(ideaId: string, starred: boolean) {
+  return api.patch<{ starred: boolean }>(`/v1/content/ideas/${ideaId}/star`, { starred });
+}
+
+/** Permanently delete an idea. Rejects (409) if the idea is starred. */
+export function deleteIdea(ideaId: string) {
+  return api.delete<{ deleted: boolean }>(`/v1/content/ideas/${ideaId}`);
+}

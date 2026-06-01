@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { ChannelIcon } from "@/components/ui/channel-icon";
 import { PipelineStatusBadge } from "../components/status-badge";
 import { PipelineStepper, STAGE_PANEL_MAP } from "../components/pipeline-stepper";
+import { IdeaCardActions } from "../components/idea-card-actions";
 import { RejectReasonDialog } from "@/components/molecules/reject-reason-dialog";
 import {
   ComposerShell,
@@ -185,6 +186,7 @@ interface IdeaDetail {
   title: string;
   description?: string;
   status: string;
+  starred?: boolean;
   source?: string;
   sector?: string;
   targetAudience?: string;
@@ -344,9 +346,24 @@ export default function IdeaDetailPage() {
               <p className="mt-1 max-w-2xl text-muted-foreground">{idea.description}</p>
             )}
           </div>
-          <div className="flex flex-wrap gap-2">
-            {idea.sector && <Badge variant="outline">{idea.sector}</Badge>}
-            {idea.contentType && <Badge variant="secondary">{idea.contentType}</Badge>}
+          <div className="flex flex-col items-end gap-2">
+            <IdeaCardActions
+              ideaId={idea._id}
+              title={idea.title}
+              starred={!!idea.starred}
+              size="md"
+              onChanged={(change) => {
+                if (change.deleted) {
+                  router.push("/dashboard/strategist");
+                } else {
+                  queryClient.invalidateQueries({ queryKey: ["idea-detail", ideaId] });
+                }
+              }}
+            />
+            <div className="flex flex-wrap justify-end gap-2">
+              {idea.sector && <Badge variant="outline">{idea.sector}</Badge>}
+              {idea.contentType && <Badge variant="secondary">{idea.contentType}</Badge>}
+            </div>
           </div>
         </div>
       </div>

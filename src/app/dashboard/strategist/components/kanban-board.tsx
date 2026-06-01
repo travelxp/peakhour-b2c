@@ -130,6 +130,7 @@ export function KanbanBoard({ data, onRefresh }: KanbanBoardProps) {
               id={col.key}
               label={col.label}
               ideas={ideas}
+              onChanged={onRefresh}
             />
           );
         })}
