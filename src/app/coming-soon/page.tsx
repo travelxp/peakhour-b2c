@@ -44,7 +44,7 @@ export default function ComingSoonPage() {
         </p>
 
         <div className="mt-2 inline-flex items-center gap-2 rounded-full border bg-muted/40 px-5 py-2.5 text-sm font-medium text-muted-foreground">
-          <span className="relative flex size-2">
+          <span className="relative flex size-2" aria-hidden>
             <span className="absolute inline-flex size-full animate-ping rounded-full bg-primary/60" />
             <span className="relative inline-flex size-2 rounded-full bg-primary" />
           </span>
