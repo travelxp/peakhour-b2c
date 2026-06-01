@@ -424,8 +424,12 @@ export default function AuthPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen items-center justify-center" aria-hidden>
-          <div className="size-6 animate-spin rounded-full border-2 border-muted border-t-foreground" />
+        <div className="flex min-h-screen items-center justify-center">
+          <div
+            className="size-6 animate-spin rounded-full border-2 border-muted border-t-foreground"
+            aria-hidden
+          />
+          <span className="sr-only">Loading</span>
         </div>
       }
     >

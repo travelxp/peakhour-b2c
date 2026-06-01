@@ -59,12 +59,15 @@ export function IntegrationBrandIcon({
     const { Icon } = brand;
     return <Icon className={className} />;
   }
-  // Fallback: first letter of the name.
-  return <span className="text-sm font-bold">{name.charAt(0).toUpperCase()}</span>;
+  // Fallback: first letter of the name (guard empty/whitespace names).
+  return <span className="text-sm font-bold">{(name.trim()[0] ?? "?").toUpperCase()}</span>;
 }
 
-/** Tailwind bg/text class for the icon tile — the brand color or a neutral. */
+/** Tailwind bg class for the icon tile — the brand color, or a neutral that
+ *  still contrasts with the tile's white foreground (the tile sets text-white,
+ *  so the fallback must be dark enough; a `text-foreground` fallback rendered
+ *  the initial white-on-light = invisible). */
 export function integrationBrandColor(groupKey?: string, integrationKey?: string): string {
   const brand = (groupKey && BRANDS[groupKey]) || (integrationKey ? BRANDS[integrationKey] : undefined);
-  return brand?.color ?? "bg-muted text-foreground";
+  return brand?.color ?? "bg-muted-foreground";
 }

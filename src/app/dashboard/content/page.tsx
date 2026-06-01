@@ -151,18 +151,27 @@ export default function ContentChannelsHubPage() {
           ))}
         </TabsContent>
 
-        {CHANNEL_CATEGORIES.map((category) => (
-          <TabsContent key={category} value={category} className="mt-6 space-y-3">
-            {channels.filter((c) => c.category === category).map((channel) => (
-              <ChannelRow
-                key={channel.slug}
-                channel={channel}
-                integration={connections.get(channel.providerKey)}
-                connectionStateUnknown={isError && !data}
-              />
-            ))}
-          </TabsContent>
-        ))}
+        {CHANNEL_CATEGORIES.map((category) => {
+          const inCategory = channels.filter((c) => c.category === category);
+          return (
+            <TabsContent key={category} value={category} className="mt-6 space-y-3">
+              {inCategory.length === 0 ? (
+                <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+                  No channels in this category yet.
+                </p>
+              ) : (
+                inCategory.map((channel) => (
+                  <ChannelRow
+                    key={channel.slug}
+                    channel={channel}
+                    integration={connections.get(channel.providerKey)}
+                    connectionStateUnknown={isError && !data}
+                  />
+                ))
+              )}
+            </TabsContent>
+          );
+        })}
       </Tabs>
     </div>
   );
