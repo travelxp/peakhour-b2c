@@ -143,3 +143,10 @@ export function setIdeaStarred(ideaId: string, starred: boolean) {
 export function deleteIdea(ideaId: string) {
   return api.delete<{ deleted: boolean }>(`/v1/content/ideas/${ideaId}`);
 }
+
+/** On-demand article quality score (0–10) from the critic skill. */
+export function scoreIdea(ideaId: string) {
+  return api.post<{ qualityScore: number; qualityNotes: string }>(
+    `/v1/content/ideas/${ideaId}/score`,
+  );
+}
