@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo, useRef } from "react";
+import { useState, useCallback, useMemo, useRef, type ReactNode } from "react";
 import DOMPurify from "isomorphic-dompurify";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -112,6 +112,91 @@ function sanitizeContentHtml(html: string): string {
     // DOMPurify policy already does this but be explicit.
     ALLOWED_URI_REGEXP: /^(?:https?:|data:image\/|mailto:|tel:|#|\/)/i,
   });
+}
+
+/**
+ * One inline image slot in the Preview. Shows the resolved image once
+ * generated/supplied/uploaded, otherwise a dashed placeholder describing
+ * what goes there — so the preview reflects the FULL intended layout (text
+ * + images), not text alone.
+ */
+function PlaceholderPreviewBlock({ p }: { p: ImagePlaceholder }) {
+  const resolved =
+    !!p.resolvedImageUrl && p.status !== "placeholder" && p.status !== "deleted";
+
+  if (resolved) {
+    return (
+      <figure className="not-prose my-5">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={p.resolvedImageUrl}
+          alt={p.suggestedAltText}
+          className="w-full rounded-lg border"
+        />
+        {p.suggestedCaption && (
+          <figcaption className="mt-1.5 text-center text-xs text-muted-foreground">
+            {p.suggestedCaption}
+          </figcaption>
+        )}
+      </figure>
+    );
+  }
+
+  return (
+    <div className="not-prose my-5 flex flex-col items-center gap-1.5 rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/30 px-4 py-8 text-center">
+      <ImageIcon className="size-6 text-muted-foreground/40" />
+      <div className="flex items-center gap-1.5">
+        <Badge variant="outline" className="text-[10px]">{p.position}</Badge>
+        <Badge variant="secondary" className="text-[10px]">{p.dimensions}</Badge>
+      </div>
+      <p className="max-w-md text-xs font-medium text-foreground">{p.purpose}</p>
+      <p className="max-w-md text-[11px] leading-snug text-muted-foreground">{p.description}</p>
+    </div>
+  );
+}
+
+/**
+ * Renders the article HTML with image placeholders woven inline at their
+ * `position`. The HTML is split on each `<h2>` (section boundary); a
+ * `hero` slot renders before the body, `inline-after-section-N` after the
+ * Nth section, `pull-quote` after the first section, and `closing` at the
+ * end. Any slot whose target section doesn't exist is appended at the end
+ * so nothing is silently dropped. With no placeholders this is just the
+ * sanitized article.
+ */
+function ArticlePreview({ html, placeholders }: { html: string; placeholders: ImagePlaceholder[] }) {
+  const live = placeholders.filter((p) => p.status !== "deleted");
+  const parts = html.split(/(?=<h2)/i).filter((s) => s.trim().length > 0);
+  const hasIntro = parts.length > 0 && !/^\s*<h2/i.test(parts[0]);
+
+  const at = (pos: ImagePlaceholder["position"]) => live.filter((p) => p.position === pos);
+  const placed = new Set<ImagePlaceholder>();
+  const block = (p: ImagePlaceholder, key: string) => {
+    placed.add(p);
+    return <PlaceholderPreviewBlock key={key} p={p} />;
+  };
+
+  const nodes: ReactNode[] = [];
+  at("hero").forEach((p, i) => nodes.push(block(p, `hero-${i}`)));
+
+  parts.forEach((chunk, idx) => {
+    nodes.push(
+      <div key={`chunk-${idx}`} dangerouslySetInnerHTML={{ __html: sanitizeContentHtml(chunk) }} />,
+    );
+    const sectionNum = hasIntro ? idx : idx + 1; // part0 = intro(0) when present
+    if (sectionNum >= 1) {
+      at(`inline-after-section-${sectionNum}` as ImagePlaceholder["position"]).forEach((p, i) =>
+        nodes.push(block(p, `s${sectionNum}-${i}`)),
+      );
+      if (sectionNum === 1) at("pull-quote").forEach((p, i) => nodes.push(block(p, `pq-${i}`)));
+    }
+  });
+
+  // Closing slot + any placeholders whose target section didn't exist.
+  at("closing").forEach((p, i) => nodes.push(block(p, `closing-${i}`)));
+  live.filter((p) => !placed.has(p)).forEach((p, i) => nodes.push(<PlaceholderPreviewBlock key={`extra-${i}`} p={p} />));
+
+  return <>{nodes}</>;
 }
 
 async function consumeSSE(
@@ -1367,10 +1452,9 @@ function WriteTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: strin
             </div>
           </div>
           {preview ? (
-            <div
-              className="w-full min-h-[30rem] rounded-md border bg-background p-6 prose prose-sm dark:prose-invert max-w-none overflow-auto"
-              dangerouslySetInnerHTML={{ __html: sanitizeContentHtml(html) }}
-            />
+            <div className="w-full min-h-[30rem] rounded-md border bg-background p-6 prose prose-sm dark:prose-invert max-w-none overflow-auto">
+              <ArticlePreview html={html} placeholders={placeholders} />
+            </div>
           ) : (
             <textarea
               ref={htmlRef}
