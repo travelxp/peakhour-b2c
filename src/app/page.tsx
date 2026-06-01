@@ -186,21 +186,24 @@ export default async function Home() {
             <div className="mx-auto flex max-w-4xl flex-col items-center gap-6 text-center">
               <Badge variant="outline" className="gap-1.5 px-3 py-1">
                 <Sparkles className="size-3" />
-                AI-Powered Marketing
+                Agentic AI Marketing Platform
               </Badge>
               <h1 className="text-4xl font-bold tracking-tight text-pretty sm:text-5xl lg:text-6xl">
-                Your AI Marketing Department
+                Every hour is PeakHour
               </h1>
               <p className="max-w-2xl text-lg text-muted-foreground lg:text-xl">
-                PeakHour turns your content into high-performing ads across every
-                platform. Content intelligence, creative factory, and optimization
-                engine — all powered by AI, all on autopilot.
+                Autonomous AI agents turn your content into high-performing campaigns
+                across every channel — analyzing, creating, and optimizing around the
+                clock, so your marketing runs at its peak even when you&rsquo;re off.
               </p>
-              <div className="flex w-full flex-col justify-center gap-3 sm:flex-row">
+              <div className="flex w-full flex-col items-center justify-center gap-3 sm:flex-row">
                 {cta.disabled ? (
-                  <Button size="lg" disabled>
+                  // Pre-launch teaser: an intentional "Launching soon" pill, not a
+                  // dead/greyed CTA (which reads as a bug).
+                  <span className="inline-flex items-center gap-2 rounded-full border bg-muted/40 px-5 py-2.5 text-sm font-medium text-muted-foreground">
+                    <Sparkles className="size-4" aria-hidden />
                     {cta.label}
-                  </Button>
+                  </span>
                 ) : (
                   <Button asChild size="lg" className="gap-2">
                     <Link href={cta.href}>
@@ -210,7 +213,7 @@ export default async function Home() {
                   </Button>
                 )}
                 <Button asChild variant="outline" size="lg">
-                  <Link href="#how-it-works">How it works</Link>
+                  <Link href="#how-it-works">See how it works</Link>
                 </Button>
               </div>
             </div>
@@ -301,11 +304,7 @@ export default async function Home() {
                   ? "More integrations rolling out as we launch"
                   : "More integrations coming soon"}
               </span>
-              {cta.disabled ? (
-                <Button variant="outline" size="sm" disabled>
-                  {cta.label}
-                </Button>
-              ) : (
+              {!cta.disabled && (
                 <Button asChild variant="outline" size="sm">
                   <Link href={cta.href}>
                     {cta.label}
