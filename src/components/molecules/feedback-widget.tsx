@@ -94,7 +94,7 @@ export function FeedbackWidget() {
         <SheetHeader>
           <SheetTitle>Send Feedback</SheetTitle>
           <SheetDescription>
-            Help us improve PeakHour. Report a bug, request a feature, or share
+            Help us improve Peakhour. Report a bug, request a feature, or share
             your ideas.
           </SheetDescription>
         </SheetHeader>

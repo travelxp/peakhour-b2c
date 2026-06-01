@@ -22,7 +22,7 @@ export default function CmsOverviewPage() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">CMS Overview</h1>
         <p className="text-sm text-muted-foreground">
-          Internal administration dashboard for PeakHour.
+          Internal administration dashboard for Peakhour.
         </p>
       </div>
 

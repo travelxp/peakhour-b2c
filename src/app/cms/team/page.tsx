@@ -123,7 +123,7 @@ export default function CmsTeamPage() {
         <div>
           <h2 className="text-2xl font-bold tracking-tight">CMS Team</h2>
           <p className="text-muted-foreground mt-1">
-            Manage who has access to the PeakHour admin panel
+            Manage who has access to the Peakhour admin panel
           </p>
         </div>
         {isSuperAdmin && (
@@ -153,7 +153,7 @@ export default function CmsTeamPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Add CMS Team Member</CardTitle>
-            <CardDescription>The user must have an existing PeakHour account</CardDescription>
+            <CardDescription>The user must have an existing Peakhour account</CardDescription>
           </CardHeader>
           <CardContent>
             <form

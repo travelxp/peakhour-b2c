@@ -4,9 +4,9 @@ import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
 
 export const metadata: Metadata = {
-  title: "Cookie Policy - PeakHour",
+  title: "Cookie Policy - Peakhour",
   description:
-    "PeakHour cookie policy — the cookies and similar technologies we use, why we use them, and how to control them.",
+    "Peakhour cookie policy — the cookies and similar technologies we use, why we use them, and how to control them.",
 };
 
 export default function CookiePolicyPage() {

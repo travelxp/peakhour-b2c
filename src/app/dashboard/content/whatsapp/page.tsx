@@ -9,7 +9,7 @@ export default function WhatsAppConnectPage() {
         <h1 className="text-2xl font-semibold tracking-tight">WhatsApp</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Connect your WhatsApp Business account to message customers directly
-          from PeakHour — order updates, reminders, and support, all in one place.
+          from Peakhour — order updates, reminders, and support, all in one place.
         </p>
       </div>
 
