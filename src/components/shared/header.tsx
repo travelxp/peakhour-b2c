@@ -13,7 +13,13 @@ const NAV_LINKS = [
   { href: "/#pricing", label: "Pricing" },
 ] as const;
 
-export function Header() {
+/**
+ * @param minimal When true, renders only the brand lockup — no marketing nav
+ *   (Features/Pricing), no auth CTAs, no mobile menu. Used on the public
+ *   legal pages, which are reachable pre-launch (through the coming-soon gate
+ *   allowlist) where those links would point at gated/non-existent routes.
+ */
+export function Header({ minimal = false }: { minimal?: boolean } = {}) {
   const pathname = usePathname();
   const isAuthPage = pathname?.startsWith("/auth");
   const isDashboard = pathname?.startsWith("/dashboard");
@@ -41,7 +47,7 @@ export function Header() {
           <span className="text-lg font-bold tracking-tight">{SITE.name}</span>
         </Link>
 
-        {!isAuthPage && (
+        {!minimal && !isAuthPage && (
           <>
             {/* Desktop nav */}
             <nav className="hidden items-center gap-6 md:flex">
@@ -58,7 +64,8 @@ export function Header() {
           </>
         )}
 
-        {/* Right side: auth-aware */}
+        {/* Right side: auth-aware (suppressed in minimal mode) */}
+        {!minimal && (
         <div className="flex items-center gap-3">
           {!isLoading && isAuthenticated && user ? (
             <UserMenu user={user} onLogout={logout} />
@@ -104,10 +111,11 @@ export function Header() {
             </>
           ) : null}
         </div>
+        )}
       </div>
 
       {/* Mobile nav panel */}
-      {!isAuthPage && menuOpen && (
+      {!minimal && !isAuthPage && menuOpen && (
         <div id="mobile-nav" className="border-t bg-background px-4 pb-4 pt-2 md:hidden">
           <nav className="flex flex-col gap-3">
             {NAV_LINKS.map((link) => (
