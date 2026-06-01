@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
+import { cn } from "@/lib/utils";
 import { useLocale } from "@/hooks/use-locale";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -29,6 +30,7 @@ import {
 import {
   getVoiceCards,
   rewriteContent,
+  scoreIdea,
   type VoiceCardDoc,
 } from "@/lib/api/content";
 import { insertAtCaret } from "@/lib/composer/caret";
@@ -48,6 +50,7 @@ import {
   Eye,
   Star,
   StickyNote,
+  Gauge,
   Image as ImageIcon,
   X,
   Lock,
@@ -328,6 +331,8 @@ interface IdeaDetail {
     deck?: string;
     imagePlaceholders?: ImagePlaceholder[];
     writerSkill?: string;
+    qualityScore?: number;
+    qualityNotes?: string;
     finalAcceptanceRate?: number;
     finalEditCount?: number;
     aiAcceptanceRate?: number;
@@ -1136,6 +1141,29 @@ function WriteTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: strin
   const [generatingPlaceholderIdx, setGeneratingPlaceholderIdx] = useState<number | null>(null);
   // Per-placeholder resolution busy index (paste-URL / library pick).
   const [resolvingPlaceholderIdx, setResolvingPlaceholderIdx] = useState<number | null>(null);
+  // On-demand article quality score. Seeded from any persisted score.
+  const [scoring, setScoring] = useState(false);
+  const [quality, setQuality] = useState<{ score: number; notes: string } | null>(
+    idea.content?.qualityScore != null
+      ? { score: idea.content.qualityScore, notes: idea.content.qualityNotes ?? "" }
+      : null,
+  );
+  const runScore = useCallback(async () => {
+    if (scoring) return;
+    setScoring(true);
+    try {
+      const r = await scoreIdea(ideaId);
+      setQuality({ score: r.qualityScore, notes: r.qualityNotes });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't score the article");
+    } finally {
+      setScoring(false);
+    }
+  }, [ideaId, scoring]);
+  const scoreTone = (s: number) =>
+    s >= 9 ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400"
+      : s >= 7 ? "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400"
+        : "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400";
 
   // ── Shared composer chrome (parity with LinkedIn/X) ─────────────
   // The HTML body textarea + a caret tracked on every selection change
@@ -1447,10 +1475,34 @@ function WriteTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: strin
                 <Eye className="mr-1 inline h-3 w-3" />Preview
               </button>
             </div>
-            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
               {idea.content?.wordCount != null && <span>{idea.content.wordCount} words · v{idea.content.version}</span>}
+              {/* On-demand quality score */}
+              {quality && (
+                <Badge
+                  className={cn("h-5 gap-1 px-1.5 text-[10px] font-semibold border-0", scoreTone(quality.score))}
+                  title={quality.notes}
+                >
+                  <Gauge className="size-3" /> {quality.score}/10
+                </Badge>
+              )}
+              <button
+                type="button"
+                onClick={runScore}
+                disabled={scoring}
+                title={quality?.notes || "Score this article 0–10 against a 10-point quality rubric"}
+                className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+              >
+                {scoring ? <Loader2 className="size-3 animate-spin" /> : <Gauge className="size-3" />}
+                {quality ? "Re-check" : "Check quality"}
+              </button>
             </div>
           </div>
+          {quality?.notes && (
+            <p className="mt-1.5 text-xs italic text-muted-foreground">
+              Editor note: {quality.notes}
+            </p>
+          )}
           {preview ? (
             <div className="w-full min-h-[30rem] rounded-md border bg-background p-6 prose prose-sm dark:prose-invert max-w-none overflow-auto">
               <ArticlePreview html={html} placeholders={placeholders} />
