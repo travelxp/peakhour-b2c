@@ -39,8 +39,19 @@ export default function NewsDeskPage() {
 
   return (
     <div className="space-y-6">
+      {/* Dev-only (auto-hidden in prod). The News Desk queue is fed by a
+          cron pipeline; these buttons run each stage on demand so you don't
+          wait for the schedule. Click left-to-right in pipeline order:
+          fetch sources → classify → corroborate → compose drafts → run the
+          enqueued background jobs. */}
       <CronToolbar
-        crons={["news-classify", "news-corroborate", "news-compose"]}
+        crons={[
+          "source-fetch-scheduler",
+          "news-classify",
+          "news-corroborate",
+          "news-compose",
+          "jobs-runner",
+        ]}
         onTriggered={invalidateQueue}
       />
 
