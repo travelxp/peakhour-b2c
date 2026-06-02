@@ -86,23 +86,28 @@ export function middleware(req: NextRequest) {
     !revokePreview &&
     !!previewSecret &&
     req.cookies.get(PREVIEW_COOKIE)?.value === previewSecret;
-  // Legal / compliance pages stay PUBLICLY reachable even while the
-  // coming-soon gate is on — Meta, Google, X, LinkedIn etc. fetch these
-  // URLs to validate app/developer onboarding, and they must resolve to
-  // the real document (not the teaser) before launch.
-  const PUBLIC_LEGAL_PATHS = [
+  // Pages that stay PUBLICLY reachable even while the coming-soon gate is on.
+  // Two reasons: (1) legal/compliance pages — Meta, Google, X, LinkedIn etc.
+  // fetch these URLs to validate app/developer onboarding, and they must
+  // resolve to the real document (not the teaser) before launch; (2) the
+  // pre-launch /launch-partner capture, linked from the coming-soon CTAs.
+  // This is a plain allowlist entry on the already-running middleware — it
+  // adds NO new edge function (the middleware runs on every request for the
+  // CSP nonce regardless).
+  const PUBLIC_PATHS = [
     "/privacy-policy",
     "/terms",
     "/cookie-policy",
     "/data-deletion",
+    "/launch-partner",
   ];
-  const isPublicLegal = PUBLIC_LEGAL_PATHS.some(
+  const isPublicPath = PUBLIC_PATHS.some(
     (p) => pathname === p || pathname.startsWith(`${p}/`),
   );
   const gated =
     comingSoon &&
     pathname !== "/coming-soon" &&
-    !isPublicLegal &&
+    !isPublicPath &&
     !grantPreview &&
     !hasPreviewCookie;
 
