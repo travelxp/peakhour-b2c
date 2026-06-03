@@ -156,8 +156,11 @@ function TrustedSourcesSurface() {
 
   return (
     <div className="space-y-6">
+      {/* jobs-runner drains the source_fetch / discovery jobs these crons
+          enqueue (they don't inline-drain on dev) — click the scheduler/runner
+          first, then jobs-runner to actually fetch source content. */}
       <CronToolbar
-        crons={["discovery-runner", "refresh-recommendations", "source-fetch-scheduler"]}
+        crons={["discovery-runner", "refresh-recommendations", "source-fetch-scheduler", "jobs-runner"]}
         onTriggered={() => {
           void queryClient.invalidateQueries({ queryKey: ["trusted-sources"] });
           void queryClient.invalidateQueries({ queryKey: ["citations"] });
