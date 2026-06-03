@@ -832,6 +832,15 @@ function IntegrationCard({
   const Icon = PROVIDER_ICONS[integration.provider] || Plug;
   const colorClass = PROVIDER_COLORS[integration.provider] || "bg-muted";
   const isComingSoon = integration.availability === "coming_soon";
+  // A connection that already has a token but isn't `active` (stale scope /
+  // revoked / errored). Reconnecting it starts a fresh OAuth which makes
+  // the provider issue a NEW token and invalidate the current one — so we
+  // gate it behind a confirm to stop accidental token-killing reconnects
+  // (the LinkedIn reconnect loop). A truly fresh/disconnected provider gets
+  // the plain one-click Connect.
+  const isRecoverable = ["needs_reauth", "expired", "error"].includes(
+    integration.status ?? "",
+  );
 
   return (
     <Card className={`group relative overflow-hidden transition-all hover:shadow-md ${
@@ -990,14 +999,34 @@ function IntegrationCard({
           <p className="text-[11px] text-muted-foreground">Coming soon</p>
         ) : (
           <div className="space-y-1.5">
-            <Button
-              size="sm"
-              className="w-full gap-1.5 h-8 text-xs"
-              onClick={onConnect}
-            >
-              <ExternalLink className="h-3.5 w-3.5" />
-              {isMetaVirtual(integration.provider) ? "Connect with Meta" : "Connect"}
-            </Button>
+            {isRecoverable ? (
+              <>
+                <ConfirmDialog
+                  trigger={
+                    <Button size="sm" className="w-full gap-1.5 h-8 text-xs">
+                      <ExternalLink className="h-3.5 w-3.5" />
+                      Reconnect
+                    </Button>
+                  }
+                  title={`Reconnect ${integration.name}?`}
+                  description="This starts a fresh sign-in and replaces the current access token — the provider invalidates the previous one. Only reconnect if posting is actually failing; repeated reconnects are what break the connection."
+                  confirmLabel="Reconnect"
+                  onConfirm={onConnect}
+                />
+                {integration.lastError && (
+                  <p className="text-[10px] text-destructive truncate">{integration.lastError}</p>
+                )}
+              </>
+            ) : (
+              <Button
+                size="sm"
+                className="w-full gap-1.5 h-8 text-xs"
+                onClick={onConnect}
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+                {isMetaVirtual(integration.provider) ? "Connect with Meta" : "Connect"}
+              </Button>
+            )}
             {isMetaVirtual(integration.provider) && (
               <p className="text-[10px] text-center text-muted-foreground">
                 One login connects all Meta services

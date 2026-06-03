@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/providers/auth-provider";
 import { api, ApiError } from "@/lib/api";
 import { useLocale } from "@/hooks/use-locale";
@@ -93,6 +94,7 @@ function SettingsContent() {
   const { org } = useAuth();
   const { formatCurrency } = useLocale();
   const searchParams = useSearchParams();
+  const queryClient = useQueryClient();
   const [orgDetails, setOrgDetails] = useState<OrgDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -148,8 +150,16 @@ function SettingsContent() {
   useEffect(() => {
     if (searchParams?.get("integration") === "connected") {
       setJustConnectedProvider(searchParams.get("provider") ?? "");
+      // Refetch integration status everywhere immediately after a successful
+      // OAuth. Otherwise the content/composer pages keep their cached
+      // pre-connect state and show a stale "Connect" CTA — which invites a
+      // needless reconnect that revokes the token we just issued (the
+      // LinkedIn reconnect loop). These keys cover the content-hub gate and
+      // the LinkedIn identity/me read.
+      queryClient.invalidateQueries({ queryKey: ["content-hub-integrations"] });
+      queryClient.invalidateQueries({ queryKey: ["linkedin-me"] });
     }
-  }, [searchParams]);
+  }, [searchParams, queryClient]);
 
   useEffect(() => {
     if (!org?._id) return;
