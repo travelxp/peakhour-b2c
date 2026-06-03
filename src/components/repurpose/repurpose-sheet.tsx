@@ -117,8 +117,12 @@ function adaptationsToChannels(
   return Array.from(seen.values()).map((a) => ({
     channel: a.platform,
     payload: {
+      // Hashtags are inlined into `content` at generation (api write-x
+      // appendHashtags), and the publishers post the text only — they never
+      // read payload.hashtags. Passing it separately just double-renders the
+      // tags (inline in the body AND as chips in the calendar drawer), so we
+      // intentionally drop the redundant field.
       text: a.content,
-      ...(a.hashtags && a.hashtags.length > 0 ? { hashtags: a.hashtags } : {}),
     },
   }));
 }
