@@ -206,7 +206,7 @@ export default function TasksPage() {
                 {table.getRowModel().rows.length ? (
                   table.getRowModel().rows.map((row) => (
                     <JobRowGroup
-                      key={row.id}
+                      key={`${row.id}:${focusJobId === row.original._id}`}
                       job={row.original}
                       focused={focusJobId === row.original._id}
                       expanded={isExpanded(row.original._id)}
@@ -225,7 +225,7 @@ export default function TasksPage() {
                 ) : (
                   <TableRow>
                     <TableCell
-                      colSpan={columns.length}
+                      colSpan={table.getVisibleLeafColumns().length}
                       className="h-24 text-center text-muted-foreground"
                     >
                       No tasks match your filters.
@@ -265,12 +265,15 @@ function JobRowGroup({
 }) {
   const rowRef = useRef<HTMLTableRowElement>(null);
   const [highlighted, setHighlighted] = useState(focused);
+  // Mount-only: scroll into view + ring, then fade. The parent keys this
+  // group by row id + focused-ness, so an in-place ?jobId change remounts
+  // the affected rows and re-runs this — no setState-in-effect needed.
   useEffect(() => {
     if (!focused) return;
     rowRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
     const timer = setTimeout(() => setHighlighted(false), 2500);
     return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once per mount
   }, []);
 
   const hasChildren = job.childrenTotal != null && job.childrenTotal > 0;
