@@ -6,8 +6,18 @@ import { CSS } from "@dnd-kit/utilities";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
-import { Sparkles, GripVertical } from "lucide-react";
+import { Sparkles, GripVertical, Newspaper } from "lucide-react";
 import { IdeaCardActions } from "./idea-card-actions";
+
+/** Publisher host for a source URL: lowercased, leading www. stripped. */
+function hostOf(url?: string): string | null {
+  if (!url) return null;
+  try {
+    return new URL(url).hostname.toLowerCase().replace(/^www\./, "");
+  } catch {
+    return null;
+  }
+}
 
 export interface PipelineIdea {
   _id: string;
@@ -27,6 +37,18 @@ export interface PipelineIdea {
   scheduledAt?: string;
   brief?: { title?: string; generatedAt?: string };
   content?: { subject?: string; wordCount?: number; version?: number; lastEditedAt?: string };
+  /** News Mode: the fresh stories this idea was built from (primary first).
+   *  Present on News Strategist / Wire Desk ideas; absent elsewhere. */
+  sourceProvenance?: {
+    externalUrl?: string;
+    snippet?: string;
+    capturedAt?: string;
+    freshnessClass?: string;
+    contribution?: string;
+  }[];
+  /** News Mode: journalist composite (0-100). */
+  recommendationStrength?: number;
+  recommendationTags?: string[];
   review?: { verdict?: string; notes?: string };
   publishing?: { beehiivPostId?: string; beehiivUrl?: string };
   createdAt?: string;
@@ -146,6 +168,54 @@ export function KanbanCard({ idea, onChanged }: { idea: PipelineIdea; onChanged?
           </Badge>
         )}
       </div>
+
+      {/* News Mode: source provenance — the credible stories behind a
+          fact-first idea. Primary publisher links out; the rest collapse to a
+          count. Shown only for ideas that carry sources. stopPropagation keeps
+          the link from triggering the card's drag/open behaviour. */}
+      {idea.sourceProvenance && idea.sourceProvenance.length > 0 && (() => {
+        const total = idea.sourceProvenance.length;
+        // Link the first source that actually has a usable host — provenance[0]
+        // is usually the primary, but mixed-stream ideas can have an
+        // internal-only (sourceId, no URL) entry first.
+        const linkSource = idea.sourceProvenance.find((p) => hostOf(p.externalUrl));
+        const host = hostOf(linkSource?.externalUrl);
+        const breaking = idea.sourceProvenance.some((p) => p.freshnessClass === "breaking");
+        return (
+          <div
+            className="mt-2 flex flex-wrap items-center gap-1 text-[10px] text-muted-foreground"
+            // Keep the whole sources row inert to the card's drag + click-to-open.
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Newspaper className="size-3 shrink-0" aria-hidden />
+            {host && linkSource?.externalUrl ? (
+              <a
+                href={linkSource.externalUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="max-w-[150px] truncate underline decoration-dotted hover:text-foreground"
+                title={linkSource.externalUrl}
+              >
+                {host}
+              </a>
+            ) : (
+              <span>{total} source{total > 1 ? "s" : ""}</span>
+            )}
+            {host && total > 1 && <span>+{total - 1} more</span>}
+            {breaking && (
+              <Badge variant="secondary" className="h-4 px-1 text-[9px] font-medium border-0 bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-400">
+                Breaking
+              </Badge>
+            )}
+            {typeof idea.recommendationStrength === "number" && (
+              <span className="ml-auto tabular-nums" title="Journalist relevance score">
+                {idea.recommendationStrength}/100
+              </span>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Progress bar + metrics footer */}
       <div className="mt-2.5 space-y-1.5">
