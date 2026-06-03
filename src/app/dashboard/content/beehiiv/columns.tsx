@@ -330,7 +330,11 @@ export function getContentColumns(
       <DataTableColumnHeader column={column} title="Title" />
     ),
     cell: ({ row }) => (
-      <div className="max-w-sm">
+      // Title is the flexible column — it grows with available width
+      // (xs → sm as breakpoints widen) and truncates rather than forcing
+      // horizontal scroll. The secondary columns below are progressively
+      // hidden on narrower viewports (meta `hidden <bp>:table-cell`).
+      <div className="max-w-50 xl:max-w-xs 2xl:max-w-sm">
         {/* Dropped `font-medium` on the title — the cell was reading
           * as too bold against the surrounding row text. Default body
           * weight (font-normal / 400) is sleeker; the title's visual
@@ -401,7 +405,7 @@ export function getContentColumns(
       const badge = (
         <Badge
           variant="outline"
-          className={`max-w-60 truncate text-xs lg:max-w-80 ${ct === "unclassified" ? "text-muted-foreground italic" : ""}`}
+          className={`max-w-36 truncate text-xs lg:max-w-52 ${ct === "unclassified" ? "text-muted-foreground italic" : ""}`}
         >
           {labelText}
           {/* Inline "auto" marker — only when the deterministic source-derived
@@ -443,6 +447,13 @@ export function getContentColumns(
     id: "sectors",
     accessorFn: (row) => row.tags?.sectors?.map((s) => s.name).join(", ") ?? "",
     header: "Sectors",
+    // Progressive disclosure — hidden until xl to keep the table inside
+    // the viewport. Still filterable via the Sectors facet chip regardless
+    // of column visibility (the column stays in the table model).
+    meta: {
+      thClassName: "hidden xl:table-cell",
+      tdClassName: "hidden xl:table-cell",
+    },
     cell: ({ row }) => {
       const sectors = row.original.tags?.sectors;
       const derived = row.original.tags?.sectorsDerived === true;
@@ -480,6 +491,10 @@ export function getContentColumns(
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Sentiment" />
     ),
+    meta: {
+      thClassName: "hidden lg:table-cell",
+      tdClassName: "hidden lg:table-cell",
+    },
     cell: ({ row }) => {
       const value = row.original.tags?.sentiment;
       if (!value) return null;
@@ -586,6 +601,10 @@ export function getContentColumns(
     id: "shelfLife",
     accessorFn: (row) => row.tags?.shelfLife ?? "",
     header: "Shelf Life",
+    meta: {
+      thClassName: "hidden 2xl:table-cell",
+      tdClassName: "hidden 2xl:table-cell",
+    },
     cell: ({ row }) => {
       const text = label(SHELF_LIFE_LABELS, row.original.tags?.shelfLife);
       return (
@@ -606,8 +625,12 @@ export function getContentColumns(
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Published" />
     ),
+    meta: {
+      thClassName: "hidden lg:table-cell",
+      tdClassName: "hidden lg:table-cell",
+    },
     cell: ({ row }) => (
-      <span className="text-xs text-muted-foreground">
+      <span className="text-xs text-muted-foreground whitespace-nowrap">
         {formatDate(row.original.publishedAt, prefs)}
       </span>
     ),
