@@ -217,8 +217,12 @@ function PageShell({ children, loading }: { children?: React.ReactNode; loading?
   const queryClient = useQueryClient();
   return (
     <div className="space-y-6">
+      {/* jobs-runner is required AFTER linkedin-post-sync on dev: the sync cron
+          ENQUEUES a linkedin_post_sync job (it doesn't drain inline), so click
+          linkedin-post-sync first, then jobs-runner to actually run it and
+          populate posts + KPIs. */}
       <CronToolbar
-        crons={["linkedin-post-sync", "performance-sync", "linkedin-retention-cleanup"]}
+        crons={["linkedin-post-sync", "jobs-runner", "performance-sync", "linkedin-retention-cleanup"]}
         onTriggered={() => {
           queryClient.invalidateQueries({ queryKey: ["content-hub-integrations"] });
           queryClient.invalidateQueries({ queryKey: ["linkedin-me"] });
