@@ -174,31 +174,35 @@ export function KanbanCard({ idea, onChanged }: { idea: PipelineIdea; onChanged?
           count. Shown only for ideas that carry sources. stopPropagation keeps
           the link from triggering the card's drag/open behaviour. */}
       {idea.sourceProvenance && idea.sourceProvenance.length > 0 && (() => {
-        const primary = idea.sourceProvenance[0];
-        const host = hostOf(primary?.externalUrl);
-        const extra = idea.sourceProvenance.length - 1;
+        const total = idea.sourceProvenance.length;
+        // Link the first source that actually has a usable host — provenance[0]
+        // is usually the primary, but mixed-stream ideas can have an
+        // internal-only (sourceId, no URL) entry first.
+        const linkSource = idea.sourceProvenance.find((p) => hostOf(p.externalUrl));
+        const host = hostOf(linkSource?.externalUrl);
         const breaking = idea.sourceProvenance.some((p) => p.freshnessClass === "breaking");
         return (
           <div
             className="mt-2 flex flex-wrap items-center gap-1 text-[10px] text-muted-foreground"
+            // Keep the whole sources row inert to the card's drag + click-to-open.
             onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
           >
             <Newspaper className="size-3 shrink-0" aria-hidden />
-            {host && primary?.externalUrl ? (
+            {host && linkSource?.externalUrl ? (
               <a
-                href={primary.externalUrl}
+                href={linkSource.externalUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
                 className="max-w-[150px] truncate underline decoration-dotted hover:text-foreground"
-                title={primary.externalUrl}
+                title={linkSource.externalUrl}
               >
                 {host}
               </a>
             ) : (
-              <span>{idea.sourceProvenance.length} source{idea.sourceProvenance.length > 1 ? "s" : ""}</span>
+              <span>{total} source{total > 1 ? "s" : ""}</span>
             )}
-            {host && extra > 0 && <span>+{extra} more</span>}
+            {host && total > 1 && <span>+{total - 1} more</span>}
             {breaking && (
               <Badge variant="secondary" className="h-4 px-1 text-[9px] font-medium border-0 bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-400">
                 Breaking
