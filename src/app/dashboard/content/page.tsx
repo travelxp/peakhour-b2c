@@ -20,6 +20,7 @@ import {
   type ChannelConfig,
 } from "./channels.config";
 import { mapCatalogToChannels } from "./channels-from-catalog";
+import { resolveChannelCta } from "./channel-cta";
 
 interface ApiIntegration {
   provider: string;
@@ -187,17 +188,21 @@ interface ChannelRowProps {
 
 function ChannelRow({ channel, integration, connectionStateUnknown }: ChannelRowProps) {
   const router = useRouter();
-  const isConnected = integration?.connected === true && channel.status === "live";
+  // Connection state is INDEPENDENT of lifecycle, and "Manage" falls back to
+  // the static dashboard path when the catalog row omits it — see
+  // resolveChannelCta for the full rationale (this fixes a connected channel
+  // rendering "Connect" when its catalog row lacks display.dashboardPath).
+  const { isConnected, dashboardPath } = resolveChannelCta(channel, integration);
   const lastSyncedLabel = useLastSyncedLabel(integration?.lastSyncAt);
 
   const handleAction = () => {
     if (channel.status === "coming_soon" || connectionStateUnknown) return;
     // Channels that connect via their own in-app page (e.g. WhatsApp Embedded
     // Signup, status "available") route there for both connect and manage;
-    // "live" channels route to their dashboard once connected. Everything else
-    // falls back to the integrations OAuth grid.
-    if (channel.dashboardPath && (isConnected || channel.status === "available")) {
-      router.push(channel.dashboardPath);
+    // connected channels route to their dashboard. Everything else falls back
+    // to the integrations OAuth grid.
+    if (dashboardPath && (isConnected || channel.status === "available")) {
+      router.push(dashboardPath);
     } else {
       router.push("/dashboard/integrations");
     }
