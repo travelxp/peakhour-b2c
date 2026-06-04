@@ -21,10 +21,13 @@ import { CHANNELS, type ChannelConfig } from "./channels.config";
  *
  * Known gap (tracked): the catalog's `toLifecycle` collapses `locked`
  * (plan/feature/country-gated) and `deprecated` into "available", so a
- * connected-but-locked channel reads as Connected/Manage here. Not
- * reachable for any current live channel (all have empty
- * requiredPlans/Features/countries); revisit if a live channel gains a
- * gate — would need `toLifecycle`/`ChannelLifecycle` to carry "locked".
+ * connected-but-locked channel reads as Connected/Manage here. Not reachable
+ * via seed defaults (live channels seed with empty
+ * requiredPlans/Features/countries) — only via post-seed CMS gating of an
+ * org that ALREADY has an active connection. That's defensible (an active
+ * connection's manage surface staying reachable, with the API still gating
+ * privileged actions), but if it needs to reflect the lock, `toLifecycle` /
+ * `ChannelLifecycle` would have to carry a distinct "locked" state.
  */
 
 /** Fallback dashboard deep-links by providerKey, from the static config. */
