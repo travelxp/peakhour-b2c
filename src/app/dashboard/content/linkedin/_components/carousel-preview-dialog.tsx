@@ -52,7 +52,8 @@ export function CarouselPreviewDialog({
 }) {
   const [commentary, setCommentary] = useState(preview.commentary);
   const imagesMissing = preview.imagesGenerated < preview.slideCount;
-  const tooLong = commentary.length > COMMENTARY_MAX;
+  // Gate on the TRIMMED length — that's what publish actually sends.
+  const tooLong = commentary.trim().length > COMMENTARY_MAX;
 
   const publish = useMutation({
     mutationFn: () =>
