@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { ApiError } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Building2,
   ExternalLink,
@@ -14,15 +16,22 @@ import {
   Heart,
   Loader2,
   MessageSquare,
+  MessageSquarePlus,
+  Send,
   Share2,
   User,
+  X,
 } from "lucide-react";
 import {
   linkedInContentApi,
+  type LinkedInAuthor,
   type LinkedInFeedPost,
   type LinkedInFeedResponse,
 } from "@/lib/api/linkedin-content";
 import { RetentionFootnote } from "./retention-footnote";
+
+/** LinkedIn's comment body cap. */
+const COMMENT_MAX_LEN = 1250;
 
 /**
  * FeedPanel — the user's own PUBLISHED LinkedIn posts (personal + org),
@@ -156,6 +165,14 @@ export function FeedPanel() {
 
 function FeedRow({ post }: { post: LinkedInFeedPost }) {
   const url = linkedInPostUrl(post.linkedInPostId);
+  const [commenting, setCommenting] = useState(false);
+  // Comment as the post's own author (your member feed, or the page that
+  // published it). We can only build a valid author URN when we know the
+  // post's authorType (+ the page id for org posts), so the action is gated
+  // on a resolvable author AND a real post URN.
+  const author = postAuthor(post);
+  const canComment = author !== null && !!post.linkedInPostId && post.linkedInPostId.includes("urn:li:");
+
   return (
     <li>
       <Card>
@@ -195,9 +212,137 @@ function FeedRow({ post }: { post: LinkedInFeedPost }) {
             <Metric icon={MessageSquare} label="comments" value={post.performance.comments} />
             <Metric icon={Share2} label="shares" value={post.performance.shares} />
           </div>
+
+          {canComment && (
+            <div className="border-t pt-2">
+              {commenting ? (
+                <CommentBox
+                  postUrn={post.linkedInPostId as string}
+                  author={author as LinkedInAuthor}
+                  onClose={() => setCommenting(false)}
+                />
+              ) : (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 gap-1.5 px-2 text-xs"
+                  onClick={() => setCommenting(true)}
+                >
+                  <MessageSquarePlus className="size-3.5" /> Add a comment
+                </Button>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
     </li>
+  );
+}
+
+/** Resolve the post's own author into a publish-author shape, or null when we
+ *  can't (unknown authorType, or an org post missing its page id) — the
+ *  comment action is hidden in that case rather than guessing an author. */
+function postAuthor(post: LinkedInFeedPost): LinkedInAuthor | null {
+  if (post.authorType === "org") {
+    const id = post.authorUrn?.split(":").pop();
+    return id ? { type: "org", pageId: id } : null;
+  }
+  if (post.authorType === "person") return { type: "person" };
+  return null;
+}
+
+/** Inline comment composer for one feed post — posts a top-level comment as
+ *  the post's author. A 403 RECONNECT_REQUIRED surfaces a Reconnect CTA (the
+ *  engagement scopes may need a fresh consent) rather than a generic error. */
+function CommentBox({
+  postUrn,
+  author,
+  onClose,
+}: {
+  postUrn: string;
+  author: LinkedInAuthor;
+  onClose: () => void;
+}) {
+  const [text, setText] = useState("");
+  const mutation = useMutation({
+    mutationFn: () =>
+      linkedInContentApi.createComment(postUrn, { author, text: text.trim() }),
+    onSuccess: () => {
+      toast.success("Comment posted to LinkedIn.");
+      setText("");
+      onClose();
+      // NOTE: we deliberately don't invalidate ["linkedin-feed"] here. The
+      // comment count shown on the row is sourced from the post-sync cron's
+      // snapshot, not live — a refetch would return the same stale count (and
+      // LinkedIn's own count lags anyway), so it'd read as a no-op refresh.
+      // The count catches up on the next sync; don't "fix" this with an
+      // invalidate.
+    },
+    onError: (err: unknown) => {
+      if (err instanceof ApiError && err.code === "RECONNECT_REQUIRED") {
+        toast.error("Reconnect LinkedIn to comment.", {
+          action: {
+            label: "Reconnect",
+            onClick: () => {
+              window.location.href = "/dashboard/integrations";
+            },
+          },
+        });
+        return;
+      }
+      toast.error(err instanceof ApiError ? err.message : "Couldn't post the comment.");
+    },
+  });
+
+  const trimmed = text.trim();
+  const tooLong = text.length > COMMENT_MAX_LEN;
+  const disabled = trimmed.length === 0 || tooLong || mutation.isPending;
+
+  return (
+    <div className="space-y-2">
+      <Textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        placeholder="Write a comment… (e.g. a link or follow-up as your first comment)"
+        rows={2}
+        className="resize-none text-sm"
+        aria-label="Comment text"
+        autoFocus
+      />
+      <div className="flex items-center justify-between">
+        <span className={`text-[11px] tabular-nums ${tooLong ? "text-destructive" : "text-muted-foreground"}`}>
+          {text.length}/{COMMENT_MAX_LEN}
+        </span>
+        <div className="flex items-center gap-1.5">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-xs"
+            onClick={onClose}
+            disabled={mutation.isPending}
+          >
+            <X className="size-3.5" /> Cancel
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            className="h-7 gap-1.5 px-2.5 text-xs"
+            onClick={() => mutation.mutate()}
+            disabled={disabled}
+            aria-busy={mutation.isPending}
+          >
+            {mutation.isPending ? (
+              <Loader2 className="size-3.5 animate-spin motion-reduce:animate-none" />
+            ) : (
+              <Send className="size-3.5" />
+            )}
+            {mutation.isPending ? "Posting…" : "Post comment"}
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }
 

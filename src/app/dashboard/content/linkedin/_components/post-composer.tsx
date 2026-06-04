@@ -34,6 +34,7 @@ import {
 import {
   CalendarClock,
   ChevronDown,
+  GalleryHorizontalEnd,
   Link2,
   Loader2,
   Mic,
@@ -55,6 +56,7 @@ import {
   type LinkedInIdentity,
   type LinkedInVoiceCard,
   type PublishLinkedInPostInput,
+  type RepurposeCarouselInput,
   type RewriteHookResponse,
 } from "@/lib/api/linkedin-content";
 import { ApiError } from "@/lib/api";
@@ -81,6 +83,10 @@ import { sourceTextHash } from "@/lib/scheduler/source-hash";
 import { cn } from "@/lib/utils";
 
 const MAX_LEN = 3000;
+
+/** A carousel splits the text into slides, so it needs a few sentences of
+ *  substance — mirrors the server's `newsletterText` min of 50 chars. */
+const CAROUSEL_MIN_CHARS = 50;
 
 const HAS_ORG_SCOPE = "w_organization_social";
 
@@ -303,6 +309,27 @@ export function PostComposer({ identity, seedText }: Props) {
     },
   });
 
+  // Carousel — repurpose the composer text into a swipeable LinkedIn document
+  // post (one AI-rendered slide per section). Long-running (~30–60s): the
+  // button shows a patient pending state while the server renders slides.
+  const carousel = useMutation({
+    mutationFn: (input: RepurposeCarouselInput) => linkedInContentApi.repurposeCarousel(input),
+    onSuccess: (res) => {
+      resetComposer();
+      setFeedback({
+        kind: "success",
+        message: `Carousel published to LinkedIn — ${res.slideCount} slide${res.slideCount === 1 ? "" : "s"}.${
+          res.documentAvailable ? "" : " It may take a moment to finish processing on LinkedIn."
+        }`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["linkedin-me"] });
+    },
+    onError: (err: unknown) => {
+      const message = err instanceof ApiError ? err.message : "Couldn't build the carousel.";
+      setFeedback({ kind: "error", message });
+    },
+  });
+
   /** Clear all composition state after a successful publish/schedule.
    *  Resets draftId so the next post starts a fresh cnt_drafts row. */
   function resetComposer() {
@@ -322,8 +349,14 @@ export function PostComposer({ identity, seedText }: Props) {
   const tooLong = remaining < 0;
   const empty = text.trim().length === 0;
   const linkInvalid = showLink && linkUrl.trim().length > 0 && !isProbablyUrl(linkUrl);
-  const publishDisabled = empty || tooLong || publish.isPending || linkInvalid;
+  const anyPending = publish.isPending || carousel.isPending;
+  const publishDisabled = empty || tooLong || anyPending || linkInvalid;
   const scheduleDisabled = empty || tooLong || linkInvalid;
+  // Carousel needs enough text to split into slides; a link card doesn't
+  // apply to a carousel (it's a document post), so a pending/invalid link
+  // doesn't block it — but the min-length + pending guards do.
+  const carouselTooShort = text.trim().length < CAROUSEL_MIN_CHARS;
+  const carouselDisabled = empty || tooLong || carouselTooShort || anyPending;
 
   function onSubmit() {
     if (publishDisabled) return;
@@ -347,6 +380,17 @@ export function PostComposer({ identity, seedText }: Props) {
     }
 
     publish.mutate(body);
+  }
+
+  function onCarousel() {
+    if (carouselDisabled) return;
+    setFeedback(null);
+    const author: LinkedInAuthor = isOrgAuthor
+      ? { type: "org", pageId: authorKey.slice("org:".length) }
+      : { type: "person" };
+    // The composer text IS the source the server splits into slides; the
+    // post text above the carousel defaults server-side.
+    carousel.mutate({ author, newsletterText: text.trim(), visibility: effectiveVisibility });
   }
 
   // ── Caret-aware snippet insertion ───────────────────────────────
@@ -644,6 +688,27 @@ export function PostComposer({ identity, seedText }: Props) {
             className="gap-1.5"
           >
             <CalendarClock className="size-4" /> Schedule
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={onCarousel}
+            disabled={carouselDisabled}
+            aria-busy={carousel.isPending}
+            className="gap-1.5"
+            title={
+              carouselTooShort
+                ? "Write a few sentences first — a carousel splits your text into slides."
+                : "Turn this text into a swipeable LinkedIn carousel (PDF, one image per slide). Takes ~30–60s."
+            }
+          >
+            {carousel.isPending ? (
+              <Loader2 className="size-4 animate-spin motion-reduce:animate-none" />
+            ) : (
+              <GalleryHorizontalEnd className="size-4" />
+            )}
+            {carousel.isPending ? "Building carousel…" : "Carousel"}
           </Button>
           <Button onClick={onSubmit} disabled={publishDisabled} aria-busy={publish.isPending}>
             <Send className="size-4 mr-1.5" />
