@@ -351,7 +351,61 @@ export const linkedInContentApi = {
       "/v1/linkedin/content/repurpose-newsletter-carousel",
       body,
     ),
+
+  /**
+   * STEP 1 of the carousel flow: generate the carousel PDF and stash it as a
+   * temp object — does NOT publish, and makes no LinkedIn call (so a revoked
+   * token doesn't block previewing). LONG-RUNNING (~30–60s — a slide image per
+   * section). Returns a `previewUrl` to render + the `previewKey` to pass to
+   * `publishCarousel`.
+   */
+  previewCarousel: (body: CarouselPreviewInput) =>
+    api.post<CarouselPreviewResult>(
+      "/v1/linkedin/content/repurpose-newsletter-carousel/preview",
+      body,
+    ),
+
+  /**
+   * STEP 2: publish a previewed carousel to LinkedIn by its `previewKey`. The
+   * server re-screens the (possibly edited) commentary, posts, and cleans up
+   * the temp object. A 403 `RECONNECT_REQUIRED` / 400 `NOT_CONNECTED` means the
+   * LinkedIn token needs a reconnect.
+   */
+  publishCarousel: (body: CarouselPublishInput) =>
+    api.post<CarouselResult>(
+      "/v1/linkedin/content/repurpose-newsletter-carousel/publish",
+      body,
+    ),
 };
+
+export interface CarouselPreviewInput {
+  /** Long-form source to split into slides (≥50 chars). */
+  newsletterText: string;
+  newsletterDraftId?: string;
+  newsletterTitle?: string;
+  commentary?: string;
+  count?: number;
+}
+
+export interface CarouselPreviewResult {
+  /** Opaque key for the stored preview PDF — pass to publishCarousel. */
+  previewKey: string;
+  /** Public URL to render the preview PDF for review. */
+  previewUrl: string;
+  slideCount: number;
+  imagesGenerated: number;
+  /** Server-derived post text above the carousel (editable before publish). */
+  commentary: string;
+  title: string;
+}
+
+export interface CarouselPublishInput {
+  author: LinkedInAuthor;
+  previewKey: string;
+  commentary?: string;
+  title?: string;
+  visibility?: LinkedInVisibility;
+}
 
 export interface CreateCommentInput {
   author: LinkedInAuthor;
