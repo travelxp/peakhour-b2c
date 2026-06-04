@@ -188,7 +188,7 @@ function LinkedInTabs({
           </CardContent>
         </Card>
         <p className="text-xs text-muted-foreground">
-          Compose with AI, schedule for later, or publish now. Carousels and media are coming.
+          Compose with AI, schedule for later, publish now, or turn a longer write-up into a swipeable carousel. Image attachments are coming.
         </p>
       </TabsContent>
 

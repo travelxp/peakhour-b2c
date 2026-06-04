@@ -325,7 +325,61 @@ export const linkedInContentApi = {
       `/v1/linkedin/content/feed${q ? `?${q}` : ""}`,
     );
   },
+
+  /**
+   * Add a comment on a post as the member or an org page. `postUrn` is the
+   * full `urn:li:share:*` / `urn:li:ugcPost:*`. Throws an ApiError with
+   * `code: "RECONNECT_REQUIRED"` (403) when LinkedIn requires the engagement
+   * (`_feed`) scopes the connection lacks — callers should surface a Reconnect
+   * CTA rather than a generic failure.
+   */
+  createComment: (postUrn: string, body: CreateCommentInput) =>
+    api.post<{ commentUrn: string }>(
+      `/v1/linkedin/content/posts/${encodeURIComponent(postUrn)}/comments`,
+      body,
+    ),
+
+  /**
+   * Repurpose a piece of long-form text into a LinkedIn document "carousel"
+   * (PDF, one AI-rendered slide per section). LONG-RUNNING — the server
+   * generates an image per slide, so a 5-slide carousel can take 30–60s; the
+   * caller should show a patient pending state. `newsletterText` must be ≥50
+   * chars. Returns the published post id + slide/document metadata.
+   */
+  repurposeCarousel: (body: RepurposeCarouselInput) =>
+    api.post<CarouselResult>(
+      "/v1/linkedin/content/repurpose-newsletter-carousel",
+      body,
+    ),
 };
+
+export interface CreateCommentInput {
+  author: LinkedInAuthor;
+  text: string;
+  /** Composite parent comment URN — set to reply to a comment, not the post. */
+  parentCommentUrn?: string;
+}
+
+export interface RepurposeCarouselInput {
+  author: LinkedInAuthor;
+  /** The long-form source to split into slides (≥50 chars). */
+  newsletterText: string;
+  /** Optional post text shown above the carousel; defaults server-side. */
+  commentary?: string;
+  visibility?: LinkedInVisibility;
+  /** Slide count; the splitter clamps to [2, maxSlides]. */
+  count?: number;
+}
+
+export interface CarouselResult {
+  postId: string;
+  documentUrn: string;
+  slideCount: number;
+  imagesGenerated: number;
+  /** False when the document upload didn't confirm AVAILABLE before posting
+   *  (best-effort path) — the post may still be processing on LinkedIn. */
+  documentAvailable: boolean;
+}
 
 /** One published post in the LinkedIn Feed tab (GET /feed). */
 export interface LinkedInFeedPost {
