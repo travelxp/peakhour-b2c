@@ -37,12 +37,16 @@ export function CarouselPreviewDialog({
   preview,
   author,
   visibility,
+  targetLabel,
   onClose,
   onPublished,
 }: {
   preview: CarouselPreviewResult;
   author: LinkedInAuthor;
   visibility: LinkedInVisibility;
+  /** Human label for where this publishes (e.g. a Page name) — shown so the
+   *  user knows the target before posting. */
+  targetLabel: string;
   onClose: () => void;
   onPublished: () => void;
 }) {
@@ -100,8 +104,10 @@ export function CarouselPreviewDialog({
             <GalleryHorizontalEnd className="size-4" /> Review your carousel
           </DialogTitle>
           <DialogDescription>
-            {preview.slideCount} slide{preview.slideCount === 1 ? "" : "s"} — publishes as a swipeable
-            document post on LinkedIn.
+            {preview.slideCount} slide{preview.slideCount === 1 ? "" : "s"} — publishing as{" "}
+            <span className="font-medium text-foreground">{targetLabel}</span> (
+            {visibility === "PUBLIC" ? "Public" : visibility === "CONNECTIONS" ? "Connections" : "Signed-in members"})
+            as a swipeable document post.
           </DialogDescription>
         </DialogHeader>
 
@@ -113,7 +119,7 @@ export function CarouselPreviewDialog({
           </p>
         )}
 
-        <div className="h-[460px] w-full overflow-hidden rounded-md border bg-muted/30">
+        <div className="h-115 w-full overflow-hidden rounded-md border bg-muted/30">
           <iframe src={preview.previewUrl} title="Carousel preview" className="h-full w-full" />
         </div>
 
@@ -132,11 +138,20 @@ export function CarouselPreviewDialog({
             className="resize-none text-sm"
             aria-label="Carousel post text"
           />
-          <span
-            className={`text-[11px] tabular-nums ${tooLong ? "text-destructive" : "text-muted-foreground"}`}
-          >
-            {commentary.length}/{COMMENTARY_MAX}
-          </span>
+          <div className="flex items-center justify-between">
+            {tooLong ? (
+              <span className="text-[11px] text-destructive">
+                Trim to {COMMENTARY_MAX} characters to publish.
+              </span>
+            ) : (
+              <span />
+            )}
+            <span
+              className={`text-[11px] tabular-nums ${tooLong ? "text-destructive" : "text-muted-foreground"}`}
+            >
+              {commentary.length}/{COMMENTARY_MAX}
+            </span>
+          </div>
         </div>
 
         <DialogFooter>

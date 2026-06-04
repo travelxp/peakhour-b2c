@@ -346,12 +346,6 @@ export const linkedInContentApi = {
    * caller should show a patient pending state. `newsletterText` must be ≥50
    * chars. Returns the published post id + slide/document metadata.
    */
-  repurposeCarousel: (body: RepurposeCarouselInput) =>
-    api.post<CarouselResult>(
-      "/v1/linkedin/content/repurpose-newsletter-carousel",
-      body,
-    ),
-
   /**
    * STEP 1 of the carousel flow: generate the carousel PDF and stash it as a
    * temp object — does NOT publish, and makes no LinkedIn call (so a revoked
@@ -412,17 +406,6 @@ export interface CreateCommentInput {
   text: string;
   /** Composite parent comment URN — set to reply to a comment, not the post. */
   parentCommentUrn?: string;
-}
-
-export interface RepurposeCarouselInput {
-  author: LinkedInAuthor;
-  /** The long-form source to split into slides (≥50 chars). */
-  newsletterText: string;
-  /** Optional post text shown above the carousel; defaults server-side. */
-  commentary?: string;
-  visibility?: LinkedInVisibility;
-  /** Slide count; the splitter clamps to [2, maxSlides]. */
-  count?: number;
 }
 
 export interface CarouselResult {

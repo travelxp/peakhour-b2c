@@ -39,6 +39,11 @@ function buildCsp(req: NextRequest): { csp: string; reqHeaders: Headers } {
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https:",
     "font-src 'self' data:",
+    // Allow framing https subresources — the LinkedIn carousel preview renders
+    // a PDF served from the R2 media origin in an <iframe>. Consistent with the
+    // img-src `https:` allowance; `frame-ancestors 'none'` still blocks anyone
+    // from framing US.
+    "frame-src 'self' https:",
     connectSrc,
     "frame-ancestors 'none'",
     "base-uri 'self'",

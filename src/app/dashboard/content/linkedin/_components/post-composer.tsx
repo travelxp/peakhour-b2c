@@ -318,6 +318,13 @@ export function PostComposer({ identity, seedText }: Props) {
   // NO LinkedIn call). On success we open the review dialog; the user approves
   // and publishes from there (step 2). `carouselPreview` non-null = dialog open.
   const [carouselPreview, setCarouselPreview] = useState<CarouselPreviewResult | null>(null);
+  // Publish target snapshotted at preview time so a later author/visibility
+  // change can't silently retarget the generated post.
+  const [carouselTarget, setCarouselTarget] = useState<{
+    author: LinkedInAuthor;
+    visibility: LinkedInVisibility;
+    label: string;
+  } | null>(null);
   const carousel = useMutation({
     mutationFn: (input: CarouselPreviewInput) => linkedInContentApi.previewCarousel(input),
     onSuccess: (res) => setCarouselPreview(res),
@@ -382,15 +389,16 @@ export function PostComposer({ identity, seedText }: Props) {
   function onCarousel() {
     if (carouselDisabled) return;
     setFeedback(null);
-    // The composer text IS the source the server splits into slides. Author +
-    // visibility are chosen at publish time (in the preview dialog).
+    // The composer text IS the source the server splits into slides. Snapshot
+    // the publish target NOW (the dialog shows + uses it) so changing the
+    // picker during the ~30–60s preview can't retarget the post.
+    const author: LinkedInAuthor = isOrgAuthor
+      ? { type: "org", pageId: authorKey.slice("org:".length) }
+      : { type: "person" };
+    const label = authorOptions.find((o) => o.value === authorKey)?.label ?? "your feed";
+    setCarouselTarget({ author, visibility: effectiveVisibility, label });
     carousel.mutate({ newsletterText: text.trim() });
   }
-
-  // Author for the publish step, derived from the composer's picker.
-  const carouselAuthor: LinkedInAuthor = isOrgAuthor
-    ? { type: "org", pageId: authorKey.slice("org:".length) }
-    : { type: "person" };
 
   // ── Caret-aware snippet insertion ───────────────────────────────
   // The ONE path every insert takes (emoji glyph, AI pull-quote, AI
@@ -839,14 +847,19 @@ export function PostComposer({ identity, seedText }: Props) {
         </div>
       )}
 
-      {carouselPreview && (
+      {carouselPreview && carouselTarget && (
         <CarouselPreviewDialog
           preview={carouselPreview}
-          author={carouselAuthor}
-          visibility={effectiveVisibility}
-          onClose={() => setCarouselPreview(null)}
+          author={carouselTarget.author}
+          visibility={carouselTarget.visibility}
+          targetLabel={carouselTarget.label}
+          onClose={() => {
+            setCarouselPreview(null);
+            setCarouselTarget(null);
+          }}
           onPublished={() => {
             setCarouselPreview(null);
+            setCarouselTarget(null);
             resetComposer();
             setFeedback({ kind: "success", message: "Carousel published to LinkedIn." });
             queryClient.invalidateQueries({ queryKey: ["linkedin-me"] });
