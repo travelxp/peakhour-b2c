@@ -12,6 +12,7 @@ import { KpiRow } from "./_components/kpi-row";
 import { NeedsYouRail } from "./_components/needs-you-rail";
 import { ChannelWidgets } from "./_components/channel-widgets";
 import { AutopilotEmpty } from "./_components/autopilot-empty";
+import { CommerceLane } from "./_components/commerce-lane";
 
 /**
  * Content > Autopilot — the entitlement-composed content command center.
@@ -103,6 +104,12 @@ export default function AutopilotHomePage() {
             lastRunAt={data.autopilot.lastRunAt}
           />
 
+          {/* Commerce money-loop — the both-state hero. Prominent, above
+              the KPIs, only when a store is connected. */}
+          {data.entitlements.commerce && (
+            <CommerceLane variant="moneyloop" data={data.commerce} />
+          )}
+
           {data.channels.length === 0 ? (
             <AutopilotEmpty />
           ) : (
@@ -111,6 +118,12 @@ export default function AutopilotHomePage() {
               <NeedsYouRail items={data.needsYou} totalCount={data.kpis.needsYou} />
               <ChannelWidgets channels={data.channels} />
             </>
+          )}
+
+          {/* Cross-sell — quiet, at the bottom, only for marketing-only
+              users who haven't connected a store yet. */}
+          {!data.entitlements.commerce && data.channels.length > 0 && (
+            <CommerceLane variant="teaser" />
           )}
         </div>
       )}
