@@ -21,6 +21,21 @@ import {
 } from "./channels.config";
 import { mapCatalogToChannels } from "./channels-from-catalog";
 
+/**
+ * Fallback dashboard deep-links by providerKey, sourced from the static
+ * channels.config. The CMS catalog SHOULD carry display.dashboardPath, but a
+ * row seeded before that field was added (e.g. linkedin_content) resolves
+ * without one — which previously downgraded the channel to "available" and
+ * stranded "Manage". We keep connection state independent of the path and
+ * fall back to the static route so "Manage" still lands on the right
+ * in-app dashboard. Connection state itself NEVER depends on this map.
+ */
+const STATIC_DASHBOARD_PATHS: ReadonlyMap<string, string> = new Map(
+  CHANNELS.filter((c) => c.dashboardPath).map(
+    (c) => [c.providerKey, c.dashboardPath as string] as const,
+  ),
+);
+
 interface ApiIntegration {
   provider: string;
   connected?: boolean;
@@ -187,17 +202,30 @@ interface ChannelRowProps {
 
 function ChannelRow({ channel, integration, connectionStateUnknown }: ChannelRowProps) {
   const router = useRouter();
-  const isConnected = integration?.connected === true && channel.status === "live";
+  // Connection state is INDEPENDENT of lifecycle: a channel the org has
+  // actually connected must read as "Connected"/"Manage" even when its
+  // catalog row resolves to "available" (e.g. a live row missing
+  // display.dashboardPath). The previous `&& channel.status === "live"`
+  // made a freshly-connected LinkedIn render "Connect" whenever its catalog
+  // dashboardPath was absent. `coming_soon` is still excluded — a
+  // not-yet-launched channel can't have a real connection.
+  const isConnected =
+    integration?.connected === true && channel.status !== "coming_soon";
   const lastSyncedLabel = useLastSyncedLabel(integration?.lastSyncAt);
+
+  // Prefer the catalog's dashboardPath; fall back to the static config so a
+  // catalog row missing the path doesn't strand "Manage" on the OAuth grid.
+  const dashboardPath =
+    channel.dashboardPath ?? STATIC_DASHBOARD_PATHS.get(channel.providerKey);
 
   const handleAction = () => {
     if (channel.status === "coming_soon" || connectionStateUnknown) return;
     // Channels that connect via their own in-app page (e.g. WhatsApp Embedded
     // Signup, status "available") route there for both connect and manage;
-    // "live" channels route to their dashboard once connected. Everything else
-    // falls back to the integrations OAuth grid.
-    if (channel.dashboardPath && (isConnected || channel.status === "available")) {
-      router.push(channel.dashboardPath);
+    // connected channels route to their dashboard. Everything else falls back
+    // to the integrations OAuth grid.
+    if (dashboardPath && (isConnected || channel.status === "available")) {
+      router.push(dashboardPath);
     } else {
       router.push("/dashboard/integrations");
     }
