@@ -56,9 +56,11 @@ import {
   type LinkedInIdentity,
   type LinkedInVoiceCard,
   type PublishLinkedInPostInput,
-  type RepurposeCarouselInput,
+  type CarouselPreviewInput,
+  type CarouselPreviewResult,
   type RewriteHookResponse,
 } from "@/lib/api/linkedin-content";
+import { CarouselPreviewDialog } from "./carousel-preview-dialog";
 import { ApiError } from "@/lib/api";
 import { rewriteContent, createDraft, updateDraft, type ComposerDraftRef } from "@/lib/api/content";
 import { insertAtCaret } from "@/lib/composer/caret";
@@ -312,20 +314,22 @@ export function PostComposer({ identity, seedText }: Props) {
   // Carousel — repurpose the composer text into a swipeable LinkedIn document
   // post (one AI-rendered slide per section). Long-running (~30–60s): the
   // button shows a patient pending state while the server renders slides.
+  // STEP 1 — generate a preview (server renders slides + a PDF and stashes it;
+  // NO LinkedIn call). On success we open the review dialog; the user approves
+  // and publishes from there (step 2). `carouselPreview` non-null = dialog open.
+  const [carouselPreview, setCarouselPreview] = useState<CarouselPreviewResult | null>(null);
+  // Publish target snapshotted at preview time so a later author/visibility
+  // change can't silently retarget the generated post.
+  const [carouselTarget, setCarouselTarget] = useState<{
+    author: LinkedInAuthor;
+    visibility: LinkedInVisibility;
+    label: string;
+  } | null>(null);
   const carousel = useMutation({
-    mutationFn: (input: RepurposeCarouselInput) => linkedInContentApi.repurposeCarousel(input),
-    onSuccess: (res) => {
-      resetComposer();
-      setFeedback({
-        kind: "success",
-        message: `Carousel published to LinkedIn — ${res.slideCount} slide${res.slideCount === 1 ? "" : "s"}.${
-          res.documentAvailable ? "" : " It may take a moment to finish processing on LinkedIn."
-        }`,
-      });
-      queryClient.invalidateQueries({ queryKey: ["linkedin-me"] });
-    },
+    mutationFn: (input: CarouselPreviewInput) => linkedInContentApi.previewCarousel(input),
+    onSuccess: (res) => setCarouselPreview(res),
     onError: (err: unknown) => {
-      const message = err instanceof ApiError ? err.message : "Couldn't build the carousel.";
+      const message = err instanceof ApiError ? err.message : "Couldn't build the carousel preview.";
       setFeedback({ kind: "error", message });
     },
   });
@@ -385,12 +389,15 @@ export function PostComposer({ identity, seedText }: Props) {
   function onCarousel() {
     if (carouselDisabled) return;
     setFeedback(null);
+    // The composer text IS the source the server splits into slides. Snapshot
+    // the publish target NOW (the dialog shows + uses it) so changing the
+    // picker during the ~30–60s preview can't retarget the post.
     const author: LinkedInAuthor = isOrgAuthor
       ? { type: "org", pageId: authorKey.slice("org:".length) }
       : { type: "person" };
-    // The composer text IS the source the server splits into slides; the
-    // post text above the carousel defaults server-side.
-    carousel.mutate({ author, newsletterText: text.trim(), visibility: effectiveVisibility });
+    const label = authorOptions.find((o) => o.value === authorKey)?.label ?? "your feed";
+    setCarouselTarget({ author, visibility: effectiveVisibility, label });
+    carousel.mutate({ newsletterText: text.trim() });
   }
 
   // ── Caret-aware snippet insertion ───────────────────────────────
@@ -700,7 +707,7 @@ export function PostComposer({ identity, seedText }: Props) {
             title={
               carouselTooShort
                 ? "Write a few sentences first — a carousel splits your text into slides."
-                : "Turn this text into a swipeable LinkedIn carousel (PDF, one image per slide). Takes ~30–60s."
+                : "Generate a swipeable LinkedIn carousel and review it before publishing. Takes ~30–60s."
             }
           >
             {carousel.isPending ? (
@@ -708,7 +715,7 @@ export function PostComposer({ identity, seedText }: Props) {
             ) : (
               <GalleryHorizontalEnd className="size-4" />
             )}
-            {carousel.isPending ? "Building carousel…" : "Carousel"}
+            {carousel.isPending ? "Generating preview…" : "Carousel"}
           </Button>
           <Button onClick={onSubmit} disabled={publishDisabled} aria-busy={publish.isPending}>
             <Send className="size-4 mr-1.5" />
@@ -840,6 +847,25 @@ export function PostComposer({ identity, seedText }: Props) {
         </div>
       )}
 
+      {carouselPreview && carouselTarget && (
+        <CarouselPreviewDialog
+          preview={carouselPreview}
+          author={carouselTarget.author}
+          visibility={carouselTarget.visibility}
+          targetLabel={carouselTarget.label}
+          onClose={() => {
+            setCarouselPreview(null);
+            setCarouselTarget(null);
+          }}
+          onPublished={() => {
+            setCarouselPreview(null);
+            setCarouselTarget(null);
+            resetComposer();
+            setFeedback({ kind: "success", message: "Carousel published to LinkedIn." });
+            queryClient.invalidateQueries({ queryKey: ["linkedin-me"] });
+          }}
+        />
+      )}
     </ComposerShell>
   );
 }
