@@ -60,7 +60,7 @@ export default function AutopilotHomePage() {
     if (isProd) router.replace("/dashboard/content");
   }, [isProd, router]);
 
-  const { data, isLoading, isError, refetch } = useHomeSummary();
+  const { data, isLoading, isError, refetch } = useHomeSummary({ enabled: !isProd });
 
   if (isProd) return null;
 

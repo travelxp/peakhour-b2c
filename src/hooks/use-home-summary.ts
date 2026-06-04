@@ -71,10 +71,14 @@ export interface HomeSummary {
 
 export const homeSummaryKey = ["home", "summary"] as const;
 
-export function useHomeSummary() {
+export function useHomeSummary(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: homeSummaryKey,
     queryFn: () => api.get<HomeSummary>("/v1/home/summary"),
+    // Caller can disable the fetch entirely — the page passes `!isProd`
+    // so the dark-in-prod build issues zero network chatter before its
+    // redirect fires.
+    enabled: options?.enabled ?? true,
     // The rail/widgets reflect cron-moved state; 60s keeps it fresh
     // without hammering. Stop on error so a stale auth cookie doesn't
     // spin one failed request per minute on this route.
