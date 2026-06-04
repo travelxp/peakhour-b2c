@@ -75,6 +75,13 @@ interface NavGroup {
   items: NavItem[];
 }
 
+// Autopilot Home ships dark: surfaced only in non-prod (mirrors the
+// content.autopilot_home feature's in_development state) so it can run
+// side-by-side with Library for comparison before launch. NEXT_PUBLIC_*
+// is build-inlined, so this static const is safe at module scope. The
+// page route enforces the same gate server-trip-free via a redirect.
+const SHOW_AUTOPILOT = process.env.NEXT_PUBLIC_VERCEL_ENV !== "production";
+
 const NAV_GROUPS: NavGroup[] = [
   {
     label: "",
@@ -92,6 +99,11 @@ const NAV_GROUPS: NavGroup[] = [
         // owners visit them rarely. Per the LinkedIn 360 plan §3.3 IA
         // decision (with the Seasonal Events addition).
         subItems: [
+          // Autopilot leads the mental model: status → act, then the
+          // existing ingest → ground → plan → publish chain below.
+          ...(SHOW_AUTOPILOT
+            ? [{ href: "/dashboard/content/autopilot", label: "Autopilot" }]
+            : []),
           { href: "/dashboard/content", label: "Library" },
           { href: "/dashboard/content/sources", label: "Sources" },
           { href: "/dashboard/content/news", label: "News Desk" },
