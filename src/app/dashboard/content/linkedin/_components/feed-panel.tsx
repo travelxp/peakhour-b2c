@@ -272,6 +272,12 @@ function CommentBox({
       toast.success("Comment posted to LinkedIn.");
       setText("");
       onClose();
+      // NOTE: we deliberately don't invalidate ["linkedin-feed"] here. The
+      // comment count shown on the row is sourced from the post-sync cron's
+      // snapshot, not live — a refetch would return the same stale count (and
+      // LinkedIn's own count lags anyway), so it'd read as a no-op refresh.
+      // The count catches up on the next sync; don't "fix" this with an
+      // invalidate.
     },
     onError: (err: unknown) => {
       if (err instanceof ApiError && err.code === "RECONNECT_REQUIRED") {
