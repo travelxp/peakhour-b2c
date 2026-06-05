@@ -1,22 +1,99 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { Building2, Loader2, MessageSquare, ThumbsUp, Users, X } from "lucide-react";
+import { Building2, Loader2, MessageSquare, SmilePlus, Users, X } from "lucide-react";
 import {
   linkedInContentApi,
   type EngagerScore,
+  type LinkedInAuthor,
+  type LinkedInIdentity,
+  type LinkedInReactionType,
 } from "@/lib/api/linkedin-content";
+import { useLinkedInIdentity } from "./post-composer";
 import { RetentionFootnote } from "./retention-footnote";
 
 const COMMENT_MAX = 1250; // LinkedIn comment cap (mirrors the api route)
+const HAS_ORG_SCOPE = "w_organization_social";
+
+/** The reactions LinkedIn accepts (MAYBE is deprecated → excluded), with the
+ *  UI label/emoji LinkedIn shows for each. */
+const REACTIONS: ReadonlyArray<{ type: LinkedInReactionType; label: string; emoji: string }> = [
+  { type: "LIKE", label: "Like", emoji: "👍" },
+  { type: "PRAISE", label: "Celebrate", emoji: "👏" },
+  { type: "EMPATHY", label: "Love", emoji: "❤️" },
+  { type: "INTEREST", label: "Insightful", emoji: "💡" },
+  { type: "APPRECIATION", label: "Support", emoji: "🙌" },
+  { type: "ENTERTAINMENT", label: "Funny", emoji: "😄" },
+];
+const REACTION_LABEL: Record<LinkedInReactionType, string> = Object.fromEntries(
+  REACTIONS.map((r) => [r.type, r.label]),
+) as Record<LinkedInReactionType, string>;
+
+/** An "engage as" choice — the member, or a managed org page. */
+export interface EngageAsOption {
+  key: string;
+  label: string;
+  author: LinkedInAuthor;
+}
+
+/**
+ * Build the "engage as" options + the default key for an engager — pure +
+ * tested. Always offers the member ("You"); adds each managed org page when the
+ * connection holds `w_organization_social`. Defaults to the brand page that
+ * AUTHORED the post the engager commented on (so replying/reacting defaults to
+ * the brand on the brand's own post), falling back to the member otherwise.
+ */
+export function buildEngageAsOptions(
+  identity:
+    | {
+        scopes: string[];
+        person: { name: string | null };
+        pages: ReadonlyArray<{ id: string; name: string }>;
+      }
+    | undefined,
+  postAuthorUrn: string,
+): { options: EngageAsOption[]; defaultKey: string } {
+  const options: EngageAsOption[] = [
+    {
+      key: "person",
+      label: identity?.person.name ? `You (${identity.person.name})` : "You",
+      author: { type: "person" },
+    },
+  ];
+  const hasOrgScope = identity?.scopes.includes(HAS_ORG_SCOPE) ?? false;
+  if (hasOrgScope && identity) {
+    for (const p of identity.pages) {
+      options.push({
+        key: `org:${p.id}`,
+        label: p.name || `Page ${p.id}`,
+        author: { type: "org", pageId: p.id },
+      });
+    }
+  }
+
+  let defaultKey = "person";
+  const m = /^urn:li:organization:(\d+)$/.exec(postAuthorUrn);
+  if (m && hasOrgScope && options.some((o) => o.key === `org:${m[1]}`)) {
+    defaultKey = `org:${m[1]}`;
+  }
+  return { options, defaultKey };
+}
 
 /** Map an engagement-write failure to friendly toast copy — never leak the raw
  *  LinkedIn/transport string. 403 RECONNECT_REQUIRED nudges the reconnect.
@@ -68,6 +145,11 @@ export function AudiencePanel() {
     refetchOnMount: false,
   });
 
+  // Identity (member + managed pages) for the "engage as" picker. Shares the
+  // cached ["linkedin-me"] query with the composer, so no extra round-trip.
+  // `undefined` while loading → rows fall back to person-only.
+  const { data: identity } = useLinkedInIdentity();
+
   // Surface transient errors in the dev console so we can debug
   // network/parse failures (raw TypeError from fetch, PARSE_ERROR from
   // a 500 with non-JSON body). The user-facing toast intentionally
@@ -118,7 +200,7 @@ export function AudiencePanel() {
     >
       <ol className="divide-y">
         {data.engagers.map((engager, i) => (
-          <EngagerRow key={engager.actorUrn} engager={engager} rank={i + 1} />
+          <EngagerRow key={engager.actorUrn} engager={engager} rank={i + 1} identity={identity} />
         ))}
       </ol>
       <RetentionFootnote>
@@ -181,7 +263,15 @@ function EmptyBody({ title, body }: { title: string; body: string }) {
   );
 }
 
-function EngagerRow({ engager, rank }: { engager: EngagerScore; rank: number }) {
+function EngagerRow({
+  engager,
+  rank,
+  identity,
+}: {
+  engager: EngagerScore;
+  rank: number;
+  identity: LinkedInIdentity | undefined;
+}) {
   const ActorIcon = engager.actorType === "org" ? Building2 : Users;
   const actorLabel =
     engager.actorType === "org" ? "Company page" : "Person";
@@ -194,28 +284,40 @@ function EngagerRow({ engager, rank }: { engager: EngagerScore; rank: number }) 
 
   const recencyLabel = formatRecency(engager.signals.daysSinceLastComment);
 
-  // Engage-back affordances (CMA B3). Acting as the connected MEMBER (person) —
-  // always valid on the held member scope; replying/reacting as the brand page
-  // is a follow-up (needs the post's author surfaced). Reacting needs only the
-  // comment URN; replying additionally needs the parent post URN.
+  // Engage-back affordances (CMA B3). Reacting needs only the comment URN;
+  // replying additionally needs the parent post URN.
   const commentUrn = engager.signals.lastCommentUrn;
   const parentPostUrn = engager.signals.lastParentPostUrn;
   const canReact = commentUrn.length > 0;
   const canReply = canReact && parentPostUrn.length > 0;
 
+  // "Engage as" — the member, or a managed page (defaulting to the brand page
+  // that authored the post). `authorKey === null` means "follow the default",
+  // so it stays in sync if identity loads after first render; a user pick pins it.
+  const { options: authorOptions, defaultKey } = useMemo(
+    () => buildEngageAsOptions(identity, engager.signals.lastParentPostAuthorUrn),
+    [identity, engager.signals.lastParentPostAuthorUrn],
+  );
+  const [authorKey, setAuthorKey] = useState<string | null>(null);
+  const effectiveKey = authorKey ?? defaultKey;
+  // Resolve to a real option (falling back to person/options[0] if a pinned key
+  // vanished after an identity refetch) and drive BOTH the mutation author AND
+  // the Select value off it — so the trigger can never show a stale/blank key.
+  const selected = authorOptions.find((o) => o.key === effectiveKey) ?? authorOptions[0];
+  const selectedAuthor: LinkedInAuthor = selected.author;
+
   const [replyOpen, setReplyOpen] = useState(false);
   const [replyText, setReplyText] = useState("");
-  const [liked, setLiked] = useState(false);
+  const [reactOpen, setReactOpen] = useState(false);
+  const [reactedType, setReactedType] = useState<LinkedInReactionType | null>(null);
 
   const react = useMutation({
-    mutationFn: () =>
-      linkedInContentApi.createReaction(commentUrn, {
-        author: { type: "person" },
-        reactionType: "LIKE",
-      }),
-    onSuccess: () => {
-      setLiked(true);
-      toast.success("Liked their comment.");
+    mutationFn: (reactionType: LinkedInReactionType) =>
+      linkedInContentApi.createReaction(commentUrn, { author: selectedAuthor, reactionType }),
+    onSuccess: (_data, reactionType) => {
+      setReactedType(reactionType);
+      setReactOpen(false);
+      toast.success(`Reacted: ${REACTION_LABEL[reactionType]}`);
     },
     onError: (err) => toast.error(engageErrorMessage(err)),
   });
@@ -223,7 +325,7 @@ function EngagerRow({ engager, rank }: { engager: EngagerScore; rank: number }) 
   const reply = useMutation({
     mutationFn: (text: string) =>
       linkedInContentApi.createComment(parentPostUrn, {
-        author: { type: "person" },
+        author: selectedAuthor,
         text,
         parentCommentUrn: commentUrn,
       }),
@@ -237,6 +339,7 @@ function EngagerRow({ engager, rank }: { engager: EngagerScore; rank: number }) 
 
   const trimmedReply = replyText.trim();
   const replyDisabled = reply.isPending || trimmedReply.length === 0 || trimmedReply.length > COMMENT_MAX;
+  const showAuthorPicker = authorOptions.length > 1;
 
   return (
     <li className="flex items-start gap-3 py-3">
@@ -279,24 +382,43 @@ function EngagerRow({ engager, rank }: { engager: EngagerScore; rank: number }) 
 
         {/* Engage-back actions — only when we have the comment URN to act on. */}
         {canReact ? (
-          <div className="flex items-center gap-1 pt-1">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-7 gap-1.5 px-2 text-xs"
-              onClick={() => react.mutate()}
-              disabled={react.isPending || liked}
-              aria-pressed={liked}
-              title={liked ? "You liked this comment" : "Like this comment"}
-            >
-              {react.isPending ? (
-                <Loader2 className="size-3.5 animate-spin motion-reduce:animate-none" />
-              ) : (
-                <ThumbsUp className="size-3.5" />
-              )}
-              {liked ? "Liked" : "Like"}
-            </Button>
+          <div className="flex flex-wrap items-center gap-1 pt-1">
+            <Popover open={reactOpen} onOpenChange={setReactOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 gap-1.5 px-2 text-xs"
+                  disabled={react.isPending}
+                  aria-busy={react.isPending}
+                >
+                  {react.isPending ? (
+                    <Loader2 className="size-3.5 animate-spin motion-reduce:animate-none" />
+                  ) : (
+                    <SmilePlus className="size-3.5" />
+                  )}
+                  {reactedType ? `Reacted · ${REACTION_LABEL[reactedType]}` : "React"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="start" className="w-auto p-1">
+                <div className="flex gap-0.5">
+                  {REACTIONS.map((r) => (
+                    <button
+                      key={r.type}
+                      type="button"
+                      onClick={() => react.mutate(r.type)}
+                      disabled={react.isPending}
+                      className="flex flex-col items-center rounded-md px-2 py-1 text-xs hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+                      title={r.label}
+                      aria-label={`React: ${r.label}`}
+                    >
+                      <span className="text-base leading-none">{r.emoji}</span>
+                    </button>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
             {canReply ? (
               <Button
                 type="button"
@@ -309,6 +431,24 @@ function EngagerRow({ engager, rank }: { engager: EngagerScore; rank: number }) 
                 <MessageSquare className="size-3.5" />
                 Reply
               </Button>
+            ) : null}
+            {showAuthorPicker ? (
+              <Select value={selected.key} onValueChange={setAuthorKey}>
+                <SelectTrigger
+                  className="h-7 w-auto gap-1 border-none px-2 text-xs text-muted-foreground shadow-none"
+                  aria-label="Engage as"
+                >
+                  <span className="text-[11px]">as</span>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {authorOptions.map((o) => (
+                    <SelectItem key={o.key} value={o.key} className="text-xs">
+                      {o.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             ) : null}
           </div>
         ) : null}
