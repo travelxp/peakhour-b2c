@@ -17,9 +17,22 @@ export interface LinkedInPollInput {
   duration: LinkedInPollDuration;
 }
 
+/** A structured commentary segment (CMA D4). The composer emits these to
+ *  embed org @mentions / #hashtags; the server assembles them into LinkedIn's
+ *  "little" format. Mention URNs are organization-only (member data is closed). */
+export type LinkedInCommentarySegment =
+  | { type: "text"; value: string }
+  | { type: "mention"; urn: string; name: string }
+  | { type: "hashtag"; value: string };
+
 export interface PublishLinkedInPostInput {
   author: LinkedInAuthor;
-  commentary: string;
+  /** Raw post text. Provide EITHER this OR `commentarySegments` (the server
+   *  requires exactly one). The composer sends this for plain/poll posts. */
+  commentary?: string;
+  /** Structured commentary with org @mentions / #hashtags (CMA D4). Mutually
+   *  exclusive with `commentary`. */
+  commentarySegments?: LinkedInCommentarySegment[];
   visibility?: LinkedInVisibility;
   link?: { url: string; title?: string; description?: string };
   imageUrns?: string[];
@@ -30,6 +43,17 @@ export interface PublishLinkedInPostInput {
    *  audit pipeline so retrieved-source citations + claim extraction
    *  fire when this LinkedIn post ships. Omit for ad-hoc posts. */
   ideaId?: string;
+}
+
+/** A resolved organization from the org-lookup typeahead (CMA E5). */
+export interface LinkedInOrgLookupResult {
+  /** `urn:li:organization:{id}` — pass as a mention segment's urn. */
+  urn: string;
+  id: string;
+  /** Locale-resolved display name — the mention's visible text must match it. */
+  name: string;
+  vanityName?: string;
+  primaryOrganizationType?: string;
 }
 
 export interface LinkedInOrgPage {
@@ -293,6 +317,15 @@ export const linkedInContentApi = {
       `/v1/linkedin/content/engagers${q ? `?${q}` : ""}`,
     );
   },
+
+  /** Resolve organization(s) by EXACT vanity handle (CMA E5) for the @mention
+   *  typeahead. Returns 0+ matches; the composer maps each to a mention
+   *  candidate (name → visible text, urn → segment urn). People search is
+   *  unavailable (member data closed), so this is org-only. */
+  orgLookup: (vanityName: string) =>
+    api.get<{ organizations: LinkedInOrgLookupResult[] }>(
+      `/v1/linkedin/content/org-lookup?vanityName=${encodeURIComponent(vanityName)}`,
+    ),
 
   /** Generate N initial LinkedIn post drafts grounded in the active
    *  business's profile + voice card + cohort archetype. Persists each
