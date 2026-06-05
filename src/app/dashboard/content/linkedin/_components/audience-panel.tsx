@@ -300,8 +300,11 @@ function EngagerRow({
   );
   const [authorKey, setAuthorKey] = useState<string | null>(null);
   const effectiveKey = authorKey ?? defaultKey;
-  const selectedAuthor: LinkedInAuthor =
-    (authorOptions.find((o) => o.key === effectiveKey) ?? authorOptions[0]).author;
+  // Resolve to a real option (falling back to person/options[0] if a pinned key
+  // vanished after an identity refetch) and drive BOTH the mutation author AND
+  // the Select value off it — so the trigger can never show a stale/blank key.
+  const selected = authorOptions.find((o) => o.key === effectiveKey) ?? authorOptions[0];
+  const selectedAuthor: LinkedInAuthor = selected.author;
 
   const [replyOpen, setReplyOpen] = useState(false);
   const [replyText, setReplyText] = useState("");
@@ -405,7 +408,8 @@ function EngagerRow({
                       key={r.type}
                       type="button"
                       onClick={() => react.mutate(r.type)}
-                      className="flex flex-col items-center rounded-md px-2 py-1 text-xs hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      disabled={react.isPending}
+                      className="flex flex-col items-center rounded-md px-2 py-1 text-xs hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
                       title={r.label}
                       aria-label={`React: ${r.label}`}
                     >
@@ -429,7 +433,7 @@ function EngagerRow({
               </Button>
             ) : null}
             {showAuthorPicker ? (
-              <Select value={effectiveKey} onValueChange={setAuthorKey}>
+              <Select value={selected.key} onValueChange={setAuthorKey}>
                 <SelectTrigger
                   className="h-7 w-auto gap-1 border-none px-2 text-xs text-muted-foreground shadow-none"
                   aria-label="Engage as"
