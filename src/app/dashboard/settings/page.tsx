@@ -26,6 +26,7 @@ import {
   Shield,
   Tags,
   CheckCircle2,
+  AlertCircle,
   Pencil,
   X,
   Check,
@@ -99,6 +100,7 @@ function SettingsContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [justConnectedProvider, setJustConnectedProvider] = useState<string | null>(null);
+  const [connectError, setConnectError] = useState<string | null>(null);
 
   // Edit state
   const [editingBusiness, setEditingBusiness] = useState(false);
@@ -158,6 +160,10 @@ function SettingsContent() {
       // the LinkedIn identity/me read.
       queryClient.invalidateQueries({ queryKey: ["content-hub-integrations"] });
       queryClient.invalidateQueries({ queryKey: ["linkedin-me"] });
+    } else if (searchParams?.get("integration") === "error") {
+      setConnectError(
+        oauthErrorMessage(searchParams.get("provider"), searchParams.get("msg")),
+      );
     }
   }, [searchParams, queryClient]);
 
@@ -189,6 +195,13 @@ function SettingsContent() {
         <div className="flex items-center gap-2 rounded-lg bg-green-500/10 border border-green-500/20 p-4 text-sm text-green-700 dark:text-green-400">
           <CheckCircle2 className="h-4 w-4 shrink-0" />
           {formatProviderName(justConnectedProvider)} connected successfully!
+        </div>
+      )}
+
+      {connectError !== null && (
+        <div className="flex items-center gap-2 rounded-lg bg-destructive/10 border border-destructive/20 p-4 text-sm text-destructive">
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          {connectError}
         </div>
       )}
 
@@ -427,6 +440,30 @@ function formatProviderName(slug: string): string {
       .map((w) => (w[0] ? w[0].toUpperCase() + w.slice(1) : w))
       .join(" ")
   );
+}
+
+// Friendly copy for the OAuth callback's ?integration=error&msg=<code>.
+// Codes are emitted by peakhour-api integrations/routes.ts. Unknown codes
+// fall through to a generic message so a new backend code never renders raw.
+function oauthErrorMessage(provider: string | null, msg: string | null): string {
+  const name = formatProviderName(provider ?? "");
+  switch (msg) {
+    case "store_already_connected":
+      return `That Shopify store is already connected to another business. Each store can be linked to one business at a time.`;
+    case "invalid_shop":
+      return `That doesn't look like a valid Shopify store domain. Use your permanent your-store.myshopify.com address.`;
+    case "shop_mismatch":
+      return `The store that approved the connection didn't match the one you entered. Please try connecting ${name} again.`;
+    case "hmac_invalid":
+    case "state_mismatch":
+    case "state_expired":
+    case "invalid_state":
+      return `We couldn't verify that ${name} connection securely. Please try again.`;
+    case "misconfigured":
+      return `${name} isn't fully configured yet. Please contact support.`;
+    default:
+      return `We couldn't finish connecting ${name}. Please try again.`;
+  }
 }
 
 function SettingRow({ label, value }: { label: string; value?: React.ReactNode }) {
