@@ -1,16 +1,35 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { ApiError } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Building2, Users } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Building2, Loader2, MessageSquare, ThumbsUp, Users, X } from "lucide-react";
 import {
   linkedInContentApi,
   type EngagerScore,
 } from "@/lib/api/linkedin-content";
 import { RetentionFootnote } from "./retention-footnote";
+
+const COMMENT_MAX = 1250; // LinkedIn comment cap (mirrors the api route)
+
+/** Map an engagement-write failure to friendly toast copy — never leak the raw
+ *  LinkedIn/transport string. 403 RECONNECT_REQUIRED nudges the reconnect.
+ *  Exported for unit testing. */
+export function engageErrorMessage(err: unknown): string {
+  if (err instanceof ApiError) {
+    if (err.code === "RECONNECT_REQUIRED" || err.code === "NOT_CONNECTED" || err.status === 403) {
+      return "Reconnect LinkedIn to reply and react (it needs the latest permissions).";
+    }
+    if (err.status === 429) return "LinkedIn is rate-limiting — try again in a moment.";
+  }
+  return "Couldn't reach LinkedIn. Please try again.";
+}
 
 /**
  * AudiencePanel — surfaces the AQS Tier C ranking of recent LinkedIn
@@ -175,6 +194,50 @@ function EngagerRow({ engager, rank }: { engager: EngagerScore; rank: number }) 
 
   const recencyLabel = formatRecency(engager.signals.daysSinceLastComment);
 
+  // Engage-back affordances (CMA B3). Acting as the connected MEMBER (person) —
+  // always valid on the held member scope; replying/reacting as the brand page
+  // is a follow-up (needs the post's author surfaced). Reacting needs only the
+  // comment URN; replying additionally needs the parent post URN.
+  const commentUrn = engager.signals.lastCommentUrn;
+  const parentPostUrn = engager.signals.lastParentPostUrn;
+  const canReact = commentUrn.length > 0;
+  const canReply = canReact && parentPostUrn.length > 0;
+
+  const [replyOpen, setReplyOpen] = useState(false);
+  const [replyText, setReplyText] = useState("");
+  const [liked, setLiked] = useState(false);
+
+  const react = useMutation({
+    mutationFn: () =>
+      linkedInContentApi.createReaction(commentUrn, {
+        author: { type: "person" },
+        reactionType: "LIKE",
+      }),
+    onSuccess: () => {
+      setLiked(true);
+      toast.success("Liked their comment.");
+    },
+    onError: (err) => toast.error(engageErrorMessage(err)),
+  });
+
+  const reply = useMutation({
+    mutationFn: (text: string) =>
+      linkedInContentApi.createComment(parentPostUrn, {
+        author: { type: "person" },
+        text,
+        parentCommentUrn: commentUrn,
+      }),
+    onSuccess: () => {
+      setReplyOpen(false);
+      setReplyText("");
+      toast.success("Reply posted.");
+    },
+    onError: (err) => toast.error(engageErrorMessage(err)),
+  });
+
+  const trimmedReply = replyText.trim();
+  const replyDisabled = reply.isPending || trimmedReply.length === 0 || trimmedReply.length > COMMENT_MAX;
+
   return (
     <li className="flex items-start gap-3 py-3">
       <span className="w-6 shrink-0 pt-0.5 text-xs tabular-nums text-muted-foreground">
@@ -213,6 +276,85 @@ function EngagerRow({ engager, rank }: { engager: EngagerScore; rank: number }) 
           ) : null}
           <span>last · {recencyLabel}</span>
         </div>
+
+        {/* Engage-back actions — only when we have the comment URN to act on. */}
+        {canReact ? (
+          <div className="flex items-center gap-1 pt-1">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 gap-1.5 px-2 text-xs"
+              onClick={() => react.mutate()}
+              disabled={react.isPending || liked}
+              aria-pressed={liked}
+              title={liked ? "You liked this comment" : "Like this comment"}
+            >
+              {react.isPending ? (
+                <Loader2 className="size-3.5 animate-spin motion-reduce:animate-none" />
+              ) : (
+                <ThumbsUp className="size-3.5" />
+              )}
+              {liked ? "Liked" : "Like"}
+            </Button>
+            {canReply ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 gap-1.5 px-2 text-xs"
+                onClick={() => setReplyOpen((o) => !o)}
+                aria-expanded={replyOpen}
+              >
+                <MessageSquare className="size-3.5" />
+                Reply
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
+
+        {replyOpen && canReply ? (
+          <div className="space-y-1.5 pt-1">
+            <Textarea
+              value={replyText}
+              onChange={(e) => setReplyText(e.target.value)}
+              placeholder="Write a reply…"
+              rows={2}
+              maxLength={COMMENT_MAX}
+              className="resize-none text-sm"
+              aria-label="Reply to this comment"
+            />
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] tabular-nums text-muted-foreground">
+                {replyText.length}/{COMMENT_MAX}
+              </span>
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => {
+                    setReplyOpen(false);
+                    setReplyText("");
+                  }}
+                >
+                  <X className="size-3.5 mr-1" /> Cancel
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => reply.mutate(trimmedReply)}
+                  disabled={replyDisabled}
+                  aria-busy={reply.isPending}
+                >
+                  {reply.isPending ? "Posting…" : "Reply"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </div>
       <div className="shrink-0 text-right">
         <div
