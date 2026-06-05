@@ -326,7 +326,7 @@ function EngagerRow({ engager, rank }: { engager: EngagerScore; rank: number }) 
             />
             <div className="flex items-center justify-between">
               <span className="text-[10px] tabular-nums text-muted-foreground">
-                {trimmedReply.length}/{COMMENT_MAX}
+                {replyText.length}/{COMMENT_MAX}
               </span>
               <div className="flex items-center gap-1">
                 <Button
