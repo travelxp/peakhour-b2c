@@ -357,15 +357,14 @@ export function PostComposer({ identity, seedText }: Props) {
   }
 
   /** Toggle the poll editor. Turning it on clears the link (a poll is an
-   *  exclusive content block); turning it off drops the poll fields. */
+   *  exclusive content block); clearing the link on toggle-off is a harmless
+   *  no-op (the link affordance is hidden while a poll is active). All four
+   *  setters batch in the one event tick — no nested-updater impurity. */
   const togglePoll = useCallback(() => {
-    setPoll((prev) => {
-      if (prev) return null;
-      setShowLink(false);
-      setLinkUrl("");
-      setLinkTitle("");
-      return emptyPoll();
-    });
+    setPoll((prev) => (prev ? null : emptyPoll()));
+    setShowLink(false);
+    setLinkUrl("");
+    setLinkTitle("");
   }, []);
 
   const remaining = MAX_LEN - text.length;
@@ -406,7 +405,7 @@ export function PostComposer({ identity, seedText }: Props) {
       // and drop blank options (the server validates 2–4 / lengths too).
       body.poll = {
         question: poll.question.trim(),
-        options: poll.options.map((o) => o.trim()).filter((o) => o.length > 0),
+        options: poll.options.map((o) => o.text.trim()).filter((o) => o.length > 0),
         duration: poll.duration,
       };
     } else if (showLink && linkUrl.trim()) {
@@ -615,8 +614,12 @@ export function PostComposer({ identity, seedText }: Props) {
   );
 
   // ── Schedule view ───────────────────────────────────────────────
-  // Early return is AFTER all hooks above — safe.
-  if (mode === "schedule") {
+  // Early return is AFTER all hooks above — safe. Guarded on !pollActive:
+  // the scheduler payload carries no poll, so a poll must never reach this
+  // branch (every entry into schedule mode is already gated on pollActive —
+  // this is belt-and-suspenders so a future entry point can't silently
+  // schedule a poll as plain text).
+  if (mode === "schedule" && !pollActive) {
     return (
       <ComposerShell
         mode="schedule"
@@ -733,6 +736,11 @@ export function PostComposer({ identity, seedText }: Props) {
             onClick={() => setMode("schedule")}
             disabled={scheduleDisabled}
             className="gap-1.5"
+            title={
+              pollActive
+                ? "Polls can't be scheduled yet — publish now, or remove the poll to schedule."
+                : undefined
+            }
           >
             <CalendarClock className="size-4" /> Schedule
           </Button>

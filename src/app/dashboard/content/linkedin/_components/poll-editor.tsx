@@ -19,29 +19,49 @@ export const POLL_OPTION_MAX = 30;
 export const POLL_MIN_OPTIONS = 2;
 export const POLL_MAX_OPTIONS = 4;
 
+/** An editor option. The `id` is a stable React key so removing an option
+ *  mid-edit doesn't smear focus/caret across the remaining inputs (index keys
+ *  would). It never leaves the editor — submit sends only the text. */
+export interface PollOption {
+  id: string;
+  text: string;
+}
+
 export interface PollState {
   question: string;
   /** Always holds 2–4 entries in the editor; blanks are dropped on submit. */
-  options: string[];
+  options: PollOption[];
   duration: LinkedInPollDuration;
+}
+
+function newOption(): PollOption {
+  return { id: crypto.randomUUID(), text: "" };
 }
 
 /** A fresh poll with two empty options and a sensible default duration. */
 export function emptyPoll(): PollState {
-  return { question: "", options: ["", ""], duration: "SEVEN_DAYS" };
+  return { question: "", options: [newOption(), newOption()], duration: "SEVEN_DAYS" };
+}
+
+/** Normalize an option for comparison/dedup (trim + case-fold). */
+function normalizeOption(text: string): string {
+  return text.trim().toLowerCase();
 }
 
 /**
  * Whether the poll is publishable: a non-empty question within length, and
- * 2–4 non-blank options each within length. Mirrors the server's
- * `buildPollContent` rules so the button state matches the API.
+ * 2–4 non-blank, DISTINCT options each within length. Mirrors the server's
+ * `buildPollContent` rules (LinkedIn also rejects duplicate option text), so
+ * the publish button state matches what the API will accept.
  */
 export function isPollValid(poll: PollState): boolean {
   const question = poll.question.trim();
   if (question.length === 0 || question.length > POLL_QUESTION_MAX) return false;
-  const options = poll.options.map((o) => o.trim()).filter((o) => o.length > 0);
-  if (options.length < POLL_MIN_OPTIONS || options.length > POLL_MAX_OPTIONS) return false;
-  return options.every((o) => o.length <= POLL_OPTION_MAX);
+  const texts = poll.options.map((o) => o.text.trim()).filter((o) => o.length > 0);
+  if (texts.length < POLL_MIN_OPTIONS || texts.length > POLL_MAX_OPTIONS) return false;
+  if (texts.some((o) => o.length > POLL_OPTION_MAX)) return false;
+  const distinct = new Set(texts.map((o) => o.toLowerCase()));
+  return distinct.size === texts.length;
 }
 
 const DURATION_LABELS: Record<LinkedInPollDuration, string> = {
@@ -71,21 +91,29 @@ export function PollEditor({
   onChange: (next: PollState) => void;
   onRemove: () => void;
 }) {
-  const setOption = (index: number, text: string) => {
-    const options = value.options.slice();
-    options[index] = text;
-    onChange({ ...value, options });
+  const setOption = (id: string, text: string) => {
+    onChange({
+      ...value,
+      options: value.options.map((o) => (o.id === id ? { ...o, text } : o)),
+    });
   };
   const addOption = () => {
     if (value.options.length >= POLL_MAX_OPTIONS) return;
-    onChange({ ...value, options: [...value.options, ""] });
+    onChange({ ...value, options: [...value.options, newOption()] });
   };
-  const removeOption = (index: number) => {
+  const removeOption = (id: string) => {
     if (value.options.length <= POLL_MIN_OPTIONS) return;
-    onChange({ ...value, options: value.options.filter((_, i) => i !== index) });
+    onChange({ ...value, options: value.options.filter((o) => o.id !== id) });
   };
 
-  const questionTooLong = value.question.trim().length > POLL_QUESTION_MAX;
+  // Flag any option whose (trimmed, case-folded) text duplicates another so we
+  // can show an inline hint instead of letting LinkedIn reject the post.
+  const seen = new Map<string, number>();
+  for (const o of value.options) {
+    const key = normalizeOption(o.text);
+    if (key) seen.set(key, (seen.get(key) ?? 0) + 1);
+  }
+  const hasDuplicates = [...seen.values()].some((n) => n > 1);
 
   return (
     <div className="space-y-3 rounded-md border p-3">
@@ -105,7 +133,6 @@ export function PollEditor({
           placeholder="Ask a question…"
           maxLength={POLL_QUESTION_MAX}
           aria-label="Poll question"
-          aria-invalid={questionTooLong}
         />
         <p className="text-right text-[11px] text-muted-foreground tabular-nums">
           {value.question.trim().length}/{POLL_QUESTION_MAX}
@@ -113,29 +140,36 @@ export function PollEditor({
       </div>
 
       <div className="space-y-2">
-        {value.options.map((opt, i) => (
-          <div key={i} className="flex items-center gap-2">
-            <Input
-              value={opt}
-              onChange={(e) => setOption(i, e.target.value)}
-              placeholder={`Option ${i + 1}`}
-              maxLength={POLL_OPTION_MAX}
-              aria-label={`Poll option ${i + 1}`}
-            />
-            {value.options.length > POLL_MIN_OPTIONS && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="size-8 shrink-0"
-                onClick={() => removeOption(i)}
-                aria-label={`Remove option ${i + 1}`}
-              >
-                <X className="size-3.5" />
-              </Button>
-            )}
-          </div>
-        ))}
+        {value.options.map((opt, i) => {
+          const isDup = opt.text.trim().length > 0 && (seen.get(normalizeOption(opt.text)) ?? 0) > 1;
+          return (
+            <div key={opt.id} className="flex items-center gap-2">
+              <Input
+                value={opt.text}
+                onChange={(e) => setOption(opt.id, e.target.value)}
+                placeholder={`Option ${i + 1}`}
+                maxLength={POLL_OPTION_MAX}
+                aria-label={`Poll option ${i + 1}`}
+                aria-invalid={isDup}
+              />
+              {value.options.length > POLL_MIN_OPTIONS && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-8 shrink-0"
+                  onClick={() => removeOption(opt.id)}
+                  aria-label={`Remove option ${i + 1}`}
+                >
+                  <X className="size-3.5" />
+                </Button>
+              )}
+            </div>
+          );
+        })}
+        {hasDuplicates && (
+          <p className="text-xs text-destructive">Poll options must be unique.</p>
+        )}
         {value.options.length < POLL_MAX_OPTIONS && (
           <Button
             type="button"
