@@ -114,23 +114,30 @@ export function middleware(req: NextRequest) {
   const isPublicPath = PUBLIC_PATHS.some(
     (p) => pathname === p || pathname.startsWith(`${p}/`),
   );
-  // Authenticated-session bypass. The b2c access/refresh cookies are scoped to
-  // the root domain (.peakhour.ai) and so are visible here. An approved launch
-  // partner who has signed in carries `refresh_token` (30d) — let them reach
-  // the real app instead of the teaser, otherwise the sign-in button is a dead
-  // end while the gate is on. This is a SOFT gate: presence ≠ validity. A
-  // crafted/garbage cookie bypasses the teaser but the app's own auth guard
-  // (AuthProvider → /v1/auth/me) immediately bounces an invalid session back to
-  // /auth, so no gated data leaks. Acceptable pre-launch; the real access
-  // control is the magic-link approval gate, not this teaser.
+  // Authenticated-session bypass — SCOPED TO APP ROUTES ONLY. The b2c
+  // access/refresh cookies are scoped to the root domain (.peakhour.ai) and so
+  // are visible here. An approved launch partner who has signed in carries
+  // `refresh_token` (30d) and must be able to reach the real app — but ONLY the
+  // app, not the public marketing pages. Without the route scope, a signed-in
+  // user (or anyone with a stale .peakhour.ai cookie from dev) bypassed the
+  // teaser on `/` too and landed on the marketing homepage instead of "coming
+  // soon". So the bypass applies only under /dashboard, /onboarding, /cms; the
+  // homepage and every marketing/legal route still show the teaser to EVERYONE
+  // while the gate is on. Soft gate: presence ≠ validity — the app's own auth
+  // guard (AuthProvider → /v1/auth/me) bounces an invalid session back to /auth.
+  const APP_PREFIXES = ["/dashboard", "/onboarding", "/cms"];
+  const isAppRoute = APP_PREFIXES.some(
+    (p) => pathname === p || pathname.startsWith(`${p}/`),
+  );
   const hasSession =
     !!req.cookies.get("access_token")?.value ||
     !!req.cookies.get("refresh_token")?.value;
+  const sessionBypass = hasSession && isAppRoute;
   const gated =
     comingSoon &&
     pathname !== "/coming-soon" &&
     !isPublicPath &&
-    !hasSession &&
+    !sessionBypass &&
     !grantPreview &&
     !hasPreviewCookie;
 
