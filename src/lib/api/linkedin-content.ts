@@ -6,12 +6,26 @@ export type LinkedInAuthor =
   | { type: "person" }
   | { type: "org"; pageId: string };
 
+/** How long a LinkedIn poll accepts votes. */
+export type LinkedInPollDuration = "ONE_DAY" | "THREE_DAYS" | "SEVEN_DAYS" | "FOURTEEN_DAYS";
+
+/** Native LinkedIn poll (CMA D5). 2–4 options; question ≤140, options ≤30
+ *  each. A poll is an exclusive content block (no link/images). */
+export interface LinkedInPollInput {
+  question: string;
+  options: string[];
+  duration: LinkedInPollDuration;
+}
+
 export interface PublishLinkedInPostInput {
   author: LinkedInAuthor;
   commentary: string;
   visibility?: LinkedInVisibility;
   link?: { url: string; title?: string; description?: string };
   imageUrns?: string[];
+  /** Native poll content (CMA D5). Mutually exclusive with `link`/images;
+   *  `commentary` still shows as the text above the poll. */
+  poll?: LinkedInPollInput;
   /** Optional cnt_ideas pointer — wires the post into the source-usage
    *  audit pipeline so retrieved-source citations + claim extraction
    *  fire when this LinkedIn post ships. Omit for ad-hoc posts. */
