@@ -32,6 +32,7 @@ import {
   HoverCardTrigger,
 } from "@/components/ui/hover-card";
 import {
+  AtSign,
   CalendarClock,
   ChevronDown,
   GalleryHorizontalEnd,
@@ -63,6 +64,7 @@ import {
 } from "@/lib/api/linkedin-content";
 import { CarouselPreviewDialog } from "./carousel-preview-dialog";
 import { PollEditor, emptyPoll, isPollValid, type PollState } from "./poll-editor";
+import { buildCommentarySegments, type ResolvedMention } from "./commentary-segments";
 import { ApiError } from "@/lib/api";
 import { rewriteContent, createDraft, updateDraft, type ComposerDraftRef } from "@/lib/api/content";
 import { insertAtCaret } from "@/lib/composer/caret";
@@ -73,11 +75,13 @@ import {
   DraftSaver,
   EmojiPickerTrigger,
   HashtagSuggest,
+  MentionTypeahead,
   PlatformCharCounter,
   useDraftSaver,
   type AiActionContext,
   type ComposerCommand,
   type HashtagCandidate,
+  type MentionCandidate,
   type RewriteOp,
   type VoiceCardSummary,
 } from "@/components/composer";
@@ -168,6 +172,10 @@ export function PostComposer({ identity, seedText }: Props) {
   // turning it on clears the link, and carousel/schedule are disabled while it
   // is active (the carousel + scheduler paths don't carry a poll).
   const [poll, setPoll] = useState<PollState | null>(null);
+  // Org @mentions (CMA D4) the user inserted via the typeahead, deduped by URN.
+  // The inserted `@<name>` text alone can't carry the URN, so we record it here
+  // and serialize text → commentarySegments on publish.
+  const [mentions, setMentions] = useState<ResolvedMention[]>([]);
   const [feedback, setFeedback] = useState<{ kind: "success" | "error"; message: string } | null>(null);
 
   // Author picker — discriminated union string keys for the Select.
@@ -351,6 +359,7 @@ export function PostComposer({ identity, seedText }: Props) {
     setLinkTitle("");
     setShowLink(false);
     setPoll(null);
+    setMentions([]);
     setVariants(null);
     setDraftId(null);
     setMode("compose");
@@ -396,9 +405,19 @@ export function PostComposer({ identity, seedText }: Props) {
 
     const body: PublishLinkedInPostInput = {
       author,
-      commentary: text.trim(),
       visibility: effectiveVisibility,
     };
+
+    // Structured commentary (CMA D4): when the user inserted org @mentions that
+    // still appear in the text, send segments so the URNs link. Otherwise send
+    // the raw string (which also lets LinkedIn auto-link plain #hashtags). Poll
+    // posts use the raw path — a poll's intro text isn't segmented here.
+    const segments = poll ? null : buildCommentarySegments(text.trim(), mentions);
+    if (segments) {
+      body.commentarySegments = segments;
+    } else {
+      body.commentary = text.trim();
+    }
 
     if (poll) {
       // A poll is exclusive — never combine it with a link. Trim the question
@@ -502,6 +521,37 @@ export function PostComposer({ identity, seedText }: Props) {
     [],
   );
 
+  // Org @mention typeahead (CMA D4). org-lookup is an EXACT vanity-handle
+  // resolver (people search is closed), so a match surfaces once the user has
+  // typed the full handle. The candidate's `handle` is the org's display name —
+  // that's the text inserted as `@<name>` AND the text LinkedIn must match to
+  // render the mention. `id` carries the org URN for the mention segment.
+  const searchMentions = useCallback(
+    async (query: string, signal: AbortSignal): Promise<MentionCandidate[]> => {
+      try {
+        const { organizations } = await linkedInContentApi.orgLookup(query);
+        if (signal.aborted) return [];
+        return organizations.map((o) => ({
+          id: o.urn,
+          handle: o.name,
+          displayName: o.name,
+        }));
+      } catch {
+        // 403 / not-connected / network — surface no matches, never an error.
+        return [];
+      }
+    },
+    [],
+  );
+
+  // Record a picked org so publish can resolve its `@<name>` token → a mention
+  // segment with the URN. Dedupe by URN (the same org may be mentioned twice).
+  const handlePickMention = useCallback((c: MentionCandidate) => {
+    setMentions((prev) =>
+      prev.some((m) => m.urn === c.id) ? prev : [...prev, { name: c.handle, urn: c.id }],
+    );
+  }, []);
+
   function updateCaret(e: { currentTarget: HTMLTextAreaElement }) {
     setCaret(e.currentTarget.selectionStart ?? 0);
   }
@@ -526,6 +576,11 @@ export function PostComposer({ identity, seedText }: Props) {
     // scheduler's linkedin publisher adapter reads (authorUrn /
     // visibility / link) so a scheduled post fires with the SAME author
     // + visibility + link the user picked here.
+    // NOTE: the scheduler adapter publishes the raw text only — it does not
+    // carry commentary SEGMENTS, so org @mentions in a SCHEDULED post post as
+    // plain `@Name` text (not linked). Immediate publish links them. Threading
+    // segments through the scheduler is a follow-up; surfaced via the mention
+    // hint below so the user isn't surprised.
     const channelOptions: Record<string, unknown> = {
       authorUrn: isOrgAuthor
         ? `urn:li:organization:${authorKey.slice("org:".length)}`
@@ -844,6 +899,44 @@ export function PostComposer({ identity, seedText }: Props) {
         onSearch={searchHashtags}
         minQueryLength={2}
       />
+      <MentionTypeahead
+        containerRef={composerWrapRef}
+        targetRef={textareaRef}
+        text={text}
+        caret={caret}
+        onChange={setText}
+        onSearch={searchMentions}
+        onPick={handlePickMention}
+        minQueryLength={2}
+      />
+
+      {mentions.length > 0 && (
+        <div className="space-y-1">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Mentions</span>
+            {mentions.map((m) => (
+              <span
+                key={m.urn}
+                className="inline-flex items-center gap-1 rounded-full border bg-muted/40 px-2 py-0.5 text-xs"
+              >
+                <AtSign className="size-3 text-muted-foreground" />
+                {m.name}
+                <button
+                  type="button"
+                  onClick={() => setMentions((prev) => prev.filter((x) => x.urn !== m.urn))}
+                  className="text-muted-foreground hover:text-foreground"
+                  aria-label={`Unlink mention ${m.name}`}
+                >
+                  <X className="size-3" />
+                </button>
+              </span>
+            ))}
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            Mentions link when you publish now. Scheduled posts send them as plain text.
+          </p>
+        </div>
+      )}
 
       <div className="flex items-center gap-2">
         <EmojiPickerTrigger onInsert={insertSnippet} />

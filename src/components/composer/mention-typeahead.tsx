@@ -101,6 +101,11 @@ export interface MentionTypeaheadProps {
    *  function reference is stashed in a ref so passing an inline
    *  lambda from the host won't re-fire the debounce. */
   onSearch: (query: string, signal: AbortSignal) => Promise<MentionCandidate[]>;
+  /** Optional: called with the picked candidate when the user selects one.
+   *  The host uses this to record the candidate's id/URN (the inserted text
+   *  alone can't carry it) — e.g. to build a LinkedIn mention segment. Fires
+   *  alongside the `onChange` that inserts `@<handle>` into the text. */
+  onPick?: (candidate: MentionCandidate) => void;
   /** Minimum query length before firing onSearch. Default 1 (most
    *  platforms accept single-char prefixes — bump to 2 for noisier
    *  datasets). */
@@ -134,6 +139,7 @@ export function MentionTypeahead({
   caret,
   onChange,
   onSearch,
+  onPick,
   minQueryLength = 1,
 }: MentionTypeaheadProps) {
   const detected = useMemo(() => detectMention(text, caret), [text, caret]);
@@ -220,6 +226,9 @@ export function MentionTypeahead({
       const insert = `@${c.handle} `;
       const next = before + insert + after;
       onChange(next);
+      // Let the host record the picked candidate's id/URN — the inserted
+      // `@<handle>` text alone can't carry it.
+      onPick?.(c);
       const newCaret = liveDetected.start + insert.length;
       requestAnimationFrame(() => {
         const elNow = targetRef.current;
@@ -228,7 +237,7 @@ export function MentionTypeahead({
         elNow.setSelectionRange(newCaret, newCaret);
       });
     },
-    [text, caret, onChange, targetRef],
+    [text, caret, onChange, onPick, targetRef],
   );
 
   // Window-level keyboard handler — only active when popover is open.
