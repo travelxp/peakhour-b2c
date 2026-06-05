@@ -219,6 +219,10 @@ export interface EngagerScore {
      *  reply to it (createComment parentComment) or react to it
      *  (createReaction). `""` for legacy rows synced before it was captured. */
     lastCommentUrn: string;
+    /** Author URN of the post the engager's most recent comment landed on —
+     *  lets the panel default "engage as the brand page" when it's an org post
+     *  the user manages. `""` for legacy rows. */
+    lastParentPostAuthorUrn: string;
   };
 }
 
