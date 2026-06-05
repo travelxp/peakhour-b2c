@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { SITE } from "@/lib/utils";
+import { Logo } from "@/components/shared/logo";
 
 const FOOTER_LINKS = [
   { href: "/contact", label: "Contact" },
@@ -14,12 +15,7 @@ export function Footer() {
     <footer className="border-t bg-muted/30">
       <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
         <div className="flex flex-col items-center justify-between gap-6 sm:flex-row">
-          <div className="flex items-center gap-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary">
-              <span className="text-xs font-bold text-primary-foreground">P</span>
-            </div>
-            <span className="text-sm font-semibold">{SITE.name}</span>
-          </div>
+          <Logo className="h-6" />
 
           <nav className="flex items-center gap-6">
             {FOOTER_LINKS.map((link) => (
