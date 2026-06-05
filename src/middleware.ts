@@ -92,10 +92,14 @@ export function middleware(req: NextRequest) {
     !!previewSecret &&
     req.cookies.get(PREVIEW_COOKIE)?.value === previewSecret;
   // Pages that stay PUBLICLY reachable even while the coming-soon gate is on.
-  // Two reasons: (1) legal/compliance pages — Meta, Google, X, LinkedIn etc.
+  // Three reasons: (1) legal/compliance pages — Meta, Google, X, LinkedIn etc.
   // fetch these URLs to validate app/developer onboarding, and they must
   // resolve to the real document (not the teaser) before launch; (2) the
-  // pre-launch /launch-partner capture, linked from the coming-soon CTAs.
+  // pre-launch /launch-partner capture, linked from the coming-soon CTAs;
+  // (3) /auth (and /auth/verify) — the invite-only sign-in entry for approved
+  // launch partners (e.g. quests.travel). The page itself reveals nothing
+  // sensitive; the magic-link endpoint only sends a real link to ops-approved
+  // emails (see peakhour-api auth/magic-link.ts), so exposing the form is safe.
   // This is a plain allowlist entry on the already-running middleware — it
   // adds NO new edge function (the middleware runs on every request for the
   // CSP nonce regardless).
@@ -105,14 +109,28 @@ export function middleware(req: NextRequest) {
     "/cookie-policy",
     "/data-deletion",
     "/launch-partner",
+    "/auth",
   ];
   const isPublicPath = PUBLIC_PATHS.some(
     (p) => pathname === p || pathname.startsWith(`${p}/`),
   );
+  // Authenticated-session bypass. The b2c access/refresh cookies are scoped to
+  // the root domain (.peakhour.ai) and so are visible here. An approved launch
+  // partner who has signed in carries `refresh_token` (30d) — let them reach
+  // the real app instead of the teaser, otherwise the sign-in button is a dead
+  // end while the gate is on. This is a SOFT gate: presence ≠ validity. A
+  // crafted/garbage cookie bypasses the teaser but the app's own auth guard
+  // (AuthProvider → /v1/auth/me) immediately bounces an invalid session back to
+  // /auth, so no gated data leaks. Acceptable pre-launch; the real access
+  // control is the magic-link approval gate, not this teaser.
+  const hasSession =
+    !!req.cookies.get("access_token")?.value ||
+    !!req.cookies.get("refresh_token")?.value;
   const gated =
     comingSoon &&
     pathname !== "/coming-soon" &&
     !isPublicPath &&
+    !hasSession &&
     !grantPreview &&
     !hasPreviewCookie;
 

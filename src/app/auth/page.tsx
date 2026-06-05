@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { Clock, Sparkles, ArrowRight } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { sendMagicLink } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
@@ -40,6 +41,10 @@ type Status =
       resendError?: string;
     }
   | { kind: "resending"; email: string; cooldownEndsAt: number }
+  // Pre-launch invite-only outcomes (no link sent). `waitlisted` = applied
+  // but not yet approved; `notEligible` = not on the launch list at all.
+  | { kind: "waitlisted"; email: string }
+  | { kind: "notEligible"; email: string }
   | { kind: "error"; message: string };
 
 // peakhour-api enforces a hard 60s rate limit between magic-link
@@ -168,7 +173,19 @@ function AuthPageInner() {
         : Date.now() + RESEND_COOLDOWN_SECONDS * 1000;
 
     try {
-      await sendMagicLink(targetEmail);
+      const res = await sendMagicLink(targetEmail);
+      // Pre-launch invite gate: the endpoint may return without sending a
+      // link. Branch to the matching card instead of the "check your email"
+      // cooldown. `sent` (or a legacy response with no `outcome`) falls
+      // through to the normal cooldown card.
+      if (res.outcome === "waitlisted") {
+        setStatus({ kind: "waitlisted", email: targetEmail });
+        return;
+      }
+      if (res.outcome === "not_found") {
+        setStatus({ kind: "notEligible", email: targetEmail });
+        return;
+      }
       setStatus({
         kind: "sent",
         email: targetEmail,
@@ -286,7 +303,61 @@ function AuthPageInner() {
       {/* Right panel — auth form */}
       <div className="flex flex-1 flex-col">
         <div className="flex flex-1 items-center justify-center px-4 py-12">
-          {isCoolingDown ? (
+          {status.kind === "waitlisted" ? (
+            <Card className="w-full max-w-md">
+              <CardHeader className="text-center">
+                <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-950">
+                  <Sparkles className="h-7 w-7 text-amber-600 dark:text-amber-400" aria-hidden />
+                </div>
+                <CardTitle className="text-2xl font-bold">You&apos;re on the watchlist</CardTitle>
+                <CardDescription>
+                  We found <strong>{status.email}</strong> on the list.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3 text-center">
+                <p className="text-sm text-muted-foreground">
+                  Sign-in is invite-only while we onboard launch partners.
+                  We&apos;ll email your sign-in link the moment your invite is
+                  ready — it&apos;ll be worth the wait.
+                </p>
+              </CardContent>
+              <CardFooter>
+                <Button variant="outline" className="w-full" onClick={handleReset}>
+                  Use a different email
+                </Button>
+              </CardFooter>
+            </Card>
+          ) : status.kind === "notEligible" ? (
+            <Card className="w-full max-w-md">
+              <CardHeader className="text-center">
+                <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
+                  <Clock className="h-7 w-7 text-primary" aria-hidden />
+                </div>
+                <CardTitle className="text-2xl font-bold">You&apos;re not on the list yet</CardTitle>
+                <CardDescription>
+                  <strong>{status.email}</strong> isn&apos;t on our launch list.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="text-center">
+                <p className="text-sm text-muted-foreground">
+                  {SITE.name} is invite-only right now. Apply to become a launch
+                  partner and we&apos;ll add you to the waitlist — the wait will
+                  be worth it.
+                </p>
+              </CardContent>
+              <CardFooter className="flex flex-col gap-2">
+                <Button asChild className="w-full">
+                  <Link href="/launch-partner">
+                    Become a launch partner
+                    <ArrowRight className="ml-1 size-4" aria-hidden />
+                  </Link>
+                </Button>
+                <Button variant="outline" className="w-full" onClick={handleReset}>
+                  Use a different email
+                </Button>
+              </CardFooter>
+            </Card>
+          ) : isCoolingDown ? (
             <Card className="w-full max-w-md">
               <CardHeader className="text-center">
                 <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
