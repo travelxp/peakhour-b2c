@@ -36,6 +36,7 @@ import {
   ChevronDown,
   GalleryHorizontalEnd,
   Link2,
+  ListChecks,
   Loader2,
   Mic,
   Send,
@@ -61,6 +62,7 @@ import {
   type RewriteHookResponse,
 } from "@/lib/api/linkedin-content";
 import { CarouselPreviewDialog } from "./carousel-preview-dialog";
+import { PollEditor, emptyPoll, isPollValid, type PollState } from "./poll-editor";
 import { ApiError } from "@/lib/api";
 import { rewriteContent, createDraft, updateDraft, type ComposerDraftRef } from "@/lib/api/content";
 import { insertAtCaret } from "@/lib/composer/caret";
@@ -162,6 +164,10 @@ export function PostComposer({ identity, seedText }: Props) {
   const [showLink, setShowLink] = useState(false);
   const [linkUrl, setLinkUrl] = useState("");
   const [linkTitle, setLinkTitle] = useState("");
+  // Poll (CMA D5). null = no poll. A poll is an exclusive content block, so
+  // turning it on clears the link, and carousel/schedule are disabled while it
+  // is active (the carousel + scheduler paths don't carry a poll).
+  const [poll, setPoll] = useState<PollState | null>(null);
   const [feedback, setFeedback] = useState<{ kind: "success" | "error"; message: string } | null>(null);
 
   // Author picker — discriminated union string keys for the Select.
@@ -344,23 +350,42 @@ export function PostComposer({ identity, seedText }: Props) {
     setLinkUrl("");
     setLinkTitle("");
     setShowLink(false);
+    setPoll(null);
     setVariants(null);
     setDraftId(null);
     setMode("compose");
   }
+
+  /** Toggle the poll editor. Turning it on clears the link (a poll is an
+   *  exclusive content block); turning it off drops the poll fields. */
+  const togglePoll = useCallback(() => {
+    setPoll((prev) => {
+      if (prev) return null;
+      setShowLink(false);
+      setLinkUrl("");
+      setLinkTitle("");
+      return emptyPoll();
+    });
+  }, []);
 
   const remaining = MAX_LEN - text.length;
   const tooLong = remaining < 0;
   const empty = text.trim().length === 0;
   const linkInvalid = showLink && linkUrl.trim().length > 0 && !isProbablyUrl(linkUrl);
   const anyPending = publish.isPending || carousel.isPending;
-  const publishDisabled = empty || tooLong || anyPending || linkInvalid;
-  const scheduleDisabled = empty || tooLong || linkInvalid;
+  // A poll, when active, must be complete before publish. The commentary
+  // (text) is still required — it shows above the poll.
+  const pollActive = poll !== null;
+  const pollOk = !pollActive || isPollValid(poll);
+  const publishDisabled = empty || tooLong || anyPending || linkInvalid || !pollOk;
+  // Scheduling + carousel don't carry a poll, so they're unavailable while a
+  // poll is active.
+  const scheduleDisabled = empty || tooLong || linkInvalid || pollActive;
   // Carousel needs enough text to split into slides; a link card doesn't
   // apply to a carousel (it's a document post), so a pending/invalid link
   // doesn't block it — but the min-length + pending guards do.
   const carouselTooShort = text.trim().length < CAROUSEL_MIN_CHARS;
-  const carouselDisabled = empty || tooLong || carouselTooShort || anyPending;
+  const carouselDisabled = empty || tooLong || carouselTooShort || anyPending || pollActive;
 
   function onSubmit() {
     if (publishDisabled) return;
@@ -376,7 +401,15 @@ export function PostComposer({ identity, seedText }: Props) {
       visibility: effectiveVisibility,
     };
 
-    if (showLink && linkUrl.trim()) {
+    if (poll) {
+      // A poll is exclusive — never combine it with a link. Trim the question
+      // and drop blank options (the server validates 2–4 / lengths too).
+      body.poll = {
+        question: poll.question.trim(),
+        options: poll.options.map((o) => o.trim()).filter((o) => o.length > 0),
+        duration: poll.duration,
+      };
+    } else if (showLink && linkUrl.trim()) {
       body.link = {
         url: linkUrl.trim(),
         title: linkTitle.trim() || undefined,
@@ -567,11 +600,18 @@ export function PostComposer({ identity, seedText }: Props) {
         label: showLink ? "Link attached" : "Attach a link",
         group: "Compose",
         icon: Link2,
-        disabled: showLink,
+        disabled: showLink || pollActive,
         run: () => setShowLink(true),
       },
+      {
+        id: "toggle-poll",
+        label: pollActive ? "Remove poll" : "Add a poll",
+        group: "Compose",
+        icon: ListChecks,
+        run: togglePoll,
+      },
     ],
-    [handleAiAction, text, empty, scheduleDisabled, showLink],
+    [handleAiAction, text, empty, scheduleDisabled, showLink, pollActive, togglePoll],
   );
 
   // ── Schedule view ───────────────────────────────────────────────
@@ -698,6 +738,22 @@ export function PostComposer({ identity, seedText }: Props) {
           </Button>
           <Button
             type="button"
+            variant={pollActive ? "secondary" : "outline"}
+            size="sm"
+            onClick={togglePoll}
+            aria-pressed={pollActive}
+            className="gap-1.5"
+            title={
+              pollActive
+                ? "Remove the poll"
+                : "Add a poll (question + 2–4 options). Your text shows above the poll."
+            }
+          >
+            <ListChecks className="size-4" />
+            Poll
+          </Button>
+          <Button
+            type="button"
             variant="outline"
             size="sm"
             onClick={onCarousel}
@@ -783,7 +839,7 @@ export function PostComposer({ identity, seedText }: Props) {
 
       <div className="flex items-center gap-2">
         <EmojiPickerTrigger onInsert={insertSnippet} />
-        {!showLink && (
+        {!showLink && !pollActive && (
           <Button type="button" variant="ghost" size="sm" onClick={() => setShowLink(true)} className="h-7 gap-1.5 px-2 text-xs">
             <Link2 className="size-3.5" /> Add link
           </Button>
@@ -806,6 +862,10 @@ export function PostComposer({ identity, seedText }: Props) {
           onPick={applyVariant}
           onDismiss={() => setVariants(null)}
         />
+      )}
+
+      {poll && (
+        <PollEditor value={poll} onChange={setPoll} onRemove={() => setPoll(null)} />
       )}
 
       {showLink && (
