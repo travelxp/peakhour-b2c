@@ -160,8 +160,10 @@ export function PostComposer({ identity, seedText }: Props) {
       setText(seedText);
       // A seeded draft is a NEW composition — drop any prior draft id so
       // the next auto-save creates a fresh cnt_drafts row rather than
-      // overwriting the one the user just navigated away from.
+      // overwriting the one the user just navigated away from. Also clear
+      // recorded mentions so a stale URN can't ride along on the new text.
       setDraftId(null);
+      setMentions([]);
     }
   }, [seedText]);
   const [visibility, setVisibility] = useState<LinkedInVisibility>("PUBLIC");
@@ -484,11 +486,14 @@ export function PostComposer({ identity, seedText }: Props) {
   }, []);
 
   // ── AI compose toolbar handler ──────────────────────────────────
-  // Drop recorded mentions whose `@<name>` token no longer appears in the text
-  // (e.g. after an AI redraft / variant-apply replaced the body). Keeps the
-  // chips honest — without this they'd advertise mentions that won't link.
+  // Drop recorded mentions whose `@<name>` token no longer resolves in the text
+  // (e.g. after an AI redraft / variant-apply replaced the body). Uses the same
+  // boundary-aware serializer as publish, so a name that's merely a prefix of
+  // another retained mention isn't kept by a naive substring check.
   const pruneMentions = useCallback((nextText: string) => {
-    setMentions((prev) => prev.filter((m) => nextText.includes(`@${m.name}`)));
+    setMentions((prev) =>
+      prev.filter((m) => buildCommentarySegments(nextText, [m]) !== null),
+    );
   }, []);
 
   const handleAiAction = useCallback(
