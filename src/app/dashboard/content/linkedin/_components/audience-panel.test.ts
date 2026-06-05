@@ -15,6 +15,12 @@ describe("engageErrorMessage", () => {
     );
   });
 
+  it("nudges reconnect on NOT_CONNECTED (expired token on the write path)", () => {
+    expect(engageErrorMessage(new ApiError("NOT_CONNECTED", "raw", 400))).toMatch(
+      /reconnect linkedin/i,
+    );
+  });
+
   it("surfaces a rate-limit message on 429", () => {
     expect(engageErrorMessage(new ApiError("RATE_LIMITED", "raw", 429))).toMatch(
       /rate-limit/i,

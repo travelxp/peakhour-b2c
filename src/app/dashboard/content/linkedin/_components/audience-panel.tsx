@@ -23,7 +23,7 @@ const COMMENT_MAX = 1250; // LinkedIn comment cap (mirrors the api route)
  *  Exported for unit testing. */
 export function engageErrorMessage(err: unknown): string {
   if (err instanceof ApiError) {
-    if (err.code === "RECONNECT_REQUIRED" || err.status === 403) {
+    if (err.code === "RECONNECT_REQUIRED" || err.code === "NOT_CONNECTED" || err.status === 403) {
       return "Reconnect LinkedIn to reply and react (it needs the latest permissions).";
     }
     if (err.status === 429) return "LinkedIn is rate-limiting — try again in a moment.";
