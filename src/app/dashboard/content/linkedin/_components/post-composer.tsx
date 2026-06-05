@@ -265,7 +265,9 @@ export function PostComposer({ identity, seedText }: Props) {
     // Replace the hook with the picked variant, preserving any body
     // below the first blank-line boundary.
     const [, ...rest] = text.split(/\n\s*\n/);
-    setText(rest.length > 0 ? `${v.hook}\n\n${rest.join("\n\n")}` : v.hook);
+    const next = rest.length > 0 ? `${v.hook}\n\n${rest.join("\n\n")}` : v.hook;
+    setText(next);
+    pruneMentions(next);
     setVariants(null);
   }
 
@@ -482,6 +484,13 @@ export function PostComposer({ identity, seedText }: Props) {
   }, []);
 
   // ── AI compose toolbar handler ──────────────────────────────────
+  // Drop recorded mentions whose `@<name>` token no longer appears in the text
+  // (e.g. after an AI redraft / variant-apply replaced the body). Keeps the
+  // chips honest — without this they'd advertise mentions that won't link.
+  const pruneMentions = useCallback((nextText: string) => {
+    setMentions((prev) => prev.filter((m) => nextText.includes(`@${m.name}`)));
+  }, []);
+
   const handleAiAction = useCallback(
     async (ctx: AiActionContext): Promise<string> => {
       const res = await rewriteContent({
@@ -501,12 +510,13 @@ export function PostComposer({ identity, seedText }: Props) {
       } else {
         newText = res.text;
         setText(newText);
+        pruneMentions(newText); // a full-body replace can drop @mention tokens
         setVariants(null); // stale once the body changed
       }
       toast.success(aiOpToastMessage(ctx.op));
       return newText;
     },
-    [insertSnippet],
+    [insertSnippet, pruneMentions],
   );
 
   // No-op hashtag search — LinkedIn has no hashtag-history endpoint yet,

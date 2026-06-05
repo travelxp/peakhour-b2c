@@ -78,4 +78,26 @@ describe("buildCommentarySegments", () => {
       buildCommentarySegments("@Acme Corp", [{ name: "  ", urn: "urn:li:organization:9" }, acme]),
     ).toEqual([{ type: "mention", urn: "urn:li:organization:123", name: "Acme Corp" }]);
   });
+
+  it("matches a name containing regex-special characters as a literal token", () => {
+    const special: ResolvedMention = { name: "C++ (India)", urn: "urn:li:organization:7" };
+    expect(buildCommentarySegments("love @C++ (India) tools", [special])).toEqual([
+      { type: "text", value: "love " },
+      { type: "mention", urn: "urn:li:organization:7", name: "C++ (India)" },
+      { type: "text", value: " tools" },
+    ]);
+  });
+
+  it("does not match a single-word name glued to a longer word", () => {
+    const single: ResolvedMention = { name: "Acme", urn: "urn:li:organization:5" };
+    expect(buildCommentarySegments("see @Acmeworks", [single])).toBeNull();
+  });
+
+  it("serializes the matched mention and ignores an unmatched recorded one", () => {
+    const ghost: ResolvedMention = { name: "Ghost Inc", urn: "urn:li:organization:99" };
+    expect(buildCommentarySegments("hi @Acme Corp", [acme, ghost])).toEqual([
+      { type: "text", value: "hi " },
+      { type: "mention", urn: "urn:li:organization:123", name: "Acme Corp" },
+    ]);
+  });
 });
