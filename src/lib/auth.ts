@@ -116,10 +116,24 @@ export interface VerifyMagicResponse {
 
 // ── Magic Link ──────────────────────────────────────────────────
 
+/**
+ * Pre-launch sign-in is invite-only. The magic-link endpoint returns an
+ * `outcome` discriminator so the sign-in page can show the right card:
+ *   sent       — eligible (active member or ops-approved partner); link sent.
+ *   waitlisted — applied but not yet approved; tell them they're in line.
+ *   not_found  — no waitlist row; point them at the launch-partner apply form.
+ * `outcome` is optional for forward/backward-compat — absent is treated as
+ * "sent" (the legacy always-send behavior). Restored to always-"sent" at GA.
+ */
+export type MagicLinkOutcome = "sent" | "waitlisted" | "not_found";
+
 export async function sendMagicLink(
   email: string
-): Promise<{ message: string }> {
-  return api.post<{ message: string }>("/v1/auth/magic-link", { email });
+): Promise<{ outcome?: MagicLinkOutcome; message: string }> {
+  return api.post<{ outcome?: MagicLinkOutcome; message: string }>(
+    "/v1/auth/magic-link",
+    { email }
+  );
 }
 
 export async function verifyMagicLink(

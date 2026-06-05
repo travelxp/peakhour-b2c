@@ -5,7 +5,7 @@ import { SITE } from "@/lib/utils";
 export const metadata: Metadata = {
   title: "Peakhour — Autonomous Customer Engagement",
   description:
-    "Peakhour helps businesses stay responsive, uncover growth opportunities, and automate customer engagement across WhatsApp, web, voice and more — without needing a dedicated marketing team. Two solutions, one platform: Peakhour Commerce and Peakhour Marketing. Launching soon.",
+    "Peakhour helps businesses build visibility, engage customers, and unlock growth opportunities across every channel — without a full-scale marketing team. Two solutions, one platform: Peakhour Commerce and Peakhour Marketing. Launching soon.",
 };
 
 /**
@@ -29,6 +29,18 @@ export default function ComingSoonPage() {
         className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-1/2 bg-linear-to-b from-primary/5 to-transparent"
       />
 
+      {/* Sign in — for approved launch partners (e.g. quests.travel). Plain
+          <a> so it resolves straight through the coming-soon gate, which
+          allowlists /auth (see middleware.ts). The magic-link endpoint only
+          sends a real link to ops-approved emails; everyone else is routed to
+          the waitlist from the sign-in page itself. */}
+      <a
+        href="/auth"
+        className="absolute right-6 top-6 z-10 inline-flex items-center rounded-full border bg-background/80 px-4 py-2 text-sm font-medium text-foreground backdrop-blur transition-colors hover:bg-muted/60"
+      >
+        Sign in
+      </a>
+
       {/* ── Hero ─────────────────────────────────────────────── */}
       <section className="flex min-h-screen flex-col items-center justify-center px-6 text-center">
         <div className="mx-auto flex max-w-2xl flex-col items-center gap-7">
@@ -45,10 +57,9 @@ export default function ComingSoonPage() {
           </h1>
 
           <p className="max-w-xl text-balance text-lg text-muted-foreground">
-            {SITE.name} helps businesses stay responsive, uncover growth
-            opportunities, and automate customer engagement across WhatsApp,
-            web, voice and more &mdash; without needing a dedicated marketing
-            team.
+            {SITE.name} helps businesses build visibility, engage customers,
+            and unlock growth opportunities across every channel&mdash;without
+            a full-scale marketing team.
           </p>
 
           <div className="mt-2 flex flex-col items-center gap-3 sm:flex-row">

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
-import { ArrowLeft, Mail } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { SITE } from "@/lib/utils";
+import { LaunchPartnerForm } from "./launch-partner-form";
 
 export const metadata: Metadata = {
   title: "Become a Launch Partner — Peakhour",
@@ -8,32 +9,27 @@ export const metadata: Metadata = {
     "Join the Peakhour launch partner program. Work directly with our team to shape Peakhour Commerce and Peakhour Marketing, and get early access ahead of public launch.",
 };
 
-const PARTNER_EMAIL = SITE.contactGeneral;
-const MAILTO = `mailto:${PARTNER_EMAIL}?subject=${encodeURIComponent(
-  "Peakhour Launch Partner",
-)}&body=${encodeURIComponent(
-  "Hi Peakhour team,\n\nWe'd like to join as a launch partner.\n\nBusiness name:\nWebsite:\nWhat we sell / publish:\nPlatform (Shopify / WooCommerce / other):\nWhat we'd love help with:\n\nThanks!",
-)}`;
-
 /**
  * Pre-launch "Become a Launch Partner" capture. Self-contained (no Header/
  * Footer that link into the gated app), same monochrome aesthetic as the
  * coming-soon teaser. Reachable through the coming-soon gate because
  * /launch-partner is allowlisted in middleware (alongside the legal routes).
  *
- * V1 is intentionally a mailto capture (no backend / no new collection) —
- * pre-launch volume is low and a thread with the team is the right first
- * touch. Swap for a real form + API when volume warrants it.
+ * Applying = joining the waitlist (waitlist_signups). Ops approves applicants
+ * in the CMS (/admin/waitlist → Invite); approval is what unlocks the
+ * magic-link sign-in. No email address is exposed — the funnel is
+ * apply -> approve -> sign in. The interactive form lives in a client
+ * component so this page stays a server component for metadata.
  */
 export default function LaunchPartnerPage() {
   return (
-    <main className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-6 text-center">
+    <main className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-6 py-16 text-center">
       <div
         aria-hidden
         className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-1/2 bg-linear-to-b from-primary/5 to-transparent"
       />
 
-      <div className="mx-auto flex max-w-xl flex-col items-center gap-7">
+      <div className="mx-auto flex w-full max-w-xl flex-col items-center gap-7">
         <span className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
           Launch Partner Program
         </span>
@@ -49,23 +45,7 @@ export default function LaunchPartnerPage() {
           hands-on setup.
         </p>
 
-        <a
-          href={MAILTO}
-          className="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
-        >
-          <Mail className="size-4" aria-hidden />
-          Email us to apply
-        </a>
-
-        <p className="text-xs text-muted-foreground">
-          Or write to{" "}
-          <a
-            href={`mailto:${PARTNER_EMAIL}`}
-            className="font-medium text-foreground underline-offset-4 hover:underline"
-          >
-            {PARTNER_EMAIL}
-          </a>
-        </p>
+        <LaunchPartnerForm />
 
         <a
           href="/coming-soon"
