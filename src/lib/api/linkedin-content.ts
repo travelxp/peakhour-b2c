@@ -215,6 +215,10 @@ export interface EngagerScore {
     firstCommentedAt: string;
     lastCommentText: string;
     lastParentPostUrn: string;
+    /** Composite URN of the engager's most recent comment — lets the panel
+     *  reply to it (createComment parentComment) or react to it
+     *  (createReaction). `""` for legacy rows synced before it was captured. */
+    lastCommentUrn: string;
   };
 }
 
@@ -387,6 +391,18 @@ export const linkedInContentApi = {
     ),
 
   /**
+   * React to a post OR a comment as the member or an org page. `entityUrn` is
+   * the target's full URN — a post (`urn:li:share:*` / `urn:li:ugcPost:*`) or a
+   * comment (`urn:li:comment:(...)`). Same `RECONNECT_REQUIRED` (403) contract
+   * as createComment when the `_feed` scope is missing.
+   */
+  createReaction: (entityUrn: string, body: CreateReactionInput) =>
+    api.post<{ reacted: boolean; reactionType: string }>(
+      `/v1/linkedin/content/posts/${encodeURIComponent(entityUrn)}/reactions`,
+      body,
+    ),
+
+  /**
    * Repurpose a piece of long-form text into a LinkedIn document "carousel"
    * (PDF, one AI-rendered slide per section). LONG-RUNNING — the server
    * generates an image per slide, so a 5-slide carousel can take 30–60s; the
@@ -453,6 +469,20 @@ export interface CreateCommentInput {
   text: string;
   /** Composite parent comment URN — set to reply to a comment, not the post. */
   parentCommentUrn?: string;
+}
+
+/** LinkedIn reaction types the API accepts (MAYBE is deprecated → excluded). */
+export type LinkedInReactionType =
+  | "LIKE"
+  | "PRAISE"
+  | "EMPATHY"
+  | "INTEREST"
+  | "APPRECIATION"
+  | "ENTERTAINMENT";
+
+export interface CreateReactionInput {
+  author: LinkedInAuthor;
+  reactionType: LinkedInReactionType;
 }
 
 export interface CarouselResult {
