@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { b2cAccessCookieName, b2cRefreshCookieName } from "@/lib/auth-cookies";
 
 const isDev = process.env.NODE_ENV !== "production";
 
@@ -130,8 +131,8 @@ export function middleware(req: NextRequest) {
     (p) => pathname === p || pathname.startsWith(`${p}/`),
   );
   const hasSession =
-    !!req.cookies.get("access_token")?.value ||
-    !!req.cookies.get("refresh_token")?.value;
+    !!req.cookies.get(b2cAccessCookieName())?.value ||
+    !!req.cookies.get(b2cRefreshCookieName())?.value;
   const sessionBypass = hasSession && isAppRoute;
   const gated =
     comingSoon &&
