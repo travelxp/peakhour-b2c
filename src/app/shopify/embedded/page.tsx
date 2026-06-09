@@ -25,6 +25,13 @@ interface EmbeddedContext {
   currency?: string | null;
   productsSyncedAt?: string | null;
   connectionStatus?: string | null;
+  assistantActive?: boolean;
+  pricing?: {
+    displayName: string;
+    amount: string;
+    currency: string;
+    interval: "monthly" | "annual";
+  } | null;
 }
 
 /** App Bridge attaches `window.shopify` asynchronously after its CDN script
@@ -51,6 +58,38 @@ type State =
 
 export default function ShopifyEmbeddedHome() {
   const [state, setState] = useState<State>({ status: "loading" });
+  const [subscribing, setSubscribing] = useState(false);
+  const [subErr, setSubErr] = useState<string | null>(null);
+
+  /** Start the Shopify Billing checkout: mint a charge, then break out of the
+   *  admin iframe to Shopify's hosted approve-and-pay page. */
+  async function handleSubscribe() {
+    setSubscribing(true);
+    setSubErr(null);
+    const token = await getSessionToken();
+    if (!token) {
+      setSubErr("Couldn't get a Shopify session. Please reopen from your admin.");
+      setSubscribing(false);
+      return;
+    }
+    try {
+      const res = await fetch(`${API_URL}/v1/shopify/embedded/billing/subscribe`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = (await res.json().catch(() => ({}))) as { confirmationUrl?: string };
+      if (!res.ok || !data.confirmationUrl) {
+        setSubErr("Could not start checkout. Please try again.");
+        setSubscribing(false);
+        return;
+      }
+      // confirmationUrl is a Shopify-hosted page — navigate the TOP frame.
+      (window.top ?? window).location.href = data.confirmationUrl;
+    } catch {
+      setSubErr("Network error starting checkout.");
+      setSubscribing(false);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -129,11 +168,32 @@ export default function ShopifyEmbeddedHome() {
                   : "Syncing…"}
               </dd>
             </dl>
-            <p className="pt-2 text-sm text-neutral-500">
-              Your product catalog is syncing to Peakhour. The WhatsApp assistant answers
-              shopper questions grounded in these products. Set up and preview it from your
-              Peakhour dashboard.
-            </p>
+            {state.ctx.assistantActive ? (
+              <div className="mt-2 rounded-lg bg-green-50 px-4 py-3 text-sm text-green-800">
+                ✓ Your WhatsApp catalog assistant is active. Manage and preview it from your
+                Peakhour dashboard.
+              </div>
+            ) : (
+              <div className="mt-2 space-y-2 rounded-lg border border-neutral-200 p-4">
+                <p className="text-sm text-neutral-600">
+                  Switch on the catalog-grounded WhatsApp assistant — it answers shopper
+                  questions using your real products, in their own language.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleSubscribe}
+                  disabled={subscribing}
+                  className="rounded-lg bg-[#075E54] px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                >
+                  {subscribing
+                    ? "Starting checkout…"
+                    : state.ctx.pricing
+                      ? `Subscribe — ${state.ctx.pricing.currency === "USD" ? "$" : state.ctx.pricing.currency + " "}${state.ctx.pricing.amount}/mo`
+                      : "Subscribe"}
+                </button>
+                {subErr && <p className="text-sm text-red-600">{subErr}</p>}
+              </div>
+            )}
           </div>
         )}
 
