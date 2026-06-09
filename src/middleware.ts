@@ -17,16 +17,31 @@ const apiOrigin = (() => {
  * Only needed for full-document requests — prefetch/rsc/server-action requests
  * deliberately get no nonce/CSP (it can break RSC streaming).
  */
+/** The embedded Shopify surface must be iframeable by Shopify admin and load
+ *  App Bridge from Shopify's CDN — so those routes get a distinct CSP. Every
+ *  other route keeps `frame-ancestors 'none'`. */
+function isShopifyEmbeddedPath(pathname: string): boolean {
+  return pathname === "/shopify/embedded" || pathname.startsWith("/shopify/embedded/");
+}
+
 function buildCsp(req: NextRequest): { csp: string; reqHeaders: Headers } {
   const nonce = btoa(
     String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16))),
   );
+  const embedded = isShopifyEmbeddedPath(req.nextUrl.pathname);
+
+  // Embedded routes: allow Shopify to frame us + App Bridge from cdn.shopify.com.
+  // We DON'T use 'strict-dynamic' here (it fights App Bridge's dynamic loads);
+  // the explicit cdn.shopify.com host allowance + nonce cover our scripts.
   const scriptSrc = isDev
-    ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
-    : `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`;
+    ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.shopify.com"
+    : embedded
+      ? `script-src 'self' 'nonce-${nonce}' https://cdn.shopify.com`
+      : `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`;
   const connectSrc = [
     "connect-src 'self'",
     apiOrigin,
+    embedded ? "https://cdn.shopify.com" : "",
     "https://*.vercel-insights.com",
     "https://vitals.vercel-insights.com",
     "https://*.vercel-analytics.com",
@@ -34,6 +49,9 @@ function buildCsp(req: NextRequest): { csp: string; reqHeaders: Headers } {
   ]
     .filter(Boolean)
     .join(" ");
+  const frameAncestors = embedded
+    ? "frame-ancestors https://admin.shopify.com https://*.myshopify.com"
+    : "frame-ancestors 'none'";
   const csp = [
     "default-src 'self'",
     scriptSrc,
@@ -43,10 +61,10 @@ function buildCsp(req: NextRequest): { csp: string; reqHeaders: Headers } {
     // Allow framing https subresources — the LinkedIn carousel preview renders
     // a PDF served from the R2 media origin in an <iframe>. Consistent with the
     // img-src `https:` allowance; `frame-ancestors 'none'` still blocks anyone
-    // from framing US.
+    // from framing US (except the embedded Shopify surface, above).
     "frame-src 'self' https:",
     connectSrc,
-    "frame-ancestors 'none'",
+    frameAncestors,
     "base-uri 'self'",
     "form-action 'self'",
     "object-src 'none'",
@@ -134,10 +152,15 @@ export function middleware(req: NextRequest) {
     !!req.cookies.get(b2cAccessCookieName())?.value ||
     !!req.cookies.get(b2cRefreshCookieName())?.value;
   const sessionBypass = hasSession && isAppRoute;
+  // The embedded Shopify surface is loaded by Shopify admin (iframe) and
+  // authenticates via the App Bridge session token, not our cookie — so it
+  // must stay reachable even while the coming-soon gate is on.
+  const isShopifyEmbedded = isShopifyEmbeddedPath(pathname);
   const gated =
     comingSoon &&
     pathname !== "/coming-soon" &&
     !isPublicPath &&
+    !isShopifyEmbedded &&
     !sessionBypass &&
     !grantPreview &&
     !hasPreviewCookie;
