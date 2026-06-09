@@ -37,6 +37,8 @@ import { BusinessSwitcher } from "@/components/dashboard/business-switcher";
 import { PlanBadge } from "@/components/dashboard/plan-badge";
 import { AttentionBell } from "@/components/dashboard/attention-bell";
 import { TrialExpiryBanner } from "@/components/dashboard/trial-expiry-banner";
+import { BalanceChip } from "@/components/dashboard/balance-chip";
+import { CreditCapBanner } from "@/components/dashboard/credits-cap-banner";
 import { CommandMenu } from "@/components/molecules/command-menu";
 import { SidebarStorageMeter } from "@/components/dashboard/sidebar-storage-meter";
 import { FeedbackWidget } from "@/components/molecules/feedback-widget";
@@ -52,6 +54,7 @@ import {
   ArrowLeftRight,
   ChevronRight,
   ListChecks,
+  Zap,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -125,6 +128,7 @@ const NAV_GROUPS: NavGroup[] = [
       },
       { href: "/dashboard/tasks", label: "Tasks", icon: ListChecks, badge: () => <RunningJobsBadge /> },
       { href: "/dashboard/integrations", label: "Integrations", icon: Plug },
+      { href: "/dashboard/peaks", label: "Peaks", icon: Zap },
       {
         href: "/dashboard/settings",
         label: "Settings",
@@ -414,6 +418,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
           <SidebarTrigger className="-ml-1" />
           <div className="ml-auto flex items-center gap-3">
+            <BalanceChip />
             <PlanBadge />
             <AttentionBell />
             <FeedbackWidget />
@@ -424,8 +429,9 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
               only when a trial is within the final 3 days. Component
               renders nothing in all other states (no trial, plenty of
               days left, dismissed). */}
-          <div className="mb-4">
+          <div className="mb-4 flex flex-col gap-2">
             <TrialExpiryBanner />
+            <CreditCapBanner />
           </div>
           {children}
         </div>
