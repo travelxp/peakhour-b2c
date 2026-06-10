@@ -8,6 +8,7 @@ import {
   InlineStack,
   Text,
   Button,
+  ButtonGroup,
   Banner,
   Badge,
   Box,
@@ -34,6 +35,7 @@ interface ContextData {
     currency: string;
     interval: "monthly" | "annual";
     trialDays?: number;
+    annual?: { amount: string; currency: string } | null;
   } | null;
 }
 
@@ -48,11 +50,16 @@ const FEATURES = [
   "Always on — no human agent needed",
 ];
 
-function priceLabel(pricing: ContextData["pricing"]): string | null {
+function priceLabel(pricing: ContextData["pricing"], interval: "monthly" | "annual"): string | null {
   if (!pricing) return null;
+  if (interval === "annual" && pricing.annual) {
+    const sym = pricing.annual.currency === "USD" ? "$" : `${pricing.annual.currency} `;
+    return `${sym}${pricing.annual.amount}/yr`;
+  }
   const sym = pricing.currency === "USD" ? "$" : `${pricing.currency} `;
-  const period = pricing.interval === "annual" ? "yr" : "mo";
-  return `${sym}${pricing.amount}/${period}`;
+  // Period from the actual picked row — if the CMS ever has no monthly price,
+  // the fallback row may be annual and must not be labelled "/mo".
+  return `${sym}${pricing.amount}/${pricing.interval === "annual" ? "yr" : "mo"}`;
 }
 
 // ── Skeleton ───────────────────────────────────────────────────────────────
@@ -78,6 +85,7 @@ export default function SubscriptionPage() {
   const [ctx, setCtx] = useState<ContextData | null>(null);
   const [subscribing, setSubscribing] = useState(false);
   const [subError, setSubError] = useState<string | null>(null);
+  const [billingInterval, setBillingInterval] = useState<"monthly" | "annual">("monthly");
 
   useEffect(() => {
     const ctrl = new AbortController();
@@ -124,7 +132,8 @@ export default function SubscriptionPage() {
     try {
       const res = await fetch(`${API_URL}/v1/shopify/embedded/billing/subscribe`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ interval: billingInterval }),
       });
       const data = (await res.json().catch(() => ({}))) as { confirmationUrl?: string };
       if (!res.ok || !data.confirmationUrl) {
@@ -138,7 +147,7 @@ export default function SubscriptionPage() {
       setSubError("Network error starting checkout.");
       setSubscribing(false);
     }
-  }, []);
+  }, [billingInterval]);
 
   // ── Render states ────────────────────────────────────────────────────────
 
@@ -154,7 +163,8 @@ export default function SubscriptionPage() {
     );
   }
 
-  const label = priceLabel(ctx?.pricing ?? null);
+  const label = priceLabel(ctx?.pricing ?? null, billingInterval);
+  const hasAnnual = !!ctx?.pricing?.annual;
 
   // ── Active ───────────────────────────────────────────────────────────────
 
@@ -232,6 +242,17 @@ export default function SubscriptionPage() {
             ))}
           </List>
 
+          {hasAnnual && (
+            <ButtonGroup variant="segmented">
+              <Button pressed={billingInterval === "monthly"} onClick={() => setBillingInterval("monthly")}>
+                Monthly
+              </Button>
+              <Button pressed={billingInterval === "annual"} onClick={() => setBillingInterval("annual")}>
+                Annual — 2 months free
+              </Button>
+            </ButtonGroup>
+          )}
+
           {label && (
             <BlockStack gap="100">
               <Text as="p" variant="headingLg" fontWeight="bold">{label}</Text>
@@ -264,6 +285,9 @@ export default function SubscriptionPage() {
 
           <Text as="p" variant="bodySm" tone="subdued">
             Billed through your Shopify account. Cancel any time from Shopify admin.
+            WhatsApp Business messaging fees, where applicable, are billed directly by
+            Meta to your WhatsApp Business Account — replies to shopper-initiated chats
+            are free under Meta&apos;s current service-conversation pricing.
           </Text>
         </BlockStack>
       </Card>
