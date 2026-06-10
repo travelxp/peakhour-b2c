@@ -11,9 +11,9 @@ import {
   ButtonGroup,
   Banner,
   Badge,
-  Box,
   Divider,
   List,
+  Modal,
   SkeletonPage,
   SkeletonBodyText,
   SkeletonDisplayText,
@@ -86,6 +86,40 @@ export default function SubscriptionPage() {
   const [subscribing, setSubscribing] = useState(false);
   const [subError, setSubError] = useState<string | null>(null);
   const [billingInterval, setBillingInterval] = useState<"monthly" | "annual">("monthly");
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
+
+  const handleCancel = useCallback(async () => {
+    setCancelling(true);
+    setCancelError(null);
+    const token = await getSessionToken();
+    if (!token) {
+      setCancelError("Couldn't get a Shopify session. Please reopen from your admin.");
+      setCancelling(false);
+      return;
+    }
+    try {
+      const res = await fetch(`${API_URL}/v1/shopify/embedded/billing/cancel`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = (await res.json().catch(() => ({}))) as { cancelled?: boolean; active?: boolean };
+      if (!res.ok || !data.cancelled) {
+        setCancelError("Could not cancel your subscription. Please try again.");
+        setCancelling(false);
+        return;
+      }
+      // Reflect the new entitlement immediately — the org may still be active
+      // via another store's subscription.
+      setCtx((prev) => (prev ? { ...prev, assistantActive: data.active === true } : prev));
+      setCancelOpen(false);
+      setCancelling(false);
+    } catch {
+      setCancelError("Network error cancelling.");
+      setCancelling(false);
+    }
+  }, []);
 
   useEffect(() => {
     const ctrl = new AbortController();
@@ -198,22 +232,57 @@ export default function SubscriptionPage() {
                 <Badge tone="success">Active</Badge>
               </InlineStack>
 
-              {manageBillingUrl && (
-                <>
-                  <Divider />
-                  <Box>
-                    <Button
-                      onClick={() => { (window.top ?? window).location.href = manageBillingUrl; }}
-                      variant="plain"
-                    >
-                      Manage billing in Shopify admin
-                    </Button>
-                  </Box>
-                </>
+              <Divider />
+              {cancelError && (
+                <Banner tone="critical">
+                  <Text as="p" variant="bodyMd">{cancelError}</Text>
+                </Banner>
               )}
+              <InlineStack gap="400" blockAlign="center">
+                {manageBillingUrl && (
+                  <Button
+                    onClick={() => { (window.top ?? window).location.href = manageBillingUrl; }}
+                    variant="plain"
+                  >
+                    View invoices in Shopify admin
+                  </Button>
+                )}
+                {/* Review req 1.2.3: merchants must be able to cancel in-app
+                    without uninstalling. */}
+                <Button
+                  onClick={() => setCancelOpen(true)}
+                  variant="plain"
+                  tone="critical"
+                >
+                  Cancel subscription
+                </Button>
+              </InlineStack>
             </BlockStack>
           </Card>
         </BlockStack>
+
+        <Modal
+          open={cancelOpen}
+          onClose={() => { if (!cancelling) setCancelOpen(false); }}
+          title="Cancel your subscription?"
+          primaryAction={{
+            content: "Cancel subscription",
+            destructive: true,
+            loading: cancelling,
+            onAction: handleCancel,
+          }}
+          secondaryActions={[
+            { content: "Keep it", disabled: cancelling, onAction: () => setCancelOpen(false) },
+          ]}
+        >
+          <Modal.Section>
+            <Text as="p" variant="bodyMd">
+              This cancels the Commerce Assistant right away — the live WhatsApp assistant
+              goes offline. Your catalog stays synced and the rest of the app keeps working;
+              you can resubscribe anytime from this page.
+            </Text>
+          </Modal.Section>
+        </Modal>
       </Page>
     );
   }
@@ -284,7 +353,7 @@ export default function SubscriptionPage() {
           </Button>
 
           <Text as="p" variant="bodySm" tone="subdued">
-            Billed through your Shopify account. Cancel any time from Shopify admin.
+            Billed through your Shopify account. Cancel anytime right here on this page.
             WhatsApp Business messaging fees, where applicable, are billed directly by
             Meta to your WhatsApp Business Account — replies to shopper-initiated chats
             are free under Meta&apos;s current service-conversation pricing.

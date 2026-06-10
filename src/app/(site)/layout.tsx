@@ -24,6 +24,12 @@ export const metadata: Metadata = {
     "Peakhour is an agentic AI marketing platform: autonomous AI agents analyze your content, create campaigns, and optimize performance across every channel — around the clock.",
 };
 
+/**
+ * Root layout for the site surface — one of this app's multiple root layouts.
+ * The Shopify commerce surface (/shopify/**) has its own root layout at
+ * (commerce)/layout.tsx so it stays free of Tailwind's preflight reset and
+ * can load App Bridge synchronously first in <head> (requirement 2.2.3).
+ */
 export default async function SiteLayout({
   children,
 }: Readonly<{
@@ -32,24 +38,26 @@ export default async function SiteLayout({
   // Force dynamic rendering so the CSP middleware can stamp a per-request
   // nonce onto Next's injected <script> tags. Without this, statically
   // prerendered pages have no nonce and 'strict-dynamic' blocks all
-  // framework chunks. Scoped here (not root layout) so the Shopify
-  // embedded surface gets its own dynamic behaviour independently.
+  // framework chunks. Scoped here (not the commerce root layout) so the
+  // Shopify surface gets its own dynamic behaviour independently.
   await connection();
 
   return (
-    <div
-      className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}
-    >
-      <ThemeProvider>
-        <QueryProvider>
-          <AuthProvider>
-            <TooltipProvider>
-              {children}
-            </TooltipProvider>
-            <Toaster richColors position="bottom-right" />
-          </AuthProvider>
-        </QueryProvider>
-      </ThemeProvider>
-    </div>
+    <html lang="en" suppressHydrationWarning>
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}
+      >
+        <ThemeProvider>
+          <QueryProvider>
+            <AuthProvider>
+              <TooltipProvider>
+                {children}
+              </TooltipProvider>
+              <Toaster richColors position="bottom-right" />
+            </AuthProvider>
+          </QueryProvider>
+        </ThemeProvider>
+      </body>
+    </html>
   );
 }

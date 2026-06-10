@@ -268,10 +268,16 @@ export default function IntegrationsPage() {
 
   async function handleConnect(provider: string, authType: string) {
     const realProvider = resolveProvider(provider);
-    // Shopify is OAuth2 but its authorize host is per-store — collect the
-    // shop domain in a dialog first, then redirect with ?shop=.
+    // Shopify App Store requirement 2.3.1: installation must initiate from a
+    // Shopify-owned surface (the App Store listing / Shopify admin) — apps
+    // must NOT ask merchants to type their myshopify.com domain to start an
+    // install. So instead of a domain-entry dialog, send the merchant to our
+    // App Store listing; Shopify then drives the OAuth/install flow back to us.
     if (realProvider === "shopify") {
-      setConnectModal("shopify");
+      window.open(
+        process.env.NEXT_PUBLIC_SHOPIFY_APP_STORE_URL ?? "https://apps.shopify.com/",
+        "_blank",
+      );
       return;
     }
     if (authType === "oauth2") {
@@ -637,126 +643,7 @@ export default function IntegrationsPage() {
         }
       />
 
-      {/* Shopify connect modal — collects the store domain, then redirects
-          into the per-store OAuth authorize URL. */}
-      <ShopifyConnectModal
-        open={connectModal === "shopify"}
-        onClose={() => setConnectModal(null)}
-      />
     </div>
-  );
-}
-
-// ── Shopify Connect Modal ──────────────────────────────────────────
-
-/** Mirror of the server-side normalizeShopDomain — accepts "acme",
- *  "acme.myshopify.com", or a full URL and returns the canonical domain,
- *  or null if it can't be coerced into a valid myshopify domain. */
-function normalizeShopDomain(input: string): string | null {
-  if (!input) return null;
-  let s = input.trim().toLowerCase();
-  s = s.replace(/^https?:\/\//, "").replace(/\/.*$/, "");
-  if (!s.includes(".")) s = `${s}.myshopify.com`;
-  return /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(s) ? s : null;
-}
-
-function ShopifyConnectModal({
-  open,
-  onClose,
-}: {
-  open: boolean;
-  onClose: () => void;
-}) {
-  const [domain, setDomain] = useState("");
-  const [connecting, setConnecting] = useState(false);
-  const [error, setError] = useState("");
-
-  function reset() {
-    setDomain("");
-    setError("");
-    setConnecting(false);
-  }
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    const shop = normalizeShopDomain(domain);
-    if (!shop) {
-      setError("Enter a valid store domain, e.g. your-store.myshopify.com");
-      return;
-    }
-    setConnecting(true);
-    // Redirect into the per-store OAuth authorize URL. The API validates
-    // the shop again server-side and signs it into the OAuth state.
-    window.location.href = `${API_BASE_URL}/v1/integrations/shopify/authorize?shop=${encodeURIComponent(shop)}`;
-  }
-
-  return (
-    <Dialog
-      open={open}
-      onOpenChange={(open) => {
-        if (!open) {
-          reset();
-          onClose();
-        }
-      }}
-    >
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#96BF48] text-white">
-              <ShopifyIcon className="h-5 w-5" />
-            </div>
-            <div>
-              <DialogTitle>Connect Shopify</DialogTitle>
-              <DialogDescription>
-                Sync your catalog and orders to power your store assistant
-              </DialogDescription>
-            </div>
-          </div>
-        </DialogHeader>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {error && (
-            <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2.5 text-sm text-destructive">
-              {error}
-            </div>
-          )}
-
-          <div className="space-y-2">
-            <Label htmlFor="shopify-domain">Store domain</Label>
-            <Input
-              id="shopify-domain"
-              placeholder="your-store.myshopify.com"
-              value={domain}
-              onChange={(e) => setDomain(e.target.value)}
-              disabled={connecting}
-              autoFocus
-            />
-            <p className="text-xs text-muted-foreground">
-              Your permanent Shopify domain &mdash; find it in Shopify admin under
-              {" "}<span className="font-medium">Settings &rarr; Domains</span>. You&rsquo;ll
-              approve the connection on Shopify next.
-            </p>
-          </div>
-
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose} disabled={connecting}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={connecting || !domain.trim()} className="gap-1.5">
-              {connecting ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Redirecting...
-                </>
-              ) : (
-                "Continue to Shopify"
-              )}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
   );
 }
 
