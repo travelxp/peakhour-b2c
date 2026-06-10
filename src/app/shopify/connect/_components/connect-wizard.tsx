@@ -32,9 +32,11 @@ interface MeUser {
 
 const STEP_LABELS = ["Connect account", "Link store", "Insights Network", "All set"];
 
+// Truthful-today framing: benchmarks don't render anywhere yet, so the benefit
+// is member-FIRST access as they roll out — never "see them now".
 const PIN_BENEFITS = [
-  "See how stores like yours perform — benchmarked by country, industry, and size",
-  "Sharper AI recommendations, powered by patterns across the network",
+  "Early access: benchmarks for stores like yours (country, industry, size) reach members first",
+  "Help shape sharper AI recommendations as the network learns",
   "No product names, customer data, or revenue figures ever leave your store — only anonymized cohort signals",
 ];
 
@@ -327,8 +329,9 @@ export function ConnectWizard({ shop, token }: Props) {
                     Join the Peakhour Insights Network
                   </Text>
                   <Text as="p" variant="bodyMd" tone="subdued">
-                    Stores in the network contribute anonymized commerce signals and get
-                    industry know-how back — included free on your Lens plan.
+                    Stores in the network contribute anonymized commerce signals — and get
+                    the network&apos;s know-how back as it grows. Included free on your Lens
+                    plan.
                   </Text>
                 </BlockStack>
 

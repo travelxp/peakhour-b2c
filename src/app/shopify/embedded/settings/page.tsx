@@ -40,9 +40,11 @@ interface PinState {
   consentStatus?: { pin_contribution?: "opted_in" | "revoked" };
 }
 
+// Truthful-today framing (matches the wizard): benchmarks ship to members
+// FIRST as they roll out — never claimed as visible now.
 const PIN_BENEFITS = [
-  "Benchmarks against stores like yours — by country, industry, and size",
-  "Sharper AI recommendations from network-wide patterns",
+  "Early access: benchmarks for stores like yours reach members first",
+  "Help shape sharper AI recommendations as the network learns",
   "Only anonymized cohort signals are shared — never products, customers, or revenue",
 ];
 
@@ -380,15 +382,17 @@ export default function SettingsPage() {
             <Divider />
             {pinMembership === "member" ? (
               <Text as="p" variant="bodyMd" tone="subdued">
-                Your store contributes anonymized cohort signals and receives industry
-                benchmarks in return. Only country, industry, size, and platform-level
-                aggregates are shared — never products, customers, or revenue.
+                Your store contributes anonymized cohort signals — and members get
+                benchmarks and network insights first as they roll out. Only country,
+                industry, size, and platform-level aggregates are shared — never
+                products, customers, or revenue.
               </Text>
             ) : (
               <BlockStack gap="300">
                 <Text as="p" variant="bodyMd" tone="subdued">
-                  Join the network to benchmark your store against similar businesses —
-                  included free on the Lens plan.
+                  Join the network to get member-first access to benchmarks and
+                  network-powered insights as they roll out — included free on the
+                  Lens plan.
                 </Text>
                 <List type="bullet">
                   {PIN_BENEFITS.map((b) => (
