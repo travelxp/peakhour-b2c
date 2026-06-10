@@ -15,8 +15,8 @@ import {
   PostComposer,
   PostComposerSkeleton,
   useLinkedInIdentity,
-} from "@/app/dashboard/content/linkedin/_components/post-composer";
-import { TweetComposer } from "@/app/dashboard/content/x/_components/tweet-composer";
+} from "@/app/(site)/dashboard/content/linkedin/_components/post-composer";
+import { TweetComposer } from "@/app/(site)/dashboard/content/x/_components/tweet-composer";
 
 /**
  * <ComposeNewSheet/> — the "create from scratch" entry point that

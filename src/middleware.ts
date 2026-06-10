@@ -24,24 +24,36 @@ function isShopifyEmbeddedPath(pathname: string): boolean {
   return pathname === "/shopify/embedded" || pathname.startsWith("/shopify/embedded/");
 }
 
+/** The whole /shopify/** surface (embedded + connect) shares one root layout
+ *  that loads App Bridge from cdn.shopify.com synchronously in <head>
+ *  (App Store requirement 2.2.3) — so script/connect allowances for the
+ *  Shopify CDN apply to all of it. Only the embedded subtree is iframed by
+ *  Shopify admin, so frame-ancestors stays keyed on isShopifyEmbeddedPath. */
+function isShopifyPath(pathname: string): boolean {
+  return pathname === "/shopify" || pathname.startsWith("/shopify/");
+}
+
 function buildCsp(req: NextRequest): { csp: string; reqHeaders: Headers } {
   const nonce = btoa(
     String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16))),
   );
   const embedded = isShopifyEmbeddedPath(req.nextUrl.pathname);
+  const shopify = isShopifyPath(req.nextUrl.pathname);
 
-  // Embedded routes: allow Shopify to frame us + App Bridge from cdn.shopify.com.
-  // We DON'T use 'strict-dynamic' here (it fights App Bridge's dynamic loads);
-  // the explicit cdn.shopify.com host allowance + nonce cover our scripts.
+  // Shopify routes: allow App Bridge from cdn.shopify.com (loaded by the
+  // (commerce) root layout on the whole /shopify/** surface). We DON'T use
+  // 'strict-dynamic' here (it fights App Bridge's dynamic loads AND ignores
+  // host allowances, which would block the plain CDN script); the explicit
+  // cdn.shopify.com host allowance + nonce cover our scripts.
   const scriptSrc = isDev
     ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.shopify.com"
-    : embedded
+    : shopify
       ? `script-src 'self' 'nonce-${nonce}' https://cdn.shopify.com`
       : `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`;
   const connectSrc = [
     "connect-src 'self'",
     apiOrigin,
-    embedded ? "https://cdn.shopify.com" : "",
+    shopify ? "https://cdn.shopify.com" : "",
     "https://*.vercel-insights.com",
     "https://vitals.vercel-insights.com",
     "https://*.vercel-analytics.com",
