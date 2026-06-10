@@ -13,6 +13,7 @@ import {
   Badge,
   Box,
   Divider,
+  List,
   Modal,
   EmptyState,
   SkeletonPage,
@@ -34,6 +35,16 @@ interface ContextData {
   connectionStatus?: string | null;
   productsCount?: number;
 }
+
+interface PinState {
+  consentStatus?: { pin_contribution?: "opted_in" | "revoked" };
+}
+
+const PIN_BENEFITS = [
+  "Benchmarks against stores like yours — by country, industry, and size",
+  "Sharper AI recommendations from network-wide patterns",
+  "Only anonymized cohort signals are shared — never products, customers, or revenue",
+];
 
 type PageState =
   | { status: "loading" }
@@ -90,6 +101,12 @@ export default function SettingsPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
   const [disconnectError, setDisconnectError] = useState<string | null>(null);
+  // Tri-state + unknown: a member whose status fetch failed must NOT be shown
+  // a "Join" button (withdraw has to stay as discoverable as join), so the
+  // action is hidden until membership is actually known.
+  const [pinMembership, setPinMembership] = useState<"loading" | "member" | "nonmember" | "unknown">("loading");
+  const [pinBusy, setPinBusy] = useState(false);
+  const [pinError, setPinError] = useState<string | null>(null);
   const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -113,12 +130,62 @@ export default function SettingsPage() {
         }
         const ctx = (await res.json()) as ContextData;
         setState({ status: "ready", ctx });
+
+        // PIN membership is secondary content — fetch after the page is ready.
+        // On failure the membership is "unknown" and the card hides its action
+        // (never show "Join" to someone who may already be a member).
+        if (ctx.connected) {
+          try {
+            const pinRes = await fetch(`${API_URL}/v1/shopify/embedded/pin/status`, {
+              headers: { Authorization: `Bearer ${token}` },
+              signal: ctrl.signal,
+            });
+            if (ctrl.signal.aborted) return;
+            if (pinRes.ok) {
+              const data = (await pinRes.json()) as { pin?: PinState | null };
+              setPinMembership(
+                data.pin?.consentStatus?.pin_contribution === "opted_in" ? "member" : "nonmember",
+              );
+            } else {
+              setPinMembership("unknown");
+            }
+          } catch (err) {
+            if ((err as { name?: string }).name === "AbortError") return;
+            setPinMembership("unknown");
+          }
+        }
       } catch (err) {
         if ((err as { name?: string }).name === "AbortError") return;
         setState({ status: "error", message: "Network error loading settings." });
       }
     })();
     return () => ctrl.abort();
+  }, []);
+
+  const togglePin = useCallback(async (join: boolean) => {
+    setPinBusy(true);
+    setPinError(null);
+    const token = await getSessionToken();
+    if (!token) {
+      setPinError("Couldn't get a Shopify session. Please reopen from your admin.");
+      setPinBusy(false);
+      return;
+    }
+    try {
+      const res = await fetch(`${API_URL}/v1/shopify/embedded/pin/consent`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ action: join ? "opt_in" : "withdraw" }),
+      });
+      if (!res.ok) {
+        setPinError("Could not update your Insights Network membership. Please try again.");
+      } else {
+        setPinMembership(join ? "member" : "nonmember");
+      }
+    } catch {
+      setPinError("Network error updating membership.");
+    }
+    setPinBusy(false);
   }, []);
 
   // Clear the pending sync-feedback timer on unmount (no setState after unmount).
@@ -303,7 +370,63 @@ export default function SettingsPage() {
           </BlockStack>
         </Card>
 
-        {/* ── Card 3 — Danger zone ────────────────────────────────────── */}
+        {/* ── Card 3 — Insights Network (PIN consent) ─────────────────── */}
+        <Card>
+          <BlockStack gap="400">
+            <InlineStack align="space-between" blockAlign="center">
+              <Text as="h2" variant="headingMd">Peakhour Insights Network</Text>
+              {pinMembership === "member" && <Badge tone="success">Member</Badge>}
+            </InlineStack>
+            <Divider />
+            {pinMembership === "member" ? (
+              <Text as="p" variant="bodyMd" tone="subdued">
+                Your store contributes anonymized cohort signals and receives industry
+                benchmarks in return. Only country, industry, size, and platform-level
+                aggregates are shared — never products, customers, or revenue.
+              </Text>
+            ) : (
+              <BlockStack gap="300">
+                <Text as="p" variant="bodyMd" tone="subdued">
+                  Join the network to benchmark your store against similar businesses —
+                  included free on the Lens plan.
+                </Text>
+                <List type="bullet">
+                  {PIN_BENEFITS.map((b) => (
+                    <List.Item key={b}>
+                      <Text as="span" variant="bodyMd">{b}</Text>
+                    </List.Item>
+                  ))}
+                </List>
+              </BlockStack>
+            )}
+            {pinError && (
+              <Banner tone="critical">
+                <Text as="p" variant="bodyMd">{pinError}</Text>
+              </Banner>
+            )}
+            {pinMembership === "member" && (
+              <Box>
+                <Button onClick={() => togglePin(false)} loading={pinBusy} variant="plain" tone="critical">
+                  Leave the network
+                </Button>
+              </Box>
+            )}
+            {pinMembership === "nonmember" && (
+              <Box>
+                <Button onClick={() => togglePin(true)} loading={pinBusy} variant="primary">
+                  Join the network
+                </Button>
+              </Box>
+            )}
+            {pinMembership === "unknown" && (
+              <Text as="p" variant="bodySm" tone="subdued">
+                Membership status is unavailable right now — refresh the page to manage it.
+              </Text>
+            )}
+          </BlockStack>
+        </Card>
+
+        {/* ── Card 4 — Danger zone ────────────────────────────────────── */}
         <Card>
           <BlockStack gap="400">
             <Text as="h2" variant="headingMd">Danger zone</Text>
