@@ -1,3 +1,9 @@
+// Deliberately hand-rolled minimal typing for the CDN-attached
+// `window.shopify` global. The official @shopify/app-bridge-types package
+// was evaluated 2026-06-11 and REJECTED: its global JSX/attribute
+// augmentations conflict with React 19 typings repo-wide (hundreds of
+// TS2322s across (site)). Extend this interface method-by-method
+// (toast, modal, ...) as we adopt more App Bridge APIs.
 declare global {
   interface Window {
     shopify?: { idToken: () => Promise<string> };
