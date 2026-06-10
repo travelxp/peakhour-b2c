@@ -41,6 +41,7 @@ import { BalanceChip } from "@/components/dashboard/balance-chip";
 import { CreditCapBanner } from "@/components/dashboard/credits-cap-banner";
 import { CommandMenu } from "@/components/molecules/command-menu";
 import { SidebarStorageMeter } from "@/components/dashboard/sidebar-storage-meter";
+import { LogoMark } from "@/components/shared/logo";
 import { FeedbackWidget } from "@/components/molecules/feedback-widget";
 import { ChatPanel } from "@/components/molecules/chat-panel";
 import {
@@ -224,9 +225,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
             <SidebarMenuItem>
               <SidebarMenuButton size="lg" asChild>
                 <Link href="/dashboard/overview">
-                  <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                    <span className="text-sm font-bold">P</span>
-                  </div>
+                  <LogoMark className="size-8" />
                   <div className="grid flex-1 text-left leading-tight">
                     <span className="truncate text-sm font-semibold">
                       Peakhour

@@ -29,6 +29,7 @@ import {
   SidebarSeparator,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
+import { LogoMark } from "@/components/shared/logo";
 import { OrgSwitcher } from "@/components/dashboard/org-switcher";
 import { BusinessSwitcher } from "@/components/dashboard/business-switcher";
 import {
@@ -165,9 +166,7 @@ function CmsShell({ children }: { children: React.ReactNode }) {
             <SidebarMenuItem>
               <SidebarMenuButton size="lg" asChild>
                 <Link href="/cms/overview">
-                  <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-orange-600 text-white">
-                    <span className="text-sm font-bold">C</span>
-                  </div>
+                  <LogoMark className="size-8" />
                   <div className="grid flex-1 text-left leading-tight">
                     <span className="truncate text-sm font-semibold">
                       Peakhour CMS
