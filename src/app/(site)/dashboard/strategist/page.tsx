@@ -1,0 +1,387 @@
+"use client";
+
+import { useState, useCallback } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { api } from "@/lib/api";
+import { API_BASE_URL } from "@/lib/api";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import { KanbanBoard } from "./components/kanban-board";
+import { Sparkles, CalendarDays, Plus, Loader2, CheckCircle, Send, Mail, FileText, Megaphone, Newspaper } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import type { PipelineIdea } from "./components/kanban-card";
+import { CronToolbar } from "@/components/dev/cron-toolbar";
+import { ElapsedTimer } from "@/components/molecules/elapsed-timer";
+
+/**
+ * Content format the user wants the suggestion run to produce. Drives
+ * `cnt_ideas.contentFormat` on every returned idea and (once the api
+ * supervisor honors it, peakhour-api PR follow-up) biases the
+ * generator streams toward producing only that format. "any" lets
+ * the strategist pick per idea — today's default behavior.
+ *
+ * Per Amendment 3 of docs/idea/multi-format-writers-and-feedback-loop.md,
+ * surfacing this selector even when only newsletter has a wired writer
+ * end-to-end sets the mental model correctly for the multi-platform
+ * origination phase that follows.
+ */
+type ContentFormatChoice = "any" | "newsletter" | "article" | "pr" | "advertorial";
+
+const CONTENT_FORMAT_OPTIONS: Array<{
+  value: ContentFormatChoice;
+  label: string;
+  hint: string;
+  Icon: typeof Mail;
+}> = [
+  { value: "any", label: "Let AI decide", hint: "Mix of formats based on each idea's fit", Icon: Sparkles },
+  { value: "newsletter", label: "Newsletter", hint: "Email-first; subject + preview text + HTML body", Icon: Mail },
+  { value: "article", label: "Article", hint: "Web-first long-form; SEO meta + byline", Icon: FileText },
+  { value: "pr", label: "Press release", hint: "Dateline + lead + quote blocks + boilerplate", Icon: Newspaper },
+  { value: "advertorial", label: "Advertorial", hint: "Sponsor attribution + FTC disclosure + CTA", Icon: Megaphone },
+];
+
+const SKILL_LABELS: Record<string, string> = {
+  analyse_library: "Analysing content library",
+  check_seasonality: "Checking seasonality",
+  check_news: "Checking latest news",
+  score_idea: "Scoring ideas",
+  extract_content: "Reading articles",
+  audience_insights: "Getting audience insights",
+};
+
+/** Shared SSE reader for both Get Ideas and Plan Week */
+async function readSSEStream(
+  res: Response,
+  onStep: (p: { step: number; label: string; hint?: string }) => void,
+  onComplete: (data: { count: number; ideas: { topic: string }[] }) => void,
+  onError: (msg: string) => void,
+) {
+  const ct = res.headers.get("content-type") || "";
+  if (!ct.includes("text/event-stream")) {
+    // Non-SSE response — try to parse as JSON
+    const json = await res.json().catch(() => null);
+    if (json?.data?.suggestions) {
+      onComplete({ count: json.data.suggestions.length, ideas: json.data.suggestions });
+    } else if (json?.error) {
+      onError(json.error.message || "Failed");
+    }
+    return;
+  }
+
+  const reader = res.body?.getReader();
+  if (!reader) return;
+
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const events = buffer.split("\n\n");
+    buffer = events.pop() || "";
+
+    for (const raw of events) {
+      const lines = raw.split("\n");
+      let eventType = "";
+      let data = "";
+      for (const line of lines) {
+        if (line.startsWith("event:")) eventType = line.slice(6).trim();
+        else if (line.startsWith("data:")) data = line.slice(5).trim();
+      }
+      if (!data) continue;
+      try {
+        const parsed = JSON.parse(data);
+        if (eventType === "step") {
+          const toolName = parsed.tools?.[0] || "";
+          onStep({ step: parsed.step, label: parsed.label || SKILL_LABELS[toolName] || toolName || `Step ${parsed.step}`, hint: parsed.hint });
+        } else if (eventType === "complete") {
+          onComplete({ count: parsed.count ?? 0, ideas: parsed.ideas || [] });
+        } else if (eventType === "error") {
+          onError(parsed.message || "Failed");
+        }
+      } catch { /* skip malformed */ }
+    }
+  }
+}
+
+export default function StrategistPage() {
+  const queryClient = useQueryClient();
+  const [generating, setGenerating] = useState(false);
+  const [genMode, setGenMode] = useState<"ideas" | "plan" | null>(null);
+  const [genProgress, setGenProgress] = useState<{ step: number; label: string; hint?: string } | null>(null);
+  const [genResult, setGenResult] = useState<{ count: number; ideas: { topic: string }[] } | null>(null);
+  const [showNewIdea, setShowNewIdea] = useState(false);
+  const [newIdeaTitle, setNewIdeaTitle] = useState("");
+  const [showTopicInput, setShowTopicInput] = useState(false);
+  const [ideaTopic, setIdeaTopic] = useState("");
+  const [contentFormatChoice, setContentFormatChoice] = useState<ContentFormatChoice>("any");
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["pipeline-ideas"],
+    queryFn: () =>
+      api.get<Record<string, PipelineIdea[]>>("/v1/content/ideas?grouped=true"),
+  });
+
+  const handleGetIdeas = useCallback(async (topic?: string, format?: ContentFormatChoice) => {
+    setGenerating(true);
+    setGenMode("ideas");
+    setGenProgress({ step: 0, label: "Starting..." });
+    setGenResult(null);
+    setShowTopicInput(false);
+
+    try {
+      // Build body conditionally — only include keys with values, so
+      // a default "any" format choice doesn't pollute the request and
+      // older api builds (that ignore contentFormat) keep working
+      // unchanged.
+      const body: { topic?: string; contentFormat?: Exclude<ContentFormatChoice, "any"> } = {};
+      if (topic?.trim()) body.topic = topic.trim();
+      if (format && format !== "any") body.contentFormat = format;
+      const res = await api.streamPost("/v1/content/suggest", Object.keys(body).length > 0 ? body : undefined);
+      await readSSEStream(res, setGenProgress, setGenResult, (msg) => toast.error(msg));
+      queryClient.invalidateQueries({ queryKey: ["pipeline-ideas"] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to generate ideas");
+    }
+
+    setGenerating(false);
+    setGenProgress(null);
+    setGenMode(null);
+    setIdeaTopic("");
+    setContentFormatChoice("any");
+  }, [queryClient]);
+
+  const handlePlanWeek = useCallback(async () => {
+    setGenerating(true);
+    setGenMode("plan");
+    setGenProgress({ step: 0, label: "Planning your week..." });
+    setGenResult(null);
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/v1/content/weekly-plan`, { credentials: "include" });
+      if (!res.ok) { toast.error("Failed to plan week"); setGenerating(false); setGenProgress(null); setGenMode(null); return; }
+      await readSSEStream(res, setGenProgress, setGenResult, (msg) => toast.error(msg));
+      queryClient.invalidateQueries({ queryKey: ["pipeline-ideas"] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to plan week");
+    }
+
+    setGenerating(false);
+    setGenProgress(null);
+    setGenMode(null);
+  }, [queryClient]);
+
+  async function handleNewIdea() {
+    if (!newIdeaTitle.trim()) return;
+    try {
+      await api.post("/v1/content/ideas", { title: newIdeaTitle.trim() });
+      setNewIdeaTitle("");
+      setShowNewIdea(false);
+      queryClient.invalidateQueries({ queryKey: ["pipeline-ideas"] });
+    } catch { /* error */ }
+  }
+
+  const progressLabel = genMode === "plan" ? "Planning your week..." : "Generating content ideas...";
+
+  return (
+    <div className="space-y-6">
+      <CronToolbar
+        crons={[
+          "voice-card-refresh",
+          "voice-card-learning",
+          "archetype-centroids",
+          "tier-a-builder",
+          "per-stream-effectiveness-rollup",
+        ]}
+        onTriggered={() =>
+          queryClient.invalidateQueries({ queryKey: ["pipeline-ideas"] })
+        }
+      />
+      {/* Header */}
+      <div className="flex items-start justify-between">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">Content Pipeline</h2>
+          <p className="text-muted-foreground">
+            From idea to published — drag cards to move through stages
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => { setShowNewIdea(!showNewIdea); setShowTopicInput(false); }}>
+            <Plus className="mr-1.5 h-4 w-4" />
+            New Idea
+          </Button>
+          <Button size="sm" onClick={() => { setShowTopicInput(!showTopicInput); setShowNewIdea(false); }} disabled={generating}>
+            {genMode === "ideas" ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1.5 h-4 w-4" />}
+            Get Ideas
+          </Button>
+          <Button variant="outline" size="sm" onClick={handlePlanWeek} disabled={generating}>
+            {genMode === "plan" ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <CalendarDays className="mr-1.5 h-4 w-4" />}
+            Plan Week
+          </Button>
+        </div>
+      </div>
+
+      {/* New idea inline form */}
+      {showNewIdea && (
+        <div className="flex gap-2">
+          <Input
+            autoFocus
+            value={newIdeaTitle}
+            onChange={(e) => setNewIdeaTitle(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleNewIdea();
+              if (e.key === "Escape") { setShowNewIdea(false); setNewIdeaTitle(""); }
+            }}
+            placeholder="What's the idea?"
+            className="flex-1"
+          />
+          <Button size="sm" onClick={handleNewIdea}>Add</Button>
+          <Button variant="ghost" size="sm" onClick={() => { setShowNewIdea(false); setNewIdeaTitle(""); }}>Cancel</Button>
+        </div>
+      )}
+
+      {/* Topic input for AI idea generation */}
+      {showTopicInput && !generating && (
+        <div className="rounded-lg border bg-card p-4 shadow-sm space-y-3">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-primary" />
+            <p className="text-sm font-medium">Generate content ideas</p>
+          </div>
+          <Textarea
+            autoFocus
+            value={ideaTopic}
+            onChange={(e) => setIdeaTopic(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleGetIdeas(ideaTopic, contentFormatChoice); }
+              if (e.key === "Escape") { setShowTopicInput(false); setIdeaTopic(""); }
+            }}
+            placeholder="Optional: describe a topic, angle, or trend to focus on... (leave empty for AI to decide based on your content + latest news)"
+            className="min-h-16 resize-none text-sm"
+          />
+          {/* Content format selector + destination platform context (Amendment 3). */}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <label htmlFor="content-format-select" className="text-xs font-medium text-muted-foreground">
+                Format
+              </label>
+              <Select
+                value={contentFormatChoice}
+                onValueChange={(value) => setContentFormatChoice(value as ContentFormatChoice)}
+              >
+                <SelectTrigger id="content-format-select" className="h-8 w-44 text-xs" aria-label="Content format">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CONTENT_FORMAT_OPTIONS.map(({ value, label, hint, Icon }) => (
+                    <SelectItem key={value} value={value} className="text-xs">
+                      <div className="flex items-center gap-2">
+                        <Icon className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+                        <div className="flex flex-col">
+                          <span className="font-medium leading-tight">{label}</span>
+                          <span className="text-[10px] text-muted-foreground leading-tight">{hint}</span>
+                        </div>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <span className="font-medium">Destination:</span>
+              <span>Newsletter (Beehiiv)</span>
+              <span aria-hidden className="text-muted-foreground/50">·</span>
+              <span className="text-[10px]">more platforms coming</span>
+            </div>
+          </div>
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-muted-foreground">
+              AI will check latest news, analyse your library, and suggest 7 prioritised ideas
+            </p>
+            <div className="flex gap-2">
+              <Button variant="ghost" size="sm" onClick={() => { setShowTopicInput(false); setIdeaTopic(""); setContentFormatChoice("any"); }}>Cancel</Button>
+              <Button size="sm" onClick={() => handleGetIdeas(ideaTopic, contentFormatChoice)} className="gap-1.5">
+                <Send className="h-3.5 w-3.5" />
+                Generate
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Generation progress card */}
+      {(generating || genResult) && (
+        <div className="rounded-lg border bg-card p-6 shadow-sm">
+          {generating ? (
+            <div className="flex items-center gap-4">
+              <Loader2 className="h-6 w-6 animate-spin text-primary shrink-0" />
+              <div className="flex-1">
+                <div className="flex items-center gap-3">
+                  <p className="font-medium">{progressLabel}</p>
+                  <ElapsedTimer running={generating} estimatedSeconds={20} />
+                </div>
+                {genProgress && (
+                  <p className="text-sm text-muted-foreground animate-pulse">
+                    {genProgress.label}
+                  </p>
+                )}
+                {genProgress?.hint && (
+                  <p className="mt-1 text-xs text-muted-foreground/70">
+                    {genProgress.hint}
+                  </p>
+                )}
+              </div>
+            </div>
+          ) : genResult ? (
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <CheckCircle className="h-5 w-5 text-emerald-500 shrink-0" />
+                <p className="font-medium">{genResult.count} ideas generated</p>
+                <Button variant="ghost" size="sm" className="ml-auto text-xs" onClick={() => setGenResult(null)}>Dismiss</Button>
+              </div>
+              {genResult.ideas.length > 0 && (
+                <ul className="space-y-1 pl-8">
+                  {genResult.ideas.map((idea, i) => (
+                    <li key={i} className="text-sm text-muted-foreground">{idea.topic}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ) : null}
+        </div>
+      )}
+
+      {/* Kanban board */}
+      {isLoading ? (
+        <div className="flex gap-3">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="flex-1 rounded-xl bg-muted/40 p-3">
+              <Skeleton className="mb-2 h-3 w-16" />
+              {Array.from({ length: 2 - (i % 2) }).map((_, j) => (
+                <div key={j} className="mb-1.5 rounded-lg border bg-card p-3">
+                  <Skeleton className="h-3.5 w-full" />
+                  <Skeleton className="mt-1.5 h-2.5 w-2/3" />
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      ) : data ? (
+        <KanbanBoard
+          data={data}
+          onRefresh={() => queryClient.invalidateQueries({ queryKey: ["pipeline-ideas"] })}
+        />
+      ) : (
+        <div className="py-16 text-center">
+          <p className="text-muted-foreground">
+            No ideas yet. Click &ldquo;Get Ideas&rdquo; to generate AI suggestions.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
