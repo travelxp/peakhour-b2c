@@ -1,31 +1,38 @@
 "use client";
 
-import { useEffect, useState } from "react";
-
-/**
- * Embedded surface home — the primary workflow entry inside Shopify admin.
- * Authenticates via the App Bridge session token (no cookie — iframes block
- * third-party cookies), calls the api `/v1/shopify/embedded/context`, and
- * renders the connected store's status (or a link-account prompt when the
- * shop isn't yet tied to a Peakhour account → onboarding lands in S3).
- */
+import { useEffect, useState, useCallback } from "react";
+import {
+  Page,
+  Card,
+  BlockStack,
+  InlineStack,
+  Text,
+  Button,
+  Banner,
+  Badge,
+  SkeletonPage,
+  SkeletonBodyText,
+  SkeletonDisplayText,
+  EmptyState,
+  Divider,
+  Box,
+  InlineGrid,
+} from "@shopify/polaris";
+import { getSessionToken } from "./_lib/session";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 
-declare global {
-  interface Window {
-    shopify?: { idToken: () => Promise<string> };
-  }
-}
-
 interface EmbeddedContext {
   connected: boolean;
-  shop?: string;
+  shop: string;
+  orgId?: string;
+  businessId?: string;
   storeName?: string | null;
   currency?: string | null;
   productsSyncedAt?: string | null;
   connectionStatus?: string | null;
   assistantActive?: boolean;
+  productsCount?: number;
   pricing?: {
     displayName: string;
     amount: string;
@@ -34,62 +41,233 @@ interface EmbeddedContext {
   } | null;
 }
 
-/** App Bridge attaches `window.shopify` asynchronously after its CDN script
- *  loads; poll briefly for it, then fetch a fresh session token. */
-async function getSessionToken(timeoutMs = 6000): Promise<string | null> {
-  const start = Date.now();
-  while (Date.now() - start < timeoutMs) {
-    if (typeof window !== "undefined" && window.shopify?.idToken) {
-      try {
-        return await window.shopify.idToken();
-      } catch {
-        return null;
-      }
-    }
-    await new Promise((r) => setTimeout(r, 100));
-  }
-  return null;
-}
-
-type State =
+type PageState =
   | { status: "loading" }
   | { status: "error"; message: string }
   | { status: "ready"; ctx: EmbeddedContext };
 
-export default function ShopifyEmbeddedHome() {
-  const [state, setState] = useState<State>({ status: "loading" });
-  const [subscribing, setSubscribing] = useState(false);
-  const [subErr, setSubErr] = useState<string | null>(null);
+// ── Helpers ────────────────────────────────────────────────────────────────
 
-  /** Start the Shopify Billing checkout: mint a charge, then break out of the
-   *  admin iframe to Shopify's hosted approve-and-pay page. */
-  async function handleSubscribe() {
-    setSubscribing(true);
-    setSubErr(null);
-    const token = await getSessionToken();
-    if (!token) {
-      setSubErr("Couldn't get a Shopify session. Please reopen from your admin.");
-      setSubscribing(false);
-      return;
-    }
-    try {
-      const res = await fetch(`${API_URL}/v1/shopify/embedded/billing/subscribe`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = (await res.json().catch(() => ({}))) as { confirmationUrl?: string };
-      if (!res.ok || !data.confirmationUrl) {
-        setSubErr("Could not start checkout. Please try again.");
-        setSubscribing(false);
-        return;
-      }
-      // confirmationUrl is a Shopify-hosted page — navigate the TOP frame.
-      (window.top ?? window).location.href = data.confirmationUrl;
-    } catch {
-      setSubErr("Network error starting checkout.");
-      setSubscribing(false);
-    }
-  }
+function connectionBadge(status: string | null | undefined) {
+  if (!status) return <Badge tone="attention">Unknown</Badge>;
+  if (status === "active") return <Badge tone="success">Active</Badge>;
+  if (status === "disconnected") return <Badge tone="critical">Disconnected</Badge>;
+  if (status === "pending") return <Badge tone="attention">Pending</Badge>;
+  return <Badge>{status}</Badge>;
+}
+
+function formatSyncTime(iso: string | null | undefined): string {
+  if (!iso) return "Never";
+  const d = new Date(iso);
+  const diff = Date.now() - d.getTime();
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+// ── Skeleton loading state ─────────────────────────────────────────────────
+
+function LoadingSkeleton() {
+  return (
+    <SkeletonPage title="Peakhour Commerce">
+      <BlockStack gap="500">
+        <Card>
+          <BlockStack gap="400">
+            <SkeletonDisplayText size="small" />
+            <SkeletonBodyText lines={3} />
+          </BlockStack>
+        </Card>
+        <Card>
+          <BlockStack gap="400">
+            <SkeletonDisplayText size="small" />
+            <SkeletonBodyText lines={2} />
+          </BlockStack>
+        </Card>
+        <Card>
+          <BlockStack gap="400">
+            <SkeletonDisplayText size="small" />
+            <SkeletonBodyText lines={2} />
+          </BlockStack>
+        </Card>
+      </BlockStack>
+    </SkeletonPage>
+  );
+}
+
+// ── Connected home ─────────────────────────────────────────────────────────
+
+interface ConnectedHomeProps {
+  ctx: EmbeddedContext;
+  onSync: () => void;
+  syncing: boolean;
+  syncError: string | null;
+  onSubscribe: () => void;
+  subscribing: boolean;
+  subError: string | null;
+}
+
+function ConnectedHome({ ctx, onSync, syncing, syncError, onSubscribe, subscribing, subError }: ConnectedHomeProps) {
+  const storeName = ctx.storeName || ctx.shop;
+  const syncLabel = ctx.productsSyncedAt ? "Sync now" : "Sync catalog";
+
+  return (
+    <Page
+      title="Peakhour Commerce"
+      subtitle={storeName}
+    >
+      <BlockStack gap="500">
+        {/* ── Card 1 — Store Health ───────────────────────────────────── */}
+        <Card>
+          <BlockStack gap="400">
+            <Text as="h2" variant="headingMd">
+              Store health
+            </Text>
+            <Divider />
+            <InlineGrid columns={{ xs: 1, sm: 2 }} gap="400">
+              <BlockStack gap="100">
+                <Text as="p" variant="bodySm" tone="subdued">
+                  Store
+                </Text>
+                <Text as="p" variant="bodyMd" fontWeight="semibold">
+                  {storeName}
+                </Text>
+              </BlockStack>
+              {ctx.currency && (
+                <BlockStack gap="100">
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    Currency
+                  </Text>
+                  <Text as="p" variant="bodyMd" fontWeight="semibold">
+                    {ctx.currency}
+                  </Text>
+                </BlockStack>
+              )}
+              <BlockStack gap="100">
+                <Text as="p" variant="bodySm" tone="subdued">
+                  Connection
+                </Text>
+                <Box>{connectionBadge(ctx.connectionStatus)}</Box>
+              </BlockStack>
+            </InlineGrid>
+          </BlockStack>
+        </Card>
+
+        {/* ── Card 2 — Sync Status ────────────────────────────────────── */}
+        <Card>
+          <BlockStack gap="400">
+            <InlineStack align="space-between" blockAlign="center">
+              <Text as="h2" variant="headingMd">
+                Catalog sync
+              </Text>
+              <Button
+                onClick={onSync}
+                loading={syncing}
+                disabled={syncing}
+                size="slim"
+                variant="secondary"
+              >
+                {syncLabel}
+              </Button>
+            </InlineStack>
+            <Divider />
+            <InlineGrid columns={{ xs: 1, sm: 2 }} gap="400">
+              <BlockStack gap="100">
+                <Text as="p" variant="bodySm" tone="subdued">
+                  Products synced
+                </Text>
+                <Text as="p" variant="bodyMd" fontWeight="semibold">
+                  {ctx.productsCount != null ? ctx.productsCount.toLocaleString() : "—"}
+                </Text>
+              </BlockStack>
+              <BlockStack gap="100">
+                <Text as="p" variant="bodySm" tone="subdued">
+                  Last synced
+                </Text>
+                <Text as="p" variant="bodyMd" fontWeight="semibold">
+                  {formatSyncTime(ctx.productsSyncedAt)}
+                </Text>
+              </BlockStack>
+            </InlineGrid>
+            {syncError && (
+              <Banner tone="critical">
+                <Text as="p" variant="bodyMd">
+                  {syncError}
+                </Text>
+              </Banner>
+            )}
+            {syncing && (
+              <Banner tone="info">
+                <Text as="p" variant="bodyMd">
+                  Sync started — this may take a minute. Refresh to see updated counts.
+                </Text>
+              </Banner>
+            )}
+          </BlockStack>
+        </Card>
+
+        {/* ── Card 3 — Commerce Assistant ─────────────────────────────── */}
+        <Card>
+          <BlockStack gap="400">
+            <Text as="h2" variant="headingMd">
+              Commerce assistant
+            </Text>
+            <Divider />
+            {ctx.assistantActive ? (
+              <BlockStack gap="300">
+                <InlineStack gap="200" blockAlign="center">
+                  <Badge tone="success">Active</Badge>
+                  <Text as="p" variant="bodyMd">
+                    Your catalog-grounded WhatsApp assistant is live.
+                  </Text>
+                </InlineStack>
+                <Text as="p" variant="bodyMd" tone="subdued">
+                  Manage voice settings, preview conversations, and review analytics from your
+                  Peakhour dashboard.
+                </Text>
+              </BlockStack>
+            ) : (
+              <BlockStack gap="400">
+                <Text as="p" variant="bodyMd" tone="subdued">
+                  Unlock the catalog-grounded WhatsApp assistant — it answers shopper questions
+                  using your real products, in their own language, around the clock.
+                </Text>
+                {subError && (
+                  <Banner tone="critical">
+                    <Text as="p" variant="bodyMd">
+                      {subError}
+                    </Text>
+                  </Banner>
+                )}
+                <Button
+                  onClick={onSubscribe}
+                  loading={subscribing}
+                  disabled={subscribing}
+                  variant="primary"
+                >
+                  {ctx.pricing
+                    ? `Subscribe — ${ctx.pricing.currency === "USD" ? "$" : ctx.pricing.currency + " "}${ctx.pricing.amount}/${ctx.pricing.interval === "annual" ? "yr" : "mo"}`
+                    : "Subscribe to Commerce"}
+                </Button>
+              </BlockStack>
+            )}
+          </BlockStack>
+        </Card>
+      </BlockStack>
+    </Page>
+  );
+}
+
+// ── Root component ─────────────────────────────────────────────────────────
+
+export default function ShopifyEmbeddedHome() {
+  const [state, setState] = useState<PageState>({ status: "loading" });
+  const [syncing, setSyncing] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const [subscribing, setSubscribing] = useState(false);
+  const [subError, setSubError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -97,11 +275,7 @@ export default function ShopifyEmbeddedHome() {
       const token = await getSessionToken();
       if (cancelled) return;
       if (!token) {
-        setState({
-          status: "error",
-          message:
-            "Couldn't get a Shopify session. Please open Peakhour from your Shopify admin.",
-        });
+        setState({ status: "error", message: "Couldn't get a Shopify session. Please open Peakhour from your Shopify admin." });
         return;
       }
       try {
@@ -119,98 +293,115 @@ export default function ShopifyEmbeddedHome() {
         if (!cancelled) setState({ status: "error", message: "Network error contacting Peakhour." });
       }
     })();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, []);
 
+  const handleSync = useCallback(async () => {
+    setSyncing(true);
+    setSyncError(null);
+    const token = await getSessionToken();
+    if (!token) {
+      setSyncError("Couldn't get a Shopify session. Please reopen from your admin.");
+      setSyncing(false);
+      return;
+    }
+    try {
+      const res = await fetch(`${API_URL}/v1/shopify/embedded/sync`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        setSyncError(data.error ?? `Sync failed (${res.status}). Please try again.`);
+        setSyncing(false);
+      } else {
+        // Fire-and-forget queued — keep the "Sync started" banner for a few seconds
+        // so the merchant sees feedback, then clear (they can refresh for updated counts).
+        setTimeout(() => setSyncing(false), 5000);
+      }
+    } catch {
+      setSyncError("Network error triggering sync.");
+      setSyncing(false);
+    }
+  }, []);
+
+  const handleSubscribe = useCallback(async () => {
+    setSubscribing(true);
+    setSubError(null);
+    const token = await getSessionToken();
+    if (!token) {
+      setSubError("Couldn't get a Shopify session. Please reopen from your admin.");
+      setSubscribing(false);
+      return;
+    }
+    try {
+      const res = await fetch(`${API_URL}/v1/shopify/embedded/billing/subscribe`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = (await res.json().catch(() => ({}))) as { confirmationUrl?: string };
+      if (!res.ok || !data.confirmationUrl) {
+        setSubError("Could not start checkout. Please try again.");
+        setSubscribing(false);
+        return;
+      }
+      // Break out of the Shopify admin iframe to the hosted billing page.
+      (window.top ?? window).location.href = data.confirmationUrl;
+    } catch {
+      setSubError("Network error starting checkout.");
+      setSubscribing(false);
+    }
+  }, []);
+
+  if (state.status === "loading") return <LoadingSkeleton />;
+
+  if (state.status === "error") {
+    return (
+      <Page title="Peakhour Commerce">
+        <Banner tone="critical" title="Could not load your store">
+          <Text as="p" variant="bodyMd">
+            {state.message}
+          </Text>
+        </Banner>
+      </Page>
+    );
+  }
+
+  if (!state.ctx.connected) {
+    const shop = state.ctx.shop;
+    const connectUrl = shop
+      ? `/shopify/connect?shop=${encodeURIComponent(shop)}`
+      : "/shopify/connect";
+    return (
+      <Page title="Peakhour Commerce">
+        <EmptyState
+          heading="Link your Peakhour account"
+          action={{
+            content: "Set up Peakhour Commerce",
+            // Navigate the top-level window — relative URLs inside an admin
+            // iframe would only navigate the iframe itself.
+            onAction: () => { (window.top ?? window).location.href = connectUrl; },
+          }}
+          image="https://cdn.shopify.com/s/files/1/0757/9955/files/empty-state.svg"
+        >
+          <Text as="p" variant="bodyMd">
+            {shop ? `${shop} isn't` : "This store isn't"} linked to a Peakhour account yet.
+            Finish setup to connect your catalog and enable the AI commerce assistant.
+          </Text>
+        </EmptyState>
+      </Page>
+    );
+  }
+
   return (
-    <main className="mx-auto max-w-2xl px-6 py-10">
-      <h1 className="text-2xl font-semibold">Peakhour Commerce</h1>
-      <p className="mt-1 text-sm text-neutral-500">
-        Your catalog-grounded WhatsApp assistant, connected to your Shopify store.
-      </p>
-
-      <div className="mt-8 rounded-xl border border-neutral-200 p-6">
-        {state.status === "loading" && (
-          <p className="text-sm text-neutral-500">Connecting to your store…</p>
-        )}
-
-        {state.status === "error" && (
-          <p className="text-sm text-red-600">{state.message}</p>
-        )}
-
-        {state.status === "ready" && state.ctx.connected && (
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <span className="inline-block h-2 w-2 rounded-full bg-green-500" aria-hidden />
-              <span className="font-medium">
-                {state.ctx.storeName || state.ctx.shop} is connected
-              </span>
-            </div>
-            <dl className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm text-neutral-600">
-              {state.ctx.shop && (
-                <>
-                  <dt className="text-neutral-400">Store</dt>
-                  <dd>{state.ctx.shop}</dd>
-                </>
-              )}
-              {state.ctx.currency && (
-                <>
-                  <dt className="text-neutral-400">Currency</dt>
-                  <dd>{state.ctx.currency}</dd>
-                </>
-              )}
-              <dt className="text-neutral-400">Catalog last synced</dt>
-              <dd>
-                {state.ctx.productsSyncedAt
-                  ? new Date(state.ctx.productsSyncedAt).toLocaleString()
-                  : "Syncing…"}
-              </dd>
-            </dl>
-            {state.ctx.assistantActive ? (
-              <div className="mt-2 rounded-lg bg-green-50 px-4 py-3 text-sm text-green-800">
-                ✓ Your WhatsApp catalog assistant is active. Manage and preview it from your
-                Peakhour dashboard.
-              </div>
-            ) : (
-              <div className="mt-2 space-y-2 rounded-lg border border-neutral-200 p-4">
-                <p className="text-sm text-neutral-600">
-                  Switch on the catalog-grounded WhatsApp assistant — it answers shopper
-                  questions using your real products, in their own language.
-                </p>
-                <button
-                  type="button"
-                  onClick={handleSubscribe}
-                  disabled={subscribing}
-                  className="rounded-lg bg-[#075E54] px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-                >
-                  {subscribing
-                    ? "Starting checkout…"
-                    : state.ctx.pricing
-                      ? `Subscribe — ${state.ctx.pricing.currency === "USD" ? "$" : state.ctx.pricing.currency + " "}${state.ctx.pricing.amount}/mo`
-                      : "Subscribe"}
-                </button>
-                {subErr && <p className="text-sm text-red-600">{subErr}</p>}
-              </div>
-            )}
-          </div>
-        )}
-
-        {state.status === "ready" && !state.ctx.connected && (
-          <div className="space-y-3">
-            <p className="font-medium">Link your Peakhour account</p>
-            <p className="text-sm text-neutral-600">
-              {state.ctx.shop ? `${state.ctx.shop} ` : "This store "}
-              isn&apos;t linked to a Peakhour account yet. Finish setup to connect your
-              catalog and switch on the assistant.
-            </p>
-            <p className="text-xs text-neutral-400">
-              Guided onboarding is coming to this screen shortly.
-            </p>
-          </div>
-        )}
-      </div>
-    </main>
+    <ConnectedHome
+      ctx={state.ctx}
+      onSync={handleSync}
+      syncing={syncing}
+      syncError={syncError}
+      onSubscribe={handleSubscribe}
+      subscribing={subscribing}
+      subError={subError}
+    />
   );
 }
