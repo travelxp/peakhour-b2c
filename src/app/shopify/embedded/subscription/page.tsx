@@ -33,6 +33,7 @@ interface ContextData {
     amount: string;
     currency: string;
     interval: "monthly" | "annual";
+    trialDays?: number;
   } | null;
 }
 
@@ -232,7 +233,14 @@ export default function SubscriptionPage() {
           </List>
 
           {label && (
-            <Text as="p" variant="headingLg" fontWeight="bold">{label}</Text>
+            <BlockStack gap="100">
+              <Text as="p" variant="headingLg" fontWeight="bold">{label}</Text>
+              {(ctx?.pricing?.trialDays ?? 0) > 0 && (
+                <Text as="p" variant="bodyMd" tone="subdued">
+                  {ctx!.pricing!.trialDays}-day free trial — billing starts when the trial ends.
+                </Text>
+              )}
+            </BlockStack>
           )}
 
           <Divider />
@@ -249,7 +257,9 @@ export default function SubscriptionPage() {
             variant="primary"
             size="large"
           >
-            Subscribe
+            {(ctx?.pricing?.trialDays ?? 0) > 0
+              ? `Start ${ctx!.pricing!.trialDays}-day free trial`
+              : "Subscribe"}
           </Button>
 
           <Text as="p" variant="bodySm" tone="subdued">

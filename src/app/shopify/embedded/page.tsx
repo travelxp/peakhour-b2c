@@ -38,6 +38,7 @@ interface EmbeddedContext {
     amount: string;
     currency: string;
     interval: "monthly" | "annual";
+    trialDays?: number;
   } | null;
 }
 
@@ -248,7 +249,9 @@ function ConnectedHome({ ctx, onSync, syncing, syncError, onSubscribe, subscribi
                   variant="primary"
                 >
                   {ctx.pricing
-                    ? `Subscribe — ${ctx.pricing.currency === "USD" ? "$" : ctx.pricing.currency + " "}${ctx.pricing.amount}/${ctx.pricing.interval === "annual" ? "yr" : "mo"}`
+                    ? (ctx.pricing.trialDays ?? 0) > 0
+                      ? `Start ${ctx.pricing.trialDays}-day free trial — then ${ctx.pricing.currency === "USD" ? "$" : ctx.pricing.currency + " "}${ctx.pricing.amount}/${ctx.pricing.interval === "annual" ? "yr" : "mo"}`
+                      : `Subscribe — ${ctx.pricing.currency === "USD" ? "$" : ctx.pricing.currency + " "}${ctx.pricing.amount}/${ctx.pricing.interval === "annual" ? "yr" : "mo"}`
                     : "Subscribe to Commerce"}
                 </Button>
               </BlockStack>
