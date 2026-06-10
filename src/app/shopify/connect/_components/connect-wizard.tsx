@@ -103,18 +103,38 @@ function StepIndicator({ current, done }: { current: number; done: boolean }) {
 interface Props {
   shop: string;
   token: string;
+  /** Re-entry mode for expired/consumed link tokens: skips the token
+   *  requirement and restarts OAuth via the session-authed authorize route
+   *  (Shopify skips the grant screen for an already-installed app). */
+  reconnect?: boolean;
 }
 
-export function ConnectWizard({ shop, token }: Props) {
+export function ConnectWizard({ shop, token, reconnect = false }: Props) {
   const router = useRouter();
   const [step, setStep] = useState<Step>("checking");
   const [user, setUser] = useState<MeUser | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [joining, setJoining] = useState(false);
   const [pinJoinFailed, setPinJoinFailed] = useState(false);
+  // Expired/consumed link token — recoverable without reinstalling (see
+  // reconnectNow), so the error UI offers a reconnect button.
+  const [tokenExpired, setTokenExpired] = useState(false);
   // Which step the wizard was on when an error occurred, so the indicator
   // doesn't show later steps (incl. Insights Network) as completed.
   const [failedAt, setFailedAt] = useState(0);
+
+  // Restart OAuth for an already-installed app — Shopify skips the grant
+  // screen, the session-authed dashboard callback path links the store
+  // directly (no pending-install token involved). Signed-out users go
+  // through the magic-link auth first, then return here in reconnect mode.
+  const reconnectNow = useCallback((hasSession: boolean) => {
+    if (hasSession) {
+      window.location.href = `${API_URL}/v1/integrations/shopify/authorize?shop=${encodeURIComponent(shop)}`;
+    } else {
+      const next = encodeURIComponent(`/shopify/connect?shop=${encodeURIComponent(shop)}&reconnect=1`);
+      window.location.href = `/auth?next=${next}`;
+    }
+  }, [shop]);
 
   const linkStore = useCallback(async () => {
     setStep("linking");
@@ -142,9 +162,9 @@ export function ConnectWizard({ shop, token }: Props) {
             "then reinstall the app from the Shopify App Store.",
         );
       } else if (data.code === "TOKEN_EXPIRED" || res.status === 410) {
+        setTokenExpired(true);
         setError(
-          "Your store connection link has expired (15-minute limit). " +
-            "Please reinstall Peakhour Commerce from the Shopify App Store to get a fresh link.",
+          "Your store connection link has expired — no need to reinstall, just reconnect below.",
         );
       } else {
         setError(data.error ?? data.message ?? `Link failed (${res.status}). Please try again.`);
@@ -184,7 +204,7 @@ export function ConnectWizard({ shop, token }: Props) {
   }, [step, router]);
 
   useEffect(() => {
-    if (!shop || !token) {
+    if (!shop || (!token && !reconnect)) {
       setError(
         "Missing shop or connection token. Please reinstall Peakhour Commerce from the Shopify App Store.",
       );
@@ -200,7 +220,13 @@ export function ConnectWizard({ shop, token }: Props) {
         if (res.ok) {
           const data = (await res.json()) as { user?: MeUser };
           setUser(data.user ?? null);
-          linkStore();
+          if (reconnect) {
+            // Re-entry after an expired link (or post-auth return): restart
+            // OAuth directly — no pending-install token involved.
+            reconnectNow(true);
+          } else {
+            linkStore();
+          }
         } else {
           setStep("auth-required");
         }
@@ -208,13 +234,16 @@ export function ConnectWizard({ shop, token }: Props) {
         setStep("auth-required");
       }
     })();
-  }, [shop, token, linkStore]);
+  }, [shop, token, reconnect, linkStore, reconnectNow]);
 
   // The auth page is a unified magic-link flow (no separate sign-up route).
   // Both "sign in" and "create account" land on the same page; the merchant
-  // receives a magic link and is created if they don't exist.
+  // receives a magic link and is created if they don't exist. Reconnect mode
+  // carries reconnect=1 instead of a token so the return trip restarts OAuth.
   const encodedNext = encodeURIComponent(
-    `/shopify/connect?shop=${encodeURIComponent(shop)}&token=${encodeURIComponent(token)}`,
+    reconnect
+      ? `/shopify/connect?shop=${encodeURIComponent(shop)}&reconnect=1`
+      : `/shopify/connect?shop=${encodeURIComponent(shop)}&token=${encodeURIComponent(token)}`,
   );
   const authUrl = `/auth?next=${encodedNext}`;
 
@@ -293,9 +322,11 @@ export function ConnectWizard({ shop, token }: Props) {
                   Continue with Peakhour
                 </Button>
 
-                <InlineStack align="center">
-                  <Badge tone="attention">Link expires in 15 min</Badge>
-                </InlineStack>
+                {!reconnect && (
+                  <InlineStack align="center">
+                    <Badge tone="attention">Link expires in 60 min</Badge>
+                  </InlineStack>
+                )}
               </BlockStack>
             )}
 
@@ -405,24 +436,36 @@ export function ConnectWizard({ shop, token }: Props) {
                   Open Peakhour Commerce
                 </Button>
 
-                {user?.email && (
-                  <InlineStack align="center">
-                    <Text as="p" variant="bodySm" tone="subdued" alignment="center">
-                      Signed in as {user.email}
-                    </Text>
-                  </InlineStack>
-                )}
+                <Text as="p" variant="bodySm" tone="subdued" alignment="center">
+                  Day-to-day controls live right here in your Shopify admin. The full
+                  Peakhour dashboard{user?.email ? ` (sign in as ${user.email})` : ""} adds
+                  marketing tools, analytics, and the assistant preview —{" "}
+                  <Button url="/dashboard" variant="plain" size="slim" external>
+                    open dashboard
+                  </Button>
+                </Text>
               </BlockStack>
             )}
 
             {/* Error state */}
             {step === "error" && (
               <BlockStack gap="500">
-                <Banner tone="critical" title="Something went wrong">
+                <Banner tone={tokenExpired ? "warning" : "critical"} title={tokenExpired ? "Connection link expired" : "Something went wrong"}>
                   <Text as="p" variant="bodyMd">
                     {error}
                   </Text>
                 </Banner>
+
+                {tokenExpired && shop && (
+                  <Button
+                    onClick={() => reconnectNow(!!user)}
+                    variant="primary"
+                    size="large"
+                    fullWidth
+                  >
+                    Reconnect {shop}
+                  </Button>
+                )}
 
                 <InlineStack gap="300" align="center">
                   <Button url="https://apps.shopify.com" variant="plain" external>

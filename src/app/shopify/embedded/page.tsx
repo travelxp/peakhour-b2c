@@ -228,6 +228,12 @@ function ConnectedHome({ ctx, onSync, syncing, syncError, onSubscribe, subscribi
                   Manage voice settings, preview conversations, and review analytics from your
                   Peakhour dashboard.
                 </Text>
+                <Box>
+                  {/* external → new tab, which naturally escapes the admin iframe */}
+                  <Button url="/dashboard" external>
+                    Open Peakhour Dashboard
+                  </Button>
+                </Box>
               </BlockStack>
             ) : (
               <BlockStack gap="400">
@@ -242,18 +248,23 @@ function ConnectedHome({ ctx, onSync, syncing, syncError, onSubscribe, subscribi
                     </Text>
                   </Banner>
                 )}
-                <Button
-                  onClick={onSubscribe}
-                  loading={subscribing}
-                  disabled={subscribing}
-                  variant="primary"
-                >
-                  {ctx.pricing
-                    ? (ctx.pricing.trialDays ?? 0) > 0
-                      ? `Start ${ctx.pricing.trialDays}-day free trial — then ${ctx.pricing.currency === "USD" ? "$" : ctx.pricing.currency + " "}${ctx.pricing.amount}/${ctx.pricing.interval === "annual" ? "yr" : "mo"}`
-                      : `Subscribe — ${ctx.pricing.currency === "USD" ? "$" : ctx.pricing.currency + " "}${ctx.pricing.amount}/${ctx.pricing.interval === "annual" ? "yr" : "mo"}`
-                    : "Subscribe to Commerce"}
-                </Button>
+                <InlineStack gap="300" blockAlign="center">
+                  <Button
+                    onClick={onSubscribe}
+                    loading={subscribing}
+                    disabled={subscribing}
+                    variant="primary"
+                  >
+                    {ctx.pricing
+                      ? (ctx.pricing.trialDays ?? 0) > 0
+                        ? `Start ${ctx.pricing.trialDays}-day free trial — then ${ctx.pricing.currency === "USD" ? "$" : ctx.pricing.currency + " "}${ctx.pricing.amount}/${ctx.pricing.interval === "annual" ? "yr" : "mo"}`
+                        : `Subscribe — ${ctx.pricing.currency === "USD" ? "$" : ctx.pricing.currency + " "}${ctx.pricing.amount}/${ctx.pricing.interval === "annual" ? "yr" : "mo"}`
+                      : "Subscribe to Commerce"}
+                  </Button>
+                  <Button url="/dashboard" variant="plain" external>
+                    Open Peakhour Dashboard
+                  </Button>
+                </InlineStack>
               </BlockStack>
             )}
           </BlockStack>

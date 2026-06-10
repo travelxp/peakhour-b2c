@@ -7,7 +7,7 @@ export const metadata: Metadata = {
 };
 
 interface Props {
-  searchParams: Promise<{ shop?: string; token?: string }>;
+  searchParams: Promise<{ shop?: string; token?: string; reconnect?: string }>;
 }
 
 /**
@@ -23,6 +23,6 @@ interface Props {
  * Uses Polaris only (no Tailwind) via the connect/ segment layout.
  */
 export default async function ShopifyConnectPage({ searchParams }: Props) {
-  const { shop = "", token = "" } = await searchParams;
-  return <ConnectWizard shop={shop} token={token} />;
+  const { shop = "", token = "", reconnect = "" } = await searchParams;
+  return <ConnectWizard shop={shop} token={token} reconnect={reconnect === "1"} />;
 }
