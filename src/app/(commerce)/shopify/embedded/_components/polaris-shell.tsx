@@ -5,6 +5,7 @@ import {
   HomeIcon,
   ProductIcon,
   ChartVerticalIcon,
+  ThemeTemplateIcon,
   CreditCardIcon,
   SettingsIcon,
 } from "@shopify/polaris-icons";
@@ -31,6 +32,7 @@ const NAV_ITEMS = [
   { label: "Home", icon: HomeIcon, url: "/shopify/embedded", exactMatch: true },
   { label: "Catalog", icon: ProductIcon, url: "/shopify/embedded/catalog" },
   { label: "Intelligence", icon: ChartVerticalIcon, url: "/shopify/embedded/intelligence" },
+  { label: "Storefront", icon: ThemeTemplateIcon, url: "/shopify/embedded/theme" },
   { label: "Subscription", icon: CreditCardIcon, url: "/shopify/embedded/subscription" },
   { label: "Settings", icon: SettingsIcon, url: "/shopify/embedded/settings" },
 ];
