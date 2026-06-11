@@ -4,6 +4,7 @@ import { AppProvider, Frame, Navigation } from "@shopify/polaris";
 import {
   HomeIcon,
   ProductIcon,
+  ChartVerticalIcon,
   CreditCardIcon,
   SettingsIcon,
 } from "@shopify/polaris-icons";
@@ -29,6 +30,7 @@ function PolarisLink({ url, children, ...rest }: PolarisLinkProps) {
 const NAV_ITEMS = [
   { label: "Home", icon: HomeIcon, url: "/shopify/embedded", exactMatch: true },
   { label: "Catalog", icon: ProductIcon, url: "/shopify/embedded/catalog" },
+  { label: "Intelligence", icon: ChartVerticalIcon, url: "/shopify/embedded/intelligence" },
   { label: "Subscription", icon: CreditCardIcon, url: "/shopify/embedded/subscription" },
   { label: "Settings", icon: SettingsIcon, url: "/shopify/embedded/settings" },
 ];
