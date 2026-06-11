@@ -203,6 +203,39 @@ export function WhatsAppEmbeddedSignup({
       }
       if (payload?.type !== "WA_EMBEDDED_SIGNUP") return;
 
+      const data =
+        payload.data && typeof payload.data === "object"
+          ? (payload.data as Record<string, unknown>)
+          : undefined;
+
+      // Error surface — ES v4 reports user-visible flow errors as a CANCEL
+      // event whose data carries { error_message, error_code, session_id,
+      // timestamp }; v3 (sessionInfoVersion 3) used a dedicated ERROR event.
+      // Parse both so a dashboard config still on v3 keeps working during the
+      // cutover. (developers.facebook.com/documentation/business-messaging/
+      // whatsapp/embedded-signup/implementation/)
+      const errorMessage =
+        typeof data?.error_message === "string"
+          ? data.error_message
+          : typeof payload.error_message === "string"
+            ? (payload.error_message as string)
+            : undefined;
+      if (payload.event === "ERROR" || (payload.event === "CANCEL" && errorMessage)) {
+        clearWatchdog();
+        resetPieces();
+        setPhase("idle");
+        // Friendly message only — never surface Meta's raw error blob. The
+        // session_id is Meta's support reference for the failed ES session.
+        const ref =
+          typeof data?.session_id === "string" ? ` (ref ${data.session_id})` : "";
+        setError(
+          `Something went wrong in the WhatsApp signup window. Please try again.${ref}`,
+        );
+        return;
+      }
+
+      // Plain abandonment — v4 CANCEL carries data.current_step (which screen
+      // the user left from); no error to show, just unwind quietly.
       if (payload.event === "CANCEL") {
         clearWatchdog();
         if (phase === "launching") setPhase("idle");
@@ -210,6 +243,9 @@ export function WhatsAppEmbeddedSignup({
         return;
       }
 
+      // FINISH (v4 may emit FINISH variants as <FLOW_FINISH_TYPE>): v4 data
+      // carries phone_number_id, waba_id, business_id (+ optional product
+      // arrays). The deep search below tolerates both v3 and v4 shapes.
       const { wabaId, phoneNumberId } = findSignupIds(payload);
       if (wabaId && phoneNumberId) {
         sessionRef.current = { wabaId, phoneNumberId };
@@ -253,10 +289,26 @@ export function WhatsAppEmbeddedSignup({
         void complete();
       },
       {
+        // ES v4: the flow version is selected by the Facebook Login for
+        // Business *configuration* (config_id) — created under App Dashboard →
+        // Facebook Login for Business → Configurations with the "Embedded
+        // Signup" login variation; "Selecting the products will automatically
+        // set you to v4". No extras.version param is sent for stable v4.
+        // (developers.facebook.com/documentation/business-messaging/whatsapp/
+        // embedded-signup/versions/ and .../version-4/)
         config_id: CONFIG_ID,
         response_type: "code",
         override_default_response_type: true,
-        extras: { sessionInfoVersion: "3" },
+        extras: {
+          // v4 reference invocation sends an (empty) setup object
+          // (.../embedded-signup/implementation/).
+          setup: {},
+          // Backward tolerance during the v3→v4 config cutover: v2/v3
+          // configurations require sessionInfoVersion to emit the session-info
+          // callback; under a v4 configuration the version is config-driven so
+          // this is ignored. Remove once the v4 config_id is verified live.
+          sessionInfoVersion: "3",
+        },
       },
     );
   }, [sdkState, complete]);
