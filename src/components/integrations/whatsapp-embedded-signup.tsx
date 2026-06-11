@@ -210,17 +210,13 @@ export function WhatsAppEmbeddedSignup({
 
       // Error surface — ES v4 reports user-visible flow errors as a CANCEL
       // event whose data carries { error_message, error_code, session_id,
-      // timestamp }; v3 (sessionInfoVersion 3) used a dedicated ERROR event.
-      // Parse both so a dashboard config still on v3 keeps working during the
-      // cutover. (developers.facebook.com/documentation/business-messaging/
+      // timestamp }. v4-ONLY by decision (2026-06-11): no onboarded customers
+      // exist, so the legacy v3 ERROR event isn't handled.
+      // (developers.facebook.com/documentation/business-messaging/
       // whatsapp/embedded-signup/implementation/)
       const errorMessage =
-        typeof data?.error_message === "string"
-          ? data.error_message
-          : typeof payload.error_message === "string"
-            ? (payload.error_message as string)
-            : undefined;
-      if (payload.event === "ERROR" || (payload.event === "CANCEL" && errorMessage)) {
+        typeof data?.error_message === "string" ? data.error_message : undefined;
+      if (payload.event === "CANCEL" && errorMessage) {
         clearWatchdog();
         resetPieces();
         setPhase("idle");
@@ -243,9 +239,11 @@ export function WhatsAppEmbeddedSignup({
         return;
       }
 
-      // FINISH (v4 may emit FINISH variants as <FLOW_FINISH_TYPE>): v4 data
-      // carries phone_number_id, waba_id, business_id (+ optional product
-      // arrays). The deep search below tolerates both v3 and v4 shapes.
+      // FINISH (v4 may emit FINISH variants as <FLOW_FINISH_TYPE> — exact
+      // enum values are undocumented): v4 data carries phone_number_id,
+      // waba_id, business_id (+ optional product arrays). The deep search
+      // below is event-name-agnostic on purpose — it keys on the ids, so
+      // any v4 FINISH variant resolves.
       const { wabaId, phoneNumberId } = findSignupIds(payload);
       if (wabaId && phoneNumberId) {
         sessionRef.current = { wabaId, phoneNumberId };
@@ -301,13 +299,11 @@ export function WhatsAppEmbeddedSignup({
         override_default_response_type: true,
         extras: {
           // v4 reference invocation sends an (empty) setup object
-          // (.../embedded-signup/implementation/).
+          // (.../embedded-signup/implementation/). v4-ONLY by decision
+          // (2026-06-11): no onboarded customers exist, so no v2/v3
+          // sessionInfoVersion tolerance — NEXT_PUBLIC_META_ES_CONFIG_ID
+          // must be a v4 configuration id.
           setup: {},
-          // Backward tolerance during the v3→v4 config cutover: v2/v3
-          // configurations require sessionInfoVersion to emit the session-info
-          // callback; under a v4 configuration the version is config-driven so
-          // this is ignored. Remove once the v4 config_id is verified live.
-          sessionInfoVersion: "3",
         },
       },
     );
