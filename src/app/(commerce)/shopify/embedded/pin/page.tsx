@@ -78,10 +78,24 @@ function PinSkeleton() {
   );
 }
 
+/** Shop domain from the App Bridge session token's `dest` claim
+ *  (`https://{shop}.myshopify.com`). Display/navigation use only — never
+ *  trusted server-side (the api verifies the token signature itself). */
+function shopFromSessionToken(token: string): string | null {
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1] ?? "")) as { dest?: string };
+    const host = payload.dest ? new URL(payload.dest).hostname : "";
+    return /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(host) ? host : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function PinPage() {
   const [membership, setMembership] = useState<Membership>("loading");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [shop, setShop] = useState<string | null>(null);
   // Bumped by the retry button — re-runs the status load (sibling-page
   // pattern: inline IIFE + cancellation flag keeps the react-compiler
   // lint happy and discards late results after unmount).
@@ -97,6 +111,7 @@ export default function PinPage() {
         setError("Couldn't get a Shopify session. Please reopen Peakhour from your Shopify admin.");
         return;
       }
+      setShop(shopFromSessionToken(token));
       try {
         const res = await fetch(`${API_URL}/v1/shopify/embedded/pin/status`, {
           headers: { Authorization: `Bearer ${token}` },
@@ -250,25 +265,29 @@ export default function PinPage() {
         )}
 
         {membership === "notlinked" && (
-          <Card>
-            <EmptyState
-              heading="Link your Peakhour account"
-              action={{
-                content: "Set up Peakhour Commerce",
-                // Navigate the top-level window — relative URLs inside an
-                // admin iframe would only navigate the iframe itself.
-                onAction: () => {
-                  (window.top ?? window).location.href = "/shopify/connect";
-                },
-              }}
-              image="https://cdn.shopify.com/s/files/1/0757/9955/files/empty-state.svg"
-            >
-              <Text as="p" variant="bodyMd">
-                This store isn&apos;t linked to a Peakhour account yet. Finish setup
-                first — then join the Insights Network from here.
-              </Text>
-            </EmptyState>
-          </Card>
+          <EmptyState
+            heading="Link your Peakhour account"
+            action={{
+              content: "Set up Peakhour Commerce",
+              // Navigate the top-level window — relative URLs inside an
+              // admin iframe would only navigate the iframe itself. Carry
+              // shop + reconnect like Home/Settings do: the bare wizard URL
+              // hard-errors ("please reinstall") without a shop param.
+              onAction: () => {
+                const url = shop
+                  ? `/shopify/connect?shop=${encodeURIComponent(shop)}&reconnect=1`
+                  : "/shopify/connect";
+                (window.top ?? window).location.href = url;
+              },
+            }}
+            image="https://cdn.shopify.com/s/files/1/0757/9955/files/empty-state.svg"
+          >
+            <Text as="p" variant="bodyMd">
+              {shop ? `${shop} isn't` : "This store isn't"} linked to a Peakhour
+              account yet. Finish setup first — then join the Insights Network
+              from here.
+            </Text>
+          </EmptyState>
         )}
 
         {membership === "unknown" && (
