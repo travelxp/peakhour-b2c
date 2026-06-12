@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { WhatsAppIcon } from "@/components/ui/brand-icons";
-import { CheckCircle2, AlertCircle, Loader2, Sparkles, Info } from "lucide-react";
+import { CheckCircle2, AlertCircle, Loader2, Sparkles } from "lucide-react";
 
 const APP_ID = process.env.NEXT_PUBLIC_META_APP_ID;
 const CONFIG_ID = process.env.NEXT_PUBLIC_META_ES_CONFIG_ID;
@@ -22,6 +22,17 @@ const CONFIG_ID = process.env.NEXT_PUBLIC_META_ES_CONFIG_ID;
  *  giving up — guards against a missed Meta FINISH event leaving the UI
  *  spinning forever. */
 const WATCHDOG_MS = 90_000;
+
+/**
+ * Which Embedded Signup variant to launch (C5, whatsapp-v4-features-plan.md):
+ *  - "coexistence" — the merchant keeps using the WhatsApp Business app on
+ *    their phone; ES runs with extras.featureType
+ *    "whatsapp_business_app_onboarding" and pairs the existing number
+ *    (in-flow QR/code step on their phone). The FINISH event may carry only
+ *    waba_id — the api resolves the phone number server-side.
+ *  - "standard" — new/dedicated number, classic flow.
+ */
+type ConnectFlow = "standard" | "coexistence";
 
 /** Result returned by POST /v1/meta/whatsapp/embedded-signup. */
 interface ConnectResult {
@@ -102,12 +113,20 @@ export function WhatsAppEmbeddedSignup({
   const [error, setError] = useState<string | null>(null);
   const [connection, setConnection] = useState<ConnectionInfo | null>(null);
   const [needsReauth, setNeedsReauth] = useState(false);
+  // Coexistence is the default — most SMBs already live in the WhatsApp
+  // Business app, and keeping it is the whole point of the variant.
+  const [flow, setFlow] = useState<ConnectFlow>("coexistence");
 
   // The code (from FB.login) and the WABA/phone ids (from the session-info
   // postMessage) can arrive in either order — collect both in refs and POST
-  // only once both are present. `completingRef` guards against a double-submit.
+  // once enough is present. `completingRef` guards against a double-submit.
+  // Coexistence FINISH may carry only waba_id (api resolves the phone), so
+  // the ids are collected piecemeal rather than as an all-or-nothing pair.
   const codeRef = useRef<string | null>(null);
-  const sessionRef = useRef<{ wabaId: string; phoneNumberId: string } | null>(null);
+  const sessionRef = useRef<{ wabaId?: string; phoneNumberId?: string }>({});
+  // The flow the CURRENT popup was launched with — completion semantics
+  // must not change if the user flips the selector mid-flight.
+  const flowRef = useRef<ConnectFlow>("coexistence");
   const completingRef = useRef(false);
   const watchdogRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Set once the user starts a connect/disconnect — so a slow status-on-mount
@@ -123,7 +142,7 @@ export function WhatsAppEmbeddedSignup({
 
   const resetPieces = () => {
     codeRef.current = null;
-    sessionRef.current = null;
+    sessionRef.current = {};
     completingRef.current = false;
   };
 
@@ -157,9 +176,13 @@ export function WhatsAppEmbeddedSignup({
 
   const complete = useCallback(async () => {
     if (completingRef.current) return;
-    if (!codeRef.current || !sessionRef.current) return;
+    const { wabaId, phoneNumberId } = sessionRef.current;
+    if (!codeRef.current || !wabaId) return;
+    // Standard flow always delivers both ids; coexistence FINISH may carry
+    // only waba_id — the api resolves the phone from the WABA's list.
+    if (!phoneNumberId && flowRef.current !== "coexistence") return;
     completingRef.current = true;
-    clearWatchdog(); // both pieces in hand — the POST owns the outcome now
+    clearWatchdog(); // enough pieces in hand — the POST owns the outcome now
     setPhase("connecting");
     setError(null);
     try {
@@ -167,8 +190,10 @@ export function WhatsAppEmbeddedSignup({
         "/v1/meta/whatsapp/embedded-signup",
         {
           code: codeRef.current,
-          wabaId: sessionRef.current.wabaId,
-          phoneNumberId: sessionRef.current.phoneNumberId,
+          wabaId,
+          ...(phoneNumberId ? { phoneNumberId } : {}),
+          flow: flowRef.current,
+          source: "peakhour",
         },
       );
       setConnection({
@@ -222,8 +247,22 @@ export function WhatsAppEmbeddedSignup({
         setPhase("idle");
         // Friendly message only — never surface Meta's raw error blob. The
         // session_id is Meta's support reference for the failed ES session.
-        const ref =
-          typeof data?.session_id === "string" ? ` (ref ${data.session_id})` : "";
+        const sessionId =
+          typeof data?.session_id === "string" ? data.session_id : undefined;
+        // F2 — persist the failed session for support escalations to Meta
+        // (fire-and-forget; losing the log must never affect the UI).
+        if (sessionId) {
+          void api
+            .post("/v1/meta/whatsapp/embedded-signup/failure", {
+              sessionId,
+              errorMessage,
+              ...(typeof data?.current_step === "string"
+                ? { currentStep: data.current_step }
+                : {}),
+            })
+            .catch(() => {});
+        }
+        const ref = sessionId ? ` (ref ${sessionId})` : "";
         setError(
           `Something went wrong in the WhatsApp signup window. Please try again.${ref}`,
         );
@@ -241,12 +280,15 @@ export function WhatsAppEmbeddedSignup({
 
       // FINISH (v4 may emit FINISH variants as <FLOW_FINISH_TYPE> — exact
       // enum values are undocumented): v4 data carries phone_number_id,
-      // waba_id, business_id (+ optional product arrays). The deep search
-      // below is event-name-agnostic on purpose — it keys on the ids, so
-      // any v4 FINISH variant resolves.
+      // waba_id, business_id (+ optional product arrays); the coexistence
+      // finish is documented to carry waba_id ONLY. The deep search below
+      // is event-name-agnostic on purpose — it keys on the ids, so any v4
+      // FINISH variant resolves. Ids are merged piecemeal; complete() owns
+      // the per-flow "do we have enough" decision.
       const { wabaId, phoneNumberId } = findSignupIds(payload);
-      if (wabaId && phoneNumberId) {
-        sessionRef.current = { wabaId, phoneNumberId };
+      if (wabaId) sessionRef.current.wabaId = wabaId;
+      if (phoneNumberId) sessionRef.current.phoneNumberId = phoneNumberId;
+      if (sessionRef.current.wabaId) {
         void complete();
       }
     }
@@ -264,6 +306,9 @@ export function WhatsAppEmbeddedSignup({
     clearWatchdog();
     setError(null);
     setPhase("launching");
+    // Freeze the flow for this popup — flipping the selector mid-flight
+    // must not change how the in-flight session completes.
+    flowRef.current = flow;
 
     watchdogRef.current = setTimeout(() => {
       if (completingRef.current) return; // POST already started
@@ -304,10 +349,18 @@ export function WhatsAppEmbeddedSignup({
           // sessionInfoVersion tolerance — NEXT_PUBLIC_META_ES_CONFIG_ID
           // must be a v4 configuration id.
           setup: {},
+          // Coexistence (C5): launches the "connect your existing WhatsApp
+          // Business app account" variant — the merchant keeps their app
+          // and pairs the same number to Cloud API in-flow. The deprecated
+          // "coexistence" value is invalid; this is the current one
+          // (changelog 2025-05-29; R1 verified spec).
+          ...(flow === "coexistence"
+            ? { featureType: "whatsapp_business_app_onboarding" }
+            : {}),
         },
       },
     );
-  }, [sdkState, complete]);
+  }, [sdkState, complete, flow]);
 
   const disconnect = useCallback(async () => {
     interactedRef.current = true;
@@ -414,7 +467,8 @@ export function WhatsAppEmbeddedSignup({
             </CardTitle>
             <CardDescription>
               Connect your WhatsApp Business number to message customers from
-              Peakhour. No account yet? You can create one in the same step.
+              Peakhour — keep using your WhatsApp Business app alongside, or
+              set up a new number.
             </CardDescription>
           </div>
         </div>
@@ -428,13 +482,55 @@ export function WhatsAppEmbeddedSignup({
           </p>
         )}
 
-        <p className="flex items-start gap-2 rounded-md bg-muted/50 p-3 text-sm text-muted-foreground">
-          <Info className="mt-0.5 size-4 shrink-0" />
-          Have ready a phone number that can receive an SMS or call and is{" "}
-          <strong className="font-medium text-foreground">not</strong> currently
-          active on the WhatsApp or WhatsApp Business app — Meta verifies it in
-          the popup.
-        </p>
+        <div role="radiogroup" aria-label="How do you want to connect?" className="grid gap-2">
+          <button
+            type="button"
+            role="radio"
+            aria-checked={flow === "coexistence"}
+            disabled={busy}
+            onClick={() => setFlow("coexistence")}
+            className={`rounded-md border p-3 text-left text-sm transition-colors ${
+              flow === "coexistence"
+                ? "border-primary bg-primary/5"
+                : "border-border hover:bg-muted/50"
+            }`}
+          >
+            <span className="flex items-center gap-2 font-medium text-foreground">
+              I already use the WhatsApp Business app
+              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
+                Recommended
+              </span>
+            </span>
+            <span className="mt-1 block text-muted-foreground">
+              Keep using your app — Peakhour works alongside it on the same
+              number. Have your phone handy: you’ll confirm the connection
+              from the WhatsApp Business app during setup.
+            </span>
+          </button>
+          <button
+            type="button"
+            role="radio"
+            aria-checked={flow === "standard"}
+            disabled={busy}
+            onClick={() => setFlow("standard")}
+            className={`rounded-md border p-3 text-left text-sm transition-colors ${
+              flow === "standard"
+                ? "border-primary bg-primary/5"
+                : "border-border hover:bg-muted/50"
+            }`}
+          >
+            <span className="block font-medium text-foreground">
+              New or dedicated number
+            </span>
+            <span className="mt-1 block text-muted-foreground">
+              A number that can receive an SMS or call and is{" "}
+              <strong className="font-medium text-foreground">not</strong>{" "}
+              currently active on the WhatsApp or WhatsApp Business app — Meta
+              verifies it in the popup. No account yet? You can create one in
+              the same step.
+            </span>
+          </button>
+        </div>
 
         <Button onClick={launch} disabled={disabled} size="lg" className="gap-2">
           {busy ? (
