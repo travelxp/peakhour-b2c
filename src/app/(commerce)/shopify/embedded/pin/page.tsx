@@ -12,6 +12,7 @@ import {
   Badge,
   Box,
   Divider,
+  EmptyState,
   List,
   SkeletonPage,
   SkeletonBodyText,
@@ -54,7 +55,7 @@ const COMING_INSIGHTS = [
   "Seasonal demand signals across the network, ahead of your own data showing them",
 ];
 
-type Membership = "loading" | "member" | "nonmember" | "unknown";
+type Membership = "loading" | "member" | "nonmember" | "unknown" | "notlinked";
 
 function PinSkeleton() {
   return (
@@ -83,7 +84,7 @@ export default function PinPage() {
   const [error, setError] = useState<string | null>(null);
   // Bumped by the retry button — re-runs the status load (sibling-page
   // pattern: inline IIFE + cancellation flag keeps the react-compiler
-  // lint happy and aborts cleanly on unmount).
+  // lint happy and discards late results after unmount).
   const [retryKey, setRetryKey] = useState(0);
 
   useEffect(() => {
@@ -102,7 +103,11 @@ export default function PinPage() {
         });
         if (cancelled) return;
         if (!res.ok) {
-          setMembership("unknown");
+          // 404 = store not linked to a Peakhour account; 400 = store row
+          // inactive — retrying can't fix either, so route to the connect
+          // story instead of a dead-end retry loop. Other failures (401,
+          // 5xx, blips) keep the retry CTA.
+          setMembership(res.status === 404 || res.status === 400 ? "notlinked" : "unknown");
           return;
         }
         const data = (await res.json()) as { pin?: PinState | null };
@@ -241,6 +246,28 @@ export default function PinPage() {
                 </Text>
               </InlineStack>
             </BlockStack>
+          </Card>
+        )}
+
+        {membership === "notlinked" && (
+          <Card>
+            <EmptyState
+              heading="Link your Peakhour account"
+              action={{
+                content: "Set up Peakhour Commerce",
+                // Navigate the top-level window — relative URLs inside an
+                // admin iframe would only navigate the iframe itself.
+                onAction: () => {
+                  (window.top ?? window).location.href = "/shopify/connect";
+                },
+              }}
+              image="https://cdn.shopify.com/s/files/1/0757/9955/files/empty-state.svg"
+            >
+              <Text as="p" variant="bodyMd">
+                This store isn&apos;t linked to a Peakhour account yet. Finish setup
+                first — then join the Insights Network from here.
+              </Text>
+            </EmptyState>
           </Card>
         )}
 
