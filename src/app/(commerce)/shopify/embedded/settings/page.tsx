@@ -247,7 +247,7 @@ export default function SettingsPage() {
       }
       // Back into the connect flow — top-level navigation escapes the admin
       // iframe (a relative redirect would only move the iframe itself).
-      const connectUrl = `/shopify/connect?shop=${encodeURIComponent(state.ctx.shop)}`;
+      const connectUrl = `/shopify/connect?shop=${encodeURIComponent(state.ctx.shop)}&reconnect=1`;
       (window.top ?? window).location.href = connectUrl;
     } catch {
       setDisconnectError("Network error disconnecting.");
@@ -273,7 +273,7 @@ export default function SettingsPage() {
 
   if (!ctx.connected) {
     const connectUrl = ctx.shop
-      ? `/shopify/connect?shop=${encodeURIComponent(ctx.shop)}`
+      ? `/shopify/connect?shop=${encodeURIComponent(ctx.shop)}&reconnect=1`
       : "/shopify/connect";
     return (
       <Page title="Settings">
