@@ -21,8 +21,13 @@ const CONFIG_ID = process.env.NEXT_PUBLIC_META_ES_CONFIG_ID;
 /** How long to wait for the auth code + the per-flow required session ids
  *  (standard: waba + phone; coexistence: waba only) before giving up —
  *  guards against a missed Meta FINISH event leaving the UI spinning
- *  forever. */
+ *  forever. Coexistence gets a much longer leash: its in-popup pairing
+ *  step happens ON THE MERCHANT'S PHONE (find phone, update the app,
+ *  scan/confirm) and routinely exceeds 90s — a premature watchdog
+ *  re-enables Connect while the popup is still open, which is the main
+ *  real-world path into stale cross-popup session contamination. */
 const WATCHDOG_MS = 90_000;
+const COEX_WATCHDOG_MS = 300_000;
 
 /**
  * Which Embedded Signup variant to launch (C5, whatsapp-v4-features-plan.md):
@@ -314,25 +319,33 @@ export function WhatsAppEmbeddedSignup({
     // must not change how the in-flight session completes.
     flowRef.current = flow;
 
-    watchdogRef.current = setTimeout(() => {
-      if (completingRef.current) return; // POST already started
-      resetPieces();
-      setPhase("idle");
-      setError("We didn’t hear back from WhatsApp. Please try connecting again.");
-    }, WATCHDOG_MS);
+    watchdogRef.current = setTimeout(
+      () => {
+        if (completingRef.current) return; // POST already started
+        resetPieces();
+        setPhase("idle");
+        setError("We didn’t hear back from WhatsApp. Please try connecting again.");
+      },
+      flow === "coexistence" ? COEX_WATCHDOG_MS : WATCHDOG_MS,
+    );
 
     window.FB.login(
       (response: FacebookLoginResponse) => {
         const code = response?.authResponse?.code;
         if (!code) {
-          // No auth code and no session ids seen → the user closed the FB
-          // dialog before granting; unwind to idle. (sessionRef is now an
-          // always-present object — check its contents, not its truthiness.)
-          if (!sessionRef.current.wabaId) {
-            clearWatchdog();
-            setPhase("idle");
-            resetPieces();
+          // FB.login invokes this callback once and it's the ONLY source
+          // of the auth code — a code-less callback means completion is
+          // permanently impossible, so unwind unconditionally rather than
+          // letting the watchdog run out. If FINISH ids already arrived,
+          // the grant (not WhatsApp) is what failed — say so.
+          clearWatchdog();
+          setPhase("idle");
+          if (sessionRef.current.wabaId) {
+            setError(
+              "The authorization didn’t complete. Please try connecting again.",
+            );
           }
+          resetPieces();
           return;
         }
         codeRef.current = code;
@@ -490,8 +503,10 @@ export function WhatsAppEmbeddedSignup({
         )}
 
         {/* Toggle buttons (aria-pressed), not ARIA radios — radio semantics
-            would promise arrow-key navigation we don't implement. */}
-        <div aria-label="How do you want to connect?" className="grid gap-2">
+            would promise arrow-key navigation we don't implement.
+            role="group" so the aria-label is actually exposed (a generic
+            div is naming-prohibited under ARIA 1.2). */}
+        <div role="group" aria-label="How do you want to connect?" className="grid gap-2">
           <button
             type="button"
             aria-pressed={flow === "coexistence"}
