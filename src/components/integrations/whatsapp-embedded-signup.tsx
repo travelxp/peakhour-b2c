@@ -18,9 +18,10 @@ import { CheckCircle2, AlertCircle, Loader2, Sparkles } from "lucide-react";
 const APP_ID = process.env.NEXT_PUBLIC_META_APP_ID;
 const CONFIG_ID = process.env.NEXT_PUBLIC_META_ES_CONFIG_ID;
 
-/** How long to wait for BOTH the auth code and the WABA/phone ids before
- *  giving up — guards against a missed Meta FINISH event leaving the UI
- *  spinning forever. */
+/** How long to wait for the auth code + the per-flow required session ids
+ *  (standard: waba + phone; coexistence: waba only) before giving up —
+ *  guards against a missed Meta FINISH event leaving the UI spinning
+ *  forever. */
 const WATCHDOG_MS = 90_000;
 
 /**
@@ -252,12 +253,15 @@ export function WhatsAppEmbeddedSignup({
         // F2 — persist the failed session for support escalations to Meta
         // (fire-and-forget; losing the log must never affect the UI).
         if (sessionId) {
+          // Sliced to the api zod caps — the route REJECTS oversize bodies
+          // (400) rather than truncating, and an oversize Meta blob would
+          // silently lose exactly the record support needs.
           void api
             .post("/v1/meta/whatsapp/embedded-signup/failure", {
-              sessionId,
-              errorMessage,
+              sessionId: sessionId.slice(0, 256),
+              errorMessage: errorMessage.slice(0, 1024),
               ...(typeof data?.current_step === "string"
-                ? { currentStep: data.current_step }
+                ? { currentStep: data.current_step.slice(0, 128) }
                 : {}),
             })
             .catch(() => {});
@@ -485,11 +489,12 @@ export function WhatsAppEmbeddedSignup({
           </p>
         )}
 
-        <div role="radiogroup" aria-label="How do you want to connect?" className="grid gap-2">
+        {/* Toggle buttons (aria-pressed), not ARIA radios — radio semantics
+            would promise arrow-key navigation we don't implement. */}
+        <div aria-label="How do you want to connect?" className="grid gap-2">
           <button
             type="button"
-            role="radio"
-            aria-checked={flow === "coexistence"}
+            aria-pressed={flow === "coexistence"}
             disabled={busy}
             onClick={() => setFlow("coexistence")}
             className={`rounded-md border p-3 text-left text-sm transition-colors ${
@@ -506,14 +511,15 @@ export function WhatsAppEmbeddedSignup({
             </span>
             <span className="mt-1 block text-muted-foreground">
               Keep using your app — Peakhour works alongside it on the same
-              number. Have your phone handy: you’ll confirm the connection
-              from the WhatsApp Business app during setup.
+              number. Make sure the app is up to date and the number has been
+              in use for at least a week. Have your phone handy: you’ll
+              confirm the connection from the WhatsApp Business app during
+              setup.
             </span>
           </button>
           <button
             type="button"
-            role="radio"
-            aria-checked={flow === "standard"}
+            aria-pressed={flow === "standard"}
             disabled={busy}
             onClick={() => setFlow("standard")}
             className={`rounded-md border p-3 text-left text-sm transition-colors ${
