@@ -22,6 +22,21 @@ import type { ReactNode } from "react";
 
 const SHOPIFY_API_KEY = process.env.NEXT_PUBLIC_SHOPIFY_API_KEY ?? "";
 
+/**
+ * Force per-request rendering for the whole /shopify/** tree.
+ *
+ * The middleware serves a nonce-based CSP (`script-src 'self' 'nonce-…'
+ * https://cdn.shopify.com`), and Next.js can only stamp that nonce onto its
+ * inline bootstrap scripts when the page renders DYNAMICALLY. These routes
+ * are pure client components with no cookie/header reads, so they were
+ * statically prerendered at build time — nonce-less inline scripts that the
+ * per-request CSP then blocked, freezing every embedded page on its loading
+ * skeleton inside the Shopify admin (zero hydration, zero API calls; field
+ * bug 2026-06-12). The (site) tree never hit this because its auth-cookie
+ * reads already force dynamic rendering.
+ */
+export const dynamic = "force-dynamic";
+
 export default function CommerceRootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
