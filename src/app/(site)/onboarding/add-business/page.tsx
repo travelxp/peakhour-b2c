@@ -6,6 +6,7 @@ import { useAuth } from "@/providers/auth-provider";
 import { api, ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
   Card,
@@ -78,6 +79,11 @@ const KIND_LABEL: Record<string, string> = {
   other: "Link",
 };
 
+// /extract-from-prompt accepts 20-4096 chars; the UI caps at a tight
+// elevator-pitch length so descriptions stay extraction-friendly.
+const DESCRIPTION_MIN = 20;
+const DESCRIPTION_MAX = 320;
+
 export default function AddBusinessPage() {
   return (
     <Suspense>
@@ -95,6 +101,10 @@ function AddBusinessContent() {
   const [classifyError, setClassifyError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  // Manual path — for SMBs with no usable link (or a password-walled store):
+  // a short description feeds /extract-from-prompt (same downstream contract).
+  const [mode, setMode] = useState<"link" | "describe">("link");
+  const [description, setDescription] = useState("");
 
   // If onboarding is complete, send to dashboard instead of restarting
   useEffect(() => {
@@ -143,13 +153,18 @@ function AddBusinessContent() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitError("");
-    if (!url.trim()) return;
+    if (mode === "describe" ? description.trim().length < DESCRIPTION_MIN : !url.trim()) return;
 
     setSubmitting(true);
     try {
-      const result = await api.post<ExtractResponse>("/v1/onboarding/extract", {
-        url: url.trim(),
-      });
+      const result =
+        mode === "describe"
+          ? await api.post<ExtractResponse>("/v1/onboarding/extract-from-prompt", {
+              text: description.trim(),
+            })
+          : await api.post<ExtractResponse>("/v1/onboarding/extract", {
+              url: url.trim(),
+            });
       // Stash for the next step. sessionStorage survives a refresh in the
       // same tab — our 3 steps are a single user flow.
       sessionStorage.setItem("onboarding:extract", JSON.stringify(result));
@@ -182,14 +197,17 @@ function AddBusinessContent() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-primary" />
-            Where can we find you?
+            {mode === "link" ? "Where can we find you?" : "Tell us in your own words"}
           </CardTitle>
           <CardDescription>
-            One link is enough. We&apos;ll use it to set up your profile.
+            {mode === "link"
+              ? "One link is enough. We’ll use it to set up your profile."
+              : "A few sentences about what you do, what you sell, and where — we’ll set up your profile from that."}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-5">
+            {mode === "link" ? (
             <div className="space-y-2">
               <Label htmlFor="url" className="text-base font-medium">
                 Your link
@@ -227,6 +245,28 @@ function AddBusinessContent() {
                 <p className="text-sm text-destructive">{classifyError}</p>
               )}
             </div>
+            ) : (
+            <div className="space-y-2">
+              <Label htmlFor="business-description" className="text-base font-medium">
+                About your business
+              </Label>
+              <Textarea
+                id="business-description"
+                placeholder="e.g. Celsius is a women’s fashion boutique in Mumbai. We sell dresses, co-ords and resort wear online across India."
+                value={description}
+                onChange={(e) => setDescription(e.target.value.slice(0, DESCRIPTION_MAX))}
+                rows={5}
+                className="text-base resize-none"
+                disabled={submitting}
+                autoFocus
+              />
+              <p className="text-xs text-muted-foreground text-right">
+                {description.trim().length < DESCRIPTION_MIN
+                  ? `At least ${DESCRIPTION_MIN} characters`
+                  : `${description.length}/${DESCRIPTION_MAX}`}
+              </p>
+            </div>
+            )}
 
             {submitError && (
               <div
@@ -234,6 +274,18 @@ function AddBusinessContent() {
                 className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive"
               >
                 {submitError}
+                {mode === "link" && (
+                  <button
+                    type="button"
+                    className="mt-1 block font-medium underline underline-offset-2"
+                    onClick={() => {
+                      setMode("describe");
+                      setSubmitError("");
+                    }}
+                  >
+                    Or describe your business instead →
+                  </button>
+                )}
               </div>
             )}
 
@@ -241,12 +293,17 @@ function AddBusinessContent() {
               type="submit"
               size="lg"
               className="w-full h-12 text-base"
-              disabled={submitting || url.trim().length < 4}
+              disabled={
+                submitting ||
+                (mode === "link"
+                  ? url.trim().length < 4
+                  : description.trim().length < DESCRIPTION_MIN)
+              }
             >
               {submitting ? (
                 <span className="flex items-center gap-2">
                   <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground/40 border-t-primary-foreground" />
-                  Reading your page…
+                  {mode === "link" ? "Reading your page…" : "Setting up your profile…"}
                 </span>
               ) : (
                 <span className="flex items-center gap-2">
@@ -255,10 +312,37 @@ function AddBusinessContent() {
                 </span>
               )}
             </Button>
+
+            <p className="text-center text-sm text-muted-foreground">
+              {mode === "link" ? (
+                <>
+                  No link, or a password-protected site?{" "}
+                  <button
+                    type="button"
+                    className="font-medium text-foreground underline underline-offset-2"
+                    onClick={() => { setMode("describe"); setSubmitError(""); }}
+                  >
+                    I’ll enter it manually
+                  </button>
+                </>
+              ) : (
+                <>
+                  Have a link after all?{" "}
+                  <button
+                    type="button"
+                    className="font-medium text-foreground underline underline-offset-2"
+                    onClick={() => { setMode("link"); setSubmitError(""); }}
+                  >
+                    Paste it instead
+                  </button>
+                </>
+              )}
+            </p>
           </form>
         </CardContent>
       </Card>
 
+      {mode === "link" && (
       <div className="space-y-3">
         <p className="text-center text-xs uppercase tracking-wider text-muted-foreground">
           What kinds of links work
@@ -278,6 +362,7 @@ function AddBusinessContent() {
           ))}
         </div>
       </div>
+      )}
     </div>
   );
 }
