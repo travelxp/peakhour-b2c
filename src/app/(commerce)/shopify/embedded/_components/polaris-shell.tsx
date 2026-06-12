@@ -4,6 +4,7 @@ import { AppProvider, Frame, Navigation } from "@shopify/polaris";
 import {
   HomeIcon,
   ProductIcon,
+  GlobeIcon,
   CreditCardIcon,
   SettingsIcon,
 } from "@shopify/polaris-icons";
@@ -29,6 +30,10 @@ function PolarisLink({ url, children, ...rest }: PolarisLinkProps) {
 const NAV_ITEMS = [
   { label: "Home", icon: HomeIcon, url: "/shopify/embedded", exactMatch: true },
   { label: "Catalog", icon: ProductIcon, url: "/shopify/embedded/catalog" },
+  // PIN gets its own surface (product rule 2026-06-12): consent is captured
+  // first-time in the connect wizard; this page is its standing home —
+  // members see the network, non-members get the consent nudge.
+  { label: "Insights Network", icon: GlobeIcon, url: "/shopify/embedded/pin" },
   { label: "Subscription", icon: CreditCardIcon, url: "/shopify/embedded/subscription" },
   { label: "Settings", icon: SettingsIcon, url: "/shopify/embedded/settings" },
 ];
