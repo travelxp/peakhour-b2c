@@ -384,7 +384,7 @@ export default function ShopifyEmbeddedHome() {
   if (!state.ctx.connected) {
     const shop = state.ctx.shop;
     const connectUrl = shop
-      ? `/shopify/connect?shop=${encodeURIComponent(shop)}`
+      ? `/shopify/connect?shop=${encodeURIComponent(shop)}&reconnect=1`
       : "/shopify/connect";
     return (
       <Page title="Peakhour Commerce">
