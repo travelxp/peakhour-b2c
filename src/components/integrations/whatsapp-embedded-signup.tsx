@@ -321,7 +321,10 @@ export function WhatsAppEmbeddedSignup({
       (response: FacebookLoginResponse) => {
         const code = response?.authResponse?.code;
         if (!code) {
-          if (!sessionRef.current) {
+          // No auth code and no session ids seen → the user closed the FB
+          // dialog before granting; unwind to idle. (sessionRef is now an
+          // always-present object — check its contents, not its truthiness.)
+          if (!sessionRef.current.wabaId) {
             clearWatchdog();
             setPhase("idle");
             resetPieces();
