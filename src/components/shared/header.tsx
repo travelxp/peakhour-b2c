@@ -8,8 +8,6 @@ import { useAuth } from "@/providers/auth-provider";
 import { PeakhourLogo } from "@/components/shared/peakhour-logo";
 
 const NAV_LINKS = [
-  { href: "/#features", label: "Features" },
-  { href: "/commerce", label: "Commerce" },
   { href: "/pricing", label: "Pricing" },
 ] as const;
 
@@ -67,7 +65,7 @@ export function Header({ minimal = false }: { minimal?: boolean } = {}) {
                     Sign in
                   </Link>
                   <Button asChild size="sm">
-                    <Link href="/auth">Get started free</Link>
+                    <Link href="/launch-partner">Apply as launch partner</Link>
                   </Button>
                 </div>
 
@@ -140,8 +138,8 @@ export function Header({ minimal = false }: { minimal?: boolean } = {}) {
                     Sign in
                   </Link>
                   <Button asChild size="sm">
-                    <Link href="/auth" onClick={() => setMenuOpen(false)}>
-                      Get started free
+                    <Link href="/launch-partner" onClick={() => setMenuOpen(false)}>
+                      Apply as launch partner
                     </Link>
                   </Button>
                 </>
