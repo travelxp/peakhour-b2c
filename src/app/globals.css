@@ -146,6 +146,23 @@
   }
 }
 
+/* Global container padding — Tailwind v4 container has no padding by default */
+@layer base {
+  .container {
+    padding-inline: 1rem;
+  }
+  @media (min-width: 640px) {
+    .container {
+      padding-inline: 1.5rem;
+    }
+  }
+  @media (min-width: 1024px) {
+    .container {
+      padding-inline: 2rem;
+    }
+  }
+}
+
 /* Card hover lift utilities */
 @layer utilities {
   .card-lift {

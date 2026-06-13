@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { headers } from "next/headers";
 import type { Metadata } from "next";
 import {
   ArrowRight,
@@ -18,8 +17,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
-import { PricingGrid } from "@/components/marketing/pricing-grid";
-import { getPricing } from "@/lib/pricing";
 import { getPublicCatalog } from "@/lib/catalog";
 
 export const metadata: Metadata = {
@@ -81,11 +78,11 @@ function WhatsAppMockup() {
       </div>
       {/* WhatsApp header */}
       <div className="flex items-center gap-3 px-3 py-2.5" style={{ background: "#075E54" }}>
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
-          P
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-700 text-sm font-bold text-white">
+          MK
         </div>
         <div className="min-w-0">
-          <p className="truncate text-xs font-semibold text-white">Peakhour Assistant</p>
+          <p className="truncate text-xs font-semibold text-white">Mumbai Kicks</p>
           <p className="text-[10px] text-white/70">Online</p>
         </div>
       </div>
@@ -147,17 +144,7 @@ function WhatsAppMockup() {
 }
 
 export default async function Home() {
-  const h = await headers();
-  const vercelCountry = h.get("x-vercel-ip-country");
-  const country =
-    vercelCountry && /^[A-Za-z]{2}$/.test(vercelCountry)
-      ? vercelCountry.toUpperCase()
-      : "DEFAULT";
-
-  const [pricing, catalog] = await Promise.all([
-    getPricing(country),
-    getPublicCatalog(),
-  ]);
+  const catalog = await getPublicCatalog();
   const platform = catalog?.platform;
 
   return (
@@ -488,16 +475,6 @@ export default async function Home() {
           </div>
         </section>
 
-        {/* ── Pricing — dev only ── */}
-        {pricing && pricing.products.length > 0 && (
-          <section id="pricing" className="border-t py-24">
-            <div className="container">
-              <div className="mx-auto max-w-6xl">
-                <PricingGrid plans={pricing.plans} products={pricing.products} />
-              </div>
-            </div>
-          </section>
-        )}
       </main>
 
       <Footer />
