@@ -13,7 +13,7 @@ const CONTACT_CHANNELS = [
   {
     title: "General Inquiries",
     description: "Questions about Peakhour, partnerships, or anything else.",
-    email: "hello@peakhour.ai",
+    email: "contact@peakhour.ai",
     icon: (
       <svg
         aria-hidden="true"

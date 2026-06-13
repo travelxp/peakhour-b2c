@@ -5,19 +5,17 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/providers/auth-provider";
-import { SITE } from "@/lib/utils";
+import { PeakhourLogo } from "@/components/shared/peakhour-logo";
 
 const NAV_LINKS = [
   { href: "/#features", label: "Features" },
-  { href: "/#how-it-works", label: "How it works" },
-  { href: "/#pricing", label: "Pricing" },
+  { href: "/commerce", label: "Commerce" },
+  { href: "/pricing", label: "Pricing" },
 ] as const;
 
 /**
- * @param minimal When true, renders only the brand lockup — no marketing nav
- *   (Features/Pricing), no auth CTAs, no mobile menu. Used on the public
- *   legal pages, which are reachable pre-launch (through the coming-soon gate
- *   allowlist) where those links would point at gated/non-existent routes.
+ * @param minimal When true, renders only the brand lockup — no marketing nav,
+ *   no auth CTAs, no mobile menu. Used on legal pages and auth page.
  */
 export function Header({ minimal = false }: { minimal?: boolean } = {}) {
   const pathname = usePathname();
@@ -27,94 +25,81 @@ export function Header({ minimal = false }: { minimal?: boolean } = {}) {
   const [menuOpen, setMenuOpen] = useState(false);
   const { user, isAuthenticated, isLoading, logout } = useAuth();
 
-  // Close mobile menu on route change
   useEffect(() => {
-    // TODO: refactor to derive open state from pathname change without setState in effect.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setMenuOpen(false);
   }, [pathname]);
 
-  // Don't render header on dashboard (has its own sidebar) or onboarding (has step indicator)
   if (isDashboard || isOnboarding) return null;
 
   return (
     <header className="sticky top-0 z-50 border-b bg-background/80 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
-        <Link href="/" className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-            <span className="text-sm font-bold text-primary-foreground">P</span>
-          </div>
-          <span className="text-lg font-bold tracking-tight">{SITE.name}</span>
+        <Link href="/" className="flex items-center" aria-label="Peakhour home">
+          <PeakhourLogo className="h-7 w-auto" />
         </Link>
 
         {!minimal && !isAuthPage && (
-          <>
-            {/* Desktop nav */}
-            <nav className="hidden items-center gap-6 md:flex">
-              {NAV_LINKS.map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-                >
-                  {link.label}
-                </Link>
-              ))}
-            </nav>
-          </>
+          <nav className="hidden items-center gap-6 md:flex">
+            {NAV_LINKS.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+              >
+                {link.label}
+              </Link>
+            ))}
+          </nav>
         )}
 
-        {/* Right side: auth-aware (suppressed in minimal mode) */}
         {!minimal && (
-        <div className="flex items-center gap-3">
-          {!isLoading && isAuthenticated && user ? (
-            <UserMenu user={user} onLogout={logout} />
-          ) : !isAuthPage ? (
-            <>
-              {/* Desktop CTA */}
-              <div className="hidden items-center gap-3 md:flex">
-                <Link
-                  href="/auth"
-                  className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-                >
-                  Sign in
-                </Link>
-                <Button asChild size="sm">
-                  <Link href="/auth">Get started free</Link>
-                </Button>
-              </div>
+          <div className="flex items-center gap-3">
+            {!isLoading && isAuthenticated && user ? (
+              <UserMenu user={user} onLogout={logout} />
+            ) : !isAuthPage ? (
+              <>
+                <div className="hidden items-center gap-3 md:flex">
+                  <Link
+                    href="/auth"
+                    className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    Sign in
+                  </Link>
+                  <Button asChild size="sm">
+                    <Link href="/auth">Get started free</Link>
+                  </Button>
+                </div>
 
-              {/* Mobile menu button */}
-              <button
-                type="button"
-                onClick={() => setMenuOpen(!menuOpen)}
-                className="flex h-9 w-9 items-center justify-center rounded-md border md:hidden"
-                aria-label={menuOpen ? "Close menu" : "Open menu"}
-                aria-expanded={menuOpen}
-                aria-controls="mobile-nav"
-              >
-                <svg
-                  aria-hidden="true"
-                  className="h-5 w-5"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  strokeWidth={1.5}
-                  stroke="currentColor"
+                <button
+                  type="button"
+                  onClick={() => setMenuOpen(!menuOpen)}
+                  className="flex h-9 w-9 items-center justify-center rounded-md border md:hidden"
+                  aria-label={menuOpen ? "Close menu" : "Open menu"}
+                  aria-expanded={menuOpen}
+                  aria-controls="mobile-nav"
                 >
-                  {menuOpen ? (
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  ) : (
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 9h16.5m-16.5 6.75h16.5" />
-                  )}
-                </svg>
-              </button>
-            </>
-          ) : null}
-        </div>
+                  <svg
+                    aria-hidden="true"
+                    className="h-5 w-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    strokeWidth={1.5}
+                    stroke="currentColor"
+                  >
+                    {menuOpen ? (
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    ) : (
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 9h16.5m-16.5 6.75h16.5" />
+                    )}
+                  </svg>
+                </button>
+              </>
+            ) : null}
+          </div>
         )}
       </div>
 
-      {/* Mobile nav panel */}
       {!minimal && !isAuthPage && menuOpen && (
         <div id="mobile-nav" className="border-t bg-background px-4 pb-4 pt-2 md:hidden">
           <nav className="flex flex-col gap-3">
@@ -179,7 +164,6 @@ function UserMenu({
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
-  // Close on outside click or Escape
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) {

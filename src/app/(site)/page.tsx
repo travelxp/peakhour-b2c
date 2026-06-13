@@ -3,12 +3,13 @@ import { headers } from "next/headers";
 import {
   ArrowRight,
   Sparkles,
-  Brain,
-  Zap,
+  Newspaper,
+  ShoppingBag,
   BarChart3,
   AlertTriangle,
   CheckCircle2,
   Info,
+  Globe,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -48,47 +49,46 @@ import {
 
 const FEATURES = [
   {
-    icon: Brain,
-    title: "Content Intelligence",
+    icon: Newspaper,
+    title: "News-Powered Strategy",
     description:
-      "Every piece of content is automatically tagged across 12 dimensions. Know which topics, audiences, and angles drive results.",
-    detail:
-      "Connects to any content platform, 12-dimension auto-tagger, content gap analysis",
+      "AI Strategist pulls live headlines every morning, surfaces what's trending in your industry, and briefs your content team. No more staring at a blank screen.",
+    detail: "News Strategist · Trend detection · Content briefs · Relevance scoring",
   },
   {
     icon: Sparkles,
-    title: "AI Creative Factory",
+    title: "Multi-Format AI Writer",
     description:
-      "Turn one newsletter into 10+ platform-native ad creatives in minutes. LinkedIn Lead Gen, Meta, Google — all from your content.",
-    detail: "AI generates headlines, body copy, and image briefs",
+      "One brief becomes a newsletter, LinkedIn post, Instagram caption, and more. Each format native to its platform — all in your exact brand voice, every time.",
+    detail: "6 write formats · Voice Cards · Beehiiv · LinkedIn · Instagram · X",
   },
   {
-    icon: Zap,
-    title: "Optimization Engine",
+    icon: ShoppingBag,
+    title: "Commerce on WhatsApp",
     description:
-      "AI monitors performance hourly. Underperformers get paused, winners get boosted, budgets get rebalanced automatically.",
-    detail: "Daily optimization, weekly strategy, monthly pattern mining",
+      "Your Shopify catalog, synced in real time. Shoppers ask questions on WhatsApp — your AI answers with accurate prices, stock, and product details in their language.",
+    detail: "Catalog sync · WhatsApp Business · In-app chat · Multilingual",
   },
 ] as const;
 
 const STEPS = [
   {
     step: "1",
-    title: "Add your business",
+    title: "Connect your business",
     description:
-      "Paste your website URL or describe what you do. AI discovers your brand, audience, and builds a strategy in minutes.",
+      "Add your website, Shopify store, or social profiles. AI maps your catalog, content, and brand voice in minutes.",
   },
   {
     step: "2",
-    title: "AI tags and creates ads",
+    title: "AI writes content daily",
     description:
-      "Our AI reads every piece of content, tags it across 12 dimensions, scores ad potential, and generates platform-native creatives.",
+      "News Strategist spots opportunities. AI writers draft posts across every platform — sounding exactly like you, never generic.",
   },
   {
     step: "3",
-    title: "Launch and grow on autopilot",
+    title: "Publish and grow on autopilot",
     description:
-      "Deploy to LinkedIn, Google, or Meta. The AI monitors hourly, pauses losers, boosts winners, and rebalances budgets — all hands-free.",
+      "Smart scheduling, performance tracking, and real-time WhatsApp commerce — running 24/7 without you lifting a finger.",
   },
 ] as const;
 
@@ -101,16 +101,12 @@ const INTEGRATIONS = [
   { name: "Beehiiv", icon: BeehiivIcon, color: "bg-[#FFD100] text-black", description: "Newsletter import & tagging" },
   { name: "Substack", icon: SubstackIcon, color: "bg-[#FF6719]", description: "Newsletter content sync" },
   { name: "Mailchimp", icon: MailchimpIcon, color: "bg-[#FFE01B] text-black", description: "Email campaigns & audiences" },
-  { name: "Shopify", icon: ShopifyIcon, color: "bg-[#96BF48]", description: "Product catalog & e-commerce" },
+  { name: "Shopify", icon: ShopifyIcon, color: "bg-[#96BF48]", description: "Commerce Assistant & catalog sync" },
   { name: "WordPress", icon: WordPressIcon, color: "bg-[#21759B]", description: "Blog content & CMS sync" },
   { name: "X (Twitter)", icon: TwitterIcon, color: "bg-black", description: "Posts & promoted content" },
 ] as const;
 
 export default async function Home() {
-  // Country-aware pricing — resolves the visitor's country from the
-  // Vercel edge geo header (set on every prod/preview request) and
-  // fetches the corresponding pricing matrix from peakhour-api. The
-  // /pricing page uses the same helper; both surfaces stay in sync.
   const h = await headers();
   const vercelCountry = h.get("x-vercel-ip-country");
   const country =
@@ -119,9 +115,6 @@ export default async function Home() {
       : "DEFAULT";
   const pricing = await getPricing(country);
 
-  // Integration catalog from the platform resolver (CMS-driven, env-gated,
-  // stage-capped). Falls back to the static list below if the API is
-  // unreachable so the landing never hard-fails (mirrors the pricing fallback).
   const catalog = await getPublicCatalog();
   const platform = catalog?.platform;
   const cta = signupCta(platform?.signupMode ?? "open");
@@ -166,7 +159,6 @@ export default async function Home() {
                 : "bg-blue-100 text-blue-900 dark:bg-blue-950 dark:text-blue-200")
           }
         >
-          {/* Leading icon so the tone isn't conveyed by color alone (a11y). */}
           {platform.banner.tone === "warn" ? (
             <AlertTriangle className="size-4 shrink-0" aria-hidden />
           ) : platform.banner.tone === "success" ? (
@@ -180,8 +172,12 @@ export default async function Home() {
       <Header />
 
       <main>
-        {/* Hero — inspired by shadcnblocks hero1 */}
-        <section className="py-24 sm:py-32">
+        {/* Hero */}
+        <section className="relative overflow-hidden py-24 sm:py-32">
+          {/* Ambient glow behind the hero */}
+          <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 flex justify-center overflow-hidden" aria-hidden>
+            <div className="h-[600px] w-[1000px] rounded-full bg-primary/10 blur-3xl opacity-70" />
+          </div>
           <div className="container">
             <div className="mx-auto flex max-w-4xl flex-col items-center gap-6 text-center">
               <Badge variant="outline" className="gap-1.5 px-3 py-1">
@@ -189,17 +185,15 @@ export default async function Home() {
                 Agentic AI Marketing Platform
               </Badge>
               <h1 className="text-4xl font-bold tracking-tight text-pretty sm:text-5xl lg:text-6xl">
-                Every hour is Peakhour
+                Every hour is{" "}
+                <span className="text-primary">Peakhour</span>
               </h1>
               <p className="max-w-2xl text-lg text-muted-foreground lg:text-xl">
-                Autonomous AI agents turn your content into high-performing campaigns
-                across every channel — analyzing, creating, and optimizing around the
-                clock, so your marketing runs at its peak even when you&rsquo;re off.
+                News-powered content, AI writers for every platform, and a catalog-grounded
+                WhatsApp assistant for your Shopify store — all running 24/7 in your brand voice.
               </p>
               <div className="flex w-full flex-col items-center justify-center gap-3 sm:flex-row">
                 {cta.disabled ? (
-                  // Pre-launch teaser: an intentional "Launching soon" pill, not a
-                  // dead/greyed CTA (which reads as a bug).
                   <span className="inline-flex items-center gap-2 rounded-full border bg-muted/40 px-5 py-2.5 text-sm font-medium text-muted-foreground">
                     <Sparkles className="size-4" aria-hidden />
                     {cta.label}
@@ -220,24 +214,24 @@ export default async function Home() {
           </div>
         </section>
 
-        {/* Features — inspired by shadcnblocks feature3 */}
+        {/* Features */}
         <section id="features" className="border-t bg-muted/40 py-20">
           <div className="container">
             <div className="mx-auto flex max-w-5xl flex-col items-center gap-6 text-center">
               <h2 className="text-3xl font-semibold text-pretty lg:text-4xl">
-                Three engines, one platform
+                Three capabilities, one platform
               </h2>
               <p className="max-w-xl text-muted-foreground">
-                Everything your marketing team does — content analysis, ad
-                creation, performance optimization — automated by AI.
+                Content strategy, AI writing, and live commerce intelligence — working
+                together around the clock so you don&apos;t have to.
               </p>
               <div className="mt-8 grid w-full gap-6 md:grid-cols-3">
                 {FEATURES.map((f) => {
                   const FeatureIcon = f.icon;
                   return (
-                    <Card key={f.title} className="text-left transition-shadow hover:shadow-md">
+                    <Card key={f.title} className="card-lift text-left">
                       <CardHeader className="pb-2">
-                        <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                        <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 transition-colors group-hover:bg-primary/20">
                           <FeatureIcon className="size-5 text-primary" strokeWidth={1.5} />
                         </div>
                         <CardTitle className="text-lg">{f.title}</CardTitle>
@@ -258,7 +252,7 @@ export default async function Home() {
           </div>
         </section>
 
-        {/* Integrations — inspired by shadcnblocks integration1 */}
+        {/* Integrations */}
         <section className="relative py-20">
           <div className="container">
             <div className="mx-auto flex max-w-5xl flex-col items-center text-center">
@@ -269,12 +263,13 @@ export default async function Home() {
                 Connect your favourite platforms
               </h2>
               <p className="mt-3 max-w-xl text-muted-foreground">
-                Import content from newsletters, social media, blogs, and e-commerce — AI tags everything automatically.
+                Import content from newsletters, social, blogs, and e-commerce — AI tags and
+                distributes everything automatically.
               </p>
             </div>
             <div className="mx-auto mt-12 grid max-w-4xl grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {integrationCards.map((item) => (
-                <Card key={item.id} className="py-2 transition-shadow hover:shadow-md">
+                <Card key={item.id} className="card-lift-sm py-2">
                   <CardHeader className="flex flex-row items-center gap-3 space-y-0 pb-0">
                     <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-white ${item.colorClass}`}>
                       {item.icon}
@@ -329,7 +324,6 @@ export default async function Home() {
                     <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-2xl font-bold text-primary-foreground shadow-lg">
                       {s.step}
                     </div>
-                    {/* Connector line (hidden on mobile and last item) */}
                     {s.step !== "3" && (
                       <div className="absolute top-7 left-[calc(50%+2rem)] hidden h-px w-[calc(100%-4rem)] bg-border md:block" />
                     )}
@@ -344,23 +338,19 @@ export default async function Home() {
           </div>
         </section>
 
-        {/* Pricing — country-aware, fetched server-side from
-            /v1/platform/pricing. Falls back to a CTA-only block when
-            the API is unreachable so the landing page never breaks
-            because pricing data is unavailable. */}
+        {/* Pricing */}
         <section id="pricing" className="py-20">
           <div className="container">
             <div className="mx-auto max-w-6xl">
               {pricing && pricing.plans.length > 0 ? (
-                <PricingGrid plans={pricing.plans} />
+                <PricingGrid plans={pricing.plans} products={pricing.products} />
               ) : (
                 <div className="text-center">
                   <h2 className="text-3xl font-semibold text-pretty lg:text-4xl">
                     Simple, transparent pricing
                   </h2>
                   <p className="mx-auto mt-3 max-w-xl text-muted-foreground">
-                    Free tier and three paid plans. See full details on the
-                    pricing page.
+                    Free tier and paid plans. No credit card to start.
                   </p>
                   <Button asChild size="lg" className="mt-6">
                     <Link href="/pricing">View pricing</Link>
@@ -371,14 +361,14 @@ export default async function Home() {
           </div>
         </section>
 
-        {/* Final CTA — inspired by shadcnblocks cta3 */}
+        {/* Final CTA */}
         <section className="border-t bg-muted/40 py-20">
           <div className="container">
             <div className="mx-auto grid max-w-4xl grid-cols-1 gap-10 rounded-2xl border bg-background p-8 shadow-sm lg:grid-cols-2 lg:p-12">
               <div>
                 <div className="mb-3 flex items-center gap-2">
                   <span className="flex size-8 items-center justify-center rounded-full bg-primary/10">
-                    <BarChart3 className="size-4 text-primary" />
+                    <Globe className="size-4 text-primary" />
                   </span>
                   <h2 className="text-2xl font-bold lg:text-3xl">
                     Stop doing marketing.
@@ -388,8 +378,8 @@ export default async function Home() {
                   Start growing.
                 </p>
                 <p className="mt-3 text-muted-foreground">
-                  Join businesses that replaced their marketing busywork with an AI
-                  engine that works 24/7.
+                  Join businesses that run their content, commerce, and customer
+                  conversations on Peakhour — 24/7, hands-free.
                 </p>
                 <Button asChild size="lg" className="mt-6 gap-2">
                   <Link href="/auth">
@@ -400,11 +390,11 @@ export default async function Home() {
               </div>
               <div className="flex flex-col justify-center gap-3">
                 {[
-                  { stat: "12", label: "dimensions of AI content tagging" },
-                  { stat: "10+", label: "ad creatives from a single piece of content" },
-                  { stat: "24/7", label: "automated performance optimization" },
+                  { stat: "11", label: "platform integrations — social, email & e-commerce" },
+                  { stat: "6", label: "AI write formats — newsletter to WhatsApp" },
+                  { stat: "24/7", label: "commerce assistant & content scheduler" },
                 ].map((item) => (
-                  <div key={item.label} className="flex items-center gap-4 rounded-xl border px-5 py-3">
+                  <div key={item.label} className="flex items-center gap-4 rounded-xl border px-5 py-3 transition-colors hover:border-primary/30 hover:bg-primary/5">
                     <span className="text-2xl font-bold text-primary">{item.stat}</span>
                     <span className="text-sm text-muted-foreground">{item.label}</span>
                   </div>
