@@ -182,6 +182,11 @@ export default function AssistantPage() {
           <BlockStack gap="400">
             <div
               ref={scrollRef}
+              // role=log + polite so screen readers announce each assistant
+              // reply as it arrives (BFS accessibility).
+              role="log"
+              aria-live="polite"
+              aria-label="Assistant conversation"
               style={{ maxHeight: 420, overflowY: "auto", display: "flex", flexDirection: "column", gap: 12 }}
             >
               {messages.length === 0 && (
