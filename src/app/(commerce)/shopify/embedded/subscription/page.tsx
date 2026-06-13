@@ -248,6 +248,8 @@ export default function SubscriptionPage() {
 
   const label = priceLabel(ctx?.pricing ?? null, billingInterval);
   const hasAnnual = !!ctx?.pricing?.annual;
+  // Extract once so ternary branches can reference it without non-null assertions.
+  const trialDays = ctx?.pricing?.trialDays ?? 0;
   const lensTier = tiers.find((t) => t.key === "commerce_assistant.lens");
   const commerceTier = tiers.find((t) => t.key === "commerce_assistant.commerce");
 
@@ -444,9 +446,9 @@ export default function SubscriptionPage() {
                     </ButtonGroup>
                   )}
 
-                  {(ctx?.pricing?.trialDays ?? 0) > 0 && (
+                  {trialDays > 0 && (
                     <Text as="p" variant="bodySm" tone="subdued">
-                      {ctx!.pricing!.trialDays}-day free trial — billing starts when the trial ends.
+                      {trialDays}-day free trial — billing starts when the trial ends.
                     </Text>
                   )}
 
@@ -462,8 +464,8 @@ export default function SubscriptionPage() {
                     variant="primary"
                     size="large"
                   >
-                    {(ctx?.pricing?.trialDays ?? 0) > 0
-                      ? `Start ${ctx!.pricing!.trialDays}-day free trial`
+                    {trialDays > 0
+                      ? `Start ${trialDays}-day free trial`
                       : "Subscribe to Peakhour Commerce"}
                   </Button>
                 </BlockStack>
@@ -493,9 +495,9 @@ export default function SubscriptionPage() {
               {label && (
                 <BlockStack gap="100">
                   <Text as="p" variant="headingLg" fontWeight="bold">{label}</Text>
-                  {(ctx?.pricing?.trialDays ?? 0) > 0 && (
+                  {trialDays > 0 && (
                     <Text as="p" variant="bodyMd" tone="subdued">
-                      {ctx!.pricing!.trialDays}-day free trial — billing starts when the trial ends.
+                      {trialDays}-day free trial — billing starts when the trial ends.
                     </Text>
                   )}
                 </BlockStack>
@@ -512,8 +514,8 @@ export default function SubscriptionPage() {
                 variant="primary"
                 size="large"
               >
-                {(ctx?.pricing?.trialDays ?? 0) > 0
-                  ? `Start ${ctx!.pricing!.trialDays}-day free trial`
+                {trialDays > 0
+                  ? `Start ${trialDays}-day free trial`
                   : "Subscribe"}
               </Button>
             </BlockStack>

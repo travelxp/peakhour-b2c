@@ -97,7 +97,7 @@ async function fetchPricing(country: string): Promise<PricingResponse | null> {
     const json = (await res.json()) as { ok?: boolean; data?: PricingResponse };
     if (!json.ok || !json.data) return null;
     // Normalise: API before this PR omits `products` — default to empty array.
-    return { products: [], ...json.data };
+    return { ...json.data, products: json.data.products ?? [] };
   } catch {
     return null;
   }
