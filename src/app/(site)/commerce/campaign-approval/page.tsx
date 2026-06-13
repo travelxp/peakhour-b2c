@@ -165,11 +165,29 @@ export default function CampaignApprovalPage() {
               </h1>
 
               <p className="max-w-2xl text-lg leading-relaxed text-muted-foreground">
-                Peakhour sends you a WhatsApp message with the campaign details —
-                products, discount, duration, expected recovery. Reply 1 to
-                approve. Discount created in Shopify, Smart Rail live, campaign
-                tracked, post-campaign summary delivered. All in under 10 seconds.
+                You approve a revenue-recovery campaign from the school pickup
+                line, in five seconds. Peakhour sends you a WhatsApp message —
+                products, discount, duration, expected recovery — and you reply
+                1 to approve. Discount created in Shopify, Smart Rail live,
+                campaign tracked, post-campaign summary delivered. All in under
+                10 seconds.
               </p>
+
+              <div className="w-full max-w-lg rounded-2xl border bg-muted/40 px-5 py-4 text-left text-sm leading-relaxed">
+                <p className="text-xs font-semibold uppercase tracking-widest text-primary mb-2">
+                  Example message from Peakhour
+                </p>
+                <p className="text-muted-foreground">
+                  Found ₹84,000 of slow-moving stock. Suggested: The Season-End
+                  Edit — 14 products, 15% off, 72 hours.{" "}
+                  <span className="font-medium text-foreground">Reply 1</span> to
+                  approve.{" "}
+                  <span className="font-medium text-foreground">Reply 2 10</span>{" "}
+                  to change the discount to 10%.{" "}
+                  <span className="font-medium text-foreground">Reply 3</span> to
+                  see the products.
+                </p>
+              </div>
 
               <div className="flex w-full flex-col items-center justify-center gap-3 sm:flex-row">
                 <Button asChild size="lg" className="gap-2 px-8">

@@ -167,12 +167,25 @@ export default function AutopilotPage() {
               </h1>
 
               <p className="max-w-2xl text-lg leading-relaxed text-muted-foreground">
+                The store works while you sleep, but you&apos;re always the boss.
                 When autopilot is enabled, Peakhour evaluates recommendations
                 against merchant-defined guardrails and, if they pass, executes
                 campaigns without waiting for approval. Every decision is logged.
                 Stop-loss rules protect against underperforming campaigns. You
                 only hear from Peakhour when something needs you.
               </p>
+
+              <div className="w-full max-w-lg rounded-2xl border bg-muted/40 px-5 py-4 text-left text-sm leading-relaxed">
+                <p className="text-xs font-semibold uppercase tracking-widest text-primary mb-2">
+                  This week&apos;s autopilot summary
+                </p>
+                <p className="text-muted-foreground">
+                  14 AI decisions, 620 Peaks spent,{" "}
+                  <span className="font-bold text-primary">₹61,400 of inventory recovered</span>.
+                  Total transparency — you can judge for yourself whether your
+                  AI teammate is earning its keep.
+                </p>
+              </div>
 
               <div className="flex w-full flex-col items-center justify-center gap-3 sm:flex-row">
                 <Button asChild size="lg" className="gap-2 px-8">

@@ -327,10 +327,15 @@ export default async function CommercePage() {
               </h1>
 
               <p className="max-w-2xl text-lg leading-relaxed text-muted-foreground">
-                WhatsApp assistant, dead-stock intelligence, AI-powered Smart
-                Rails, brand-voice campaign recommendations, and autonomous
-                execution — all inside Shopify Admin. From first install to
-                fully autonomous operation.
+                Peakhour Commerce gives your Shopify store an AI teammate. It
+                learns your real catalog — your actual products, prices, and
+                stock — and then puts that knowledge to work everywhere:
+                answering shoppers on WhatsApp and on your website in their own
+                language, watching your inventory for products that are quietly
+                going stale, dressing your storefront with fresh product
+                showcases, and suggesting campaigns to recover slow stock. And
+                it always asks your permission before acting — until the day you
+                trust it enough to set a few limits and let it run on its own.
               </p>
 
               <div className="flex w-full flex-col items-center justify-center gap-3 sm:flex-row">
@@ -653,13 +658,30 @@ export default async function CommercePage() {
                     Every Peaks credit has a measurable return
                   </h2>
                   <p className="mt-3 text-muted-foreground leading-relaxed">
-                    Unlike opaque AI subscriptions, Peaks are per-action.
-                    You see exactly what each AI decision costs and what it
+                    Think of Peaks like prepaid talk-time for your AI teammate.
+                    One Peak is worth one US cent ($0.01) — about ₹1. Every
+                    plan includes a monthly allowance, and every AI action uses
+                    a few. You see exactly what each decision costs and what it
                     recovered — inside Shopify Admin. No surprises on your bill.
                   </p>
-                  <div className="mt-6 rounded-xl border bg-background px-5 py-4 text-sm font-medium">
+                  <div className="mt-4 space-y-2">
+                    {[
+                      { name: "Boost", peaks: "+500 Peaks", price: "$5" },
+                      { name: "Value", peaks: "+2,000 Peaks", price: "$18" },
+                      { name: "Pro", peaks: "+10,000 Peaks", price: "$80" },
+                    ].map((pack) => (
+                      <div key={pack.name} className="flex items-center justify-between rounded-lg border bg-background px-4 py-2.5">
+                        <div>
+                          <span className="text-sm font-semibold">{pack.name}</span>
+                          <span className="ml-2 text-xs text-muted-foreground">{pack.peaks}</span>
+                        </div>
+                        <span className="text-sm font-bold text-primary">{pack.price}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-4 rounded-xl border bg-background px-5 py-4 text-sm font-medium">
                     <span className="text-muted-foreground">Example outcome:&nbsp;</span>
-                    620 Peaks spent &rarr;{" "}
+                    14 AI decisions, 620 Peaks spent &rarr;{" "}
                     <span className="text-primary font-bold">₹61,400 recovered</span>
                   </div>
                 </div>
@@ -750,6 +772,53 @@ export default async function CommercePage() {
                     </span>
                     <p className="text-sm leading-relaxed text-muted-foreground">
                       {row.capability}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── FAQ ── */}
+        <section className="border-t py-20">
+          <div className="container">
+            <div className="mx-auto max-w-3xl">
+              <div className="mb-10">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-primary">
+                  FAQ
+                </p>
+                <h2 className="text-3xl font-bold tracking-tight text-balance lg:text-4xl">
+                  Honest questions, honest answers
+                </h2>
+              </div>
+              <div className="divide-y">
+                {[
+                  {
+                    q: "Do I need to know how to code?",
+                    a: "No. Installing takes a few clicks, the catalog syncs itself, and even storefront rails are placed through Shopify's own theme editor — never in code.",
+                  },
+                  {
+                    q: "What languages does the assistant speak?",
+                    a: "Your shopper's language. It replies in whatever language the customer writes in — including Hinglish and other mixed everyday language.",
+                  },
+                  {
+                    q: "What does WhatsApp messaging cost me?",
+                    a: "Peakhour adds zero markup on WhatsApp — ever. Any messaging fees are billed directly by Meta (WhatsApp's owner) to your WhatsApp Business Account at Meta's own rates; we never touch that money. Replies to chats your shoppers start are currently free under Meta's pricing — it's mainly outbound campaign messages Meta charges for.",
+                  },
+                  {
+                    q: "Will the AI ever make up a product or a price?",
+                    a: "No. Every answer is grounded in your synced catalog. If something isn't in your store, the assistant says so instead of guessing.",
+                  },
+                  {
+                    q: "Can I cancel anytime?",
+                    a: "Yes — anytime, right inside the app, in a couple of clicks. The 14-day trial means you can also try everything before paying a rupee.",
+                  },
+                ].map((item) => (
+                  <div key={item.q} className="py-5">
+                    <p className="font-semibold">{item.q}</p>
+                    <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                      {item.a}
                     </p>
                   </div>
                 ))}

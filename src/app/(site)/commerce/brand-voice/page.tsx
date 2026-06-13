@@ -53,7 +53,7 @@ const FEATURES = [
     icon: ThumbsUp,
     title: "Learning loop from approvals",
     description:
-      "Every campaign approval, title edit, or rejection teaches the voice card. After 20 campaigns, Peakhour generates titles you wouldn't change. After 50, they sound like your copy team.",
+      "Every campaign approval, title edit, or rejection teaches the voice card. After 20 campaigns, Peakhour generates titles you wouldn't change. After 50, they sound like your copy team. It becomes your copywriter — one that gets better every week and never leaves.",
   },
   {
     icon: Pencil,
