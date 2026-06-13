@@ -1,156 +1,164 @@
 import Link from "next/link";
 import { headers } from "next/headers";
+import type { Metadata } from "next";
 import {
   ArrowRight,
-  Sparkles,
-  Brain,
-  Zap,
-  BarChart3,
+  RefreshCw,
+  MessageCircle,
+  BarChart2,
+  Check,
+  ShoppingBag,
+  Layers,
   AlertTriangle,
   CheckCircle2,
   Info,
+  Zap,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
 import { PricingGrid } from "@/components/marketing/pricing-grid";
 import { getPricing } from "@/lib/pricing";
-import {
-  getPublicCatalog,
-  dedupePublicIntegrations,
-  signupCta,
-} from "@/lib/catalog";
-import {
-  IntegrationBrandIcon,
-  integrationBrandColor,
-} from "@/components/marketing/integration-brand";
-import {
-  LinkedinIcon,
-  FacebookIcon,
-  InstagramIcon,
-  GoogleIcon,
-  YoutubeIcon,
-  BeehiivIcon,
-  SubstackIcon,
-  MailchimpIcon,
-  ShopifyIcon,
-  WordPressIcon,
-  TwitterIcon,
-} from "@/components/ui/brand-icons";
+import { getPublicCatalog } from "@/lib/catalog";
 
-const FEATURES = [
+export const metadata: Metadata = {
+  title: "Peakhour — AI Commerce Assistant for Shopify",
+  description:
+    "AI that knows your entire Shopify catalog. Answers shoppers on WhatsApp in real time, in their language. Now in early access for founding partners.",
+};
+
+const COMMERCE_FEATURES = [
   {
-    icon: Brain,
-    title: "Content Intelligence",
+    icon: RefreshCw,
+    title: "Catalog always in sync",
     description:
-      "Every piece of content is automatically tagged across 12 dimensions. Know which topics, audiences, and angles drive results.",
-    detail:
-      "Connects to any content platform, 12-dimension auto-tagger, content gap analysis",
+      "Products, prices, and stock pull automatically from Shopify. Your AI always answers from live data — no stale info, no wrong prices.",
   },
   {
-    icon: Sparkles,
-    title: "AI Creative Factory",
+    icon: MessageCircle,
+    title: "Answers on WhatsApp, 24/7",
     description:
-      "Turn one newsletter into 10+ platform-native ad creatives in minutes. LinkedIn Lead Gen, Meta, Google — all from your content.",
-    detail: "AI generates headlines, body copy, and image briefs",
+      "Shoppers ask questions on your WhatsApp Business number. AI replies instantly in their language — accurate, helpful, zero agent time.",
   },
   {
-    icon: Zap,
-    title: "Optimization Engine",
+    icon: BarChart2,
+    title: "Commerce insights",
     description:
-      "AI monitors performance hourly. Underperformers get paused, winners get boosted, budgets get rebalanced automatically.",
-    detail: "Daily optimization, weekly strategy, monthly pattern mining",
+      "See what shoppers ask most, spot catalog gaps, and benchmark against your cohort. Founding partners shape what we measure.",
   },
 ] as const;
 
-const STEPS = [
+const LAUNCH_BENEFITS = [
+  "Early access before public launch",
+  "Direct line to the founding team",
+  "Shape the product roadmap with your feedback",
+  "Founding-partner pricing — locked in forever",
+  "Priority onboarding and setup support",
+] as const;
+
+const WHAT_IS_NEXT = [
   {
-    step: "1",
-    title: "Add your business",
-    description:
-      "Paste your website URL or describe what you do. AI discovers your brand, audience, and builds a strategy in minutes.",
+    label: "Content",
+    detail: "AI writers · News desk · Multi-format publishing",
   },
   {
-    step: "2",
-    title: "AI tags and creates ads",
-    description:
-      "Our AI reads every piece of content, tags it across 12 dimensions, scores ad potential, and generates platform-native creatives.",
-  },
-  {
-    step: "3",
-    title: "Launch and grow on autopilot",
-    description:
-      "Deploy to LinkedIn, Google, or Meta. The AI monitors hourly, pauses losers, boosts winners, and rebalances budgets — all hands-free.",
+    label: "Growth",
+    detail: "Ads intelligence · Audience analytics · Growth benchmarks",
   },
 ] as const;
 
-const INTEGRATIONS = [
-  { name: "LinkedIn", icon: LinkedinIcon, color: "bg-[#0A66C2]", description: "Organic posts & Lead Gen ads" },
-  { name: "Facebook", icon: FacebookIcon, color: "bg-[#0668E1]", description: "Pages, ads & audience insights" },
-  { name: "Instagram", icon: InstagramIcon, color: "bg-[#E4405F]", description: "Reels, stories & ad creatives" },
-  { name: "Google Ads", icon: GoogleIcon, color: "bg-[#4285F4]", description: "Search, display & YouTube ads" },
-  { name: "YouTube", icon: YoutubeIcon, color: "bg-[#FF0000]", description: "Video content & pre-roll ads" },
-  { name: "Beehiiv", icon: BeehiivIcon, color: "bg-[#FFD100] text-black", description: "Newsletter import & tagging" },
-  { name: "Substack", icon: SubstackIcon, color: "bg-[#FF6719]", description: "Newsletter content sync" },
-  { name: "Mailchimp", icon: MailchimpIcon, color: "bg-[#FFE01B] text-black", description: "Email campaigns & audiences" },
-  { name: "Shopify", icon: ShopifyIcon, color: "bg-[#96BF48]", description: "Product catalog & e-commerce" },
-  { name: "WordPress", icon: WordPressIcon, color: "bg-[#21759B]", description: "Blog content & CMS sync" },
-  { name: "X (Twitter)", icon: TwitterIcon, color: "bg-black", description: "Posts & promoted content" },
-] as const;
+function WhatsAppMockup() {
+  return (
+    <div className="relative mx-auto w-72 select-none overflow-hidden rounded-[2rem] border-[6px] border-foreground/10 bg-background shadow-2xl dark:border-foreground/20">
+      {/* Status bar */}
+      <div className="flex items-center justify-between bg-foreground/5 px-4 py-1.5">
+        <span className="text-[10px] font-medium tabular-nums">9:41</span>
+        <div className="flex items-center gap-1.5">
+          <svg className="h-3 w-3 fill-current" viewBox="0 0 24 24"><path d="M1 9l2 2c4.97-4.97 13.03-4.97 18 0l2-2C16.93 2.93 7.08 2.93 1 9zm8 8l3 3 3-3a4.237 4.237 0 00-6 0zm-4-4l2 2a7.074 7.074 0 0110 0l2-2C15.14 9.14 8.87 9.14 5 13z"/></svg>
+          <svg className="h-3 w-3 fill-current" viewBox="0 0 24 24"><path d="M15.67 4H14V2h-4v2H8.33C7.6 4 7 4.6 7 5.33v15.33C7 21.4 7.6 22 8.33 22h7.33c.74 0 1.34-.6 1.34-1.33V5.33C17 4.6 16.4 4 15.67 4z"/></svg>
+        </div>
+      </div>
+      {/* WhatsApp header */}
+      <div className="flex items-center gap-3 px-3 py-2.5" style={{ background: "#075E54" }}>
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
+          P
+        </div>
+        <div className="min-w-0">
+          <p className="truncate text-xs font-semibold text-white">Peakhour Assistant</p>
+          <p className="text-[10px] text-white/70">Online</p>
+        </div>
+      </div>
+      {/* Chat area */}
+      <div className="space-y-3 px-3 py-4" style={{ background: "#E5DDD5", minHeight: 260 }}>
+        {/* Shopper bubble */}
+        <div className="flex justify-end">
+          <div className="max-w-[82%] rounded-2xl rounded-br-sm px-3 py-2 shadow-sm" style={{ background: "#DCF8C6" }}>
+            <p className="text-[11px] leading-snug text-gray-800">
+              Do you have Nike Air Max in size 10?
+            </p>
+            <p className="mt-0.5 text-right text-[9px] text-gray-500">2:34 PM ✓✓</p>
+          </div>
+        </div>
+        {/* AI response */}
+        <div className="flex justify-start">
+          <div className="max-w-[88%] rounded-2xl rounded-bl-sm bg-white px-3 py-2.5 shadow-sm">
+            <p className="text-[11px] font-semibold text-gray-800">Nike Air Max 270</p>
+            <div className="mt-1.5 space-y-0.5 text-[10px] text-gray-600">
+              <p>✓ &nbsp;Size 10 — In stock (3 left)</p>
+              <p>₹8,995 &nbsp;· &nbsp;Free delivery</p>
+            </div>
+            <p className="mt-1.5 text-[10px]" style={{ color: "#075E54" }}>
+              Want me to help you order? 😊
+            </p>
+            <p className="mt-0.5 text-[9px] text-gray-400">2:34 PM</p>
+          </div>
+        </div>
+        {/* Second shopper message */}
+        <div className="flex justify-end">
+          <div className="max-w-[70%] rounded-2xl rounded-br-sm px-3 py-2 shadow-sm" style={{ background: "#DCF8C6" }}>
+            <p className="text-[11px] leading-snug text-gray-800">
+              Yes! What colours?
+            </p>
+            <p className="mt-0.5 text-right text-[9px] text-gray-500">2:35 PM ✓✓</p>
+          </div>
+        </div>
+        {/* AI response 2 */}
+        <div className="flex justify-start">
+          <div className="max-w-[88%] rounded-2xl rounded-bl-sm bg-white px-3 py-2.5 shadow-sm">
+            <p className="text-[11px] text-gray-600 leading-relaxed">
+              Available in <span className="font-medium text-gray-800">Black</span>, <span className="font-medium text-gray-800">White</span> and <span className="font-medium text-gray-800">Wolf Grey</span> in your size.
+            </p>
+            <p className="mt-0.5 text-[9px] text-gray-400">2:35 PM</p>
+          </div>
+        </div>
+      </div>
+      {/* Input bar */}
+      <div className="flex items-center gap-2 bg-[#F0F0F0] px-3 py-2">
+        <div className="flex-1 rounded-full bg-white px-3 py-1.5">
+          <p className="text-[10px] text-gray-400">Message</p>
+        </div>
+        <div className="flex h-8 w-8 items-center justify-center rounded-full" style={{ background: "#25D366" }}>
+          <svg className="h-4 w-4 fill-white" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default async function Home() {
-  // Country-aware pricing — resolves the visitor's country from the
-  // Vercel edge geo header (set on every prod/preview request) and
-  // fetches the corresponding pricing matrix from peakhour-api. The
-  // /pricing page uses the same helper; both surfaces stay in sync.
   const h = await headers();
   const vercelCountry = h.get("x-vercel-ip-country");
   const country =
     vercelCountry && /^[A-Za-z]{2}$/.test(vercelCountry)
       ? vercelCountry.toUpperCase()
       : "DEFAULT";
-  const pricing = await getPricing(country);
 
-  // Integration catalog from the platform resolver (CMS-driven, env-gated,
-  // stage-capped). Falls back to the static list below if the API is
-  // unreachable so the landing never hard-fails (mirrors the pricing fallback).
-  const catalog = await getPublicCatalog();
+  const [pricing, catalog] = await Promise.all([
+    getPricing(country),
+    getPublicCatalog(),
+  ]);
   const platform = catalog?.platform;
-  const cta = signupCta(platform?.signupMode ?? "open");
-  const integrationCards = catalog
-    ? dedupePublicIntegrations(catalog.integrations).map((i) => ({
-        id: i.key,
-        name: i.name,
-        description: i.tagline ?? i.description ?? i.comingSoon?.copy ?? "",
-        colorClass: integrationBrandColor(i.display?.groupKey, i.key),
-        icon: (
-          <IntegrationBrandIcon
-            groupKey={i.display?.groupKey}
-            integrationKey={i.key}
-            name={i.name}
-          />
-        ),
-        comingSoon: i.surfacedState === "coming_soon",
-      }))
-    : INTEGRATIONS.map((item) => {
-        const IntIcon = item.icon;
-        return {
-          id: item.name,
-          name: item.name,
-          description: item.description,
-          colorClass: item.color,
-          icon: <IntIcon className="h-5 w-5" />,
-          comingSoon: false,
-        };
-      });
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -166,7 +174,6 @@ export default async function Home() {
                 : "bg-blue-100 text-blue-900 dark:bg-blue-950 dark:text-blue-200")
           }
         >
-          {/* Leading icon so the tone isn't conveyed by color alone (a11y). */}
           {platform.banner.tone === "warn" ? (
             <AlertTriangle className="size-4 shrink-0" aria-hidden />
           ) : platform.banner.tone === "success" ? (
@@ -177,80 +184,145 @@ export default async function Home() {
           <span>{platform.banner.copy}</span>
         </div>
       ) : null}
+
       <Header />
 
       <main>
-        {/* Hero — inspired by shadcnblocks hero1 */}
-        <section className="py-24 sm:py-32">
+        {/* ── Hero ── */}
+        <section className="relative overflow-hidden py-20 sm:py-28 lg:py-32">
+          {/* Dot grid texture (CSS from shadcnblocks/background-pattern117) */}
+          <div
+            className="pointer-events-none absolute inset-0 -z-10"
+            aria-hidden
+            style={{
+              backgroundImage:
+                "radial-gradient(oklch(from var(--primary) calc(l * 0.7) calc(c * 1.8) h / 0.18) 1.5px, transparent 1.5px)",
+              backgroundSize: "28px 28px",
+            }}
+          />
+          {/* Amber glow — keeps the warm depth under the copy */}
+          <div
+            className="pointer-events-none absolute -z-10 h-[650px] w-[800px] -translate-x-1/3 -translate-y-1/4 rounded-full bg-primary/15 blur-3xl"
+            aria-hidden
+          />
+
           <div className="container">
-            <div className="mx-auto flex max-w-4xl flex-col items-center gap-6 text-center">
-              <Badge variant="outline" className="gap-1.5 px-3 py-1">
-                <Sparkles className="size-3" />
-                Agentic AI Marketing Platform
-              </Badge>
-              <h1 className="text-4xl font-bold tracking-tight text-pretty sm:text-5xl lg:text-6xl">
-                Every hour is Peakhour
-              </h1>
-              <p className="max-w-2xl text-lg text-muted-foreground lg:text-xl">
-                Autonomous AI agents turn your content into high-performing campaigns
-                across every channel — analyzing, creating, and optimizing around the
-                clock, so your marketing runs at its peak even when you&rsquo;re off.
-              </p>
-              <div className="flex w-full flex-col items-center justify-center gap-3 sm:flex-row">
-                {cta.disabled ? (
-                  // Pre-launch teaser: an intentional "Launching soon" pill, not a
-                  // dead/greyed CTA (which reads as a bug).
-                  <span className="inline-flex items-center gap-2 rounded-full border bg-muted/40 px-5 py-2.5 text-sm font-medium text-muted-foreground">
-                    <Sparkles className="size-4" aria-hidden />
-                    {cta.label}
-                  </span>
-                ) : (
-                  <Button asChild size="lg" className="gap-2">
-                    <Link href={cta.href}>
-                      {cta.label}
+            <div className="grid items-center gap-12 lg:grid-cols-2 lg:gap-16">
+              {/* Left — copy */}
+              <div className="flex flex-col items-start gap-6">
+                <Badge variant="outline" className="gap-1.5 px-3 py-1 text-xs">
+                  <ShoppingBag className="size-3" />
+                  Shopify App · Early Access
+                </Badge>
+
+                <h1 className="text-4xl font-bold tracking-tight text-balance sm:text-5xl lg:text-[3.5rem] lg:leading-[1.1]">
+                  Your Shopify store,{" "}
+                  <span className="text-primary">always on WhatsApp</span>
+                </h1>
+
+                <p className="max-w-lg text-lg leading-relaxed text-muted-foreground">
+                  AI that knows every product in your catalog. Answers shoppers
+                  in real time, in their language, around the clock — so you
+                  never miss a sale.
+                </p>
+
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  <Button asChild size="lg" className="gap-2 px-6">
+                    <Link href="/launch-partner">
+                      Apply as a launch partner
                       <ArrowRight className="size-4" />
                     </Link>
                   </Button>
-                )}
-                <Button asChild variant="outline" size="lg">
-                  <Link href="#how-it-works">See how it works</Link>
-                </Button>
+                  <Button asChild variant="outline" size="lg" className="px-6">
+                    <Link href="#how-it-works">See how it works</Link>
+                  </Button>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-muted-foreground">
+                  {["Built for Shopify", "WhatsApp Business", "No credit card required", "Limited spots"].map(
+                    (t, i, arr) => (
+                      <span key={t} className="flex items-center gap-2">
+                        <span className="inline-flex size-1 rounded-full bg-primary/60" />
+                        {t}
+                      </span>
+                    ),
+                  )}
+                </div>
+              </div>
+
+              {/* Right — product visual */}
+              <div className="flex justify-center lg:justify-end">
+                <div className="relative">
+                  {/* Decorative ring behind mockup */}
+                  <div className="absolute -inset-4 rounded-[3rem] bg-gradient-to-br from-primary/20 via-primary/5 to-transparent blur-xl" />
+                  <WhatsAppMockup />
+                </div>
               </div>
             </div>
           </div>
         </section>
 
-        {/* Features — inspired by shadcnblocks feature3 */}
-        <section id="features" className="border-t bg-muted/40 py-20">
+        {/* ── Stats strip ── */}
+        <div className="border-y bg-muted/30">
           <div className="container">
-            <div className="mx-auto flex max-w-5xl flex-col items-center gap-6 text-center">
-              <h2 className="text-3xl font-semibold text-pretty lg:text-4xl">
-                Three engines, one platform
-              </h2>
-              <p className="max-w-xl text-muted-foreground">
-                Everything your marketing team does — content analysis, ad
-                creation, performance optimization — automated by AI.
-              </p>
-              <div className="mt-8 grid w-full gap-6 md:grid-cols-3">
-                {FEATURES.map((f) => {
-                  const FeatureIcon = f.icon;
+            <div className="grid divide-y sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+              {[
+                { stat: "Real-time", label: "catalog sync from Shopify" },
+                { stat: "Multilingual", label: "WhatsApp replies in any language" },
+                { stat: "24/7", label: "sales coverage, zero agent cost" },
+              ].map((item) => (
+                <div
+                  key={item.label}
+                  className="flex flex-col items-center gap-0.5 px-6 py-5 text-center"
+                >
+                  <span className="text-xl font-bold text-primary">{item.stat}</span>
+                  <span className="text-xs text-muted-foreground">{item.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* ── Commerce features ── */}
+        <section id="features" className="py-24">
+          <div className="container">
+            <div className="mx-auto max-w-5xl">
+              <div className="mb-14 max-w-xl">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-primary">
+                  What it does
+                </p>
+                <h2 className="text-3xl font-bold tracking-tight text-balance lg:text-4xl">
+                  Three capabilities, working together
+                </h2>
+                <p className="mt-3 text-muted-foreground">
+                  Your store connected to WhatsApp — catalog accurate, replies
+                  instant, insights growing.
+                </p>
+              </div>
+
+              <div className="grid gap-5 md:grid-cols-3">
+                {COMMERCE_FEATURES.map((f) => {
+                  const Icon = f.icon;
                   return (
-                    <Card key={f.title} className="text-left transition-shadow hover:shadow-md">
-                      <CardHeader className="pb-2">
-                        <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                          <FeatureIcon className="size-5 text-primary" strokeWidth={1.5} />
+                    <div
+                      key={f.title}
+                      className="group relative rounded-2xl border bg-background p-6 transition-all duration-300 hover:-translate-y-1 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5"
+                    >
+                      {/* Hover tint */}
+                      <div className="pointer-events-none absolute inset-0 rounded-2xl opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+                        style={{ background: "radial-gradient(ellipse at top left, oklch(0.60 0.20 68 / 0.04) 0%, transparent 70%)" }}
+                        aria-hidden
+                      />
+                      <div className="relative">
+                        <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 ring-1 ring-primary/20 transition-colors duration-300 group-hover:bg-primary/15">
+                          <Icon className="size-5 text-primary" strokeWidth={1.5} />
                         </div>
-                        <CardTitle className="text-lg">{f.title}</CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-2">
-                        <CardDescription className="leading-relaxed">
+                        <h3 className="mb-2 font-semibold">{f.title}</h3>
+                        <p className="text-sm leading-relaxed text-muted-foreground">
                           {f.description}
-                        </CardDescription>
-                        <p className="text-xs text-muted-foreground/70">
-                          {f.detail}
                         </p>
-                      </CardContent>
-                    </Card>
+                      </div>
+                    </div>
                   );
                 })}
               </div>
@@ -258,161 +330,174 @@ export default async function Home() {
           </div>
         </section>
 
-        {/* Integrations — inspired by shadcnblocks integration1 */}
-        <section className="relative py-20">
-          <div className="container">
-            <div className="mx-auto flex max-w-5xl flex-col items-center text-center">
-              <Badge variant="outline" className="mb-4 gap-1.5 px-3 py-1 uppercase text-xs tracking-wider">
-                Integrations
-              </Badge>
-              <h2 className="text-3xl font-semibold text-pretty lg:text-4xl">
-                Connect your favourite platforms
-              </h2>
-              <p className="mt-3 max-w-xl text-muted-foreground">
-                Import content from newsletters, social media, blogs, and e-commerce — AI tags everything automatically.
-              </p>
-            </div>
-            <div className="mx-auto mt-12 grid max-w-4xl grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {integrationCards.map((item) => (
-                <Card key={item.id} className="py-2 transition-shadow hover:shadow-md">
-                  <CardHeader className="flex flex-row items-center gap-3 space-y-0 pb-0">
-                    <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-white ${item.colorClass}`}>
-                      {item.icon}
-                    </div>
-                    <div className="min-w-0">
-                      <CardTitle className="flex items-center gap-2 text-sm font-semibold">
-                        <span className="truncate">{item.name}</span>
-                        {item.comingSoon && (
-                          <Badge variant="outline" className="shrink-0 px-1.5 py-0 text-[10px]">
-                            Coming soon
-                          </Badge>
-                        )}
-                      </CardTitle>
-                      {item.description && (
-                        <CardDescription className="text-xs line-clamp-2">
-                          {item.description}
-                        </CardDescription>
-                      )}
-                    </div>
-                  </CardHeader>
-                </Card>
-              ))}
-            </div>
-            <div className="mt-8 flex items-center justify-center gap-3 text-sm text-muted-foreground">
-              <span>
-                {platform && platform.stage !== "live"
-                  ? "More integrations rolling out as we launch"
-                  : "More integrations coming soon"}
-              </span>
-              {!cta.disabled && (
-                <Button asChild variant="outline" size="sm">
-                  <Link href={cta.href}>
-                    {cta.label}
-                    <ArrowRight className="ml-1 size-3" />
-                  </Link>
-                </Button>
-              )}
-            </div>
-          </div>
-        </section>
-
-        {/* How it works */}
-        <section id="how-it-works" className="border-t bg-muted/40 py-20">
+        {/* ── How it works ── */}
+        <section id="how-it-works" className="border-t bg-muted/30 py-24">
           <div className="container">
             <div className="mx-auto max-w-5xl">
-              <h2 className="text-center text-3xl font-semibold text-pretty lg:text-4xl">
-                Up and running in 3 steps
-              </h2>
-              <div className="mt-14 grid gap-10 md:grid-cols-3">
-                {STEPS.map((s) => (
-                  <div key={s.step} className="relative text-center">
-                    <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-2xl font-bold text-primary-foreground shadow-lg">
-                      {s.step}
+              <div className="mb-14 text-center">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-primary">
+                  Setup
+                </p>
+                <h2 className="text-3xl font-bold tracking-tight lg:text-4xl">
+                  Live in minutes
+                </h2>
+              </div>
+
+              <div className="grid gap-10 md:grid-cols-3">
+                {[
+                  {
+                    step: "01",
+                    icon: ShoppingBag,
+                    title: "Install from Shopify App Store",
+                    description:
+                      "Add Peakhour to your store. Catalog sync starts automatically — no CSV exports, no manual setup.",
+                  },
+                  {
+                    step: "02",
+                    icon: MessageCircle,
+                    title: "Connect WhatsApp Business",
+                    description:
+                      "Link your WhatsApp Business number in one click. Shoppers can now ask questions and get instant, accurate answers.",
+                  },
+                  {
+                    step: "03",
+                    icon: Zap,
+                    title: "AI handles the rest",
+                    description:
+                      "Track conversations, see what shoppers ask most, and spot gaps in your catalog — while your store runs 24/7.",
+                  },
+                ].map((s, idx) => {
+                  const StepIcon = s.icon;
+                  return (
+                    <div key={s.step} className="relative flex flex-col items-center text-center">
+                      {/* Connector line */}
+                      {idx < 2 && (
+                        <div className="absolute top-8 left-[calc(50%+3rem)] hidden h-px w-[calc(100%-6rem)] border-t border-dashed border-border md:block" />
+                      )}
+                      <div className="relative mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary shadow-lg shadow-primary/25">
+                        <StepIcon className="size-6 text-primary-foreground" strokeWidth={1.5} />
+                        <span className="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-background text-[10px] font-bold ring-1 ring-border">
+                          {idx + 1}
+                        </span>
+                      </div>
+                      <h3 className="mb-2 font-semibold">{s.title}</h3>
+                      <p className="text-sm leading-relaxed text-muted-foreground">
+                        {s.description}
+                      </p>
                     </div>
-                    {/* Connector line (hidden on mobile and last item) */}
-                    {s.step !== "3" && (
-                      <div className="absolute top-7 left-[calc(50%+2rem)] hidden h-px w-[calc(100%-4rem)] bg-border md:block" />
-                    )}
-                    <h3 className="mt-5 text-lg font-semibold">{s.title}</h3>
-                    <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                      {s.description}
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── Launch partner CTA ── */}
+        <section className="py-24">
+          <div className="container">
+            <div className="mx-auto max-w-3xl">
+              <div className="relative overflow-hidden rounded-3xl border bg-background px-8 py-10 shadow-sm lg:px-14 lg:py-14">
+                {/* Dot grid texture */}
+                <div
+                  className="pointer-events-none absolute inset-0"
+                  aria-hidden
+                  style={{
+                    backgroundImage:
+                      "radial-gradient(oklch(from var(--primary) calc(l * 0.7) calc(c * 1.8) h / 0.12) 1.5px, transparent 1.5px)",
+                    backgroundSize: "28px 28px",
+                    maskImage: "radial-gradient(ellipse 60% 60% at 100% 0%, black 0%, transparent 70%)",
+                    WebkitMaskImage: "radial-gradient(ellipse 60% 60% at 100% 0%, black 0%, transparent 70%)",
+                  }}
+                />
+                {/* Amber glow accent */}
+                <div
+                  className="pointer-events-none absolute -top-24 -right-24 h-64 w-64 rounded-full blur-3xl"
+                  style={{ background: "oklch(0.60 0.20 68 / 0.12)" }}
+                  aria-hidden
+                />
+                <div className="relative">
+                  <Badge className="mb-5 gap-1 border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary hover:bg-primary/10">
+                    Founding Partner Program · Limited spots
+                  </Badge>
+                  <h2 className="text-2xl font-bold tracking-tight text-balance lg:text-3xl">
+                    Be among the first Shopify merchants on Peakhour
+                  </h2>
+                  <p className="mt-3 text-muted-foreground">
+                    We&apos;re opening early access to a small cohort of Shopify
+                    merchants who will help shape the product before public
+                    launch. You get locked-in pricing, direct access to the
+                    team, and first say on what we build next.
+                  </p>
+
+                  <ul className="mt-6 grid gap-2.5 sm:grid-cols-2">
+                    {LAUNCH_BENEFITS.map((b) => (
+                      <li key={b} className="flex items-start gap-2.5 text-sm">
+                        <span className="mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full bg-primary/15">
+                          <Check className="size-2.5 text-primary" strokeWidth={3} />
+                        </span>
+                        {b}
+                      </li>
+                    ))}
+                  </ul>
+
+                  <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
+                    <Button asChild size="lg" className="gap-2 px-8">
+                      <Link href="/launch-partner">
+                        Apply as a launch partner
+                        <ArrowRight className="size-4" />
+                      </Link>
+                    </Button>
+                    <p className="text-xs text-muted-foreground">
+                      No credit card required · We&apos;ll reach out to confirm your spot
                     </p>
                   </div>
-                ))}
+                </div>
               </div>
             </div>
           </div>
         </section>
 
-        {/* Pricing — country-aware, fetched server-side from
-            /v1/platform/pricing. Falls back to a CTA-only block when
-            the API is unreachable so the landing page never breaks
-            because pricing data is unavailable. */}
-        <section id="pricing" className="py-20">
+        {/* ── What's next — Content + Growth teasers ── */}
+        <section className="border-t py-16">
           <div className="container">
-            <div className="mx-auto max-w-6xl">
-              {pricing && pricing.plans.length > 0 ? (
-                <PricingGrid plans={pricing.plans} />
-              ) : (
-                <div className="text-center">
-                  <h2 className="text-3xl font-semibold text-pretty lg:text-4xl">
-                    Simple, transparent pricing
-                  </h2>
-                  <p className="mx-auto mt-3 max-w-xl text-muted-foreground">
-                    Free tier and three paid plans. See full details on the
-                    pricing page.
-                  </p>
-                  <Button asChild size="lg" className="mt-6">
-                    <Link href="/pricing">View pricing</Link>
-                  </Button>
-                </div>
-              )}
-            </div>
-          </div>
-        </section>
-
-        {/* Final CTA — inspired by shadcnblocks cta3 */}
-        <section className="border-t bg-muted/40 py-20">
-          <div className="container">
-            <div className="mx-auto grid max-w-4xl grid-cols-1 gap-10 rounded-2xl border bg-background p-8 shadow-sm lg:grid-cols-2 lg:p-12">
-              <div>
-                <div className="mb-3 flex items-center gap-2">
-                  <span className="flex size-8 items-center justify-center rounded-full bg-primary/10">
-                    <BarChart3 className="size-4 text-primary" />
-                  </span>
-                  <h2 className="text-2xl font-bold lg:text-3xl">
-                    Stop doing marketing.
-                  </h2>
-                </div>
-                <p className="text-lg font-semibold text-foreground">
-                  Start growing.
-                </p>
-                <p className="mt-3 text-muted-foreground">
-                  Join businesses that replaced their marketing busywork with an AI
-                  engine that works 24/7.
-                </p>
-                <Button asChild size="lg" className="mt-6 gap-2">
-                  <Link href="/auth">
-                    Get started free
-                    <ArrowRight className="size-4" />
-                  </Link>
-                </Button>
+            <div className="mx-auto max-w-3xl">
+              <div className="mb-6 flex items-center gap-2">
+                <Layers className="size-4 text-muted-foreground" />
+                <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                  What&apos;s next on Peakhour
+                </span>
               </div>
-              <div className="flex flex-col justify-center gap-3">
-                {[
-                  { stat: "12", label: "dimensions of AI content tagging" },
-                  { stat: "10+", label: "ad creatives from a single piece of content" },
-                  { stat: "24/7", label: "automated performance optimization" },
-                ].map((item) => (
-                  <div key={item.label} className="flex items-center gap-4 rounded-xl border px-5 py-3">
-                    <span className="text-2xl font-bold text-primary">{item.stat}</span>
-                    <span className="text-sm text-muted-foreground">{item.label}</span>
+              <p className="mb-8 max-w-xl text-muted-foreground">
+                Commerce is just the beginning. Two more pillars are in
+                development for merchants who want to grow beyond WhatsApp.
+              </p>
+              <div className="flex flex-col gap-3 sm:flex-row">
+                {WHAT_IS_NEXT.map((pillar) => (
+                  <div
+                    key={pillar.label}
+                    className="flex flex-col gap-1 rounded-2xl border bg-muted/20 px-6 py-5 sm:flex-1"
+                  >
+                    <span className="text-sm font-semibold">{pillar.label}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {pillar.detail}
+                    </span>
                   </div>
                 ))}
               </div>
             </div>
           </div>
         </section>
+
+        {/* ── Pricing — dev only ── */}
+        {pricing && pricing.products.length > 0 && (
+          <section id="pricing" className="border-t py-24">
+            <div className="container">
+              <div className="mx-auto max-w-6xl">
+                <PricingGrid plans={pricing.plans} products={pricing.products} />
+              </div>
+            </div>
+          </section>
+        )}
       </main>
 
       <Footer />
