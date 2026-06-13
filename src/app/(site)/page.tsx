@@ -189,7 +189,7 @@ export default async function Home() {
           />
           {/* Amber glow — keeps the warm depth under the copy */}
           <div
-            className="pointer-events-none absolute -z-10 h-[650px] w-[800px] -translate-x-1/3 -translate-y-1/4 rounded-full bg-primary/15 blur-3xl"
+            className="pointer-events-none absolute -z-10 h-160 w-200 -translate-x-1/3 -translate-y-1/4 rounded-full bg-primary/15 blur-3xl"
             aria-hidden
           />
 
@@ -227,7 +227,7 @@ export default async function Home() {
 
                 <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-muted-foreground">
                   {["Built for Shopify", "WhatsApp Business", "No credit card required", "Limited spots"].map(
-                    (t, i, arr) => (
+                    (t) => (
                       <span key={t} className="flex items-center gap-2">
                         <span className="inline-flex size-1 rounded-full bg-primary/60" />
                         {t}

@@ -257,7 +257,7 @@ export default function AutopilotPage() {
                     </p>
                     <div className="space-y-2.5">
                       {[
-                        { time: "07:14", action: "Recommendation generated", detail: "Linen Kurtis · 14 SKUs · score 78" },
+                        { time: "07:14", action: "Recommendation generated", detail: "Linen Trousers · 14 SKUs · score 78" },
                         { time: "07:14", action: "Guardrail: discount check", detail: "Suggested 20% · limit 25% ✓" },
                         { time: "07:14", action: "Guardrail: margin floor", detail: "Margin at 42% · floor 40% ✓" },
                         { time: "07:14", action: "Guardrail: collection exclusion", detail: "Not in New Arrivals ✓" },

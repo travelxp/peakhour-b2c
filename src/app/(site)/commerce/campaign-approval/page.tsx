@@ -266,7 +266,7 @@ export default function CampaignApprovalPage() {
                     <div className="rounded-xl bg-muted/50 px-4 py-4 text-sm leading-relaxed">
                       <p className="font-semibold">📦 Campaign Recommendation</p>
                       <p className="mt-2 text-muted-foreground">
-                        <strong>Products:</strong> Linen Kurtis — Grey & Beige (14 SKUs)<br />
+                        <strong>Products:</strong> Linen Trousers — Khaki & Navy (14 SKUs)<br />
                         <strong>Risk score:</strong> 74–82 · Slow-moving to Critical<br />
                         <strong>Suggested discount:</strong> 20% off for 72 hours<br />
                         <strong>Expected recovery:</strong> $3,200 – $4,400<br />
