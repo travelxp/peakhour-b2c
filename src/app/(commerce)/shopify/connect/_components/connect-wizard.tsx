@@ -12,7 +12,6 @@ import {
   Banner,
   Spinner,
   Badge,
-  Box,
   Icon,
   Divider,
   List,
@@ -21,16 +20,37 @@ import { CheckIcon } from "@shopify/polaris-icons";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 
-type Step = "checking" | "auth-required" | "linking" | "consent" | "success" | "error";
+type Step =
+  | "checking"
+  | "auth-required"
+  | "linking"
+  | "consent"
+  | "whatsapp"
+  | "success"
+  | "error";
 
 interface MeUser {
   email: string;
   name?: string | null;
 }
 
+// Where the cookie-authed WhatsApp Embedded Signup lives on the main app —
+// same target the embedded Integrations page uses. Opened in a NEW top-level
+// tab: connect can't run inside the admin iframe (FB SDK CSP + cookie auth),
+// and we don't want to navigate the wizard away from its post-link redirect.
+const DASHBOARD_WHATSAPP_URL = "/dashboard/content/whatsapp";
+
 // ── Step indicator ─────────────────────────────────────────────────────────
 
-const STEP_LABELS = ["Connect account", "Link store", "Insights Network", "All set"];
+const STEP_LABELS = ["Connect account", "Link store", "Insights Network", "WhatsApp", "All set"];
+
+// The assistant is the headline value of the connection — these stay truthful
+// to what ships in P1 (catalog-grounded answers on the merchant's own number).
+const WHATSAPP_BENEFITS = [
+  "Shoppers messaging your WhatsApp get instant answers from your real catalog — sizes, prices, availability",
+  "Uses your own WhatsApp Business number; nothing changes for customers who already message you",
+  "Connect on your Peakhour dashboard in a couple of minutes — links to the same account as this store",
+];
 
 // Truthful-today framing: benchmarks don't render anywhere yet, so the benefit
 // is member-FIRST access as they roll out — never "see them now".
@@ -193,6 +213,14 @@ export function ConnectWizard({ shop, token, reconnect = false }: Props) {
     } catch {
       setPinJoinFailed(true);
     }
+    setStep("whatsapp");
+  }, []);
+
+  // Kick off the WhatsApp connection on peakhour.ai (new top-level tab) and
+  // advance — like the Insights step, this never gates onboarding. The
+  // merchant can also connect later from the embedded Integrations page.
+  const openWhatsApp = useCallback(() => {
+    window.open(DASHBOARD_WHATSAPP_URL, "_blank", "noopener,noreferrer");
     setStep("success");
   }, []);
 
@@ -257,7 +285,9 @@ export function ConnectWizard({ shop, token, reconnect = false }: Props) {
           ? 1
           : step === "consent"
             ? 2
-            : 3;
+            : step === "whatsapp"
+              ? 3
+              : 4;
   const isDone = step === "success";
 
   return (
@@ -386,7 +416,7 @@ export function ConnectWizard({ shop, token, reconnect = false }: Props) {
                     Count me in
                   </Button>
                   <Button
-                    onClick={() => setStep("success")}
+                    onClick={() => setStep("whatsapp")}
                     disabled={joining}
                     variant="tertiary"
                     fullWidth
@@ -402,7 +432,53 @@ export function ConnectWizard({ shop, token, reconnect = false }: Props) {
               </BlockStack>
             )}
 
-            {/* Step 4 — success (auto-redirects to /shopify/embedded in 1.5 s) */}
+            {/* Step 4 — WhatsApp connect nudge (the headline channel; never gates) */}
+            {step === "whatsapp" && (
+              <BlockStack gap="500">
+                <BlockStack gap="200">
+                  <Text as="h2" variant="headingMd">
+                    Put your assistant on WhatsApp
+                  </Text>
+                  <Text as="p" variant="bodyMd" tone="subdued">
+                    Connect your WhatsApp Business number so shoppers get instant,
+                    catalog-grounded answers right where they already message you.
+                  </Text>
+                </BlockStack>
+
+                <List type="bullet">
+                  {WHATSAPP_BENEFITS.map((b) => (
+                    <List.Item key={b}>
+                      <Text as="span" variant="bodyMd">{b}</Text>
+                    </List.Item>
+                  ))}
+                </List>
+
+                <BlockStack gap="200">
+                  <Button
+                    onClick={openWhatsApp}
+                    variant="primary"
+                    size="large"
+                    fullWidth
+                  >
+                    Connect WhatsApp
+                  </Button>
+                  <Button
+                    onClick={() => setStep("success")}
+                    variant="tertiary"
+                    fullWidth
+                  >
+                    Maybe later
+                  </Button>
+                </BlockStack>
+
+                <Text as="p" variant="bodySm" tone="subdued" alignment="center">
+                  Opens your Peakhour dashboard in a new tab. You can also connect
+                  anytime from Integrations in the app.
+                </Text>
+              </BlockStack>
+            )}
+
+            {/* Step 5 — success (auto-redirects to /shopify/embedded in 1.5 s) */}
             {step === "success" && (
               <BlockStack gap="500">
                 <Banner tone="success" title="Store connected!">
