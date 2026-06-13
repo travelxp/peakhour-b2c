@@ -333,6 +333,19 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       return "X ad metrics refreshed.";
     },
   },
+  "shopify-deadstock-score": {
+    label: "Score inventory health",
+    frequency: "Runs daily at 2:15 AM UTC",
+    description:
+      "Recomputes dead-stock risk scores for every connected Shopify store and refreshes the AI diagnosis on products whose risk changed.",
+    summarize: (data) => {
+      const d = asRecord(data);
+      const products = num(d?.productsScored);
+      const merchants = num(d?.merchantsScored);
+      if (products === 0) return "Scoring complete — no products needed scoring.";
+      return `${products} ${plural(products, "product")} scored across ${merchants} ${plural(merchants, "store")}.`;
+    },
+  },
 };
 
 /** Fallback for a cron name not yet documented in CRON_METADATA. The UI

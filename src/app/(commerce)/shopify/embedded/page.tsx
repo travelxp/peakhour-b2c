@@ -31,6 +31,9 @@ interface EmbeddedContext {
   currency?: string | null;
   productsSyncedAt?: string | null;
   connectionStatus?: string | null;
+  /** OAuth scopes the app needs but this merchant hasn't granted yet (P2.8) —
+   *  e.g. read_orders for pre-Phase-2 installs. Non-empty drives the re-auth banner. */
+  missingScopes?: string[];
   assistantActive?: boolean;
   productsCount?: number;
   pricing?: {
@@ -114,12 +117,38 @@ function ConnectedHome({ ctx, onSync, syncing, syncError, onSubscribe, subscribi
   const storeName = ctx.storeName || ctx.shop;
   const syncLabel = ctx.productsSyncedAt ? "Sync now" : "Sync catalog";
 
+  // P2.8 — scope-upgrade re-auth. Reuses the existing reconnect flow (the
+  // wizard handles session-or-auth, then Shopify shows an incremental grant
+  // screen for the new scope). NEVER link the raw authorize endpoint — it's
+  // cookie-session-gated and the merchant may have no top-level session.
+  // Top-level navigation: a relative URL inside the admin iframe would only
+  // navigate the iframe itself.
+  const handleReauth = () => {
+    (window.top ?? window).location.href =
+      `/shopify/connect?shop=${encodeURIComponent(ctx.shop)}&reconnect=1`;
+  };
+
   return (
     <Page
       title="Peakhour Commerce"
       subtitle={storeName}
     >
       <BlockStack gap="500">
+        {/* ── P2.8 — Re-auth banner for missing scopes ─────────────────── */}
+        {(ctx.missingScopes?.length ?? 0) > 0 && (
+          <Banner
+            tone="warning"
+            title="New features need additional permissions"
+            action={{ content: "Update permissions", onAction: handleReauth }}
+          >
+            <Text as="p" variant="bodyMd">
+              Peakhour&apos;s inventory intelligence reads your order history to spot slow-moving
+              and dead stock before they tie up your cash. Approve the updated permissions on
+              Shopify — it only takes a few seconds — and the daily analysis starts automatically.
+            </Text>
+          </Banner>
+        )}
+
         {/* ── Card 1 — Store Health ───────────────────────────────────── */}
         <Card>
           <BlockStack gap="400">
