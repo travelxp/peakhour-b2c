@@ -197,9 +197,9 @@ export function ConnectWizard({ shop, token, reconnect = false }: Props) {
   }, [token]);
 
   // PIN opt-in from the wizard. Consent is never a gate on onboarding — a
-  // failed call advances anyway (the merchant can join later from the
-  // Insights Network page in the app nav), but the success screen says so
-  // instead of implying enrollment.
+  // failed call advances to the WhatsApp step anyway (the merchant can join
+  // later from the Insights Network page in the app nav); the eventual success
+  // screen surfaces the join-failed banner instead of implying enrollment.
   const joinNetwork = useCallback(async () => {
     setJoining(true);
     try {
