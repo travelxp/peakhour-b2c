@@ -5,6 +5,7 @@ import {
   HomeIcon,
   ProductIcon,
   ChartVerticalIcon,
+  LightbulbIcon,
   ThemeTemplateIcon,
   GlobeIcon,
   CreditCardIcon,
@@ -33,6 +34,7 @@ const NAV_ITEMS = [
   { label: "Home", icon: HomeIcon, url: "/shopify/embedded", exactMatch: true },
   { label: "Catalog", icon: ProductIcon, url: "/shopify/embedded/catalog" },
   { label: "Intelligence", icon: ChartVerticalIcon, url: "/shopify/embedded/intelligence" },
+  { label: "Recommendations", icon: LightbulbIcon, url: "/shopify/embedded/recommendations" },
   { label: "Storefront", icon: ThemeTemplateIcon, url: "/shopify/embedded/theme" },
   // PIN gets its own surface (product rule 2026-06-12): consent is captured
   // first-time in the connect wizard; this page is its standing home —
