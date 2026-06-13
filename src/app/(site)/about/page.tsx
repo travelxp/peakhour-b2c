@@ -51,7 +51,7 @@ export default function AboutPage() {
             }}
           />
           <div
-            className="pointer-events-none absolute right-0 top-0 -z-10 h-[500px] w-[600px] translate-x-1/3 -translate-y-1/4 rounded-full bg-primary/10 blur-3xl"
+            className="pointer-events-none absolute right-0 top-0 -z-10 h-125 w-150 translate-x-1/3 -translate-y-1/4 rounded-full bg-primary/10 blur-3xl"
             aria-hidden
           />
           <div className="container">

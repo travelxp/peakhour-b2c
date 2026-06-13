@@ -57,7 +57,7 @@ export default function ContentPage() {
             }}
           />
           <div
-            className="pointer-events-none absolute left-1/2 top-0 -z-10 h-[500px] w-[700px] -translate-x-1/2 -translate-y-1/3 rounded-full bg-primary/8 blur-3xl"
+            className="pointer-events-none absolute left-1/2 top-0 -z-10 h-125 w-175 -translate-x-1/2 -translate-y-1/3 rounded-full bg-primary/10 blur-3xl"
             aria-hidden
           />
           <div className="container">

@@ -9,7 +9,6 @@ import {
   MousePointerClick,
   Tag,
   ShoppingCart,
-  Repeat,
   ChevronLeft,
   Check,
   Store,
