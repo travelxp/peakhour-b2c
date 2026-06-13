@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+﻿import type { Metadata } from "next";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -41,7 +41,7 @@ const FEATURES = [
     icon: Brain,
     title: "AI diagnosis per product group",
     description:
-      “Not just a score — a sentence you can act on: “These 12 jackets get lots of views but few add-to-carts — this looks like a pricing problem, not a visibility problem.” You find out a product is dying weeks before it becomes dead money on a shelf.”,
+      "Not just a score — a sentence you can act on: \"These 12 jackets get lots of views but few add-to-carts — this looks like a pricing problem, not a visibility problem.\" You find out a product is dying weeks before it becomes dead money on a shelf.",
   },
   {
     icon: Clock,
