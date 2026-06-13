@@ -49,9 +49,35 @@ export interface ResolvedPlan {
   pricing: PricingEntry;
 }
 
+/** A single tier within a product (e.g. commerce_assistant.lens). */
+export interface ResolvedProductTier {
+  key: string;
+  name: string;
+  tagline?: string;
+  description?: string;
+  /** cfg_feature keys granted by this tier. */
+  features: string[];
+  limits: Record<string, number | undefined>;
+  highlightAsRecommended: boolean;
+  version: number;
+  pricing: PricingEntry;
+}
+
+/** A product with its resolved tiers (e.g. Commerce Assistant: [Lens, Commerce]). */
+export interface ResolvedProduct {
+  key: string;
+  name: string;
+  tagline?: string;
+  pillar: string;
+  status: string;
+  tiers: ResolvedProductTier[];
+}
+
 export interface PricingResponse {
   country: string;
   plans: ResolvedPlan[];
+  /** Product-scoped tiers (env-gated: empty in prod when product is in_development). */
+  products: ResolvedProduct[];
 }
 
 /**
@@ -70,7 +96,8 @@ async function fetchPricing(country: string): Promise<PricingResponse | null> {
     if (!res.ok) return null;
     const json = (await res.json()) as { ok?: boolean; data?: PricingResponse };
     if (!json.ok || !json.data) return null;
-    return json.data;
+    // Normalise: API before this PR omits `products` — default to empty array.
+    return { ...json.data, products: json.data.products ?? [] };
   } catch {
     return null;
   }
@@ -145,4 +172,18 @@ export const PLAN_BULLETS: Record<PlanKey, string[]> = {
     "Dedicated success manager",
     "SSO + audit log",
   ],
+};
+
+/**
+ * Display labels for cfg_feature keys used in product tier comparison cards.
+ * Keyed by the feature key stored in cfg_features / cfg_plans.features[].
+ * Kept client-side so marketing can tune copy without a DB write.
+ */
+export const FEATURE_LABELS: Record<string, string> = {
+  "commerce.assistant": "Live AI commerce assistant",
+  "commerce.catalog_sync": "Automatic catalog sync",
+  "commerce.whatsapp": "WhatsApp shopping channel",
+  "commerce.in_app_assistant": "In-app product assistant",
+  "commerce.multilingual": "Multilingual replies (inc. Hinglish)",
+  "commerce.insights_network": "Insights Network access",
 };

@@ -38,7 +38,7 @@ export default async function PricingPage() {
         <section className="py-20">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             {pricing && pricing.plans.length > 0 ? (
-              <PricingGrid plans={pricing.plans} />
+              <PricingGrid plans={pricing.plans} products={pricing.products} />
             ) : (
               <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-6 text-sm text-amber-700 dark:text-amber-400">
                 Pricing is temporarily unavailable. Please refresh in a
