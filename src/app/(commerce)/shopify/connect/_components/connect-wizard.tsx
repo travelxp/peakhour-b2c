@@ -177,8 +177,9 @@ export function ConnectWizard({ shop, token, reconnect = false }: Props) {
   }, [token]);
 
   // PIN opt-in from the wizard. Consent is never a gate on onboarding — a
-  // failed call advances anyway (the merchant can join later from Settings),
-  // but the success screen says so instead of implying enrollment.
+  // failed call advances anyway (the merchant can join later from the
+  // Insights Network page in the app nav), but the success screen says so
+  // instead of implying enrollment.
   const joinNetwork = useCallback(async () => {
     setJoining(true);
     try {
@@ -395,7 +396,8 @@ export function ConnectWizard({ shop, token, reconnect = false }: Props) {
                 </BlockStack>
 
                 <Text as="p" variant="bodySm" tone="subdued" alignment="center">
-                  You can join or leave anytime from Settings.
+                  You can join or leave anytime from the Insights Network page
+                  in the app.
                 </Text>
               </BlockStack>
             )}
@@ -420,7 +422,7 @@ export function ConnectWizard({ shop, token, reconnect = false }: Props) {
                   <Banner tone="warning">
                     <Text as="p" variant="bodyMd">
                       We couldn&apos;t enroll you in the Insights Network just now — you can
-                      join anytime from Settings.
+                      join anytime from the Insights Network page in the app.
                     </Text>
                   </Banner>
                 )}

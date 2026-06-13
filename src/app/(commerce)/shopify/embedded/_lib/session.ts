@@ -21,7 +21,20 @@ export async function getSessionToken(timeoutMs = 6000): Promise<string | null> 
   while (Date.now() < deadline) {
     if (window.shopify?.idToken) {
       try {
-        return await window.shopify.idToken();
+        // RACE the idToken call against the remaining deadline: when the page
+        // is loaded OUTSIDE the admin iframe (e.g. embedded=false app config,
+        // or a direct browser visit), App Bridge attaches window.shopify but
+        // idToken() never resolves — an un-raced await here hung every page
+        // in its loading skeleton forever (field bug, 2026-06-12).
+        const remaining = Math.max(250, deadline - Date.now());
+        const token = await Promise.race<string | null>([
+          window.shopify.idToken(),
+          new Promise<null>((r) => setTimeout(() => r(null), remaining)),
+        ]);
+        if (token) return token;
+        // Timed out or empty — fall through to the deadline check (which
+        // will now fail) so callers get the clean "reopen from your Shopify
+        // admin" error instead of an infinite skeleton.
       } catch {
         // Token fetch failed (bridge not ready or transient error) — keep polling
         // rather than returning null immediately; only give up at deadline.
