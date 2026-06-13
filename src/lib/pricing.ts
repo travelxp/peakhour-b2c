@@ -184,6 +184,6 @@ export const FEATURE_LABELS: Record<string, string> = {
   "commerce.catalog_sync": "Automatic catalog sync",
   "commerce.whatsapp": "WhatsApp shopping channel",
   "commerce.in_app_assistant": "In-app product assistant",
-  "commerce.multilingual": "Multilingual replies (inc. Hinglish)",
+  "commerce.multilingual": "Multilingual replies — every language your customer uses",
   "commerce.insights_network": "Insights Network access",
 };

@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
+import { resolveMarketingLocale } from "@/lib/marketing-locale";
 
 export const metadata: Metadata = {
   title: "Shopify WhatsApp Assistant — Peakhour",
@@ -103,7 +104,28 @@ const STEPS = [
   },
 ];
 
-export default function WhatsAppAssistantPage() {
+export default async function WhatsAppAssistantPage() {
+  const locale = await resolveMarketingLocale();
+  const langStr = locale.languages.slice(0, 3).join(", ");
+  const langStrip = locale.languages.slice(0, 4).join(" · ");
+
+  const features = FEATURES.map((f) =>
+    f.title === "Multilingual by default"
+      ? {
+          ...f,
+          description: `Replies in the shopper's language: ${langStr}, and more. Built for the reality that your customers shop in their own language.`,
+        }
+      : f,
+  );
+  const steps = STEPS.map((s) =>
+    s.step === "03"
+      ? {
+          ...s,
+          description: `The reply is generated from your actual product data — not a general LLM guess. ${langStr}: the assistant matches the shopper's language naturally.`,
+        }
+      : s,
+  );
+
   return (
     <div className="flex min-h-screen flex-col">
       <Header />
@@ -176,7 +198,7 @@ export default function WhatsAppAssistantPage() {
                 {[
                   "Zero markup on WhatsApp charges",
                   "Live catalog sync — no stale data",
-                  "Spanish · French · Dutch · Portuguese · German",
+                  langStrip,
                   "No agent required",
                 ].map((t) => (
                   <span key={t} className="flex items-center gap-1.5">
@@ -208,7 +230,7 @@ export default function WhatsAppAssistantPage() {
                   {
                     stat: "6+",
                     label: "languages supported",
-                    detail: "Spanish, French, Dutch, Portuguese, German, English, and expanding. Natural, not translated.",
+                    detail: `${locale.languages.join(", ")}, English, and expanding. Natural, not translated.`,
                   },
                 ].map((item) => (
                   <div key={item.stat} className="flex flex-col gap-1.5 px-2 py-4 md:px-4">
@@ -242,7 +264,7 @@ export default function WhatsAppAssistantPage() {
               </div>
 
               <div className="space-y-0">
-                {STEPS.map((s, idx) => (
+                {steps.map((s, idx) => (
                   <div key={s.step} className="relative flex gap-6 pb-10 last:pb-0">
                     {idx < STEPS.length - 1 && (
                       <div className="absolute left-6 top-14 h-full w-px border-l border-dashed border-border" />
@@ -284,7 +306,7 @@ export default function WhatsAppAssistantPage() {
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                {FEATURES.map((f) => {
+                {features.map((f) => {
                   const Icon = f.icon;
                   return (
                     <div

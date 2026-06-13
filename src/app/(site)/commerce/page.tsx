@@ -31,6 +31,7 @@ import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
 import { PricingGrid } from "@/components/marketing/pricing-grid";
 import { getPricing } from "@/lib/pricing";
+import { getMarketingLocale } from "@/lib/marketing-locale";
 
 export const metadata: Metadata = {
   title: "Peakhour Commerce — AI Commerce Platform for Shopify",
@@ -61,7 +62,7 @@ const CAPABILITY_GROUPS = [
         icon: Languages,
         title: "Multilingual replies",
         description:
-          "Replies in the shopper's language — Spanish, French, Dutch, Portuguese, and more. Your assistant speaks every language your customers do.",
+          `Replies in the shopper's language — ${langStr}, and more. Your assistant speaks every language your customers do.`,
       },
       {
         icon: MonitorSmartphone,
@@ -282,7 +283,11 @@ export default async function CommercePage() {
       ? vercelCountry.toUpperCase()
       : "DEFAULT";
 
-  const pricing = await getPricing(country);
+  const [pricing, locale] = await Promise.all([
+    getPricing(country),
+    Promise.resolve(getMarketingLocale(country === "DEFAULT" ? "US" : country)),
+  ]);
+  const langStr = locale.languages.slice(0, 3).join(", ");
   const commerceProduct = pricing?.products?.find(
     (p) => p.key === "commerce_assistant",
   );
@@ -800,7 +805,7 @@ export default async function CommercePage() {
                   },
                   {
                     q: "What languages does the assistant speak?",
-                    a: "Your shopper's language. It replies in whatever language the customer writes in — Spanish, French, Dutch, Portuguese, and more.",
+                    a: `Your shopper's language. It replies in whatever language the customer writes in — ${langStr}, and more.`,
                   },
                   {
                     q: "What does WhatsApp messaging cost me?",

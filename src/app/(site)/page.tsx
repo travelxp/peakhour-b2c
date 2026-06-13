@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
 import { getPublicCatalog } from "@/lib/catalog";
+import { resolveMarketingLocale } from "@/lib/marketing-locale";
 
 export const metadata: Metadata = {
   title: "Peakhour — AI Commerce Assistant for Shopify",
@@ -79,10 +80,10 @@ function WhatsAppMockup() {
       {/* WhatsApp header */}
       <div className="flex items-center gap-3 px-3 py-2.5" style={{ background: "#075E54" }}>
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-700 text-sm font-bold text-white">
-          MK
+          {locale.exampleInitials}
         </div>
         <div className="min-w-0">
-          <p className="truncate text-xs font-semibold text-white">Brooklyn Kicks</p>
+          <p className="truncate text-xs font-semibold text-white">{locale.exampleStore}</p>
           <p className="text-[10px] text-white/70">Online</p>
         </div>
       </div>
@@ -103,7 +104,7 @@ function WhatsAppMockup() {
             <p className="text-[11px] font-semibold text-gray-800">Nike Air Max 270</p>
             <div className="mt-1.5 space-y-0.5 text-[10px] text-gray-600">
               <p>✓ &nbsp;Size 10 — In stock (3 left)</p>
-              <p>$189 · Free delivery</p>
+              <p>{locale.examplePrice} · Free delivery</p>
             </div>
             <p className="mt-1.5 text-[10px]" style={{ color: "#075E54" }}>
               Want me to help you order? 😊
@@ -144,7 +145,10 @@ function WhatsAppMockup() {
 }
 
 export default async function Home() {
-  const catalog = await getPublicCatalog();
+  const [catalog, locale] = await Promise.all([
+    getPublicCatalog(),
+    resolveMarketingLocale(),
+  ]);
   const platform = catalog?.platform;
 
   return (
