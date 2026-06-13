@@ -60,7 +60,7 @@ const FEATURES = [
     icon: BarChart2,
     title: "Peaks ROI dashboard",
     description:
-      "See the ROI of every AI decision in Shopify Admin. This week: 14 AI decisions, 620 Peaks spent, ₹61,400 recovered. Every credit has a measurable return.",
+      "See the ROI of every AI decision in Shopify Admin. This week: 14 AI decisions, 620 Peaks spent, $4,800 recovered. Every credit has a measurable return.",
   },
   {
     icon: RefreshCw,
@@ -82,7 +82,7 @@ const GUARDRAILS = [
   { label: "Excluded collections", example: "e.g. Never touch New Arrivals or Premium Line" },
   { label: "New arrivals protection", example: "e.g. Products < 30 days old are off-limits" },
   { label: "Campaign duration limit", example: "e.g. No campaign longer than 72 hours" },
-  { label: "Revenue threshold", example: "e.g. Only auto-execute if expected recovery > ₹20,000" },
+  { label: "Revenue threshold", example: "e.g. Only auto-execute if expected recovery > $1,500" },
 ];
 
 const STEPS = [
@@ -181,7 +181,7 @@ export default function AutopilotPage() {
                 </p>
                 <p className="text-muted-foreground">
                   14 AI decisions, 620 Peaks spent,{" "}
-                  <span className="font-bold text-primary">₹61,400 of inventory recovered</span>.
+                  <span className="font-bold text-primary">$4,800 of inventory recovered</span>.
                   Total transparency — you can judge for yourself whether your
                   AI teammate is earning its keep.
                 </p>
@@ -257,11 +257,11 @@ export default function AutopilotPage() {
                     </p>
                     <div className="space-y-2.5">
                       {[
-                        { time: "07:14", action: "Recommendation generated", detail: "Linen Kurtis · 14 SKUs · score 78" },
+                        { time: "07:14", action: "Recommendation generated", detail: "Linen Trousers · 14 SKUs · score 78" },
                         { time: "07:14", action: "Guardrail: discount check", detail: "Suggested 20% · limit 25% ✓" },
                         { time: "07:14", action: "Guardrail: margin floor", detail: "Margin at 42% · floor 40% ✓" },
                         { time: "07:14", action: "Guardrail: collection exclusion", detail: "Not in New Arrivals ✓" },
-                        { time: "07:14", action: "Guardrail: revenue threshold", detail: "Expected ₹48k · threshold ₹20k ✓" },
+                        { time: "07:14", action: "Guardrail: revenue threshold", detail: "Expected $3.6k · threshold $1.5k ✓" },
                         { time: "07:15", action: "Campaign executed", detail: "Discount live · Smart Rail updated" },
                       ].map((entry) => (
                         <div key={entry.action} className="flex items-start gap-3">
@@ -283,7 +283,7 @@ export default function AutopilotPage() {
                       {[
                         { value: "14", label: "AI decisions" },
                         { value: "620", label: "Peaks spent" },
-                        { value: "₹61,400", label: "Recovered" },
+                        { value: "$4,800", label: "Recovered" },
                       ].map((stat) => (
                         <div key={stat.label} className="text-center">
                           <p className="text-lg font-bold text-primary">{stat.value}</p>
@@ -441,7 +441,7 @@ export default function AutopilotPage() {
                     <p className="mt-2 text-sm">
                       This week: <strong>14 AI decisions</strong> ·{" "}
                       <strong>620 Peaks spent</strong> ·{" "}
-                      <strong className="text-primary">₹61,400 recovered</strong>
+                      <strong className="text-primary">$4,800 recovered</strong>
                     </p>
                     <p className="mt-1 text-xs text-muted-foreground">
                       You were involved in 0 of those 14 decisions. 2 stop-loss alerts were triggered; both resolved automatically.

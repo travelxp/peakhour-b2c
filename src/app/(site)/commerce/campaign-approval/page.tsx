@@ -84,7 +84,7 @@ const STEPS = [
   },
   {
     step: "02",
-    title: "Peakhour sends a WhatsApp message: products, discount, duration, expected ₹ recovery",
+    title: "Peakhour sends a WhatsApp message: products, discount, duration, expected $ recovery",
     description:
       "You receive a structured WhatsApp message: product group name, count, risk score, suggested discount, campaign duration, and expected revenue recovery range in your local currency. All from your real data.",
   },
@@ -178,7 +178,7 @@ export default function CampaignApprovalPage() {
                   Example message from Peakhour
                 </p>
                 <p className="text-muted-foreground">
-                  Found ₹84,000 of slow-moving stock. Suggested: The Season-End
+                  Found $8,400 of slow-moving stock. Suggested: The Season-End
                   Edit — 14 products, 15% off, 72 hours.{" "}
                   <span className="font-medium text-foreground">Reply 1</span> to
                   approve.{" "}
@@ -266,10 +266,10 @@ export default function CampaignApprovalPage() {
                     <div className="rounded-xl bg-muted/50 px-4 py-4 text-sm leading-relaxed">
                       <p className="font-semibold">📦 Campaign Recommendation</p>
                       <p className="mt-2 text-muted-foreground">
-                        <strong>Products:</strong> Linen Kurtis — Grey & Beige (14 SKUs)<br />
+                        <strong>Products:</strong> Linen Trousers — Khaki & Navy (14 SKUs)<br />
                         <strong>Risk score:</strong> 74–82 · Slow-moving to Critical<br />
                         <strong>Suggested discount:</strong> 20% off for 72 hours<br />
-                        <strong>Expected recovery:</strong> ₹38,000 – ₹52,000<br />
+                        <strong>Expected recovery:</strong> $3,200 – $4,400<br />
                         <strong>Smart Rail:</strong> &ldquo;The Linen Edit — Last 14 Pieces&rdquo;
                       </p>
                       <div className="mt-3 border-t pt-3 text-xs text-muted-foreground">

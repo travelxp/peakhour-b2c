@@ -82,7 +82,7 @@ function WhatsAppMockup() {
           MK
         </div>
         <div className="min-w-0">
-          <p className="truncate text-xs font-semibold text-white">Mumbai Kicks</p>
+          <p className="truncate text-xs font-semibold text-white">Brooklyn Kicks</p>
           <p className="text-[10px] text-white/70">Online</p>
         </div>
       </div>
@@ -103,7 +103,7 @@ function WhatsAppMockup() {
             <p className="text-[11px] font-semibold text-gray-800">Nike Air Max 270</p>
             <div className="mt-1.5 space-y-0.5 text-[10px] text-gray-600">
               <p>✓ &nbsp;Size 10 — In stock (3 left)</p>
-              <p>₹8,995 &nbsp;· &nbsp;Free delivery</p>
+              <p>$189 · Free delivery</p>
             </div>
             <p className="mt-1.5 text-[10px]" style={{ color: "#075E54" }}>
               Want me to help you order? 😊
@@ -189,7 +189,7 @@ export default async function Home() {
           />
           {/* Amber glow — keeps the warm depth under the copy */}
           <div
-            className="pointer-events-none absolute -z-10 h-[650px] w-[800px] -translate-x-1/3 -translate-y-1/4 rounded-full bg-primary/15 blur-3xl"
+            className="pointer-events-none absolute -z-10 h-160 w-200 -translate-x-1/3 -translate-y-1/4 rounded-full bg-primary/15 blur-3xl"
             aria-hidden
           />
 
@@ -227,7 +227,7 @@ export default async function Home() {
 
                 <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-muted-foreground">
                   {["Built for Shopify", "WhatsApp Business", "No credit card required", "Limited spots"].map(
-                    (t, i, arr) => (
+                    (t) => (
                       <span key={t} className="flex items-center gap-2">
                         <span className="inline-flex size-1 rounded-full bg-primary/60" />
                         {t}

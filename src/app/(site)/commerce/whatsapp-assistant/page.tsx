@@ -36,7 +36,7 @@ const FEATURES = [
     icon: Languages,
     title: "Multilingual by default",
     description:
-      "Replies in the shopper's language: Hinglish, Hindi, Arabic, Tamil, and more. Built for markets where the customer switches languages mid-conversation.",
+      "Replies in the shopper's language: Spanish, French, Dutch, Portuguese, German, and more. Built for the reality that your customers shop in their own language.",
   },
   {
     icon: Clock,
@@ -93,7 +93,7 @@ const STEPS = [
     step: "03",
     title: "AI generates a grounded reply in the shopper's language",
     description:
-      "The reply is generated from your actual product data — not a general LLM guess. Hinglish, Hindi, Arabic, Tamil: the assistant matches the shopper's language naturally.",
+      "The reply is generated from your actual product data — not a general LLM guess. Spanish, French, Dutch, Portuguese: the assistant matches the shopper's language naturally.",
   },
   {
     step: "04",
@@ -176,7 +176,7 @@ export default function WhatsAppAssistantPage() {
                 {[
                   "Zero markup on WhatsApp charges",
                   "Live catalog sync — no stale data",
-                  "Hinglish · Hindi · Arabic · Tamil",
+                  "Spanish · French · Dutch · Portuguese · German",
                   "No agent required",
                 ].map((t) => (
                   <span key={t} className="flex items-center gap-1.5">
@@ -208,7 +208,7 @@ export default function WhatsAppAssistantPage() {
                   {
                     stat: "6+",
                     label: "languages supported",
-                    detail: "Hinglish, Hindi, Arabic, Tamil, English, and expanding. Natural, not translated.",
+                    detail: "Spanish, French, Dutch, Portuguese, German, English, and expanding. Natural, not translated.",
                   },
                 ].map((item) => (
                   <div key={item.stat} className="flex flex-col gap-1.5 px-2 py-4 md:px-4">
@@ -236,7 +236,7 @@ export default function WhatsAppAssistantPage() {
                 <p className="mt-3 max-w-2xl text-muted-foreground">
                   No agent routing, no knowledge-base maintenance, no scripted flows.
                   The assistant reads your live catalog and answers directly.
-                  You&apos;ll be running before your chai gets cold — and you never
+                  You&apos;ll be live before your first coffee is cold — and you never
                   have to &ldquo;update the bot&rdquo;.
                 </p>
               </div>
