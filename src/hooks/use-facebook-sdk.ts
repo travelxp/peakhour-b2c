@@ -7,7 +7,10 @@ import { useEffect, useState } from "react";
  * Signup. Returns a load state so callers can gate the Connect button.
  *
  * The SDK version is pinned to v25.0 to match the backend Graph version
- * (helpers/meta.ts). `appId` comes from NEXT_PUBLIC_META_APP_ID — when it's
+ * (helpers/meta.ts); this is also the Graph version Meta's Embedded Signup v4
+ * implementation docs recommend (developers.facebook.com/documentation/
+ * business-messaging/whatsapp/embedded-signup/implementation/).
+ * `appId` comes from NEXT_PUBLIC_META_APP_ID — when it's
  * absent the hook reports "unconfigured" so the UI can render a clear
  * not-set-up state instead of a dead button.
  */

@@ -6,6 +6,7 @@ import {
   ProductIcon,
   ChartVerticalIcon,
   ThemeTemplateIcon,
+  GlobeIcon,
   CreditCardIcon,
   SettingsIcon,
 } from "@shopify/polaris-icons";
@@ -33,6 +34,10 @@ const NAV_ITEMS = [
   { label: "Catalog", icon: ProductIcon, url: "/shopify/embedded/catalog" },
   { label: "Intelligence", icon: ChartVerticalIcon, url: "/shopify/embedded/intelligence" },
   { label: "Storefront", icon: ThemeTemplateIcon, url: "/shopify/embedded/theme" },
+  // PIN gets its own surface (product rule 2026-06-12): consent is captured
+  // first-time in the connect wizard; this page is its standing home —
+  // members see the network, non-members get the consent nudge.
+  { label: "Insights Network", icon: GlobeIcon, url: "/shopify/embedded/pin" },
   { label: "Subscription", icon: CreditCardIcon, url: "/shopify/embedded/subscription" },
   { label: "Settings", icon: SettingsIcon, url: "/shopify/embedded/settings" },
 ];
