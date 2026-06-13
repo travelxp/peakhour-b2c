@@ -20,12 +20,7 @@
     "hooks": "@/hooks"
   },
   "registries": {
-    "@shadcnblocks": {
-      "url": "https://shadcnblocks.com/r/{name}",
-      "headers": {
-        "Authorization": "Bearer ${SHADCNBLOCKS_API_KEY}"
-      }
-    },
+    "@shadcnblocks": "https://shadcnblocks.com/r/{name}?token=${SHADCNBLOCKS_API_KEY}",
     "@diceui": "https://diceui.com/r/{name}.json"
   }
 }

@@ -8,7 +8,12 @@ import { useAuth } from "@/providers/auth-provider";
 import { PeakhourLogo } from "@/components/shared/peakhour-logo";
 
 const NAV_LINKS = [
+  { href: "/", label: "Home" },
+  { href: "/commerce", label: "Commerce" },
+  { href: "/content", label: "Content" },
+  { href: "/growth", label: "Growth" },
   { href: "/pricing", label: "Pricing" },
+  { href: "/about", label: "About" },
 ] as const;
 
 /**
