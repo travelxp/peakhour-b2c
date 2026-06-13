@@ -154,8 +154,10 @@ export default function WhatsAppAssistantPage() {
               <p className="max-w-2xl text-lg leading-relaxed text-muted-foreground">
                 AI grounded in your live catalog answers every shopper question
                 on your WhatsApp Business number — stock, pricing, variants,
-                delivery, returns — in real time, in their language. Zero agent
-                required.
+                delivery, returns — in real time, in their language. You stop
+                losing the 11pm &ldquo;do you have this in medium?&rdquo; customer. It
+                never invents products: every answer comes from your real,
+                synced catalog. Zero agent required.
               </p>
 
               <div className="flex w-full flex-col items-center justify-center gap-3 sm:flex-row">
@@ -234,6 +236,8 @@ export default function WhatsAppAssistantPage() {
                 <p className="mt-3 max-w-2xl text-muted-foreground">
                   No agent routing, no knowledge-base maintenance, no scripted flows.
                   The assistant reads your live catalog and answers directly.
+                  You&apos;ll be running before your chai gets cold — and you never
+                  have to &ldquo;update the bot&rdquo;.
                 </p>
               </div>
 
