@@ -41,6 +41,7 @@ export const metadata: Metadata = {
 const CAPABILITY_GROUPS = [
   {
     label: "AI Commerce Assistant",
+    href: "/commerce/whatsapp-assistant",
     description:
       "Your catalog, available on every channel — 24/7, in any language.",
     features: [
@@ -72,6 +73,7 @@ const CAPABILITY_GROUPS = [
   },
   {
     label: "Inventory Intelligence",
+    href: "/commerce/inventory-intelligence",
     description:
       "Know which products are turning dead before they cost you margin.",
     features: [
@@ -103,6 +105,7 @@ const CAPABILITY_GROUPS = [
   },
   {
     label: "Smart Rail — Storefront Merchandising",
+    href: "/commerce/smart-rail",
     description:
       "Set your storefront once. Peakhour manages what it shows forever.",
     features: [
@@ -134,6 +137,7 @@ const CAPABILITY_GROUPS = [
   },
   {
     label: "AI Recommendations & Brand Voice",
+    href: "/commerce/brand-voice",
     description:
       "Recommendations that sound like your brand wrote them — not a generic SaaS.",
     features: [
@@ -165,6 +169,7 @@ const CAPABILITY_GROUPS = [
   },
   {
     label: "WhatsApp Campaign Approval",
+    href: "/commerce/campaign-approval",
     description:
       "Approve campaigns in seconds. Peakhour executes everything.",
     features: [
@@ -196,6 +201,7 @@ const CAPABILITY_GROUPS = [
   },
   {
     label: "Autopilot — Set It Once",
+    href: "/commerce/autopilot",
     description:
       "Your merchandising operation, running autonomously within your guardrails.",
     features: [
@@ -225,7 +231,7 @@ const CAPABILITY_GROUPS = [
       },
     ],
   },
-] as const;
+];
 
 const HOW_IT_WORKS = [
   {
@@ -445,13 +451,27 @@ export default async function CommercePage() {
               <div className="space-y-16">
                 {CAPABILITY_GROUPS.map((group) => (
                   <div key={group.label}>
-                    <div className="mb-6 flex items-start gap-3">
+                    <div className="mb-6 flex items-start justify-between gap-3">
                       <div>
-                        <h3 className="text-xl font-bold">{group.label}</h3>
+                        <Link
+                          href={group.href}
+                          className="group/heading inline-flex items-center gap-2"
+                        >
+                          <h3 className="text-xl font-bold transition-colors group-hover/heading:text-primary">
+                            {group.label}
+                          </h3>
+                          <ArrowRight className="size-4 text-muted-foreground opacity-0 transition-all duration-200 group-hover/heading:translate-x-0.5 group-hover/heading:text-primary group-hover/heading:opacity-100" />
+                        </Link>
                         <p className="mt-0.5 text-sm text-muted-foreground">
                           {group.description}
                         </p>
                       </div>
+                      <Link
+                        href={group.href}
+                        className="hidden shrink-0 text-xs font-medium text-primary underline-offset-2 hover:underline sm:block"
+                      >
+                        Learn more →
+                      </Link>
                     </div>
                     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                       {group.features.map((f) => {
@@ -459,7 +479,7 @@ export default async function CommercePage() {
                         return (
                           <div
                             key={f.title}
-                            className="group relative rounded-2xl border bg-background p-5 transition-all duration-300 hover:-translate-y-1 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5"
+                            className="group relative flex flex-col rounded-2xl border bg-background p-5 transition-all duration-300 hover:-translate-y-1 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5"
                           >
                             <div
                               className="pointer-events-none absolute inset-0 rounded-2xl opacity-0 transition-opacity duration-300 group-hover:opacity-100"
@@ -469,16 +489,23 @@ export default async function CommercePage() {
                                   "radial-gradient(ellipse at top left, oklch(0.60 0.20 68 / 0.03) 0%, transparent 70%)",
                               }}
                             />
-                            <div className="relative">
+                            <div className="relative flex flex-1 flex-col">
                               <div className="mb-3 inline-flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 ring-1 ring-primary/15 transition-colors group-hover:bg-primary/15">
                                 <Icon className="size-4 text-primary" strokeWidth={1.5} />
                               </div>
                               <p className="mb-1 text-sm font-semibold leading-snug">
                                 {f.title}
                               </p>
-                              <p className="text-xs leading-relaxed text-muted-foreground">
+                              <p className="flex-1 text-xs leading-relaxed text-muted-foreground">
                                 {f.description}
                               </p>
+                              <Link
+                                href={group.href}
+                                className="mt-3 inline-flex items-center gap-1 text-[11px] font-medium text-primary opacity-0 transition-opacity duration-200 group-hover:opacity-100"
+                              >
+                                Learn more
+                                <ArrowRight className="size-3" />
+                              </Link>
                             </div>
                           </div>
                         );
