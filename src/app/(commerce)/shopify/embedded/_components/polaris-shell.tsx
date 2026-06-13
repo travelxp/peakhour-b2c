@@ -21,7 +21,21 @@ type PolarisLinkProps = React.ComponentPropsWithoutRef<PolarisLinkComponent>;
 
 // Teach Polaris to use Next.js Link so Navigation clicks are client-side
 // (no full-page reload inside the Shopify Admin iframe).
-function PolarisLink({ url, children, ...rest }: PolarisLinkProps) {
+//
+// `external`: Polaris forwards it to the custom link component, but NextLink
+// IGNORES it — so `<Button url external>` would client-navigate the admin
+// IFRAME to the target (trapping the merchant; the cookie-authed dashboard
+// can't even load inside the iframe) instead of opening a real new tab. Honor
+// it with a plain anchor so "Open Peakhour Dashboard" (Home/Settings) actually
+// escapes the iframe.
+function PolarisLink({ url, external, children, ...rest }: PolarisLinkProps) {
+  if (external) {
+    return (
+      <a href={url ?? "#"} target="_blank" rel="noopener noreferrer" {...rest}>
+        {children}
+      </a>
+    );
+  }
   return (
     <NextLink href={url ?? "#"} {...rest}>
       {children}
