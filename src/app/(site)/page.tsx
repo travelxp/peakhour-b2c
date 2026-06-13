@@ -82,7 +82,7 @@ function WhatsAppMockup() {
           MK
         </div>
         <div className="min-w-0">
-          <p className="truncate text-xs font-semibold text-white">Mumbai Kicks</p>
+          <p className="truncate text-xs font-semibold text-white">Brooklyn Kicks</p>
           <p className="text-[10px] text-white/70">Online</p>
         </div>
       </div>
@@ -103,7 +103,7 @@ function WhatsAppMockup() {
             <p className="text-[11px] font-semibold text-gray-800">Nike Air Max 270</p>
             <div className="mt-1.5 space-y-0.5 text-[10px] text-gray-600">
               <p>✓ &nbsp;Size 10 — In stock (3 left)</p>
-              <p>₹8,995 &nbsp;· &nbsp;Free delivery</p>
+              <p>$189 · Free delivery</p>
             </div>
             <p className="mt-1.5 text-[10px]" style={{ color: "#075E54" }}>
               Want me to help you order? 😊

@@ -39,9 +39,9 @@ const FEATURES = [
   },
   {
     icon: Languages,
-    title: "Cultural vocabulary (India / GCC / SEA)",
+    title: "Market-specific vocabulary",
     description:
-      "A fashion brand targeting India uses different vocabulary than one targeting the GCC. Peakhour's voice synthesis is culturally aware — not just linguistically translated.",
+      "A fashion brand in New York uses different vocabulary than one in London or Sydney. Peakhour's voice synthesis is culturally aware — not just linguistically translated.",
   },
   {
     icon: BookOpen,
@@ -86,7 +86,7 @@ const STEPS = [
     step: "02",
     title: "Voice card auto-synthesised: brand register, preferred vocabulary, cultural context",
     description:
-      "A Commerce Voice Card is created automatically. It captures: your brand's formality register, preferred category vocabulary, cultural context (India/GCC/SEA), and a 'never use' list inferred from what's absent in your copy. No forms. No setup calls.",
+      "A Commerce Voice Card is created automatically. It captures: your brand's formality register, preferred category vocabulary, regional context, and a 'never use' list inferred from what's absent in your copy. No forms. No setup calls.",
   },
   {
     step: "03",
@@ -173,7 +173,7 @@ export default function BrandVoicePage() {
                 {[
                   "Auto-synthesised — no setup forms",
                   "Learns from every approval and rejection",
-                  "India / GCC / SEA cultural vocabulary",
+                  "Market-specific cultural vocabulary",
                   "Gets smarter after every campaign",
                 ].map((t) => (
                   <span key={t} className="flex items-center gap-1.5">
@@ -370,7 +370,7 @@ export default function BrandVoicePage() {
                     Commerce Voice Cards are trained on your store specifically.
                   </p>
                   <p className="mt-3 leading-relaxed text-muted-foreground">
-                    A fashion brand in India that uses &ldquo;edit&rdquo; and &ldquo;pieces&rdquo; gets
+                    A fashion brand in New York that uses &ldquo;edit&rdquo; and &ldquo;pieces&rdquo; gets
                     those words back in every recommendation title. A kitchenware
                     brand that never uses &ldquo;limited time&rdquo; never sees it. The
                     moat deepens with every campaign — your competitor can&apos;t

@@ -21,9 +21,9 @@ const VALUES = [
   },
   {
     icon: Globe2,
-    title: "Built for emerging markets",
+    title: "Built for merchants everywhere",
     description:
-      "WhatsApp is how billions of people shop. We're building for the merchants who serve them — not after the fact, but as the primary use case.",
+      "WhatsApp is the fastest-growing commerce channel in the world. We're building for the merchants who serve their customers there — from New York to London to São Paulo.",
   },
   {
     icon: Users,

@@ -61,7 +61,7 @@ const CAPABILITY_GROUPS = [
         icon: Languages,
         title: "Multilingual replies",
         description:
-          "Replies in the shopper's language — Hinglish, Hindi, Arabic, Tamil. Designed for markets where English is the second language, not the first.",
+          "Replies in the shopper's language — Spanish, French, Dutch, Portuguese, and more. Your assistant speaks every language your customers do.",
       },
       {
         icon: MonitorSmartphone,
@@ -659,7 +659,7 @@ export default async function CommercePage() {
                   </h2>
                   <p className="mt-3 text-muted-foreground leading-relaxed">
                     Think of Peaks like prepaid talk-time for your AI teammate.
-                    One Peak is worth one US cent ($0.01) — about ₹1. Every
+                    One Peak is worth one US cent ($0.01). Every
                     plan includes a monthly allowance, and every AI action uses
                     a few. You see exactly what each decision costs and what it
                     recovered — inside Shopify Admin. No surprises on your bill.
@@ -682,7 +682,7 @@ export default async function CommercePage() {
                   <div className="mt-4 rounded-xl border bg-background px-5 py-4 text-sm font-medium">
                     <span className="text-muted-foreground">Example outcome:&nbsp;</span>
                     14 AI decisions, 620 Peaks spent &rarr;{" "}
-                    <span className="text-primary font-bold">₹61,400 recovered</span>
+                    <span className="text-primary font-bold">$4,800 recovered</span>
                   </div>
                 </div>
                 <div className="space-y-3">
@@ -758,9 +758,9 @@ export default async function CommercePage() {
                       "Zero markup on WhatsApp · per-action Peaks · billed through Shopify",
                   },
                   {
-                    phase: "India / GCC first",
+                    phase: "WhatsApp-first globally",
                     capability:
-                      "WhatsApp-first for SMB merchants, multilingual, built for emerging markets",
+                      "WhatsApp as the primary commerce channel — designed for merchants in the US, UK, Australia, Brazil, and beyond",
                   },
                 ].map((row) => (
                   <div
@@ -800,7 +800,7 @@ export default async function CommercePage() {
                   },
                   {
                     q: "What languages does the assistant speak?",
-                    a: "Your shopper's language. It replies in whatever language the customer writes in — including Hinglish and other mixed everyday language.",
+                    a: "Your shopper's language. It replies in whatever language the customer writes in — Spanish, French, Dutch, Portuguese, and more.",
                   },
                   {
                     q: "What does WhatsApp messaging cost me?",
@@ -812,7 +812,7 @@ export default async function CommercePage() {
                   },
                   {
                     q: "Can I cancel anytime?",
-                    a: "Yes — anytime, right inside the app, in a couple of clicks. The 14-day trial means you can also try everything before paying a rupee.",
+                    a: "Yes — anytime, right inside the app, in a couple of clicks. The 14-day trial means you can try everything before paying a cent.",
                   },
                 ].map((item) => (
                   <div key={item.q} className="py-5">

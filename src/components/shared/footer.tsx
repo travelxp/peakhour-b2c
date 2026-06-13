@@ -65,7 +65,7 @@ export function Footer() {
         <div className="flex flex-col items-center justify-between gap-6 sm:flex-row">
           <div className="flex flex-col items-center gap-3 sm:items-start">
             <Link href="/" aria-label="Peakhour home">
-              <PeakhourLogo className="h-6 w-auto opacity-80 transition-opacity hover:opacity-100" />
+              <PeakhourLogo className="h-8 w-auto opacity-80 transition-opacity hover:opacity-100" />
             </Link>
             <a
               href="mailto:hello@peakhour.ai"
