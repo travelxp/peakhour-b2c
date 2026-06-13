@@ -190,13 +190,21 @@ export default async function Home() {
       <main>
         {/* ── Hero ── */}
         <section className="relative overflow-hidden py-20 sm:py-28 lg:py-32">
-          {/* Ambient glow */}
+          {/* Dot grid texture (CSS from shadcnblocks/background-pattern117) */}
           <div
-            className="pointer-events-none absolute inset-x-0 top-0 -z-10 flex justify-start overflow-hidden"
+            className="pointer-events-none absolute inset-0 -z-10"
             aria-hidden
-          >
-            <div className="-translate-x-1/4 h-[700px] w-[900px] rounded-full bg-primary/10 blur-3xl opacity-60" />
-          </div>
+            style={{
+              backgroundImage:
+                "radial-gradient(oklch(from var(--primary) calc(l * 0.7) calc(c * 1.8) h / 0.18) 1.5px, transparent 1.5px)",
+              backgroundSize: "28px 28px",
+            }}
+          />
+          {/* Amber glow — keeps the warm depth under the copy */}
+          <div
+            className="pointer-events-none absolute -z-10 h-[650px] w-[800px] -translate-x-1/3 -translate-y-1/4 rounded-full bg-primary/15 blur-3xl"
+            aria-hidden
+          />
 
           <div className="container">
             <div className="grid items-center gap-12 lg:grid-cols-2 lg:gap-16">
@@ -389,10 +397,22 @@ export default async function Home() {
           <div className="container">
             <div className="mx-auto max-w-3xl">
               <div className="relative overflow-hidden rounded-3xl border bg-background px-8 py-10 shadow-sm lg:px-14 lg:py-14">
-                {/* Background accent */}
+                {/* Dot grid texture */}
+                <div
+                  className="pointer-events-none absolute inset-0"
+                  aria-hidden
+                  style={{
+                    backgroundImage:
+                      "radial-gradient(oklch(from var(--primary) calc(l * 0.7) calc(c * 1.8) h / 0.12) 1.5px, transparent 1.5px)",
+                    backgroundSize: "28px 28px",
+                    maskImage: "radial-gradient(ellipse 60% 60% at 100% 0%, black 0%, transparent 70%)",
+                    WebkitMaskImage: "radial-gradient(ellipse 60% 60% at 100% 0%, black 0%, transparent 70%)",
+                  }}
+                />
+                {/* Amber glow accent */}
                 <div
                   className="pointer-events-none absolute -top-24 -right-24 h-64 w-64 rounded-full blur-3xl"
-                  style={{ background: "oklch(0.60 0.20 68 / 0.10)" }}
+                  style={{ background: "oklch(0.60 0.20 68 / 0.12)" }}
                   aria-hidden
                 />
                 <div className="relative">
