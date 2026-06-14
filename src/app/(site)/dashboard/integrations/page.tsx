@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/molecules/status-badge";
 import { ConfirmDialog } from "@/components/molecules/confirm-dialog";
+import { WordPressConnectModal } from "@/components/integrations/wordpress-connect-modal";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -641,6 +642,12 @@ export default function IntegrationsPage() {
         onConnect={(apiKey, publicationId) =>
           handleApiKeyConnect("beehiiv", apiKey, { publicationId })
         }
+      />
+
+      {/* WordPress / WooCommerce — generate a connection key for the plugin */}
+      <WordPressConnectModal
+        open={connectModal === "wordpress"}
+        onClose={() => setConnectModal(null)}
       />
 
     </div>
