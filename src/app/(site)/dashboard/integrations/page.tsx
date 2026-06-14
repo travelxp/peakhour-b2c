@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/molecules/status-badge";
 import { ConfirmDialog } from "@/components/molecules/confirm-dialog";
 import { WhatsAppEmbeddedSignup } from "@/components/integrations/whatsapp-embedded-signup";
+import { WordPressConnectModal } from "@/components/integrations/wordpress-connect-modal";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -682,6 +683,12 @@ export default function IntegrationsPage() {
         open={connectModal === "whatsapp"}
         onClose={() => setConnectModal(null)}
         onConnected={loadIntegrations}
+      />
+
+      {/* WordPress / WooCommerce — generate a connection key for the plugin */}
+      <WordPressConnectModal
+        open={connectModal === "wordpress"}
+        onClose={() => setConnectModal(null)}
       />
 
     </div>
