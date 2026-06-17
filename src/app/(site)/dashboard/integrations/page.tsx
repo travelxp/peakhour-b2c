@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/molecules/status-badge";
 import { ConfirmDialog } from "@/components/molecules/confirm-dialog";
+import { WhatsAppEmbeddedSignup } from "@/components/integrations/whatsapp-embedded-signup";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -268,6 +269,18 @@ export default function IntegrationsPage() {
 
   async function handleConnect(provider: string, authType: string) {
     const realProvider = resolveProvider(provider);
+    // WhatsApp can ONLY be connected via Meta's Embedded Signup (the v4 flow
+    // with a config_id + WhatsApp scopes + the WA_EMBEDDED_SIGNUP postMessage
+    // that carries waba_id/phone_number_id). The generic facebook /authorize
+    // OAuth this card would otherwise hit requests pages/instagram/ads scopes
+    // and never populates whatsappAccounts, so it can't connect WhatsApp at
+    // all. Intercept the virtual "whatsapp" card BEFORE the oauth2 redirect
+    // and launch the same Embedded Signup component the /dashboard/content
+    // /whatsapp page uses, hosted in a modal here for consistency.
+    if (provider === "whatsapp") {
+      setConnectModal("whatsapp");
+      return;
+    }
     // Shopify App Store requirement 2.3.1: installation must initiate from a
     // Shopify-owned surface (the App Store listing / Shopify admin) — apps
     // must NOT ask merchants to type their myshopify.com domain to start an
@@ -643,7 +656,49 @@ export default function IntegrationsPage() {
         }
       />
 
+      {/* WhatsApp — v4 Embedded Signup, the same flow as /dashboard/content/whatsapp */}
+      <WhatsAppConnectModal
+        open={connectModal === "whatsapp"}
+        onClose={() => setConnectModal(null)}
+        onConnected={loadIntegrations}
+      />
+
     </div>
+  );
+}
+
+// ── WhatsApp Connect Modal ─────────────────────────────────────────
+// Hosts the shared v4 Embedded Signup component in a dialog so the
+// Integrations page and the Content channels hub drive the identical
+// flow (config_id popup → POST /v1/meta/whatsapp/embedded-signup).
+
+function WhatsAppConnectModal({
+  open,
+  onClose,
+  onConnected,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onConnected: () => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Connect WhatsApp Business</DialogTitle>
+          <DialogDescription>
+            Connect your WhatsApp Business account through Meta&apos;s secure
+            sign-up. Your existing WhatsApp Business app keeps working.
+          </DialogDescription>
+        </DialogHeader>
+        {/*
+          Refresh the integrations list on success so the card flips to
+          connected. The component stays mounted showing its own success
+          state; the merchant closes the dialog when ready.
+        */}
+        <WhatsAppEmbeddedSignup onConnected={onConnected} />
+      </DialogContent>
+    </Dialog>
   );
 }
 
