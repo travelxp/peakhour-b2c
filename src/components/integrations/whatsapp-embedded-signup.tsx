@@ -17,6 +17,13 @@ import { CheckCircle2, AlertCircle, Loader2, Sparkles } from "lucide-react";
 
 const APP_ID = process.env.NEXT_PUBLIC_META_APP_ID;
 const CONFIG_ID = process.env.NEXT_PUBLIC_META_ES_CONFIG_ID;
+// Optional Tech Provider Solution id. Created during WhatsApp Tech Provider
+// onboarding in the Meta dashboard; ES references it via extras.setup.solutionID
+// so the onboarded WABA is tied to our Solution. Unset until onboarding produces
+// one — then set NEXT_PUBLIC_META_ES_SOLUTION_ID and it flows through, no code
+// change needed. (Twilio's Tech Provider snippet passes this; Meta's Hosted ES
+// link for our app currently omits it, so it stays optional.)
+const SOLUTION_ID = process.env.NEXT_PUBLIC_META_ES_SOLUTION_ID;
 
 /** How long to wait for the auth code + the per-flow required session ids
  *  (standard: waba + phone; coexistence: waba only) before giving up —
@@ -380,22 +387,26 @@ export function WhatsAppEmbeddedSignup({
         void complete();
       },
       {
-        // ES v4: the flow version is selected by the Facebook Login for
-        // Business *configuration* (config_id) — created under App Dashboard →
-        // Facebook Login for Business → Configurations with the "Embedded
-        // Signup" login variation; "Selecting the products will automatically
-        // set you to v4". No extras.version param is sent for stable v4.
+        // ES v4: the flow version is primarily selected by the Facebook Login
+        // for Business *configuration* (config_id) — created under App Dashboard
+        // → Facebook Login for Business → Configurations with the "WhatsApp
+        // Embedded Signup" login variation.
         // (developers.facebook.com/documentation/business-messaging/whatsapp/
         // embedded-signup/versions/ and .../version-4/)
         config_id: CONFIG_ID,
         response_type: "code",
         override_default_response_type: true,
         extras: {
-          // v4 reference invocation sends an (empty) setup object
-          // (.../embedded-signup/implementation/). v4-ONLY by decision
-          // (2026-06-11): NEXT_PUBLIC_META_ES_CONFIG_ID must be a v4
-          // configuration id.
-          setup: {},
+          // setup carries the Tech Provider Solution when configured (ES ties
+          // the onboarded WABA to it via setup.solutionID). Empty until
+          // NEXT_PUBLIC_META_ES_SOLUTION_ID is set by Tech Provider onboarding.
+          setup: SOLUTION_ID ? { solutionID: SOLUTION_ID } : {},
+          // Match the version Meta itself sends in its Hosted ES link for this
+          // app (business.facebook.com/messaging/whatsapp/onboard → extras
+          // {sessionInfoVersion:"3", version:"v4"}) and in the fbsamples Tech
+          // Provider reference. config_id already selects v4; sending it makes
+          // our request byte-for-byte match Meta's canonical flow.
+          version: "v4",
           // Pin the session-info message format. Meta's implementation doc and
           // the reference Tech Provider sample (ClientDashboard.tsx
           // computeEsConfig) both send sessionInfoVersion "3" — including for
