@@ -40,6 +40,19 @@ function buildCsp(req: NextRequest): { csp: string; reqHeaders: Headers } {
   const embedded = isShopifyEmbeddedPath(req.nextUrl.pathname);
   const shopify = isShopifyPath(req.nextUrl.pathname);
 
+  // WhatsApp Embedded Signup: AFTER the merchant logs in, the Facebook JS SDK
+  // executes a PARSER-INSERTED INLINE <script> in our page to process the
+  // response. 'strict-dynamic' only auto-trusts script-API-inserted scripts (a
+  // trusted script calling createElement+src) — NOT inline scripts — and we
+  // can't put our nonce on a script Facebook injects, so it's CSP-blocked and
+  // FB.login fails with Meta's generic "Sorry, something went wrong" page. The
+  // browser's own violation report names the remedy: allow the script's hash
+  // (hashes ARE honoured alongside 'strict-dynamic'). If a future Facebook
+  // sdk.js revision changes this inline script, the console reports the new
+  // hash — add it here. Scoped to script-src so only this exact content runs.
+  const META_SDK_INLINE_HASHES = [
+    "'sha256-n46vPwSWuMC0W703pBofImv82Z26xo4LXymv0E9caPk='",
+  ].join(" ");
   // Shopify routes: allow App Bridge from cdn.shopify.com (loaded by the
   // (commerce) root layout on the whole /shopify/** surface). We DON'T use
   // 'strict-dynamic' here (it fights App Bridge's dynamic loads AND ignores
@@ -49,7 +62,7 @@ function buildCsp(req: NextRequest): { csp: string; reqHeaders: Headers } {
     ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.shopify.com"
     : shopify
       ? `script-src 'self' 'nonce-${nonce}' https://cdn.shopify.com`
-      : `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`;
+      : `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' ${META_SDK_INLINE_HASHES}`;
   const connectSrc = [
     "connect-src 'self'",
     apiOrigin,
