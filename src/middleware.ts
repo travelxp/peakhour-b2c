@@ -57,6 +57,17 @@ function buildCsp(req: NextRequest): { csp: string; reqHeaders: Headers } {
     "https://*.vercel-insights.com",
     "https://vitals.vercel-insights.com",
     "https://*.vercel-analytics.com",
+    // WhatsApp Embedded Signup: the Facebook JS SDK (connect.facebook.net,
+    // loaded via 'strict-dynamic') makes runtime fetch/XHR calls to
+    // www.facebook.com (impression/funnel logging) and graph.facebook.com.
+    // Without these, the SDK is blocked by CSP and FB.login dies with Meta's
+    // generic "Sorry, something went wrong" page. The ES popup can launch from
+    // /dashboard/content/whatsapp and the /dashboard/integrations modal, so the
+    // allowance is global (like the Vercel hosts above). frame-src/img-src
+    // already permit `https:`, covering the SDK's xd_arbiter iframe + pixels.
+    "https://www.facebook.com",
+    "https://graph.facebook.com",
+    "https://connect.facebook.net",
     isDev ? "ws: wss: http://localhost:* ws://localhost:*" : "",
   ]
     .filter(Boolean)
