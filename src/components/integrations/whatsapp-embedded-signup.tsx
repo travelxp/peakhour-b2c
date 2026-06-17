@@ -135,15 +135,30 @@ export function WhatsAppEmbeddedSignup({
   const flowRef = useRef<ConnectFlow>("coexistence");
   const completingRef = useRef(false);
   const watchdogRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The popup window FB.login opens, and a poll that watches it for a manual
+  // close. Meta does NOT reliably emit a CANCEL message when the user X-closes
+  // the ES window, so without this the flow would hang on the watchdog (up to
+  // 5 min for coexistence) before the Connect button frees. Mirrors Meta's
+  // reference Tech Provider sample (Fbl4bLauncher.tsx).
+  const popupRef = useRef<Window | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // Set once the user starts a connect/disconnect — so a slow status-on-mount
   // fetch can't resolve late and clobber a user-initiated transition.
   const interactedRef = useRef(false);
 
+  // Stop both popup-resolution timers. The watchdog and the close-poll share a
+  // lifetime — both exist only while we're waiting on the ES popup — so every
+  // existing clearWatchdog() call site also tears the poll down.
   const clearWatchdog = () => {
     if (watchdogRef.current) {
       clearTimeout(watchdogRef.current);
       watchdogRef.current = null;
     }
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+    popupRef.current = null;
   };
 
   const resetPieces = () => {
@@ -322,12 +337,25 @@ export function WhatsAppEmbeddedSignup({
     watchdogRef.current = setTimeout(
       () => {
         if (completingRef.current) return; // POST already started
+        clearWatchdog(); // also stops the close-poll — we've given up waiting
         resetPieces();
         setPhase("idle");
         setError("We didn’t hear back from WhatsApp. Please try connecting again.");
       },
       flow === "coexistence" ? COEX_WATCHDOG_MS : WATCHDOG_MS,
     );
+
+    // FB.login opens its popup synchronously via window.open during the call
+    // below (popups must open on the user gesture). Briefly wrap window.open to
+    // capture that handle, then restore it. We then poll the handle so a manual
+    // window close unwinds immediately instead of waiting out the watchdog.
+    const originalOpen = window.open;
+    window.open = function (...args: Parameters<typeof window.open>) {
+      const popup = originalOpen.apply(window, args);
+      if (popup) popupRef.current = popup;
+      window.open = originalOpen; // restore on first open
+      return popup;
+    };
 
     window.FB.login(
       (response: FacebookLoginResponse) => {
@@ -365,10 +393,18 @@ export function WhatsAppEmbeddedSignup({
         extras: {
           // v4 reference invocation sends an (empty) setup object
           // (.../embedded-signup/implementation/). v4-ONLY by decision
-          // (2026-06-11): no onboarded customers exist, so no v2/v3
-          // sessionInfoVersion tolerance — NEXT_PUBLIC_META_ES_CONFIG_ID
-          // must be a v4 configuration id.
+          // (2026-06-11): NEXT_PUBLIC_META_ES_CONFIG_ID must be a v4
+          // configuration id.
           setup: {},
+          // Pin the session-info message format. Meta's implementation doc and
+          // the reference Tech Provider sample (ClientDashboard.tsx
+          // computeEsConfig) both send sessionInfoVersion "3" — including for
+          // v4 — and the WA_EMBEDDED_SIGNUP payload that carries waba_id/
+          // phone_number_id is shaped by it. Omitting it lets Meta fall back to
+          // a legacy shape, which can break the FINISH-id parse and strand the
+          // flow on the watchdog. (Our findSignupIds parse stays
+          // shape-tolerant; this just stops the format from drifting.)
+          sessionInfoVersion: "3",
           // Coexistence (C5): launches the "connect your existing WhatsApp
           // Business app account" variant — the merchant keeps their app
           // and pairs the same number to Cloud API in-flow. The deprecated
@@ -380,6 +416,22 @@ export function WhatsAppEmbeddedSignup({
         },
       },
     );
+
+    // Belt-and-suspenders: restore window.open even if FB.login never opened a
+    // popup (e.g. it redirected), so we never leave the global patched.
+    window.open = originalOpen;
+
+    // Poll the captured popup. A manual close with no CANCEL message unwinds to
+    // idle straight away. Guard on completingRef so a normal post-FINISH close
+    // (Meta auto-closes the window on success) doesn't trip a false reset.
+    pollRef.current = setInterval(() => {
+      if (completingRef.current) return; // the POST owns the outcome now
+      if (popupRef.current && popupRef.current.closed) {
+        clearWatchdog(); // stops this poll + the watchdog
+        resetPieces();
+        setPhase("idle");
+      }
+    }, 500);
   }, [sdkState, complete, flow]);
 
   const disconnect = useCallback(async () => {
