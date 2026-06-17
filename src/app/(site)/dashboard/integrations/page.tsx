@@ -431,6 +431,27 @@ export default function IntegrationsPage() {
   }
 
   async function handleDisconnect(provider: string) {
+    // WhatsApp lives in its own int_connections row (keyed by WABA id) and has
+    // a dedicated disconnect that removes ONLY that row + unsubscribes only the
+    // WABA webhook. The generic facebook disconnect below revokes ALL Meta
+    // permissions via Graph (DELETE /me/permissions), which would also drop
+    // Facebook Pages, Instagram and Meta Ads — so route the WhatsApp card to
+    // its own endpoint and leave the other Meta surfaces connected.
+    if (provider === "whatsapp") {
+      setDisconnecting(provider);
+      try {
+        await api.delete("/v1/meta/whatsapp/connection");
+        // Refetch rather than optimistically flipping every facebook-backed
+        // card — only the WhatsApp surface changed.
+        await loadIntegrations();
+      } catch (err) {
+        if (err instanceof ApiError) setError(err.message);
+        else setError("Failed to disconnect WhatsApp. Please try again.");
+      } finally {
+        setDisconnecting(null);
+      }
+      return;
+    }
     const realProvider = resolveProvider(provider);
     setDisconnecting(provider);
     try {
@@ -1052,11 +1073,19 @@ function IntegrationCard({
                   {disconnecting ? "Disconnecting..." : "Disconnect"}
                 </Button>
               }
-              title={isMetaVirtual(integration.provider) ? "Disconnect Meta" : "Disconnect integration"}
+              title={
+                integration.provider === "whatsapp"
+                  ? "Disconnect WhatsApp"
+                  : isMetaVirtual(integration.provider)
+                    ? "Disconnect Meta"
+                    : "Disconnect integration"
+              }
               description={
-                isMetaVirtual(integration.provider)
-                  ? "This will disconnect all Meta services (Facebook Pages, Instagram, Meta Ads, WhatsApp). You'll need to reconnect to sync data again."
-                  : `Are you sure you want to disconnect ${integration.name}? You'll need to reconnect to sync data again.`
+                integration.provider === "whatsapp"
+                  ? "This disconnects only WhatsApp Business. Your Facebook Pages, Instagram and Meta Ads stay connected."
+                  : isMetaVirtual(integration.provider)
+                    ? "This will disconnect all Meta services (Facebook Pages, Instagram, Meta Ads, WhatsApp). You'll need to reconnect to sync data again."
+                    : `Are you sure you want to disconnect ${integration.name}? You'll need to reconnect to sync data again.`
               }
               confirmLabel="Disconnect"
               variant="destructive"
