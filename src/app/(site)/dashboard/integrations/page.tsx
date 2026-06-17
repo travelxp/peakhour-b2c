@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/molecules/status-badge";
 import { ConfirmDialog } from "@/components/molecules/confirm-dialog";
+import { WhatsAppEmbeddedSignup } from "@/components/integrations/whatsapp-embedded-signup";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -268,6 +269,18 @@ export default function IntegrationsPage() {
 
   async function handleConnect(provider: string, authType: string) {
     const realProvider = resolveProvider(provider);
+    // WhatsApp can ONLY be connected via Meta's Embedded Signup (the v4 flow
+    // with a config_id + WhatsApp scopes + the WA_EMBEDDED_SIGNUP postMessage
+    // that carries waba_id/phone_number_id). The generic facebook /authorize
+    // OAuth this card would otherwise hit requests pages/instagram/ads scopes
+    // and never populates whatsappAccounts, so it can't connect WhatsApp at
+    // all. Intercept the virtual "whatsapp" card BEFORE the oauth2 redirect
+    // and launch the same Embedded Signup component the /dashboard/content
+    // /whatsapp page uses, hosted in a modal here for consistency.
+    if (provider === "whatsapp") {
+      setConnectModal("whatsapp");
+      return;
+    }
     // Shopify App Store requirement 2.3.1: installation must initiate from a
     // Shopify-owned surface (the App Store listing / Shopify admin) — apps
     // must NOT ask merchants to type their myshopify.com domain to start an
@@ -418,6 +431,27 @@ export default function IntegrationsPage() {
   }
 
   async function handleDisconnect(provider: string) {
+    // WhatsApp lives in its own int_connections row (keyed by WABA id) and has
+    // a dedicated disconnect that removes ONLY that row + unsubscribes only the
+    // WABA webhook. The generic facebook disconnect below revokes ALL Meta
+    // permissions via Graph (DELETE /me/permissions), which would also drop
+    // Facebook Pages, Instagram and Meta Ads — so route the WhatsApp card to
+    // its own endpoint and leave the other Meta surfaces connected.
+    if (provider === "whatsapp") {
+      setDisconnecting(provider);
+      try {
+        await api.delete("/v1/meta/whatsapp/connection");
+        // Refetch rather than optimistically flipping every facebook-backed
+        // card — only the WhatsApp surface changed.
+        await loadIntegrations();
+      } catch (err) {
+        if (err instanceof ApiError) setError(err.message);
+        else setError("Failed to disconnect WhatsApp. Please try again.");
+      } finally {
+        setDisconnecting(null);
+      }
+      return;
+    }
     const realProvider = resolveProvider(provider);
     setDisconnecting(provider);
     try {
@@ -643,7 +677,49 @@ export default function IntegrationsPage() {
         }
       />
 
+      {/* WhatsApp — v4 Embedded Signup, the same flow as /dashboard/content/whatsapp */}
+      <WhatsAppConnectModal
+        open={connectModal === "whatsapp"}
+        onClose={() => setConnectModal(null)}
+        onConnected={loadIntegrations}
+      />
+
     </div>
+  );
+}
+
+// ── WhatsApp Connect Modal ─────────────────────────────────────────
+// Hosts the shared v4 Embedded Signup component in a dialog so the
+// Integrations page and the Content channels hub drive the identical
+// flow (config_id popup → POST /v1/meta/whatsapp/embedded-signup).
+
+function WhatsAppConnectModal({
+  open,
+  onClose,
+  onConnected,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onConnected: () => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Connect WhatsApp Business</DialogTitle>
+          <DialogDescription>
+            Connect your WhatsApp Business account through Meta&apos;s secure
+            sign-up. Your existing WhatsApp Business app keeps working.
+          </DialogDescription>
+        </DialogHeader>
+        {/*
+          Refresh the integrations list on success so the card flips to
+          connected. The component stays mounted showing its own success
+          state; the merchant closes the dialog when ready.
+        */}
+        <WhatsAppEmbeddedSignup onConnected={onConnected} />
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -997,11 +1073,19 @@ function IntegrationCard({
                   {disconnecting ? "Disconnecting..." : "Disconnect"}
                 </Button>
               }
-              title={isMetaVirtual(integration.provider) ? "Disconnect Meta" : "Disconnect integration"}
+              title={
+                integration.provider === "whatsapp"
+                  ? "Disconnect WhatsApp"
+                  : isMetaVirtual(integration.provider)
+                    ? "Disconnect Meta"
+                    : "Disconnect integration"
+              }
               description={
-                isMetaVirtual(integration.provider)
-                  ? "This will disconnect all Meta services (Facebook Pages, Instagram, Meta Ads, WhatsApp). You'll need to reconnect to sync data again."
-                  : `Are you sure you want to disconnect ${integration.name}? You'll need to reconnect to sync data again.`
+                integration.provider === "whatsapp"
+                  ? "This disconnects only WhatsApp Business. Your Facebook Pages, Instagram and Meta Ads stay connected."
+                  : isMetaVirtual(integration.provider)
+                    ? "This will disconnect all Meta services (Facebook Pages, Instagram, Meta Ads, WhatsApp). You'll need to reconnect to sync data again."
+                    : `Are you sure you want to disconnect ${integration.name}? You'll need to reconnect to sync data again.`
               }
               confirmLabel="Disconnect"
               variant="destructive"
