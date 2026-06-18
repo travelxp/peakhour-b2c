@@ -181,7 +181,11 @@ export default function SettingsPage() {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!res.ok) {
+      // 404 = "No active subscription found": the goal (no paid sub on this
+      // store) is already met — a store entitled via another store, a trial,
+      // or a manual grant. Treat it as success and land on the free welcome
+      // rather than dead-ending the retention path on a raw error.
+      if (!res.ok && res.status !== 404) {
         const data = (await res.json().catch(() => ({}))) as { error?: string };
         setActionError(data.error ?? "Could not update your plan. Please try again.");
         setBusy(false);
