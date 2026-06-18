@@ -13,17 +13,18 @@ import {
   SkeletonPage,
   SkeletonBodyText,
   SkeletonDisplayText,
-  EmptyState,
   Divider,
   Box,
   InlineGrid,
 } from "@shopify/polaris";
 import { getSessionToken } from "./_lib/session";
+import { CommerceDisconnected } from "./_components/commerce-disconnected";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 interface EmbeddedContext {
   connected: boolean;
+  status?: string;
   shop: string;
   orgId?: string;
   businessId?: string;
@@ -382,28 +383,12 @@ export default function ShopifyEmbeddedHome() {
   }
 
   if (!state.ctx.connected) {
-    const shop = state.ctx.shop;
-    const connectUrl = shop
-      ? `/shopify/connect?shop=${encodeURIComponent(shop)}&reconnect=1`
-      : "/shopify/connect";
     return (
-      <Page title="Peakhour Commerce">
-        <EmptyState
-          heading="Link your Peakhour account"
-          action={{
-            content: "Set up Peakhour Commerce",
-            // Navigate the top-level window — relative URLs inside an admin
-            // iframe would only navigate the iframe itself.
-            onAction: () => { (window.top ?? window).location.href = connectUrl; },
-          }}
-          image="https://cdn.shopify.com/s/files/1/0757/9955/files/empty-state.svg"
-        >
-          <Text as="p" variant="bodyMd">
-            {shop ? `${shop} isn't` : "This store isn't"} linked to a Peakhour account yet.
-            Finish setup to connect your catalog and enable the AI commerce assistant.
-          </Text>
-        </EmptyState>
-      </Page>
+      <CommerceDisconnected
+        shop={state.ctx.shop}
+        pageTitle="Peakhour Commerce"
+        heading={state.ctx.status === "disconnected" ? "Commerce Disconnected" : "Set up Peakhour Commerce"}
+      />
     );
   }
 

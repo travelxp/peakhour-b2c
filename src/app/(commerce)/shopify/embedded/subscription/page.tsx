@@ -6,6 +6,7 @@ import {
   Card,
   BlockStack,
   InlineStack,
+  InlineGrid,
   Text,
   Button,
   ButtonGroup,
@@ -65,11 +66,26 @@ const FEATURE_LABELS: Record<string, string> = {
   "commerce.whatsapp": "WhatsApp shopping channel",
   "commerce.in_app_assistant": "In-app product assistant",
   "commerce.multilingual": "Multilingual replies (inc. Hinglish)",
-  "commerce.insights_network": "Insights Network access",
+  "commerce.insights_network": "Growth Network access",
 };
 
 function featureLabel(key: string): string {
   return FEATURE_LABELS[key] ?? key;
+}
+
+/** Annual savings computed from the tier's monthly/yearly prices (integer
+ *  cents) — replaces the hardcoded "2 months free" claim. Returns null when
+ *  there's no real annual discount to show. */
+function annualSavings(t?: PlanTier): { monthsFree: number; pct: number } | null {
+  const m = t?.pricing?.monthly;
+  const y = t?.pricing?.yearly;
+  if (!m || !y || y <= 0) return null;
+  const fullYear = m * 12;
+  if (y >= fullYear) return null;
+  return {
+    monthsFree: Math.round((fullYear - y) / m),
+    pct: Math.round(((fullYear - y) / fullYear) * 100),
+  };
 }
 
 function priceLabel(pricing: ContextData["pricing"], interval: "monthly" | "annual"): string | null {
@@ -252,6 +268,7 @@ export default function SubscriptionPage() {
   const trialDays = ctx?.pricing?.trialDays ?? 0;
   const lensTier = tiers.find((t) => t.key === "commerce_assistant.lens");
   const commerceTier = tiers.find((t) => t.key === "commerce_assistant.commerce");
+  const savings = annualSavings(commerceTier);
 
   // ── Active ───────────────────────────────────────────────────────────────
 
@@ -366,74 +383,58 @@ export default function SubscriptionPage() {
           </Text>
         </BlockStack>
 
-        {/* Tier comparison cards */}
+        {/* Tier comparison — two equal-height cards side by side */}
         {tiers.length > 0 ? (
-          <BlockStack gap="400">
-            {/* Lens — free, current */}
+          <InlineGrid columns={{ xs: 1, md: 2 }} gap="400">
+            {/* Free tier — current */}
             {lensTier && (
               <Card>
                 <BlockStack gap="400">
-                  <InlineStack align="space-between" blockAlign="start">
-                    <BlockStack gap="100">
+                  <BlockStack gap="100">
+                    <InlineStack align="space-between" blockAlign="center">
                       <Text as="h3" variant="headingMd">{lensTier.name}</Text>
-                      {lensTier.tagline && (
-                        <Text as="p" variant="bodySm" tone="subdued">{lensTier.tagline}</Text>
-                      )}
-                    </BlockStack>
-                    <BlockStack gap="100" inlineAlign="end">
-                      <Text as="p" variant="headingLg" fontWeight="bold">Free</Text>
-                      <Badge>Included</Badge>
-                    </BlockStack>
-                  </InlineStack>
+                      <Badge>Current plan</Badge>
+                    </InlineStack>
+                    {lensTier.tagline && (
+                      <Text as="p" variant="bodySm" tone="subdued">{lensTier.tagline}</Text>
+                    )}
+                  </BlockStack>
+                  <Text as="p" variant="heading2xl" fontWeight="bold">Free</Text>
+                  <Divider />
                   {lensTier.features.length > 0 && (
                     <BlockStack gap="200">
                       {lensTier.features.map((f) => (
-                        <InlineStack key={f} gap="200" blockAlign="center">
+                        <InlineStack key={f} gap="200" blockAlign="center" wrap={false}>
                           <Icon source={CheckCircleIcon} tone="base" />
                           <Text as="span" variant="bodySm">{featureLabel(f)}</Text>
                         </InlineStack>
                       ))}
                     </BlockStack>
                   )}
+                  <Button url="/shopify/embedded/pin" fullWidth size="large" variant="secondary">
+                    Start Free
+                  </Button>
                 </BlockStack>
               </Card>
             )}
 
-            {/* Peakhour Commerce — paid */}
+            {/* Paid tier — recommended */}
             {commerceTier && (
               <Card>
                 <BlockStack gap="400">
-                  <InlineStack align="space-between" blockAlign="start">
-                    <BlockStack gap="100">
+                  <BlockStack gap="100">
+                    <InlineStack align="space-between" blockAlign="center">
                       <Text as="h3" variant="headingMd">{commerceTier.name}</Text>
-                      {commerceTier.tagline && (
-                        <Text as="p" variant="bodySm" tone="subdued">{commerceTier.tagline}</Text>
-                      )}
-                    </BlockStack>
-                    <BlockStack gap="100" inlineAlign="end">
-                      {label ? (
-                        <>
-                          <Text as="p" variant="headingLg" fontWeight="bold">{label}</Text>
-                          <Badge tone="info">Recommended</Badge>
-                        </>
-                      ) : (
-                        <Badge tone="info">Recommended</Badge>
-                      )}
-                    </BlockStack>
-                  </InlineStack>
+                      <Badge tone="success">Most popular</Badge>
+                    </InlineStack>
+                    {commerceTier.tagline && (
+                      <Text as="p" variant="bodySm" tone="subdued">{commerceTier.tagline}</Text>
+                    )}
+                  </BlockStack>
 
-                  {commerceTier.features.length > 0 && (
-                    <BlockStack gap="200">
-                      {commerceTier.features.map((f) => (
-                        <InlineStack key={f} gap="200" blockAlign="center">
-                          <Icon source={CheckCircleIcon} tone="success" />
-                          <Text as="span" variant="bodySm">{featureLabel(f)}</Text>
-                        </InlineStack>
-                      ))}
-                    </BlockStack>
+                  {label && (
+                    <Text as="p" variant="heading2xl" fontWeight="bold">{label}</Text>
                   )}
-
-                  <Divider />
 
                   {hasAnnual && (
                     <ButtonGroup variant="segmented">
@@ -441,7 +442,9 @@ export default function SubscriptionPage() {
                         Monthly
                       </Button>
                       <Button pressed={billingInterval === "annual"} onClick={() => setBillingInterval("annual")}>
-                        Annual — 2 months free
+                        {savings
+                          ? `Annual — ${savings.monthsFree > 0 ? `${savings.monthsFree} months free` : `save ${savings.pct}%`}`
+                          : "Annual"}
                       </Button>
                     </ButtonGroup>
                   )}
@@ -450,6 +453,18 @@ export default function SubscriptionPage() {
                     <Text as="p" variant="bodySm" tone="subdued">
                       {trialDays}-day free trial — billing starts when the trial ends.
                     </Text>
+                  )}
+
+                  <Divider />
+                  {commerceTier.features.length > 0 && (
+                    <BlockStack gap="200">
+                      {commerceTier.features.map((f) => (
+                        <InlineStack key={f} gap="200" blockAlign="center" wrap={false}>
+                          <Icon source={CheckCircleIcon} tone="success" />
+                          <Text as="span" variant="bodySm">{featureLabel(f)}</Text>
+                        </InlineStack>
+                      ))}
+                    </BlockStack>
                   )}
 
                   {subError && (
@@ -463,15 +478,14 @@ export default function SubscriptionPage() {
                     loading={subscribing}
                     variant="primary"
                     size="large"
+                    fullWidth
                   >
-                    {trialDays > 0
-                      ? `Start ${trialDays}-day free trial`
-                      : "Subscribe to Peakhour Commerce"}
+                    {trialDays > 0 ? `Start ${trialDays}-day free trial` : "Upgrade"}
                   </Button>
                 </BlockStack>
               </Card>
             )}
-          </BlockStack>
+          </InlineGrid>
         ) : (
           /* Fallback when pricing endpoint returned no tiers (network issue) */
           <Card>
@@ -488,7 +502,9 @@ export default function SubscriptionPage() {
                     Monthly
                   </Button>
                   <Button pressed={billingInterval === "annual"} onClick={() => setBillingInterval("annual")}>
-                    Annual — 2 months free
+                    {savings
+                      ? `Annual — ${savings.monthsFree > 0 ? `${savings.monthsFree} months free` : `save ${savings.pct}%`}`
+                      : "Annual"}
                   </Button>
                 </ButtonGroup>
               )}
