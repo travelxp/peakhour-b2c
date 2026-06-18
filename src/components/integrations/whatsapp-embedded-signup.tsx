@@ -114,6 +114,67 @@ function isFacebookOrigin(origin: string): boolean {
   }
 }
 
+/** Opt-in verbose tracing for diagnosing Embedded Signup stalls — the popup
+ *  completes the captcha but no FINISH message ever arrives, leaving the UI on
+ *  the (up to 5-min) watchdog. Toggle with NEXT_PUBLIC_WHATSAPP_ES_DEBUG=1 in
+ *  ANY environment, no code change. The watchdog-timeout summary below is
+ *  logged regardless (failure-only, one line per stalled attempt) so every
+ *  stall leaves an actionable breadcrumb even with tracing off. Never logs the
+ *  auth code value (only its length); the WABA/phone ids it does log are the
+ *  merchant's own, not secrets. */
+const ES_DEBUG = process.env.NEXT_PUBLIC_WHATSAPP_ES_DEBUG === "1";
+
+function esLog(...args: unknown[]) {
+  if (ES_DEBUG) console.info("[wa-es]", ...args);
+}
+
+/** Per-attempt trace of which ES signals arrived — drives the watchdog hint so
+ *  a stall points at its likely cause instead of a generic timeout. */
+interface EsDiag {
+  startedAt: number;
+  flow: ConnectFlow;
+  sawCode: boolean;
+  sawAnyEsMessage: boolean;
+  sawFinish: boolean;
+  sawCancel: boolean;
+  gotWabaId: boolean;
+  gotPhoneNumberId: boolean;
+  /** ES-looking messages dropped by the Facebook-origin guard — a real stall
+   *  cause (a FINISH arriving from an unexpected origin is silently ignored). */
+  droppedEsOrigins: string[];
+}
+
+function freshDiag(flow: ConnectFlow): EsDiag {
+  return {
+    startedAt: Date.now(),
+    flow,
+    sawCode: false,
+    sawAnyEsMessage: false,
+    sawFinish: false,
+    sawCancel: false,
+    gotWabaId: false,
+    gotPhoneNumberId: false,
+    droppedEsOrigins: [],
+  };
+}
+
+/** Map the collected signals to the most likely root cause of a stall. The
+ *  branches mirror the ES break points: dropped-origin → SDK/proxy origin;
+ *  nothing-at-all → Meta app not Live / no Advanced Access / domain not
+ *  allowlisted (the usual external-merchant blocker); code-but-no-waba →
+ *  payload/flow mismatch; waba-but-no-code → login grant didn't complete. */
+function watchdogHint(d: EsDiag): string {
+  if (d.droppedEsOrigins.length > 0)
+    return "A WhatsApp FINISH message arrived from an unexpected origin and was ignored — check the SDK origin / any proxy in front of facebook.com.";
+  if (!d.sawAnyEsMessage && !d.sawCode)
+    return "No WhatsApp messages and no auth code arrived. The popup could not complete — verify the Meta app is Live with Advanced Access + Business Verification, and that this domain is allowlisted on the Facebook Login for Business config.";
+  if (d.sawCode && !d.gotWabaId)
+    return "An auth code arrived but no waba_id in any FINISH event — payload shape or flow mismatch (try the 'New or dedicated number' flow).";
+  if (d.gotWabaId && !d.sawCode)
+    return "A waba_id arrived but FB.login never returned an auth code — the login grant did not complete.";
+  return "Some events arrived but completion never triggered — inspect the [wa-es] trace above.";
+}
+
 export function WhatsAppEmbeddedSignup({
   onConnected,
 }: {
@@ -152,6 +213,9 @@ export function WhatsAppEmbeddedSignup({
   // Set once the user starts a connect/disconnect — so a slow status-on-mount
   // fetch can't resolve late and clobber a user-initiated transition.
   const interactedRef = useRef(false);
+  // Per-attempt diagnostics — reset on each launch(), read by the watchdog to
+  // explain a stall. A ref (not state) so updates never re-render mid-flow.
+  const diagRef = useRef<EsDiag>(freshDiag("coexistence"));
 
   // Stop both popup-resolution timers. The watchdog and the close-poll share a
   // lifetime — both exist only while we're waiting on the ES popup — so every
@@ -247,7 +311,30 @@ export function WhatsAppEmbeddedSignup({
   // Capture the WABA + phone ids from Meta's Embedded Signup session-info event.
   useEffect(() => {
     function onMessage(event: MessageEvent) {
-      if (!isFacebookOrigin(event.origin)) return;
+      if (!isFacebookOrigin(event.origin)) {
+        // An ES FINISH arriving from an unexpected origin is dropped here and
+        // is a genuine (and otherwise invisible) stall cause — record it so the
+        // watchdog summary can flag it instead of reporting a blank timeout.
+        try {
+          const raw = typeof event.data === "string" ? event.data : "";
+          // De-dup + cap: the listener lives for the component's lifetime, so a
+          // page spamming ES-looking postMessages must not grow this unbounded
+          // or let a stale stray origin outrank the real stall cause in the
+          // watchdog hint (which checks droppedEsOrigins first).
+          const dropped = diagRef.current.droppedEsOrigins;
+          if (
+            raw.includes("WA_EMBEDDED_SIGNUP") &&
+            dropped.length < 10 &&
+            !dropped.includes(event.origin)
+          ) {
+            dropped.push(event.origin);
+            esLog("dropped ES-looking message from non-Facebook origin", event.origin);
+          }
+        } catch {
+          /* ignore — diagnostics only */
+        }
+        return;
+      }
       let payload: { type?: string; event?: string } & Record<string, unknown>;
       try {
         payload = typeof event.data === "string" ? JSON.parse(event.data) : event.data;
@@ -255,6 +342,9 @@ export function WhatsAppEmbeddedSignup({
         return;
       }
       if (payload?.type !== "WA_EMBEDDED_SIGNUP") return;
+
+      diagRef.current.sawAnyEsMessage = true;
+      esLog("event", payload.event ?? "(unnamed)", payload.data ?? {});
 
       const data =
         payload.data && typeof payload.data === "object"
@@ -270,6 +360,7 @@ export function WhatsAppEmbeddedSignup({
       const errorMessage =
         typeof data?.error_message === "string" ? data.error_message : undefined;
       if (payload.event === "CANCEL" && errorMessage) {
+        diagRef.current.sawCancel = true;
         clearWatchdog();
         resetPieces();
         setPhase("idle");
@@ -303,6 +394,8 @@ export function WhatsAppEmbeddedSignup({
       // Plain abandonment — v4 CANCEL carries data.current_step (which screen
       // the user left from); no error to show, just unwind quietly.
       if (payload.event === "CANCEL") {
+        diagRef.current.sawCancel = true;
+        esLog("CANCEL (abandoned)", typeof data?.current_step === "string" ? data.current_step : "(no step)");
         clearWatchdog();
         if (phase === "launching") setPhase("idle");
         resetPieces();
@@ -316,9 +409,20 @@ export function WhatsAppEmbeddedSignup({
       // is event-name-agnostic on purpose — it keys on the ids, so any v4
       // FINISH variant resolves. Ids are merged piecemeal; complete() owns
       // the per-flow "do we have enough" decision.
+      diagRef.current.sawFinish = true;
       const { wabaId, phoneNumberId } = findSignupIds(payload);
-      if (wabaId) sessionRef.current.wabaId = wabaId;
-      if (phoneNumberId) sessionRef.current.phoneNumberId = phoneNumberId;
+      if (wabaId) {
+        sessionRef.current.wabaId = wabaId;
+        diagRef.current.gotWabaId = true;
+      }
+      if (phoneNumberId) {
+        sessionRef.current.phoneNumberId = phoneNumberId;
+        diagRef.current.gotPhoneNumberId = true;
+      }
+      esLog("FINISH ids", {
+        wabaId: Boolean(wabaId),
+        phoneNumberId: Boolean(phoneNumberId),
+      });
       if (sessionRef.current.wabaId) {
         void complete();
       }
@@ -340,6 +444,8 @@ export function WhatsAppEmbeddedSignup({
     // Freeze the flow for this popup — flipping the selector mid-flight
     // must not change how the in-flight session completes.
     flowRef.current = flow;
+    diagRef.current = freshDiag(flow);
+    esLog("launch", { flow, sdkState });
 
     watchdogRef.current = setTimeout(
       () => {
@@ -348,6 +454,21 @@ export function WhatsAppEmbeddedSignup({
         resetPieces();
         setPhase("idle");
         setError("We didn’t hear back from WhatsApp. Please try connecting again.");
+        // Failure-only breadcrumb (logged even with tracing off): what arrived,
+        // and the most likely cause. Booleans + origins only — no PII.
+        const d = diagRef.current;
+        console.warn("[wa-es] timed out with no completion", {
+          flow: d.flow,
+          elapsedMs: Date.now() - d.startedAt,
+          sawAnyEsMessage: d.sawAnyEsMessage,
+          sawFinish: d.sawFinish,
+          sawCancel: d.sawCancel,
+          sawCode: d.sawCode,
+          gotWabaId: d.gotWabaId,
+          gotPhoneNumberId: d.gotPhoneNumberId,
+          droppedEsOrigins: d.droppedEsOrigins,
+          hint: watchdogHint(d),
+        });
       },
       flow === "coexistence" ? COEX_WATCHDOG_MS : WATCHDOG_MS,
     );
@@ -367,6 +488,12 @@ export function WhatsAppEmbeddedSignup({
     window.FB.login(
       (response: FacebookLoginResponse) => {
         const code = response?.authResponse?.code;
+        diagRef.current.sawCode = Boolean(code);
+        esLog(
+          "FB.login callback",
+          code ? `code received (len ${code.length})` : "NO CODE",
+          { hadWabaId: Boolean(sessionRef.current.wabaId) },
+        );
         if (!code) {
           // FB.login invokes this callback once and it's the ONLY source
           // of the auth code — a code-less callback means completion is
@@ -632,6 +759,14 @@ export function WhatsAppEmbeddedSignup({
             </>
           )}
         </Button>
+
+        {busy && (
+          <p className="text-sm text-muted-foreground">
+            {phase === "launching"
+              ? "Complete the steps in the WhatsApp window and keep it open. The coexistence flow asks you to confirm on your phone, so this can take a minute."
+              : "Finishing setup…"}
+          </p>
+        )}
 
         {!configured && (
           <p className="flex items-start gap-2 text-sm text-muted-foreground">
