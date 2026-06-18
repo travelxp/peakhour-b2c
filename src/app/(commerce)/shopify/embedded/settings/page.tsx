@@ -29,6 +29,7 @@ interface ContextData {
   connected: boolean;
   shop: string;
   storeName?: string | null;
+  accountEmail?: string | null;
   currency?: string | null;
   productsSyncedAt?: string | null;
   connectionStatus?: string | null;
@@ -247,6 +248,12 @@ export default function SettingsPage() {
               <BlockStack gap="100">
                 <Text as="p" variant="bodySm" tone="subdued">Shop domain</Text>
                 <Text as="p" variant="bodyMd" fontWeight="semibold">{ctx.shop}</Text>
+              </BlockStack>
+              <BlockStack gap="100">
+                <Text as="p" variant="bodySm" tone="subdued">Peakhour account</Text>
+                <Text as="p" variant="bodyMd" fontWeight="semibold">
+                  {ctx.accountEmail || "—"}
+                </Text>
               </BlockStack>
               {ctx.currency && (
                 <BlockStack gap="100">
