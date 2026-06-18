@@ -317,8 +317,17 @@ export function WhatsAppEmbeddedSignup({
         // watchdog summary can flag it instead of reporting a blank timeout.
         try {
           const raw = typeof event.data === "string" ? event.data : "";
-          if (raw.includes("WA_EMBEDDED_SIGNUP")) {
-            diagRef.current.droppedEsOrigins.push(event.origin);
+          // De-dup + cap: the listener lives for the component's lifetime, so a
+          // page spamming ES-looking postMessages must not grow this unbounded
+          // or let a stale stray origin outrank the real stall cause in the
+          // watchdog hint (which checks droppedEsOrigins first).
+          const dropped = diagRef.current.droppedEsOrigins;
+          if (
+            raw.includes("WA_EMBEDDED_SIGNUP") &&
+            dropped.length < 10 &&
+            !dropped.includes(event.origin)
+          ) {
+            dropped.push(event.origin);
             esLog("dropped ES-looking message from non-Facebook origin", event.origin);
           }
         } catch {
