@@ -22,6 +22,8 @@ import {
 } from "@shopify/polaris";
 import { SearchIcon, ProductIcon } from "@shopify/polaris-icons";
 import { getSessionToken } from "../_lib/session";
+import { useEmbeddedContext } from "../_lib/context";
+import { CommerceDisconnected } from "../_components/commerce-disconnected";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 const PAGE_SIZE = 25;
@@ -48,6 +50,9 @@ interface CatalogResponse {
   page: number;
   limit: number;
   pages: number;
+  /** Set by the API when the store is disconnected — catalog is preserved
+   *  server-side but withheld from the UI. */
+  disconnected?: boolean;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -86,8 +91,10 @@ function CatalogSkeleton() {
 type PageState = "initializing" | "ready" | "error";
 
 export default function CatalogPage() {
+  const { ctx } = useEmbeddedContext();
   const [pageState, setPageState] = useState<PageState>("initializing");
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [disconnected, setDisconnected] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [total, setTotal] = useState(0);
   const [pages, setPages] = useState(1);
@@ -131,6 +138,12 @@ export default function CatalogPage() {
         return;
       }
       const data = (await res.json()) as CatalogResponse;
+      if (data.disconnected) {
+        setDisconnected(true);
+        setPageState("ready");
+        setFetching(false);
+        return;
+      }
       setProducts(data.products);
       setTotal(data.total);
       setPages(data.pages);
@@ -197,6 +210,12 @@ export default function CatalogPage() {
 
   if (pageState === "initializing") return <CatalogSkeleton />;
 
+  if (disconnected) {
+    return (
+      <CommerceDisconnected shop={ctx?.shop} pageTitle="Catalog" heading="Commerce Disconnected" />
+    );
+  }
+
   if (pageState === "error") {
     return (
       <Page title="Catalog">
@@ -227,7 +246,7 @@ export default function CatalogPage() {
             image="https://cdn.shopify.com/s/files/1/0757/9955/files/empty-state.svg"
           >
             <Text as="p" variant="bodyMd">
-              Your Shopify catalog hasn't synced yet. Sync now to import your products and
+              Your Shopify catalog hasn&apos;t synced yet. Sync now to import your products and
               enable the catalog-grounded AI assistant.
             </Text>
           </EmptyState>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useCallback, useRef, useState } from "react";
 import {
   Page,
   Card,
@@ -14,36 +14,18 @@ import {
   Box,
   Divider,
   Modal,
-  EmptyState,
+  ChoiceList,
+  TextField,
+  List,
   SkeletonPage,
   SkeletonBodyText,
   SkeletonDisplayText,
 } from "@shopify/polaris";
 import { getSessionToken } from "../_lib/session";
+import { useEmbeddedContext } from "../_lib/context";
+import { CommerceDisconnected } from "../_components/commerce-disconnected";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
-
-// ── Types ──────────────────────────────────────────────────────────────────
-
-interface ContextData {
-  connected: boolean;
-  shop: string;
-  storeName?: string | null;
-  accountEmail?: string | null;
-  currency?: string | null;
-  productsSyncedAt?: string | null;
-  connectionStatus?: string | null;
-  productsCount?: number;
-}
-
-// PIN (Insights Network) membership moved to its own nav surface —
-// /shopify/embedded/pin — per the 2026-06-12 product rule: onboarding
-// captures consent first-time, the dedicated page owns it afterwards.
-
-type PageState =
-  | { status: "loading" }
-  | { status: "error"; message: string }
-  | { status: "ready"; ctx: ContextData };
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -67,7 +49,15 @@ function formatSyncTime(iso: string | null | undefined): string {
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-// ── Skeleton ───────────────────────────────────────────────────────────────
+/** Churn reasons — values MUST mirror the cmrc_disconnect_feedback enum. */
+const REASON_CHOICES = [
+  { label: "Just testing", value: "just_testing" },
+  { label: "Too expensive", value: "too_expensive" },
+  { label: "Missing features", value: "missing_features" },
+  { label: "Switching tools", value: "switching_tools" },
+  { label: "Store inactive", value: "store_inactive" },
+  { label: "Other", value: "other" },
+];
 
 function SettingsSkeleton() {
   return (
@@ -86,50 +76,62 @@ function SettingsSkeleton() {
   );
 }
 
-// ── Main component ─────────────────────────────────────────────────────────
+// ── Welcome to Growth Network (post-downgrade) ───────────────────────────────
+
+function GrowthNetworkWelcome({ onDismiss }: { onDismiss: () => void }) {
+  return (
+    <Page title="You're on the free plan">
+      <Card>
+        <BlockStack gap="400">
+          <Text as="h2" variant="headingLg">
+            Welcome to the Peakhour Growth Network
+          </Text>
+          <Text as="p" variant="bodyMd" tone="subdued">
+            Your store stays connected and your catalog keeps syncing. You&rsquo;re now part of a
+            community of founders and operators using AI to grow smarter — at no cost.
+          </Text>
+          <List>
+            <List.Item>Industry insights &amp; growth trends</List.Item>
+            <List.Item>Community benchmarks for stores like yours</List.Item>
+            <List.Item>AI-powered recommendations</List.Item>
+            <List.Item>Early access to new features</List.Item>
+          </List>
+          <InlineStack gap="300">
+            <Button variant="primary" url="/shopify/embedded/pin">
+              Explore Growth Network
+            </Button>
+            <Button variant="tertiary" url="/shopify/embedded/subscription">
+              Back to Commerce
+            </Button>
+            <Button variant="plain" onClick={onDismiss}>
+              Back to settings
+            </Button>
+          </InlineStack>
+        </BlockStack>
+      </Card>
+    </Page>
+  );
+}
+
+// ── Main component ───────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
-  const [state, setState] = useState<PageState>({ status: "loading" });
+  const { ctx, loading, refresh } = useEmbeddedContext();
+
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [disconnecting, setDisconnecting] = useState(false);
-  const [disconnectError, setDisconnectError] = useState<string | null>(null);
   const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    const ctrl = new AbortController();
-    (async () => {
-      const token = await getSessionToken();
-      if (ctrl.signal.aborted) return;
-      if (!token) {
-        setState({ status: "error", message: "Couldn't get a Shopify session. Please reopen Peakhour from your Shopify admin." });
-        return;
-      }
-      try {
-        const res = await fetch(`${API_URL}/v1/shopify/embedded/context`, {
-          headers: { Authorization: `Bearer ${token}` },
-          signal: ctrl.signal,
-        });
-        if (ctrl.signal.aborted) return;
-        if (!res.ok) {
-          setState({ status: "error", message: `Could not load settings (${res.status}).` });
-          return;
-        }
-        const ctx = (await res.json()) as ContextData;
-        setState({ status: "ready", ctx });
-      } catch (err) {
-        if ((err as { name?: string }).name === "AbortError") return;
-        setState({ status: "error", message: "Network error loading settings." });
-      }
-    })();
-    return () => ctrl.abort();
-  }, []);
+  // Disconnect modal: closed → confirm ("Before You Leave") → reason step.
+  const [modalStep, setModalStep] = useState<"closed" | "confirm" | "reason">("closed");
+  const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [reason, setReason] = useState<string[]>([]);
+  const [details, setDetails] = useState("");
+  // One-time post-downgrade welcome screen (store stays connected).
+  const [flash, setFlash] = useState<null | "downgraded">(null);
 
-  // Clear the pending sync-feedback timer on unmount (no setState after unmount).
-  useEffect(() => () => {
-    if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
-  }, []);
+  const shop = ctx?.shop;
 
   const handleSync = useCallback(async () => {
     setSyncing(true);
@@ -150,8 +152,6 @@ export default function SettingsPage() {
         setSyncError(data.error ?? `Sync failed (${res.status}). Please try again.`);
         setSyncing(false);
       } else {
-        // Fire-and-forget queued — keep the "Sync started" banner for a few
-        // seconds of feedback, then clear (refresh shows updated counts).
         syncTimerRef.current = setTimeout(() => setSyncing(false), 5000);
       }
     } catch {
@@ -160,77 +160,116 @@ export default function SettingsPage() {
     }
   }, []);
 
-  const handleDisconnect = useCallback(async () => {
-    if (state.status !== "ready") return;
-    setDisconnecting(true);
-    setDisconnectError(null);
+  const closeModal = useCallback(() => {
+    if (busy) return;
+    setModalStep("closed");
+    setActionError(null);
+  }, [busy]);
+
+  // Primary retention path: keep the store connected, cancel only the paid sub.
+  const continueOnFree = useCallback(async () => {
+    setBusy(true);
+    setActionError(null);
     const token = await getSessionToken();
     if (!token) {
-      setDisconnectError("Couldn't get a Shopify session. Please reopen from your admin.");
-      setDisconnecting(false);
+      setActionError("Couldn't get a Shopify session. Please reopen from your admin.");
+      setBusy(false);
+      return;
+    }
+    try {
+      const res = await fetch(`${API_URL}/v1/shopify/embedded/billing/cancel`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      // 404 = "No active subscription found": the goal (no paid sub on this
+      // store) is already met — a store entitled via another store, a trial,
+      // or a manual grant. Treat it as success and land on the free welcome
+      // rather than dead-ending the retention path on a raw error.
+      if (!res.ok && res.status !== 404) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        setActionError(data.error ?? "Could not update your plan. Please try again.");
+        setBusy(false);
+        return;
+      }
+      setModalStep("closed");
+      setBusy(false);
+      setFlash("downgraded");
+      void refresh();
+    } catch {
+      setActionError("Network error updating your plan.");
+      setBusy(false);
+    }
+  }, [refresh]);
+
+  // Full disconnect — drop the token, mark disconnected, capture the reason.
+  const disconnectCompletely = useCallback(async () => {
+    setBusy(true);
+    setActionError(null);
+    const token = await getSessionToken();
+    if (!token) {
+      setActionError("Couldn't get a Shopify session. Please reopen from your admin.");
+      setBusy(false);
       return;
     }
     try {
       const res = await fetch(`${API_URL}/v1/shopify/embedded/disconnect`, {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...(reason[0] ? { reason: reason[0] } : {}),
+          ...(details.trim() ? { details: details.trim() } : {}),
+        }),
       });
       const data = (await res.json().catch(() => ({}))) as { disconnected?: boolean; error?: string };
       if (!res.ok || !data.disconnected) {
-        setDisconnectError(data.error ?? "Could not disconnect. Please try again.");
-        setDisconnecting(false);
+        setActionError(data.error ?? "Could not disconnect. Please try again.");
+        setBusy(false);
         return;
       }
-      // Back into the connect flow — top-level navigation escapes the admin
-      // iframe (a relative redirect would only move the iframe itself).
-      const connectUrl = `/shopify/connect?shop=${encodeURIComponent(state.ctx.shop)}&reconnect=1`;
-      (window.top ?? window).location.href = connectUrl;
+      // Stay in the app — refresh context so this page re-renders to the
+      // in-app Commerce Disconnected state. No redirect into OAuth.
+      setModalStep("closed");
+      setBusy(false);
+      void refresh();
     } catch {
-      setDisconnectError("Network error disconnecting.");
-      setDisconnecting(false);
+      setActionError("Network error disconnecting.");
+      setBusy(false);
     }
-  }, [state]);
+  }, [reason, details, refresh]);
 
-  // ── Render states ────────────────────────────────────────────────────────
+  // ── Render states ──────────────────────────────────────────────────────────
 
-  if (state.status === "loading") return <SettingsSkeleton />;
+  if (loading && !ctx) return <SettingsSkeleton />;
 
-  if (state.status === "error") {
+  if (!ctx) {
     return (
       <Page title="Settings">
         <Banner tone="critical" title="Could not load settings">
-          <Text as="p" variant="bodyMd">{state.message}</Text>
+          <Text as="p" variant="bodyMd">
+            Couldn&rsquo;t get a Shopify session. Please reopen Peakhour from your Shopify admin.
+          </Text>
         </Banner>
       </Page>
     );
   }
 
-  const { ctx } = state;
+  if (flash === "downgraded") {
+    return <GrowthNetworkWelcome onDismiss={() => setFlash(null)} />;
+  }
 
   if (!ctx.connected) {
-    const connectUrl = ctx.shop
-      ? `/shopify/connect?shop=${encodeURIComponent(ctx.shop)}&reconnect=1`
-      : "/shopify/connect";
+    // Disconnected (or never linked) — one consistent, no-dead-end state.
     return (
-      <Page title="Settings">
-        <EmptyState
-          heading="Link your Peakhour account"
-          action={{
-            content: "Set up Peakhour Commerce",
-            onAction: () => { (window.top ?? window).location.href = connectUrl; },
-          }}
-          image="https://cdn.shopify.com/s/files/1/0757/9955/files/empty-state.svg"
-        >
-          <Text as="p" variant="bodyMd">
-            {ctx.shop ? `${ctx.shop} isn't` : "This store isn't"} linked to a Peakhour account
-            yet. Finish setup to manage your store settings here.
-          </Text>
-        </EmptyState>
-      </Page>
+      <CommerceDisconnected
+        shop={shop}
+        pageTitle="Settings"
+        heading={ctx.status === "disconnected" ? "Commerce Disconnected" : "Set up Peakhour Commerce"}
+      />
     );
   }
 
   const storeName = ctx.storeName || ctx.shop;
+  const hasPaid = Boolean(ctx.assistantActive);
 
   return (
     <Page title="Settings" subtitle={storeName}>
@@ -314,22 +353,19 @@ export default function SettingsPage() {
           </BlockStack>
         </Card>
 
-        {/* ── Card 3 — Danger zone ────────────────────────────────────── */}
+        {/* ── Card 3 — Disconnect ─────────────────────────────────────── */}
         <Card>
           <BlockStack gap="400">
-            <Text as="h2" variant="headingMd">Danger zone</Text>
+            <Text as="h2" variant="headingMd">Disconnect</Text>
             <Divider />
-            <Banner tone="critical" title="Disconnect this store">
-              <Text as="p" variant="bodyMd">
-                Disconnecting unlinks {ctx.shop} from your Peakhour account and cancels any
-                active Commerce Assistant subscription. Your product catalog is preserved
-                and you can reconnect at any time.
-              </Text>
-            </Banner>
+            <Text as="p" variant="bodyMd" tone="subdued">
+              Want to step back from paid Commerce? You can downgrade to the free plan and keep your
+              store connected, or disconnect {ctx.shop} completely. Either way, your catalog is
+              preserved and you can come back any time.
+            </Text>
             <Box>
               <Button
-                onClick={() => { setDisconnectError(null); setModalOpen(true); }}
-                variant="primary"
+                onClick={() => { setActionError(null); setModalStep("confirm"); }}
                 tone="critical"
               >
                 Disconnect store
@@ -339,39 +375,89 @@ export default function SettingsPage() {
         </Card>
       </BlockStack>
 
-      {/* ── Disconnect confirmation ───────────────────────────────────── */}
+      {/* ── "Before You Leave" confirmation ───────────────────────────── */}
       <Modal
-        open={modalOpen}
-        onClose={() => { if (!disconnecting) setModalOpen(false); }}
-        title="Disconnect store?"
+        open={modalStep === "confirm"}
+        onClose={closeModal}
+        title="Before you leave…"
         primaryAction={{
-          content: "Disconnect",
-          destructive: true,
-          loading: disconnecting,
-          onAction: handleDisconnect,
+          content: hasPaid ? "Continue on Free Plan" : "Keep store connected",
+          loading: busy,
+          onAction: hasPaid ? continueOnFree : closeModal,
         }}
         secondaryActions={[
           {
-            content: "Cancel",
-            disabled: disconnecting,
-            onAction: () => setModalOpen(false),
+            content: "Disconnect completely",
+            destructive: true,
+            disabled: busy,
+            onAction: () => { setActionError(null); setModalStep("reason"); },
           },
+          { content: "Cancel", disabled: busy, onAction: closeModal },
         ]}
       >
         <Modal.Section>
           <BlockStack gap="300">
-            {/* Error must render INSIDE the modal — a banner in the card behind
-                the overlay would be invisible while the modal is open. */}
-            {disconnectError && (
+            {actionError && (
               <Banner tone="critical">
-                <Text as="p" variant="bodyMd">{disconnectError}</Text>
+                <Text as="p" variant="bodyMd">{actionError}</Text>
+              </Banner>
+            )}
+            <Text as="p" variant="bodyMd">Disconnecting Shopify will:</Text>
+            <List>
+              <List.Item>Disable the Commerce Assistant</List.Item>
+              <List.Item>Stop catalog syncing</List.Item>
+              <List.Item>Remove Commerce Insights</List.Item>
+              <List.Item>Pause AI-powered recommendations</List.Item>
+            </List>
+            <Text as="p" variant="bodyMd">
+              {hasPaid
+                ? "You can stay on Peakhour's free Growth Network at no cost — keep your store connected and drop the paid Commerce Assistant."
+                : "You can keep your store connected on the free plan and continue using the Growth Network at no cost."}
+            </Text>
+          </BlockStack>
+        </Modal.Section>
+      </Modal>
+
+      {/* ── Churn reason step (skippable) ─────────────────────────────── */}
+      <Modal
+        open={modalStep === "reason"}
+        onClose={closeModal}
+        title="Disconnect completely?"
+        primaryAction={{
+          content: "Disconnect completely",
+          destructive: true,
+          loading: busy,
+          onAction: disconnectCompletely,
+        }}
+        secondaryActions={[
+          { content: "Back", disabled: busy, onAction: () => { setActionError(null); setModalStep("confirm"); } },
+        ]}
+      >
+        <Modal.Section>
+          <BlockStack gap="300">
+            {actionError && (
+              <Banner tone="critical">
+                <Text as="p" variant="bodyMd">{actionError}</Text>
               </Banner>
             )}
             <Text as="p" variant="bodyMd">
-              This will disconnect {ctx.shop} from Peakhour and cancel any active Commerce
-              Assistant subscription. Your product catalog will be preserved. You can
-              reconnect at any time.
+              This unlinks {ctx.shop} and cancels any active Commerce Assistant subscription. Your
+              product catalog is preserved and you can reconnect at any time.
             </Text>
+            <ChoiceList
+              title="Why are you leaving? (optional)"
+              choices={REASON_CHOICES}
+              selected={reason}
+              onChange={setReason}
+            />
+            <TextField
+              label="Anything else? (optional)"
+              value={details}
+              onChange={setDetails}
+              autoComplete="off"
+              multiline={2}
+              maxLength={2000}
+            />
           </BlockStack>
         </Modal.Section>
       </Modal>

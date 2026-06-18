@@ -12,13 +12,13 @@ import {
   Badge,
   Box,
   Divider,
-  EmptyState,
   List,
   SkeletonPage,
   SkeletonBodyText,
   SkeletonDisplayText,
 } from "@shopify/polaris";
 import { getSessionToken } from "../_lib/session";
+import { CommerceDisconnected } from "../_components/commerce-disconnected";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 
@@ -40,10 +40,13 @@ interface PinState {
 }
 
 // Truthful-today framing (matches the wizard): benchmarks ship to members
-// FIRST as they roll out — never claimed as visible now.
-const PIN_BENEFITS = [
-  "Early access: benchmarks for stores like yours reach members first",
-  "Help shape sharper AI recommendations as the network learns",
+// FIRST as they roll out — never claimed as visible now. The Growth Network
+// is positioned as a valuable free destination, not a Commerce setup blocker.
+const GROWTH_BENEFITS = [
+  "Industry insights and growth trends for stores like yours",
+  "Community benchmarks — see how you compare, anonymously",
+  "AI-powered recommendations as the network learns",
+  "Early access to new features",
   "Only anonymized cohort signals are shared — never products, customers, or revenue",
 ];
 
@@ -59,7 +62,7 @@ type Membership = "loading" | "member" | "nonmember" | "unknown" | "notlinked";
 
 function PinSkeleton() {
   return (
-    <SkeletonPage title="Insights Network">
+    <SkeletonPage title="Growth Network">
       <BlockStack gap="500">
         <Card>
           <BlockStack gap="400">
@@ -155,7 +158,7 @@ export default function PinPage() {
         body: JSON.stringify({ action: join ? "opt_in" : "withdraw" }),
       });
       if (!res.ok) {
-        setError("Could not update your Insights Network membership. Please try again.");
+        setError("Could not update your Growth Network membership. Please try again.");
       } else {
         setMembership(join ? "member" : "nonmember");
       }
@@ -169,8 +172,8 @@ export default function PinPage() {
 
   return (
     <Page
-      title="Insights Network"
-      subtitle="Anonymous, cohort-level intelligence from stores like yours"
+      title="Growth Network"
+      subtitle="Smart insights. Zero personal tracking. Your identity stays yours."
     >
       <BlockStack gap="500">
         {error && (
@@ -239,14 +242,14 @@ export default function PinPage() {
         {membership === "nonmember" && (
           <Card>
             <BlockStack gap="400">
-              <Text as="h2" variant="headingMd">Join the Peakhour Insights Network</Text>
+              <Text as="h2" variant="headingMd">Join the Peakhour Growth Network</Text>
               <Divider />
               <Text as="p" variant="bodyMd" tone="subdued">
-                Get member-first access to benchmarks and network-powered insights as
-                they roll out — included free on your current plan.
+                A free community for founders and operators growing smarter with AI. Smart insights,
+                zero personal tracking — your identity stays yours.
               </Text>
               <List type="bullet">
-                {PIN_BENEFITS.map((b) => (
+                {GROWTH_BENEFITS.map((b) => (
                   <List.Item key={b}>
                     <Text as="span" variant="bodyMd">{b}</Text>
                   </List.Item>
@@ -254,46 +257,31 @@ export default function PinPage() {
               </List>
               <InlineStack gap="300" blockAlign="center">
                 <Button onClick={() => toggle(true)} loading={busy} variant="primary">
-                  Count me in
+                  Join Free Community Now
                 </Button>
-                <Text as="span" variant="bodySm" tone="subdued">
-                  Opt-in only — you can leave at any time.
-                </Text>
+                <Button url="/shopify/embedded/subscription" variant="tertiary">
+                  Connect Commerce Later
+                </Button>
               </InlineStack>
+              <Text as="span" variant="bodySm" tone="subdued">
+                Opt-in only — you can leave at any time.
+              </Text>
             </BlockStack>
           </Card>
         )}
 
         {membership === "notlinked" && (
-          <EmptyState
-            heading="Link your Peakhour account"
-            action={{
-              content: "Set up Peakhour Commerce",
-              // Navigate the top-level window — relative URLs inside an
-              // admin iframe would only navigate the iframe itself. Carry
-              // shop + reconnect like Home/Settings do: the bare wizard URL
-              // hard-errors ("please reinstall") without a shop param.
-              onAction: () => {
-                const url = shop
-                  ? `/shopify/connect?shop=${encodeURIComponent(shop)}&reconnect=1`
-                  : "/shopify/connect";
-                (window.top ?? window).location.href = url;
-              },
-            }}
-            image="https://cdn.shopify.com/s/files/1/0757/9955/files/empty-state.svg"
-          >
-            <Text as="p" variant="bodyMd">
-              {shop ? `${shop} isn't` : "This store isn't"} linked to a Peakhour
-              account yet. Finish setup first — then join the Insights Network
-              from here.
-            </Text>
-          </EmptyState>
+          <CommerceDisconnected
+            shop={shop}
+            withPage={false}
+            showGrowthNetworkLink={false}
+          />
         )}
 
         {membership === "unknown" && (
           <Card>
             <BlockStack gap="300">
-              <Text as="h2" variant="headingMd">Peakhour Insights Network</Text>
+              <Text as="h2" variant="headingMd">Peakhour Growth Network</Text>
               <Divider />
               <Text as="p" variant="bodyMd" tone="subdued">
                 We couldn&apos;t load your membership status.
