@@ -42,7 +42,7 @@ interface PinState {
 // Truthful-today framing (matches the wizard): benchmarks ship to members
 // FIRST as they roll out — never claimed as visible now. The Insights Network
 // is positioned as a valuable free destination, not a Commerce setup blocker.
-const GROWTH_BENEFITS = [
+const INSIGHTS_BENEFITS = [
   "Industry insights and growth trends for stores like yours",
   "Community benchmarks — see how you compare, anonymously",
   "AI-powered recommendations as the network learns",
@@ -249,7 +249,7 @@ export default function PinPage() {
                 zero personal tracking — your identity stays yours.
               </Text>
               <List type="bullet">
-                {GROWTH_BENEFITS.map((b) => (
+                {INSIGHTS_BENEFITS.map((b) => (
                   <List.Item key={b}>
                     <Text as="span" variant="bodyMd">{b}</Text>
                   </List.Item>
@@ -274,7 +274,7 @@ export default function PinPage() {
           <CommerceDisconnected
             shop={shop}
             withPage={false}
-            showGrowthNetworkLink={false}
+            showInsightsNetworkLink={false}
           />
         )}
 

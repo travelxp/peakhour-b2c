@@ -78,7 +78,7 @@ function SettingsSkeleton() {
 
 // ── Welcome to Insights Network (post-downgrade) ───────────────────────────────
 
-function GrowthNetworkWelcome({ onDismiss }: { onDismiss: () => void }) {
+function InsightsNetworkWelcome({ onDismiss }: { onDismiss: () => void }) {
   return (
     <Page title="You're on the free plan">
       <Card>
@@ -254,7 +254,7 @@ export default function SettingsPage() {
   }
 
   if (flash === "downgraded") {
-    return <GrowthNetworkWelcome onDismiss={() => setFlash(null)} />;
+    return <InsightsNetworkWelcome onDismiss={() => setFlash(null)} />;
   }
 
   if (!ctx.connected) {

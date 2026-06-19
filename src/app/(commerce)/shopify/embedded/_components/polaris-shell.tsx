@@ -55,7 +55,7 @@ const NAV_ITEMS = [
   { label: "Catalog", icon: ProductIcon, url: "/shopify/embedded/catalog" },
   // WhatsApp (and future channels) connect here (P1.12, launch-to-domain).
   { label: "Integrations", icon: ConnectIcon, url: "/shopify/embedded/integrations" },
-  // The free Insights Network (formerly "Insights Network") — its own surface
+  // The free Insights Network (Peakhour Insights Network, "PIN") — its own surface
   // (product rule 2026-06-12): consent is captured first-time in the connect
   // wizard; this page is its standing home — members see the network,
   // non-members get the join nudge. Positioned as a valuable destination.

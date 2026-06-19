@@ -16,9 +16,9 @@ interface CommerceDisconnectedProps {
    *  already-titled page / card). Defaults to standalone. */
   withPage?: boolean;
   pageTitle?: string;
-  /** Show the "Explore Insights Network" secondary CTA. Off on the Growth
+  /** Show the "Explore Insights Network" secondary CTA. Off on the Insights
    *  Network page itself (would be self-referential). Defaults on. */
-  showGrowthNetworkLink?: boolean;
+  showInsightsNetworkLink?: boolean;
 }
 
 /**
@@ -34,7 +34,7 @@ export function CommerceDisconnected({
   description = "Your Peakhour account is still active. Reconnect your Shopify store to sync your catalog, enable the AI Commerce Assistant, unlock product insights, and get AI-powered recommendations.",
   withPage = true,
   pageTitle = "Commerce",
-  showGrowthNetworkLink = true,
+  showInsightsNetworkLink = true,
 }: CommerceDisconnectedProps) {
   const content = (
     <EmptyState
@@ -48,7 +48,7 @@ export function CommerceDisconnected({
         },
       }}
       secondaryAction={
-        showGrowthNetworkLink
+        showInsightsNetworkLink
           ? {
               content: "Explore Insights Network",
               // In-iframe client nav (Polaris linkComponent = Next Link).
