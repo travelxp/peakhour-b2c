@@ -41,6 +41,19 @@
   box-shadow: var(--p-shadow-400, 0 6px 16px rgba(31, 33, 36, 0.12));
 }
 
+/* Equal-height plan cards in an InlineGrid: the grid stretches each wrapper to
+   the row's height, so make the wrapper a column flex container and let the
+   Polaris Card inside fill it — two cards with different content then match
+   heights. Pair with .ph-hover-lift for the hover elevation. */
+.ph-plan-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.ph-plan-card > * {
+  flex: 1 1 auto;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .ph-fade-in-up {
     animation: none;
