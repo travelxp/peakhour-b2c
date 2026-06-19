@@ -17,7 +17,7 @@ import {
   Spinner,
 } from "@shopify/polaris";
 import { getSessionToken } from "../_lib/session";
-import { reconnectUrl } from "../_lib/context";
+import { startReconnect } from "../_lib/context";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 
@@ -160,7 +160,7 @@ export default function AssistantPage() {
               <Box>
                 <Button
                   onClick={() => {
-                    (window.top ?? window).location.href = reconnectUrl();
+                    void startReconnect();
                   }}
                 >
                   Set up Peakhour Commerce
