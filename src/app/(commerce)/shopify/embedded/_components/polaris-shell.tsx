@@ -18,7 +18,7 @@ import { useState, type ReactNode } from "react";
 import {
   EmbeddedContextProvider,
   useEmbeddedContext,
-  reconnectUrl,
+  startReconnect,
 } from "../_lib/context";
 
 type PolarisLinkComponent = NonNullable<AppProviderProps["linkComponent"]>;
@@ -81,7 +81,7 @@ function ReconnectBanner() {
         action={{
           content: "Reconnect Shopify",
           onAction: () => {
-            (window.top ?? window).location.href = reconnectUrl(ctx.shop);
+            void startReconnect(ctx.shop);
           },
         }}
       >

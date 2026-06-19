@@ -129,3 +129,30 @@ export function reconnectUrl(shop?: string | null): string {
     : "/shopify/connect";
   return `${origin}${path}`;
 }
+
+/**
+ * Start the one-click, token-based embedded reconnect. Hands the App Bridge
+ * session token to the API's /shopify/reconnect via a top-level navigation
+ * (which escapes the admin iframe; the token rides in the query because a
+ * navigation can't send an Authorization header). The API resolves the shop's
+ * linked org/business and re-runs OAuth, landing the merchant back inside the
+ * embedded app — no Peakhour cookie, no magic-link, no org/business gate.
+ *
+ * Falls back to the connect wizard (cookie flow) only when no session token is
+ * available — e.g. opened outside the admin iframe, where App Bridge can't
+ * mint one.
+ */
+export async function startReconnect(shop?: string | null): Promise<void> {
+  const top = window.top ?? window;
+  let token: string | null = null;
+  try {
+    token = await getSessionToken();
+  } catch {
+    // getSessionToken shouldn't throw, but never let a token hiccup turn the
+    // CTA into a no-op — fall through to the cookie-flow URL below.
+    token = null;
+  }
+  top.location.href = token
+    ? `${API_URL}/v1/integrations/shopify/reconnect?token=${encodeURIComponent(token)}`
+    : reconnectUrl(shop);
+}

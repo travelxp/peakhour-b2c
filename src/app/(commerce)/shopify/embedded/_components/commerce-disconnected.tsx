@@ -1,7 +1,7 @@
 "use client";
 
 import { Page, EmptyState, Text } from "@shopify/polaris";
-import { reconnectUrl } from "../_lib/context";
+import { startReconnect } from "../_lib/context";
 
 /** Shared illustration for the Commerce setup / disconnected states. One asset
  *  everywhere so the experience is consistent (Disconnect Redesign §12). */
@@ -41,10 +41,10 @@ export function CommerceDisconnected({
       heading={heading}
       action={{
         content: "Reconnect Shopify",
-        // Top-level navigation escapes the admin iframe so OAuth can run; a
-        // relative redirect would only move the iframe itself.
+        // Token-based reconnect: escapes the iframe and re-runs OAuth via the
+        // API, landing the merchant back inside the connected embedded app.
         onAction: () => {
-          (window.top ?? window).location.href = reconnectUrl(shop);
+          void startReconnect(shop);
         },
       }}
       secondaryAction={
