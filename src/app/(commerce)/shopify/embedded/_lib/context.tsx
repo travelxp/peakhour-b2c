@@ -144,10 +144,15 @@ export function reconnectUrl(shop?: string | null): string {
  */
 export async function startReconnect(shop?: string | null): Promise<void> {
   const top = window.top ?? window;
-  const token = await getSessionToken();
-  if (token) {
-    top.location.href = `${API_URL}/v1/integrations/shopify/reconnect?token=${encodeURIComponent(token)}`;
-  } else {
-    top.location.href = reconnectUrl(shop);
+  let token: string | null = null;
+  try {
+    token = await getSessionToken();
+  } catch {
+    // getSessionToken shouldn't throw, but never let a token hiccup turn the
+    // CTA into a no-op — fall through to the cookie-flow URL below.
+    token = null;
   }
+  top.location.href = token
+    ? `${API_URL}/v1/integrations/shopify/reconnect?token=${encodeURIComponent(token)}`
+    : reconnectUrl(shop);
 }
