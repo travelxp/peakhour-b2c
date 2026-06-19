@@ -19,6 +19,7 @@ import {
 } from "@shopify/polaris";
 import { getSessionToken } from "./_lib/session";
 import { CommerceDisconnected } from "./_components/commerce-disconnected";
+import { FadeIn } from "./_components/fade-in";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 
@@ -378,35 +379,41 @@ export default function ShopifyEmbeddedHome() {
 
   if (state.status === "error") {
     return (
-      <Page title="Peakhour Commerce">
-        <Banner tone="critical" title="Could not load your store">
-          <Text as="p" variant="bodyMd">
-            {state.message}
-          </Text>
-        </Banner>
-      </Page>
+      <FadeIn>
+        <Page title="Peakhour Commerce">
+          <Banner tone="critical" title="Could not load your store">
+            <Text as="p" variant="bodyMd">
+              {state.message}
+            </Text>
+          </Banner>
+        </Page>
+      </FadeIn>
     );
   }
 
   if (!state.ctx.connected) {
     return (
-      <CommerceDisconnected
-        shop={state.ctx.shop}
-        pageTitle="Peakhour Commerce"
-        heading={state.ctx.status === "disconnected" ? "Commerce Disconnected" : "Set up Peakhour Commerce"}
-      />
+      <FadeIn>
+        <CommerceDisconnected
+          shop={state.ctx.shop}
+          pageTitle="Peakhour Commerce"
+          heading={state.ctx.status === "disconnected" ? "Commerce Disconnected" : "Set up Peakhour Commerce"}
+        />
+      </FadeIn>
     );
   }
 
   return (
-    <ConnectedHome
-      ctx={state.ctx}
-      onSync={handleSync}
-      syncing={syncing}
-      syncError={syncError}
-      onSubscribe={handleSubscribe}
-      subscribing={subscribing}
-      subError={subError}
-    />
+    <FadeIn>
+      <ConnectedHome
+        ctx={state.ctx}
+        onSync={handleSync}
+        syncing={syncing}
+        syncError={syncError}
+        onSubscribe={handleSubscribe}
+        subscribing={subscribing}
+        subError={subError}
+      />
+    </FadeIn>
   );
 }
