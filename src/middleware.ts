@@ -30,17 +30,26 @@ function isShopifyPath(pathname: string): boolean {
 /** Shopify iframes the embedded app at the app's `application_url`, which has
  *  NO path (it's the bare b2c host) — so a fresh open / refresh / search-launch
  *  lands the iframe on `/?host=…&embedded=1`, i.e. the marketing root. That
- *  root carries `frame-ancestors 'none'` (+ vercel.json `X-Frame-Options:
- *  DENY`), so Shopify admin shows "refused to connect" on every open that
- *  isn't a live in-app client navigation. The embedded UI actually lives under
- *  /shopify/embedded, so detect this entry load (Shopify always passes `host`
- *  + `embedded`) and rewrite it onto the embedded surface with the embedded
- *  CSP — preserving the query so App Bridge can still read `host`. Live in-app
- *  paths (already under /shopify) reload directly and need no rewrite. */
+ *  root carries `frame-ancestors 'none'` (+ vercel.json's global
+ *  `X-Frame-Options: DENY`, which `frame-ancestors` overrides in modern
+ *  browsers — that's why the direct /shopify/embedded surface already frames),
+ *  so Shopify admin shows "refused to connect" on every open that isn't a live
+ *  in-app client navigation. The embedded UI actually lives under
+ *  /shopify/embedded, so detect this entry load and rewrite it onto the
+ *  embedded surface with the embedded CSP — preserving the query so App Bridge
+ *  can still read `host`.
+ *
+ *  Scoped strictly to the ROOT path: Shopify's application_url is the bare
+ *  host, so the entry is always `/`; any deeper in-app reload resolves to
+ *  /shopify/embedded/* (already frameable, no rewrite). Keying on root +
+ *  Shopify's `embedded=1` + `host` (rather than just "has both params") avoids
+ *  hijacking unrelated pages that happen to carry generic `host`/`embedded`
+ *  query params (e.g. /privacy-policy?host=…&embedded=…), which would defeat
+ *  the PUBLIC_PATHS guarantee below. */
 function isShopifyEmbeddedEntry(req: NextRequest): boolean {
   const { pathname, searchParams } = req.nextUrl;
-  if (isShopifyPath(pathname)) return false;
-  return searchParams.has("host") && searchParams.has("embedded");
+  if (pathname !== "/") return false;
+  return searchParams.get("embedded") === "1" && searchParams.has("host");
 }
 
 /**
