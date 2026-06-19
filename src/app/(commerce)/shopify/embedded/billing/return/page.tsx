@@ -80,8 +80,10 @@ function ShopifyBillingReturn() {
         }
       }
       if (cancelled) return;
-      // Return the merchant into the embedded app inside Shopify admin.
-      (window.top ?? window).location.href = dest;
+      // Return the merchant into the embedded app inside Shopify admin. Use
+      // replace() so this single-use return page isn't left in back-history
+      // (a Back press would otherwise just re-bounce through here).
+      (window.top ?? window).location.replace(dest);
     })();
     return () => {
       cancelled = true;
