@@ -112,13 +112,16 @@ export function useEmbeddedContext(): EmbeddedContextValue {
 
 /** The top-level connect URL that re-runs OAuth. Used by every Reconnect CTA.
  *  Returns an ABSOLUTE URL (origin + path) on purpose: the CTAs assign it to
- *  `window.top.location.href` to escape the Shopify admin iframe, and a
- *  RELATIVE path assigned to the cross-origin top window doesn't reliably
- *  resolve against our origin — it resolves against the admin origin (or stays
- *  in-frame), so Shopify shows "<host> refused to connect". An absolute URL
- *  escapes cleanly to the connect flow (→ OAuth → the Peakhour dashboard), the
- *  same way the billing `confirmationUrl` top-redirect already works. SSR has
- *  no `window`, but these CTAs only fire from client click handlers. */
+ *  `window.top.location.href` to escape the Shopify admin iframe. A RELATIVE
+ *  path is resolved by the Location setter against the TARGET document's base
+ *  URL — and `window.top` is the cross-origin admin document — so
+ *  `/shopify/connect` becomes `https://admin.shopify.com/shopify/connect`
+ *  (never our origin), which dead-ends in admin and surfaces as
+ *  "<host> refused to connect". An absolute URL navigates the top window to
+ *  OUR origin, escaping the iframe cleanly to the connect flow (→ OAuth → the
+ *  Peakhour dashboard) — the same pattern the billing `confirmationUrl`
+ *  top-redirect already uses. SSR has no `window`, but these CTAs only fire
+ *  from client click handlers. */
 export function reconnectUrl(shop?: string | null): string {
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const path = shop
