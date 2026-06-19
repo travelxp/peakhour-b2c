@@ -27,25 +27,28 @@ function isShopifyPath(pathname: string): boolean {
   return pathname === "/shopify" || pathname.startsWith("/shopify/");
 }
 
-/** Shopify iframes the embedded app at the app's `application_url`, which has
- *  NO path (it's the bare b2c host) — so a fresh open / refresh / search-launch
- *  lands the iframe on `/?host=…&embedded=1`, i.e. the marketing root. That
- *  root carries `frame-ancestors 'none'` (+ vercel.json's global
- *  `X-Frame-Options: DENY`, which `frame-ancestors` overrides in modern
- *  browsers — that's why the direct /shopify/embedded surface already frames),
- *  so Shopify admin shows "refused to connect" on every open that isn't a live
- *  in-app client navigation. The embedded UI actually lives under
- *  /shopify/embedded, so detect this entry load and rewrite it onto the
- *  embedded surface with the embedded CSP — preserving the query so App Bridge
- *  can still read `host`.
+/** Defense-in-depth for the embedded app entry. Shopify iframes the embedded
+ *  app at its `application_url`, which now points straight at the embedded
+ *  surface (`…/shopify/embedded`, see peakhour-api/shopify.app.toml) — so a
+ *  normal open / refresh / deep-link lands the iframe directly on a frameable
+ *  route and this rewrite never fires. It still catches the BARE-HOST entry
+ *  (`/?host=…&embedded=1`): stale admin URLs cached from before the app_url
+ *  fix, an app-launcher/search entry that drops the path, or any future
+ *  regression that reverts app_url to the host root. Without it, a bare-host
+ *  load hits the marketing root, which carries `frame-ancestors 'none'`
+ *  (+ vercel.json's global `X-Frame-Options: DENY`, which `frame-ancestors`
+ *  overrides in modern browsers — that's why the embedded surface frames at
+ *  all), and Shopify admin shows "refused to connect". So detect that entry
+ *  and rewrite it onto /shopify/embedded with the embedded CSP — preserving
+ *  the query so App Bridge can still read `host`.
  *
- *  Scoped strictly to the ROOT path: Shopify's application_url is the bare
- *  host, so the entry is always `/`; any deeper in-app reload resolves to
- *  /shopify/embedded/* (already frameable, no rewrite). Keying on root +
- *  Shopify's `embedded=1` + `host` (rather than just "has both params") avoids
- *  hijacking unrelated pages that happen to carry generic `host`/`embedded`
- *  query params (e.g. /privacy-policy?host=…&embedded=…), which would defeat
- *  the PUBLIC_PATHS guarantee below. */
+ *  Scoped strictly to the ROOT path: the only un-frameable entry Shopify can
+ *  produce is the bare `/`; any in-app reload resolves to /shopify/embedded/*
+ *  (already frameable, no rewrite). Keying on root + Shopify's `embedded=1` +
+ *  `host` (rather than just "has both params") avoids hijacking unrelated
+ *  pages that happen to carry generic `host`/`embedded` query params
+ *  (e.g. /privacy-policy?host=…&embedded=…), which would defeat the
+ *  PUBLIC_PATHS guarantee below. */
 function isShopifyEmbeddedEntry(req: NextRequest): boolean {
   const { pathname, searchParams } = req.nextUrl;
   if (pathname !== "/") return false;
