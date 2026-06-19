@@ -122,6 +122,7 @@ function ConnectedHome({ ctx, onSync, syncing, syncError, onSubscribe, subscribi
     >
       <BlockStack gap="500">
         {/* ── Card 1 — Store Health ───────────────────────────────────── */}
+        <div className="ph-hover-lift">
         <Card>
           <BlockStack gap="400">
             <Text as="h2" variant="headingMd">
@@ -156,8 +157,10 @@ function ConnectedHome({ ctx, onSync, syncing, syncError, onSubscribe, subscribi
             </InlineGrid>
           </BlockStack>
         </Card>
+        </div>
 
         {/* ── Card 2 — Sync Status ────────────────────────────────────── */}
+        <div className="ph-hover-lift">
         <Card>
           <BlockStack gap="400">
             <InlineStack align="space-between" blockAlign="center">
@@ -209,8 +212,10 @@ function ConnectedHome({ ctx, onSync, syncing, syncError, onSubscribe, subscribi
             )}
           </BlockStack>
         </Card>
+        </div>
 
         {/* ── Card 3 — Commerce Assistant ─────────────────────────────── */}
+        <div className="ph-hover-lift">
         <Card>
           <BlockStack gap="400">
             <Text as="h2" variant="headingMd">
@@ -270,6 +275,7 @@ function ConnectedHome({ ctx, onSync, syncing, syncError, onSubscribe, subscribi
             )}
           </BlockStack>
         </Card>
+        </div>
       </BlockStack>
     </Page>
   );

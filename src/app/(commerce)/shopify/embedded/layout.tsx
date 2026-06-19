@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import "@shopify/polaris/build/esm/styles.css";
+import "./_styles/motion.css";
 import { PolarisShell } from "./_components/polaris-shell";
 
 /**

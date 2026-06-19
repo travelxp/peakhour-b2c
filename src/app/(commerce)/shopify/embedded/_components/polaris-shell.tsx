@@ -111,8 +111,15 @@ export function PolarisShell({ children }: { children: ReactNode }) {
           showMobileNavigation={mobileNavOpen}
           onNavigationDismiss={() => setMobileNavOpen(false)}
         >
+          {/* Persistent banner stays outside the keyed wrapper so it doesn't
+              re-animate on every in-app navigation. */}
           <ReconnectBanner />
-          {children}
+          {/* Keyed by pathname → the entrance animation replays on each
+              client-side navigation, giving a smooth page-to-page transition.
+              Disabled automatically under prefers-reduced-motion (motion.css). */}
+          <div key={pathname} className="ph-fade-in-up">
+            {children}
+          </div>
         </Frame>
       </EmbeddedContextProvider>
     </AppProvider>
