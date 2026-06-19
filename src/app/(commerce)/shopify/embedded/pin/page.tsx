@@ -12,11 +12,13 @@ import {
   Badge,
   Box,
   Divider,
+  Icon,
   List,
   SkeletonPage,
   SkeletonBodyText,
   SkeletonDisplayText,
 } from "@shopify/polaris";
+import { ShieldCheckMarkIcon } from "@shopify/polaris-icons";
 import { getSessionToken } from "../_lib/session";
 import { CommerceDisconnected } from "../_components/commerce-disconnected";
 
@@ -59,6 +61,49 @@ const COMING_INSIGHTS = [
 ];
 
 type Membership = "loading" | "member" | "nonmember" | "unknown" | "notlinked";
+
+/**
+ * Privacy First by Design — the standing trust section. Privacy is the
+ * Insights Network's key differentiator, so it's surfaced on the page for both
+ * members and prospective members (not just buried in benefit bullets).
+ */
+function PrivacyFirstCard() {
+  return (
+    <Card>
+      <BlockStack gap="400">
+        <InlineStack gap="200" blockAlign="center">
+          <Icon source={ShieldCheckMarkIcon} tone="success" />
+          <Text as="h2" variant="headingMd">
+            Privacy First by Design
+          </Text>
+          <Badge tone="success">Privacy First</Badge>
+        </InlineStack>
+        <Divider />
+        <Text as="p" variant="bodyMd" tone="subdued">
+          Peakhour does not track personal identities. Your data remains yours —
+          you choose what to connect, what to share, and when to upgrade.
+        </Text>
+        <List type="bullet">
+          <List.Item>
+            <Text as="span" variant="bodyMd">No personal identity tracking</Text>
+          </List.Item>
+          <List.Item>
+            <Text as="span" variant="bodyMd">No invasive profiling</Text>
+          </List.Item>
+          <List.Item>
+            <Text as="span" variant="bodyMd">No selling of your data</Text>
+          </List.Item>
+          <List.Item>
+            <Text as="span" variant="bodyMd">
+              Only anonymized cohort signals are shared — never products,
+              customers, or revenue
+            </Text>
+          </List.Item>
+        </List>
+      </BlockStack>
+    </Card>
+  );
+}
 
 function PinSkeleton() {
   return (
@@ -269,6 +314,10 @@ export default function PinPage() {
             </BlockStack>
           </Card>
         )}
+
+        {/* Standing trust section — privacy is the network's differentiator,
+            shown to members and prospective members alike. */}
+        {(membership === "member" || membership === "nonmember") && <PrivacyFirstCard />}
 
         {membership === "notlinked" && (
           <CommerceDisconnected
