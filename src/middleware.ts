@@ -11,12 +11,6 @@ const apiOrigin = (() => {
   }
 })();
 
-/**
- * Build the per-request CSP + the request headers that carry the nonce (so
- * Next.js can stamp it onto framework `<script>` tags for 'strict-dynamic').
- * Only needed for full-document requests — prefetch/rsc/server-action requests
- * deliberately get no nonce/CSP (it can break RSC streaming).
- */
 /** The embedded Shopify surface must be iframeable by Shopify admin and load
  *  App Bridge from Shopify's CDN — so those routes get a distinct CSP. Every
  *  other route keeps `frame-ancestors 'none'`. */
@@ -49,6 +43,14 @@ function isShopifyEmbeddedEntry(req: NextRequest): boolean {
   return searchParams.has("host") && searchParams.has("embedded");
 }
 
+/**
+ * Build the per-request CSP + the request headers that carry the nonce (so
+ * Next.js can stamp it onto framework `<script>` tags for 'strict-dynamic').
+ * Only needed for full-document requests — prefetch/rsc/server-action requests
+ * deliberately get no nonce/CSP (it can break RSC streaming). `forceEmbedded`
+ * applies the embedded (iframeable + Shopify-CDN) CSP to a request whose path
+ * isn't under /shopify — used for the rewritten embedded entry load.
+ */
 function buildCsp(
   req: NextRequest,
   forceEmbedded = false,
