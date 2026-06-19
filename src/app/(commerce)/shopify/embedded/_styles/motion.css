@@ -1,0 +1,55 @@
+/*
+ * Subtle, admin-native motion for the embedded Shopify surface.
+ *
+ * Built for Shopify rewards feeling consistent with the admin, so this is
+ * deliberately restrained: GPU-only properties (opacity / transform), no
+ * layout shift, and FULLY disabled under prefers-reduced-motion (a BFS
+ * accessibility expectation). Polaris overlays (Modal / Popover / Tooltip)
+ * portal to <body>, outside these wrappers, so the wrapper transform never
+ * affects their positioning. Class names are `ph-` prefixed to avoid clashes;
+ * this file is scoped to the (commerce) embedded tree via its layout import.
+ */
+
+@keyframes ph-fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Page-content entrance — applied at the shell, keyed by pathname so it
+   replays on each in-app navigation for a smooth page-to-page feel. */
+.ph-fade-in-up {
+  animation: ph-fade-in-up 320ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+/* Gentle hover elevation for interactive cards. Transform-only lift so it
+   never nudges surrounding layout; radius + shadow use Polaris tokens so it
+   matches the admin's own card elevation. */
+.ph-hover-lift {
+  border-radius: var(--p-border-radius-300, 12px);
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease;
+}
+.ph-hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--p-shadow-400, 0 6px 16px rgba(31, 33, 36, 0.12));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ph-fade-in-up {
+    animation: none;
+  }
+  .ph-hover-lift {
+    transition: none;
+  }
+  .ph-hover-lift:hover {
+    transform: none;
+    box-shadow: none;
+  }
+}
