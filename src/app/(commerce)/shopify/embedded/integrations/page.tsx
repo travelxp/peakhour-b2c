@@ -17,6 +17,7 @@ import {
   SkeletonDisplayText,
 } from "@shopify/polaris";
 import { getSessionToken } from "../_lib/session";
+import { reconnectUrl } from "../_lib/context";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 
@@ -166,7 +167,7 @@ export default function IntegrationsPage() {
                 <Box>
                   <Button
                     onClick={() => {
-                      (window.top ?? window).location.href = "/shopify/connect";
+                      (window.top ?? window).location.href = reconnectUrl();
                     }}
                   >
                     Set up Peakhour Commerce
