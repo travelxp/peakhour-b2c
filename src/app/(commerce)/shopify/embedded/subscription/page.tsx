@@ -19,7 +19,17 @@ import {
   SkeletonBodyText,
   SkeletonDisplayText,
 } from "@shopify/polaris";
-import { CheckCircleIcon } from "@shopify/polaris-icons";
+import {
+  CheckCircleIcon,
+  MagicIcon,
+  ProductIcon,
+  ChatIcon,
+  GlobeIcon,
+  ChartVerticalIcon,
+  ShieldCheckMarkIcon,
+  LanguageIcon,
+  StarIcon,
+} from "@shopify/polaris-icons";
 import { getSessionToken } from "../_lib/session";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
@@ -72,6 +82,42 @@ const FEATURE_LABELS: Record<string, string> = {
 function featureLabel(key: string): string {
   return FEATURE_LABELS[key] ?? key;
 }
+
+// Meaningful icon per commerce feature key — replaces the generic checkmarks
+// for stronger scannability + visual hierarchy (#1). Unknown keys fall back to
+// a checkmark.
+const FEATURE_ICONS: Record<string, typeof CheckCircleIcon> = {
+  "commerce.assistant": MagicIcon,
+  "commerce.in_app_assistant": MagicIcon,
+  "commerce.catalog_sync": ProductIcon,
+  "commerce.whatsapp": ChatIcon,
+  "commerce.multilingual": LanguageIcon,
+  "commerce.insights_network": GlobeIcon,
+};
+function featureIcon(key: string): typeof CheckCircleIcon {
+  return FEATURE_ICONS[key] ?? CheckCircleIcon;
+}
+
+// The free experience IS the Insights Network community — its worth is the
+// community/insights, not the raw cfg feature keys, so these value props are
+// curated presentation copy (icon + label), not CMS-sourced.
+const INSIGHTS_EXPERIENCE_FEATURES: Array<{ icon: typeof CheckCircleIcon; label: string }> = [
+  { icon: ChartVerticalIcon, label: "Industry insights & growth trends" },
+  { icon: GlobeIcon, label: "Community benchmarks — see how you compare" },
+  { icon: MagicIcon, label: "AI-powered recommendations" },
+  { icon: StarIcon, label: "Early access to new features" },
+  { icon: ShieldCheckMarkIcon, label: "Privacy first — your identity stays yours" },
+];
+
+// Shown on the Commerce Assistant card when the pricing endpoint returned no
+// tiers (network blip) — keeps the card meaningful (mirrors the cfg_plans
+// commerce tier feature set).
+const DEFAULT_COMMERCE_FEATURES = [
+  "commerce.assistant",
+  "commerce.catalog_sync",
+  "commerce.whatsapp",
+  "commerce.multilingual",
+];
 
 /** Annual savings computed from the tier's monthly/yearly prices (integer
  *  cents) — replaces the hardcoded "2 months free" claim. Returns null when
@@ -266,7 +312,6 @@ export default function SubscriptionPage() {
   const hasAnnual = !!ctx?.pricing?.annual;
   // Extract once so ternary branches can reference it without non-null assertions.
   const trialDays = ctx?.pricing?.trialDays ?? 0;
-  const lensTier = tiers.find((t) => t.key === "commerce_assistant.lens");
   const commerceTier = tiers.find((t) => t.key === "commerce_assistant.commerce");
   const savings = annualSavings(commerceTier);
 
@@ -370,173 +415,139 @@ export default function SubscriptionPage() {
     );
   }
 
-  // ── Inactive — show tier comparison ──────────────────────────────────────
+  // ── Inactive — experience-first comparison (#4) ──────────────────────────
+  // Two intentional entry points: the free Insights Network community vs the
+  // paid Commerce Assistant — not "free vs locked features". The free card is
+  // curated community value props; the paid card is CMS-driven (price/trial +
+  // feature keys), falling back to the default feature set if tiers failed.
+
+  const paidFeatures =
+    commerceTier && commerceTier.features.length > 0
+      ? commerceTier.features
+      : DEFAULT_COMMERCE_FEATURES;
 
   return (
     <Page title="Plans">
       <BlockStack gap="600">
+        {/* Experience-first header (#4) */}
         <BlockStack gap="200">
-          <Text as="h2" variant="headingLg">Commerce Assistant plans</Text>
+          <Text as="h2" variant="headingLg">Choose your Peakhour experience</Text>
           <Text as="p" variant="bodyMd" tone="subdued">
-            Connect your store and get started free. Upgrade to unlock the live WhatsApp
-            assistant.
+            Start with free growth intelligence, or unlock AI-powered commerce workflows.
           </Text>
         </BlockStack>
 
-        {/* Tier comparison — two equal-height cards side by side */}
-        {tiers.length > 0 ? (
-          <InlineGrid columns={{ xs: 1, md: 2 }} gap="400">
-            {/* Free tier — current */}
-            {lensTier && (
-              <Card>
-                <BlockStack gap="400">
-                  <BlockStack gap="100">
-                    <InlineStack align="space-between" blockAlign="center">
-                      <Text as="h3" variant="headingMd">{lensTier.name}</Text>
-                      <Badge>Current plan</Badge>
-                    </InlineStack>
-                    {lensTier.tagline && (
-                      <Text as="p" variant="bodySm" tone="subdued">{lensTier.tagline}</Text>
-                    )}
-                  </BlockStack>
-                  <Text as="p" variant="heading2xl" fontWeight="bold">Free</Text>
-                  <Divider />
-                  {lensTier.features.length > 0 && (
-                    <BlockStack gap="200">
-                      {lensTier.features.map((f) => (
-                        <InlineStack key={f} gap="200" blockAlign="center" wrap={false}>
-                          <Icon source={CheckCircleIcon} tone="base" />
-                          <Text as="span" variant="bodySm">{featureLabel(f)}</Text>
-                        </InlineStack>
-                      ))}
-                    </BlockStack>
-                  )}
-                  <Button url="/shopify/embedded/pin" fullWidth size="large" variant="secondary">
-                    Start Free
-                  </Button>
-                </BlockStack>
-              </Card>
-            )}
-
-            {/* Paid tier — recommended */}
-            {commerceTier && (
-              <Card>
-                <BlockStack gap="400">
-                  <BlockStack gap="100">
-                    <InlineStack align="space-between" blockAlign="center">
-                      <Text as="h3" variant="headingMd">{commerceTier.name}</Text>
-                      <Badge tone="success">Most popular</Badge>
-                    </InlineStack>
-                    {commerceTier.tagline && (
-                      <Text as="p" variant="bodySm" tone="subdued">{commerceTier.tagline}</Text>
-                    )}
-                  </BlockStack>
-
-                  {label && (
-                    <Text as="p" variant="heading2xl" fontWeight="bold">{label}</Text>
-                  )}
-
-                  {hasAnnual && (
-                    <ButtonGroup variant="segmented">
-                      <Button pressed={billingInterval === "monthly"} onClick={() => setBillingInterval("monthly")}>
-                        Monthly
-                      </Button>
-                      <Button pressed={billingInterval === "annual"} onClick={() => setBillingInterval("annual")}>
-                        {savings
-                          ? `Annual — ${savings.monthsFree > 0 ? `${savings.monthsFree} months free` : `save ${savings.pct}%`}`
-                          : "Annual"}
-                      </Button>
-                    </ButtonGroup>
-                  )}
-
-                  {trialDays > 0 && (
-                    <Text as="p" variant="bodySm" tone="subdued">
-                      {trialDays}-day free trial — billing starts when the trial ends.
-                    </Text>
-                  )}
-
-                  <Divider />
-                  {commerceTier.features.length > 0 && (
-                    <BlockStack gap="200">
-                      {commerceTier.features.map((f) => (
-                        <InlineStack key={f} gap="200" blockAlign="center" wrap={false}>
-                          <Icon source={CheckCircleIcon} tone="success" />
-                          <Text as="span" variant="bodySm">{featureLabel(f)}</Text>
-                        </InlineStack>
-                      ))}
-                    </BlockStack>
-                  )}
-
-                  {subError && (
-                    <Banner tone="critical">
-                      <Text as="p" variant="bodyMd">{subError}</Text>
-                    </Banner>
-                  )}
-
-                  <Button
-                    onClick={handleSubscribe}
-                    loading={subscribing}
-                    variant="primary"
-                    size="large"
-                    fullWidth
-                  >
-                    {trialDays > 0 ? `Start ${trialDays}-day free trial` : "Upgrade"}
-                  </Button>
-                </BlockStack>
-              </Card>
-            )}
-          </InlineGrid>
-        ) : (
-          /* Fallback when pricing endpoint returned no tiers (network issue) */
-          <Card>
-            <BlockStack gap="400">
-              <Text as="h2" variant="headingMd">Peakhour Commerce</Text>
-              <Text as="p" variant="bodyMd" tone="subdued">
-                Unlock the catalog-grounded WhatsApp assistant — it answers shopper questions
-                using your real products, in their own language, 24/7.
-              </Text>
-              <Divider />
-              {hasAnnual && (
-                <ButtonGroup variant="segmented">
-                  <Button pressed={billingInterval === "monthly"} onClick={() => setBillingInterval("monthly")}>
-                    Monthly
-                  </Button>
-                  <Button pressed={billingInterval === "annual"} onClick={() => setBillingInterval("annual")}>
-                    {savings
-                      ? `Annual — ${savings.monthsFree > 0 ? `${savings.monthsFree} months free` : `save ${savings.pct}%`}`
-                      : "Annual"}
-                  </Button>
-                </ButtonGroup>
-              )}
-              {label && (
+        <InlineGrid columns={{ xs: 1, md: 2 }} gap="400">
+          {/* ── Experience 1 — Insights Network (free, standalone value) ── */}
+          <div className="ph-hover-lift ph-plan-card">
+            <Card>
+              <BlockStack gap="400">
                 <BlockStack gap="100">
-                  <Text as="p" variant="headingLg" fontWeight="bold">{label}</Text>
-                  {trialDays > 0 && (
-                    <Text as="p" variant="bodyMd" tone="subdued">
-                      {trialDays}-day free trial — billing starts when the trial ends.
-                    </Text>
-                  )}
+                  <InlineStack align="space-between" blockAlign="center" wrap={false}>
+                    <Text as="h3" variant="headingMd">Insights Network</Text>
+                    <Badge tone="success">Privacy First</Badge>
+                  </InlineStack>
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    Stay informed — trends, benchmarks, recommendations, and early releases.
+                  </Text>
                 </BlockStack>
-              )}
-              <Divider />
-              {subError && (
-                <Banner tone="critical">
-                  <Text as="p" variant="bodyMd">{subError}</Text>
-                </Banner>
-              )}
-              <Button
-                onClick={handleSubscribe}
-                loading={subscribing}
-                variant="primary"
-                size="large"
-              >
-                {trialDays > 0
-                  ? `Start ${trialDays}-day free trial`
-                  : "Subscribe"}
-              </Button>
-            </BlockStack>
-          </Card>
-        )}
+
+                <Text as="p" variant="heading2xl" fontWeight="bold">Free</Text>
+
+                {/* #3 — never "Current plan"; positive community framing whether
+                    or not Commerce is connected. */}
+                <InlineStack gap="150" blockAlign="center" wrap={false}>
+                  <Icon source={CheckCircleIcon} tone="success" />
+                  <Text as="span" variant="bodySm" tone="success" fontWeight="medium">
+                    Community Access Active
+                  </Text>
+                </InlineStack>
+
+                <Divider />
+
+                <BlockStack gap="300">
+                  {INSIGHTS_EXPERIENCE_FEATURES.map((f) => (
+                    <InlineStack key={f.label} gap="200" blockAlign="center" wrap={false}>
+                      <Icon source={f.icon} tone="subdued" />
+                      <Text as="span" variant="bodySm">{f.label}</Text>
+                    </InlineStack>
+                  ))}
+                </BlockStack>
+
+                <Button url="/shopify/embedded/pin" fullWidth size="large" variant="secondary">
+                  Start Free
+                </Button>
+              </BlockStack>
+            </Card>
+          </div>
+
+          {/* ── Experience 2 — Commerce Assistant (paid) ── */}
+          <div className="ph-hover-lift ph-plan-card">
+            <Card>
+              <BlockStack gap="400">
+                <BlockStack gap="100">
+                  <InlineStack align="space-between" blockAlign="center" wrap={false}>
+                    <Text as="h3" variant="headingMd">Commerce Assistant</Text>
+                    <Badge tone="success">Most Popular</Badge>
+                  </InlineStack>
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    Connect your catalog and activate AI-powered commerce workflows.
+                  </Text>
+                </BlockStack>
+
+                {label && (
+                  <Text as="p" variant="heading2xl" fontWeight="bold">{label}</Text>
+                )}
+
+                {hasAnnual && (
+                  <ButtonGroup variant="segmented">
+                    <Button pressed={billingInterval === "monthly"} onClick={() => setBillingInterval("monthly")}>
+                      Monthly
+                    </Button>
+                    <Button pressed={billingInterval === "annual"} onClick={() => setBillingInterval("annual")}>
+                      {savings
+                        ? `Annual — ${savings.monthsFree > 0 ? `${savings.monthsFree} months free` : `save ${savings.pct}%`}`
+                        : "Annual"}
+                    </Button>
+                  </ButtonGroup>
+                )}
+
+                {trialDays > 0 && (
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    {trialDays}-day free trial — billing starts when the trial ends.
+                  </Text>
+                )}
+
+                <Divider />
+
+                <BlockStack gap="300">
+                  {paidFeatures.map((f) => (
+                    <InlineStack key={f} gap="200" blockAlign="center" wrap={false}>
+                      <Icon source={featureIcon(f)} tone="success" />
+                      <Text as="span" variant="bodySm">{featureLabel(f)}</Text>
+                    </InlineStack>
+                  ))}
+                </BlockStack>
+
+                {subError && (
+                  <Banner tone="critical">
+                    <Text as="p" variant="bodyMd">{subError}</Text>
+                  </Banner>
+                )}
+
+                <Button
+                  onClick={handleSubscribe}
+                  loading={subscribing}
+                  variant="primary"
+                  size="large"
+                  fullWidth
+                >
+                  {trialDays > 0 ? "Start Free Trial" : "Subscribe"}
+                </Button>
+              </BlockStack>
+            </Card>
+          </div>
+        </InlineGrid>
 
         <Text as="p" variant="bodySm" tone="subdued">
           Billed through your Shopify account. Cancel anytime right here on this page.
