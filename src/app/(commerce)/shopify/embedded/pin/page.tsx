@@ -49,7 +49,8 @@ const INSIGHTS_BENEFITS = [
   "Community benchmarks — see how you compare, anonymously",
   "AI-powered recommendations as the network learns",
   "Early access to new features",
-  "Only anonymized cohort signals are shared — never products, customers, or revenue",
+  // (Privacy commitments live in the dedicated Privacy First card below, so
+  // they aren't repeated here.)
 ];
 
 /** What members will see appear on this page as the network rolls out —
@@ -76,7 +77,6 @@ function PrivacyFirstCard() {
           <Text as="h2" variant="headingMd">
             Privacy First by Design
           </Text>
-          <Badge tone="success">Privacy First</Badge>
         </InlineStack>
         <Divider />
         <Text as="p" variant="bodyMd" tone="subdued">
