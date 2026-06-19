@@ -16,7 +16,7 @@ interface CommerceDisconnectedProps {
    *  already-titled page / card). Defaults to standalone. */
   withPage?: boolean;
   pageTitle?: string;
-  /** Show the "Explore Growth Network" secondary CTA. Off on the Growth
+  /** Show the "Explore Insights Network" secondary CTA. Off on the Growth
    *  Network page itself (would be self-referential). Defaults on. */
   showGrowthNetworkLink?: boolean;
 }
@@ -25,7 +25,7 @@ interface CommerceDisconnectedProps {
  * The single, consistent "no live Commerce connection" state — used for both a
  * never-linked store and a disconnected one (Disconnect Redesign §1, §2, §10).
  * Always gives the merchant a next action: Reconnect Shopify (primary, escapes
- * the admin iframe to re-run OAuth) or Explore Growth Network (secondary, the
+ * the admin iframe to re-run OAuth) or Explore Insights Network (secondary, the
  * free destination). No blank screens, no dead ends.
  */
 export function CommerceDisconnected({
@@ -50,7 +50,7 @@ export function CommerceDisconnected({
       secondaryAction={
         showGrowthNetworkLink
           ? {
-              content: "Explore Growth Network",
+              content: "Explore Insights Network",
               // In-iframe client nav (Polaris linkComponent = Next Link).
               url: "/shopify/embedded/pin",
             }

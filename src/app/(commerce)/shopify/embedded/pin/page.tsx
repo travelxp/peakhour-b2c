@@ -40,7 +40,7 @@ interface PinState {
 }
 
 // Truthful-today framing (matches the wizard): benchmarks ship to members
-// FIRST as they roll out — never claimed as visible now. The Growth Network
+// FIRST as they roll out — never claimed as visible now. The Insights Network
 // is positioned as a valuable free destination, not a Commerce setup blocker.
 const GROWTH_BENEFITS = [
   "Industry insights and growth trends for stores like yours",
@@ -62,7 +62,7 @@ type Membership = "loading" | "member" | "nonmember" | "unknown" | "notlinked";
 
 function PinSkeleton() {
   return (
-    <SkeletonPage title="Growth Network">
+    <SkeletonPage title="Insights Network">
       <BlockStack gap="500">
         <Card>
           <BlockStack gap="400">
@@ -158,7 +158,7 @@ export default function PinPage() {
         body: JSON.stringify({ action: join ? "opt_in" : "withdraw" }),
       });
       if (!res.ok) {
-        setError("Could not update your Growth Network membership. Please try again.");
+        setError("Could not update your Insights Network membership. Please try again.");
       } else {
         setMembership(join ? "member" : "nonmember");
       }
@@ -172,7 +172,7 @@ export default function PinPage() {
 
   return (
     <Page
-      title="Growth Network"
+      title="Insights Network"
       subtitle="Smart insights. Zero personal tracking. Your identity stays yours."
     >
       <BlockStack gap="500">
@@ -242,7 +242,7 @@ export default function PinPage() {
         {membership === "nonmember" && (
           <Card>
             <BlockStack gap="400">
-              <Text as="h2" variant="headingMd">Join the Peakhour Growth Network</Text>
+              <Text as="h2" variant="headingMd">Join the Peakhour Insights Network</Text>
               <Divider />
               <Text as="p" variant="bodyMd" tone="subdued">
                 A free community for founders and operators growing smarter with AI. Smart insights,
@@ -281,7 +281,7 @@ export default function PinPage() {
         {membership === "unknown" && (
           <Card>
             <BlockStack gap="300">
-              <Text as="h2" variant="headingMd">Peakhour Growth Network</Text>
+              <Text as="h2" variant="headingMd">Peakhour Insights Network</Text>
               <Divider />
               <Text as="p" variant="bodyMd" tone="subdued">
                 We couldn&apos;t load your membership status.
