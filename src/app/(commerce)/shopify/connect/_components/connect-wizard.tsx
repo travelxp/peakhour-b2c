@@ -129,11 +129,21 @@ interface Props {
   reconnect?: boolean;
 }
 
+const MISSING_PARAMS_ERROR =
+  "Missing shop or connection token. Please reinstall Peakhour Commerce from the Shopify App Store.";
+
 export function ConnectWizard({ shop, token, reconnect = false }: Props) {
   const router = useRouter();
-  const [step, setStep] = useState<Step>("checking");
+  // Pure from props (the page passes them from searchParams, fixed per mount),
+  // so seed the initial step/error from it rather than setting state
+  // synchronously inside the mount effect — the latter trips the react-hooks
+  // "setState in effect → cascading renders" rule.
+  const paramsMissing = !shop || (!token && !reconnect);
+  const [step, setStep] = useState<Step>(paramsMissing ? "error" : "checking");
   const [user, setUser] = useState<MeUser | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(
+    paramsMissing ? MISSING_PARAMS_ERROR : null,
+  );
   const [joining, setJoining] = useState(false);
   const [pinJoinFailed, setPinJoinFailed] = useState(false);
   // Expired/consumed link token — recoverable without reinstalling (see
@@ -233,13 +243,9 @@ export function ConnectWizard({ shop, token, reconnect = false }: Props) {
   }, [step, router]);
 
   useEffect(() => {
-    if (!shop || (!token && !reconnect)) {
-      setError(
-        "Missing shop or connection token. Please reinstall Peakhour Commerce from the Shopify App Store.",
-      );
-      setStep("error");
-      return;
-    }
+    // Missing-params is already reflected in the seeded step/error (above), so
+    // just skip the session check — no synchronous setState in the effect.
+    if (paramsMissing) return;
 
     (async () => {
       try {
@@ -263,7 +269,7 @@ export function ConnectWizard({ shop, token, reconnect = false }: Props) {
         setStep("auth-required");
       }
     })();
-  }, [shop, token, reconnect, linkStore, reconnectNow]);
+  }, [paramsMissing, reconnect, linkStore, reconnectNow]);
 
   // The auth page is a unified magic-link flow (no separate sign-up route).
   // Both "sign in" and "create account" land on the same page; the merchant

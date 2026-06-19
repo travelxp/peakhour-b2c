@@ -66,7 +66,7 @@ const FEATURE_LABELS: Record<string, string> = {
   "commerce.whatsapp": "WhatsApp shopping channel",
   "commerce.in_app_assistant": "In-app product assistant",
   "commerce.multilingual": "Multilingual replies (inc. Hinglish)",
-  "commerce.insights_network": "Growth Network access",
+  "commerce.insights_network": "Insights Network access",
 };
 
 function featureLabel(key: string): string {
