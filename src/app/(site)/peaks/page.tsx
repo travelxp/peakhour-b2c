@@ -12,7 +12,7 @@ import { getPeaks, formatPackPrice, type PeakPack } from "@/lib/peaks";
 export const metadata: Metadata = {
   title: "Peaks — AI credits that power Peakhour.ai",
   description:
-    "Peaks are the AI credits behind every Peakhour.ai feature. Each plan includes a monthly allowance; top up anytime with one-time Peaks packs that stack on your plan.",
+    "Peaks are the AI credits behind every Peakhour.ai feature. They require an active paid plan; purchased Peaks never expire, are non-refundable, and work across every Peakhour product.",
 };
 
 /**
@@ -50,17 +50,17 @@ export default async function PeaksPage() {
             <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">Peaks</h1>
             <p className="mx-auto mt-5 max-w-2xl text-lg text-muted-foreground">
               Peaks are the AI credits that power every Peakhour.ai feature — writing posts,
-              generating images, scoring engagement, and more. Your plan includes a monthly
-              allowance, and you can top up anytime when you need more.
+              generating images, scoring engagement, and more. They come with every paid plan,
+              and you can top up anytime — topped-up Peaks never expire.
             </p>
             <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
               <Button asChild size="lg">
-                <Link href="/auth">
-                  Start free trial <ArrowRight className="size-4" />
+                <Link href="/pricing">
+                  View Plans <ArrowRight className="size-4" />
                 </Link>
               </Button>
               <Button asChild size="lg" variant="outline">
-                <Link href="/pricing">Compare plans</Link>
+                <Link href="/auth">Start free trial</Link>
               </Button>
             </div>
           </div>
@@ -72,8 +72,8 @@ export default async function PeaksPage() {
             <div className="grid gap-6 sm:grid-cols-3">
               <HowItWorksCard
                 icon={<Sparkles className="size-5" />}
-                title="Included with your plan"
-                body="Every paid plan comes with a monthly Peaks allowance that resets on your billing date. Most teams never need more."
+                title="Works with a paid plan"
+                body="Peaks power every Peakhour.ai product and need an active paid Peakhour plan. Every paid plan comes with a Peaks allowance to get you going."
               />
               <HowItWorksCard
                 icon={<Zap className="size-5" />}
@@ -87,8 +87,8 @@ export default async function PeaksPage() {
               />
               <HowItWorksCard
                 icon={<RefreshCw className="size-5" />}
-                title="Top up anytime"
-                body="Running a campaign sprint? Add a one-time Peaks pack to your current billing window — it stacks on top of your plan's allowance."
+                title="Top up — Peaks never expire"
+                body="Need more? Buy a Peaks pack anytime. Purchased Peaks never expire, are non-refundable, and work across every Peakhour product."
               />
             </div>
           </div>
@@ -100,8 +100,8 @@ export default async function PeaksPage() {
             <div className="mx-auto max-w-2xl text-center">
               <h2 className="text-3xl font-bold tracking-tight">Peaks top-up packs</h2>
               <p className="mt-4 text-muted-foreground">
-                One-time top-ups that add Peaks to your current billing window. Yours for the
-                month, on top of what your plan already includes — no new subscription.
+                One-time packs that add Peaks to your balance. Purchased Peaks never expire and
+                work across every Peakhour product — no new subscription, no monthly reset.
               </p>
             </div>
 
@@ -112,16 +112,13 @@ export default async function PeaksPage() {
                     <PackCard key={pack.key} pack={pack} />
                   ))}
                 </div>
-                <p className="mt-10 text-center text-sm text-muted-foreground">
-                  Top-ups are available on any paid plan — buy them from your dashboard once
-                  you&rsquo;re signed in.
-                </p>
                 {peaks && peaks.country !== "DEFAULT" && (
-                  <p className="mt-2 text-center text-[11px] text-muted-foreground">
+                  <p className="mt-8 text-center text-[11px] text-muted-foreground">
                     Prices shown for <code className="font-mono">{peaks.country}</code>, detected
                     from your IP.
                   </p>
                 )}
+                <PeaksPolicy />
               </>
             ) : (
               <div className="mx-auto mt-12 max-w-xl rounded-xl border bg-card p-8 text-center">
@@ -130,12 +127,13 @@ export default async function PeaksPage() {
                 </div>
                 <p className="text-sm text-muted-foreground">
                   Peaks come bundled with every paid plan. Self-serve top-up packs are rolling
-                  out soon — in the meantime, your plan&rsquo;s monthly allowance has you
-                  covered, and our team can add Peaks on request.
+                  out soon — in the meantime, your plan&rsquo;s allowance has you covered, and our
+                  team can add Peaks on request.
                 </p>
                 <Button asChild className="mt-6">
-                  <Link href="/pricing">See what each plan includes</Link>
+                  <Link href="/pricing">View Plans</Link>
                 </Button>
+                <PeaksPolicy />
               </div>
             )}
           </div>
@@ -148,17 +146,17 @@ export default async function PeaksPage() {
               Start with a plan — Peaks are included
             </h2>
             <p className="mx-auto mt-3 max-w-xl text-muted-foreground">
-              Pick a plan to get your monthly Peaks allowance, then top up whenever a busy month
-              calls for it.
+              You need an active paid Peakhour plan to use Peaks. Pick a plan to get your Peaks
+              allowance, then top up anytime — purchased Peaks never expire.
             </p>
             <div className="mt-7 flex flex-col items-center justify-center gap-3 sm:flex-row">
               <Button asChild size="lg">
-                <Link href="/auth">
-                  Start free trial <ArrowRight className="size-4" />
+                <Link href="/pricing">
+                  View Plans <ArrowRight className="size-4" />
                 </Link>
               </Button>
               <Button asChild size="lg" variant="outline">
-                <Link href="/pricing">Compare plans</Link>
+                <Link href="/auth">Start free trial</Link>
               </Button>
             </div>
           </div>
@@ -227,9 +225,30 @@ function PackCard({ pack }: { pack: PeakPack }) {
         Peaks added
       </p>
 
-      {pack.description && (
-        <p className="mt-3 text-sm text-muted-foreground">{pack.description}</p>
-      )}
+      <p className="mt-3 text-sm text-muted-foreground">
+        Added to your balance — never expires, works across every Peakhour product.
+      </p>
+    </div>
+  );
+}
+
+/**
+ * The Peaks usage policy — the non-negotiable facts a buyer needs: Peaks need a
+ * paid plan, never expire, are non-refundable, and span every Peakhour product.
+ */
+function PeaksPolicy() {
+  return (
+    <div className="mx-auto mt-12 max-w-3xl rounded-xl border bg-muted/30 p-5 text-center">
+      <p className="text-sm text-muted-foreground">
+        <span className="font-medium text-foreground">Good to know.</span> Peaks require an active
+        paid Peakhour plan. Purchased Peaks{" "}
+        <strong className="font-medium text-foreground">never expire</strong>, are{" "}
+        <strong className="font-medium text-foreground">non-refundable</strong>, and are usable
+        across <strong className="font-medium text-foreground">any Peakhour product</strong>.{" "}
+        <Link href="/pricing" className="font-medium text-foreground underline underline-offset-2">
+          View Plans
+        </Link>
+      </p>
     </div>
   );
 }
