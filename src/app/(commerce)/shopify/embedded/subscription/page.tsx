@@ -98,6 +98,30 @@ function featureIcon(key: string): typeof CheckCircleIcon {
   return FEATURE_ICONS[key] ?? CheckCircleIcon;
 }
 
+/** One feature line — fixed-width icon gutter, top-aligned so the icon sits on
+ *  the first line even when the label wraps. Shared by both plan cards so the
+ *  icon column is identical across cards and every feature shows in full. */
+function FeatureRow({
+  icon,
+  label,
+  tone = "success",
+}: {
+  icon: typeof CheckCircleIcon;
+  label: string;
+  tone?: "success" | "subdued";
+}) {
+  return (
+    <InlineStack gap="200" blockAlign="start" wrap={false}>
+      <span style={{ flex: "0 0 auto", display: "inline-flex", paddingTop: 1 }}>
+        <Icon source={icon} tone={tone} />
+      </span>
+      <Text as="span" variant="bodySm">
+        {label}
+      </Text>
+    </InlineStack>
+  );
+}
+
 // The free experience IS the Insights Network community — its worth is the
 // community/insights, not the raw cfg feature keys, so these value props are
 // curated presentation copy (icon + label), not CMS-sourced.
@@ -467,10 +491,7 @@ export default function SubscriptionPage() {
 
                 <BlockStack gap="300">
                   {INSIGHTS_EXPERIENCE_FEATURES.map((f) => (
-                    <InlineStack key={f.label} gap="200" blockAlign="center" wrap={false}>
-                      <Icon source={f.icon} tone="subdued" />
-                      <Text as="span" variant="bodySm">{f.label}</Text>
-                    </InlineStack>
+                    <FeatureRow key={f.label} icon={f.icon} label={f.label} tone="subdued" />
                   ))}
                 </BlockStack>
 
@@ -522,10 +543,7 @@ export default function SubscriptionPage() {
 
                 <BlockStack gap="300">
                   {paidFeatures.map((f) => (
-                    <InlineStack key={f} gap="200" blockAlign="center" wrap={false}>
-                      <Icon source={featureIcon(f)} tone="success" />
-                      <Text as="span" variant="bodySm">{featureLabel(f)}</Text>
-                    </InlineStack>
+                    <FeatureRow key={f} icon={featureIcon(f)} label={featureLabel(f)} />
                   ))}
                 </BlockStack>
 
