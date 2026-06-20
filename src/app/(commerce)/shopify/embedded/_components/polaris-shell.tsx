@@ -8,6 +8,7 @@ import {
   ConnectIcon,
   GlobeIcon,
   CreditCardIcon,
+  WalletIcon,
   SettingsIcon,
 } from "@shopify/polaris-icons";
 import type { AppProviderProps } from "@shopify/polaris";
@@ -61,6 +62,9 @@ const NAV_ITEMS = [
   // non-members get the join nudge. Positioned as a valuable destination.
   { label: "Insights Network", icon: GlobeIcon, url: "/shopify/embedded/pin" },
   { label: "Subscription", icon: CreditCardIcon, url: "/shopify/embedded/subscription" },
+  // Peaks (AI-credits) transparency — balance + rate card. Not in
+  // PRE_ACTIVATION_URLS, so it's hidden until the store is connected.
+  { label: "Peaks", icon: WalletIcon, url: "/shopify/embedded/peaks" },
   { label: "Settings", icon: SettingsIcon, url: "/shopify/embedded/settings" },
 ];
 
