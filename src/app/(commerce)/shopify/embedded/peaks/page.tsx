@@ -75,7 +75,7 @@ interface PeaksData {
 
 type State =
   | { status: "loading" }
-  | { status: "notlinked" }
+  | { status: "notlinked"; disconnected: boolean }
   | { status: "error"; message: string }
   | { status: "ready"; data: PeaksData };
 
@@ -180,10 +180,10 @@ function BalanceCard({ balance }: { balance: Balance }) {
               allowance, top up below, or wait until they reset.
             </Text>
           </Banner>
-        ) : atHardCap && topUp === 0 ? (
+        ) : atHardCap && topUp > 0 ? (
           <Banner tone="warning">
             <Text as="p" variant="bodyMd">
-              You&rsquo;ve hit your plan allowance for this period.
+              You&rsquo;ve hit your plan allowance — now drawing from your top-up Peaks.
             </Text>
           </Banner>
         ) : overSoftCap ? (
@@ -381,7 +381,8 @@ export default function PeaksPage() {
         // 404 = store not linked, 400 = store inactive — both route to the
         // unified activation journey rather than a dead end.
         if (res.status === 404 || res.status === 400) {
-          setState({ status: "notlinked" });
+          // 404 = never linked (Connect), 400 = store inactive/disconnected (Reconnect).
+          setState({ status: "notlinked", disconnected: res.status === 400 });
           return;
         }
         if (!res.ok) {
@@ -401,7 +402,8 @@ export default function PeaksPage() {
   }, []);
 
   if (state.status === "loading") return <PeaksSkeleton />;
-  if (state.status === "notlinked") return <LensActivationHub shop={shop} />;
+  if (state.status === "notlinked")
+    return <LensActivationHub shop={shop} status={state.disconnected ? "disconnected" : undefined} />;
 
   if (state.status === "error") {
     return (
