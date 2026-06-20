@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { headers } from "next/headers";
 import {
   ArrowRight,
   Sparkles,
@@ -21,8 +20,6 @@ import {
 } from "@/components/ui/card";
 import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
-import { PricingGrid } from "@/components/marketing/pricing-grid";
-import { getPricing } from "@/lib/pricing";
 import {
   getPublicCatalog,
   dedupePublicIntegrations,
@@ -107,18 +104,6 @@ const INTEGRATIONS = [
 ] as const;
 
 export default async function Home() {
-  // Country-aware pricing — resolves the visitor's country from the
-  // Vercel edge geo header (set on every prod/preview request) and
-  // fetches the corresponding pricing matrix from peakhour-api. The
-  // /pricing page uses the same helper; both surfaces stay in sync.
-  const h = await headers();
-  const vercelCountry = h.get("x-vercel-ip-country");
-  const country =
-    vercelCountry && /^[A-Za-z]{2}$/.test(vercelCountry)
-      ? vercelCountry.toUpperCase()
-      : "DEFAULT";
-  const pricing = await getPricing(country);
-
   // Integration catalog from the platform resolver (CMS-driven, env-gated,
   // stage-capped). Falls back to the static list below if the API is
   // unreachable so the landing never hard-fails (mirrors the pricing fallback).
@@ -344,29 +329,26 @@ export default async function Home() {
           </div>
         </section>
 
-        {/* Pricing — country-aware, fetched server-side from
-            /v1/platform/pricing. Falls back to a CTA-only block when
-            the API is unreachable so the landing page never breaks
-            because pricing data is unavailable. */}
+        {/* Plans — the full comparison lives on its own page (/pricing).
+            The landing only teases it with a CTA so plans stay in one place. */}
         <section id="pricing" className="py-20">
           <div className="container">
-            <div className="mx-auto max-w-6xl">
-              {pricing && pricing.plans.length > 0 ? (
-                <PricingGrid plans={pricing.plans} />
-              ) : (
-                <div className="text-center">
-                  <h2 className="text-3xl font-semibold text-pretty lg:text-4xl">
-                    Simple, transparent pricing
-                  </h2>
-                  <p className="mx-auto mt-3 max-w-xl text-muted-foreground">
-                    Free tier and three paid plans. See full details on the
-                    pricing page.
-                  </p>
-                  <Button asChild size="lg" className="mt-6">
-                    <Link href="/pricing">View pricing</Link>
-                  </Button>
-                </div>
-              )}
+            <div className="mx-auto max-w-xl text-center">
+              <h2 className="text-3xl font-semibold text-pretty lg:text-4xl">
+                Simple, transparent plans
+              </h2>
+              <p className="mx-auto mt-3 max-w-xl text-muted-foreground">
+                Commerce plans for Shopify and WooCommerce — start free, upgrade
+                when you&rsquo;re ready. Every paid plan includes Peaks.
+              </p>
+              <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
+                <Button asChild size="lg">
+                  <Link href="/pricing">View Plans</Link>
+                </Button>
+                <Button asChild size="lg" variant="outline">
+                  <Link href="/peaks">How Peaks work</Link>
+                </Button>
+              </div>
             </div>
           </div>
         </section>
