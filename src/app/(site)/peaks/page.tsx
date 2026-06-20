@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import Link from "next/link";
-import { Sparkles, Zap, RefreshCw, ArrowRight, Check } from "lucide-react";
+import { Sparkles, Zap, RefreshCw, ArrowRight } from "lucide-react";
 import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
 import { Button } from "@/components/ui/button";
-import { PeakhourMark } from "@/components/icons/peakhour-mark";
+import { PeaksGlyph } from "@/components/peaks/peaks-glyph";
+import { Peaks } from "@/components/peaks/peaks";
 import { getPeaks, formatPackPrice, type PeakPack } from "@/lib/peaks";
 
 export const metadata: Metadata = {
@@ -43,8 +44,8 @@ export default async function PeaksPage() {
         {/* ── Hero ─────────────────────────────────────────────────────── */}
         <section className="border-b">
           <div className="mx-auto max-w-4xl px-4 py-20 text-center sm:px-6">
-            <div className="mx-auto mb-6 inline-flex size-14 items-center justify-center rounded-2xl bg-(--brand,oklch(0.77_0.146_67)) text-(--brand-ink,oklch(0.27_0.05_55)) shadow-sm">
-              <PeakhourMark className="size-7" />
+            <div className="mb-6 flex justify-center">
+              <PeaksGlyph size={56} className="shadow-sm" />
             </div>
             <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">Peaks</h1>
             <p className="mx-auto mt-5 max-w-2xl text-lg text-muted-foreground">
@@ -78,6 +79,11 @@ export default async function PeaksPage() {
                 icon={<Zap className="size-5" />}
                 title="Spent only when AI works"
                 body="Peaks are consumed when the AI actually runs — drafting, generating, analysing. Writing and editing yourself costs nothing."
+                footer={
+                  <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    e.g. this action costs <Peaks amount={5} glyphSize={16} />
+                  </p>
+                }
               />
               <HowItWorksCard
                 icon={<RefreshCw className="size-5" />}
@@ -119,8 +125,8 @@ export default async function PeaksPage() {
               </>
             ) : (
               <div className="mx-auto mt-12 max-w-xl rounded-xl border bg-card p-8 text-center">
-                <div className="mx-auto mb-4 inline-flex size-10 items-center justify-center rounded-xl bg-(--brand,oklch(0.77_0.146_67)) text-(--brand-ink,oklch(0.27_0.05_55))">
-                  <PeakhourMark className="size-5" />
+                <div className="mb-4 flex justify-center">
+                  <PeaksGlyph size={40} />
                 </div>
                 <p className="text-sm text-muted-foreground">
                   Peaks come bundled with every paid plan. Self-serve top-up packs are rolling
@@ -168,10 +174,12 @@ function HowItWorksCard({
   icon,
   title,
   body,
+  footer,
 }: {
   icon: React.ReactNode;
   title: string;
   body: string;
+  footer?: React.ReactNode;
 }) {
   return (
     <div className="rounded-xl border bg-card p-6">
@@ -180,6 +188,7 @@ function HowItWorksCard({
       </div>
       <h3 className="mt-4 font-semibold">{title}</h3>
       <p className="mt-2 text-sm text-muted-foreground">{body}</p>
+      {footer && <div className="mt-3">{footer}</div>}
     </div>
   );
 }
@@ -196,23 +205,26 @@ function PackCard({ pack }: { pack: PeakPack }) {
           Best value
         </span>
       )}
-      <div className="flex items-center gap-2">
-        <span className="inline-flex size-7 items-center justify-center rounded-md bg-(--brand,oklch(0.77_0.146_67)) text-(--brand-ink,oklch(0.27_0.05_55))">
-          <PeakhourMark className="size-3.5" />
-        </span>
+      <div className="flex items-center gap-2.5">
+        <PeaksGlyph size={32} />
         <h3 className="font-semibold">{pack.name}</h3>
       </div>
 
       <div className="mt-5 flex items-baseline gap-1">
-        <span className="text-4xl font-bold tabular-nums tracking-tight">
+        <span
+          className="text-4xl font-bold tabular-nums tracking-tight"
+          style={{ fontFamily: "var(--font-space-grotesk)" }}
+        >
           {formatPackPrice(pack)}
         </span>
         <span className="text-sm text-muted-foreground">one-time</span>
       </div>
 
-      <p className="mt-3 flex items-center gap-1.5 text-sm font-medium text-(--brand-strong,oklch(0.66_0.156_50))">
-        <Check className="size-4" />
-        +{pack.credits.toLocaleString()} Peaks
+      <p className="mt-3 text-sm font-medium text-(--brand-strong,oklch(0.66_0.156_50))">
+        <span className="tabular-nums" style={{ fontFamily: "var(--font-space-grotesk)" }}>
+          +{pack.credits.toLocaleString()}
+        </span>{" "}
+        Peaks added
       </p>
 
       {pack.description && (
