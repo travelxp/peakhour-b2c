@@ -1,0 +1,18 @@
+{
+  "$schema": "Peakhour theme registry — the single source of truth the CMS reads.",
+  "default": "solar",
+  "fallback": "solar",
+  "themes": [
+    { "id": "solar",     "label": "Solar / Peak",     "kind": "flagship", "supportsDark": true,  "href": "tokens/themes/theme-solar.css" },
+    { "id": "tidal",     "label": "Tidal / Deep",     "kind": "direction","supportsDark": true,  "href": "tokens/themes/theme-tidal.css" },
+    { "id": "noir",      "label": "Noir / Editorial", "kind": "direction","supportsDark": true,  "href": "tokens/themes/theme-noir.css", "fonts": ["Newsreader"] },
+    { "id": "diwali",    "label": "Diwali",           "kind": "seasonal", "supportsDark": false, "href": "tokens/themes/theme-diwali.css" },
+    { "id": "christmas", "label": "Christmas",        "kind": "seasonal", "supportsDark": false, "href": "tokens/themes/theme-christmas.css" }
+  ],
+  "schedule": [
+    { "id": "in-diwali-2026",  "theme": "diwali",    "regions": ["IN"],            "start": "2026-11-05", "end": "2026-11-12", "priority": 10, "status": "approved" },
+    { "id": "uk-xmas-2026",    "theme": "christmas", "regions": ["GB", "US", "IE"], "start": "2026-12-01", "end": "2026-12-26", "priority": 10, "status": "approved" },
+    { "id": "in-xmas-2026",    "theme": "christmas", "regions": ["IN"],            "start": "2026-12-20", "end": "2026-12-26", "priority": 9,  "status": "approved" }
+  ],
+  "comment": "Resolver picks the highest-priority active entry whose region matches the request; if none, uses `default`. `status` gates publishing — only 'approved' entries go live."
+}

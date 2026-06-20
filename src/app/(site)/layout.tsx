@@ -1,11 +1,14 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Newsreader } from "next/font/google";
 import { connection } from "next/server";
+import { headers } from "next/headers";
 import { ThemeProvider } from "@/providers/theme-provider";
 import { QueryProvider } from "@/providers/query-provider";
 import { AuthProvider } from "@/providers/auth-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "sonner";
+import registry from "@/styles/themes/theme-registry.json";
+import { resolveTheme } from "@/styles/themes/theme-resolver.js";
 import "../globals.css";
 
 const geistSans = Geist({
@@ -15,6 +18,13 @@ const geistSans = Geist({
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
+
+// Serif display face for the "noir" theme (--font-display). Self-hosted via
+// next/font; theme-noir.css reads it through the --font-newsreader variable.
+const newsreader = Newsreader({
+  variable: "--font-newsreader",
   subsets: ["latin"],
 });
 
@@ -42,10 +52,17 @@ export default async function SiteLayout({
   // Shopify surface gets its own dynamic behaviour independently.
   await connection();
 
+  // Resolve the active brand/seasonal theme server-side from the visitor's
+  // region (Vercel geo header) + today's date, and stamp it on <html>. Every
+  // component reads shadcn token slots, so this re-skins the whole surface
+  // with zero component edits. next-themes still owns light/dark (.dark).
+  const region = (await headers()).get("x-vercel-ip-country") ?? "*";
+  const theme = resolveTheme(registry, { region, date: new Date() });
+
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" data-theme={theme} suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} ${newsreader.variable} font-sans antialiased`}
       >
         <ThemeProvider>
           <QueryProvider>
