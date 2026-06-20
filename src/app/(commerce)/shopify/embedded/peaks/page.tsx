@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Page,
   Card,
   BlockStack,
   InlineStack,
   Text,
+  Button,
   Badge,
   Divider,
   Box,
@@ -37,6 +38,8 @@ type Balance =
       windowStartAt: string;
       resetAt: string;
       boostAddonKey: string | null;
+      /** Depleting one-time top-up (already folded into `remaining`). */
+      topUpBalance: number;
     };
 
 interface RateCardUseCase {
@@ -46,9 +49,19 @@ interface RateCardUseCase {
   minCreditsPerCall: number;
 }
 
+interface PeaksPack {
+  key: string;
+  name: string;
+  credits: number;
+  amount: string;
+  currency: string;
+}
+
 interface PeaksData {
   balance: Balance;
   rateCard: { useCases: RateCardUseCase[] };
+  /** Active, public top-up packs. Empty until ops activates one (dormant). */
+  availablePacks?: PeaksPack[];
 }
 
 type State =
@@ -119,6 +132,8 @@ function BalanceCard({ balance }: { balance: Balance }) {
   const pct = balance.hardCap > 0 ? Math.min(100, Math.round((balance.used / balance.hardCap) * 100)) : 0;
   const atHardCap = balance.used >= balance.hardCap;
   const overSoftCap = balance.used >= balance.softCap;
+  const topUp = balance.topUpBalance ?? 0;
+  const exhausted = balance.remaining <= 0; // window AND top-up both spent
 
   return (
     <Card>
@@ -144,11 +159,22 @@ function BalanceCard({ balance }: { balance: Balance }) {
         <Text as="p" variant="bodySm" tone="subdued">
           {balance.used.toLocaleString()} used this period · resets {formatResetDate(balance.resetAt)}
         </Text>
-        {atHardCap ? (
+        {topUp > 0 && (
+          <Text as="p" variant="bodySm" tone="success">
+            Includes {topUp.toLocaleString()} top-up Peaks — yours until used, they don&rsquo;t reset.
+          </Text>
+        )}
+        {exhausted ? (
           <Banner tone="critical">
             <Text as="p" variant="bodyMd">
               You&rsquo;ve used all your Peaks for this period. Upgrade your plan for a higher
-              allowance, or wait until they reset.
+              allowance, top up below, or wait until they reset.
+            </Text>
+          </Banner>
+        ) : atHardCap && topUp === 0 ? (
+          <Banner tone="warning">
+            <Text as="p" variant="bodyMd">
+              You&rsquo;ve hit your plan allowance for this period.
             </Text>
           </Banner>
         ) : overSoftCap ? (
@@ -194,6 +220,84 @@ function RateCard({ useCases }: { useCases: RateCardUseCase[] }) {
             </Text>
           </Box>
         )}
+      </BlockStack>
+    </Card>
+  );
+}
+
+function BuyPeaks({ packs }: { packs: PeaksPack[] }) {
+  const [busyKey, setBusyKey] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const buy = useCallback(async (packKey: string) => {
+    setBusyKey(packKey);
+    setError(null);
+    const token = await getSessionToken();
+    if (!token) {
+      setError("Couldn't get a Shopify session. Please reopen Peakhour from your admin.");
+      setBusyKey(null);
+      return;
+    }
+    try {
+      const res = await fetch(`${API_URL}/v1/shopify/embedded/peaks/purchase`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ packKey }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { confirmationUrl?: string };
+      if (!res.ok || !data.confirmationUrl) {
+        setError("Could not start checkout. Please try again.");
+        setBusyKey(null);
+        return;
+      }
+      // Break out of the admin iframe to Shopify's hosted approval page.
+      (window.top ?? window).location.href = data.confirmationUrl;
+    } catch {
+      setError("Network error starting checkout.");
+      setBusyKey(null);
+    }
+  }, []);
+
+  return (
+    <Card>
+      <BlockStack gap="300">
+        <Text as="h2" variant="headingMd">
+          Buy more Peaks
+        </Text>
+        <Text as="p" variant="bodySm" tone="subdued">
+          One-time top-ups — yours until used, they don&rsquo;t expire. Billed through Shopify.
+        </Text>
+        <Divider />
+        {error && (
+          <Banner tone="critical">
+            <Text as="p" variant="bodyMd">
+              {error}
+            </Text>
+          </Banner>
+        )}
+        <BlockStack gap="300">
+          {packs.map((p) => (
+            <InlineStack key={p.key} align="space-between" blockAlign="center" wrap={false} gap="300">
+              <BlockStack gap="050">
+                <Text as="span" variant="bodyMd" fontWeight="semibold">
+                  {p.credits.toLocaleString()} Peaks
+                </Text>
+                <Text as="span" variant="bodySm" tone="subdued">
+                  {p.currency === "USD" ? "$" : `${p.currency} `}
+                  {p.amount}
+                </Text>
+              </BlockStack>
+              <Button
+                onClick={() => buy(p.key)}
+                loading={busyKey === p.key}
+                disabled={busyKey !== null}
+                variant="primary"
+              >
+                Buy
+              </Button>
+            </InlineStack>
+          ))}
+        </BlockStack>
       </BlockStack>
     </Card>
   );
@@ -262,6 +366,9 @@ export default function PeaksPage() {
     <Page title="Peaks" subtitle="Your AI credits — what you have and what each task costs.">
       <BlockStack gap="500">
         <BalanceCard balance={state.data.balance} />
+        {state.data.availablePacks && state.data.availablePacks.length > 0 && (
+          <BuyPeaks packs={state.data.availablePacks} />
+        )}
         <RateCard useCases={state.data.rateCard.useCases} />
       </BlockStack>
     </Page>
