@@ -1,0 +1,28 @@
+/* ===========================================================================
+   Peakhour · THEME — Christmas   (seasonal · auto-scheduled)
+   Drop-in token overlay, activated by  <html data-theme="christmas">.
+   Snow neutrals, pine-green lead, cranberry + gold accents. Complete slot set.
+   =========================================================================== */
+:root[data-theme="christmas"] {
+  --brand: oklch(0.46 0.1 155); --brand-strong: oklch(0.38 0.1 152);
+  --brand-gold: oklch(0.8 0.12 85); --brand-soft: oklch(0.94 0.04 150);
+  --brand-ink: oklch(0.98 0.01 150);
+  --background: oklch(0.987 0.005 150); --foreground: oklch(0.24 0.04 152);
+  --card: oklch(1 0 0); --card-foreground: var(--foreground);
+  --popover: var(--card); --popover-foreground: var(--foreground);
+  --primary: oklch(0.46 0.1 155); --primary-foreground: oklch(0.98 0.01 150);
+  --secondary: oklch(0.95 0.015 150); --secondary-foreground: var(--foreground);
+  --muted: oklch(0.95 0.015 150); --muted-foreground: oklch(0.46 0.03 150);
+  --accent: oklch(0.95 0.02 150); --accent-foreground: var(--foreground);
+  --destructive: oklch(0.52 0.17 20);
+  --border: oklch(0.89 0.015 150); --input: oklch(0.89 0.015 150); --ring: oklch(0.52 0.17 20);
+  --chart-1: var(--brand); --chart-2: oklch(0.52 0.17 20); --chart-3: var(--brand-gold);
+  --chart-4: oklch(0.55 0.09 155); --chart-5: oklch(0.7 0.1 60);
+  --sidebar: oklch(0.97 0.012 150); --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--primary); --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: var(--accent); --sidebar-accent-foreground: var(--foreground);
+  --sidebar-border: var(--border); --sidebar-ring: oklch(0.52 0.17 20);
+  --grad-solar: linear-gradient(135deg, oklch(0.52 0.17 20) 0%, var(--brand) 100%);
+  --radius: 0.625rem;
+  --font-display: "Sora", "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+}

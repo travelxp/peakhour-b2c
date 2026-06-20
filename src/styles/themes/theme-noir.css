@@ -1,0 +1,46 @@
+/* ===========================================================================
+   Peakhour · THEME — Noir / Editorial   (direction · high-contrast)
+   Drop-in token overlay, activated by  <html data-theme="noir">.
+   Serif display, near-black ink, one decisive red. Complete shadcn slot set.
+   NOTE: overrides --font-display to a serif (Newsreader) — load that face on
+   pages using this theme, or change the one line to your licensed serif.
+   =========================================================================== */
+:root[data-theme="noir"] {
+  --brand: oklch(0.55 0.18 28); --brand-strong: oklch(0.47 0.18 27);
+  --brand-gold: oklch(0.7 0.13 40); --brand-soft: oklch(0.94 0.04 30);
+  --brand-ink: oklch(0.99 0.01 30);
+  --background: oklch(0.99 0.001 100); --foreground: oklch(0.17 0.004 50);
+  --card: oklch(1 0 0); --card-foreground: var(--foreground);
+  --popover: var(--card); --popover-foreground: var(--foreground);
+  --primary: oklch(0.17 0.004 50); --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.95 0.002 80); --secondary-foreground: var(--foreground);
+  --muted: oklch(0.95 0.002 80); --muted-foreground: oklch(0.45 0.006 60);
+  --accent: oklch(0.95 0.002 80); --accent-foreground: var(--foreground);
+  --destructive: oklch(0.5 0.2 25);
+  --border: oklch(0.86 0.003 70); --input: oklch(0.86 0.003 70); --ring: var(--brand);
+  --chart-1: oklch(0.17 0.004 50); --chart-2: oklch(0.55 0.18 28); --chart-3: oklch(0.55 0.01 60);
+  --chart-4: oklch(0.7 0.13 40); --chart-5: oklch(0.72 0.006 60);
+  --sidebar: oklch(0.97 0.001 90); --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--primary); --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: var(--accent); --sidebar-accent-foreground: var(--foreground);
+  --sidebar-border: var(--border); --sidebar-ring: var(--brand);
+  --grad-solar: linear-gradient(135deg, oklch(0.34 0.02 40) 0%, oklch(0.17 0.004 50) 100%);
+  --radius: 0.25rem;
+  --font-display: var(--font-newsreader), "Newsreader", Georgia, "Times New Roman", serif;
+}
+
+:root[data-theme="noir"].dark {
+  --background: oklch(0.15 0.003 50); --foreground: oklch(0.97 0.002 90);
+  --card: oklch(0.19 0.004 50); --card-foreground: var(--foreground);
+  --popover: var(--card); --popover-foreground: var(--foreground);
+  --primary: oklch(0.97 0.002 90); --primary-foreground: oklch(0.15 0.003 50);
+  --secondary: oklch(0.24 0.004 50); --secondary-foreground: var(--foreground);
+  --muted: oklch(0.24 0.004 50); --muted-foreground: oklch(0.65 0.005 70);
+  --accent: oklch(0.26 0.004 50); --accent-foreground: var(--foreground);
+  --destructive: oklch(0.62 0.2 25);
+  --border: oklch(1 0 0 / 12%); --input: oklch(1 0 0 / 14%);
+  --brand-soft: oklch(0.3 0.06 30);
+  --sidebar: oklch(0.17 0.003 50); --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--brand); --sidebar-primary-foreground: oklch(0.99 0.01 30);
+  --sidebar-accent: var(--accent); --sidebar-border: var(--border);
+}

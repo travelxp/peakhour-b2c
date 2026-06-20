@@ -1,0 +1,29 @@
+/* ===========================================================================
+   Peakhour · THEME — Diwali   (seasonal · auto-scheduled)
+   Drop-in token overlay, activated by  <html data-theme="diwali">.
+   Jewel plum surfaces, marigold lead, magenta + gold accents. Inherently
+   dark — no .dark variant needed. Complete shadcn slot set.
+   =========================================================================== */
+:root[data-theme="diwali"] {
+  --brand: oklch(0.78 0.16 72); --brand-strong: oklch(0.68 0.17 55);
+  --brand-gold: oklch(0.85 0.14 92); --brand-soft: oklch(0.34 0.07 340);
+  --brand-ink: oklch(0.2 0.04 60);
+  --background: oklch(0.2 0.035 335); --foreground: oklch(0.96 0.02 80);
+  --card: oklch(0.25 0.045 338); --card-foreground: var(--foreground);
+  --popover: var(--card); --popover-foreground: var(--foreground);
+  --primary: oklch(0.78 0.16 72); --primary-foreground: oklch(0.2 0.04 60);
+  --secondary: oklch(0.3 0.05 338); --secondary-foreground: var(--foreground);
+  --muted: oklch(0.3 0.05 338); --muted-foreground: oklch(0.8 0.04 330);
+  --accent: oklch(0.34 0.06 340); --accent-foreground: var(--foreground);
+  --destructive: oklch(0.62 0.2 18);
+  --border: oklch(1 0 0 / 13%); --input: oklch(1 0 0 / 15%); --ring: var(--brand);
+  --chart-1: var(--brand); --chart-2: oklch(0.6 0.2 350); --chart-3: var(--brand-gold);
+  --chart-4: oklch(0.6 0.15 300); --chart-5: oklch(0.7 0.13 30);
+  --sidebar: oklch(0.23 0.04 337); --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--brand); --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: var(--accent); --sidebar-accent-foreground: var(--foreground);
+  --sidebar-border: var(--border); --sidebar-ring: var(--brand);
+  --grad-solar: linear-gradient(135deg, var(--brand-gold) 0%, var(--brand) 45%, oklch(0.6 0.2 350) 100%);
+  --radius: 0.875rem;
+  --font-display: "Sora", "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+}
