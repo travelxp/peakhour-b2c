@@ -18,7 +18,8 @@ import {
   InlineGrid,
 } from "@shopify/polaris";
 import { getSessionToken } from "./_lib/session";
-import { CommerceDisconnected } from "./_components/commerce-disconnected";
+import { LensActivationHub } from "./_components/lens-activation-hub";
+import { FinishSetupCard } from "./_components/finish-setup-card";
 import { FadeIn } from "./_components/fade-in";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
@@ -122,6 +123,10 @@ function ConnectedHome({ ctx, onSync, syncing, syncError, onSubscribe, subscribi
       subtitle={storeName}
     >
       <BlockStack gap="500">
+        {/* Soft activation tail — only shows when on free Lens and not yet a
+            Peakhour Insights Network member; dismissible and self-hiding (step 2 of 3). */}
+        <FinishSetupCard shop={ctx.shop} />
+
         {/* ── Card 1 — Store Health ───────────────────────────────────── */}
         <div className="ph-hover-lift">
         <Card>
@@ -394,11 +399,7 @@ export default function ShopifyEmbeddedHome() {
   if (!state.ctx.connected) {
     return (
       <FadeIn>
-        <CommerceDisconnected
-          shop={state.ctx.shop}
-          pageTitle="Peakhour Commerce"
-          heading={state.ctx.status === "disconnected" ? "Commerce Disconnected" : "Set up Peakhour Commerce"}
-        />
+        <LensActivationHub shop={state.ctx.shop} status={state.ctx.status} />
       </FadeIn>
     );
   }
