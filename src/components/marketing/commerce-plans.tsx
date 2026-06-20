@@ -11,7 +11,7 @@ import {
 import {
   formatMonthly,
   formatYearly,
-  FEATURE_LABELS,
+  featureLabel,
   type ResolvedProduct,
   type ResolvedProductTier,
 } from "@/lib/pricing";
@@ -96,7 +96,7 @@ function TierCard({
   cta: { href: string; external: boolean; label: string };
 }) {
   const isFree = tier.pricing.monthly === 0;
-  const featureLabels = tier.features.map((k) => FEATURE_LABELS[k] ?? k);
+  const featureLabels = tier.features.map((k) => featureLabel(k));
 
   return (
     <Card
