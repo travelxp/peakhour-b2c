@@ -20,7 +20,7 @@ import {
 } from "@shopify/polaris";
 import { ShieldCheckMarkIcon } from "@shopify/polaris-icons";
 import { getSessionToken } from "../_lib/session";
-import { CommerceDisconnected } from "../_components/commerce-disconnected";
+import { LensActivationHub } from "../_components/lens-activation-hub";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 
@@ -215,6 +215,10 @@ export default function PinPage() {
 
   if (membership === "loading") return <PinSkeleton />;
 
+  // Store never linked to a Peakhour account — route into the unified activation
+  // journey (Connect is step 1) rather than a standalone disconnected state.
+  if (membership === "notlinked") return <LensActivationHub shop={shop} />;
+
   return (
     <Page
       title="Growth Network"
@@ -318,14 +322,6 @@ export default function PinPage() {
         {/* Standing trust section — privacy is the network's differentiator,
             shown to members and prospective members alike. */}
         {(membership === "member" || membership === "nonmember") && <PrivacyFirstCard />}
-
-        {membership === "notlinked" && (
-          <CommerceDisconnected
-            shop={shop}
-            withPage={false}
-            showGrowthNetworkLink={false}
-          />
-        )}
 
         {membership === "unknown" && (
           <Card>

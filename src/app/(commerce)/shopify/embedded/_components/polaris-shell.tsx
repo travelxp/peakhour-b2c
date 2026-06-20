@@ -64,6 +64,35 @@ const NAV_ITEMS = [
   { label: "Settings", icon: SettingsIcon, url: "/shopify/embedded/settings" },
 ];
 
+// Until the store is connected, demote the deep features — pre-activation the
+// merchant only needs the activation home + settings. Everything else (Catalog,
+// Assistant, Integrations, Growth Network, Subscription) bounces to a
+// disconnected state before linking, so showing it just creates dead ends.
+const PRE_ACTIVATION_URLS = new Set<string>([
+  "/shopify/embedded",
+  "/shopify/embedded/settings",
+]);
+
+/** The nav, gated by connection state. Lives inside EmbeddedContextProvider (as
+ *  the Frame's `navigation` prop is rendered within it) so it can read context —
+ *  same pattern as ReconnectBanner. */
+function ShellNavigation() {
+  const pathname = usePathname();
+  const { ctx } = useEmbeddedContext();
+  // While context is still loading (ctx null) show the full nav so connected
+  // merchants — the majority — never see items pop in; collapse only once we
+  // KNOW the store isn't connected.
+  const activated = !ctx || ctx.connected;
+  const items = activated
+    ? NAV_ITEMS
+    : NAV_ITEMS.filter((i) => PRE_ACTIVATION_URLS.has(i.url));
+  return (
+    <Navigation location={pathname}>
+      <Navigation.Section items={items} />
+    </Navigation>
+  );
+}
+
 /**
  * Persistent reconnect banner shown on EVERY embedded page while the store is
  * disconnected (Disconnect Redesign §11). Keyed on the raw `status` so it only
@@ -97,17 +126,11 @@ export function PolarisShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
-  const navMarkup = (
-    <Navigation location={pathname}>
-      <Navigation.Section items={NAV_ITEMS} />
-    </Navigation>
-  );
-
   return (
     <AppProvider i18n={enTranslations} linkComponent={PolarisLink}>
       <EmbeddedContextProvider>
         <Frame
-          navigation={navMarkup}
+          navigation={<ShellNavigation />}
           showMobileNavigation={mobileNavOpen}
           onNavigationDismiss={() => setMobileNavOpen(false)}
         >

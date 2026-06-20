@@ -23,7 +23,7 @@ import {
 import { SearchIcon, ProductIcon } from "@shopify/polaris-icons";
 import { getSessionToken } from "../_lib/session";
 import { useEmbeddedContext } from "../_lib/context";
-import { CommerceDisconnected } from "../_components/commerce-disconnected";
+import { LensActivationHub } from "../_components/lens-activation-hub";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 const PAGE_SIZE = 25;
@@ -211,9 +211,7 @@ export default function CatalogPage() {
   if (pageState === "initializing") return <CatalogSkeleton />;
 
   if (disconnected) {
-    return (
-      <CommerceDisconnected shop={ctx?.shop} pageTitle="Catalog" heading="Commerce Disconnected" />
-    );
+    return <LensActivationHub shop={ctx?.shop} status="disconnected" />;
   }
 
   if (pageState === "error") {
