@@ -5,25 +5,29 @@ import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
 import { Button } from "@/components/ui/button";
 import { CommercePlans } from "@/components/marketing/commerce-plans";
+import { ContentPlans } from "@/components/marketing/content-plans";
 import { getPricing } from "@/lib/pricing";
 import { PeaksGlyph } from "@/components/peaks/peaks-glyph";
 
 export const metadata: Metadata = {
-  title: "Peakhour Commerce — Plans for Shopify & WooCommerce",
+  title: "Peakhour.ai — Plans & Pricing",
   description:
-    "Peakhour.ai commerce plans for Shopify and WooCommerce. Start free, upgrade when you're ready. Every paid plan includes Peaks — the AI credits that power the platform.",
+    "Peakhour.ai plans across Commerce (Shopify & WooCommerce) and Content (WordPress). Start free, upgrade when you're ready. Every paid plan includes Peaks — the AI credits that power the platform.",
 };
 
 /**
- * /pricing — the public Plans page. Shows the COMMERCE plans only, split into a
- * Shopify section and a WooCommerce section (the catalog's `commerce_assistant`
- * tiers). The legacy all-in-one "Suite" tiers (free/starter/growth/agency/
- * enterprise) and the Content product are intentionally not surfaced here.
+ * /pricing — the public Plans page. Renders every product pillar the pricing
+ * API returns: the COMMERCE plans (the `commerce_assistant` tiers, split into a
+ * Shopify and a WooCommerce section) and the CONTENT plans (the `content_studio`
+ * tiers — Scout free → Peakhour Content paid). The legacy all-in-one "Suite"
+ * tiers (free/starter/growth/agency/enterprise) are intentionally not surfaced
+ * here.
  *
  * Server-rendered with the visitor's country resolved from the Vercel edge geo
- * header so prices show in the right currency. Note: the commerce product is
- * env-gated by its catalog status — it only appears in production once ops sets
- * its status to coming_soon/live.
+ * header so prices show in the right currency. Each product is env-gated by its
+ * catalog status on the API side — a product only appears in production once ops
+ * sets its status to coming_soon/live (content_studio is in_development → dev
+ * only until promoted), so the page degrades gracefully when a pillar is absent.
  */
 export default async function PricingPage() {
   const h = await headers();
@@ -35,6 +39,9 @@ export default async function PricingPage() {
 
   const pricing = await getPricing(country);
   const commerce = pricing?.products.find((p) => p.pillar === "commerce");
+  const content = pricing?.products.find((p) => p.pillar === "content");
+  const hasCommerce = !!commerce && commerce.tiers.length > 0;
+  const hasContent = !!content && content.tiers.length > 0;
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -47,12 +54,11 @@ export default async function PricingPage() {
               Plans &amp; pricing
             </span>
             <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
-              Peakhour Commerce
+              Peakhour.ai plans
             </h1>
             <p className="mx-auto mt-4 max-w-xl text-lg text-muted-foreground">
-              The live, catalog-grounded AI assistant for Shopify and WooCommerce.
-              Start free, upgrade when
-              you&rsquo;re ready — every paid plan includes{" "}
+              Catalog-grounded AI for your store and your content. Start free,
+              upgrade when you&rsquo;re ready — every paid plan includes{" "}
               <Link href="/peaks" className="font-medium underline underline-offset-2">
                 Peaks
               </Link>
@@ -63,17 +69,18 @@ export default async function PricingPage() {
 
         <section className="py-16">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
-            {commerce && commerce.tiers.length > 0 ? (
-              <>
-                <CommercePlans product={commerce} />
+            {hasCommerce || hasContent ? (
+              <div className="space-y-24">
+                {hasCommerce && <CommercePlans product={commerce!} />}
+                {hasContent && <ContentPlans product={content!} />}
                 {pricing && pricing.country !== "DEFAULT" && (
-                  <p className="mt-12 text-center text-[11px] text-muted-foreground">
+                  <p className="text-center text-[11px] text-muted-foreground">
                     Prices shown for{" "}
                     <code className="font-mono">{pricing.country}</code>, detected from
                     your IP — contact sales for a custom-currency invoice.
                   </p>
                 )}
-              </>
+              </div>
             ) : (
               <div className="mx-auto max-w-xl rounded-xl border bg-card p-8 text-center">
                 <div className="mb-4 flex justify-center">

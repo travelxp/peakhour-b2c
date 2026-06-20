@@ -212,6 +212,18 @@ export const FEATURE_LABELS: Record<string, string> = {
   "commerce.brand_voice": "Brand-voice recommendations",
   "commerce.campaigns": "Daily campaign recommendations",
   "commerce.autopilot": "Autopilot",
+  // Content pillar (content_studio — Scout / Peakhour Content). Fallback labels
+  // for when the API response omits `featureDetails`; the catalog's own
+  // cfg_features.name is preferred when present.
+  "content.ai_draft": "AI article drafts",
+  "content.autonomous_publish": "Autonomous publishing",
+  "content.meta_sync": "AI SEO meta (Yoast / Rank Math / SEOPress)",
+  "content.aeo_audit": "Answer-Engine (AEO) audit",
+  "content.schema": "Structured data (schema)",
+  "content.internal_links": "Internal link suggestions",
+  "content.refresh": "Automatic content refresh",
+  "content.brand_voice": "Brand-voice learning",
+  "content.insights_lens": "Content Insights",
 };
 
 /** Platform segments that may sit between the category and the feature leaf. */
