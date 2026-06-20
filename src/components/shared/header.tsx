@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/providers/auth-provider";
-import { SITE } from "@/lib/utils";
+import { PeakhourLogo } from "@/components/shared/peakhour-logo";
 
 const NAV_LINKS = [
   { href: "/#features", label: "Features" },
@@ -41,11 +41,8 @@ export function Header({ minimal = false }: { minimal?: boolean } = {}) {
   return (
     <header className="sticky top-0 z-50 border-b bg-background/80 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
-        <Link href="/" className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-            <span className="text-sm font-bold text-primary-foreground">P</span>
-          </div>
-          <span className="text-lg font-bold tracking-tight">{SITE.name}</span>
+        <Link href="/" className="flex items-center" aria-label="Peakhour.ai home">
+          <PeakhourLogo className="h-8 w-auto" />
         </Link>
 
         {!minimal && !isAuthPage && (

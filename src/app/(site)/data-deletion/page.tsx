@@ -5,9 +5,9 @@ import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
 
 export const metadata: Metadata = {
-  title: "Data Deletion - Peakhour",
+  title: "Data Deletion - Peakhour.ai",
   description:
-    "Request deletion of your data from Peakhour and check the status of a data-deletion request.",
+    "Request deletion of your data from Peakhour.ai and check the status of a data-deletion request.",
 };
 
 type DeletionStatus = {
@@ -130,10 +130,10 @@ export default async function DataDeletionPage({
         <div className="mt-8 space-y-8 text-sm leading-relaxed text-muted-foreground">
           <section>
             <h2 className="text-lg font-semibold text-foreground">
-              Deleting your data from Peakhour
+              Deleting your data from Peakhour.ai
             </h2>
             <p className="mt-2">
-              Peakhour (peakhour.ai) is an AI-powered marketing platform. When you connect a
+              Peakhour.ai is an AI-powered marketing platform. When you connect a
               Meta account (Facebook, Instagram, or WhatsApp Business), we store the connection
               details needed to operate the integration on your behalf. You can ask us to delete
               that data at any time, and you control the connection from the platform that
@@ -150,7 +150,7 @@ export default async function DataDeletionPage({
                 <span className="font-medium">
                   Facebook → Settings &amp; privacy → Settings → Apps and Websites
                 </span>
-                , remove <strong className="text-foreground">Peakhour</strong>, and choose to
+                , remove <strong className="text-foreground">Peakhour.ai</strong>, and choose to
                 request deletion of your data. Facebook notifies us automatically and we delete
                 your connection data, then give you a reference code to track the request on this
                 page.
@@ -160,7 +160,7 @@ export default async function DataDeletionPage({
                 <a className="text-foreground underline" href={`mailto:${SITE.contactPrivacy}`}>
                   {SITE.contactPrivacy}
                 </a>{" "}
-                from the email on your Peakhour account and we’ll process the deletion for you.
+                from the email on your Peakhour.ai account and we’ll process the deletion for you.
               </li>
             </ul>
           </section>
@@ -170,11 +170,11 @@ export default async function DataDeletionPage({
             <p className="mt-2">
               We delete the personal data tied to your Meta connection — the profile information
               (name, profile details, email where provided) and the access tokens we hold to
-              operate the integration. Once deleted, Peakhour can no longer act on your Meta
+              operate the integration. Once deleted, Peakhour.ai can no longer act on your Meta
               account and the connection is removed.
             </p>
             <p className="mt-2">
-              Content created within a Peakhour organization (for example, published posts and
+              Content created within a Peakhour.ai organization (for example, published posts and
               business records) is owned and controlled by that organization and is governed by
               our{" "}
               <Link className="text-foreground underline" href="/privacy-policy">
