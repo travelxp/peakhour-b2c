@@ -43,6 +43,7 @@ import {
 } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
+import { isProductionEnv } from "@/lib/env";
 import { getCronMetadata, summarizeCronBody } from "./cron-metadata";
 
 interface DevCronResult {
@@ -63,10 +64,6 @@ interface Props {
    *  on a known-failed cron run would be wasteful (and on a real error,
    *  the toast already surfaces the failure to the user). */
   onTriggered?: (result: DevCronResult) => void;
-}
-
-function isProductionEnv(): boolean {
-  return process.env.NEXT_PUBLIC_VERCEL_ENV === "production";
 }
 
 // Module-scoped re-entry guard. Per-instance refs would still race in
