@@ -10,6 +10,7 @@ import {
   Button,
   Banner,
   Badge,
+  ButtonGroup,
   SkeletonPage,
   SkeletonBodyText,
   SkeletonDisplayText,
@@ -42,6 +43,7 @@ interface EmbeddedContext {
     currency: string;
     interval: "monthly" | "annual";
     trialDays?: number;
+    annual?: { amount: string; currency: string } | null;
   } | null;
 }
 
@@ -70,6 +72,30 @@ function formatSyncTime(iso: string | null | undefined): string {
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return `${hrs}h ago`;
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function priceStr(currency: string, amount: string, interval: "monthly" | "annual"): string {
+  const sym = currency === "USD" ? "$" : `${currency} `;
+  return `${sym}${amount}/${interval === "annual" ? "yr" : "mo"}`;
+}
+
+/** Months-free / percent saved from the monthly vs annual amounts (same
+ *  currency). Returns null when there's no real annual discount to surface. */
+function homeAnnualSavings(p: {
+  amount: string;
+  currency: string;
+  annual?: { amount: string; currency: string } | null;
+}): { monthsFree: number; pct: number } | null {
+  if (!p.annual || p.annual.currency !== p.currency) return null;
+  const m = parseFloat(p.amount);
+  const y = parseFloat(p.annual.amount);
+  if (!Number.isFinite(m) || !Number.isFinite(y) || m <= 0 || y <= 0) return null;
+  const fullYear = m * 12;
+  if (y >= fullYear) return null;
+  return {
+    monthsFree: Math.round((fullYear - y) / m),
+    pct: Math.round(((fullYear - y) / fullYear) * 100),
+  };
 }
 
 // ── Skeleton loading state ─────────────────────────────────────────────────
@@ -108,7 +134,7 @@ interface ConnectedHomeProps {
   onSync: () => void;
   syncing: boolean;
   syncError: string | null;
-  onSubscribe: () => void;
+  onSubscribe: (interval: "monthly" | "annual") => void;
   subscribing: boolean;
   subError: string | null;
 }
@@ -116,6 +142,20 @@ interface ConnectedHomeProps {
 function ConnectedHome({ ctx, onSync, syncing, syncError, onSubscribe, subscribing, subError }: ConnectedHomeProps) {
   const storeName = ctx.storeName || ctx.shop;
   const syncLabel = ctx.productsSyncedAt ? "Sync now" : "Sync catalog";
+
+  // Plan-activation pricing: let the merchant pick monthly or annual right here
+  // (annual was previously only choosable on the Plans page). Annual prices are
+  // seeded in cfg_commerce_pricing; the toggle only shows when one exists.
+  const [billingInterval, setBillingInterval] = useState<"monthly" | "annual">("monthly");
+  const pricing = ctx.pricing;
+  const hasAnnual = !!pricing?.annual;
+  const savings = pricing ? homeAnnualSavings(pricing) : null;
+  const trialDays = pricing?.trialDays ?? 0;
+  const shownPrice = pricing
+    ? billingInterval === "annual" && pricing.annual
+      ? priceStr(pricing.annual.currency, pricing.annual.amount, "annual")
+      : priceStr(pricing.currency, pricing.amount, "monthly")
+    : null;
 
   return (
     <Page
@@ -260,17 +300,37 @@ function ConnectedHome({ ctx, onSync, syncing, syncError, onSubscribe, subscribi
                     </Text>
                   </Banner>
                 )}
+                {hasAnnual && (
+                  <ButtonGroup variant="segmented">
+                    <Button
+                      pressed={billingInterval === "monthly"}
+                      onClick={() => setBillingInterval("monthly")}
+                    >
+                      Monthly
+                    </Button>
+                    <Button
+                      pressed={billingInterval === "annual"}
+                      onClick={() => setBillingInterval("annual")}
+                    >
+                      {savings
+                        ? savings.monthsFree > 0
+                          ? `Annual — ${savings.monthsFree} months free`
+                          : `Annual — save ${savings.pct}%`
+                        : "Annual"}
+                    </Button>
+                  </ButtonGroup>
+                )}
                 <InlineStack gap="300" blockAlign="center">
                   <Button
-                    onClick={onSubscribe}
+                    onClick={() => onSubscribe(billingInterval)}
                     loading={subscribing}
                     disabled={subscribing}
                     variant="primary"
                   >
-                    {ctx.pricing
-                      ? (ctx.pricing.trialDays ?? 0) > 0
-                        ? `Start ${ctx.pricing.trialDays}-day free trial — then ${ctx.pricing.currency === "USD" ? "$" : ctx.pricing.currency + " "}${ctx.pricing.amount}/${ctx.pricing.interval === "annual" ? "yr" : "mo"}`
-                        : `Subscribe — ${ctx.pricing.currency === "USD" ? "$" : ctx.pricing.currency + " "}${ctx.pricing.amount}/${ctx.pricing.interval === "annual" ? "yr" : "mo"}`
+                    {shownPrice
+                      ? trialDays > 0
+                        ? `Start ${trialDays}-day free trial — then ${shownPrice}`
+                        : `Subscribe — ${shownPrice}`
                       : "Subscribe to Commerce"}
                   </Button>
                   <Button url="/dashboard" variant="plain" external>
@@ -352,7 +412,7 @@ export default function ShopifyEmbeddedHome() {
     }
   }, []);
 
-  const handleSubscribe = useCallback(async () => {
+  const handleSubscribe = useCallback(async (interval: "monthly" | "annual" = "monthly") => {
     setSubscribing(true);
     setSubError(null);
     const token = await getSessionToken();
@@ -364,7 +424,8 @@ export default function ShopifyEmbeddedHome() {
     try {
       const res = await fetch(`${API_URL}/v1/shopify/embedded/billing/subscribe`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ interval }),
       });
       const data = (await res.json().catch(() => ({}))) as { confirmationUrl?: string };
       if (!res.ok || !data.confirmationUrl) {
