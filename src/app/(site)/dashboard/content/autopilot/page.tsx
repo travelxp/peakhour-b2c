@@ -7,6 +7,7 @@ import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { useHomeSummary, homeSummaryKey } from "@/hooks/use-home-summary";
+import { isProductionEnv } from "@/lib/env";
 import { AutopilotStatus } from "./_components/autopilot-status";
 import { KpiRow } from "./_components/kpi-row";
 import { NeedsYouRail } from "./_components/needs-you-rail";
@@ -27,10 +28,6 @@ import { CommerceLane } from "./_components/commerce-lane";
  * redirected in prod until we flip it on. The nav item is gated the same
  * way in the dashboard layout.
  */
-
-function isProductionEnv(): boolean {
-  return process.env.NEXT_PUBLIC_VERCEL_ENV === "production";
-}
 
 function LoadingState() {
   return (

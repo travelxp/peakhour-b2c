@@ -7,6 +7,7 @@ import { QueryProvider } from "@/providers/query-provider";
 import { AuthProvider } from "@/providers/auth-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "sonner";
+import { ThemeSwitcher } from "@/components/dev/theme-switcher";
 import registry from "@/styles/themes/theme-registry.json";
 import { resolveTheme } from "@/styles/themes/theme-resolver.js";
 import "../globals.css";
@@ -23,9 +24,14 @@ const geistMono = Geist_Mono({
 
 // Serif display face for the "noir" theme (--font-display). Self-hosted via
 // next/font; theme-noir.css reads it through the --font-newsreader variable.
+// preload:false — only the (non-default) noir theme uses it, so we let the
+// browser fetch it on demand instead of eagerly preloading an unused font on
+// every page (keeps LCP/SEO clean for the Solar default).
 const newsreader = Newsreader({
   variable: "--font-newsreader",
   subsets: ["latin"],
+  display: "swap",
+  preload: false,
 });
 
 export const metadata: Metadata = {
@@ -71,6 +77,8 @@ export default async function SiteLayout({
                 {children}
               </TooltipProvider>
               <Toaster richColors position="bottom-right" />
+              {/* Test-only theme switcher; renders null on production. */}
+              <ThemeSwitcher />
             </AuthProvider>
           </QueryProvider>
         </ThemeProvider>
