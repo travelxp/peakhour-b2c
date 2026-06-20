@@ -2,6 +2,7 @@ import Link from "next/link";
 import { SITE } from "@/lib/utils";
 
 const FOOTER_LINKS = [
+  { href: "/peaks", label: "Peaks" },
   { href: "/contact", label: "Contact" },
   { href: "/privacy-policy", label: "Privacy Policy" },
   { href: "/terms", label: "Terms of Service" },
