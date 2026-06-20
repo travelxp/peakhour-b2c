@@ -49,6 +49,14 @@ export interface ResolvedPlan {
   pricing: PricingEntry;
 }
 
+/** A cfg_feature granted by a tier, enriched with its catalog display copy. */
+export interface ResolvedFeature {
+  key: string;
+  /** cfg_features.name — the catalog's own display label (source of truth). */
+  name: string;
+  tagline?: string;
+}
+
 /** A single tier within a product (e.g. commerce_assistant.lens). */
 export interface ResolvedProductTier {
   key: string;
@@ -57,6 +65,12 @@ export interface ResolvedProductTier {
   description?: string;
   /** cfg_feature keys granted by this tier. */
   features: string[];
+  /**
+   * The same features enriched with catalog name/tagline, ordered by the
+   * catalog's sortOrder. Present from the API; absent on older API responses
+   * (the component then falls back to `features` + `featureLabel`).
+   */
+  featureDetails?: ResolvedFeature[];
   limits: Record<string, number | undefined>;
   highlightAsRecommended: boolean;
   version: number;
@@ -178,12 +192,49 @@ export const PLAN_BULLETS: Record<PlanKey, string[]> = {
  * Display labels for cfg_feature keys used in product tier comparison cards.
  * Keyed by the feature key stored in cfg_features / cfg_plans.features[].
  * Kept client-side so marketing can tune copy without a DB write.
+ *
+ * Keys are stored under the platform-agnostic `commerce.<leaf>` form. The
+ * catalog namespaces commerce features per platform — Shopify ships them
+ * un-namespaced (`commerce.assistant`, migration 053) while WooCommerce ships
+ * them platform-scoped (`commerce.woocommerce.assistant`, migration 054).
+ * `featureLabel()` collapses the platform segment so a single entry covers both.
  */
 export const FEATURE_LABELS: Record<string, string> = {
+  "commerce.product_descriptions": "AI product descriptions",
   "commerce.assistant": "Live AI commerce assistant",
   "commerce.catalog_sync": "Automatic catalog sync",
   "commerce.whatsapp": "WhatsApp shopping channel",
   "commerce.in_app_assistant": "In-app product assistant",
   "commerce.multilingual": "Multilingual replies (inc. Hinglish)",
   "commerce.insights_network": "Insights Network access",
+  "commerce.inventory": "Inventory intelligence",
+  "commerce.smart_rails": "Self-updating product showcases",
+  "commerce.brand_voice": "Brand-voice recommendations",
+  "commerce.campaigns": "Daily campaign recommendations",
+  "commerce.autopilot": "Autopilot",
 };
+
+/** Platform segments that may sit between the category and the feature leaf. */
+const PLATFORM_SEGMENTS = new Set(["shopify", "woocommerce"]);
+
+/**
+ * Resolve a cfg_feature key to a human-readable label, platform-namespace
+ * agnostic. Tries an exact match, then collapses a platform segment
+ * (`commerce.woocommerce.assistant` → `commerce.assistant`), and finally falls
+ * back to a humanized leaf token so an unmapped key never renders raw.
+ */
+export function featureLabel(key: string): string {
+  if (FEATURE_LABELS[key]) return FEATURE_LABELS[key];
+
+  const parts = key.split(".");
+  if (parts.length >= 3 && PLATFORM_SEGMENTS.has(parts[1])) {
+    const collapsed = [parts[0], ...parts.slice(2)].join(".");
+    if (FEATURE_LABELS[collapsed]) return FEATURE_LABELS[collapsed];
+  }
+
+  const leaf = parts[parts.length - 1] ?? key;
+  return leaf
+    .split("_")
+    .map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1) : w))
+    .join(" ");
+}
