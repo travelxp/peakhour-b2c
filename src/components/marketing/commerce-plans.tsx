@@ -102,9 +102,10 @@ function TierCard({
   const detailByKey = new Map(
     (tier.featureDetails ?? []).map((f) => [f.key, f] as const),
   );
-  const featureLabels = tier.features.map(
-    (k) => detailByKey.get(k)?.name ?? featureLabel(k),
-  );
+  const features = tier.features.map((k) => ({
+    key: k,
+    label: detailByKey.get(k)?.name ?? featureLabel(k),
+  }));
 
   return (
     <Card
@@ -138,8 +139,8 @@ function TierCard({
       </CardHeader>
       <CardContent className="flex flex-1 flex-col gap-4">
         <ul className="flex-1 space-y-2.5 text-sm">
-          {featureLabels.map((label) => (
-            <li key={label} className="flex items-start gap-2.5">
+          {features.map(({ key, label }) => (
+            <li key={key} className="flex items-start gap-2.5">
               <Check className="mt-0.5 size-4 shrink-0 text-primary" />
               {label}
             </li>
