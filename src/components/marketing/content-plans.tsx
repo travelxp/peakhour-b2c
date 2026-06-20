@@ -16,7 +16,7 @@ export function ContentPlans({ product }: { product: ResolvedProduct }) {
   const tiers = product.tiers;
   if (tiers.length === 0) return null;
 
-  const cta = { href: "/auth", external: false, label: "Get started" } as const;
+  const cta = { href: "/auth", external: false } as const;
 
   return (
     <section className="space-y-8">

@@ -15,11 +15,12 @@ import {
   type ResolvedProductTier,
 } from "@/lib/pricing";
 
-/** Call-to-action for a tier card — shared across pillar plan sections. */
+/** Call-to-action for a tier card — shared across pillar plan sections. The
+ *  button label is derived from the tier (free vs. paid), so only the link
+ *  target + external flag are needed here. */
 export interface TierCta {
   href: string;
   external: boolean;
-  label: string;
 }
 
 /**

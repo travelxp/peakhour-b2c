@@ -34,7 +34,7 @@ export function CommercePlans({ product }: { product: ResolvedProduct }) {
       name: "Shopify",
       blurb: "For Shopify stores — installed from the Shopify App Store.",
       tiers: [...free, ...shopifyPaid],
-      cta: { href: SHOPIFY_APP_STORE_URL, external: true, label: "Shopify App Store" },
+      cta: { href: SHOPIFY_APP_STORE_URL, external: true },
       note: "Billed through your Shopify account.",
     },
     {
@@ -42,7 +42,7 @@ export function CommercePlans({ product }: { product: ResolvedProduct }) {
       name: "WooCommerce",
       blurb: "For WordPress + WooCommerce stores — via the Peakhour plugin.",
       tiers: [...free, ...wooPaid],
-      cta: { href: "/auth", external: false, label: "Get started" },
+      cta: { href: "/auth", external: false },
       note: "Billed securely online — no in-WordPress checkout.",
     },
   ].filter((p) => p.tiers.length > 0);
