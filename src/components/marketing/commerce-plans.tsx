@@ -96,7 +96,15 @@ function TierCard({
   cta: { href: string; external: boolean; label: string };
 }) {
   const isFree = tier.pricing.monthly === 0;
-  const featureLabels = tier.features.map((k) => featureLabel(k));
+  // Prefer the catalog's own feature name (source of truth, from the API),
+  // falling back to the local label map for any key without a catalog row or
+  // when an older API response omits featureDetails.
+  const detailByKey = new Map(
+    (tier.featureDetails ?? []).map((f) => [f.key, f] as const),
+  );
+  const featureLabels = tier.features.map(
+    (k) => detailByKey.get(k)?.name ?? featureLabel(k),
+  );
 
   return (
     <Card

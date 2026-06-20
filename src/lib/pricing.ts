@@ -49,6 +49,14 @@ export interface ResolvedPlan {
   pricing: PricingEntry;
 }
 
+/** A cfg_feature granted by a tier, enriched with its catalog display copy. */
+export interface ResolvedFeature {
+  key: string;
+  /** cfg_features.name — the catalog's own display label (source of truth). */
+  name: string;
+  tagline?: string;
+}
+
 /** A single tier within a product (e.g. commerce_assistant.lens). */
 export interface ResolvedProductTier {
   key: string;
@@ -57,6 +65,12 @@ export interface ResolvedProductTier {
   description?: string;
   /** cfg_feature keys granted by this tier. */
   features: string[];
+  /**
+   * The same features enriched with catalog name/tagline, ordered by the
+   * catalog's sortOrder. Present from the API; absent on older API responses
+   * (the component then falls back to `features` + `featureLabel`).
+   */
+  featureDetails?: ResolvedFeature[];
   limits: Record<string, number | undefined>;
   highlightAsRecommended: boolean;
   version: number;
