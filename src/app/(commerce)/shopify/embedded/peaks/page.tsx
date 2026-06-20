@@ -38,8 +38,10 @@ type Balance =
       windowStartAt: string;
       resetAt: string;
       boostAddonKey: string | null;
-      /** Depleting one-time top-up (already folded into `remaining`). */
+      /** Depleting one-time top-up; folded into `remaining` only when usable. */
       topUpBalance: number;
+      /** Whether the top-up balance is spendable — true on a paid plan. */
+      topUpUsable: boolean;
     };
 
 interface RateCardUseCase {
@@ -168,11 +170,17 @@ function BalanceCard({ balance }: { balance: Balance }) {
         <Text as="p" variant="bodySm" tone="subdued">
           {balance.used.toLocaleString()} used this period · resets {formatResetDate(balance.resetAt)}
         </Text>
-        {topUp > 0 && (
-          <Text as="p" variant="bodySm" tone="success">
-            Includes {topUp.toLocaleString()} top-up Peaks — yours until used, they don&rsquo;t reset.
-          </Text>
-        )}
+        {topUp > 0 &&
+          (balance.topUpUsable ? (
+            <Text as="p" variant="bodySm" tone="success">
+              Includes {topUp.toLocaleString()} top-up Peaks — they never expire, yours until used.
+            </Text>
+          ) : (
+            <Text as="p" variant="bodySm" tone="subdued">
+              {topUp.toLocaleString()} top-up Peaks on hold — they never expire, and become usable
+              once you&rsquo;re on a paid plan.
+            </Text>
+          ))}
         {exhausted ? (
           <Banner tone="critical">
             <Text as="p" variant="bodyMd">
@@ -278,7 +286,7 @@ function UsageBreakdown({
   );
 }
 
-function BuyPeaks({ packs }: { packs: PeaksPack[] }) {
+function BuyPeaks({ packs, gated }: { packs: PeaksPack[]; gated: boolean }) {
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -297,9 +305,12 @@ function BuyPeaks({ packs }: { packs: PeaksPack[] }) {
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({ packKey }),
       });
-      const data = (await res.json().catch(() => ({}))) as { confirmationUrl?: string };
+      const data = (await res.json().catch(() => ({}))) as {
+        confirmationUrl?: string;
+        error?: string;
+      };
       if (!res.ok || !data.confirmationUrl) {
-        setError("Could not start checkout. Please try again.");
+        setError(data.error || "Could not start checkout. Please try again.");
         setBusyKey(null);
         return;
       }
@@ -318,9 +329,17 @@ function BuyPeaks({ packs }: { packs: PeaksPack[] }) {
           Buy more Peaks
         </Text>
         <Text as="p" variant="bodySm" tone="subdued">
-          One-time top-ups — yours until used, they don&rsquo;t expire. Billed through Shopify.
+          One-time top-ups — they never expire, yours until used. Usable on a paid plan; billed
+          through Shopify.
         </Text>
         <Divider />
+        {gated && (
+          <Banner tone="warning">
+            <Text as="p" variant="bodyMd">
+              Peaks require an active paid Peakhour plan. Upgrade your plan to buy and use Peaks.
+            </Text>
+          </Banner>
+        )}
         {error && (
           <Banner tone="critical">
             <Text as="p" variant="bodyMd">
@@ -343,7 +362,7 @@ function BuyPeaks({ packs }: { packs: PeaksPack[] }) {
               <Button
                 onClick={() => buy(p.key)}
                 loading={busyKey === p.key}
-                disabled={busyKey !== null}
+                disabled={gated || busyKey !== null}
                 variant="primary"
               >
                 Buy
@@ -423,7 +442,12 @@ export default function PeaksPage() {
         <BalanceCard balance={state.data.balance} />
         {state.data.usage && <UsageBreakdown usage={state.data.usage} />}
         {state.data.availablePacks && state.data.availablePacks.length > 0 && (
-          <BuyPeaks packs={state.data.availablePacks} />
+          <BuyPeaks
+            packs={state.data.availablePacks}
+            gated={
+              !state.data.balance.unlimited && !state.data.balance.topUpUsable
+            }
+          />
         )}
         <RateCard useCases={state.data.rateCard.useCases} />
       </BlockStack>
