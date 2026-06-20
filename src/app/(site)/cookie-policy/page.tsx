@@ -4,9 +4,9 @@ import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
 
 export const metadata: Metadata = {
-  title: "Cookie Policy - Peakhour",
+  title: "Cookie Policy - Peakhour.ai",
   description:
-    "Peakhour cookie policy — the cookies and similar technologies we use, why we use them, and how to control them.",
+    "Peakhour.ai cookie policy — the cookies and similar technologies we use, why we use them, and how to control them.",
 };
 
 export default function CookiePolicyPage() {
@@ -26,7 +26,7 @@ export default function CookiePolicyPage() {
             <p className="mt-2">
               This Cookie Policy explains how {SITE.company.legalName} (&quot;{SITE.name}&quot;,
               &quot;we&quot;, &quot;us&quot;, or &quot;our&quot;) uses cookies and similar technologies on the
-              {SITE.name} platform at peakhour.ai (the &quot;Service&quot;). It should be read
+              {SITE.name} platform (the &quot;Service&quot;). It should be read
               together with our{" "}
               <a href="/privacy-policy" className="text-foreground underline">
                 Privacy Policy

@@ -4,8 +4,8 @@ import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
 
 export const metadata: Metadata = {
-  title: "Privacy Policy - Peakhour",
-  description: "Peakhour privacy policy — how we collect, use, and protect your data.",
+  title: "Privacy Policy - Peakhour.ai",
+  description: "Peakhour.ai privacy policy — how we collect, use, and protect your data.",
 };
 
 export default function PrivacyPolicyPage() {
@@ -25,7 +25,7 @@ export default function PrivacyPolicyPage() {
             <p className="mt-2">
               This Privacy Policy explains how {SITE.company.legalName} (&quot;{SITE.name}&quot;,
               &quot;we&quot;, &quot;us&quot;, or &quot;our&quot;) — the company that operates the {SITE.name}{" "}
-              platform at peakhour.ai, an AI-powered marketing automation service (the
+              platform, an AI-powered marketing automation service (the
               &quot;Service&quot;) — collects, uses, discloses, and safeguards your information when
               you use our website and services.
             </p>
@@ -167,7 +167,7 @@ export default function PrivacyPolicyPage() {
               4.1 How Anonymized Data Improves the Platform for Everyone
             </h3>
             <p className="mt-2">
-              Peakhour gets smarter over time. As more campaigns run across the platform,
+              Peakhour.ai gets smarter over time. As more campaigns run across the platform,
               our AI learns which ad angles perform best for different industries, which
               headlines drive higher engagement, and which optimization patterns deliver
               the best results. This means every user benefits from the collective
