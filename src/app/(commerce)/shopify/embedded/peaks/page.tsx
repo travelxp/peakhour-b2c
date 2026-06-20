@@ -57,11 +57,20 @@ interface PeaksPack {
   currency: string;
 }
 
+interface UsageByTask {
+  useCase: string;
+  label: string;
+  peaks: number;
+  calls: number;
+}
+
 interface PeaksData {
   balance: Balance;
   rateCard: { useCases: RateCardUseCase[] };
   /** Active, public top-up packs. Empty until ops activates one (dormant). */
   availablePacks?: PeaksPack[];
+  /** Per-task consumption over the current period. */
+  usage?: { byTask: UsageByTask[]; total: number; periodDays: number };
 }
 
 type State =
@@ -225,6 +234,50 @@ function RateCard({ useCases }: { useCases: RateCardUseCase[] }) {
   );
 }
 
+function UsageBreakdown({
+  usage,
+}: {
+  usage: { byTask: UsageByTask[]; total: number; periodDays: number };
+}) {
+  return (
+    <Card>
+      <BlockStack gap="300">
+        <InlineStack align="space-between" blockAlign="center" wrap={false}>
+          <Text as="h2" variant="headingMd">
+            Where your Peaks go
+          </Text>
+          {usage.byTask.length > 0 && (
+            <Text as="span" variant="bodySm" tone="subdued">
+              last {usage.periodDays} days · {usage.total.toLocaleString()} Peaks
+            </Text>
+          )}
+        </InlineStack>
+        <Text as="p" variant="bodySm" tone="subdued">
+          What you&rsquo;ve actually spent Peaks on this period, by task.
+        </Text>
+        <Divider />
+        {usage.byTask.length > 0 ? (
+          <DataTable
+            columnContentTypes={["text", "numeric", "numeric"]}
+            headings={["Task", "Peaks used", "Times"]}
+            rows={usage.byTask.map((t) => [
+              t.label,
+              t.peaks.toLocaleString(),
+              t.calls.toLocaleString(),
+            ])}
+          />
+        ) : (
+          <Box paddingBlock="400">
+            <Text as="p" variant="bodyMd" tone="subdued">
+              No Peaks used yet this period — your usage by task will appear here.
+            </Text>
+          </Box>
+        )}
+      </BlockStack>
+    </Card>
+  );
+}
+
 function BuyPeaks({ packs }: { packs: PeaksPack[] }) {
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -366,6 +419,7 @@ export default function PeaksPage() {
     <Page title="Peaks" subtitle="Your AI credits — what you have and what each task costs.">
       <BlockStack gap="500">
         <BalanceCard balance={state.data.balance} />
+        {state.data.usage && <UsageBreakdown usage={state.data.usage} />}
         {state.data.availablePacks && state.data.availablePacks.length > 0 && (
           <BuyPeaks packs={state.data.availablePacks} />
         )}
