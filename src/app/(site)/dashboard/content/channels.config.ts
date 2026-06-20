@@ -156,11 +156,12 @@ export const CHANNELS: readonly ChannelConfig[] = [
   // ── Web & SEO ───────────────────────────────────────────────
   {
     slug: "wordpress",
-    name: "WordPress",
-    description: "Sync posts; auto-tag and propose topics.",
+    name: "WordPress & WooCommerce",
+    description:
+      "AI content + product descriptions, and a catalog-grounded assistant. One plugin covers both WordPress and WooCommerce.",
     category: "Web & SEO",
     providerKey: "wordpress",
-    status: "coming_soon",
+    status: "available",
   },
   {
     slug: "shopify",
