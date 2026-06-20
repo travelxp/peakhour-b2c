@@ -1,25 +1,6 @@
-import type { SVGProps } from "react";
-
-/**
- * PeakhourMark — the Peakhour brand symbol (the concentric-arc mountain mark),
- * extracted verbatim from the official wordmark SVG (public/logo-*.svg) so it's
- * pixel-identical to the logo. This is the canonical mark used on the Peaks
- * page; it replaces the earlier hand-drawn glyph.
- *
- * Fills with `currentColor` — wrap it in an amber tile
- * (`bg-(--brand,…)` + `text-(--brand-ink,…)`) for the branded chip look, or
- * color it directly. The viewBox is the symbol's true bounding box (squared
- * with padding) so it sits centered at any size; set size via className.
- */
-export function PeakhourMark({ className, ...props }: SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      viewBox="28.6 29.6 418.2 418.2"
-      fill="currentColor"
-      aria-hidden="true"
-      className={className}
-      {...props}
-    >
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100" role="img" aria-label="Peakhour.ai">
+  <rect width="100" height="100" rx="22" fill="#171717"/>
+  <g fill="#fafafa" transform="translate(10.52 10.37) scale(0.16605)">
       <path d="M237.5096,309.8625l-89.1683,89.8974c-16.1507-10.3794-30.619-22.5797-43.5332-37.4046l128.0583-129.6733c2.86-2.8961,6.5754-2.2323,9.5113.1708l128.6409,129.2711c-12.5599,13.9275-26.6174,26.8212-43.841,37.608l-89.668-89.8693ZM237.4615,282.3477l91.0887,91.8205,14.5789-12.6502-105.5845-106.181-105.2375,106.416,14.869,12.1768,90.2854-91.5822Z" />
       <path d="M311.4319,179.6765c-22.0396-23.983-52.9629-34.6977-85.3599-31.1659-28.8342,3.1433-57.0345,19.571-73.3288,46.0175-17.5885,28.5472-20.3731,63.2285-7.2506,94.8815l-17.8998,17.9247c-21.6585-42.2895-18.1893-93.2695,9.4247-131.8883,43.5016-60.8378,131.2371-69.2987,185.6431-18.0167,40.6758,38.3402,50.6942,99.2924,25.3246,149.6586l-17.8697-17.9037c15.2751-37.2958,8.9567-79.4301-18.6836-109.5077Z" />
       <path d="M338.1435,138.5491c-57.1477-52.9295-143.7257-52.7053-200.8071.0078l-16.1351-17.1332c65.8181-61.5187,168.1325-61.3324,233.437.2276l-16.4948,16.8978Z" />
@@ -27,6 +8,5 @@ export function PeakhourMark({ className, ...props }: SVGProps<SVGSVGElement>) {
       <path d="M109.0028,325.7053l-17.4161,17.3631c-40.5372-63.7544-35.0353-146.6784,13.2949-205.0603l16.9123,16.6765c-39.0701,48.1969-44.6446,116.2602-12.791,171.0207Z" />
       <path d="M366.5549,325.6028c31.3711-54.7948,26.489-121.8492-12.7746-170.9556l16.6268-16.8105c48.2851,58.1531,54.0327,139.7664,13.7967,204.8191l-17.6489-17.053Z" />
       <polygon points="237.6362 364.5007 185.4133 417.2915 166.1487 409.8018 237.5121 337.0133 309.4557 409.7113 290.1603 417.4829 237.6362 364.5007" />
-    </svg>
-  );
-}
+  </g>
+</svg>
