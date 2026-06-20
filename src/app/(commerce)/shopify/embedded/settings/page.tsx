@@ -23,7 +23,7 @@ import {
 } from "@shopify/polaris";
 import { getSessionToken } from "../_lib/session";
 import { useEmbeddedContext } from "../_lib/context";
-import { CommerceDisconnected } from "../_components/commerce-disconnected";
+import { LensActivationHub } from "../_components/lens-activation-hub";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 
@@ -258,14 +258,9 @@ export default function SettingsPage() {
   }
 
   if (!ctx.connected) {
-    // Disconnected (or never linked) — one consistent, no-dead-end state.
-    return (
-      <CommerceDisconnected
-        shop={shop}
-        pageTitle="Settings"
-        heading={ctx.status === "disconnected" ? "Commerce Disconnected" : "Set up Peakhour Commerce"}
-      />
-    );
+    // Disconnected (or never linked) — route into the one unified activation
+    // journey instead of a standalone dead-end state.
+    return <LensActivationHub shop={shop} status={ctx.status} />;
   }
 
   const storeName = ctx.storeName || ctx.shop;
