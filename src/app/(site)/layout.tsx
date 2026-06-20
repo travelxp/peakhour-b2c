@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Newsreader } from "next/font/google";
+import { Geist, Geist_Mono, Newsreader, Space_Grotesk } from "next/font/google";
 import { connection } from "next/server";
 import { headers } from "next/headers";
 import { ThemeProvider } from "@/providers/theme-provider";
@@ -32,6 +32,13 @@ const newsreader = Newsreader({
   subsets: ["latin"],
   display: "swap",
   preload: false,
+});
+
+// Numeric face for the Peaks currency (balance chips, inline costs) — set in
+// Space Grotesk, tabular, via the --font-space-grotesk variable.
+const spaceGrotesk = Space_Grotesk({
+  variable: "--font-space-grotesk",
+  subsets: ["latin"],
 });
 
 export const metadata: Metadata = {
@@ -68,7 +75,7 @@ export default async function SiteLayout({
   return (
     <html lang="en" data-theme={theme} suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} ${newsreader.variable} font-sans antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} ${newsreader.variable} ${spaceGrotesk.variable} font-sans antialiased`}
       >
         <ThemeProvider>
           <QueryProvider>
