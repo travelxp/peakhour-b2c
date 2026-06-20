@@ -9,7 +9,7 @@ import { getPricing } from "@/lib/pricing";
 import { PeaksGlyph } from "@/components/peaks/peaks-glyph";
 
 export const metadata: Metadata = {
-  title: "Plans — Peakhour.ai for Shopify & WooCommerce",
+  title: "Peakhour Commerce — Plans for Shopify & WooCommerce",
   description:
     "Peakhour.ai commerce plans for Shopify and WooCommerce. Start free, upgrade when you're ready. Every paid plan includes Peaks — the AI credits that power the platform.",
 };
@@ -43,9 +43,15 @@ export default async function PricingPage() {
       <main>
         <section className="border-b">
           <div className="mx-auto max-w-3xl px-4 py-16 text-center sm:px-6">
-            <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">Plans</h1>
+            <span className="mb-3 inline-block rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+              Plans &amp; pricing
+            </span>
+            <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
+              Peakhour Commerce
+            </h1>
             <p className="mx-auto mt-4 max-w-xl text-lg text-muted-foreground">
-              Commerce plans for Shopify and WooCommerce. Start free, upgrade when
+              The live, catalog-grounded AI assistant for Shopify and WooCommerce.
+              Start free, upgrade when
               you&rsquo;re ready — every paid plan includes{" "}
               <Link href="/peaks" className="font-medium underline underline-offset-2">
                 Peaks

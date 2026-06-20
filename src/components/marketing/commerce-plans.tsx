@@ -11,7 +11,7 @@ import {
 import {
   formatMonthly,
   formatYearly,
-  FEATURE_LABELS,
+  featureLabel,
   type ResolvedProduct,
   type ResolvedProductTier,
 } from "@/lib/pricing";
@@ -96,7 +96,16 @@ function TierCard({
   cta: { href: string; external: boolean; label: string };
 }) {
   const isFree = tier.pricing.monthly === 0;
-  const featureLabels = tier.features.map((k) => FEATURE_LABELS[k] ?? k);
+  // Prefer the catalog's own feature name (source of truth, from the API),
+  // falling back to the local label map for any key without a catalog row or
+  // when an older API response omits featureDetails.
+  const detailByKey = new Map(
+    (tier.featureDetails ?? []).map((f) => [f.key, f] as const),
+  );
+  const features = tier.features.map((k) => ({
+    key: k,
+    label: detailByKey.get(k)?.name ?? featureLabel(k),
+  }));
 
   return (
     <Card
@@ -130,8 +139,8 @@ function TierCard({
       </CardHeader>
       <CardContent className="flex flex-1 flex-col gap-4">
         <ul className="flex-1 space-y-2.5 text-sm">
-          {featureLabels.map((label) => (
-            <li key={label} className="flex items-start gap-2.5">
+          {features.map(({ key, label }) => (
+            <li key={key} className="flex items-start gap-2.5">
               <Check className="mt-0.5 size-4 shrink-0 text-primary" />
               {label}
             </li>
