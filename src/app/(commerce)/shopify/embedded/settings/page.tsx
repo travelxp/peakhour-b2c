@@ -76,15 +76,15 @@ function SettingsSkeleton() {
   );
 }
 
-// ── Welcome to Insights Network (post-downgrade) ───────────────────────────────
+// ── Welcome to Growth Network (post-downgrade) ───────────────────────────────
 
-function InsightsNetworkWelcome({ onDismiss }: { onDismiss: () => void }) {
+function GrowthNetworkWelcome({ onDismiss }: { onDismiss: () => void }) {
   return (
     <Page title="You're on the free plan">
       <Card>
         <BlockStack gap="400">
           <Text as="h2" variant="headingLg">
-            Welcome to the Peakhour Insights Network
+            Welcome to the Peakhour Growth Network
           </Text>
           <Text as="p" variant="bodyMd" tone="subdued">
             Your store stays connected and your catalog keeps syncing. You&rsquo;re now part of a
@@ -98,7 +98,7 @@ function InsightsNetworkWelcome({ onDismiss }: { onDismiss: () => void }) {
           </List>
           <InlineStack gap="300">
             <Button variant="primary" url="/shopify/embedded/pin">
-              Explore Insights Network
+              Explore Growth Network
             </Button>
             <Button variant="tertiary" url="/shopify/embedded/subscription">
               Back to Commerce
@@ -254,7 +254,7 @@ export default function SettingsPage() {
   }
 
   if (flash === "downgraded") {
-    return <InsightsNetworkWelcome onDismiss={() => setFlash(null)} />;
+    return <GrowthNetworkWelcome onDismiss={() => setFlash(null)} />;
   }
 
   if (!ctx.connected) {
@@ -411,8 +411,8 @@ export default function SettingsPage() {
             </List>
             <Text as="p" variant="bodyMd">
               {hasPaid
-                ? "You can stay on Peakhour's free Insights Network at no cost — keep your store connected and drop the paid Commerce Assistant."
-                : "You can keep your store connected on the free plan and continue using the Insights Network at no cost."}
+                ? "You can stay on Peakhour's free Growth Network at no cost — keep your store connected and drop the paid Commerce Assistant."
+                : "You can keep your store connected on the free plan and continue using the Growth Network at no cost."}
             </Text>
           </BlockStack>
         </Modal.Section>

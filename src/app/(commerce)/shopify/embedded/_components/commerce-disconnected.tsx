@@ -16,16 +16,16 @@ interface CommerceDisconnectedProps {
    *  already-titled page / card). Defaults to standalone. */
   withPage?: boolean;
   pageTitle?: string;
-  /** Show the "Explore Insights Network" secondary CTA. Off on the Insights
+  /** Show the "Explore Growth Network" secondary CTA. Off on the Growth
    *  Network page itself (would be self-referential). Defaults on. */
-  showInsightsNetworkLink?: boolean;
+  showGrowthNetworkLink?: boolean;
 }
 
 /**
  * The single, consistent "no live Commerce connection" state — used for both a
  * never-linked store and a disconnected one (Disconnect Redesign §1, §2, §10).
  * Always gives the merchant a next action: Reconnect Shopify (primary, escapes
- * the admin iframe to re-run OAuth) or Explore Insights Network (secondary, the
+ * the admin iframe to re-run OAuth) or Explore Growth Network (secondary, the
  * free destination). No blank screens, no dead ends.
  */
 export function CommerceDisconnected({
@@ -34,7 +34,7 @@ export function CommerceDisconnected({
   description = "Your Peakhour account is still active. Reconnect your Shopify store to sync your catalog, enable the AI Commerce Assistant, unlock product insights, and get AI-powered recommendations.",
   withPage = true,
   pageTitle = "Commerce",
-  showInsightsNetworkLink = true,
+  showGrowthNetworkLink = true,
 }: CommerceDisconnectedProps) {
   const content = (
     <EmptyState
@@ -48,9 +48,9 @@ export function CommerceDisconnected({
         },
       }}
       secondaryAction={
-        showInsightsNetworkLink
+        showGrowthNetworkLink
           ? {
-              content: "Explore Insights Network",
+              content: "Explore Growth Network",
               // In-iframe client nav (Polaris linkComponent = Next Link).
               url: "/shopify/embedded/pin",
             }

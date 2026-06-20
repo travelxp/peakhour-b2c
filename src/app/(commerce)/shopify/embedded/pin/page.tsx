@@ -25,10 +25,10 @@ import { CommerceDisconnected } from "../_components/commerce-disconnected";
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 /**
- * Peakhour Insights Network (PIN) — dedicated nav surface.
+ * Peakhour Growth Network (internal code "PIN") — dedicated nav surface.
  *
  * Product rule (Prashant, 2026-06-12): consent is CAPTURED first-time in
- * onboarding (the connect wizard's "Insights Network" step); this page is
+ * onboarding (the connect wizard's "Growth Network" step); this page is
  * the standing home for it afterwards — members see the network, everyone
  * else gets the consent ask with a proper nudge. Settings no longer hosts
  * the membership card.
@@ -42,7 +42,7 @@ interface PinState {
 }
 
 // Truthful-today framing (matches the wizard): benchmarks ship to members
-// FIRST as they roll out — never claimed as visible now. The Insights Network
+// FIRST as they roll out — never claimed as visible now. The Growth Network
 // is positioned as a valuable free destination, not a Commerce setup blocker.
 const INSIGHTS_BENEFITS = [
   "Industry insights and growth trends for stores like yours",
@@ -65,7 +65,7 @@ type Membership = "loading" | "member" | "nonmember" | "unknown" | "notlinked";
 
 /**
  * Privacy First by Design — the standing trust section. Privacy is the
- * Insights Network's key differentiator, so it's surfaced on the page for both
+ * Growth Network's key differentiator, so it's surfaced on the page for both
  * members and prospective members (not just buried in benefit bullets).
  */
 function PrivacyFirstCard() {
@@ -107,7 +107,7 @@ function PrivacyFirstCard() {
 
 function PinSkeleton() {
   return (
-    <SkeletonPage title="Insights Network">
+    <SkeletonPage title="Growth Network">
       <BlockStack gap="500">
         <Card>
           <BlockStack gap="400">
@@ -203,7 +203,7 @@ export default function PinPage() {
         body: JSON.stringify({ action: join ? "opt_in" : "withdraw" }),
       });
       if (!res.ok) {
-        setError("Could not update your Insights Network membership. Please try again.");
+        setError("Could not update your Growth Network membership. Please try again.");
       } else {
         setMembership(join ? "member" : "nonmember");
       }
@@ -217,7 +217,7 @@ export default function PinPage() {
 
   return (
     <Page
-      title="Insights Network"
+      title="Growth Network"
       subtitle="Smart insights. Zero personal tracking. Your identity stays yours."
     >
       <BlockStack gap="500">
@@ -287,7 +287,7 @@ export default function PinPage() {
         {membership === "nonmember" && (
           <Card>
             <BlockStack gap="400">
-              <Text as="h2" variant="headingMd">Join the Peakhour Insights Network</Text>
+              <Text as="h2" variant="headingMd">Join the Peakhour Growth Network</Text>
               <Divider />
               <Text as="p" variant="bodyMd" tone="subdued">
                 A free community for founders and operators growing smarter with AI. Smart insights,
@@ -323,14 +323,14 @@ export default function PinPage() {
           <CommerceDisconnected
             shop={shop}
             withPage={false}
-            showInsightsNetworkLink={false}
+            showGrowthNetworkLink={false}
           />
         )}
 
         {membership === "unknown" && (
           <Card>
             <BlockStack gap="300">
-              <Text as="h2" variant="headingMd">Peakhour Insights Network</Text>
+              <Text as="h2" variant="headingMd">Peakhour Growth Network</Text>
               <Divider />
               <Text as="p" variant="bodyMd" tone="subdued">
                 We couldn&apos;t load your membership status.

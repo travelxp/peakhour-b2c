@@ -76,7 +76,7 @@ const FEATURE_LABELS: Record<string, string> = {
   "commerce.whatsapp": "WhatsApp shopping channel",
   "commerce.in_app_assistant": "In-app product assistant",
   "commerce.multilingual": "Multilingual replies (inc. Hinglish)",
-  "commerce.insights_network": "Insights Network access",
+  "commerce.insights_network": "Growth Network access",
 };
 
 function featureLabel(key: string): string {
@@ -98,7 +98,7 @@ function featureIcon(key: string): typeof CheckCircleIcon {
   return FEATURE_ICONS[key] ?? CheckCircleIcon;
 }
 
-// The free experience IS the Insights Network community — its worth is the
+// The free experience IS the Growth Network community — its worth is the
 // community/insights, not the raw cfg feature keys, so these value props are
 // curated presentation copy (icon + label), not CMS-sourced.
 const INSIGHTS_EXPERIENCE_FEATURES: Array<{ icon: typeof CheckCircleIcon; label: string }> = [
@@ -416,7 +416,7 @@ export default function SubscriptionPage() {
   }
 
   // ── Inactive — experience-first comparison (#4) ──────────────────────────
-  // Two intentional entry points: the free Insights Network community vs the
+  // Two intentional entry points: the free Growth Network community vs the
   // paid Commerce Assistant — not "free vs locked features". The free card is
   // curated community value props; the paid card is CMS-driven (price/trial +
   // feature keys), falling back to the default feature set if tiers failed.
@@ -438,13 +438,13 @@ export default function SubscriptionPage() {
         </BlockStack>
 
         <InlineGrid columns={{ xs: 1, md: 2 }} gap="400">
-          {/* ── Experience 1 — Insights Network (free, standalone value) ── */}
+          {/* ── Experience 1 — Growth Network (free, standalone value) ── */}
           <div className="ph-hover-lift ph-plan-card">
             <Card>
               <BlockStack gap="400">
                 <BlockStack gap="100">
                   <InlineStack align="space-between" blockAlign="center" wrap={false}>
-                    <Text as="h3" variant="headingMd">Insights Network</Text>
+                    <Text as="h3" variant="headingMd">Growth Network</Text>
                     <Badge tone="success">Privacy First</Badge>
                   </InlineStack>
                   <Text as="p" variant="bodySm" tone="subdued">

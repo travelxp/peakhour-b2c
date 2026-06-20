@@ -42,7 +42,7 @@ const DASHBOARD_WHATSAPP_URL = "/dashboard/content/whatsapp";
 
 // ── Step indicator ─────────────────────────────────────────────────────────
 
-const STEP_LABELS = ["Connect account", "Link store", "Insights Network", "WhatsApp", "All set"];
+const STEP_LABELS = ["Connect account", "Link store", "Growth Network", "WhatsApp", "All set"];
 
 // The assistant is the headline value of the connection — these stay truthful
 // to what ships in P1 (catalog-grounded answers on the merchant's own number).
@@ -150,7 +150,7 @@ export function ConnectWizard({ shop, token, reconnect = false }: Props) {
   // reconnectNow), so the error UI offers a reconnect button.
   const [tokenExpired, setTokenExpired] = useState(false);
   // Which step the wizard was on when an error occurred, so the indicator
-  // doesn't show later steps (incl. Insights Network) as completed.
+  // doesn't show later steps (incl. Growth Network) as completed.
   const [failedAt, setFailedAt] = useState(0);
 
   // Restart OAuth for an already-installed app — Shopify skips the grant
@@ -208,7 +208,7 @@ export function ConnectWizard({ shop, token, reconnect = false }: Props) {
 
   // PIN opt-in from the wizard. Consent is never a gate on onboarding — a
   // failed call advances to the WhatsApp step anyway (the merchant can join
-  // later from the Insights Network page in the app nav); the eventual success
+  // later from the Growth Network page in the app nav); the eventual success
   // screen surfaces the join-failed banner instead of implying enrollment.
   const joinNetwork = useCallback(async () => {
     setJoining(true);
@@ -227,7 +227,7 @@ export function ConnectWizard({ shop, token, reconnect = false }: Props) {
   }, []);
 
   // Kick off the WhatsApp connection on peakhour.ai (new top-level tab) and
-  // advance — like the Insights step, this never gates onboarding. The
+  // advance — like the Growth Network step, this never gates onboarding. The
   // merchant can also connect later from the embedded Integrations page.
   const openWhatsApp = useCallback(() => {
     window.open(DASHBOARD_WHATSAPP_URL, "_blank", "noopener,noreferrer");
@@ -382,7 +382,7 @@ export function ConnectWizard({ shop, token, reconnect = false }: Props) {
               </BlockStack>
             )}
 
-            {/* Step 3 — Insights Network opt-in (the Lens-plan knowhow nudge) */}
+            {/* Step 3 — Growth Network opt-in (the Lens-plan knowhow nudge) */}
             {step === "consent" && (
               <BlockStack gap="500">
                 <Banner tone="success" title="Store connected!">
@@ -394,7 +394,7 @@ export function ConnectWizard({ shop, token, reconnect = false }: Props) {
 
                 <BlockStack gap="200">
                   <Text as="h2" variant="headingMd">
-                    Join the Peakhour Insights Network
+                    Join the Peakhour Growth Network
                   </Text>
                   <Text as="p" variant="bodyMd" tone="subdued">
                     Stores in the network contribute anonymized commerce signals — and get
@@ -432,7 +432,7 @@ export function ConnectWizard({ shop, token, reconnect = false }: Props) {
                 </BlockStack>
 
                 <Text as="p" variant="bodySm" tone="subdued" alignment="center">
-                  You can join or leave anytime from the Insights Network page
+                  You can join or leave anytime from the Growth Network page
                   in the app.
                 </Text>
               </BlockStack>
@@ -503,8 +503,8 @@ export function ConnectWizard({ shop, token, reconnect = false }: Props) {
                 {pinJoinFailed && (
                   <Banner tone="warning">
                     <Text as="p" variant="bodyMd">
-                      We couldn&apos;t enroll you in the Insights Network just now — you can
-                      join anytime from the Insights Network page in the app.
+                      We couldn&apos;t enroll you in the Growth Network just now — you can
+                      join anytime from the Growth Network page in the app.
                     </Text>
                   </Banner>
                 )}
