@@ -7,7 +7,7 @@ export function cn(...inputs: ClassValue[]) {
 
 /** Shared site / legal metadata — single source of truth */
 export const SITE = {
-  name: "Peakhour",
+  name: "Peakhour.ai",
   legalLastUpdated: "June 1, 2026",
   /** Operating legal entity (data controller / data fiduciary). */
   company: {

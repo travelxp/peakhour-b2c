@@ -5,13 +5,13 @@ import { Sparkles, Zap, RefreshCw, ArrowRight, Check } from "lucide-react";
 import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
 import { Button } from "@/components/ui/button";
-import { PeaksMark } from "@/components/icons/peaks-mark";
+import { PeakhourMark } from "@/components/icons/peakhour-mark";
 import { getPeaks, formatPackPrice, type PeakPack } from "@/lib/peaks";
 
 export const metadata: Metadata = {
-  title: "Peaks — AI credits that power Peakhour",
+  title: "Peaks — AI credits that power Peakhour.ai",
   description:
-    "Peaks are the AI credits behind every Peakhour feature. Each plan includes a monthly allowance; top up anytime with one-time Peaks packs that stack on your plan.",
+    "Peaks are the AI credits behind every Peakhour.ai feature. Each plan includes a monthly allowance; top up anytime with one-time Peaks packs that stack on your plan.",
 };
 
 /**
@@ -44,11 +44,11 @@ export default async function PeaksPage() {
         <section className="border-b">
           <div className="mx-auto max-w-4xl px-4 py-20 text-center sm:px-6">
             <div className="mx-auto mb-6 inline-flex size-14 items-center justify-center rounded-2xl bg-(--brand,oklch(0.77_0.146_67)) text-(--brand-ink,oklch(0.27_0.05_55)) shadow-sm">
-              <PeaksMark className="size-7" />
+              <PeakhourMark className="size-7" />
             </div>
             <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">Peaks</h1>
             <p className="mx-auto mt-5 max-w-2xl text-lg text-muted-foreground">
-              Peaks are the AI credits that power every Peakhour feature — writing posts,
+              Peaks are the AI credits that power every Peakhour.ai feature — writing posts,
               generating images, scoring engagement, and more. Your plan includes a monthly
               allowance, and you can top up anytime when you need more.
             </p>
@@ -120,7 +120,7 @@ export default async function PeaksPage() {
             ) : (
               <div className="mx-auto mt-12 max-w-xl rounded-xl border bg-card p-8 text-center">
                 <div className="mx-auto mb-4 inline-flex size-10 items-center justify-center rounded-xl bg-(--brand,oklch(0.77_0.146_67)) text-(--brand-ink,oklch(0.27_0.05_55))">
-                  <PeaksMark className="size-5" />
+                  <PeakhourMark className="size-5" />
                 </div>
                 <p className="text-sm text-muted-foreground">
                   Peaks come bundled with every paid plan. Self-serve top-up packs are rolling
@@ -198,7 +198,7 @@ function PackCard({ pack }: { pack: PeakPack }) {
       )}
       <div className="flex items-center gap-2">
         <span className="inline-flex size-7 items-center justify-center rounded-md bg-(--brand,oklch(0.77_0.146_67)) text-(--brand-ink,oklch(0.27_0.05_55))">
-          <PeaksMark className="size-3.5" />
+          <PeakhourMark className="size-3.5" />
         </span>
         <h3 className="font-semibold">{pack.name}</h3>
       </div>

@@ -19,9 +19,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Peakhour — Agentic AI Marketing Platform",
+  title: "Peakhour.ai — Agentic AI Marketing Platform",
   description:
-    "Peakhour is an agentic AI marketing platform: autonomous AI agents analyze your content, create campaigns, and optimize performance across every channel — around the clock.",
+    "Peakhour.ai is an agentic AI marketing platform: autonomous AI agents analyze your content, create campaigns, and optimize performance across every channel — around the clock.",
 };
 
 /**
