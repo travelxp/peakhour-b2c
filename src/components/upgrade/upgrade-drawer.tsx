@@ -50,6 +50,9 @@ export interface UpgradeDrawerProps {
   featureTagline?: string;
   /** Drawer mode. Defaults to "waitlist" — the v1 production posture. */
   mode?: UpgradeDrawerMode;
+  /** In checkout mode, the cfg_plans tier key to subscribe to
+   *  (e.g. "commerce_assistant.commerce_woo"). Required for the checkout CTA. */
+  tier?: string;
   /** Optional intent override; defaults derived from featureKey/addonKey. */
   intent?: "plan_upgrade" | "addon" | "integration" | "general";
   addonKey?: string;
@@ -92,6 +95,7 @@ export function UpgradeDrawer(props: UpgradeDrawerProps) {
     featureName,
     featureTagline,
     mode = "waitlist",
+    tier,
     intent,
     addonKey,
     integrationKey,
@@ -166,6 +170,29 @@ export function UpgradeDrawer(props: UpgradeDrawerProps) {
     } catch (err) {
       toast.error((err as Error)?.message || "Could not join the waitlist");
     } finally {
+      setSubmitting(false);
+    }
+  }
+
+  /**
+   * Checkout mode: ask the API to mint a hosted gateway checkout
+   * (Stripe/Razorpay, chosen server-side by the tier's pricing) and redirect
+   * the browser to it. Errors are surfaced friendly (the API maps raw gateway
+   * errors to a generic message; billing-not-configured returns 503).
+   */
+  async function submitCheckout() {
+    if (!tier) return;
+    setSubmitting(true);
+    try {
+      const r = await api.post<{ url: string }>("/v1/billing/checkout", { tier });
+      if (r?.url) {
+        window.location.href = r.url;
+        return; // navigating away — keep the spinner until unload
+      }
+      toast.error("Could not start checkout. Please try again.");
+      setSubmitting(false);
+    } catch (err) {
+      toast.error((err as Error)?.message || "Could not start checkout. Please try again.");
       setSubmitting(false);
     }
   }
@@ -273,14 +300,11 @@ export function UpgradeDrawer(props: UpgradeDrawerProps) {
             </form>
           ) : null}
 
-          {/* Checkout-mode placeholder. The pricing matrix is wired
-              once we flip drawerMode globally — for now this is a
-              visible reminder that the path exists. */}
+          {/* Checkout mode: confirm + hand off to the hosted gateway. */}
           {mode === "checkout" && !success ? (
-            <div className="rounded-lg border border-dashed bg-muted/30 p-4 text-sm text-muted-foreground">
-              Checkout mode renders the pricing matrix and Stripe/Razorpay
-              handoff. Until public pricing flips on, the drawer ships in
-              waitlist mode.
+            <div className="rounded-lg border bg-muted/30 p-4 text-sm text-muted-foreground">
+              You&apos;ll be taken to our secure checkout to complete your
+              subscription. You can cancel anytime from your billing settings.
             </div>
           ) : null}
 
@@ -333,11 +357,14 @@ export function UpgradeDrawer(props: UpgradeDrawerProps) {
               <Button variant="outline" onClick={() => handleClose(false)} disabled={submitting}>
                 Maybe later
               </Button>
-              <Button onClick={submitWaitlist} disabled={submitting || mode === "checkout"}>
+              <Button
+                onClick={mode === "checkout" ? submitCheckout : submitWaitlist}
+                disabled={submitting || (mode === "checkout" && !tier)}
+              >
                 {submitting ? (
                   <>
                     <Loader2 className="size-4 mr-2 animate-spin" />
-                    Saving…
+                    {mode === "checkout" ? "Starting…" : "Saving…"}
                   </>
                 ) : (
                   <>
