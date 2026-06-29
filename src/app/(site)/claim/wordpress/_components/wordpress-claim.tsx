@@ -226,18 +226,21 @@ export function WordpressClaim() {
             </div>
           )}
 
-          {ready && fetchState === "error" && (
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 text-sm font-medium text-destructive">
-                <AlertCircle className="size-5" aria-hidden />
-                {errCopy(errCode, errMsg).title}
+          {ready && fetchState === "error" && (() => {
+            const ec = errCopy(errCode, errMsg);
+            return (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-sm font-medium text-destructive">
+                  <AlertCircle className="size-5" aria-hidden />
+                  {ec.title}
+                </div>
+                <p className="text-sm text-muted-foreground">{ec.body}</p>
+                <Button asChild variant="outline">
+                  <Link href="/dashboard">Go to dashboard</Link>
+                </Button>
               </div>
-              <p className="text-sm text-muted-foreground">{errCopy(errCode, errMsg).body}</p>
-              <Button asChild variant="outline">
-                <Link href="/dashboard">Go to dashboard</Link>
-              </Button>
-            </div>
-          )}
+            );
+          })()}
         </CardContent>
       </Card>
     </div>
