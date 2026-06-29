@@ -197,14 +197,18 @@ export function RepurposeSheet({ open, onOpenChange, source }: Props) {
       const social = data.adaptations.length;
       const blog = data.blogDrafts?.length ?? 0;
       const total = social + blog;
+      // Keep the existing social-only copy ("variant"); use "draft" for
+      // blog-only and a neutral "item" only for a mixed batch.
+      const noun = blog === 0 ? "variant" : social === 0 ? "draft" : "item";
+      const label = `${total} ${noun}${total === 1 ? "" : "s"}`;
       if (total === 0) {
         toast.info(
           "Nothing generated — every selected channel is either coming soon or failed.",
         );
       } else if (data.idempotent) {
-        toast.success(`Showing your previous repurpose (${total} item${total === 1 ? "" : "s"})`);
+        toast.success(`Showing your previous repurpose (${label})`);
       } else {
-        toast.success(`Generated ${total} item${total === 1 ? "" : "s"}`);
+        toast.success(`Generated ${label}`);
       }
     },
     onError: (err: Error) => {
