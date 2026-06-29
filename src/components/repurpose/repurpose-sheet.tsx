@@ -23,6 +23,7 @@ import {
   CalendarClock,
   ArrowLeft,
   FileEdit,
+  FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -34,6 +35,7 @@ import {
   type PlatformRecommendation,
   type RepurposeResponse,
   type RepurposedAdaptation,
+  type BlogDraftResult,
 } from "@/lib/api/repurpose";
 import { SchedulerComposer } from "@/components/scheduler/scheduler-composer";
 import { sourceTextHash } from "@/lib/scheduler/source-hash";
@@ -189,15 +191,24 @@ export function RepurposeSheet({ open, onOpenChange, source }: Props) {
     mutationFn: (args: { source: RepurposeSource; platforms: string[]; platformFitId: string }) =>
       repurpose(args),
     onSuccess: (data: RepurposeResponse) => {
-      const real = data.adaptations.length;
-      if (real === 0) {
+      // Count BOTH social variants (soc_social_posts) and blog drafts
+      // (cnt_drafts) so a blog-only repurpose isn't mis-reported as "nothing
+      // generated". `?? 0` guards against an API that predates blogDrafts.
+      const social = data.adaptations.length;
+      const blog = data.blogDrafts?.length ?? 0;
+      const total = social + blog;
+      // Keep the existing social-only copy ("variant"); use "draft" for
+      // blog-only and a neutral "item" only for a mixed batch.
+      const noun = blog === 0 ? "variant" : social === 0 ? "draft" : "item";
+      const label = `${total} ${noun}${total === 1 ? "" : "s"}`;
+      if (total === 0) {
         toast.info(
-          "No variants generated — every selected channel is either coming soon or failed.",
+          "Nothing generated — every selected channel is either coming soon or failed.",
         );
       } else if (data.idempotent) {
-        toast.success(`Showing your previous repurpose (${real} variant${real === 1 ? "" : "s"})`);
+        toast.success(`Showing your previous repurpose (${label})`);
       } else {
-        toast.success(`Generated ${real} variant${real === 1 ? "" : "s"}`);
+        toast.success(`Generated ${label}`);
       }
     },
     onError: (err: Error) => {
@@ -645,14 +656,16 @@ function RecommendationList({
               <div className="flex items-center gap-2">
                 <span className={`size-2 rounded-full ${band.dot}`} aria-hidden />
                 <span className="text-sm font-medium">{display.label}</span>
+                {display.isBlog && (
+                  <Badge variant="outline" className="text-[10px]">
+                    Blog article
+                  </Badge>
+                )}
                 <Badge variant="outline" className={`text-[10px] ${band.chip}`}>
                   {band.label}
                 </Badge>
-                {!isHardBlocked && (
-                  <span className="text-[10px] text-muted-foreground tabular-nums">
-                    {r.fitScore}/100
-                  </span>
-                )}
+                {/* No raw fitScore/% — plan §4.5 keeps the score internal
+                    (false precision); the band + rationale carry the signal. */}
               </div>
               <p className="text-xs text-muted-foreground">
                 {r.rationale}
@@ -662,6 +675,20 @@ function RecommendationList({
                   </span>
                 )}
               </p>
+              {/* suggestedAngle — the hook the writer will lead with. Doubles
+                  as a preview of how the piece would read on this channel. */}
+              {r.suggestedAngle && (
+                <p className="text-xs text-foreground/80">
+                  <span className="font-medium">Angle:</span> {r.suggestedAngle}
+                </p>
+              )}
+              {/* Grey but not hard-blocked = selectable with a warning
+                  (plan §4.1: grey is "repurpose anyway?", not fix-first). */}
+              {!isHardBlocked && r.band === "grey" && (
+                <p className="text-[10px] text-amber-600 dark:text-amber-400">
+                  Usually doesn&apos;t land well here — repurpose anyway?
+                </p>
+              )}
             </label>
           </li>
         );
@@ -761,6 +788,12 @@ function DoneState({ response }: { response: RepurposeResponse }) {
           </div>
         );
       })}
+      {/* Long-form blog drafts (WordPress/Shopify). Unlike social variants,
+          these are saved to cnt_drafts as pending_approval — the merchant
+          reviews + publishes them from the channel's content dashboard. */}
+      {(response.blogDrafts ?? []).map((d) => (
+        <BlogDraftCard key={`${d.channel}-${d.draftId}`} draft={d} />
+      ))}
       {response.failedPlatforms.length > 0 && (
         <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3">
           <div className="mb-1 flex items-center gap-2 text-xs font-medium text-destructive">
@@ -780,6 +813,31 @@ function DoneState({ response }: { response: RepurposeResponse }) {
           </ul>
         </div>
       )}
+    </div>
+  );
+}
+
+/** A saved blog article draft (WordPress/Shopify). These don't enter the
+ *  scheduler flow here — they're written to cnt_drafts as pending_approval and
+ *  reviewed/published from the channel's content dashboard. */
+function BlogDraftCard({ draft }: { draft: BlogDraftResult }) {
+  const display = getChannelDisplay(draft.channel);
+  return (
+    <div className="rounded-md border bg-card">
+      <div className="flex items-center gap-2 border-b px-3 py-2">
+        <FileText className="size-4 text-primary" />
+        <span className="text-sm font-medium">{display.label}</span>
+        <Badge variant="outline" className="text-[10px]">
+          Article draft
+        </Badge>
+      </div>
+      <div className="space-y-1 px-3 py-2">
+        <p className="text-sm font-medium">{draft.title}</p>
+        <p className="text-xs text-muted-foreground">
+          Saved as a draft, pending your approval. Review and publish it from your{" "}
+          {display.label} content in Peakhour.
+        </p>
+      </div>
     </div>
   );
 }
