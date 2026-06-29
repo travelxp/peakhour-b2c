@@ -22,11 +22,17 @@ export type PlatformFitHardBlock =
 export interface PlatformRecommendation {
   /** cfg_channels.key — flat lowercase alphanumeric ("linkedin", "x", …) */
   channel: string;
-  /** 0–100 composite fit score */
+  /** 0–100 composite fit score. INTERNAL — sort key / band threshold only.
+   *  Per plan §4.5 it is deliberately NOT rendered to the user (false
+   *  precision); the band + rationale carry everything actionable. */
   fitScore: number;
   band: PlatformFitBand;
-  /** One-line rationale, safe to render verbatim in the UI tooltip */
+  /** One-line rationale, safe to render verbatim in the UI */
   rationale: string;
+  /** The hook/angle to lead with on this channel — set by the LLM
+   *  recommender (tier "industry"/"personal"). Previews how the piece would
+   *  read on the channel AND seeds the write skill. Absent on rules-tier rows. */
+  suggestedAngle?: string;
   /** Present iff the recommender forced grey regardless of soft signals */
   hardBlocks?: PlatformFitHardBlock[];
   /** "linkedin@1.0.0" — useful for ops dashboards, not user-facing */
@@ -102,6 +108,22 @@ export interface RepurposeFailure {
   error: string;
 }
 
+/**
+ * A long-form blog draft produced by the blog_article path (WordPress /
+ * Shopify). Unlike social adaptations (soc_social_posts), these persist to
+ * cnt_drafts as `pending_approval` — the merchant reviews + publishes them
+ * from the content dashboard (or, later, the scheduler). One row per channel.
+ */
+export interface BlogDraftResult {
+  /** cfg_channels.key — "wordpress" | "shopify" */
+  channel: string;
+  /** cnt_drafts._id (string) of the saved blog draft */
+  draftId: string;
+  title: string;
+  /** Which body markup was stored: Gutenberg blocks vs classic HTML. */
+  format: "blocks" | "classic";
+}
+
 export interface RepurposeResponse {
   /** soc_social_posts._id (string) when at least one variant was
    *  persisted; null when every requested platform failed or was a
@@ -109,6 +131,10 @@ export interface RepurposeResponse {
   socialPostId: string | null;
   sourceTitle: string;
   adaptations: RepurposedAdaptation[];
+  /** Long-form blog drafts (cnt_drafts) — populated when a blog_article
+   *  destination (WordPress/Shopify) was requested + connected. Empty for
+   *  the social-only path. */
+  blogDrafts: BlogDraftResult[];
   failedPlatforms: RepurposeFailure[];
   /** True when the route's idempotency short-circuit returned a
    *  prior post instead of generating fresh variants. UI can show
@@ -144,7 +170,19 @@ export interface ChannelDisplay {
   label: string;
   /** Lucide icon name OR null for channels we don't have a brand-true
    *  icon for. Renderer falls back to a generic chip. */
-  icon: "linkedin" | "twitter" | "facebook" | "instagram" | "message-circle" | null;
+  icon:
+    | "linkedin"
+    | "twitter"
+    | "facebook"
+    | "instagram"
+    | "message-circle"
+    | "globe"
+    | "shopping-bag"
+    | null;
+  /** Long-form blog destination (WordPress/Shopify) → the result is a saved
+   *  cnt_drafts article (pending approval), not a social variant. Lets the UI
+   *  branch the recommend/done rendering on a capability, not a channel name. */
+  isBlog?: boolean;
 }
 
 export const CHANNEL_DISPLAY: Record<string, ChannelDisplay> = {
@@ -153,6 +191,9 @@ export const CHANNEL_DISPLAY: Record<string, ChannelDisplay> = {
   facebook: { label: "Facebook", icon: "facebook" },
   instagram: { label: "Instagram", icon: "instagram" },
   threads: { label: "Threads", icon: "message-circle" },
+  // blog_article destinations — the result is a long-form article draft.
+  wordpress: { label: "WordPress", icon: "globe", isBlog: true },
+  shopify: { label: "Shopify blog", icon: "shopping-bag", isBlog: true },
 };
 
 export function getChannelDisplay(channel: string): ChannelDisplay {
@@ -163,6 +204,7 @@ export function getChannelDisplay(channel: string): ChannelDisplay {
 // One place so the chip / row / badge stays consistent across the
 // sheet, suggested-drafts card preview, and any future surface.
 
+// Band copy follows plan §4.5 — qualitative, SME-friendly, never a raw %.
 export const BAND_STYLES: Record<PlatformFitBand, { dot: string; chip: string; label: string }> = {
   green: {
     dot: "bg-emerald-500",
@@ -172,11 +214,11 @@ export const BAND_STYLES: Record<PlatformFitBand, { dot: string; chip: string; l
   amber: {
     dot: "bg-amber-500",
     chip: "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300",
-    label: "Optional",
+    label: "Worth a try",
   },
   grey: {
     dot: "bg-slate-400",
     chip: "border-slate-400/40 bg-slate-400/10 text-slate-600 dark:text-slate-400",
-    label: "Not recommended",
+    label: "Not a fit",
   },
 };
