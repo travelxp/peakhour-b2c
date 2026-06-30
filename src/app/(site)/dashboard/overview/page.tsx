@@ -33,6 +33,7 @@ import { LinkedinIcon } from "@/components/ui/brand-icons";
 import { DiscoveryProgressStrip } from "@/components/dashboard/discovery-progress-strip";
 import { FootprintReviewCard } from "@/components/dashboard/footprint-review-card";
 import { RecommendationsCard } from "@/components/dashboard/recommendations-card";
+import { BrandMirrorCard } from "@/components/dashboard/brand-mirror-card";
 
 interface DashboardStats {
   content: {
@@ -158,6 +159,10 @@ export default function OverviewPage() {
       {discovery?.pendingRecommendations && discovery.pendingRecommendations.length > 0 && (
         <RecommendationsCard recommendations={discovery.pendingRecommendations} />
       )}
+
+      {/* "What we understand about you" — the Brand Mirror. Self-fetching;
+          renders nothing until there is understanding to reflect. */}
+      <BrandMirrorCard />
 
       {isError && (
         <div
