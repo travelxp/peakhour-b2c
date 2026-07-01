@@ -7,6 +7,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/providers/auth-provider";
 import { api, ApiError } from "@/lib/api";
 import { useLocale } from "@/hooks/use-locale";
+import { IntegrationFitAttention } from "@/components/integrations/integration-fit-attention";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
@@ -216,6 +217,9 @@ function SettingsContent() {
       )}
 
       <div className="max-w-3xl space-y-6">
+        {/* Wrong-brand integrations flagged by the fit-reconcile cron. Renders
+            nothing when there's no pollution. */}
+        <IntegrationFitAttention />
         {/* Business Details */}
         <Card>
           <CardHeader>
