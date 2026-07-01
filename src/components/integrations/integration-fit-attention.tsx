@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, ArrowRightLeft } from "lucide-react";
+import { RequestReviewButton } from "@/components/integrations/request-review-button";
 
 /**
  * "Needs attention" surface for the settings page: lists connected accounts the
@@ -114,16 +115,34 @@ export function IntegrationFitAttention() {
                 .
               </p>
             </div>
-            <Button
-              size="sm"
-              variant="outline"
-              className="shrink-0 gap-1.5"
-              disabled={moving === f.connectionId}
-              onClick={() => moveToOwnWorkspace(f)}
-            >
-              <ArrowRightLeft className="h-3.5 w-3.5" />
-              {moving === f.connectionId ? "Moving…" : "Move to its own workspace"}
-            </Button>
+            <div className="flex shrink-0 items-center gap-1.5">
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5"
+                disabled={moving === f.connectionId}
+                onClick={() => moveToOwnWorkspace(f)}
+              >
+                <ArrowRightLeft className="h-3.5 w-3.5" />
+                {moving === f.connectionId ? "Moving…" : "Move to its own workspace"}
+              </Button>
+              <RequestReviewButton
+                provider={f.provider ?? "integration"}
+                anchor={f.fit.anchor}
+                candidate={
+                  f.fit.identity?.value
+                    ? {
+                        identity: {
+                          kind: f.fit.identity.kind === "domain" ? "domain" : "handle",
+                          value: f.fit.identity.value,
+                        },
+                      }
+                    : undefined
+                }
+                variant="ghost"
+                label="Not right?"
+              />
+            </div>
           </div>
         ))}
       </CardContent>
