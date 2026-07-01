@@ -162,7 +162,11 @@ function SettingsContent() {
       queryClient.invalidateQueries({ queryKey: ["linkedin-me"] });
     } else if (searchParams?.get("integration") === "error") {
       setConnectError(
-        oauthErrorMessage(searchParams.get("provider"), searchParams.get("msg")),
+        oauthErrorMessage(
+          searchParams.get("provider"),
+          searchParams.get("msg"),
+          searchParams.get("anchor"),
+        ),
       );
     }
   }, [searchParams, queryClient]);
@@ -445,9 +449,13 @@ function formatProviderName(slug: string): string {
 // Friendly copy for the OAuth callback's ?integration=error&msg=<code>.
 // Codes are emitted by peakhour-api integrations/routes.ts. Unknown codes
 // fall through to a generic message so a new backend code never renders raw.
-function oauthErrorMessage(provider: string | null, msg: string | null): string {
+function oauthErrorMessage(provider: string | null, msg: string | null, anchor?: string | null): string {
   const name = formatProviderName(provider ?? "");
   switch (msg) {
+    case "brand_mismatch":
+      // The integration-fit guard blocked a different-brand account from
+      // attaching to this workspace (one workspace = one business).
+      return `That ${name} account looks like a different brand${anchor ? ` from ${anchor}` : ""}. To keep your content on-message, each workspace is one business — connect it to its own workspace instead.`;
     case "store_already_connected":
       return `That Shopify store is already connected to another business. Each store can be linked to one business at a time.`;
     case "invalid_shop":
