@@ -60,7 +60,11 @@ export function RequestReviewButton({
   }
 
   if (done) {
-    return <span className="text-xs text-muted-foreground">Review requested ✓</span>;
+    return (
+      <span role="status" className="text-xs text-muted-foreground">
+        Review requested ✓
+      </span>
+    );
   }
 
   return (
