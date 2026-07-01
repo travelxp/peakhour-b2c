@@ -8,6 +8,7 @@ import { useAuth } from "@/providers/auth-provider";
 import { api, ApiError } from "@/lib/api";
 import { useLocale } from "@/hooks/use-locale";
 import { IntegrationFitAttention } from "@/components/integrations/integration-fit-attention";
+import { RequestReviewButton } from "@/components/integrations/request-review-button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
@@ -102,6 +103,13 @@ function SettingsContent() {
   const [error, setError] = useState("");
   const [justConnectedProvider, setJustConnectedProvider] = useState<string | null>(null);
   const [connectError, setConnectError] = useState<string | null>(null);
+  // Raw context for a brand_mismatch block, so the user can dispute it ("request
+  // a review"). Null unless the last connect was blocked as a wrong brand.
+  const [mismatchContext, setMismatchContext] = useState<{
+    provider: string;
+    anchor: string | null;
+    candidate: string | null;
+  } | null>(null);
 
   // Edit state
   const [editingBusiness, setEditingBusiness] = useState(false);
@@ -162,13 +170,16 @@ function SettingsContent() {
       queryClient.invalidateQueries({ queryKey: ["content-hub-integrations"] });
       queryClient.invalidateQueries({ queryKey: ["linkedin-me"] });
     } else if (searchParams?.get("integration") === "error") {
-      setConnectError(
-        oauthErrorMessage(
-          searchParams.get("provider"),
-          searchParams.get("msg"),
-          searchParams.get("anchor"),
-        ),
-      );
+      const provider = searchParams.get("provider");
+      const msg = searchParams.get("msg");
+      const anchor = searchParams.get("anchor");
+      setConnectError(oauthErrorMessage(provider, msg, anchor));
+      // Only a brand-mismatch block is disputable via "request a review".
+      if (msg === "brand_mismatch" && provider) {
+        setMismatchContext({ provider, anchor, candidate: searchParams.get("candidate") });
+      } else {
+        setMismatchContext(null);
+      }
     }
   }, [searchParams, queryClient]);
 
@@ -204,9 +215,26 @@ function SettingsContent() {
       )}
 
       {connectError !== null && (
-        <div className="flex items-center gap-2 rounded-lg bg-destructive/10 border border-destructive/20 p-4 text-sm text-destructive">
-          <AlertCircle className="h-4 w-4 shrink-0" />
-          {connectError}
+        <div className="flex flex-col gap-2 rounded-lg bg-destructive/10 border border-destructive/20 p-4 text-sm text-destructive">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            {connectError}
+          </div>
+          {mismatchContext && (
+            <div className="pl-6">
+              <RequestReviewButton
+                provider={mismatchContext.provider}
+                anchor={mismatchContext.anchor}
+                candidate={
+                  mismatchContext.candidate
+                    ? { displayName: mismatchContext.candidate }
+                    : undefined
+                }
+                variant="outline"
+                className="gap-1.5"
+              />
+            </div>
+          )}
         </div>
       )}
 
