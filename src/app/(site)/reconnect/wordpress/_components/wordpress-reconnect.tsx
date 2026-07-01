@@ -27,7 +27,16 @@ function errCopy(code: string, fallback: string): { title: string; body: string 
     case "RECONNECT_NONE":
       return { title: "Nothing to reconnect", body: "Open WordPress and click Reconnect first, then enter the code here." };
     case "RECONNECT_FORBIDDEN":
-      return { title: "No permission", body: "You can only reconnect a site linked to an account you own or admin." };
+      return { title: "No permission", body: "Sign in to the Peakhour account you want to move this site into, then approve the code again." };
+    case "RECONNECT_NO_ACCOUNT":
+      return { title: "No account", body: "Sign in to a Peakhour account to move this site into it." };
+    case "RECONNECT_NO_BUSINESS":
+      return { title: "Set up a business first", body: "Create a business in your account, then approve the code again to move this site in." };
+    case "RECONNECT_ORG_HAS_SITE":
+      return { title: "Already connected", body: "Your account is already connected to this site." };
+    case "INTEGRATION_MISMATCH":
+    case "INTEGRATION_NEEDS_CONFIRMATION":
+      return { title: "Different brand", body: "This site looks like a different brand from your current workspace. Connect it to its own workspace to keep your content on-message." };
     case "RECONNECT_NOT_FOUND":
       return { title: "Site not found", body: "This site is no longer available to reconnect." };
     default:
@@ -45,6 +54,7 @@ export function WordpressReconnect() {
   const [errCode, setErrCode] = useState("");
   const [errMsg, setErrMsg] = useState("");
   const [host, setHost] = useState("");
+  const [adopted, setAdopted] = useState(false);
 
   async function handleApprove() {
     const trimmed = code.trim();
@@ -53,6 +63,7 @@ export function WordpressReconnect() {
     try {
       const r = await approveWordpressReconnect(site, trimmed);
       setHost(r.host || "");
+      setAdopted(!!r.adopted);
       setPhase("done");
     } catch (e: unknown) {
       setErrCode((e as { code?: string })?.code ?? "");
@@ -162,11 +173,12 @@ export function WordpressReconnect() {
             <div className="space-y-3">
               <div className="flex items-center gap-2 text-sm font-medium text-emerald-600 dark:text-emerald-400">
                 <CheckCircle2 className="size-5" aria-hidden />
-                Reconnected!
+                {adopted ? "Moved to your account!" : "Reconnected!"}
               </div>
               <p className="text-sm text-muted-foreground">
-                {host || "Your site"} is linked again. You can close this tab — WordPress will pick
-                it up automatically.
+                {adopted
+                  ? `${host || "Your site"} is now connected to this account. You can close this tab — WordPress will pick it up automatically.`
+                  : `${host || "Your site"} is linked again. You can close this tab — WordPress will pick it up automatically.`}
               </p>
               <Button asChild>
                 <Link href="/dashboard/overview">Go to dashboard</Link>

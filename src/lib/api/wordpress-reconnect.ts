@@ -12,9 +12,10 @@ import { api } from "@/lib/api";
 export async function approveWordpressReconnect(
   site: string,
   code: string,
-): Promise<{ reconnected: boolean; host: string }> {
-  return api.request<{ reconnected: boolean; host: string }>(
+  confirmed?: boolean,
+): Promise<{ reconnected: boolean; host: string; adopted?: boolean }> {
+  return api.request<{ reconnected: boolean; host: string; adopted?: boolean }>(
     "/v1/integrations/wordpress/reconnect-approve",
-    { method: "POST", body: JSON.stringify({ site, code }) },
+    { method: "POST", body: JSON.stringify({ site, code, ...(confirmed ? { confirmed: true } : {}) }) },
   );
 }
