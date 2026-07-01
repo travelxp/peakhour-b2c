@@ -9,6 +9,8 @@ import { api, ApiError } from "@/lib/api";
 import { useLocale } from "@/hooks/use-locale";
 import { IntegrationFitAttention } from "@/components/integrations/integration-fit-attention";
 import { RequestReviewButton } from "@/components/integrations/request-review-button";
+import { CreateWorkspaceButton } from "@/components/integrations/create-workspace-button";
+import { ContactSupportDialog } from "@/components/support/contact-support-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
@@ -200,11 +202,14 @@ function SettingsContent() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight">General</h2>
-        <p className="text-muted-foreground mt-1">
-          Business details, budget, and connected accounts
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">General</h2>
+          <p className="text-muted-foreground mt-1">
+            Business details, budget, and connected accounts
+          </p>
+        </div>
+        <ContactSupportDialog />
       </div>
 
       {justConnectedProvider !== null && (
@@ -221,7 +226,11 @@ function SettingsContent() {
             {connectError}
           </div>
           {mismatchContext && (
-            <div className="pl-6">
+            <div className="flex flex-wrap gap-2 pl-6">
+              <CreateWorkspaceButton
+                provider={mismatchContext.provider}
+                suggestedName={mismatchContext.candidate}
+              />
               <RequestReviewButton
                 provider={mismatchContext.provider}
                 anchor={mismatchContext.anchor}
