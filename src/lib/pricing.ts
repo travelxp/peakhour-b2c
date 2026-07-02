@@ -75,6 +75,8 @@ export interface ResolvedProductTier {
   highlightAsRecommended: boolean;
   version: number;
   pricing: PricingEntry;
+  /** Included free Peaks/month for this tier (undefined = none/unlimited). */
+  peaksIncluded?: number;
 }
 
 /** A delivery channel available in this env, with its purchase path. */

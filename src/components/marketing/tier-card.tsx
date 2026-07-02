@@ -71,6 +71,12 @@ export function TierCard({ tier, cta }: { tier: ResolvedProductTier; cta: TierCt
         {tier.tagline && <CardDescription className="mt-2">{tier.tagline}</CardDescription>}
       </CardHeader>
       <CardContent className="flex flex-1 flex-col gap-4">
+        {typeof tier.peaksIncluded === "number" && tier.peaksIncluded > 0 && (
+          <div className="rounded-md bg-primary/5 px-3 py-2 text-sm">
+            <span className="font-semibold">{tier.peaksIncluded.toLocaleString()} Peaks</span>
+            <span className="text-muted-foreground"> / month included</span>
+          </div>
+        )}
         <ul className="flex-1 space-y-2.5 text-sm">
           {features.map(({ key, label }) => (
             <li key={key} className="flex items-start gap-2.5">
