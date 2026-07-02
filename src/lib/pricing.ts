@@ -77,6 +77,13 @@ export interface ResolvedProductTier {
   pricing: PricingEntry;
 }
 
+/** A delivery channel available in this env, with its purchase path. */
+export interface ResolvedChannel {
+  key: string;
+  status: string;
+  purchaseMode: string;
+}
+
 /** A product with its resolved tiers (e.g. Commerce Assistant: [Lens, Commerce]). */
 export interface ResolvedProduct {
   key: string;
@@ -84,6 +91,9 @@ export interface ResolvedProduct {
   tagline?: string;
   pillar: string;
   status: string;
+  /** Delivery channels available in this env (in_development/hidden suppressed
+   *  in prod), each with its per-channel status + purchase path. */
+  channels?: ResolvedChannel[];
   tiers: ResolvedProductTier[];
 }
 
