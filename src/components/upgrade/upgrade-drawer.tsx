@@ -51,7 +51,7 @@ export interface UpgradeDrawerProps {
   /** Drawer mode. Defaults to "waitlist" — the v1 production posture. */
   mode?: UpgradeDrawerMode;
   /** In checkout mode, the cfg_plans tier key to subscribe to
-   *  (e.g. "commerce_assistant.commerce_woo"). Required for the checkout CTA. */
+   *  (e.g. "commerce_assistant.paid"). Required for the checkout CTA. */
   tier?: string;
   /** Optional intent override; defaults derived from featureKey/addonKey. */
   intent?: "plan_upgrade" | "addon" | "integration" | "general";

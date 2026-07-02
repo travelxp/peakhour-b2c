@@ -336,7 +336,9 @@ export default function SubscriptionPage() {
   const hasAnnual = !!ctx?.pricing?.annual;
   // Extract once so ternary branches can reference it without non-null assertions.
   const trialDays = ctx?.pricing?.trialDays ?? 0;
-  const commerceTier = tiers.find((t) => t.key === "commerce_assistant.commerce");
+  // 10-plan catalog: the paid Commerce tier is commerce_assistant.paid
+  // (was the retired commerce_assistant.commerce).
+  const commerceTier = tiers.find((t) => t.key === "commerce_assistant.paid");
   const savings = annualSavings(commerceTier);
 
   // ── Active ───────────────────────────────────────────────────────────────
