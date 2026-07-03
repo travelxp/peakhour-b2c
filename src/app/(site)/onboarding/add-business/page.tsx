@@ -16,6 +16,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Sparkles, Globe, ArrowRight } from "lucide-react";
+import { BusinessExplainer } from "@/components/onboarding/business-explainer";
 import {
   GoogleIcon,
   InstagramIcon,
@@ -363,6 +364,8 @@ function AddBusinessContent() {
         </div>
       </div>
       )}
+
+      <BusinessExplainer />
     </div>
   );
 }

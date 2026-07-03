@@ -35,6 +35,9 @@ export interface PricingEntry {
   vatApplicable: boolean;
   displayPrefix?: string;
   tagline?: string;
+  /** Per-Business add-on price (paid plans). Absent = single-Business plan. */
+  additionalBusinessMonthly?: number;
+  additionalBusinessYearly?: number;
 }
 
 export interface ResolvedPlan {
