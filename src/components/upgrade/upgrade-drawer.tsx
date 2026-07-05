@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { PaymentModal, type CheckoutResult } from "@/components/upgrade/payment-modal";
 
 /**
  * UpgradeDrawer — reusable Sheet that opens on any plan-gated
@@ -107,6 +108,8 @@ export function UpgradeDrawer(props: UpgradeDrawerProps) {
   const [email, setEmail] = useState(user?.email ?? "");
   const [businessContext, setBusinessContext] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  // When checkout mints a gateway payload, this opens the on-site PaymentModal.
+  const [checkoutResult, setCheckoutResult] = useState<CheckoutResult | null>(null);
   const [success, setSuccess] = useState<{
     referralCode: string;
     foundingMember: boolean;
@@ -184,10 +187,11 @@ export function UpgradeDrawer(props: UpgradeDrawerProps) {
     if (!tier) return;
     setSubmitting(true);
     try {
-      const r = await api.post<{ url: string }>("/v1/billing/checkout", { tier });
-      if (r?.url) {
-        window.location.href = r.url;
-        return; // navigating away — keep the spinner until unload
+      const r = await api.post<CheckoutResult>("/v1/billing/checkout", { tier });
+      if (r?.gateway && r?.embed) {
+        setCheckoutResult(r); // opens the on-site PaymentModal overlay
+        setSubmitting(false);
+        return;
       }
       toast.error("Could not start checkout. Please try again.");
       setSubmitting(false);
@@ -216,6 +220,7 @@ export function UpgradeDrawer(props: UpgradeDrawerProps) {
   }
 
   return (
+    <>
     <Sheet open={open} onOpenChange={handleClose}>
       <SheetContent className="sm:max-w-md flex flex-col">
         <SheetHeader>
@@ -378,5 +383,16 @@ export function UpgradeDrawer(props: UpgradeDrawerProps) {
         </SheetFooter>
       </SheetContent>
     </Sheet>
+    <PaymentModal
+      checkout={checkoutResult}
+      onOpenChange={(o) => {
+        if (!o) setCheckoutResult(null);
+      }}
+      onSuccess={() => {
+        setCheckoutResult(null);
+        toast.success("Payment received — activating your plan…");
+      }}
+    />
+    </>
   );
 }
