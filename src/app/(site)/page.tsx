@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import {
   ArrowRight,
   Sparkles,
@@ -103,7 +104,30 @@ const INTEGRATIONS = [
   { name: "X (Twitter)", icon: TwitterIcon, color: "bg-black", description: "Posts & promoted content" },
 ] as const;
 
-export default async function Home() {
+// Same validator as /auth — sanitises a tampered ?ref= so the redirect target
+// only ever carries a well-formed inviter code.
+const REFERRAL_CODE_PATTERN = /^[0-9A-Z]{4,32}$/;
+
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ ref?: string | string[]; n?: string | string[] }>;
+}) {
+  // Back-compat redirect for waitlist share links minted with the old
+  // `/?ref=…` shape → forward to /auth so the inviter code is captured + the
+  // inviter credited on signup. `n` (cache-bust nonce) forwarded when present.
+  const params = await searchParams;
+  const refRaw = Array.isArray(params.ref) ? params.ref[0] : params.ref;
+  const nRaw = Array.isArray(params.n) ? params.n[0] : params.n;
+  if (refRaw) {
+    const refUpper = refRaw.toUpperCase();
+    if (REFERRAL_CODE_PATTERN.test(refUpper)) {
+      const qs = new URLSearchParams({ ref: refUpper });
+      if (nRaw) qs.set("n", nRaw);
+      redirect(`/auth?${qs.toString()}`);
+    }
+  }
+
   // Integration catalog from the platform resolver (CMS-driven, env-gated,
   // stage-capped). Falls back to the static list below if the API is
   // unreachable so the landing never hard-fails (mirrors the pricing fallback).
