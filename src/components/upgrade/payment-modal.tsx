@@ -51,7 +51,12 @@ function loadScript(src: string, id: string): Promise<void> {
     s.id = id;
     s.async = true;
     s.onload = () => resolve();
-    s.onerror = () => reject(new Error(`Failed to load ${src}`));
+    s.onerror = () => {
+      // Remove the failed tag so a later attempt actually re-injects instead of
+      // seeing a dead tag by id and resolving against a missing global.
+      s.remove();
+      reject(new Error(`Failed to load ${src}`));
+    };
     document.body.appendChild(s);
   });
 }
@@ -84,13 +89,32 @@ function StripeEmbedded({
   onOpenChange: (open: boolean) => void;
 }) {
   const isMobile = useIsMobile();
+  // useIsMobile resolves false→real inside an effect; gate the first paint on a
+  // `mounted` flag so the correct shell (Dialog vs Drawer) is chosen ONCE —
+  // otherwise the Stripe embedded iframe mounts in Dialog then remounts in
+  // Drawer on mobile ("multiple Embedded Checkout objects").
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
+  // Missing keys (e.g. STRIPE_PUBLISHABLE_KEY unset) would make loadStripe('')
+  // reject into a blank modal — fail friendly instead.
+  const invalid = !embed.publishableKey || !embed.clientSecret;
+  useEffect(() => {
+    if (invalid) {
+      toast.error("Payment isn't available right now. Please try again later.");
+      onOpenChange(false);
+    }
+  }, [invalid, onOpenChange]);
+
   // loadStripe returns a promise; memoise per publishable key so we don't
   // re-init Stripe.js on every render.
-  const stripePromise = useMemo<Promise<Stripe | null>>(
-    () => loadStripe(embed.publishableKey),
-    [embed.publishableKey],
+  const stripePromise = useMemo<Promise<Stripe | null> | null>(
+    () => (invalid ? null : loadStripe(embed.publishableKey)),
+    [invalid, embed.publishableKey],
   );
   const options = useMemo(() => ({ clientSecret: embed.clientSecret }), [embed.clientSecret]);
+
+  if (invalid || !mounted) return null;
 
   const body = (
     <EmbeddedCheckoutProvider stripe={stripePromise} options={options}>
@@ -105,7 +129,11 @@ function StripeEmbedded({
           <DrawerHeader className="sr-only">
             <DrawerTitle>Complete your payment</DrawerTitle>
           </DrawerHeader>
-          <div className="overflow-y-auto px-2 pb-4">{body}</div>
+          {/* data-vaul-no-drag: let the Stripe iframe scroll without vaul
+              hijacking the touch as a drag-to-dismiss gesture. */}
+          <div data-vaul-no-drag className="overflow-y-auto px-2 pb-4">
+            {body}
+          </div>
         </DrawerContent>
       </Drawer>
     );

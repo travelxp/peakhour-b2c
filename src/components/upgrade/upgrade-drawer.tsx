@@ -123,6 +123,7 @@ export function UpgradeDrawer(props: UpgradeDrawerProps) {
     setBusinessContext("");
     setSuccess(null);
     setSubmitting(false);
+    setCheckoutResult(null); // dismiss any open payment overlay with the drawer
   }
 
   function handleClose(next: boolean) {
