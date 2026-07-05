@@ -16,8 +16,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { ApiError } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import { SITE } from "@/lib/utils";
+
+// Bounded length + char set so a tampered link can't smuggle arbitrary strings
+// into the waitlist payload. Mirrors the referredByCode validator on
+// /v1/waitlist/signup (min 4, max 32); the mint alphabet is a stricter subset.
+const REFERRAL_CODE_PATTERN = /^[0-9A-Z]{4,32}$/;
 
 /**
  * Mirrors peakhour-cms/src/app/login/login-form.tsx so the b2c
@@ -97,6 +102,14 @@ const INTENT_COPY: Record<string, { title: string; subtitle: string }> = {
 function AuthPageInner() {
   const searchParams = useSearchParams();
   const intentCopy = INTENT_COPY[searchParams.get("intent") ?? ""];
+  // Inviter code from a `?ref=` share link, sanitised — any non-conforming
+  // value is dropped so the page behaves as a plain sign-in. null = no inviter.
+  const referralCode = (() => {
+    const raw = searchParams.get("ref");
+    if (!raw) return null;
+    const upper = raw.toUpperCase();
+    return REFERRAL_CODE_PATTERN.test(upper) ? upper : null;
+  })();
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   // Tick once per second while a cooldown is running so the button
@@ -173,6 +186,20 @@ function AuthPageInner() {
         : Date.now() + RESEND_COOLDOWN_SECONDS * 1000;
 
     try {
+      // Referral credit fires alongside (not before) the magic link so a
+      // transient signup error can't block sign-in. The waitlist endpoint is
+      // idempotent on (email, active), so a resend with the same code is safe;
+      // only the initial send attempts it. Best-effort — never surfaced.
+      if (referralCode && mode === "send") {
+        api
+          .post("/v1/waitlist/signup", {
+            email: targetEmail,
+            intent: "general",
+            referredByCode: referralCode,
+            channel: "direct",
+          })
+          .catch(() => {});
+      }
       const res = await sendMagicLink(targetEmail);
       // Pre-launch invite gate: the endpoint may return without sending a
       // link. Branch to the matching card instead of the "check your email"
@@ -302,6 +329,17 @@ function AuthPageInner() {
 
       {/* Right panel — auth form */}
       <div className="flex flex-1 flex-col">
+        {referralCode ? (
+          <div
+            role="status"
+            className="border-b bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200"
+          >
+            <div className="mx-auto flex max-w-md items-center gap-2">
+              <Sparkles className="size-4 shrink-0" aria-hidden />
+              <span>You were invited by a friend. Sign up to claim your spot.</span>
+            </div>
+          </div>
+        ) : null}
         <div className="flex flex-1 items-center justify-center px-4 py-12">
           {status.kind === "waitlisted" ? (
             <Card className="w-full max-w-md">
