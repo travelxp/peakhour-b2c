@@ -69,6 +69,31 @@ interface StatusResult {
   phoneRegistered?: boolean;
 }
 
+/** Onboarding surface — drives F5 attribution and (for shopify) the store→
+ *  business resolution. */
+type ConnectSource = "peakhour" | "shopify" | "wordpress";
+
+/** Result of GET /v1/meta/whatsapp/target-business?shop=… — resolves which
+ *  Peakhour business a launched-from store binds to, so the connect can't
+ *  land on whatever workspace the dashboard tab last had active. */
+interface TargetBusinessResult {
+  shop: string;
+  isMember: boolean;
+  businessId?: string;
+  businessName?: string | null;
+  matchesActive?: boolean;
+}
+
+/** Resolution phases for the store→business lookup (shop flow only). */
+type TargetPhase = "na" | "resolving" | "ok" | "not_linked" | "not_member" | "error";
+
+interface TargetState {
+  phase: TargetPhase;
+  businessId?: string;
+  businessName?: string | null;
+  matchesActive?: boolean;
+}
+
 /** The connected-account info the UI renders, from either source. */
 interface ConnectionInfo {
   name?: string;
@@ -177,8 +202,16 @@ function watchdogHint(d: EsDiag): string {
 
 export function WhatsAppEmbeddedSignup({
   onConnected,
+  shop,
+  source = "peakhour",
 }: {
   onConnected?: (result: ConnectResult) => void;
+  /** When launched from a Shopify store (deep link carries ?shop=…): the store
+   *  domain, used to resolve + bind the WABA to the store's business rather
+   *  than the ambient session business. */
+  shop?: string;
+  /** F5 attribution surface; also selects the shop-flow behaviour. */
+  source?: ConnectSource;
 }) {
   const sdkState = useFacebookSdk(APP_ID);
   const configured = Boolean(APP_ID && CONFIG_ID);
@@ -187,6 +220,10 @@ export function WhatsAppEmbeddedSignup({
   const [error, setError] = useState<string | null>(null);
   const [connection, setConnection] = useState<ConnectionInfo | null>(null);
   const [needsReauth, setNeedsReauth] = useState(false);
+  // Store→business resolution (shop flow only). "na" when no shop was passed.
+  const [target, setTarget] = useState<TargetState>({
+    phase: shop ? "resolving" : "na",
+  });
   // Coexistence is the default — most SMBs already live in the WhatsApp
   // Business app, and keeping it is the whole point of the variant.
   const [flow, setFlow] = useState<ConnectFlow>("coexistence");
@@ -238,9 +275,56 @@ export function WhatsAppEmbeddedSignup({
     completingRef.current = false;
   };
 
-  // ── Status on mount: reflect an existing connection instead of always
-  //    showing "Connect" (and surface needs-reauth as a repair prompt). ──
+  // ── Shop flow: resolve which business this store binds to. Runs BEFORE
+  //    (and instead of) the session-scoped status check, because a store
+  //    launched from Shopify may belong to a different workspace than the one
+  //    this dashboard tab has active — the session status would reflect the
+  //    wrong business. On success the connect binds server-side to this
+  //    businessId regardless of the active session business. ──
   useEffect(() => {
+    if (!shop) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const t = await api.get<TargetBusinessResult>(
+          "/v1/meta/whatsapp/target-business",
+          { shop },
+        );
+        if (cancelled) return;
+        if (!t.isMember || !t.businessId) {
+          setTarget({ phase: "not_member" });
+        } else {
+          setTarget({
+            phase: "ok",
+            businessId: t.businessId,
+            businessName: t.businessName ?? null,
+            matchesActive: t.matchesActive,
+          });
+        }
+        setPhase("idle");
+      } catch (err) {
+        if (cancelled) return;
+        // 404 = the store isn't linked to Peakhour yet (distinct, actionable);
+        // anything else is a transient/unknown failure.
+        setTarget({
+          phase: err instanceof ApiError && err.code === "STORE_NOT_LINKED"
+            ? "not_linked"
+            : "error",
+        });
+        setPhase("idle");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [shop]);
+
+  // ── Status on mount: reflect an existing connection instead of always
+  //    showing "Connect" (and surface needs-reauth as a repair prompt).
+  //    Skipped in the shop flow (session-scoped; would read the wrong
+  //    business) — the resolver above drives the phase there. ──
+  useEffect(() => {
+    if (shop) return;
     let cancelled = false;
     (async () => {
       try {
@@ -264,7 +348,7 @@ export function WhatsAppEmbeddedSignup({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [shop]);
 
   const complete = useCallback(async () => {
     if (completingRef.current) return;
@@ -285,7 +369,10 @@ export function WhatsAppEmbeddedSignup({
           wabaId,
           ...(phoneNumberId ? { phoneNumberId } : {}),
           flow: flowRef.current,
-          source: "peakhour",
+          source,
+          // Shop flow: bind to the store's business (authorized server-side
+          // against org membership), NOT the ambient session business.
+          ...(target.businessId ? { businessId: target.businessId } : {}),
         },
       );
       setConnection({
@@ -306,7 +393,7 @@ export function WhatsAppEmbeddedSignup({
     } finally {
       resetPieces();
     }
-  }, [onConnected]);
+  }, [onConnected, source, target.businessId]);
 
   // Capture the WABA + phone ids from Meta's Embedded Signup session-info event.
   useEffect(() => {
@@ -657,9 +744,53 @@ export function WhatsAppEmbeddedSignup({
     );
   }
 
+  // ── Shop flow blocked: can't safely connect until the store resolves to a
+  //    workspace the signed-in user owns. Rendered instead of the connect card
+  //    so a wrong-workspace bind is impossible. ──
+  if (
+    shop &&
+    (target.phase === "not_linked" ||
+      target.phase === "not_member" ||
+      target.phase === "error")
+  ) {
+    const blocked =
+      target.phase === "not_linked"
+        ? {
+            title: "Finish linking your store first",
+            body: `${shop} isn’t linked to Peakhour yet. Complete store setup, then connect WhatsApp from your store’s Integrations page.`,
+          }
+        : target.phase === "not_member"
+          ? {
+              title: "Sign in with the store’s account",
+              body: `You’re signed in with a different Peakhour account than the one that owns ${shop}. Sign in with that account, then reopen “Connect WhatsApp” from your store.`,
+            }
+          : {
+              title: "Couldn’t verify your store",
+              body: `We couldn’t confirm which workspace ${shop} belongs to. Please try again in a moment.`,
+            };
+    return (
+      <Card className="border-amber-500/40 bg-amber-500/5">
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <span className="flex size-10 items-center justify-center rounded-full bg-amber-500/15">
+              <AlertCircle className="size-5 text-amber-600" />
+            </span>
+            <div>
+              <CardTitle className="text-base">{blocked.title}</CardTitle>
+              <CardDescription>{blocked.body}</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+      </Card>
+    );
+  }
+
   // ── Connect card (idle / launching / connecting) ─────────────
   const busy = phase === "launching" || phase === "connecting";
   const disabled = !configured || sdkState !== "ready" || busy;
+  // Shop flow must have a resolved target before the button is usable (guards
+  // the brief window between mount and the resolver settling).
+  const awaitingTarget = Boolean(shop) && target.phase !== "ok";
 
   return (
     <Card>
@@ -684,6 +815,39 @@ export function WhatsAppEmbeddedSignup({
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
+        {/* Shop flow: always show WHICH workspace this binds to. When the
+            dashboard's active workspace differs, say so loudly — this is the
+            exact silent mis-bind the resolver exists to prevent. */}
+        {target.phase === "ok" && (
+          <div
+            className={`rounded-md border p-3 text-sm ${
+              target.matchesActive === false
+                ? "border-amber-500/40 bg-amber-500/5 text-amber-700"
+                : "border-border bg-muted/40 text-muted-foreground"
+            }`}
+          >
+            {target.matchesActive === false ? (
+              <>
+                WhatsApp will connect to{" "}
+                <strong className="font-medium">
+                  {target.businessName ?? "this store’s workspace"}
+                </strong>{" "}
+                — the workspace this store belongs to. Your dashboard is
+                currently in a different workspace; the connection still binds
+                to the store’s workspace.
+              </>
+            ) : (
+              <>
+                Connecting WhatsApp for{" "}
+                <strong className="font-medium text-foreground">
+                  {target.businessName ?? "this store’s workspace"}
+                </strong>
+                .
+              </>
+            )}
+          </div>
+        )}
+
         {needsReauth && (
           <p role="alert" className="flex items-start gap-2 text-sm text-amber-600">
             <AlertCircle className="mt-0.5 size-4 shrink-0" />
@@ -746,7 +910,7 @@ export function WhatsAppEmbeddedSignup({
           </button>
         </div>
 
-        <Button onClick={launch} disabled={disabled} size="lg" className="gap-2">
+        <Button onClick={launch} disabled={disabled || awaitingTarget} size="lg" className="gap-2">
           {busy ? (
             <>
               <Loader2 className="size-4 animate-spin" />

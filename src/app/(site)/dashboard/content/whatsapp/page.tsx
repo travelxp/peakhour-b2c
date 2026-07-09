@@ -1,8 +1,22 @@
-"use client";
-
 import { WhatsAppEmbeddedSignup } from "@/components/integrations/whatsapp-embedded-signup";
 
-export default function WhatsAppConnectPage() {
+type ConnectSource = "peakhour" | "shopify" | "wordpress";
+
+interface Props {
+  // Deep links from a connected store carry ?shop=<domain>&source=shopify so
+  // the WABA binds to THAT store's business, not whichever workspace this
+  // dashboard tab last had active. Next 16: searchParams is a Promise.
+  searchParams: Promise<{ shop?: string; source?: string }>;
+}
+
+function normalizeSource(raw?: string): ConnectSource {
+  return raw === "shopify" || raw === "wordpress" ? raw : "peakhour";
+}
+
+export default async function WhatsAppConnectPage({ searchParams }: Props) {
+  const { shop, source } = await searchParams;
+  const trimmedShop = shop?.trim();
+
   return (
     <div className="mx-auto w-full max-w-2xl space-y-6 p-4 md:p-6">
       <div>
@@ -13,7 +27,10 @@ export default function WhatsAppConnectPage() {
         </p>
       </div>
 
-      <WhatsAppEmbeddedSignup />
+      <WhatsAppEmbeddedSignup
+        shop={trimmedShop || undefined}
+        source={normalizeSource(source)}
+      />
     </div>
   );
 }
