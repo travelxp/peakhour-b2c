@@ -31,6 +31,19 @@ export default async function WhatsAppConnectPage({ searchParams }: Props) {
         shop={trimmedShop || undefined}
         source={normalizeSource(source)}
       />
+
+      <div className="rounded-lg border p-4">
+        <h2 className="text-sm font-medium">Message templates</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Draft, policy-check, and submit WhatsApp templates for approval — with a live preview.
+        </p>
+        <a
+          href="/dashboard/content/whatsapp/templates"
+          className="mt-2 inline-block text-sm font-medium text-primary hover:underline"
+        >
+          Open the Template Studio →
+        </a>
+      </div>
     </div>
   );
 }
