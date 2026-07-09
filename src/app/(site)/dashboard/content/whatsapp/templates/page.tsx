@@ -181,19 +181,26 @@ export default function WhatsAppTemplatesPage() {
       name: t.name,
       language: t.language,
       category: t.category,
-      components: t.components ?? { body: { text: "" } },
+      // Guard a present-but-body-less components blob (legacy/partial data) —
+      // body is required by the editor + preview.
+      components: { ...t.components, body: t.components?.body ?? { text: "" } },
     });
     setIssues(null);
   }
 
+  // Any content/category edit invalidates the last policy-lint result, so the
+  // submit gate (errorCount) can't act on stale issues.
   function setBody(text: string) {
     setEditor((e) => ({ ...e, components: { ...e.components, body: { text } } }));
+    setIssues(null);
   }
   function setHeader(text: string) {
     setEditor((e) => ({ ...e, components: { ...e.components, header: text ? { format: "TEXT", text } : undefined } }));
+    setIssues(null);
   }
   function setFooter(text: string) {
     setEditor((e) => ({ ...e, components: { ...e.components, footer: text ? { text } : undefined } }));
+    setIssues(null);
   }
 
   const canSave = editor.name.trim().length > 0 && editor.components.body.text.trim().length > 0;
@@ -239,7 +246,7 @@ export default function WhatsAppTemplatesPage() {
               </div>
               <div className="space-y-1.5">
                 <Label>Category</Label>
-                <Select value={editor.category} onValueChange={(v) => setEditor((x) => ({ ...x, category: v as Category }))}>
+                <Select value={editor.category} onValueChange={(v) => { setEditor((x) => ({ ...x, category: v as Category })); setIssues(null); }}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="UTILITY">Utility</SelectItem>
