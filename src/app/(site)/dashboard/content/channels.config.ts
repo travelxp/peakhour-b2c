@@ -225,7 +225,9 @@ export const CHANNELS: readonly ChannelConfig[] = [
     category: "Messaging",
     // Virtual Meta capability — see facebook-pages note above.
     providerKey: "whatsapp",
-    status: "available",
+    // LIVE (WABA build): autonomous agent, Template Studio, outcome billing,
+    // inbox, and analytics all shipped.
+    status: "live",
     // Self-serve connect via Embedded Signup lives on its own in-app page
     // (not the generic /dashboard/integrations OAuth grid).
     dashboardPath: "/dashboard/content/whatsapp",
