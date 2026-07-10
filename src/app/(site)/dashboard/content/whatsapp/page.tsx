@@ -44,6 +44,19 @@ export default async function WhatsAppConnectPage({ searchParams }: Props) {
           Open the Template Studio →
         </a>
       </div>
+
+      <div className="rounded-lg border p-4">
+        <h2 className="text-sm font-medium">Outcomes</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Resolved conversations, assisted orders, and Peaks spent — you’re billed on outcomes, not chatter.
+        </p>
+        <a
+          href="/dashboard/content/whatsapp/analytics"
+          className="mt-2 inline-block text-sm font-medium text-primary hover:underline"
+        >
+          View WhatsApp analytics →
+        </a>
+      </div>
     </div>
   );
 }
