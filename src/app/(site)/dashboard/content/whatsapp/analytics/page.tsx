@@ -6,6 +6,7 @@ import { KpiCard } from "@/components/molecules/kpi-card";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Peaks } from "@/components/peaks/peaks";
+import { AskYourInbox } from "@/components/whatsapp/ask-your-inbox";
 import { useWaAnalytics } from "@/hooks/use-wa-analytics";
 
 const PILLAR_LABEL: Record<string, string> = {
@@ -31,6 +32,8 @@ export default function WhatsAppAnalyticsPage() {
           What your WhatsApp assistant delivered in the last {data?.windowDays ?? 30} days. You’re billed on outcomes, not chatter.
         </p>
       </div>
+
+      <AskYourInbox />
 
       {isLoading ? (
         <div className="grid gap-4 sm:grid-cols-3">
