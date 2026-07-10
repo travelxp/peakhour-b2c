@@ -55,6 +55,7 @@ import {
   ChevronRight,
   ListChecks,
   Zap,
+  MessagesSquare,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -126,6 +127,7 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/dashboard/optimizer", label: "Optimizer" },
         ],
       },
+      { href: "/dashboard/inbox", label: "Inbox", icon: MessagesSquare },
       { href: "/dashboard/tasks", label: "Tasks", icon: ListChecks, badge: () => <RunningJobsBadge /> },
       { href: "/dashboard/integrations", label: "Integrations", icon: Plug },
       { href: "/dashboard/peaks", label: "Peaks", icon: Zap },
