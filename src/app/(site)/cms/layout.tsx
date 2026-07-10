@@ -51,6 +51,7 @@ import {
   Workflow,
   CalendarClock,
   HardDrive,
+  Package,
   type LucideIcon,
 } from "lucide-react";
 
@@ -70,6 +71,12 @@ const CMS_NAV_GROUPS: NavGroup[] = [
     label: "",
     items: [
       { href: "/cms/overview", label: "Overview", icon: LayoutDashboard },
+    ],
+  },
+  {
+    label: "Catalog",
+    items: [
+      { href: "/cms/catalog", label: "Products & Copy", icon: Package },
     ],
   },
   {
