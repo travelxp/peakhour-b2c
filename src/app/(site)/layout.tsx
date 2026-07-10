@@ -32,10 +32,9 @@ export const metadata: Metadata = {
 };
 
 /**
- * Root layout for the site surface — one of this app's multiple root layouts.
- * The Shopify commerce surface (/shopify/**) has its own root layout at
- * (commerce)/layout.tsx so it stays free of Tailwind's preflight reset and
- * can load App Bridge synchronously first in <head> (requirement 2.2.3).
+ * Root layout for the site surface — this app's single root layout. (The
+ * Shopify embedded app no longer lives here; it moved to the dedicated
+ * peakhour-shopify repo.)
  */
 export default async function SiteLayout({
   children,

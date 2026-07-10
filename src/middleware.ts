@@ -11,70 +11,16 @@ const apiOrigin = (() => {
   }
 })();
 
-/** The embedded Shopify surface must be iframeable by Shopify admin and load
- *  App Bridge from Shopify's CDN — so those routes get a distinct CSP. Every
- *  other route keeps `frame-ancestors 'none'`. */
-function isShopifyEmbeddedPath(pathname: string): boolean {
-  return pathname === "/shopify/embedded" || pathname.startsWith("/shopify/embedded/");
-}
-
-/** The whole /shopify/** surface (embedded + connect) shares one root layout
- *  that loads App Bridge from cdn.shopify.com synchronously in <head>
- *  (App Store requirement 2.2.3) — so script/connect allowances for the
- *  Shopify CDN apply to all of it. Only the embedded subtree is iframed by
- *  Shopify admin, so frame-ancestors stays keyed on isShopifyEmbeddedPath. */
-function isShopifyPath(pathname: string): boolean {
-  return pathname === "/shopify" || pathname.startsWith("/shopify/");
-}
-
-/** Defense-in-depth for the embedded app entry. Shopify iframes the embedded
- *  app at its `application_url`, which now points straight at the embedded
- *  surface (`…/shopify/embedded`, see peakhour-api/shopify.app.toml) — so a
- *  normal open / refresh / deep-link lands the iframe directly on a frameable
- *  route and this rewrite never fires. It still catches the BARE-HOST entry
- *  (`/?host=…&embedded=1`): stale admin URLs cached from before the app_url
- *  fix, an app-launcher/search entry that drops the path, or any future
- *  regression that reverts app_url to the host root. Without it, a bare-host
- *  load hits the marketing root, which carries `frame-ancestors 'none'`
- *  (+ vercel.json's global `X-Frame-Options: DENY`, which `frame-ancestors`
- *  overrides in modern browsers — that's why the embedded surface frames at
- *  all), and Shopify admin shows "refused to connect". So detect that entry
- *  and rewrite it onto /shopify/embedded with the embedded CSP — preserving
- *  the query so App Bridge can still read `host`.
- *
- *  Scoped strictly to the ROOT path: the only un-frameable entry Shopify can
- *  produce is the bare `/`; any in-app reload resolves to /shopify/embedded/*
- *  (already frameable, no rewrite). Keying on root + Shopify's `embedded=1` +
- *  `host` (rather than just "has both params") avoids hijacking unrelated
- *  pages that happen to carry generic `host`/`embedded` query params
- *  (e.g. /privacy-policy?host=…&embedded=…), which would defeat the
- *  PUBLIC_PATHS guarantee below. */
-function isShopifyEmbeddedEntry(req: NextRequest): boolean {
-  const { pathname, searchParams } = req.nextUrl;
-  if (pathname !== "/") return false;
-  return searchParams.get("embedded") === "1" && searchParams.has("host");
-}
-
 /**
  * Build the per-request CSP + the request headers that carry the nonce (so
  * Next.js can stamp it onto framework `<script>` tags for 'strict-dynamic').
  * Only needed for full-document requests — prefetch/rsc/server-action requests
- * deliberately get no nonce/CSP (it can break RSC streaming). `forceEmbedded`
- * applies the embedded (iframeable + Shopify-CDN) CSP to a request whose path
- * isn't under /shopify — used for the rewritten embedded entry load.
+ * deliberately get no nonce/CSP (it can break RSC streaming).
  */
-function buildCsp(
-  req: NextRequest,
-  forceEmbedded = false,
-): { csp: string; reqHeaders: Headers } {
+function buildCsp(req: NextRequest): { csp: string; reqHeaders: Headers } {
   const nonce = btoa(
     String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16))),
   );
-  const embedded = forceEmbedded || isShopifyEmbeddedPath(req.nextUrl.pathname);
-  // The rewritten embedded entry must also receive the Shopify-CDN script /
-  // connect allowances (App Bridge loads from cdn.shopify.com), so treat a
-  // forced-embedded request as part of the /shopify surface too.
-  const shopify = forceEmbedded || isShopifyPath(req.nextUrl.pathname);
 
   // WhatsApp Embedded Signup: AFTER the merchant logs in, the Facebook JS SDK
   // executes a PARSER-INSERTED INLINE <script> in our page to process the
@@ -89,20 +35,12 @@ function buildCsp(
   const META_SDK_INLINE_HASHES = [
     "'sha256-n46vPwSWuMC0W703pBofImv82Z26xo4LXymv0E9caPk='",
   ].join(" ");
-  // Shopify routes: allow App Bridge from cdn.shopify.com (loaded by the
-  // (commerce) root layout on the whole /shopify/** surface). We DON'T use
-  // 'strict-dynamic' here (it fights App Bridge's dynamic loads AND ignores
-  // host allowances, which would block the plain CDN script); the explicit
-  // cdn.shopify.com host allowance + nonce cover our scripts.
   const scriptSrc = isDev
-    ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.shopify.com"
-    : shopify
-      ? `script-src 'self' 'nonce-${nonce}' https://cdn.shopify.com`
-      : `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' ${META_SDK_INLINE_HASHES}`;
+    ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
+    : `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' ${META_SDK_INLINE_HASHES}`;
   const connectSrc = [
     "connect-src 'self'",
     apiOrigin,
-    shopify ? "https://cdn.shopify.com" : "",
     "https://*.vercel-insights.com",
     "https://vitals.vercel-insights.com",
     "https://*.vercel-analytics.com",
@@ -121,9 +59,7 @@ function buildCsp(
   ]
     .filter(Boolean)
     .join(" ");
-  const frameAncestors = embedded
-    ? "frame-ancestors https://admin.shopify.com https://*.myshopify.com"
-    : "frame-ancestors 'none'";
+  const frameAncestors = "frame-ancestors 'none'";
   const csp = [
     "default-src 'self'",
     scriptSrc,
@@ -133,7 +69,7 @@ function buildCsp(
     // Allow framing https subresources — the LinkedIn carousel preview renders
     // a PDF served from the R2 media origin in an <iframe>. Consistent with the
     // img-src `https:` allowance; `frame-ancestors 'none'` still blocks anyone
-    // from framing US (except the embedded Shopify surface, above).
+    // from framing US.
     "frame-src 'self' https:",
     connectSrc,
     frameAncestors,
@@ -224,19 +160,10 @@ export function middleware(req: NextRequest) {
     !!req.cookies.get(b2cAccessCookieName())?.value ||
     !!req.cookies.get(b2cRefreshCookieName())?.value;
   const sessionBypass = hasSession && isAppRoute;
-  // The embedded Shopify surface is loaded by Shopify admin (iframe) and
-  // authenticates via the App Bridge session token, not our cookie — so it
-  // must stay reachable even while the coming-soon gate is on. This includes
-  // the entry load (root `/?host=…&embedded=1`) we rewrite onto the embedded
-  // surface below — without exempting it, the coming-soon gate would rewrite
-  // it to /coming-soon and the iframe would still never reach the app.
-  const embeddedEntry = isShopifyEmbeddedEntry(req);
-  const isShopifyEmbedded = isShopifyEmbeddedPath(pathname) || embeddedEntry;
   const gated =
     comingSoon &&
     pathname !== "/coming-soon" &&
     !isPublicPath &&
-    !isShopifyEmbedded &&
     !sessionBypass &&
     !grantPreview &&
     !hasPreviewCookie;
@@ -251,20 +178,6 @@ export function middleware(req: NextRequest) {
     } else {
       // Full-document gated request → carry the nonce so the teaser HTML matches.
       const { csp, reqHeaders } = buildCsp(req);
-      res = NextResponse.rewrite(url, { request: { headers: reqHeaders } });
-      res.headers.set("Content-Security-Policy", csp);
-    }
-  } else if (embeddedEntry) {
-    // Shopify framed us at the bare app root — rewrite onto the embedded
-    // surface so the iframe loads the real app (frameable, App Bridge-ready)
-    // instead of the un-frameable marketing root. The browser URL is unchanged
-    // by the rewrite, so App Bridge still reads `host` from `/?host=…`.
-    const url = req.nextUrl.clone();
-    url.pathname = "/shopify/embedded";
-    if (isPassthrough) {
-      res = NextResponse.rewrite(url);
-    } else {
-      const { csp, reqHeaders } = buildCsp(req, true);
       res = NextResponse.rewrite(url, { request: { headers: reqHeaders } });
       res.headers.set("Content-Security-Policy", csp);
     }
