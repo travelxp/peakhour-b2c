@@ -140,7 +140,9 @@ export default function SearchConsoleInsightsPage() {
     queryKey: ["integration-cap", "google_search_console"],
     queryFn: () =>
       api.get<CapabilitiesResponse>("/v1/integrations/google_search_console/capabilities"),
-    enabled: statusQ.data?.status === "active",
+    // Include "error" — a last-sync failure doesn't invalidate the verified
+    // properties / picker; gating them off would wrongly show "no properties".
+    enabled: statusQ.data?.status === "active" || statusQ.data?.status === "error",
     refetchOnWindowFocus: false,
   });
 
@@ -270,6 +272,25 @@ export default function SearchConsoleInsightsPage() {
           {/* ── Empty states from the insights endpoint ── */}
           {insightsQ.isLoading ? (
             <Skeleton className="h-40 w-full" />
+          ) : insightsQ.isError ? (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <AlertTriangle className="h-4 w-4" />
+                  Couldn&apos;t load your insights
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  We couldn&apos;t reach your Search Console insights just now. This is usually
+                  temporary.
+                </p>
+                <Button size="sm" variant="outline" onClick={() => insightsQ.refetch()}>
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Try again
+                </Button>
+              </CardContent>
+            </Card>
           ) : data && !data.configured ? (
             <NoticeCard
               title="Finish setup"
