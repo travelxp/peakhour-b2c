@@ -9,6 +9,7 @@ import {
   useWaConversations,
   useWaThread,
   useWaHandoff,
+  useWaResume,
   type WaConversation,
 } from "@/hooks/use-wa-conversations";
 
@@ -46,6 +47,7 @@ export default function InboxPage() {
   const [selected, setSelected] = useState<string | null>(null);
   const { data: thread, isLoading: threadLoading } = useWaThread(selected);
   const handoff = useWaHandoff();
+  const resume = useWaResume();
 
   return (
     <div className="mx-auto w-full max-w-6xl space-y-6 p-4 md:p-6">
@@ -98,19 +100,35 @@ export default function InboxPage() {
                   <p className="truncate text-sm font-medium">{thread?.contactName || selected.split(":").slice(2).join(":")}</p>
                   {thread && <StatusPill status={thread.status} />}
                 </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={handoff.isPending || thread?.status === "escalated"}
-                  onClick={() =>
-                    handoff.mutate(selected, {
-                      onSuccess: () => toast.success("Flagged for you — the assistant will hold off."),
-                      onError: (e: Error) => toast.error(e?.message || "Couldn't hand off"),
-                    })
-                  }
-                >
-                  {thread?.status === "escalated" ? "With you" : handoff.isPending ? "…" : "Take over"}
-                </Button>
+                {thread?.status === "escalated" ? (
+                  <Button
+                    size="sm"
+                    variant="default"
+                    disabled={resume.isPending}
+                    onClick={() =>
+                      resume.mutate(selected, {
+                        onSuccess: () => toast.success("Handed back — the assistant will reply again."),
+                        onError: (e: Error) => toast.error(e?.message || "Couldn't hand back"),
+                      })
+                    }
+                  >
+                    {resume.isPending ? "…" : "Return to AI"}
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={handoff.isPending}
+                    onClick={() =>
+                      handoff.mutate(selected, {
+                        onSuccess: () => toast.success("Flagged for you — the assistant will hold off."),
+                        onError: (e: Error) => toast.error(e?.message || "Couldn't hand off"),
+                      })
+                    }
+                  >
+                    {handoff.isPending ? "…" : "Take over"}
+                  </Button>
+                )}
               </div>
               <div className="flex-1 space-y-2 overflow-y-auto bg-[#e5ddd5] p-3 dark:bg-neutral-800">
                 {threadLoading && <Skeleton className="h-20 w-full" />}
