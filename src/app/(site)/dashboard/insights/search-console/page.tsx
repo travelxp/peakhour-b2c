@@ -32,6 +32,7 @@ import {
   Lock,
   ArrowUpRight,
   ArrowDownRight,
+  ShieldCheck,
 } from "lucide-react";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
 
@@ -88,6 +89,22 @@ interface SearchDigest {
   movements: Movement[];
 }
 
+type HealthIssueKind = "not_indexed" | "blocked" | "canonical_mismatch" | "mobile" | "rich_results";
+interface HealthIssue {
+  kind: HealthIssueKind;
+  url: string;
+  title?: string;
+  detail: string;
+  recommendation: string;
+}
+interface HealthReport {
+  checked: number;
+  indexed: number;
+  notIndexed: number;
+  issues: HealthIssue[];
+  summary: string;
+}
+
 interface SearchInsightsResponse {
   connected: boolean;
   configured: boolean;
@@ -96,6 +113,7 @@ interface SearchInsightsResponse {
   siteUrl?: string;
   totals?: { clicks: number; impressions: number; avgPosition: number; queries: number };
   digest?: SearchDigest;
+  health?: HealthReport;
   actions: SearchAction[];
   locked: number;
 }
@@ -120,6 +138,14 @@ const MOVEMENT_STYLE: Record<MovementKind, { dot: string; label: string }> = {
   slipped: { dot: "bg-red-500", label: "Slipped" },
   dropped: { dot: "bg-red-500", label: "Dropped" },
   falling: { dot: "bg-amber-500", label: "Falling" },
+};
+
+const HEALTH_ISSUE_LABEL: Record<HealthIssueKind, string> = {
+  not_indexed: "Not indexed",
+  blocked: "Blocked",
+  canonical_mismatch: "Canonical mismatch",
+  mobile: "Mobile",
+  rich_results: "Rich results",
 };
 
 function num(n: number): string {
@@ -356,6 +382,61 @@ export default function SearchConsoleInsightsPage() {
                       <p className="text-xs text-muted-foreground">
                         We&apos;ll show week-over-week movements once there&apos;s a second sync to compare against.
                       </p>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* ── Index health (URL Inspection) ── */}
+              {data.health && data.health.checked > 0 && (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <ShieldCheck className="h-4 w-4" />
+                      Site health in Google
+                    </CardTitle>
+                    <p className="text-sm">{data.health.summary}</p>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
+                      <span className="text-muted-foreground">
+                        <span className="font-medium text-foreground">{data.health.indexed}</span> indexed
+                      </span>
+                      {data.health.notIndexed > 0 && (
+                        <span className="text-red-600 dark:text-red-400">
+                          <span className="font-medium">{data.health.notIndexed}</span> not indexed
+                        </span>
+                      )}
+                      <span className="text-muted-foreground">
+                        <span className="font-medium text-foreground">{data.health.checked}</span> pages checked
+                      </span>
+                    </div>
+                    {data.health.issues.length > 0 && (
+                      <ul className="space-y-2">
+                        {data.health.issues.map((iss, i) => (
+                          <li key={`${iss.kind}-${iss.url}-${i}`} className="rounded-md border p-3">
+                            <div className="flex items-start justify-between gap-3">
+                              <a
+                                href={iss.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="truncate font-mono text-xs underline"
+                                title={iss.url}
+                              >
+                                {iss.title || iss.url}
+                              </a>
+                              <Badge variant="outline" className="shrink-0 text-xs">
+                                {HEALTH_ISSUE_LABEL[iss.kind]}
+                              </Badge>
+                            </div>
+                            <p className="mt-1 text-sm text-muted-foreground">{iss.detail}</p>
+                            <p className="mt-1 text-sm">
+                              <span className="font-medium">Do this: </span>
+                              {iss.recommendation}
+                            </p>
+                          </li>
+                        ))}
+                      </ul>
                     )}
                   </CardContent>
                 </Card>
