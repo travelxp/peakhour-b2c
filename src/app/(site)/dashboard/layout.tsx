@@ -138,15 +138,15 @@ const NAV_GROUPS: NavGroup[] = [
       // Commerce — the third pillar. Gated on `commerce.nav` (granted to every
       // plan bundling a Commerce product; migration 144), so only Commerce
       // customers carry the extra sidebar weight. Sub-items are added as each
-      // surface ships — Assistant + Inventory exist today; Command Center,
-      // Autopilot and Channels land in later Phase-0 PRs. The parent points at
-      // an existing leaf until the Command Center index page exists.
+      // surface ships — Command Center (outcomes home), Assistant + Inventory
+      // exist today; Autopilot and Channels land in later Phase-0 PRs.
       {
-        href: "/dashboard/commerce/inventory",
+        href: "/dashboard/commerce",
         label: "Commerce",
         icon: ShoppingBag,
         feature: "commerce.nav",
         subItems: [
+          { href: "/dashboard/commerce", label: "Command Center" },
           { href: "/dashboard/commerce/assistant", label: "Assistant" },
           { href: "/dashboard/commerce/inventory", label: "Inventory" },
         ],
