@@ -147,6 +147,7 @@ const NAV_GROUPS: NavGroup[] = [
         feature: "commerce.nav",
         subItems: [
           { href: "/dashboard/commerce", label: "Command Center" },
+          { href: "/dashboard/commerce/channels", label: "Channels" },
           { href: "/dashboard/commerce/autopilot", label: "Autopilot" },
           { href: "/dashboard/commerce/assistant", label: "Assistant" },
           { href: "/dashboard/commerce/inventory", label: "Inventory" },
