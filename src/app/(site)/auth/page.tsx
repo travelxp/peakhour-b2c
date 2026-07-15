@@ -114,7 +114,12 @@ function AuthPageInner() {
   // Only same-origin relative paths are forwarded.
   const next = (() => {
     const raw = searchParams.get("next");
-    return raw && raw.startsWith("/") && !raw.startsWith("//") ? raw : null;
+    // Same-origin relative only: single leading slash, no protocol-relative
+    // form (// or /\ — browsers normalize backslash to slash). The server and
+    // the verify page re-validate; this just avoids forwarding a doomed value.
+    return raw && raw.startsWith("/") && !raw.startsWith("//") && !raw.includes("\\")
+      ? raw
+      : null;
   })();
   // When `next` is the store-claim page, lift the store+token so the magic-link
   // request can admit a brand-new merchant email through the pre-launch gate
