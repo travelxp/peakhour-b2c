@@ -128,11 +128,22 @@ export interface VerifyMagicResponse {
 export type MagicLinkOutcome = "sent" | "waitlisted" | "not_found";
 
 export async function sendMagicLink(
-  email: string
+  email: string,
+  opts?: {
+    /** Same-origin path to return to after verify (e.g. the store-claim page). */
+    returnTo?: string;
+    /** Shopify claim context — admits a merchant's email through the pre-launch
+     *  gate when the token is valid (server re-checks it). */
+    shopifyClaim?: { store: string; token: string };
+  },
 ): Promise<{ outcome?: MagicLinkOutcome; message: string }> {
   return api.post<{ outcome?: MagicLinkOutcome; message: string }>(
     "/v1/auth/magic-link",
-    { email }
+    {
+      email,
+      ...(opts?.returnTo ? { returnTo: opts.returnTo } : {}),
+      ...(opts?.shopifyClaim ? { shopifyClaim: opts.shopifyClaim } : {}),
+    },
   );
 }
 

@@ -49,20 +49,30 @@ export async function fetchShopifyClaimCandidates(
 }
 
 /**
- * Adopt the store. Omit `businessId` to move the store in as a NEW Business under
- * the org (plan-gated); pass an existing `businessId` to attach it to that brand.
+ * Adopt the store into an account.
+ *
+ * - Omit `orgId` entirely (one-click path): the server picks automatically —
+ *   a signed-in operator with no account has the store's shell org handed to
+ *   them as their first workspace (`adopted: true`), no onboarding needed.
+ * - Pass `orgId` with no `businessId` → move the store in as a NEW Business.
+ * - Pass `orgId` + `businessId` → attach it to that existing brand.
  */
 export async function claimShopifyStore(
   store: string,
   token: string,
-  orgId: string,
+  orgId?: string,
   businessId?: string,
-): Promise<{ claimed: boolean; orgId: string; businessId: string }> {
-  return api.request<{ claimed: boolean; orgId: string; businessId: string }>(
+): Promise<{ claimed: boolean; adopted?: boolean; orgId: string; businessId: string | null }> {
+  return api.request<{ claimed: boolean; adopted?: boolean; orgId: string; businessId: string | null }>(
     "/v1/shopify/claim",
     {
       method: "POST",
-      body: JSON.stringify({ store, token, orgId, ...(businessId ? { businessId } : {}) }),
+      body: JSON.stringify({
+        store,
+        token,
+        ...(orgId ? { orgId } : {}),
+        ...(businessId ? { businessId } : {}),
+      }),
     },
   );
 }
