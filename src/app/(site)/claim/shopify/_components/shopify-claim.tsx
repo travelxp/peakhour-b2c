@@ -126,7 +126,9 @@ export function ShopifyClaim() {
     setFetchState("claiming");
     try {
       const res = await claimShopifyStore(store, token);
-      setClaimedName(data?.store?.name || "your new account");
+      // Adopt has no separate org to name — the store BECOMES the account, so
+      // avoid the "Acme is now part of Acme" tautology in the done copy.
+      setClaimedName("your new Peakhour account");
       try {
         await switchOrg(res.orgId);
         if (res.businessId) await switchBusiness(res.businessId);

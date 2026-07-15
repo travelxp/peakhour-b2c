@@ -36,14 +36,17 @@ export function LoadingScreen({
 }: LoadingScreenProps) {
   const [idx, setIdx] = useState(0);
 
+  // Key the effect on step CONTENT, not array identity, so a caller passing an
+  // inline `steps={[...]}` literal (new reference each render) inside a
+  // frequently-re-rendering parent doesn't tear down and restart the interval
+  // every render (which would stop the sub-steps from ever advancing).
+  const stepsKey = steps ? steps.join("") : "";
+  const stepCount = steps?.length ?? 0;
   useEffect(() => {
-    if (!steps || steps.length < 2) return;
-    const id = setInterval(
-      () => setIdx((n) => (n + 1) % steps.length),
-      2200,
-    );
+    if (stepCount < 2) return;
+    const id = setInterval(() => setIdx((n) => (n + 1) % stepCount), 2200);
     return () => clearInterval(id);
-  }, [steps]);
+  }, [stepsKey, stepCount]);
 
   const sub = steps && steps.length > 0 ? steps[idx % steps.length] : undefined;
 
@@ -69,14 +72,14 @@ export function LoadingScreen({
         <span className="size-2 animate-pulse rounded-full bg-primary" />
       </div>
 
+      {/* Inside the role=status / aria-live region, so message + sub-step
+          changes are announced to assistive tech without a duplicate node. */}
       <div className="space-y-1">
         <p className="text-sm font-medium text-foreground">{message}</p>
         {sub ? (
           <p className="text-xs text-muted-foreground">{sub}</p>
         ) : null}
       </div>
-
-      <span className="sr-only">{sub ? `${message} ${sub}` : message}</span>
     </div>
   );
 }
