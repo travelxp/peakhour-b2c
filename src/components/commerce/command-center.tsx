@@ -35,16 +35,31 @@ export function CommandCenter() {
   );
 }
 
+/** A currency's minor-unit exponent (2 for USD/INR, 0 for JPY, 3 for KWD). */
+function minorUnitExponent(currency: string): number {
+  try {
+    return (
+      new Intl.NumberFormat("en", { style: "currency", currency }).resolvedOptions()
+        .maximumFractionDigits ?? 2
+    );
+  } catch {
+    return 2; // unknown/invalid currency code → assume 2-decimal
+  }
+}
+
 function CommandCenterBody() {
   const { data, isLoading, isError } = useCommerceSummary();
   const { formatNumber } = useLocale();
 
-  const money = (minor: number, currency: string | null) =>
-    formatNumber(minor / 100, {
+  const money = (minor: number, currency: string | null) => {
+    const cur = currency ?? "USD";
+    const major = minor / 10 ** minorUnitExponent(cur);
+    return formatNumber(major, {
       style: "currency",
-      currency: currency ?? "USD",
+      currency: cur,
       maximumFractionDigits: 0,
     });
+  };
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
