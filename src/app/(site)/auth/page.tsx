@@ -110,6 +110,33 @@ function AuthPageInner() {
     const upper = raw.toUpperCase();
     return REFERRAL_CODE_PATTERN.test(upper) ? upper : null;
   })();
+  // `?next=` — where to return after verify (server sanitizes it to same-origin).
+  // Only same-origin relative paths are forwarded.
+  const next = (() => {
+    const raw = searchParams.get("next");
+    // Same-origin relative only: single leading slash, no protocol-relative
+    // form (// or /\ — browsers normalize backslash to slash). The server and
+    // the verify page re-validate; this just avoids forwarding a doomed value.
+    return raw && raw.startsWith("/") && !raw.startsWith("//") && !raw.includes("\\")
+      ? raw
+      : null;
+  })();
+  // When `next` is the store-claim page, lift the store+token so the magic-link
+  // request can admit a brand-new merchant email through the pre-launch gate
+  // (the server re-validates the token). Parsed with a fixed base — no `window`,
+  // so it's SSR-safe.
+  const shopifyClaim = (() => {
+    if (!next) return undefined;
+    try {
+      const u = new URL(next, "http://internal");
+      if (u.pathname !== "/claim/shopify") return undefined;
+      const store = u.searchParams.get("store");
+      const token = u.searchParams.get("t");
+      return store && token ? { store, token } : undefined;
+    } catch {
+      return undefined;
+    }
+  })();
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   // Tick once per second while a cooldown is running so the button
@@ -200,7 +227,10 @@ function AuthPageInner() {
           })
           .catch(() => {});
       }
-      const res = await sendMagicLink(targetEmail);
+      const res = await sendMagicLink(targetEmail, {
+        ...(next ? { returnTo: next } : {}),
+        ...(shopifyClaim ? { shopifyClaim } : {}),
+      });
       // Pre-launch invite gate: the endpoint may return without sending a
       // link. Branch to the matching card instead of the "check your email"
       // cooldown. `sent` (or a legacy response with no `outcome`) falls
