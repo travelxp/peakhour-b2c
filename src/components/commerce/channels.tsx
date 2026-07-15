@@ -99,7 +99,8 @@ function D2CTab() {
   }
 
   const platform = data.store.platform ?? "";
-  const label = PLATFORM_LABEL[platform] ?? platform ?? "Your store";
+  // `||` (not `??`) so an empty platform also falls through to "Your store".
+  const label = PLATFORM_LABEL[platform] || platform || "Your store";
 
   return (
     <Card>
