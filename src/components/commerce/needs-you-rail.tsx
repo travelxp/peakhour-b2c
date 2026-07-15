@@ -66,7 +66,9 @@ export function CommerceNeedsYou() {
               <RecommendationRow
                 key={rec.id}
                 rec={rec}
-                busy={decide.isPending}
+                // Only the row being decided is disabled — other proposals stay
+                // actionable while one request is in flight.
+                busy={decide.isPending && decide.variables?.id === rec.id}
                 onDecide={(decision) => decide.mutate({ id: rec.id, decision })}
               />
             ))}
