@@ -1,31 +1,22 @@
 import Image from "next/image";
 
 /**
- * PeakhourLogo — the official Peakhour.ai wordmark (the SVG already reads
- * "Peakhour.ai", capital P). Swaps black/white by color scheme so it stays
- * legible on light and dark surfaces. Self-hosted SVG, rendered unoptimized
- * (vector — Next's raster optimizer would only add overhead).
+ * PeakhourLogo — the official Peakhour.ai brand lockup (icon + capital-P
+ * "Peakhour.ai" wordmark). Monochrome artwork on a transparent background,
+ * inverted to white on dark surfaces via `dark:invert` so it stays legible
+ * on light and dark. Self-hosted PNG (the only capital-P wordmark asset we
+ * have; the old lowercase SVG wordmark it replaced has been removed).
  */
 export function PeakhourLogo({ className = "h-8 w-auto" }: { className?: string }) {
   return (
-    <>
-      <Image
-        src="/logo-black.svg"
-        alt="Peakhour.ai"
-        width={130}
-        height={32}
-        className={`${className} block dark:hidden`}
-        priority
-        unoptimized
-      />
-      <Image
-        src="/logo-white.svg"
-        alt="Peakhour.ai"
-        width={130}
-        height={32}
-        className={`${className} hidden dark:block`}
-        unoptimized
-      />
-    </>
+    <Image
+      src="/peakhour-logo.png"
+      alt="Peakhour.ai"
+      width={880}
+      height={217}
+      className={`${className} dark:invert`}
+      priority
+      unoptimized
+    />
   );
 }
