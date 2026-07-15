@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { featureLabel } from "@/lib/pricing";
 import { useQueryClient } from "@tanstack/react-query";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
 
@@ -219,8 +220,12 @@ export default function BillingPage() {
               <ul className="flex flex-wrap gap-1.5">
                 {features.map((f) => (
                   <li key={f}>
-                    <Badge variant="outline" className="font-mono text-[11px]">
-                      {f}
+                    {/* Resolve the raw cfg_feature key (e.g. "content.brand_voice")
+                        to its customer-facing label via the shared featureLabel()
+                        helper — the same resolver the upgrade drawer and plan cards
+                        use — so Billing never shows internal developer keys. */}
+                    <Badge variant="outline" className="text-[11px]">
+                      {featureLabel(f)}
                     </Badge>
                   </li>
                 ))}
