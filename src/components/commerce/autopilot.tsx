@@ -2,6 +2,7 @@
 
 import { FeatureGate } from "@/components/upgrade/feature-gate";
 import { CommerceNeedsYou } from "@/components/commerce/needs-you-rail";
+import { AutonomyBoard } from "@/components/commerce/autonomy-board";
 
 /**
  * Commerce → Autopilot (Phase 0). The engine's cockpit: the approvals queue
@@ -31,7 +32,12 @@ export function CommerceAutopilot() {
           <CommerceNeedsYou />
         </section>
 
-        {/* Autonomy board (consent dial) lands in P0.8b. */}
+        <section aria-labelledby="autonomy-heading" className="mt-8">
+          <h2 id="autonomy-heading" className="sr-only">
+            Autonomy
+          </h2>
+          <AutonomyBoard />
+        </section>
       </div>
     </FeatureGate>
   );
