@@ -13,6 +13,7 @@ import { KpiCard } from "@/components/molecules/kpi-card";
 import { EmptyState } from "@/components/molecules/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FeatureGate } from "@/components/upgrade/feature-gate";
+import { CommerceNeedsYou } from "@/components/commerce/needs-you-rail";
 import { useLocale } from "@/hooks/use-locale";
 import { useCommerceSummary } from "@/hooks/use-commerce-summary";
 
@@ -128,6 +129,12 @@ function CommandCenterBody() {
             description="Agent actions waiting for your go-ahead"
             icon={ClipboardCheck}
           />
+        </div>
+      )}
+
+      {data && !isLoading && (
+        <div className="mt-6">
+          <CommerceNeedsYou />
         </div>
       )}
     </div>
