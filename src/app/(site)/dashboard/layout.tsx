@@ -56,6 +56,7 @@ import {
   ListChecks,
   Zap,
   MessagesSquare,
+  ShoppingBag,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -71,6 +72,13 @@ interface NavItem {
   label: string;
   icon: LucideIcon;
   badge?: () => React.ReactNode;
+  /**
+   * Optional entitlement gate (a cfg_features.key). When set, the item renders
+   * only if the key is present in the org's entitlements snapshot — the same
+   * check `useFeature` runs. Absent = always visible (the default for the core
+   * Content/Growth items). Used to gate the Commerce pillar on `commerce.nav`.
+   */
+  feature?: string;
   subItems?: { href: string; label: string; badge?: () => React.ReactNode }[];
 }
 
@@ -125,6 +133,22 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/dashboard/ads", label: "Ads" },
           { href: "/dashboard/outcomes", label: "Outcomes" },
           { href: "/dashboard/optimizer", label: "Optimizer" },
+        ],
+      },
+      // Commerce — the third pillar. Gated on `commerce.nav` (granted to every
+      // plan bundling a Commerce product; migration 144), so only Commerce
+      // customers carry the extra sidebar weight. Sub-items are added as each
+      // surface ships — Assistant + Inventory exist today; Command Center,
+      // Autopilot and Channels land in later Phase-0 PRs. The parent points at
+      // an existing leaf until the Command Center index page exists.
+      {
+        href: "/dashboard/commerce/inventory",
+        label: "Commerce",
+        icon: ShoppingBag,
+        feature: "commerce.nav",
+        subItems: [
+          { href: "/dashboard/commerce/assistant", label: "Assistant" },
+          { href: "/dashboard/commerce/inventory", label: "Inventory" },
         ],
       },
       { href: "/dashboard/inbox", label: "Inbox", icon: MessagesSquare },
@@ -182,7 +206,7 @@ export default function DashboardLayout({
 
 function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { user, org, logout, isLoading, isAuthenticated } = useAuth();
+  const { user, org, logout, isLoading, isAuthenticated, entitlements } = useAuth();
 
   if (isLoading) {
     return (
@@ -258,7 +282,13 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
               )}
               <SidebarGroupContent>
                 <SidebarMenu>
-                  {group.items.map((item) => {
+                  {group.items
+                    .filter(
+                      (item) =>
+                        !item.feature ||
+                        Boolean(entitlements?.features?.includes(item.feature)),
+                    )
+                    .map((item) => {
                     const Icon = item.icon;
                     const isActive = item.subItems
                       ? item.subItems.some((s) => pathname === s.href || pathname?.startsWith(s.href + "/"))
