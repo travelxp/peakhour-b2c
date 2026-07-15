@@ -21,7 +21,18 @@ export const metadata: Metadata = {
  * apply -> approve -> sign in. The interactive form lives in a client
  * component so this page stays a server component for metadata.
  */
-export default function LaunchPartnerPage() {
+/** Only shopify/wordpress are meaningful entry surfaces; anything else is direct. */
+function normalizeSource(raw?: string): "shopify" | "wordpress" | "direct" {
+  return raw === "shopify" || raw === "wordpress" ? raw : "direct";
+}
+
+export default async function LaunchPartnerPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ source?: string }>;
+}) {
+  const { source } = await searchParams;
+  const signupSource = normalizeSource(source);
   return (
     <main className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-6 py-16 text-center">
       <div
@@ -45,7 +56,7 @@ export default function LaunchPartnerPage() {
           hands-on setup.
         </p>
 
-        <LaunchPartnerForm />
+        <LaunchPartnerForm source={signupSource} />
 
         <a
           href="/coming-soon"
