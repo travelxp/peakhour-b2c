@@ -2,57 +2,34 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import {
-  ShoppingBag,
-  Megaphone,
-  Loader2,
-  Check,
-  Sparkles,
-  Share2,
-  ArrowRight,
-} from "lucide-react";
+import { Loader2, Check, Sparkles, Share2, ArrowRight } from "lucide-react";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 
 /**
- * Launch-partner apply form. Replaces the old mailto capture — applying now
- * lands a waitlist_signups row (POST /v1/waitlist/signup) tagged with the
- * product cohort(s) the applicant picked. Ops approves in the CMS, which is
- * what unlocks magic-link sign-in. No email address is shown anywhere.
+ * Launch-partner apply form. Applying lands a waitlist_signups row
+ * (POST /v1/waitlist/signup). Ops approves in the CMS, which unlocks
+ * magic-link sign-in.
  *
- * Mirrors the waitlist signup + success card from UpgradeDrawer (referral
- * code, founding-member badge, position) so the two surfaces feel identical;
- * the launch-partner-specific bit is the Commerce/Marketing product picker.
+ * Deliberately email-only: we don't ask the applicant to pick Commerce vs
+ * Marketing or fill in business details. When they arrive from a Shopify /
+ * WordPress link the `source` is already known (passed as a prop from the
+ * server page's ?source param) and the API derives the product cohort from
+ * it — Shopify → Commerce, WordPress → Marketing — so the choice is never
+ * put to the user.
  */
-type ProductInterest = "commerce" | "marketing";
+type SignupSource = "shopify" | "wordpress" | "direct";
 
-const PRODUCTS: {
-  key: ProductInterest;
-  label: string;
-  blurb: string;
-  Icon: typeof ShoppingBag;
-}[] = [
-  {
-    key: "commerce",
-    label: "Peakhour Commerce",
-    blurb: "Shopify / WooCommerce / D2C — recover carts, re-engage, grow revenue.",
-    Icon: ShoppingBag,
-  },
-  {
-    key: "marketing",
-    label: "Peakhour Marketing",
-    blurb: "Publishers & brands — create, optimize and automate campaigns.",
-    Icon: Megaphone,
-  },
-];
+/** Friendly product name for a known entry surface, for a light confirmation line. */
+const SOURCE_PRODUCT: Partial<Record<SignupSource, string>> = {
+  shopify: "Peakhour Commerce",
+  wordpress: "Peakhour Marketing",
+};
 
-export function LaunchPartnerForm() {
+export function LaunchPartnerForm({ source = "direct" }: { source?: SignupSource }) {
   const [email, setEmail] = useState("");
-  const [products, setProducts] = useState<ProductInterest[]>([]);
-  const [businessContext, setBusinessContext] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState<{
     referralCode: string;
@@ -60,19 +37,9 @@ export function LaunchPartnerForm() {
     position: number | null;
   } | null>(null);
 
-  function toggleProduct(key: ProductInterest) {
-    setProducts((prev) =>
-      prev.includes(key) ? prev.filter((p) => p !== key) : [...prev, key],
-    );
-  }
-
   async function submit() {
     if (!email || !email.includes("@")) {
       toast.error("Please enter a valid email");
-      return;
-    }
-    if (products.length === 0) {
-      toast.error("Pick at least one — Commerce or Marketing");
       return;
     }
     setSubmitting(true);
@@ -80,11 +47,12 @@ export function LaunchPartnerForm() {
       const body: Record<string, unknown> = {
         email,
         intent: "general",
-        productInterest: products,
         // Direct landing-page application (not an in-app feature gate).
         channel: "direct",
+        // Entry surface — the API derives the product cohort from it, so the
+        // applicant is never asked to choose Commerce vs Marketing.
+        signupSource: source,
       };
-      if (businessContext) body.businessContext = businessContext;
 
       const r = await api.post<{
         referralCode: string;
@@ -155,8 +123,8 @@ export function LaunchPartnerForm() {
 
         <div className="rounded-lg border bg-muted/30 p-4">
           <p className="text-sm">
-            When we approve your spot, you&apos;ll sign in with{" "}
-            <strong>{email}</strong> — we&apos;ll email your link. No password
+            We&apos;ve emailed a confirmation to <strong>{email}</strong>. When we
+            approve your spot, we&apos;ll email your sign-in link — no password
             needed.
           </p>
         </div>
@@ -185,6 +153,8 @@ export function LaunchPartnerForm() {
     );
   }
 
+  const productName = SOURCE_PRODUCT[source];
+
   return (
     <form
       onSubmit={(e) => {
@@ -193,36 +163,12 @@ export function LaunchPartnerForm() {
       }}
       className="w-full space-y-5 text-left"
     >
-      <div className="space-y-2">
-        <Label>What are you most interested in?</Label>
-        <div className="grid gap-3 sm:grid-cols-2">
-          {PRODUCTS.map(({ key, label, blurb, Icon }) => {
-            const selected = products.includes(key);
-            return (
-              <button
-                type="button"
-                key={key}
-                onClick={() => toggleProduct(key)}
-                aria-pressed={selected}
-                className={`flex flex-col items-start gap-2 rounded-xl border p-4 text-left transition-colors ${
-                  selected
-                    ? "border-primary bg-primary/5 ring-1 ring-primary"
-                    : "hover:border-foreground/20 hover:bg-muted/40"
-                }`}
-              >
-                <span className="inline-flex size-9 items-center justify-center rounded-lg border bg-muted/40 text-foreground">
-                  <Icon className="size-4" aria-hidden />
-                </span>
-                <span className="text-sm font-semibold">{label}</span>
-                <span className="text-xs text-muted-foreground">{blurb}</span>
-              </button>
-            );
-          })}
-        </div>
-        <p className="text-xs text-muted-foreground">
-          Pick one or both — you can change your mind later.
+      {productName ? (
+        <p className="text-sm text-muted-foreground">
+          You&apos;re joining the waitlist for{" "}
+          <span className="font-medium text-foreground">{productName}</span>.
         </p>
-      </div>
+      ) : null}
 
       <div className="space-y-2">
         <Label htmlFor="lp-email">Work email</Label>
@@ -239,39 +185,22 @@ export function LaunchPartnerForm() {
         />
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="lp-context">
-          Tell us about your business
-          <span className="ml-1 text-xs font-normal text-muted-foreground">
-            (optional — helps us prioritize)
-          </span>
-        </Label>
-        <Textarea
-          id="lp-context"
-          value={businessContext}
-          onChange={(e) => setBusinessContext(e.target.value)}
-          placeholder="e.g. Shopify store doing ~$40k/mo; we want to recover carts and re-engage customers on WhatsApp."
-          maxLength={2048}
-          rows={4}
-        />
-      </div>
-
       <Button type="submit" className="h-11 w-full text-base" disabled={submitting}>
         {submitting ? (
           <>
             <Loader2 className="mr-2 size-4 animate-spin" />
-            Submitting…
+            Joining…
           </>
         ) : (
           <>
-            Apply to join
+            Join the waitlist
             <ArrowRight className="ml-1 size-4" aria-hidden />
           </>
         )}
       </Button>
       <p className="text-center text-xs text-muted-foreground">
-        Applying adds you to the waitlist. We&apos;ll email your sign-in link
-        when your spot is approved.
+        We&apos;ll email a confirmation now, and your sign-in link when your spot
+        is approved.
       </p>
     </form>
   );
