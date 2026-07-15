@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "@/lib/api";
+import { CHANNELS } from "@/app/(site)/dashboard/content/channels.config";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -50,7 +52,39 @@ const PLATFORM_LABEL: Record<string, string> = {
   ghost: "Ghost",
 };
 
+// Analytics/SEO recommendations don't live in the channels hub — they have
+// their own Insights setup pages. Match the platform ids the discovery
+// pipeline may emit for these (and common aliases).
+const INSIGHTS_ROUTES: Record<string, string> = {
+  google_search_console: "/dashboard/insights/search-console",
+  search_console: "/dashboard/insights/search-console",
+  gsc: "/dashboard/insights/search-console",
+  google_analytics: "/dashboard/insights/analytics",
+  analytics: "/dashboard/insights/analytics",
+  ga4: "/dashboard/insights/analytics",
+  ga: "/dashboard/insights/analytics",
+};
+
+/**
+ * Where "I'll start with this" should take the user for a given recommended
+ * platform. Prefer a live channel's own dashboard (from the channels-hub
+ * registry, so we don't maintain a parallel route map), then the Insights
+ * setup pages for GSC/GA, and finally the Integrations hub — so the button
+ * always lands on the relevant setup surface instead of just dismissing.
+ */
+function destinationForPlatform(platform: string): string {
+  if (INSIGHTS_ROUTES[platform]) return INSIGHTS_ROUTES[platform];
+  const channel = CHANNELS.find(
+    (c) => c.providerKey === platform || c.slug === platform,
+  );
+  if (channel?.status === "live" && channel.dashboardPath) {
+    return channel.dashboardPath;
+  }
+  return "/dashboard/integrations";
+}
+
 export function RecommendationsCard({ recommendations }: RecommendationsCardProps) {
+  const router = useRouter();
   const queryClient = useQueryClient();
   // Optimistic dismissal — see the same pattern in
   // footprint-review-card.tsx. Keeps in sync with prop refetches and
@@ -107,6 +141,26 @@ export function RecommendationsCard({ recommendations }: RecommendationsCardProp
     }
   }
 
+  // "I'll start with this" — record the intent, then take the user to the
+  // relevant setup surface. Recording is best-effort: even if the POST fails
+  // we still navigate, because getting the user to the integration is the
+  // primary goal (and marking it "started" server-side stops it reappearing).
+  async function handleStart(platform: string) {
+    setError("");
+    setBusy(platform);
+    try {
+      await api.post(
+        `/v1/onboarding/recommendations/${encodeURIComponent(platform)}/started`,
+      );
+    } catch {
+      // Non-blocking — navigate regardless.
+    }
+    startTransition(() => {
+      queryClient.invalidateQueries({ queryKey: ["dashboard-discovery"] });
+    });
+    router.push(destinationForPlatform(platform));
+  }
+
   return (
     <Card className="border-2">
       <CardHeader>
@@ -154,8 +208,8 @@ export function RecommendationsCard({ recommendations }: RecommendationsCardProp
                   type="button"
                   onClick={() => handleAction(rec.platform, "dismiss")}
                   disabled={isBusy}
-                  aria-label="Not interested"
-                  title="Not interested"
+                  aria-label="I'll do this later"
+                  title="I'll do this later"
                   className="rounded-full p-1.5 text-muted-foreground hover:bg-foreground/5 hover:text-foreground transition-colors"
                 >
                   <X className="h-4 w-4" />
@@ -188,7 +242,7 @@ export function RecommendationsCard({ recommendations }: RecommendationsCardProp
                 </p>
                 <Button
                   size="sm"
-                  onClick={() => handleAction(rec.platform, "started")}
+                  onClick={() => handleStart(rec.platform)}
                   disabled={isBusy}
                 >
                   I&apos;ll start with this
