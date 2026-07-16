@@ -44,8 +44,11 @@ import { SidebarStorageMeter } from "@/components/dashboard/sidebar-storage-mete
 import { FeedbackWidget } from "@/components/molecules/feedback-widget";
 import { ChatPanel } from "@/components/molecules/chat-panel";
 import { AskContextProvider } from "@/providers/ask-context-provider";
+import { AskLauncher } from "@/components/ask/ask-launcher";
+import { ASK_ENABLED } from "@/lib/flags";
 import {
   LayoutDashboard,
+  Sparkles,
   FileText,
   TrendingUp,
   Plug,
@@ -100,6 +103,9 @@ const NAV_GROUPS: NavGroup[] = [
     label: "",
     items: [
       { href: "/dashboard/overview", label: "Overview", icon: LayoutDashboard },
+      ...(ASK_ENABLED
+        ? [{ href: "/dashboard/ask", label: "Ask Peakhour", icon: Sparkles }]
+        : []),
       {
         href: "/dashboard/content",
         label: "Content",
@@ -477,7 +483,8 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       </SidebarInset>
 
       {/* ── AI Chat FAB ──────────────────────────────────── */}
-      <ChatPanel />
+      {/* Ask Peakhour (grounded) runs behind a flag; legacy ChatPanel until PR-11 cutover. */}
+      {ASK_ENABLED ? <AskLauncher /> : <ChatPanel />}
     </SidebarProvider>
     </AskContextProvider>
   );
