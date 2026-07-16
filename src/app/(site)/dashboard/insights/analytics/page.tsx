@@ -8,8 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { LineChart, RefreshCw, ExternalLink, AlertTriangle, ArrowRight } from "lucide-react";
+import { LineChart, RefreshCw, ExternalLink, AlertTriangle, ArrowRight, Sparkles } from "lucide-react";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
+import { useSetAskEntityIds } from "@/providers/ask-context-provider";
+import { ASK_ENABLED } from "@/lib/flags";
 
 interface ConnectionStatus {
   provider: string;
@@ -73,6 +75,11 @@ export default function AnalyticsInsightsPage() {
   const properties = capQ.data?.account?.extra?.properties ?? [];
   const selectedPropertyId = (capQ.data?.capabilities as Record<string, unknown> | undefined)
     ?.propertyId as string | undefined;
+
+  // Publish the selected GA4 property so Ask Peakhour on this page pre-scopes its
+  // tools to it (removed on unmount). Hook is called unconditionally (before any
+  // early return) per the rules of hooks.
+  useSetAskEntityIds({ propertyId: selectedPropertyId });
 
   // See search-console/page.tsx for the rationale: "error" still shows
   // the connected card so the user can retry; "expired" prompts reconnect.
@@ -220,19 +227,46 @@ export default function AnalyticsInsightsPage() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Funnel + top pages</CardTitle>
-              <p className="text-xs text-muted-foreground">
-                Each sync writes funnel totals + top-25 pages + acquisition channels to <code>ana_performance_snapshots</code> with platform=&quot;google_analytics&quot;. Funnel-chart UI ships in a follow-up.
-              </p>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">
-                Run a sync above, then the GA4 skills (ga4_funnel_analysis, ga4_top_pages_brief, etc.) become active in their respective agents.
-              </p>
-            </CardContent>
-          </Card>
+          {ASK_ENABLED ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Sparkles className="size-4 text-primary" />
+                  Ask Peakhour about your analytics
+                </CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  Ask in plain language — answers are grounded in this property&apos;s real GA4 + Search Console
+                  data (no made-up numbers).
+                </p>
+              </CardHeader>
+              <CardContent className="flex flex-wrap gap-2">
+                {[
+                  "How's my website traffic and search doing?",
+                  "What should I do to get more search traffic?",
+                  "Which pages get the most visitors?",
+                ].map((q) => (
+                  <Button key={q} asChild variant="outline" size="sm">
+                    <Link href={`/dashboard/ask?q=${encodeURIComponent(q)}`}>{q}</Link>
+                  </Button>
+                ))}
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Funnel + top pages</CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  Each sync writes funnel totals + top-25 pages + acquisition channels to{" "}
+                  <code>ana_performance_snapshots</code> (platform=&quot;google_analytics&quot;).
+                </p>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">
+                  Run a sync above to keep your analytics fresh.
+                </p>
+              </CardContent>
+            </Card>
+          )}
         </>
       )}
     </div>

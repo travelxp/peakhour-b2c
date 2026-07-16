@@ -101,13 +101,16 @@ export function AskConversation({
   threadId,
   className,
   autoFocus = true,
+  initialInput,
 }: {
   threadId: string;
   className?: string;
   autoFocus?: boolean;
+  /** Seed the composer (e.g. from an "Ask about this" deep-link). */
+  initialInput?: string;
 }) {
   const { messages, sendMessage, status, error } = useAsk(threadId);
-  const [input, setInput] = useState("");
+  const [input, setInput] = useState(initialInput ?? "");
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const busy = status === "submitted" || status === "streaming";
