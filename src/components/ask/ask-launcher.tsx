@@ -8,6 +8,7 @@
  */
 
 import { useState } from "react";
+import { usePathname } from "next/navigation";
 import { Sparkles, X, ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -22,9 +23,14 @@ function newThreadId(): string {
 }
 
 export function AskLauncher() {
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   // Minted lazily on first open (client-only → no SSR/hydration mismatch).
   const [threadId, setThreadId] = useState<string | null>(null);
+
+  // The full-page /dashboard/ask surface already hosts a conversation — don't
+  // also float a (separate-thread) launcher over it.
+  if (pathname === "/dashboard/ask") return null;
 
   function openPanel() {
     setThreadId((id) => id ?? newThreadId());
