@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
+import { ACTIVITY_KEY } from "@/hooks/use-commerce-activity";
 
 /**
  * Commerce Replenisher hooks (P2.2/P2.3). `useReplenisher` reads the free
@@ -49,7 +50,6 @@ export interface RestockPlan {
 }
 
 const REPLENISHER_KEY = "commerce-replenisher";
-const ACTIVITY_KEY = "commerce-activity";
 
 export function useReplenisher() {
   const { isAuthenticated, org } = useAuth();

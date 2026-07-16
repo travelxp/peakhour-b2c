@@ -30,7 +30,7 @@ interface ActivityResponse {
   items: ActivityItem[];
 }
 
-const ACTIVITY_KEY = "commerce-activity";
+export const ACTIVITY_KEY = "commerce-activity";
 
 export function useCommerceActivity(limit = 8) {
   const { isAuthenticated, org } = useAuth();
