@@ -36,17 +36,21 @@ interface AskContextValue {
 
 const AskCtx = createContext<AskContextValue | null>(null);
 
+/** ObjectId (24 hex) | UUID | numeric id — dynamic route segments to drop. */
+const ID_SEGMENT = /^(?:[0-9a-fA-F]{24}|[0-9a-fA-F]{8}-[0-9a-fA-F-]{27}|\d+)$/;
+
 /**
- * Normalize a dashboard pathname to a routeKey the server's engine registry
- * matches on: "/dashboard/insights/analytics" → "insights.analytics",
- * "/dashboard/overview" → "overview", "/dashboard" → "dashboard".
+ * Normalize a dashboard pathname to a stable routeKey the server's engine
+ * registry matches on: "/dashboard/insights/analytics" → "insights.analytics",
+ * "/dashboard/overview" → "overview", "/dashboard" → "dashboard". Dynamic id
+ * segments are stripped so per-entity detail pages don't explode the routeKey
+ * space: "/dashboard/strategist/6650ab…" → "strategist".
  */
 export function routeKeyFromPath(pathname: string): string {
   const parts = pathname.split("/").filter(Boolean);
   const idx = parts.indexOf("dashboard");
-  const rest = idx >= 0 ? parts.slice(idx + 1) : parts;
+  const rest = (idx >= 0 ? parts.slice(idx + 1) : parts).filter((seg) => !ID_SEGMENT.test(seg));
   if (rest.length === 0) return "dashboard";
-  // Drop dynamic-id-looking trailing segments so routeKeys stay stable.
   return rest.join(".");
 }
 
@@ -99,8 +103,9 @@ export function useAskContext(): AskContextValue {
 
 /**
  * Publish this page's entity ids to Ask while the component is mounted, and
- * remove exactly those keys on unmount (so it can't clobber another publisher).
- * e.g. the Analytics page: `useSetAskEntityIds({ propertyId, siteUrl })`.
+ * remove those keys on unmount. Removal is by key NAME, so use surface-unique
+ * keys (propertyId, siteUrl, ideaId…) — two publishers sharing a key name can
+ * step on each other. e.g. the Analytics page: `useSetAskEntityIds({ propertyId, siteUrl })`.
  */
 export function useSetAskEntityIds(ids: Record<string, string | undefined>) {
   const { setEntityIds } = useAskContext();
