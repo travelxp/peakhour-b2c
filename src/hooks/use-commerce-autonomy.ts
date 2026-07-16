@@ -26,17 +26,25 @@ export interface AutonomyConfidence {
   updatedAt: string;
 }
 
+export interface GraduationInvite {
+  nextLevel: AutonomyLevel;
+}
+
 export interface AutonomyEntry {
   agent: string;
   channel: string;
   level: AutonomyLevel;
   guardrails: AutonomyGuardrails | null;
   confidence: AutonomyConfidence | null;
+  /** Set when the agent has EARNED a graduation to a higher level. */
+  graduation: GraduationInvite | null;
 }
 
 export interface AutonomyBoard {
   channel: string;
   agents: AutonomyEntry[];
+  /** Global execution halt — when true no agent can ship (proposals still work). */
+  killSwitch: boolean;
 }
 
 const AUTONOMY_KEY = "commerce-autonomy";
@@ -85,5 +93,53 @@ export function useSetAutonomy() {
     onSettled: () => {
       qc.invalidateQueries({ queryKey: key });
     },
+  });
+}
+
+/** Toggle the global execution kill switch (PUT /v1/commerce/settings). */
+export function useSetKillSwitch() {
+  const qc = useQueryClient();
+  const { org } = useAuth();
+  const key = [AUTONOMY_KEY, org?._id ?? null];
+  return useMutation<{ killSwitch: boolean }, Error, boolean>({
+    mutationFn: (killSwitch: boolean) =>
+      api.put<{ killSwitch: boolean }>("/v1/commerce/settings", { killSwitch }),
+    onMutate: async (killSwitch) => {
+      await qc.cancelQueries({ queryKey: key });
+      const prev = qc.getQueryData<AutonomyBoard>(key);
+      if (prev) qc.setQueryData<AutonomyBoard>(key, { ...prev, killSwitch });
+      return { prev };
+    },
+    onError: (_e, _v, ctx) => {
+      if ((ctx as { prev?: AutonomyBoard })?.prev) qc.setQueryData(key, (ctx as { prev: AutonomyBoard }).prev);
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: key }),
+  });
+}
+
+/** Dismiss an agent's graduation invite (POST /v1/commerce/graduation/dismiss). */
+export function useDismissGraduation() {
+  const qc = useQueryClient();
+  const { org } = useAuth();
+  const key = [AUTONOMY_KEY, org?._id ?? null];
+  return useMutation<unknown, Error, { agent: string; channel: string }>({
+    mutationFn: ({ agent, channel }) =>
+      api.post("/v1/commerce/graduation/dismiss", { agent, channel }),
+    // Optimistically clear the invite so it disappears immediately.
+    onMutate: async ({ agent }) => {
+      await qc.cancelQueries({ queryKey: key });
+      const prev = qc.getQueryData<AutonomyBoard>(key);
+      if (prev) {
+        qc.setQueryData<AutonomyBoard>(key, {
+          ...prev,
+          agents: prev.agents.map((a) => (a.agent === agent ? { ...a, graduation: null } : a)),
+        });
+      }
+      return { prev };
+    },
+    onError: (_e, _v, ctx) => {
+      if ((ctx as { prev?: AutonomyBoard })?.prev) qc.setQueryData(key, (ctx as { prev: AutonomyBoard }).prev);
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: key }),
   });
 }
