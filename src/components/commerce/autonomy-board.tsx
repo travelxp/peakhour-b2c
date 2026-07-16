@@ -101,10 +101,16 @@ export function AutonomyBoard() {
               onSet={(level) =>
                 setAutonomy.mutate({ agent: agent.agent, channel: data.channel, level })
               }
-              onGraduate={(level) => {
-                setAutonomy.mutate({ agent: agent.agent, channel: data.channel, level });
-                toast.success(`${AGENT_META[agent.agent]?.name ?? agent.agent} raised to ${LEVEL_LABEL[level]}`);
-              }}
+              onGraduate={(level) =>
+                setAutonomy.mutate(
+                  { agent: agent.agent, channel: data.channel, level },
+                  {
+                    onSuccess: () =>
+                      toast.success(`${AGENT_META[agent.agent]?.name ?? agent.agent} raised to ${LEVEL_LABEL[level]}`),
+                    onError: () => toast.error("Couldn't raise autonomy — please try again"),
+                  },
+                )
+              }
               onDismiss={() => dismiss.mutate({ agent: agent.agent, channel: data.channel })}
             />
           ))
