@@ -152,6 +152,7 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/dashboard/commerce/catalog", label: "Catalog" },
           { href: "/dashboard/commerce/inventory", label: "Inventory" },
           { href: "/dashboard/commerce/pricing", label: "Pricing" },
+          { href: "/dashboard/commerce/reviews", label: "Reviews" },
           { href: "/dashboard/commerce/assistant", label: "Assistant" },
         ],
       },
