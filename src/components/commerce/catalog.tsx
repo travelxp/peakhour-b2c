@@ -155,7 +155,11 @@ function CatalogBody() {
     );
   }
 
+  const loaded = data.items.length;
   const needsWork = data.items.filter((i) => healthBand(i.health.qualityScore) === "needs_work").length;
+  // Counts are over the LOADED set (a single page), so they always reconcile;
+  // surface the cap explicitly when the store has more than we fetched.
+  const capped = data.total > loaded;
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
@@ -163,15 +167,21 @@ function CatalogBody() {
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <FilterPill active={band === "all"} onClick={() => setBand("all")}>
-          All ({data.total})
+          All ({loaded})
         </FilterPill>
         <FilterPill active={band === "needs_work"} onClick={() => setBand("needs_work")}>
           Needs work ({needsWork})
         </FilterPill>
         <FilterPill active={band === "healthy"} onClick={() => setBand("healthy")}>
-          Healthy ({data.items.length - needsWork})
+          Healthy ({loaded - needsWork})
         </FilterPill>
       </div>
+
+      {capped && (
+        <p className="mb-3 text-xs text-muted-foreground">
+          Showing the first {loaded} of {data.total} products.
+        </p>
+      )}
 
       <DataTable
         columns={columns}
