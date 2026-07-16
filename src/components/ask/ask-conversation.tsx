@@ -117,7 +117,9 @@ export function AskConversation({
   }, [messages, status]);
 
   useEffect(() => {
-    if (autoFocus) setTimeout(() => inputRef.current?.focus(), 80);
+    if (!autoFocus) return;
+    const t = setTimeout(() => inputRef.current?.focus(), 80);
+    return () => clearTimeout(t);
   }, [autoFocus]);
 
   function handleSend() {
@@ -191,7 +193,7 @@ export function AskConversation({
             onKeyDown={handleKeyDown}
             placeholder="Ask about your traffic, search, pages…"
             rows={1}
-            className="max-h-[120px] min-h-[36px] resize-none text-sm"
+            className="max-h-30 min-h-9 resize-none text-sm"
             disabled={busy}
           />
           <Button size="icon" className="size-9 shrink-0" onClick={handleSend} disabled={!input.trim() || busy}>

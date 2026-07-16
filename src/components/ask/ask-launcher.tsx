@@ -11,6 +11,7 @@ import { useState } from "react";
 import { Sparkles, X, ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { AskConversation } from "./ask-conversation";
 
 function newThreadId(): string {
@@ -42,8 +43,15 @@ export function AskLauncher() {
         </button>
       )}
 
-      {open && threadId && (
-        <div className="fixed bottom-6 right-6 z-50 flex h-[560px] w-[400px] flex-col overflow-hidden rounded-2xl border bg-background shadow-2xl">
+      {/* Mount once opened, then toggle visibility (don't unmount) so useChat keeps
+          the conversation across close→reopen. */}
+      {threadId && (
+        <div
+          className={cn(
+            "fixed bottom-6 right-6 z-50 h-140 w-100 flex-col overflow-hidden rounded-2xl border bg-background shadow-2xl",
+            open ? "flex" : "hidden",
+          )}
+        >
           <div className="flex items-center gap-3 border-b px-4 py-3">
             <div className="flex size-8 items-center justify-center rounded-lg bg-primary/10">
               <Sparkles className="size-4 text-primary" />
@@ -52,8 +60,8 @@ export function AskLauncher() {
               <p className="text-sm font-semibold leading-none">Ask Peakhour</p>
               <p className="text-[11px] text-muted-foreground">Grounded in your real data</p>
             </div>
-            <Button variant="ghost" size="icon" className="size-7" asChild title="Open full page">
-              <Link href="/dashboard/ask">
+            <Button variant="ghost" size="icon" className="size-7" asChild>
+              <Link href="/dashboard/ask" aria-label="Open Ask Peakhour full page" title="Open full page">
                 <ExternalLink className="size-3.5" />
               </Link>
             </Button>
@@ -62,7 +70,7 @@ export function AskLauncher() {
             </Button>
           </div>
 
-          <AskConversation threadId={threadId} className="flex-1 overflow-hidden" />
+          <AskConversation threadId={threadId} className="flex-1 overflow-hidden" autoFocus={open} />
         </div>
       )}
     </>
