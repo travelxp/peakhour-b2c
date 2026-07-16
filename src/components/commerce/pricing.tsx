@@ -317,6 +317,8 @@ function Promotions({
                     <Button
                       size="sm"
                       variant="outline"
+                      aria-label="Reject promotion"
+                      title="Reject"
                       disabled={isBusy}
                       onClick={() =>
                         decide.mutate(
