@@ -14,6 +14,7 @@ import { EmptyState } from "@/components/molecules/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FeatureGate } from "@/components/upgrade/feature-gate";
 import { CommerceNeedsYou } from "@/components/commerce/needs-you-rail";
+import { ActivityDigest } from "@/components/commerce/activity-digest";
 import { useLocale } from "@/hooks/use-locale";
 import { minorToMajor } from "@/lib/money";
 import { useCommerceSummary } from "@/hooks/use-commerce-summary";
@@ -127,8 +128,9 @@ function CommandCenterBody() {
       )}
 
       {data && !isLoading && (
-        <div className="mt-6">
+        <div className="mt-6 grid gap-4 lg:grid-cols-2">
           <CommerceNeedsYou />
+          <ActivityDigest />
         </div>
       )}
     </div>
