@@ -34,6 +34,7 @@ import { DiscoveryProgressStrip } from "@/components/dashboard/discovery-progres
 import { FootprintReviewCard } from "@/components/dashboard/footprint-review-card";
 import { RecommendationsCard } from "@/components/dashboard/recommendations-card";
 import { BrandMirrorCard } from "@/components/dashboard/brand-mirror-card";
+import { AskCard } from "@/components/dashboard/ask-card";
 
 interface DashboardStats {
   content: {
@@ -163,6 +164,9 @@ export default function OverviewPage() {
       {/* "What we understand about you" — the Brand Mirror. Self-fetching;
           renders nothing until there is understanding to reflect. */}
       <BrandMirrorCard />
+
+      {/* Ask Peakhour entry point (self-hides unless the flag is on). */}
+      <AskCard />
 
       {isError && (
         <div
