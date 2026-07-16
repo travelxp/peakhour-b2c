@@ -11,41 +11,50 @@ let csrfToken: string | null = null;
 let csrfFetchPromise: Promise<string | null> | null = null;
 let refreshPromise: Promise<boolean> | null = null;
 
+/**
+ * Fetch a CSRF token from the server (cached, with dedup guard). Exported so
+ * non-ApiClient callers — e.g. the Ask Peakhour `useChat` transport, which POSTs
+ * directly to /v1/ask and must set `X-CSRF-Token` itself — reuse the same cache.
+ */
+export async function getCsrfToken(): Promise<string | null> {
+  if (csrfToken) return csrfToken;
+
+  // Deduplicate concurrent fetches
+  if (!csrfFetchPromise) {
+    csrfFetchPromise = (async () => {
+      try {
+        const res = await fetch(`${API_URL}/v1/auth/csrf/token`, {
+          credentials: "include",
+        });
+        const json = await res.json();
+        if (json.ok && json.data?.csrf_token) {
+          csrfToken = json.data.csrf_token;
+          return csrfToken;
+        }
+      } catch {
+        // CSRF token fetch is best-effort
+      }
+      return null;
+    })();
+  }
+
+  try {
+    return await csrfFetchPromise;
+  } finally {
+    csrfFetchPromise = null;
+  }
+}
+
+/** Clear the cached CSRF token (e.g. after a CSRF rejection). */
+export function clearCsrfToken(): void {
+  csrfToken = null;
+}
+
 class ApiClient {
   private baseUrl: string;
 
   constructor(baseUrl: string) {
     this.baseUrl = baseUrl;
-  }
-
-  /** Fetch a CSRF token from the server (cached, with dedup guard) */
-  private async getCsrfToken(): Promise<string | null> {
-    if (csrfToken) return csrfToken;
-
-    // Deduplicate concurrent fetches
-    if (!csrfFetchPromise) {
-      csrfFetchPromise = (async () => {
-        try {
-          const res = await fetch(`${this.baseUrl}/v1/auth/csrf/token`, {
-            credentials: "include",
-          });
-          const json = await res.json();
-          if (json.ok && json.data?.csrf_token) {
-            csrfToken = json.data.csrf_token;
-            return csrfToken;
-          }
-        } catch {
-          // CSRF token fetch is best-effort
-        }
-        return null;
-      })();
-    }
-
-    try {
-      return await csrfFetchPromise;
-    } finally {
-      csrfFetchPromise = null;
-    }
   }
 
   async request<T>(path: string, options: FetchOptions = {}): Promise<T> {
@@ -87,7 +96,7 @@ class ApiClient {
 
     // Add CSRF token for state-changing requests
     if (method !== "GET" && method !== "HEAD" && method !== "OPTIONS") {
-      const token = await this.getCsrfToken();
+      const token = await getCsrfToken();
       if (token) {
         headers["X-CSRF-Token"] = token;
       }
@@ -120,8 +129,8 @@ class ApiClient {
         (error.code === "CSRF_INVALID" || error.code === "CSRF_MISSING") &&
         method !== "GET"
       ) {
-        csrfToken = null;
-        const retryToken = await this.getCsrfToken();
+        clearCsrfToken();
+        const retryToken = await getCsrfToken();
         if (retryToken) {
           headers["X-CSRF-Token"] = retryToken;
           const retryRes = await fetch(url, {
@@ -262,7 +271,7 @@ class ApiClient {
       throw new ApiError("CONFIG_ERROR", "NEXT_PUBLIC_API_URL is not configured", 0);
     }
     const headers: Record<string, string> = {};
-    const token = await this.getCsrfToken();
+    const token = await getCsrfToken();
     if (token) headers["X-CSRF-Token"] = token;
 
     const doFetch = () =>
@@ -302,7 +311,7 @@ class ApiClient {
     const headers: Record<string, string> = {};
     if (body) headers["Content-Type"] = "application/json";
 
-    const token = await this.getCsrfToken();
+    const token = await getCsrfToken();
     if (token) headers["X-CSRF-Token"] = token;
 
     const fetchOpts: RequestInit = {
@@ -321,8 +330,8 @@ class ApiClient {
         | null;
       const code = errJson?.error?.code;
       if (code === "CSRF_INVALID" || code === "CSRF_MISSING") {
-        csrfToken = null;
-        const retryToken = await this.getCsrfToken();
+        clearCsrfToken();
+        const retryToken = await getCsrfToken();
         if (retryToken) {
           (fetchOpts.headers as Record<string, string>)["X-CSRF-Token"] = retryToken;
           res = await fetch(`${this.baseUrl}${path}`, fetchOpts);
