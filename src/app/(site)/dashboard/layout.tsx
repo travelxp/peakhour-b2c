@@ -43,6 +43,7 @@ import { CommandMenu } from "@/components/molecules/command-menu";
 import { SidebarStorageMeter } from "@/components/dashboard/sidebar-storage-meter";
 import { FeedbackWidget } from "@/components/molecules/feedback-widget";
 import { ChatPanel } from "@/components/molecules/chat-panel";
+import { AskContextProvider } from "@/providers/ask-context-provider";
 import {
   LayoutDashboard,
   FileText,
@@ -247,6 +248,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     : user?.email?.[0]?.toUpperCase() || "?";
 
   return (
+    <AskContextProvider>
     <SidebarProvider>
       <Sidebar collapsible="icon" variant="sidebar">
         {/* ── Header: Logo + Switchers ──────────────────────── */}
@@ -477,5 +479,6 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       {/* ── AI Chat FAB ──────────────────────────────────── */}
       <ChatPanel />
     </SidebarProvider>
+    </AskContextProvider>
   );
 }
