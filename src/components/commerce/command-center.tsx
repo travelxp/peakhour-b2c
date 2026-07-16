@@ -103,11 +103,17 @@ function CommandCenterBody() {
           />
           <KpiCard
             title="Sales from orders"
-            value={data.orderDerived.switchingOn ? "Switching on" : "Connected"}
+            value={
+              data.orderDerived.switchingOn
+                ? "Switching on"
+                : money(data.orderDerived.gmvMinor, data.store.currency)
+            }
             description={
               data.orderDerived.switchingOn
                 ? "Connect order access to see GMV, AOV & sell-through"
-                : "Order-based revenue is being wired into your reports"
+                : `${data.orderDerived.orderCount} order${
+                    data.orderDerived.orderCount === 1 ? "" : "s"
+                  } · AOV ${money(data.orderDerived.aovMinor, data.store.currency)} (${data.orderDerived.windowDays}d)`
             }
             icon={Receipt}
           />

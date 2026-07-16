@@ -27,7 +27,14 @@ export interface CommerceSummary {
   assistedOrders: { revenueMinor: number; count: number };
   storefront: { impressions: number; clicks: number; addToCart: number };
   pendingApprovals: number;
-  orderDerived: { switchingOn: boolean };
+  orderDerived: {
+    switchingOn: boolean;
+    windowDays: number;
+    /** GMV over the window in minor units of the store currency (0 while switching on). */
+    gmvMinor: number;
+    orderCount: number;
+    aovMinor: number;
+  };
   entitlements: { commerceAssistant: boolean };
 }
 
