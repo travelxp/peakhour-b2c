@@ -15,6 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { FeatureGate } from "@/components/upgrade/feature-gate";
 import { CommerceNeedsYou } from "@/components/commerce/needs-you-rail";
 import { useLocale } from "@/hooks/use-locale";
+import { minorToMajor } from "@/lib/money";
 import { useCommerceSummary } from "@/hooks/use-commerce-summary";
 
 /**
@@ -36,26 +37,13 @@ export function CommandCenter() {
   );
 }
 
-/** A currency's minor-unit exponent (2 for USD/INR, 0 for JPY, 3 for KWD). */
-function minorUnitExponent(currency: string): number {
-  try {
-    return (
-      new Intl.NumberFormat("en", { style: "currency", currency }).resolvedOptions()
-        .maximumFractionDigits ?? 2
-    );
-  } catch {
-    return 2; // unknown/invalid currency code → assume 2-decimal
-  }
-}
-
 function CommandCenterBody() {
   const { data, isLoading, isError } = useCommerceSummary();
   const { formatNumber } = useLocale();
 
   const money = (minor: number, currency: string | null) => {
     const cur = currency ?? "USD";
-    const major = minor / 10 ** minorUnitExponent(cur);
-    return formatNumber(major, {
+    return formatNumber(minorToMajor(minor, cur), {
       style: "currency",
       currency: cur,
       maximumFractionDigits: 0,
