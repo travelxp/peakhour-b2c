@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
 import { ACTIVITY_KEY } from "@/hooks/use-commerce-activity";
+import { AUTONOMY_KEY } from "@/hooks/use-commerce-autonomy";
 
 /**
  * Commerce pending-execution surface (GET /v1/commerce/actions + approve /
@@ -41,7 +42,6 @@ export interface ActionableItem {
 }
 
 export const ACTIONS_KEY = "commerce-actions";
-const AUTONOMY_KEY = "commerce-autonomy";
 
 /** The actions a merchant can act on — proposals to approve, approved to ship,
  *  shipped to revert. Newest first. */
