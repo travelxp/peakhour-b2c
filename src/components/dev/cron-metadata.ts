@@ -342,10 +342,15 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       const d = asRecord(data);
       if (!d) return null;
       const targets = num(d.targets);
-      if (targets === 0) return "No businesses were due a digest.";
+      // targets counts businesses DUE a digest, so 0 covers two very different
+      // cases: nobody has connected analytics, or everyone was digested inside
+      // the 6-day guard window. Don't claim which.
+      if (targets === 0) return "Nothing to send — no business is due a digest right now.";
       const sent = num(d.sent);
       const parts = [`${sent} ${plural(sent, "digest")} sent`];
-      // skipped = quiet-hours / no-metrics / already-digested this week.
+      // skipped = connected but no metrics worth a brief yet (still syncing, or
+      // no period comparison). It is NOT a re-send skip — businesses digested
+      // inside the guard window are excluded by the query and never counted here.
       if (num(d.skipped) > 0) parts.push(`${num(d.skipped)} skipped`);
       if (num(d.errors) > 0) parts.push(`${num(d.errors)} failed`);
       // budgetHit means the run stopped early on wall-clock, not that it
