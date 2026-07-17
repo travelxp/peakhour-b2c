@@ -333,6 +333,53 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       return "X ad metrics refreshed.";
     },
   },
+  "ask-weekly-digest": {
+    label: "Send weekly digest",
+    frequency: "Runs weekly (Monday 6:00 AM UTC)",
+    description:
+      "Sends each business owner their weekly performance digest — plain-English headline, what moved, and one suggested next step — over WhatsApp, falling back to in-app.",
+    summarize: (data) => {
+      const d = asRecord(data);
+      if (!d) return null;
+      const targets = num(d.targets);
+      // targets counts businesses DUE a digest, so 0 covers two very different
+      // cases: nobody has connected analytics, or everyone was digested inside
+      // the 6-day guard window. Don't claim which.
+      if (targets === 0) return "Nothing to send — no business is due a digest right now.";
+      const sent = num(d.sent);
+      const parts = [`${sent} ${plural(sent, "digest")} sent`];
+      // skipped = connected but no metrics worth a brief yet (still syncing, or
+      // no period comparison). It is NOT a re-send skip — businesses digested
+      // inside the guard window are excluded by the query and never counted here.
+      if (num(d.skipped) > 0) parts.push(`${num(d.skipped)} skipped`);
+      if (num(d.errors) > 0) parts.push(`${num(d.errors)} failed`);
+      // budgetHit means the run stopped early on wall-clock, not that it
+      // finished the queue — say so, or the count reads as complete.
+      const tail = d.budgetHit === true ? " Time budget reached — the rest roll over to the next run." : "";
+      return `${parts.join(", ")}.${tail}`;
+    },
+  },
+  "wa-outcome-billing": {
+    label: "Bill resolved chats",
+    frequency: "Runs every 3 hours",
+    description:
+      "Reviews WhatsApp conversations that have gone quiet, works out which ones actually reached an outcome (resolved, lead qualified, appointment booked), and charges Peaks once per outcome. Ongoing chat turns are always free.",
+    summarize: (data) => {
+      const d = asRecord(data);
+      if (!d) return null;
+      const scanned = num(d.scanned);
+      if (scanned === 0) return "No quiet conversations to review yet.";
+      const billed = num(d.billed);
+      const parts = [
+        billed === 0
+          ? `${scanned} ${plural(scanned, "conversation")} reviewed — none reached a billable outcome`
+          : `${billed} of ${scanned} ${plural(scanned, "conversation")} billed`,
+      ];
+      if (num(d.humanTakeover) > 0) parts.push(`${num(d.humanTakeover)} handed to a human`);
+      if (num(d.errors) > 0) parts.push(`${num(d.errors)} failed`);
+      return `${parts.join(", ")}.`;
+    },
+  },
 };
 
 /** Fallback for a cron name not yet documented in CRON_METADATA. The UI
