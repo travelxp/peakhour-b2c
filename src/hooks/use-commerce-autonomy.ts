@@ -47,7 +47,7 @@ export interface AutonomyBoard {
   killSwitch: boolean;
 }
 
-const AUTONOMY_KEY = "commerce-autonomy";
+export const AUTONOMY_KEY = "commerce-autonomy";
 
 export function useCommerceAutonomy() {
   const { isAuthenticated, org } = useAuth();

@@ -4,6 +4,7 @@ import { Store } from "lucide-react";
 import { FeatureGate } from "@/components/upgrade/feature-gate";
 import { EmptyState } from "@/components/molecules/empty-state";
 import { CommerceNeedsYou } from "@/components/commerce/needs-you-rail";
+import { PendingExecutions } from "@/components/commerce/pending-executions";
 import { AutonomyBoard } from "@/components/commerce/autonomy-board";
 import { useCommerceSummary } from "@/hooks/use-commerce-summary";
 
@@ -55,6 +56,13 @@ function CommerceAutopilotBody() {
               Approvals
             </h2>
             <CommerceNeedsYou />
+          </section>
+
+          <section aria-labelledby="ship-heading" className="mt-8">
+            <h2 id="ship-heading" className="mb-2 text-sm font-medium text-muted-foreground">
+              Ready to ship
+            </h2>
+            <PendingExecutions />
           </section>
 
           <section aria-labelledby="autonomy-heading" className="mt-8">
