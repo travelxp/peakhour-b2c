@@ -28,6 +28,7 @@ import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { useSetAskEntityIds } from "@/providers/ask-context-provider";
 import { ASK_ENABLED } from "@/lib/flags";
 import { TrendChart } from "@/components/ui/trend-chart";
+import { ExplainCard } from "@/components/dashboard/explain-card";
 import {
   useAnalyticsInsights,
   ANALYTICS_INSIGHTS_KEY,
@@ -425,6 +426,9 @@ function AnalyticsData({
           )}
         </Card>
       )}
+
+      {/* ── Tier-2 "Explain this" (user-triggered, Peaks-metered) ── */}
+      <ExplainCard surface="ga4" resource={data.property} />
 
       {/* ── Funnel top-line ── */}
       {/* Totals over the funnel window (30d). We deliberately DON'T show a WoW

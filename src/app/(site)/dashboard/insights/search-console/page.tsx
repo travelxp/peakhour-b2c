@@ -36,6 +36,7 @@ import {
 } from "lucide-react";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { TrendChart } from "@/components/ui/trend-chart";
+import { ExplainCard } from "@/components/dashboard/explain-card";
 import { useSetAskEntityIds } from "@/providers/ask-context-provider";
 
 // ── Types (mirror peakhour-api search-insights service) ─────────────────────
@@ -414,6 +415,9 @@ export default function SearchConsoleInsightsPage() {
                   </CardContent>
                 </Card>
               )}
+
+              {/* ── Tier-2 "Explain this" (user-triggered, Peaks-metered) ── */}
+              <ExplainCard surface="gsc" resource={data.siteUrl} />
 
               {/* ── Clicks trend ── */}
               {data.trend && data.trend.length > 0 && (
