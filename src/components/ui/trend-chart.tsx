@@ -41,6 +41,9 @@ export function TrendChart({
   emptyLabel?: string;
   valueFormatter?: (value: number) => string;
 }) {
+  // Instance-unique prefix so two TrendCharts sharing a series key on one page
+  // don't collide on the SVG gradient <defs> id (SVG ids are document-global).
+  const gradPrefix = React.useId().replace(/:/g, "");
   const config: ChartConfig = React.useMemo(
     () =>
       Object.fromEntries(
@@ -75,7 +78,7 @@ export function TrendChart({
       <AreaChart data={data} margin={{ left: 4, right: 8, top: 8, bottom: 0 }}>
         <defs>
           {series.map((s) => (
-            <linearGradient key={s.key} id={`fill-${s.key}`} x1="0" y1="0" x2="0" y2="1">
+            <linearGradient key={s.key} id={`${gradPrefix}-fill-${s.key}`} x1="0" y1="0" x2="0" y2="1">
               <stop offset="5%" stopColor={`var(--color-${s.key})`} stopOpacity={0.28} />
               <stop offset="95%" stopColor={`var(--color-${s.key})`} stopOpacity={0.04} />
             </linearGradient>
@@ -108,7 +111,7 @@ export function TrendChart({
             type="monotone"
             stroke={`var(--color-${s.key})`}
             strokeWidth={2}
-            fill={`url(#fill-${s.key})`}
+            fill={`url(#${gradPrefix}-fill-${s.key})`}
             dot={false}
             isAnimationActive={false}
           />

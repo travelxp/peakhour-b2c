@@ -66,9 +66,12 @@ export interface AnalyticsInsightsResponse {
   property?: string;
   period?: string;
   funnel?: Ga4Funnel;
-  channels: Ga4Channel[];
-  trend: Ga4TrendPoint[];
+  // channels/trend/trendWindowDays are sent ONLY on the ready state — optional
+  // so a consumer reading them in a pending/not-configured state can't crash.
+  channels?: Ga4Channel[];
+  trend?: Ga4TrendPoint[];
   trendWindowDays?: number;
+  // pages/lockedPages are sent in every state.
   pages: Ga4Page[];
   lockedPages: number;
   digest?: Ga4Digest;

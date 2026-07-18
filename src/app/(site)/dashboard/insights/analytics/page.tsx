@@ -397,6 +397,9 @@ function AnalyticsData({
 
   const d = data.digest;
   const funnel = data.funnel;
+  const channels = data.channels ?? [];
+  const trend = data.trend ?? [];
+  const funnelWindow = data.period ?? "last 30 days";
   const windowLabel = data.trendWindowDays ? `last ${data.trendWindowDays} days` : "recent";
 
   return (
@@ -423,33 +426,20 @@ function AnalyticsData({
         </Card>
       )}
 
-      {/* ── Funnel top-line (with WoW deltas when available) ── */}
+      {/* ── Funnel top-line ── */}
+      {/* Totals over the funnel window (30d). We deliberately DON'T show a WoW
+          delta chip here: the digest is 7d-vs-7d, so pairing a 7d delta with a
+          30d magnitude would misread ("45,000 ↑12%" implies the 45k grew 12%).
+          The week-over-week story lives in the digest banner above. */}
       {funnel && (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <FunnelTile
-            icon={<Users className="h-4 w-4" />}
-            label="Sessions"
-            value={funnel.sessions}
-            deltaPct={d?.hasComparison ? d.trend.sessions.deltaPct : null}
-          />
-          <FunnelTile
-            icon={<Users className="h-4 w-4" />}
-            label="Users"
-            value={funnel.totalUsers}
-            deltaPct={d?.hasComparison ? d.trend.totalUsers.deltaPct : null}
-          />
-          <FunnelTile
-            icon={<Activity className="h-4 w-4" />}
-            label="Engagement"
-            value={funnel.engagementRatePct}
-            suffix="%"
-          />
-          <FunnelTile
-            icon={<Target className="h-4 w-4" />}
-            label="Conversions"
-            value={funnel.conversions}
-            deltaPct={d?.hasComparison ? d.trend.conversions.deltaPct : null}
-          />
+        <div className="space-y-2">
+          <p className="text-xs text-muted-foreground">Totals · {funnelWindow}</p>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <FunnelTile icon={<Users className="h-4 w-4" />} label="Sessions" value={funnel.sessions} />
+            <FunnelTile icon={<Users className="h-4 w-4" />} label="Users" value={funnel.totalUsers} />
+            <FunnelTile icon={<Activity className="h-4 w-4" />} label="Engagement" value={funnel.engagementRatePct} suffix="%" />
+            <FunnelTile icon={<Target className="h-4 w-4" />} label="Conversions" value={funnel.conversions} />
+          </div>
         </div>
       )}
 
@@ -464,7 +454,7 @@ function AnalyticsData({
         </CardHeader>
         <CardContent>
           <TrendChart
-            data={data.trend as unknown as Array<Record<string, string | number>>}
+            data={trend as unknown as Array<Record<string, string | number>>}
             series={[{ key: "sessions", label: "Sessions" }]}
           />
         </CardContent>
@@ -480,11 +470,11 @@ function AnalyticsData({
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {data.channels.length === 0 ? (
+            {channels.length === 0 ? (
               <p className="text-sm text-muted-foreground">No channel data yet.</p>
             ) : (
               <ul className="space-y-1.5">
-                {data.channels.map((ch) => (
+                {channels.map((ch) => (
                   <li key={ch.channel} className="flex items-center justify-between text-sm">
                     <span>{ch.channel}</span>
                     <span className="tabular-nums text-muted-foreground">

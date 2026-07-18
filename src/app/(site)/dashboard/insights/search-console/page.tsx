@@ -235,17 +235,13 @@ export default function SearchConsoleInsightsPage() {
   const status = statusQ.data;
   const sites = capQ.data?.account?.extra?.sites ?? [];
   const properties = capQ.data?.properties ?? [];
-  // The picker should offer every VERIFIED site (account.extra.sites), not only
-  // the CONFIGURED ones (properties[]) — a user may have verified several
-  // domains but configured just the default, and would otherwise be unable to
-  // switch. Union, deduped, configured-first, order-stable.
-  const selectableProperties = (() => {
-    const seen = new Set<string>();
-    const out: string[] = [];
-    for (const p of properties) if (p.siteUrl && !seen.has(p.siteUrl)) { seen.add(p.siteUrl); out.push(p.siteUrl); }
-    for (const s of sites) if (s.siteUrl && !seen.has(s.siteUrl)) { seen.add(s.siteUrl); out.push(s.siteUrl); }
-    return out;
-  })();
+  // The picker offers only CONFIGURED properties (config.properties[]) — the ones
+  // the sync actually pulls (selectedGscProperties). A verified-but-unconfigured
+  // site would resolve on read but has zero synced rows and is NEVER added to the
+  // sync set, so offering it here would strand the user on a permanent "gathering
+  // data" state with no path forward. Adding a property happens on Integrations
+  // (which the not_configured state already directs to).
+  const selectableProperties = properties.map((p) => p.siteUrl).filter(Boolean);
   const isWorking = status?.status === "active" || status?.status === "error";
   const needsReconnect = status?.status === "expired";
   const data = insightsQ.data;
