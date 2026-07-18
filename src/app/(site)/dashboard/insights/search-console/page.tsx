@@ -35,6 +35,8 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
+import { TrendChart } from "@/components/ui/trend-chart";
+import { useSetAskEntityIds } from "@/providers/ask-context-provider";
 
 // ── Types (mirror peakhour-api search-insights service) ─────────────────────
 interface ConnectionStatus {
@@ -105,6 +107,14 @@ interface HealthReport {
   summary: string;
 }
 
+interface GscTrendPoint {
+  date: string;
+  clicks: number;
+  impressions: number;
+  ctr: number;
+  position: number;
+}
+
 interface SearchInsightsResponse {
   connected: boolean;
   configured: boolean;
@@ -116,6 +126,10 @@ interface SearchInsightsResponse {
   health?: HealthReport;
   actions: SearchAction[];
   locked: number;
+  /** Day-grain totals series for the trend chart (may be empty until the totals
+   *  sync has written rows). */
+  trend?: GscTrendPoint[];
+  trendWindowDays?: number;
 }
 
 // ── Presentation helpers ────────────────────────────────────────────────────
@@ -192,6 +206,12 @@ export default function SearchConsoleInsightsPage() {
     onError: (e: Error) => toast.error(e.message ?? "Sync failed"),
   });
 
+  // Publish the resolved GSC property so Ask Peakhour on this page pre-scopes its
+  // tools to it (cleared on unmount). Called unconditionally before any early
+  // return per the rules of hooks; falls back to the picked property before the
+  // insights response resolves the default.
+  useSetAskEntityIds({ siteUrl: insightsQ.data?.siteUrl ?? property });
+
   const cronToolbar = (
     <CronToolbar
       crons={["performance-sync"]}
@@ -215,6 +235,17 @@ export default function SearchConsoleInsightsPage() {
   const status = statusQ.data;
   const sites = capQ.data?.account?.extra?.sites ?? [];
   const properties = capQ.data?.properties ?? [];
+  // The picker should offer every VERIFIED site (account.extra.sites), not only
+  // the CONFIGURED ones (properties[]) — a user may have verified several
+  // domains but configured just the default, and would otherwise be unable to
+  // switch. Union, deduped, configured-first, order-stable.
+  const selectableProperties = (() => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const p of properties) if (p.siteUrl && !seen.has(p.siteUrl)) { seen.add(p.siteUrl); out.push(p.siteUrl); }
+    for (const s of sites) if (s.siteUrl && !seen.has(s.siteUrl)) { seen.add(s.siteUrl); out.push(s.siteUrl); }
+    return out;
+  })();
   const isWorking = status?.status === "active" || status?.status === "error";
   const needsReconnect = status?.status === "expired";
   const data = insightsQ.data;
@@ -237,16 +268,16 @@ export default function SearchConsoleInsightsPage() {
         </div>
         {isWorking && (
           <div className="flex items-center gap-2">
-            {properties.length > 1 && (
+            {selectableProperties.length > 1 && (
               <Select value={property ?? "__default__"} onValueChange={(v) => setProperty(v === "__default__" ? undefined : v)}>
                 <SelectTrigger className="w-55">
                   <SelectValue placeholder="Property" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__default__">Default property</SelectItem>
-                  {properties.map((p) => (
-                    <SelectItem key={p.siteUrl} value={p.siteUrl}>
-                      {p.siteUrl}
+                  {selectableProperties.map((siteUrl) => (
+                    <SelectItem key={siteUrl} value={siteUrl}>
+                      {siteUrl}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -380,9 +411,32 @@ export default function SearchConsoleInsightsPage() {
 
                     {!data.digest.hasComparison && (
                       <p className="text-xs text-muted-foreground">
-                        We&apos;ll show week-over-week movements once there&apos;s a second sync to compare against.
+                        We&apos;ll show movements versus about a week ago once there&apos;s a week of
+                        history to compare against.
                       </p>
                     )}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* ── Clicks trend ── */}
+              {data.trend && data.trend.length > 0 && (
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <MousePointerClick className="h-4 w-4" />
+                      Clicks trend
+                    </CardTitle>
+                    <p className="text-xs text-muted-foreground">
+                      Daily search clicks
+                      {data.trendWindowDays ? `, last ${data.trendWindowDays} days` : ""}.
+                    </p>
+                  </CardHeader>
+                  <CardContent>
+                    <TrendChart
+                      data={data.trend as unknown as Array<Record<string, string | number>>}
+                      series={[{ key: "clicks", label: "Clicks" }]}
+                    />
                   </CardContent>
                 </Card>
               )}

@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { ChannelWidget } from "@/hooks/use-home-summary";
-import { Sparkline } from "./sparkline";
+import { Sparkline } from "@/components/ui/sparkline";
 
 /**
  * Per-channel widgets — one card per CONNECTED channel (the server only
