@@ -2,11 +2,17 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { toast } from "sonner";
 import { Sparkles, RefreshCw, Loader2, Lightbulb, Zap } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ApiError } from "@/lib/api";
+import { useCreditsBalance, useCreditsRateCard, getCapStatus } from "@/hooks/use-credits";
 import { useExplain, type ExplainSurface, type ExplainNarration } from "@/hooks/use-explain";
+
+/** The billable useCase (cfg_ai_models, mongodb migration 164) — used to read
+ *  the true per-generation cost off the rate card. */
+const EXPLAIN_USE_CASE = "metrics_translate_dashboard";
 
 /** Sentiment → left-accent colour for the narration card. */
 const ACCENT: Record<ExplainNarration["sentiment"], string> = {
@@ -23,7 +29,10 @@ const ACCENT: Record<ExplainNarration["sentiment"], string> = {
  */
 export function ExplainCard({ surface, resource }: { surface: ExplainSurface; resource?: string }) {
   const { query, generate } = useExplain(surface, resource);
+  const { data: balance } = useCreditsBalance();
+  const { data: rateCard } = useCreditsRateCard();
   const [outOfPeaks, setOutOfPeaks] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const data = query.data;
   // Nothing to explain yet (first week / not connected / still syncing) — stay
@@ -32,17 +41,32 @@ export function ExplainCard({ surface, resource }: { surface: ExplainSurface; re
 
   const narration = data.narration;
   const pending = generate.isPending;
+  // Pre-flight: don't let the click fail into a 429 if we already know they're
+  // capped (also shows the nudge proactively, not just reactively).
+  const hardCapped = getCapStatus(balance) === "hard" || outOfPeaks;
+
+  // True cost from the rate card (creditMultiplier), NOT a hard-coded guess — the
+  // price lives in cfg_ai_models and ops can retune it. Falls back to unit-less
+  // copy rather than a wrong number while the card loads.
+  const cost = rateCard?.useCases.find((u) => u.useCase === EXPLAIN_USE_CASE)?.creditMultiplier;
+  const costLabel = cost ? `Uses about ${cost} Peaks.` : "Uses Peaks.";
 
   const run = (refresh: boolean) => {
-    setOutOfPeaks(false);
+    if (hardCapped) return;
+    setErrorMsg(null);
     generate.mutate(
       { refresh },
       {
         onError: (err) => {
           // Peaks hard cap (requireUnderFairUse → 429) — meter, don't paywall:
-          // show an honest top-up nudge, never a raw error.
+          // an honest top-up nudge, never a raw error.
           if (err instanceof ApiError && (err.code === "CREDITS_EXHAUSTED" || err.status === 429)) {
             setOutOfPeaks(true);
+          } else {
+            // Any other failure (model hiccup / network) — surface it, don't
+            // leave the user staring at a reset button with no feedback.
+            setErrorMsg("Couldn't generate that explanation — please try again.");
+            toast.error("Couldn't generate the explanation. Please try again.");
           }
         },
       },
@@ -61,9 +85,13 @@ export function ExplainCard({ surface, resource }: { surface: ExplainSurface; re
             <Button
               size="sm"
               variant="ghost"
-              disabled={pending}
+              disabled={pending || hardCapped}
               onClick={() => run(true)}
-              title={data.stale ? "The data has moved on — refresh the explanation" : "Regenerate"}
+              title={
+                data.stale
+                  ? `The data has moved on — refresh the explanation (${costLabel})`
+                  : `Regenerate (${costLabel})`
+              }
             >
               <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${pending ? "animate-spin" : ""}`} />
               {data.stale ? "Refresh" : "Regenerate"}
@@ -78,7 +106,8 @@ export function ExplainCard({ surface, resource }: { surface: ExplainSurface; re
       </CardHeader>
 
       <CardContent className="space-y-3">
-        {outOfPeaks ? (
+        {/* Additive banners — never replace the narration/button below. */}
+        {hardCapped && (
           <div className="flex items-center justify-between gap-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-900 dark:bg-amber-950/40">
             <span className="text-amber-900 dark:text-amber-200">
               You&apos;re out of Peaks for now — top up to generate more explanations.
@@ -90,12 +119,19 @@ export function ExplainCard({ surface, resource }: { surface: ExplainSurface; re
               </Link>
             </Button>
           </div>
-        ) : !narration ? (
+        )}
+        {errorMsg && (
+          <p className="rounded-md border border-red-300 bg-red-50 p-2.5 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+            {errorMsg}
+          </p>
+        )}
+
+        {!narration ? (
           <div className="space-y-2">
             <p className="text-sm text-muted-foreground">
               Turn this week&apos;s numbers into plain English — what changed, and what to do next.
             </p>
-            <Button size="sm" disabled={pending} onClick={() => run(false)}>
+            <Button size="sm" disabled={pending || hardCapped} onClick={() => run(false)}>
               {pending ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
@@ -103,7 +139,7 @@ export function ExplainCard({ surface, resource }: { surface: ExplainSurface; re
               )}
               Explain this week
             </Button>
-            <p className="text-xs text-muted-foreground">Uses 1 Peak.</p>
+            <p className="text-xs text-muted-foreground">{costLabel}</p>
           </div>
         ) : (
           <>
@@ -125,6 +161,9 @@ export function ExplainCard({ surface, resource }: { surface: ExplainSurface; re
                 </span>
               </div>
             )}
+            <p className="text-xs text-muted-foreground">
+              {cost ? `Regenerating uses about ${cost} more Peaks.` : "Regenerating spends Peaks again."}
+            </p>
           </>
         )}
       </CardContent>
