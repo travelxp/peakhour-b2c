@@ -3,11 +3,11 @@
 import { cn } from "@/lib/utils";
 
 /**
- * Tiny inline-SVG sparkline for the channel widgets — a 7-day impressions
- * trend. Deliberately dependency-free (no recharts per-widget overhead):
- * it's a decorative micro-trend, not an interactive chart. Renders nothing
- * when there's no series or the series is flat-zero, so a channel with no
- * analytics yet shows a clean gap rather than a misleading flat line.
+ * Tiny inline-SVG sparkline — a dependency-free micro-trend (no per-widget
+ * recharts overhead). Renders nothing when there's no series or the series is
+ * flat-zero, so a surface with no analytics yet shows a clean gap rather than a
+ * misleading flat line. Shared UI primitive (promoted from the autopilot channel
+ * widgets); use ui/trend-chart.tsx for a full axed/tooltipped chart.
  */
 export function Sparkline({
   data,
