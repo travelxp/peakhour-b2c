@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { featureLabel } from "@/lib/pricing";
 import { useQueryClient } from "@tanstack/react-query";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
+import { TaxAndInvoices } from "@/components/settings-tax-invoices";
 
 // Mirrors the navbar PlanBadge tier accents so plan presentation stays
 // consistent across surfaces.
@@ -251,6 +252,9 @@ export default function BillingPage() {
             </Button>
           </CardContent>
         </Card>
+
+        {/* Tax details + self-issued invoices */}
+        <TaxAndInvoices />
       </div>
     </div>
   );
