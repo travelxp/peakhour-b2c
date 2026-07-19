@@ -61,6 +61,7 @@ import {
   Zap,
   MessagesSquare,
   ShoppingBag,
+  MapPin,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -162,6 +163,16 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/dashboard/commerce/reviews", label: "Reviews" },
           { href: "/dashboard/commerce/assistant", label: "Assistant" },
         ],
+      },
+      // Presence — the local-presence pillar (Google Business Profile anchor).
+      // Gated on `presence.nav` (granted free to every plan that bundles the
+      // Presence product). Surfaces render coming_soon until Google API access
+      // lands; the pillar is visible so owners can find it.
+      {
+        href: "/dashboard/presence",
+        label: "Presence",
+        icon: MapPin,
+        feature: "presence.nav",
       },
       { href: "/dashboard/inbox", label: "Inbox", icon: MessagesSquare },
       { href: "/dashboard/tasks", label: "Tasks", icon: ListChecks, badge: () => <RunningJobsBadge /> },
