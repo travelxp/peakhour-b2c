@@ -29,6 +29,8 @@ import { Input } from "@/components/ui/input";
  *  the SAME plan flag that stamps the charge, so copy and money always agree. */
 export interface CheckoutSummary {
   tier: string;
+  /** Human plan name (cfg_plans.name) — always prefer over the machine key. */
+  tierLabel?: string;
   amount: number;
   currency: string;
   interval: "month" | "year";
@@ -93,7 +95,7 @@ function SummaryLine({ summary }: { summary: CheckoutSummary }) {
   return (
     <div className="rounded-xl border bg-muted/40 px-4 py-3 text-sm">
       <div className="flex items-baseline justify-between gap-3">
-        <span className="font-medium truncate">{summary.tier}</span>
+        <span className="font-medium truncate">{summary.tierLabel || summary.tier}</span>
         <span className="font-semibold whitespace-nowrap">
           {summary.currency} {summary.amount}/{summary.interval === "year" ? "yr" : "mo"}
         </span>
@@ -280,7 +282,7 @@ function GatewayLauncher({
             // Seller identity is data-driven from the billing entity's invoice
             // branding (Phase 6) — never hardcoded.
             name: summary?.sellerName || "Peakhour",
-            ...(summary ? { description: `${summary.tier} — ${summary.taxLabel}` } : {}),
+            ...(summary ? { description: `${summary.tierLabel || summary.tier} — ${summary.taxLabel}` } : {}),
             ...(prefill ? { prefill } : {}),
             handler: () => {
               onSuccess?.();
@@ -334,7 +336,7 @@ function GatewayLauncher({
   if (gate === "prompt" && summary) {
     return (
       <Dialog open onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="sm:max-w-md" aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle>Complete your purchase</DialogTitle>
           </DialogHeader>
@@ -348,6 +350,9 @@ function GatewayLauncher({
               value={gstin}
               placeholder="22AAAAA0000A1Z5"
               onChange={(e) => setGstin(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void continueToPayment();
+              }}
             />
             <p className="text-muted-foreground text-xs">
               Businesses: add your GSTIN so it prints on your tax invoice. You can also add it later
@@ -367,7 +372,22 @@ function GatewayLauncher({
     );
   }
 
-  // The gateway renders its own overlay; nothing for us to draw while checking
-  // or once launched.
+  if (gate === "checking") {
+    // Never render "nothing" while the profile read is in flight — a dead click
+    // invites a re-click that would mint a second gateway subscription.
+    return (
+      <Dialog open onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-md" aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle>Preparing payment…</DialogTitle>
+          </DialogHeader>
+          {summary ? <SummaryLine summary={summary} /> : null}
+          <p className="text-muted-foreground text-sm">One moment — opening the secure payment window.</p>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  // The gateway renders its own overlay; nothing for us to draw once launched.
   return null;
 }
