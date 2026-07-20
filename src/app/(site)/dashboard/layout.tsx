@@ -62,6 +62,7 @@ import {
   MessagesSquare,
   ShoppingBag,
   MapPin,
+  LineChart,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -71,6 +72,7 @@ import {
 } from "@/components/ui/collapsible";
 import { useMyTickets } from "@/hooks/use-feedback";
 import { useRunningJobCount } from "@/hooks/use-jobs";
+import { LockedNavItem } from "@/components/dashboard/locked-nav-item";
 
 interface NavItem {
   href: string;
@@ -84,6 +86,12 @@ interface NavItem {
    * Content/Growth items). Used to gate the Commerce pillar on `commerce.nav`.
    */
   feature?: string;
+  /**
+   * One-line value prop shown in the upgrade drawer when a `feature`-gated
+   * pillar is rendered locked (unentitled) instead of hidden. Ignored for
+   * ungated items. See LockedNavItem.
+   */
+  upsellTagline?: string;
   subItems?: { href: string; label: string; badge?: () => React.ReactNode }[];
 }
 
@@ -153,6 +161,8 @@ const NAV_GROUPS: NavGroup[] = [
         label: "Commerce",
         icon: ShoppingBag,
         feature: "commerce.nav",
+        upsellTagline:
+          "Autonomous merchandising, inventory and pricing across your storefronts.",
         subItems: [
           { href: "/dashboard/commerce", label: "Command Center" },
           { href: "/dashboard/commerce/channels", label: "Channels" },
@@ -173,6 +183,23 @@ const NAV_GROUPS: NavGroup[] = [
         label: "Presence",
         icon: MapPin,
         feature: "presence.nav",
+        upsellTagline:
+          "Own your Google Business Profile, listings and local reviews from one place.",
+      },
+      // Insights — GA4 + Search Console dashboards. Ungated (no `feature`):
+      // the pages self-gate on the relevant Google integration being
+      // connected, so the pillar stays discoverable for everyone and acts
+      // as the connect prompt. Previously these routes existed but were
+      // unreachable from the nav — only deep-linked from the Overview
+      // recommendations card / Ask Peakhour.
+      {
+        href: "/dashboard/insights/analytics",
+        label: "Insights",
+        icon: LineChart,
+        subItems: [
+          { href: "/dashboard/insights/analytics", label: "Web Analytics" },
+          { href: "/dashboard/insights/search-console", label: "Search Console" },
+        ],
       },
       { href: "/dashboard/inbox", label: "Inbox", icon: MessagesSquare },
       { href: "/dashboard/tasks", label: "Tasks", icon: ListChecks, badge: () => <RunningJobsBadge /> },
@@ -306,13 +333,25 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
               )}
               <SidebarGroupContent>
                 <SidebarMenu>
-                  {group.items
-                    .filter(
-                      (item) =>
-                        !item.feature ||
-                        Boolean(entitlements?.features?.includes(item.feature)),
-                    )
-                    .map((item) => {
+                  {group.items.map((item) => {
+                    // Gated pillar the org isn't entitled to → render it
+                    // locked with an upsell affordance instead of hiding it
+                    // (entitlements are resolved by now; the shell blocks on
+                    // isLoading above, so no locked-flash for entitled orgs).
+                    if (
+                      item.feature &&
+                      !entitlements?.features?.includes(item.feature)
+                    ) {
+                      return (
+                        <LockedNavItem
+                          key={item.href}
+                          icon={item.icon}
+                          label={item.label}
+                          featureKey={item.feature}
+                          tagline={item.upsellTagline}
+                        />
+                      );
+                    }
                     const Icon = item.icon;
                     const isActive = item.subItems
                       ? item.subItems.some((s) => pathname === s.href || pathname?.startsWith(s.href + "/"))
