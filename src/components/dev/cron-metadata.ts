@@ -29,13 +29,21 @@
  *                   reads keep the intent obvious.
  */
 
+/** A summarizer may return a bare string (shown as a success toast) or an
+ *  object that also carries a severity — use `level: "warning"` when the run
+ *  technically succeeded (HTTP 2xx) but did nothing useful, e.g. a sync that
+ *  skipped every connection because none is finished being set up. Without
+ *  this a no-op reads as a green success, which is what made "sync ran, toast
+ *  green, still no data" so confusing. */
+export type CronSummary = string | { message: string; level?: "success" | "warning" };
+
 export interface CronMetadata {
   label: string;
   frequency: string;
   description: string;
-  /** Maps the parsed cron `data` payload to a friendly one-line success
-   *  message, or null to fall back to the generic toast. */
-  summarize?: (data: unknown) => string | null;
+  /** Maps the parsed cron `data` payload to a friendly one-line message
+   *  (optionally with a severity), or null to fall back to the generic toast. */
+  summarize?: (data: unknown) => CronSummary | null;
 }
 
 export const CRON_METADATA: Record<string, CronMetadata> = {
@@ -114,13 +122,37 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       const total = num(overall.connectionsTotal);
       if (total === 0) return "Performance refreshed — no connected platforms yet.";
       if (num(overall.errors) > 0)
-        return "Performance refreshed, but some platforms reported errors.";
+        return {
+          message: "Performance refreshed, but some platforms reported errors.",
+          level: "warning",
+        };
+      const notConfigured = num(overall.notConfigured);
       const run = num(overall.connectionsRun);
-      if (run > 0)
-        return `Performance refreshed across ${run} ${plural(run, "connection")}.`;
+      // Ran but every connection that ran was incomplete (e.g. GA4 with no
+      // property selected) — a 2xx no-op. Warn, and point at the fix, so this
+      // stops masquerading as a healthy sync.
+      if (notConfigured > 0 && notConfigured >= run) {
+        return {
+          message:
+            "Nothing synced — pick a GA4 property (and connect Search Console) above, then refresh.",
+          level: "warning",
+        };
+      }
+      if (run > 0) {
+        const base = `Performance refreshed across ${run} ${plural(run, "connection")}.`;
+        return notConfigured > 0
+          ? {
+              message: `${base} ${notConfigured} still ${notConfigured === 1 ? "needs" : "need"} setup.`,
+              level: "warning",
+            }
+          : base;
+      }
       // total > 0 but nothing ran → every connection was lock-skipped,
       // i.e. a refresh is already in progress (not "up to date").
-      return "A performance refresh is already running — check back shortly.";
+      return {
+        message: "A performance refresh is already running — check back shortly.",
+        level: "warning",
+      };
     },
   },
   "linkedin-post-sync": {
@@ -429,13 +461,21 @@ function plural(count: number, noun: string): string {
  * generic "<label> complete") whenever there's no summarizer, the body
  * isn't parseable, or the summarizer opts out. Never throws.
  */
-export function summarizeCronBody(cron: string, body: string): string | null {
+export function summarizeCronBody(
+  cron: string,
+  body: string,
+): { message: string; level: "success" | "warning" } | null {
   const summarize = CRON_METADATA[cron]?.summarize;
   if (!summarize || !body) return null;
   try {
     const parsed = JSON.parse(body) as unknown;
     const data = asRecord(parsed)?.data;
-    return summarize(data);
+    const result = summarize(data);
+    if (result == null) return null;
+    // Normalize the bare-string form to a success-level object.
+    return typeof result === "string"
+      ? { message: result, level: "success" }
+      : { message: result.message, level: result.level ?? "success" };
   } catch {
     // Malformed / truncated body — defer to the generic toast.
     return null;

@@ -95,6 +95,24 @@ export default function AnalyticsInsightsPage() {
     onError: (e: Error) => toast.error(e.message ?? "Sync failed"),
   });
 
+  // Persist the chosen GA4 property to the connection (config.propertyId) —
+  // the field the hourly performance-sync actually reads. Without this the
+  // picker only ever changed a read-time query override, so the cron stayed
+  // blind and the dashboard showed nothing. On success we kick a sync so data
+  // for the newly-selected property lands right away.
+  const setPropertyMut = useMutation({
+    mutationFn: (propertyId: string) =>
+      api.put("/v1/integrations/google_analytics/ga4-property", { propertyId }),
+    onSuccess: () => {
+      toast.success("Property selected — syncing analytics now");
+      qc.invalidateQueries({ queryKey: ["integration-cap"] });
+      qc.invalidateQueries({ queryKey: [ANALYTICS_INSIGHTS_KEY] });
+      syncMut.mutate();
+    },
+    onError: (e: Error) =>
+      toast.error(e.message ?? "Could not select property"),
+  });
+
   const status = statusQ.data;
   const properties = capQ.data?.account?.extra?.properties ?? [];
   const selectedPropertyId = (capQ.data?.capabilities as Record<string, unknown> | undefined)
@@ -227,29 +245,47 @@ export default function AnalyticsInsightsPage() {
                   </p>
                 ) : (
                   <ul className="space-y-1">
-                    {properties.map((p) => (
-                      <li
-                        key={p.propertyId}
-                        className="flex items-center justify-between rounded border px-2 py-1"
-                      >
-                        <div>
-                          <span className="font-medium">{p.displayName}</span>
-                          <span className="ml-2 font-mono text-xs text-muted-foreground">
-                            {p.propertyId}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {p.currencyCode && (
-                            <Badge variant="outline" className="text-xs">
-                              {p.currencyCode}
-                            </Badge>
-                          )}
-                          {selectedPropertyId === p.propertyId && (
-                            <Badge className="text-xs">Active</Badge>
-                          )}
-                        </div>
-                      </li>
-                    ))}
+                    {properties.map((p) => {
+                      const isActive = selectedPropertyId === p.propertyId;
+                      const isSetting =
+                        setPropertyMut.isPending &&
+                        setPropertyMut.variables === p.propertyId;
+                      return (
+                        <li
+                          key={p.propertyId}
+                          className="flex items-center justify-between rounded border px-2 py-1"
+                        >
+                          <div>
+                            <span className="font-medium">{p.displayName}</span>
+                            <span className="ml-2 font-mono text-xs text-muted-foreground">
+                              {p.propertyId}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {p.currencyCode && (
+                              <Badge variant="outline" className="text-xs">
+                                {p.currencyCode}
+                              </Badge>
+                            )}
+                            {isActive ? (
+                              <Badge className="text-xs">Active</Badge>
+                            ) : (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-6 px-2 text-xs"
+                                disabled={setPropertyMut.isPending}
+                                onClick={() =>
+                                  setPropertyMut.mutate(p.propertyId)
+                                }
+                              >
+                                {isSetting ? "Selecting…" : "Use this"}
+                              </Button>
+                            )}
+                          </div>
+                        </li>
+                      );
+                    })}
                   </ul>
                 )}
               </div>
