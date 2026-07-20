@@ -39,6 +39,9 @@ interface PurchasablePlan {
   taxIncluded: boolean;
   recommended: boolean;
   isCurrent: boolean;
+  /** Server says this org can start a no-card trial on this product
+   *  (plan offers trial days AND the org has never held the product). */
+  trialEligible: boolean;
 }
 interface PlansResponse {
   country: string;
@@ -85,13 +88,35 @@ export function UpgradePlanDialog({
     onError: (e: Error) => toast.error(e.message ?? "Couldn't start checkout"),
   });
 
+  // No-card trial — never touches a gateway, so there's no PaymentModal here.
+  // The server grants the tier immediately and the expiry cron ends it.
+  const trialMut = useMutation({
+    mutationFn: (tier: string) =>
+      api.post<{ tierLabel: string; trialDays: number }>("/v1/billing/trial", {
+        tier,
+      }),
+    onSuccess: (res) => {
+      toast.success(
+        `Your ${res.trialDays}-day free trial of ${res.tierLabel} has started.`,
+      );
+      onOpenChange(false);
+      onPurchased?.();
+    },
+    onError: (e: Error) => toast.error(e.message ?? "Couldn't start the trial"),
+  });
+
   const plans = plansQ.data?.plans ?? [];
   const purchasable = plansQ.data?.purchasable ?? true;
+  const selectedPlan = plans.find((p) => p.tier === selected) ?? null;
+  const busy = checkoutMut.isPending || trialMut.isPending;
 
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-2xl">
+        {/* Wide enough for two comfortable columns (plan names run long, e.g.
+            "Peakhour.ai Commerce: Paid") and capped in height so a growing
+            catalogue scrolls inside the dialog instead of overflowing it. */}
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>Choose a plan</DialogTitle>
             <DialogDescription>
@@ -125,60 +150,97 @@ export function UpgradePlanDialog({
                     disabled={disabled}
                     onClick={() => setSelected(p.tier)}
                     className={cn(
-                      "relative rounded-lg border p-4 text-left transition",
+                      "flex flex-col rounded-lg border p-4 text-left transition",
                       active
                         ? "border-primary ring-1 ring-primary"
                         : "hover:border-foreground/30",
                       disabled && "cursor-not-allowed opacity-60",
                     )}
                   >
-                    {p.recommended && (
-                      <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
-                        <Sparkles className="size-3" />
-                        Popular
-                      </span>
-                    )}
-                    <div className="font-medium">{p.name}</div>
-                    {p.tagline && (
-                      <div className="mt-0.5 text-xs text-muted-foreground">
-                        {p.tagline}
-                      </div>
-                    )}
-                    <div className="mt-2 text-lg font-semibold">
-                      {formatPrice(p.amount, p.currency)}
-                      <span className="text-xs font-normal text-muted-foreground">
-                        /mo
+                    {/* Header row: the badges sit INLINE beside the name rather
+                        than absolutely positioned, so a long plan name can no
+                        longer run underneath them. */}
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="font-medium leading-tight">{p.name}</span>
+                      <span className="flex shrink-0 items-center gap-1">
+                        {p.recommended && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
+                            <Sparkles className="size-3" />
+                            Popular
+                          </span>
+                        )}
+                        {active && !disabled && (
+                          <Check className="size-4 text-primary" />
+                        )}
                       </span>
                     </div>
-                    {p.trialDays > 0 && (
-                      <div className="text-xs text-emerald-600 dark:text-emerald-400">
-                        {p.trialDays}-day free trial
+
+                    {p.tagline && (
+                      <p className="mt-1 text-xs leading-snug text-muted-foreground">
+                        {p.tagline}
+                      </p>
+                    )}
+
+                    {/* Price pinned to the bottom so cards of differing tagline
+                        length still line their prices up across the row. */}
+                    <div className="mt-auto pt-3">
+                      <div className="text-lg font-semibold">
+                        {formatPrice(p.amount, p.currency)}
+                        <span className="text-xs font-normal text-muted-foreground">
+                          /mo
+                        </span>
                       </div>
-                    )}
-                    {p.isCurrent && (
-                      <span className="mt-2 inline-block rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium">
-                        Current plan
-                      </span>
-                    )}
-                    {active && !disabled && (
-                      <Check className="absolute bottom-3 right-3 size-4 text-primary" />
-                    )}
+                      {p.trialDays > 0 && (
+                        <div className="text-xs text-emerald-600 dark:text-emerald-400">
+                          {p.trialDays}-day free trial
+                          {p.trialEligible ? " · no card needed" : ""}
+                        </div>
+                      )}
+                      {p.isCurrent && (
+                        <span className="mt-2 inline-block rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium">
+                          Current plan
+                        </span>
+                      )}
+                    </div>
                   </button>
                 );
               })}
             </div>
           )}
 
-          <div className="flex justify-end gap-2 pt-2">
+          {/* Trial is the primary action when the selected plan offers one —
+              it's the lower-commitment path and needs no card. Paying stays
+              available alongside it. */}
+          <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
+            {selectedPlan?.trialEligible && (
+              <span className="mr-auto text-xs text-muted-foreground">
+                No credit card required — cancel anytime.
+              </span>
+            )}
             <Button variant="ghost" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button
-              disabled={!selected || !purchasable || checkoutMut.isPending}
+              variant={selectedPlan?.trialEligible ? "outline" : "default"}
+              disabled={!selected || !purchasable || busy}
               onClick={() => selected && checkoutMut.mutate(selected)}
             >
-              {checkoutMut.isPending ? "Starting…" : "Continue to payment"}
+              {checkoutMut.isPending
+                ? "Starting…"
+                : selectedPlan?.trialEligible
+                  ? "Buy now"
+                  : "Continue to payment"}
             </Button>
+            {selectedPlan?.trialEligible && (
+              <Button
+                disabled={busy}
+                onClick={() => selected && trialMut.mutate(selected)}
+              >
+                {trialMut.isPending
+                  ? "Starting…"
+                  : `Start ${selectedPlan.trialDays}-day free trial`}
+              </Button>
+            )}
           </div>
         </DialogContent>
       </Dialog>
