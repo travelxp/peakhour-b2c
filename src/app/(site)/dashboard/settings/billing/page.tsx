@@ -18,6 +18,8 @@ import { featureLabel } from "@/lib/pricing";
 import { useQueryClient } from "@tanstack/react-query";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { TaxAndInvoices } from "@/components/settings-tax-invoices";
+import { UpgradePlanDialog } from "@/components/upgrade/upgrade-plan-dialog";
+import { useState } from "react";
 
 // Mirrors the navbar PlanBadge tier accents so plan presentation stays
 // consistent across surfaces.
@@ -38,6 +40,7 @@ export default function BillingPage() {
   const { formatDate } = useLocale();
   const { data: details, isLoading } = useDashboardOrg();
   const extend = useExtendTrial();
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
 
   const cronToolbar = (
     <CronToolbar
@@ -146,8 +149,12 @@ export default function BillingPage() {
                   {extend.isPending ? "Extending…" : "Extend trial 7 days"}
                 </Button>
               ) : null}
-              <Button variant="outline" size="sm" asChild>
-                <a href="mailto:hello@peakhour.ai">Upgrade plan</a>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setUpgradeOpen(true)}
+              >
+                Upgrade plan
               </Button>
             </div>
           </div>
@@ -256,6 +263,14 @@ export default function BillingPage() {
         {/* Tax details + self-issued invoices */}
         <TaxAndInvoices />
       </div>
+
+      <UpgradePlanDialog
+        open={upgradeOpen}
+        onOpenChange={setUpgradeOpen}
+        onPurchased={() =>
+          queryClient.invalidateQueries({ queryKey: ["/v1/dashboard/org"] })
+        }
+      />
     </div>
   );
 }
