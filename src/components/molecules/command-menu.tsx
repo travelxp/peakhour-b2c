@@ -21,6 +21,8 @@ import {
   Sparkles,
   Plug,
   Settings,
+  LineChart,
+  Search,
 } from "lucide-react";
 
 const PAGES = [
@@ -31,6 +33,8 @@ const PAGES = [
   { label: "Ads", href: "/dashboard/ads", icon: Megaphone, group: "Navigation" },
   { label: "Outcomes", href: "/dashboard/outcomes", icon: TrendingUp, group: "Navigation" },
   { label: "Optimizer", href: "/dashboard/optimizer", icon: Sparkles, group: "Navigation" },
+  { label: "Web Analytics", href: "/dashboard/insights/analytics", icon: LineChart, group: "Navigation" },
+  { label: "Search Console", href: "/dashboard/insights/search-console", icon: Search, group: "Navigation" },
   { label: "Integrations", href: "/dashboard/integrations", icon: Plug, group: "Settings" },
   { label: "Settings", href: "/dashboard/settings", icon: Settings, group: "Settings" },
 ] as const;
