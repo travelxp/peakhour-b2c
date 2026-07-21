@@ -35,7 +35,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil } from "lucide-react";
 import { formatDateTime } from "@/components/cms/ai/format";
 import { ModelSelect, ModelChainEditor } from "@/components/cms/model-select";
 
@@ -74,7 +74,6 @@ export default function AiConfigPage() {
   const { user } = useAuth();
   const role = user?.cmsRole as CmsRole;
   const canWrite = hasCmsRole(role, "ops");
-  const canDelete = hasCmsRole(role, "superadmin");
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editing, setEditing] = useState<ConfigRow | null>(null);
   const [form, setForm] = useState<Partial<ConfigRow>>(EMPTY_FORM);
@@ -98,11 +97,6 @@ export default function AiConfigPage() {
       }
       setSheetOpen(false);
     },
-  });
-
-  const remove = useMutation({
-    mutationFn: (useCase: string) => api.delete(`/v1/cms/ai-config/${useCase}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["cms-ai-config"] }),
   });
 
   function open(row: ConfigRow | null) {
@@ -176,19 +170,6 @@ export default function AiConfigPage() {
                         {canWrite && (
                           <Button variant="ghost" size="icon" onClick={() => open(row)}>
                             <Pencil className="size-4" />
-                          </Button>
-                        )}
-                        {canDelete && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => {
-                              if (confirm(`Delete useCase '${row.useCase}'?`)) {
-                                remove.mutate(row.useCase);
-                              }
-                            }}
-                          >
-                            <Trash2 className="size-4" />
                           </Button>
                         )}
                       </div>
@@ -316,9 +297,9 @@ export default function AiConfigPage() {
             )}
           </Tabs>
 
-          {(upsert.isError || remove.isError) && (
+          {upsert.isError && (
             <p className="mt-4 text-sm text-red-600">
-              {((upsert.error || remove.error) as Error)?.message ||
+              {(upsert.error as Error)?.message ||
                 "Operation failed. You may not have the required CMS role."}
             </p>
           )}
