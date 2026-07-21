@@ -298,6 +298,21 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
     description:
       "Generates new posts from any recurring schedule rules you've set up.",
   },
+  "growth-optimizer": {
+    label: "Run weekly growth review",
+    frequency: "Runs Mondays 03:00 UTC",
+    description:
+      "Reviews each opted-in business's week of posts and campaigns and proposes up to three small, evidence-backed adjustments for approval.",
+    summarize: (data) => {
+      const d = data as {
+        businesses?: number; created?: number; skipped?: number; failed?: number; truncated?: boolean;
+      } | null;
+      if (!d || typeof d.businesses !== "number") return null;
+      let msg = `${d.created ?? 0} review${(d.created ?? 0) === 1 ? "" : "s"} created across ${d.businesses} business${d.businesses === 1 ? "" : "es"} (${d.skipped ?? 0} already done, ${d.failed ?? 0} failed).`;
+      if (d.truncated) msg += " More businesses pending — trigger again to continue.";
+      return (d.failed ?? 0) > 0 || d.truncated ? { message: msg, level: "warning" } : msg;
+    },
+  },
   "outcome-backfill": {
     label: "Backfill post outcomes",
     frequency: "Runs every hour",
