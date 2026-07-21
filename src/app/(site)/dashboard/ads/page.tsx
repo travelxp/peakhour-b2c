@@ -131,7 +131,8 @@ export default function AdsPage() {
                 <span>
                   Your LinkedIn Ads connection is{" "}
                   <span className="font-medium">stale</span>. Reconnect to
-                  boost posts or change campaigns — the list below still works.
+                  boost posts, sync metrics, or change campaigns — the list
+                  below still works.
                 </span>
                 <a
                   href="/dashboard/integrations"
@@ -174,22 +175,12 @@ function CampaignsPanel() {
   }
 
   if (campaigns.isError) {
-    const err = campaigns.error;
-    const needsReauth = err instanceof ApiError && err.code === "NEEDS_REAUTH";
+    // The list is a pure local read — no reauth special case exists.
     return (
       <EmptyState
         icon={RefreshCw}
-        title={needsReauth ? "LinkedIn Ads needs a reconnect" : "Couldn't load campaigns"}
-        description={
-          needsReauth
-            ? "Your LinkedIn Ads connection went stale. Reconnect to manage campaigns."
-            : "Try refreshing in a moment. If the problem persists, check your LinkedIn Ads connection."
-        }
-        action={
-          needsReauth
-            ? { label: "Reconnect", href: "/dashboard/integrations" }
-            : undefined
-        }
+        title="Couldn't load campaigns"
+        description="Try refreshing in a moment. If the problem persists, check your LinkedIn Ads connection."
       />
     );
   }
@@ -314,6 +305,8 @@ function CampaignRow({
             onClick: () => { window.location.href = "/dashboard/integrations"; },
           },
         });
+      } else if (code === "RATE_LIMITED") {
+        toast.error("LinkedIn is rate-limiting us — give it a minute and try again.");
       } else {
         toast.error("Couldn't refresh metrics right now.");
       }
@@ -326,7 +319,12 @@ function CampaignRow({
     ["draft", "review", "paused"].includes(campaign.status) &&
     Boolean(campaign.platformCampaignId && campaign.platformCampaignGroupId);
   const canPause = campaign.status === "active";
-  const canArchive = !["archived"].includes(campaign.status);
+  // Rows without a platform campaign (WhatsApp-approval "review"
+  // markers) are workflow-owned: the server 409s NO_PLATFORM_ID on any
+  // status change, so offering actions would only produce dead-end
+  // errors. They resolve via the WhatsApp flow (or expire to archived).
+  const canArchive =
+    !["archived"].includes(campaign.status) && Boolean(campaign.platformCampaignId);
   const canSync = Boolean(campaign.platformCampaignId);
 
   return (
@@ -429,7 +427,8 @@ function CampaignRow({
               <AlertDialogDescription>
                 Archiving &ldquo;{campaign.name}&rdquo; stops it permanently on
                 LinkedIn{campaign.status === "active" ? " (it is currently active)" : ""} —
-                archived campaigns can&apos;t be reactivated.
+                archived campaigns can&apos;t be reactivated here or in Campaign
+                Manager.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

@@ -62,6 +62,10 @@ export function BoostCampaignDialog({
   const [dailyBudget, setDailyBudget] = useState("10");
   const [currencyCode, setCurrencyCode] = useState("USD");
   const [durationDays, setDurationDays] = useState("14");
+  // Latched after PERSIST_FAILED: the draft EXISTS on LinkedIn, so a
+  // resubmit would duplicate it — the button stays disabled for this
+  // dialog instance.
+  const [terminal, setTerminal] = useState(false);
 
   // Round ONCE up front so validation, the displayed cap, and the
   // payload can never disagree (typing "14.7" must not show a x14.7
@@ -114,9 +118,21 @@ export function BoostCampaignDialog({
           (err as ApiError).message || "Use your ad account's billing currency.",
         );
       } else if (code === "NOT_CONNECTED") {
-        toast.error("Connect LinkedIn Ads first (Integrations page).");
+        // Also the code a STALE (needs_reauth) connection produces —
+        // the server only uses active connections.
+        toast.error("Connect (or reconnect) LinkedIn Ads first.", {
+          action: {
+            label: "Integrations",
+            onClick: () => { window.location.href = "/dashboard/integrations"; },
+          },
+        });
       } else if (code === "NEEDS_REAUTH") {
-        toast.error("LinkedIn Ads needs a reconnect before boosting.");
+        toast.error("LinkedIn Ads needs a reconnect before boosting.", {
+          action: {
+            label: "Reconnect",
+            onClick: () => { window.location.href = "/dashboard/integrations"; },
+          },
+        });
       } else if (code === "NO_AD_ACCOUNT") {
         toast.error(
           "Your LinkedIn Ads connection has no ad account — reconnect it, or create an ad account in LinkedIn Campaign Manager first.",
@@ -125,6 +141,7 @@ export function BoostCampaignDialog({
         toast.error("Pick a business first, then boost.");
       } else if (code === "PERSIST_FAILED") {
         // The draft DOES exist on LinkedIn — retrying would duplicate it.
+        setTerminal(true);
         toast.error(
           (err as ApiError).message ||
             "The campaign was created on LinkedIn but couldn't be saved here — contact support (don't retry).",
@@ -143,7 +160,15 @@ export function BoostCampaignDialog({
       : null;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        // No dismissal mid-flight: closing + reopening while the POST
+        // is in flight would allow a concurrent duplicate boost.
+        if (!next && boost.isPending) return;
+        onOpenChange(next);
+      }}
+    >
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -252,9 +277,9 @@ export function BoostCampaignDialog({
           <Button
             type="button"
             onClick={() => boost.mutate()}
-            disabled={!valid || boost.isPending}
+            disabled={!valid || boost.isPending || terminal}
           >
-            {boost.isPending ? "Creating…" : "Create draft campaign"}
+            {boost.isPending ? "Creating…" : terminal ? "Created — see support note" : "Create draft campaign"}
           </Button>
         </DialogFooter>
       </DialogContent>
