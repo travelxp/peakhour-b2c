@@ -169,14 +169,21 @@ function FacetPicker({
         onChange={(e) => setSearch(e.target.value)}
         autoComplete="off"
         disabled={atCap}
-        role="combobox"
-        aria-expanded={active && options.length > 0}
-        aria-controls={listId}
         aria-required={facet.required ? true : undefined}
       />
-      <div aria-live="polite">
-        {active && !atCap ? (
-          results.isLoading ? (
+      {/* Plain filtered list on purpose — a full APG combobox
+          (aria-activedescendant + arrow-key nav) is a follow-up; a
+          half-declared combobox role misleads screen readers worse
+          than honest Tab-reachable buttons. Status line is the only
+          live region so result sets aren't announced wholesale. */}
+      {active && !atCap ? (
+        <>
+          <p aria-live="polite" className="sr-only">
+            {results.isLoading
+              ? "Searching"
+              : `${options.length} result${options.length === 1 ? "" : "s"}`}
+          </p>
+          {results.isLoading ? (
             <p className="text-xs text-muted-foreground">Searching…</p>
           ) : results.isError ? (
             <p className="text-xs text-muted-foreground">
@@ -187,9 +194,9 @@ function FacetPicker({
           ) : options.length === 0 ? (
             <p className="text-xs text-muted-foreground">No matches.</p>
           ) : (
-            <ul id={listId} role="listbox" className="max-h-36 overflow-y-auto rounded-md border text-sm">
+            <ul id={listId} className="max-h-36 overflow-y-auto rounded-md border text-sm">
               {options.map((e) => (
-                <li key={e.urn} role="option" aria-selected={false}>
+                <li key={e.urn}>
                   <button
                     type="button"
                     className="w-full px-2 py-1.5 text-left hover:bg-muted focus:bg-muted"
@@ -203,9 +210,9 @@ function FacetPicker({
                 </li>
               ))}
             </ul>
-          )
-        ) : null}
-      </div>
+          )}
+        </>
+      ) : null}
     </div>
   );
 }
@@ -221,8 +228,15 @@ export function TargetingDialog({
 }) {
   const queryClient = useQueryClient();
   const existing = editorTargeting(campaign.targeting);
-  const [facets, setFacets] = useState<TargetingFacets>(existing?.facets ?? {});
-  const [labels, setLabels] = useState<Record<string, string>>(existing?.labels ?? {});
+  // Facets + labels live in ONE state object so a single updater
+  // decides accept/reject atomically — two separate setStates let a
+  // same-render double-click add an orphan label past the server's
+  // 250-entry bound.
+  const [selection, setSelection] = useState<{
+    facets: TargetingFacets;
+    labels: Record<string, string>;
+  }>({ facets: existing?.facets ?? {}, labels: existing?.labels ?? {} });
+  const { facets, labels } = selection;
 
   const save = useMutation({
     mutationFn: () => linkedInAdsApi.setTargeting(campaign._id, facets, labels),
@@ -257,6 +271,21 @@ export function TargetingDialog({
         );
         // Either way the row is stale — resync.
         queryClient.invalidateQueries({ queryKey: ["linkedin-managed-campaigns"] });
+      } else if (code === "TARGETING_PERSIST_FAILED") {
+        // Qualified success: LinkedIn HAS the audience; only our local
+        // mirror failed. Close, resync, and pass on the server's
+        // retry-is-safe guidance — leaving the dialog open would show
+        // "no audience" for a campaign whose platform audience is set.
+        queryClient.invalidateQueries({ queryKey: ["linkedin-managed-campaigns"] });
+        onOpenChange(false);
+        toast.warning(
+          (err as ApiError).message ||
+            "Targeting was applied on LinkedIn but couldn't be saved locally — apply again to refresh the display.",
+        );
+      } else if (err instanceof ApiError && err.status === 400 && err.message) {
+        // Platform-rejected entity (the api deliberately 400s
+        // provider_4xx here as user-fixable) — the message names it.
+        toast.error(err.message);
       } else {
         toast.error("Couldn't apply targeting. Try again in a moment.");
       }
@@ -264,26 +293,26 @@ export function TargetingDialog({
   });
 
   const addEntity = (key: TargetingFacetKey) => (entity: TargetingEntity) => {
-    setFacets((prev) => {
-      const current = prev[key] ?? [];
+    setSelection((prev) => {
+      const current = prev.facets[key] ?? [];
       // Dedupe + server cap guard (a rapid double-click can beat the
-      // options filter's re-render).
+      // options filter's re-render). Reject = neither facet NOR label
+      // changes.
       if (current.includes(entity.urn) || current.length >= MAX_PER_FACET) return prev;
-      return { ...prev, [key]: [...current, entity.urn] };
+      return {
+        facets: { ...prev.facets, [key]: [...current, entity.urn] },
+        labels: { ...prev.labels, [entity.urn]: entity.name },
+      };
     });
-    setLabels((prev) => ({ ...prev, [entity.urn]: entity.name }));
   };
   const removeEntity = (key: TargetingFacetKey) => (urn: string) => {
-    setFacets((prev) => ({
-      ...prev,
-      [key]: (prev[key] ?? []).filter((u) => u !== urn),
-    }));
-    // Prune the label too — orphaned entries would otherwise persist
-    // and accumulate across edit sessions.
-    setLabels((prev) => {
-      const rest = { ...prev };
-      delete rest[urn];
-      return rest;
+    setSelection((prev) => {
+      const labels = { ...prev.labels };
+      delete labels[urn];
+      return {
+        facets: { ...prev.facets, [key]: (prev.facets[key] ?? []).filter((u) => u !== urn) },
+        labels,
+      };
     });
   };
 
@@ -306,7 +335,9 @@ export function TargetingDialog({
           <DialogDescription>
             Who should see &ldquo;{campaign.name}&rdquo;? LinkedIn requires at
             least one location; entities within a facet broaden the audience,
-            facets narrow it. Applying targeting never starts spend.
+            facets narrow it. Applying targeting never starts spend — but it
+            REPLACES the campaign&apos;s whole audience, including anything set
+            directly in LinkedIn Campaign Manager.
           </DialogDescription>
         </DialogHeader>
 
@@ -332,14 +363,20 @@ export function TargetingDialog({
           >
             Cancel
           </Button>
-          <Button
-            type="button"
-            onClick={() => save.mutate()}
-            disabled={!valid || save.isPending}
-            title={valid ? undefined : "Pick at least one location"}
-          >
-            {save.isPending ? "Applying…" : "Apply targeting"}
-          </Button>
+          <div className="flex flex-col items-end gap-1">
+            {!valid ? (
+              <p className="text-[11px] text-muted-foreground">
+                Pick at least one location to apply.
+              </p>
+            ) : null}
+            <Button
+              type="button"
+              onClick={() => save.mutate()}
+              disabled={!valid || save.isPending}
+            >
+              {save.isPending ? "Applying…" : "Apply targeting"}
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
