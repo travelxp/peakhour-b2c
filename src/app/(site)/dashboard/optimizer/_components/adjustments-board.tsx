@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { ApiError } from "@/lib/api";
 import {
   growthApi,
+  type GrowthSettings,
   type OptimizerProposal,
   type OptimizerRun,
   type ProposalStatus,
@@ -16,6 +17,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/molecules/empty-state";
 import { Check, ChevronDown, ChevronUp, Play, Sparkles, X } from "lucide-react";
 
@@ -103,6 +105,8 @@ export function AdjustmentsBoard() {
         invalidate();
       } else if (res.reason === "already_ran") {
         toast.info("This week's review already ran — it runs once per week.");
+        // The cron may have created it after our list was cached.
+        invalidate();
       } else if (res.reason === "optimizer_disabled") {
         toast.info("The optimizer isn't enabled for this business yet.");
       } else {
@@ -145,31 +149,52 @@ export function AdjustmentsBoard() {
   return (
     <div className="space-y-4">
       <Card>
-        <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
-          <div className="flex items-center gap-3">
-            <Switch
-              id="optimizer-enabled"
-              checked={optimizerEnabled}
-              disabled={settings.isLoading || toggle.isPending}
-              onCheckedChange={(v) => toggle.mutate(v)}
+        <CardContent className="space-y-3 p-4">
+          {settings.isError ? (
+            // Honest failure: NEVER render a confident OFF state from a
+            // failed read — the business may well be opted in and
+            // running.
+            <p className="text-sm text-muted-foreground">
+              Couldn&apos;t load the optimizer settings just now — the state
+              shown may be wrong. Refresh in a moment; scheduled reviews
+              are unaffected.
+            </p>
+          ) : (
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <Switch
+                  id="optimizer-enabled"
+                  checked={optimizerEnabled}
+                  disabled={settings.isLoading || toggle.isPending}
+                  onCheckedChange={(v) => toggle.mutate(v)}
+                />
+                <Label htmlFor="optimizer-enabled" className="text-sm">
+                  {settings.isLoading
+                    ? "Checking optimizer status…"
+                    : optimizerEnabled
+                      ? "Weekly reviews are ON — every Monday for this business."
+                      : "Weekly reviews are OFF — enable to get Monday reviews."}
+                </Label>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={runNow.isPending || !optimizerEnabled}
+                title={optimizerEnabled ? undefined : "Enable the optimizer first"}
+                onClick={() => runNow.mutate()}
+              >
+                <Play aria-hidden="true" className="mr-1 size-3" />
+                {runNow.isPending ? "Reviewing…" : "Run this week's review"}
+              </Button>
+            </div>
+          )}
+          {!settings.isError && optimizerEnabled ? (
+            <EnvelopeEditor
+              current={settings.data?.settings.weeklyBudgetEnvelope}
+              onSaved={(res) => queryClient.setQueryData(["growth-settings"], res)}
             />
-            <Label htmlFor="optimizer-enabled" className="text-sm">
-              {optimizerEnabled
-                ? "Weekly reviews are ON — every Monday for this business."
-                : "Weekly reviews are OFF — enable to get Monday reviews."}
-            </Label>
-          </div>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            disabled={runNow.isPending || !optimizerEnabled}
-            title={optimizerEnabled ? undefined : "Enable the optimizer first"}
-            onClick={() => runNow.mutate()}
-          >
-            <Play className="mr-1 size-3" />
-            {runNow.isPending ? "Reviewing…" : "Run this week's review"}
-          </Button>
+          ) : null}
         </CardContent>
       </Card>
 
@@ -192,6 +217,75 @@ export function AdjustmentsBoard() {
       ) : (
         rows.map((run) => <RunCard key={run._id} run={run} onChanged={invalidate} />)
       )}
+    </div>
+  );
+}
+
+/**
+ * Weekly budget envelope editor — the cap that makes budget INCREASES
+ * approvable (without one, re-splits may only decrease; the api guard
+ * says so and points here). Blank + Save clears the envelope.
+ */
+function EnvelopeEditor({
+  current,
+  onSaved,
+}: {
+  current: number | undefined;
+  onSaved: (settings: { settings: GrowthSettings }) => void;
+}) {
+  const [value, setValue] = useState(current !== undefined ? String(current) : "");
+
+  const save = useMutation({
+    mutationFn: () => {
+      const trimmed = value.trim();
+      return growthApi.updateSettings({
+        weeklyBudgetEnvelope: trimmed === "" ? null : Number(trimmed),
+      });
+    },
+    onSuccess: (res) => {
+      onSaved(res);
+      toast.success(
+        typeof res.settings.weeklyBudgetEnvelope === "number"
+          ? `Weekly budget cap set to ${res.settings.weeklyBudgetEnvelope}. Budget increases can now be approved up to it.`
+          : "Weekly budget cap cleared — budget re-splits may only decrease.",
+      );
+    },
+    onError: () => toast.error("Couldn't save the budget cap. Try again in a moment."),
+  });
+
+  const trimmed = value.trim();
+  const numeric = Number(trimmed);
+  const valid = trimmed === "" || (Number.isFinite(numeric) && numeric >= 0);
+  const dirty = trimmed !== (current !== undefined ? String(current) : "");
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 border-t pt-3">
+      <Label htmlFor="weekly-envelope" className="text-xs text-muted-foreground">
+        Weekly budget cap (ad-account currency)
+      </Label>
+      <Input
+        id="weekly-envelope"
+        type="number"
+        min={0}
+        value={value}
+        placeholder="none — increases blocked"
+        className="h-7 w-44 text-xs"
+        onChange={(e) => setValue(e.target.value)}
+      />
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        className="h-7 px-2 text-xs"
+        disabled={!valid || !dirty || save.isPending}
+        onClick={() => save.mutate()}
+      >
+        {save.isPending ? "Saving…" : "Save"}
+      </Button>
+      <span className="text-[11px] text-muted-foreground">
+        Approved budget increases must fit under this cap; without one,
+        re-splits may only decrease.
+      </span>
     </div>
   );
 }
@@ -326,7 +420,11 @@ function ProposalRow({
             aria-controls={`proposal-detail-${proposal.id}`}
             onClick={() => setExpanded((v) => !v)}
           >
-            {expanded ? <ChevronUp className="size-3" /> : <ChevronDown className="size-3" />}
+            {expanded ? (
+              <ChevronUp aria-hidden="true" className="size-3" />
+            ) : (
+              <ChevronDown aria-hidden="true" className="size-3" />
+            )}
             {expanded ? "Hide the numbers" : "See the numbers behind it"}
           </button>
           {expanded ? (
@@ -365,7 +463,7 @@ function ProposalRow({
               }
               onClick={() => decide.mutate("approve")}
             >
-              <Check className="mr-1 size-3" />
+              <Check aria-hidden="true" className="mr-1 size-3" />
               Approve
             </Button>
             <Button
@@ -376,7 +474,7 @@ function ProposalRow({
               disabled={decide.isPending}
               onClick={() => decide.mutate("dismiss")}
             >
-              <X className="mr-1 size-3" />
+              <X aria-hidden="true" className="mr-1 size-3" />
               Dismiss
             </Button>
           </div>

@@ -304,10 +304,13 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
     description:
       "Reviews each opted-in business's week of posts and campaigns and proposes up to three small, evidence-backed adjustments for approval.",
     summarize: (data) => {
-      const d = data as { businesses?: number; created?: number; skipped?: number; failed?: number } | null;
+      const d = data as {
+        businesses?: number; created?: number; skipped?: number; failed?: number; truncated?: boolean;
+      } | null;
       if (!d || typeof d.businesses !== "number") return null;
-      const msg = `${d.created ?? 0} review${(d.created ?? 0) === 1 ? "" : "s"} created across ${d.businesses} business${d.businesses === 1 ? "" : "es"} (${d.skipped ?? 0} already done, ${d.failed ?? 0} failed).`;
-      return (d.failed ?? 0) > 0 ? { message: msg, level: "warning" } : msg;
+      let msg = `${d.created ?? 0} review${(d.created ?? 0) === 1 ? "" : "s"} created across ${d.businesses} business${d.businesses === 1 ? "" : "es"} (${d.skipped ?? 0} already done, ${d.failed ?? 0} failed).`;
+      if (d.truncated) msg += " More businesses pending — trigger again to continue.";
+      return (d.failed ?? 0) > 0 || d.truncated ? { message: msg, level: "warning" } : msg;
     },
   },
   "outcome-backfill": {
