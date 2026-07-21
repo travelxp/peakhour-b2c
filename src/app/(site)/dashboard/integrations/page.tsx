@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/providers/auth-provider";
 import { useLocale } from "@/hooks/use-locale";
 import { api, ApiError, API_BASE_URL } from "@/lib/api";
@@ -1369,7 +1370,15 @@ function LinkedInContentPages({
   onChanged?: () => void;
 }) {
   const pages = Array.isArray(extra?.pages) ? extra.pages : [];
-  const [manageOpen, setManageOpen] = useState(false);
+  // Deep link from the post-connect "choose your Company Page" prompt
+  // (settings banner → /dashboard/integrations?manage_pages=1). Lazy
+  // initializer, not an effect: this card mounts only after the
+  // connections fetch resolves, so pages are already present — and
+  // closing the dialog must not re-open it.
+  const searchParams = useSearchParams();
+  const [manageOpen, setManageOpen] = useState(
+    () => searchParams?.get("manage_pages") === "1" && pages.length > 0,
+  );
 
   // The OAuth callback skips per-Page name hydration to redirect fast
   // (peakhour-api PR #247). Names land within ~1 min via a background
