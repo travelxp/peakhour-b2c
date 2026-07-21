@@ -10,7 +10,7 @@
  * ("shifted +90m for cross-channel min-spacing").
  */
 
-import { CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import { CheckCircle2, AlertCircle, Loader2, Sparkles } from "lucide-react";
 import { ChannelIconCompact } from "@/components/ui/channel-icon";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -108,6 +108,21 @@ export function ScheduleConfirmCard({
             </li>
           ))}
         </ul>
+
+        {preview.cadenceAdjustment && (
+          <div className="flex items-start gap-2 rounded-md border border-primary/20 bg-background px-3 py-2 text-xs text-muted-foreground">
+            <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
+            <div className="min-w-0">
+              <span className="font-medium text-foreground">
+                Your weekly optimizer suggests:
+              </span>{" "}
+              {preview.cadenceAdjustment.summary}
+              <span className="block text-[11px]">
+                {preview.cadenceAdjustment.expectedEffect}
+              </span>
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

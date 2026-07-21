@@ -45,6 +45,14 @@ const TYPE_LABEL: Record<OptimizerProposal["type"], string> = {
   audience_emphasis: "Audience emphasis",
 };
 
+/** Which engine surface consumes each LIVE non-budget type — used in the
+ *  approve-toast so the promise matches the actual consumer. */
+const CONSUMER_SURFACE: Partial<Record<OptimizerProposal["type"], string>> = {
+  hook_weighting: "draft generation",
+  posting_cadence: "schedule recommendation",
+  boost_threshold: "boost ranking",
+};
+
 const STATUS_BADGE: Record<ProposalStatus, string> = {
   proposed: "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200",
   approved: "bg-sky-100 text-sky-900 dark:bg-sky-950 dark:text-sky-200",
@@ -358,9 +366,14 @@ function ProposalRow({
       } else if (res.status === "failed") {
         toast.error(res.failReason || "This proposal can't be applied — see the reason on the card.");
       } else if (res.status === "approved") {
-        // Honest: recorded for the engine; consumption lands in a
-        // follow-up — no fake "it's live" claim.
-        toast.success("Approved and recorded — the engine picks this up as its consumers ship.");
+        // Per-type honesty: only types with a LIVE consumer may promise
+        // application. audience_emphasis has no consumer wired yet —
+        // its card stays "approved" until that ships, so say so.
+        toast.success(
+          proposal.type === "audience_emphasis"
+            ? "Approved and recorded — audience emphasis is picked up when its consumer ships."
+            : `Approved — the engine applies it on its next ${CONSUMER_SURFACE[proposal.type] ?? "run"}.`,
+        );
       } else {
         toast.success("Dismissed.");
       }
