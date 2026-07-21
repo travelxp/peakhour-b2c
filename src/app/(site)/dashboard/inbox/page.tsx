@@ -135,8 +135,8 @@ function LeadRow({ item, onChanged }: { item: InboxItem; onChanged: () => void }
                 <div>
                   <p className="font-medium">Why this score</p>
                   <ul className="list-inside list-disc text-muted-foreground">
-                    {lead.fitReasons.map((r) => (
-                      <li key={r}>{r}</li>
+                    {lead.fitReasons.map((r, i) => (
+                      <li key={`${i}-${r.slice(0, 24)}`}>{r}</li>
                     ))}
                   </ul>
                 </div>
@@ -196,7 +196,28 @@ function LeadsPane() {
       </div>
     );
   }
-  const items = leads.data?.items ?? [];
+  // A failed fetch must never masquerade as "no leads" — leads keep
+  // arriving (and billing) server-side whether or not this list loads.
+  if (leads.isError) {
+    return (
+      <Card className="flex flex-col items-center gap-2 p-8 text-center">
+        <p className="text-sm font-medium">Couldn&apos;t load your leads</p>
+        <p className="max-w-md text-xs text-muted-foreground">
+          New leads still arrive and get scored in the background. Try refreshing in a moment.
+        </p>
+        <Button size="sm" variant="outline" onClick={() => leads.refetch()}>
+          Retry
+        </Button>
+      </Card>
+    );
+  }
+  // Hot first: priority rank, then newest.
+  const PRIORITY_RANK: Record<InboxPriority, number> = { urgent: 0, high: 1, normal: 2, low: 3 };
+  const items = [...(leads.data?.items ?? [])].sort((a, b) => {
+    const p = PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority];
+    if (p !== 0) return p;
+    return b.createdAt.localeCompare(a.createdAt);
+  });
   if (items.length === 0) {
     return (
       <Card className="flex flex-col items-center gap-2 p-8 text-center">
