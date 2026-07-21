@@ -33,6 +33,9 @@ export interface ManagedCampaignPerformance {
   ctr: number;
   cpc?: number;
   cpa?: number;
+  /** Billable qualified leads attributed to this campaign (G2 — the
+   *  lead qualifier's conservative verdict; CPQL = spend ÷ this). */
+  qualifiedLeads?: number;
   lastUpdated?: string;
 }
 

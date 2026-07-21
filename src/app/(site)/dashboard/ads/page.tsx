@@ -198,6 +198,20 @@ function CampaignsPanel() {
     );
   }
 
+  // ROI strip: blended CPQL across campaigns sharing the first row's
+  // currency (defensive — a mixed-currency edge must not make the sum
+  // lie). Qualified leads are the billable, conservatively-scored ones.
+  const stripCurrency = rows.find((r) => r.performance?.qualifiedLeads)?.currency;
+  const stripRows = rows.filter((r) => r.currency === stripCurrency);
+  const totalQualified = stripRows.reduce(
+    (sum, r) => sum + (r.performance?.qualifiedLeads ?? 0),
+    0,
+  );
+  const totalSpend = stripRows.reduce(
+    (sum, r) => sum + (r.budget?.spent ?? r.performance?.spend ?? 0),
+    0,
+  );
+
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -213,6 +227,20 @@ function CampaignsPanel() {
         </div>
       </CardHeader>
       <CardContent className="pt-0">
+        {totalQualified > 0 && (
+          <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-md border bg-muted/20 px-3 py-2 text-xs">
+            <span className="font-medium">Lead ROI</span>
+            <span className="tabular-nums">
+              {totalQualified} qualified lead{totalQualified === 1 ? "" : "s"}
+            </span>
+            <span className="tabular-nums">
+              CPQL {formatMoney(totalSpend / totalQualified, stripCurrency)}
+            </span>
+            <span className="text-muted-foreground">
+              spend ÷ qualified leads, across {stripCurrency} campaigns — leads land in your Inbox
+            </span>
+          </div>
+        )}
         <Table>
           <TableHeader>
             <TableRow>
@@ -223,6 +251,12 @@ function CampaignsPanel() {
               <TableHead className="text-right">Impressions</TableHead>
               <TableHead className="text-right">Clicks</TableHead>
               <TableHead className="text-right">CTR</TableHead>
+              <TableHead
+                className="text-right"
+                title="Billable qualified leads · cost per qualified lead (spend ÷ qualified leads)"
+              >
+                Leads · CPQL
+              </TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -369,6 +403,14 @@ function CampaignRow({
       </TableCell>
       <TableCell className="text-right text-sm tabular-nums">
         {perf ? `${(perf.ctr * 100).toFixed(2)}%` : "—"}
+      </TableCell>
+      <TableCell className="text-right text-sm tabular-nums">
+        {perf?.qualifiedLeads
+          ? `${perf.qualifiedLeads} · ${formatMoney(
+              (campaign.budget?.spent ?? perf.spend ?? 0) / perf.qualifiedLeads,
+              campaign.currency,
+            )}`
+          : "—"}
       </TableCell>
       <TableCell>
         <div className="flex items-center justify-end gap-1">
