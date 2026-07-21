@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { FeatureGate } from "@/components/upgrade/feature-gate";
 import { UpgradeButton } from "@/components/upgrade/upgrade-button";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
+import { useQueryClient } from "@tanstack/react-query";
 import { AdjustmentsBoard } from "./_components/adjustments-board";
 
 const FEATURE_KEY = "growth.optimizer";
@@ -37,13 +38,23 @@ const PILLARS: Pillar[] = [
 ];
 
 export default function OptimizerPage() {
+  const queryClient = useQueryClient();
   return (
     <div className="space-y-6">
-      <CronToolbar crons={["growth-optimizer", "outcome-backfill", "per-stream-effectiveness-rollup"]} />
+      <CronToolbar
+        crons={["growth-optimizer", "outcome-backfill", "per-stream-effectiveness-rollup"]}
+        onTriggered={() =>
+          queryClient.invalidateQueries({ queryKey: ["growth-adjustments"] })
+        }
+      />
       <div>
         <h2 className="text-2xl font-bold tracking-tight">Optimizer</h2>
+        {/* Honest at today's autonomy ceiling (L0/L1): it proposes,
+            you decide. The autonomous framing stays on the locked-
+            state marketing card, not above the live board. */}
         <p className="text-muted-foreground">
-          An autonomous teammate for paid + organic — running the dials so you don&apos;t have to.
+          A weekly teammate for paid + organic — it brings you the
+          evidence and the dials; you make the calls.
         </p>
       </div>
 

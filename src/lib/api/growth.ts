@@ -20,6 +20,17 @@ export type ProposalType =
 
 export type ProposalStatus = "proposed" | "approved" | "dismissed" | "applied" | "failed";
 
+/** Decision outcomes the decide endpoint reports. `retryable` = the
+ *  apply failed for a FIXABLE reason and the proposal was reverted to
+ *  `proposed` — fix the cause (reconnect / envelope) and decide again. */
+export type DecisionStatus = "approved" | "dismissed" | "applied" | "failed" | "retryable";
+
+export interface GrowthSettings {
+  optimizerEnabled?: boolean;
+  autonomyLevel?: number;
+  weeklyBudgetEnvelope?: number;
+}
+
 export interface OptimizerProposal {
   id: string;
   type: ProposalType;
@@ -60,9 +71,17 @@ export const growthApi = {
 
   /** Human decision on one proposal. Approving a budget_resplit also
    *  attempts the guarded platform apply — the response's status says
-   *  what actually happened (approved / applied / failed). */
+   *  what ACTUALLY happened (approved / applied / failed / retryable).
+   *  Reauth failures arrive as 409 NEEDS_REAUTH instead. */
   decide: (runId: string, proposalId: string, decision: "approve" | "dismiss") =>
-    api.post<{ ok: true; status: ProposalStatus; failReason?: string }>(
+    api.post<{ ok: true; status: DecisionStatus; failReason?: string }>(
       `/v1/growth/adjustments/${runId}/proposals/${proposalId}/${decision}`,
     ),
+
+  /** Per-business growth settings (the optimizer opt-in lives here). */
+  settings: () => api.get<{ settings: GrowthSettings }>("/v1/growth/settings"),
+
+  /** Self-serve optimizer opt-in / weekly budget envelope. */
+  updateSettings: (patch: { optimizerEnabled?: boolean; weeklyBudgetEnvelope?: number | null }) =>
+    api.patch<{ settings: GrowthSettings }>("/v1/growth/settings", patch),
 };

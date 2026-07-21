@@ -14,6 +14,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { EmptyState } from "@/components/molecules/empty-state";
 import { Check, ChevronDown, ChevronUp, Play, Sparkles, X } from "lucide-react";
 
@@ -27,6 +29,11 @@ import { Check, ChevronDown, ChevronUp, Play, Sparkles, X } from "lucide-react";
  * (approved / applied / failed with the reason) — never a fake
  * success.
  */
+
+/** Channel display names — runs are platform-stamped; never hardcode
+ *  the channel in copy (channel-common surface). */
+const PLATFORM_LABEL: Record<string, string> = { linkedin: "LinkedIn" };
+const platformLabel = (p: string) => PLATFORM_LABEL[p] ?? p;
 
 const TYPE_LABEL: Record<OptimizerProposal["type"], string> = {
   hook_weighting: "Hook style",
@@ -46,7 +53,9 @@ const STATUS_BADGE: Record<ProposalStatus, string> = {
 
 function weekLabel(iso: string): string {
   const d = new Date(iso);
-  return `Week of ${d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}`;
+  // weekStart is Monday 00:00 UTC — format in UTC or UTC-negative
+  // timezones render the previous Sunday.
+  return `Week of ${d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })}`;
 }
 
 export function AdjustmentsBoard() {
@@ -57,9 +66,30 @@ export function AdjustmentsBoard() {
     staleTime: 60_000,
     refetchOnWindowFocus: false,
   });
+  const settings = useQuery({
+    queryKey: ["growth-settings"],
+    queryFn: () => growthApi.settings(),
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+  });
 
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: ["growth-adjustments"] });
+
+  const optimizerEnabled = settings.data?.settings.optimizerEnabled === true;
+
+  const toggle = useMutation({
+    mutationFn: (enabled: boolean) => growthApi.updateSettings({ optimizerEnabled: enabled }),
+    onSuccess: (res) => {
+      queryClient.setQueryData(["growth-settings"], res);
+      toast.success(
+        res.settings.optimizerEnabled
+          ? "Optimizer enabled — it reviews this business every Monday. Run the first review whenever you like."
+          : "Optimizer disabled — no further weekly reviews.",
+      );
+    },
+    onError: () => toast.error("Couldn't update the optimizer setting. Try again in a moment."),
+  });
 
   const runNow = useMutation({
     mutationFn: () => growthApi.runNow(),
@@ -79,7 +109,13 @@ export function AdjustmentsBoard() {
         toast.info("Nothing to analyse yet — publish posts or run campaigns first.");
       }
     },
-    onError: () => toast.error("Couldn't run the optimizer. Try again in a moment."),
+    onError: (err) => {
+      if (err instanceof ApiError && err.code === "FORBIDDEN") {
+        toast.error("Pick a business first, then run the review.");
+      } else {
+        toast.error("Couldn't run the optimizer. Try again in a moment.");
+      }
+    },
   });
 
   if (runs.isLoading) {
@@ -108,29 +144,50 @@ export function AdjustmentsBoard() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-sm text-muted-foreground">
-          Weekly review of your organic + paid outcomes — at most three
-          small, evidence-backed proposals. You decide; nothing applies
-          itself.
-        </p>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          disabled={runNow.isPending}
-          onClick={() => runNow.mutate()}
-        >
-          <Play className="mr-1 size-3" />
-          {runNow.isPending ? "Reviewing…" : "Run this week's review"}
-        </Button>
-      </div>
+      <Card>
+        <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
+          <div className="flex items-center gap-3">
+            <Switch
+              id="optimizer-enabled"
+              checked={optimizerEnabled}
+              disabled={settings.isLoading || toggle.isPending}
+              onCheckedChange={(v) => toggle.mutate(v)}
+            />
+            <Label htmlFor="optimizer-enabled" className="text-sm">
+              {optimizerEnabled
+                ? "Weekly reviews are ON — every Monday for this business."
+                : "Weekly reviews are OFF — enable to get Monday reviews."}
+            </Label>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={runNow.isPending || !optimizerEnabled}
+            title={optimizerEnabled ? undefined : "Enable the optimizer first"}
+            onClick={() => runNow.mutate()}
+          >
+            <Play className="mr-1 size-3" />
+            {runNow.isPending ? "Reviewing…" : "Run this week's review"}
+          </Button>
+        </CardContent>
+      </Card>
+
+      <p className="text-sm text-muted-foreground">
+        Weekly review of your organic + paid outcomes — at most three
+        small, evidence-backed proposals. You decide; nothing applies
+        itself.
+      </p>
 
       {rows.length === 0 ? (
         <EmptyState
           icon={Sparkles}
           title="No reviews yet"
-          description="The optimizer runs every Monday for enabled businesses — or run this week's review now. It needs some published posts or campaigns to analyse."
+          description={
+            optimizerEnabled
+              ? "Run this week's review now, or wait for Monday. It needs some published posts or campaigns to analyse."
+              : "Turn the optimizer on above to get a review every Monday — at most three small proposals, and you decide every one."
+          }
         />
       ) : (
         rows.map((run) => <RunCard key={run._id} run={run} onChanged={invalidate} />)
@@ -163,7 +220,13 @@ function RunCard({ run, onChanged }: { run: OptimizerRun; onChanged: () => void 
           </p>
         ) : (
           run.proposals.map((p) => (
-            <ProposalRow key={p.id} runId={run._id} proposal={p} onChanged={onChanged} />
+            <ProposalRow
+              key={p.id}
+              runId={run._id}
+              platform={run.platform}
+              proposal={p}
+              onChanged={onChanged}
+            />
           ))
         )}
       </CardContent>
@@ -173,34 +236,60 @@ function RunCard({ run, onChanged }: { run: OptimizerRun; onChanged: () => void 
 
 function ProposalRow({
   runId,
+  platform,
   proposal,
   onChanged,
 }: {
   runId: string;
+  platform: string;
   proposal: OptimizerProposal;
   onChanged: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const platformName = platformLabel(platform);
 
   const decide = useMutation({
     mutationFn: (decision: "approve" | "dismiss") =>
       growthApi.decide(runId, proposal.id, decision),
     onSuccess: (res) => {
       if (res.status === "applied") {
-        toast.success("Approved and applied — the budget change is live on LinkedIn.");
+        toast.success(`Approved and applied — the budget change is live on ${platformName}.`);
+      } else if (res.status === "retryable") {
+        // The proposal reverted to proposed — fixable, decide again.
+        toast.warning(
+          res.failReason
+            ? `Couldn't apply it yet: ${res.failReason}. Fix that and approve again.`
+            : "Couldn't apply it yet — fix the cause and approve again.",
+        );
       } else if (res.status === "failed") {
-        toast.error(res.failReason || "Approved, but applying it failed — see the proposal for why.");
+        toast.error(res.failReason || "This proposal can't be applied — see the reason on the card.");
       } else if (res.status === "approved") {
-        toast.success("Approved — the engine will fold this into how it works for you.");
+        // Honest: recorded for the engine; consumption lands in a
+        // follow-up — no fake "it's live" claim.
+        toast.success("Approved and recorded — the engine picks this up as its consumers ship.");
       } else {
         toast.success("Dismissed.");
       }
       onChanged();
     },
     onError: (err) => {
-      if (err instanceof ApiError && err.code === "ALREADY_DECIDED") {
+      const code = err instanceof ApiError ? err.code : undefined;
+      if (code === "ALREADY_DECIDED") {
         toast.info("This proposal was already decided — refreshing.");
         onChanged();
+      } else if (code === "NEEDS_REAUTH") {
+        toast.error(`${platformName} Ads needs a reconnect before applying budget changes.`, {
+          action: {
+            label: "Reconnect",
+            onClick: () => { window.location.href = "/dashboard/integrations"; },
+          },
+        });
+        onChanged();
+      } else if (code === "NOT_FOUND") {
+        toast.error("This proposal no longer exists — refreshing.");
+        onChanged();
+      } else if (code === "FORBIDDEN") {
+        toast.error("Pick a business first.");
       } else {
         toast.error("Couldn't record the decision. Try again in a moment.");
       }
@@ -224,20 +313,24 @@ function ProposalRow({
             </Badge>
           </div>
           <p className="text-sm font-medium">{proposal.summary}</p>
-          {proposal.status === "failed" && proposal.failReason ? (
-            <p className="text-xs text-red-700 dark:text-red-300">{proposal.failReason}</p>
+          {proposal.failReason && (proposal.status === "failed" || proposal.status === "proposed") ? (
+            <p className="text-xs text-red-700 dark:text-red-300">
+              {proposal.status === "proposed" ? "Last attempt: " : ""}
+              {proposal.failReason}
+            </p>
           ) : null}
           <button
             type="button"
             className="inline-flex items-center gap-1 text-xs text-muted-foreground underline-offset-2 hover:underline"
             aria-expanded={expanded}
+            aria-controls={`proposal-detail-${proposal.id}`}
             onClick={() => setExpanded((v) => !v)}
           >
             {expanded ? <ChevronUp className="size-3" /> : <ChevronDown className="size-3" />}
             {expanded ? "Hide the numbers" : "See the numbers behind it"}
           </button>
           {expanded ? (
-            <div className="space-y-1.5 rounded-md bg-muted/30 p-2 text-xs">
+            <div id={`proposal-detail-${proposal.id}`} className="space-y-1.5 rounded-md bg-muted/30 p-2 text-xs">
               <div>
                 <p className="font-medium">Evidence</p>
                 <ul className="list-disc pl-4 text-muted-foreground">
@@ -267,7 +360,7 @@ function ProposalRow({
               disabled={decide.isPending}
               title={
                 proposal.type === "budget_resplit"
-                  ? "Approve — applies the budget change on LinkedIn (guarded: never an increase beyond your envelope)"
+                  ? `Approve — applies the budget change on ${platformName} (guarded: never an increase beyond your envelope)`
                   : "Approve this adjustment"
               }
               onClick={() => decide.mutate("approve")}
