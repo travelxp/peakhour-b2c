@@ -36,7 +36,9 @@ import {
   Check,
   Plus,
   Globe2,
+  RefreshCw,
 } from "lucide-react";
+import { toast } from "sonner";
 
 interface OrgDetails {
   _id: string;
@@ -120,11 +122,38 @@ function SettingsContent() {
   // Edit state
   const [editingBusiness, setEditingBusiness] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [rescanning, setRescanning] = useState(false);
   const [editName, setEditName] = useState("");
   const [editType, setEditType] = useState("");
   const [editUrl, setEditUrl] = useState("");
   const [editSectors, setEditSectors] = useState<string[]>([]);
   const [editCountry, setEditCountry] = useState("");
+
+  async function handleRescanCatalog() {
+    setRescanning(true);
+    try {
+      const r = await api.post<{
+        grounded: boolean;
+        reason?: string;
+        businessCategory?: string;
+        productCount?: number;
+      }>("/v1/dashboard/reground-catalog");
+      if (r.grounded) {
+        const updated = await api.get<OrgDetails>("/v1/dashboard/org");
+        setOrgDetails(updated);
+        const cat = r.businessCategory ? ` — ${r.businessCategory.replace(/_/g, " ")}` : "";
+        toast.success(`Updated from your ${r.productCount ?? ""} products${cat}`.replace("  ", " "));
+      } else if (r.reason === "empty_catalog") {
+        toast.error("No products synced yet. Sync your store first, then re-scan.");
+      } else {
+        toast.message("Nothing to update from your catalogue right now.");
+      }
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Re-scan failed. Please try again.");
+    } finally {
+      setRescanning(false);
+    }
+  }
 
   async function handleSaveBusinessDetails() {
     setSaving(true);
@@ -288,22 +317,35 @@ function SettingsContent() {
                 <CardTitle>Business Details</CardTitle>
               </div>
               {!editingBusiness ? (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="gap-1.5 text-muted-foreground"
-                  onClick={() => {
-                    setEditingBusiness(true);
-                    setEditName(orgDetails?.name || "");
-                    setEditType(orgDetails?.businessType || "");
-                    setEditUrl(orgDetails?.websiteUrl || "");
-                    setEditSectors(orgDetails?.taxonomy?.sectors || []);
-                    setEditCountry(orgDetails?.location?.country || "");
-                  }}
-                >
-                  <Pencil className="h-3.5 w-3.5" />
-                  Edit
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="gap-1.5 text-muted-foreground"
+                    disabled={rescanning}
+                    title="Re-read your business details from your synced product catalogue"
+                    onClick={handleRescanCatalog}
+                  >
+                    <RefreshCw className={`h-3.5 w-3.5 ${rescanning ? "animate-spin" : ""}`} />
+                    {rescanning ? "Scanning…" : "Re-scan my catalogue"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="gap-1.5 text-muted-foreground"
+                    onClick={() => {
+                      setEditingBusiness(true);
+                      setEditName(orgDetails?.name || "");
+                      setEditType(orgDetails?.businessType || "");
+                      setEditUrl(orgDetails?.websiteUrl || "");
+                      setEditSectors(orgDetails?.taxonomy?.sectors || []);
+                      setEditCountry(orgDetails?.location?.country || "");
+                    }}
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                    Edit
+                  </Button>
+                </div>
               ) : (
                 <div className="flex gap-2">
                   <Button size="sm" variant="ghost" onClick={() => setEditingBusiness(false)}>
