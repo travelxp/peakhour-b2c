@@ -35,6 +35,7 @@ import {
   AtSign,
   CalendarClock,
   ChevronDown,
+  Building2,
   GalleryHorizontalEnd,
   Link2,
   ListChecks,
@@ -45,6 +46,7 @@ import {
   ShieldAlert,
   ShieldCheck,
   Sparkles,
+  User,
   Wand2,
   X,
 } from "lucide-react";
@@ -181,15 +183,15 @@ export function PostComposer({ identity, seedText }: Props) {
   const [feedback, setFeedback] = useState<{ kind: "success" | "error"; message: string } | null>(null);
 
   // Author picker — discriminated union string keys for the Select.
-  // "person" → user's personal feed. "org:<id>" → that org page.
+  // "org:<id>" → that org page. "person" → user's personal feed.
+  // Pages come FIRST and are the default: the business publishes as
+  // its Company Page. The personal feed is only offered when the
+  // server says it's allowed (pageless fallback — /me's
+  // personalPostingAllowed; the publish routes enforce the same
+  // policy server-side) or when no page option could be built at all
+  // (missing org scope → the reconnect hint below guides the user).
   const authorOptions = useMemo(() => {
-    const opts: Array<{ value: string; label: string; sublabel?: string }> = [
-      {
-        value: "person",
-        label: identity.person.name ?? "My personal feed",
-        sublabel: "Personal feed",
-      },
-    ];
+    const opts: Array<{ value: string; label: string; sublabel?: string }> = [];
     const canPostAsOrg = identity.scopes.includes(HAS_ORG_SCOPE);
     if (canPostAsOrg) {
       for (const page of identity.pages) {
@@ -199,6 +201,13 @@ export function PostComposer({ identity, seedText }: Props) {
           sublabel: "Company page",
         });
       }
+    }
+    if ((identity.personalPostingAllowed ?? true) || opts.length === 0) {
+      opts.push({
+        value: "person",
+        label: identity.person.name ?? "My personal feed",
+        sublabel: "Personal feed",
+      });
     }
     return opts;
   }, [identity]);
@@ -719,25 +728,47 @@ export function PostComposer({ identity, seedText }: Props) {
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label htmlFor="li-author" className="text-xs uppercase tracking-wide text-muted-foreground">
-              Post as
+              Posting as
             </Label>
-            <Select value={authorKey} onValueChange={setAuthorKey}>
-              <SelectTrigger id="li-author">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {authorOptions.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    <span className="flex flex-col">
-                      <span>{opt.label}</span>
-                      {opt.sublabel && (
-                        <span className="text-xs text-muted-foreground">{opt.sublabel}</span>
-                      )}
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {authorOptions.length === 1 ? (
+              // Single allowed author (the mapped Company Page, or the
+              // pageless personal fallback) — nothing to choose, so show
+              // a locked identity chip instead of a one-item dropdown.
+              <div
+                id="li-author"
+                className="flex h-9 items-center gap-2 rounded-md border bg-muted/40 px-3 text-sm"
+              >
+                {authorOptions[0].value === "person" ? (
+                  <User className="size-4 shrink-0 text-muted-foreground" />
+                ) : (
+                  <Building2 className="size-4 shrink-0 text-muted-foreground" />
+                )}
+                <span className="truncate font-medium">{authorOptions[0].label}</span>
+                {authorOptions[0].sublabel && (
+                  <span className="ml-auto shrink-0 text-xs text-muted-foreground">
+                    {authorOptions[0].sublabel}
+                  </span>
+                )}
+              </div>
+            ) : (
+              <Select value={authorKey} onValueChange={setAuthorKey}>
+                <SelectTrigger id="li-author">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {authorOptions.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      <span className="flex flex-col">
+                        <span>{opt.label}</span>
+                        {opt.sublabel && (
+                          <span className="text-xs text-muted-foreground">{opt.sublabel}</span>
+                        )}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
             {!identity.scopes.includes(HAS_ORG_SCOPE) && identity.pages.length > 0 && (
               <p className="text-xs text-muted-foreground">
                 Reconnect LinkedIn to enable posting from your company pages.
