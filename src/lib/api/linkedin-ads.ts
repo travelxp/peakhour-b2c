@@ -45,9 +45,10 @@ export type TargetingFacetKey =
   | "titles"
   | "staffCountRanges";
 
-export type TargetingFacets = Partial<Record<TargetingFacetKey, string[]>> & {
-  locations?: string[];
-};
+/** Per-facet entity-URN lists. `locations` is required at APPLY time
+ *  (server 400s without one) but optional in the type so partial
+ *  editor state is representable. */
+export type TargetingFacets = Partial<Record<TargetingFacetKey, string[]>>;
 
 export interface TargetingEntity {
   urn: string;

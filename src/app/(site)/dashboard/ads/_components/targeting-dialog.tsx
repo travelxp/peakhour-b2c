@@ -38,12 +38,18 @@ import { Target, X } from "lucide-react";
  * stored `targeting.facets` + `labels`.
  */
 
+/** Server-enforced bound (TargetingBody zod: max 50 per facet). */
+const MAX_PER_FACET = 50;
+
 const FACETS: Array<{
   key: TargetingFacetKey;
   facetUrn: string;
   label: string;
   placeholder: string;
   required?: boolean;
+  /** Small fixed facets (seniorities, company size) list all values
+   *  up front instead of forcing a guess-the-keyword typeahead. */
+  listAll?: boolean;
 }> = [
   {
     key: "locations",
@@ -62,7 +68,8 @@ const FACETS: Array<{
     key: "seniorities",
     facetUrn: "urn:li:adTargetingFacet:seniorities",
     label: "Seniorities",
-    placeholder: "Search seniorities…",
+    placeholder: "Filter seniorities…",
+    listAll: true,
   },
   {
     key: "titles",
@@ -74,13 +81,14 @@ const FACETS: Array<{
     key: "staffCountRanges",
     facetUrn: "urn:li:adTargetingFacet:staffCountRanges",
     label: "Company size",
-    placeholder: "Search company-size ranges…",
+    placeholder: "Filter ranges…",
+    listAll: true,
   },
 ];
 
 /** Feature-detect editor-shaped targeting on a row (legacy rows carry
  *  a free-form object from the AI workflow instead). */
-function editorTargeting(t: ManagedCampaign["targeting"]): CampaignTargeting | null {
+export function editorTargeting(t: ManagedCampaign["targeting"]): CampaignTargeting | null {
   if (t && typeof t === "object" && "facets" in t) return t as CampaignTargeting;
   return null;
 }
@@ -110,24 +118,30 @@ function FacetPicker({
 }) {
   const [search, setSearch] = useState("");
   const query = useDebounced(search.trim(), 350);
+  // listAll facets fetch the full (small) entity list once and filter
+  // client-side; typeahead facets search server-side from 2 chars.
+  const serverQuery = facet.listAll ? "" : query;
+  const active = facet.listAll || query.length >= 2;
 
   const results = useQuery({
-    queryKey: ["linkedin-targeting-entities", facet.facetUrn, query],
-    queryFn: () => linkedInAdsApi.targetingEntities(facet.facetUrn, query),
-    enabled: query.length >= 2,
+    queryKey: ["linkedin-targeting-entities", facet.facetUrn, serverQuery],
+    queryFn: () => linkedInAdsApi.targetingEntities(facet.facetUrn, serverQuery || undefined),
+    enabled: active,
     staleTime: 5 * 60_000,
     retry: 1,
   });
 
-  const options = useMemo(
-    () =>
-      (results.data?.entities ?? [])
-        .filter((e) => e.urn && !selected.includes(e.urn))
-        .slice(0, 8),
-    [results.data, selected],
-  );
+  const atCap = selected.length >= MAX_PER_FACET;
+  const options = useMemo(() => {
+    const needle = facet.listAll ? query.toLowerCase() : "";
+    return (results.data?.entities ?? [])
+      .filter((e) => e.urn && !selected.includes(e.urn))
+      .filter((e) => (needle ? e.name.toLowerCase().includes(needle) : true))
+      .slice(0, facet.listAll ? 12 : 8);
+  }, [results.data, selected, facet.listAll, query]);
 
   const inputId = `targeting-${facet.key}`;
+  const listId = `targeting-${facet.key}-options`;
   return (
     <div className="space-y-1.5">
       <Label htmlFor={inputId}>{facet.label}</Label>
@@ -151,38 +165,47 @@ function FacetPicker({
       <Input
         id={inputId}
         value={search}
-        placeholder={facet.placeholder}
+        placeholder={atCap ? `Limit of ${MAX_PER_FACET} reached` : facet.placeholder}
         onChange={(e) => setSearch(e.target.value)}
         autoComplete="off"
+        disabled={atCap}
+        role="combobox"
+        aria-expanded={active && options.length > 0}
+        aria-controls={listId}
+        aria-required={facet.required ? true : undefined}
       />
-      {query.length >= 2 ? (
-        results.isLoading ? (
-          <p className="text-xs text-muted-foreground">Searching…</p>
-        ) : results.isError ? (
-          <p className="text-xs text-muted-foreground">
-            Couldn&apos;t search LinkedIn right now — try again in a moment.
-          </p>
-        ) : options.length === 0 ? (
-          <p className="text-xs text-muted-foreground">No matches.</p>
-        ) : (
-          <ul className="max-h-36 overflow-y-auto rounded-md border text-sm">
-            {options.map((e) => (
-              <li key={e.urn}>
-                <button
-                  type="button"
-                  className="w-full px-2 py-1.5 text-left hover:bg-muted"
-                  onClick={() => {
-                    onAdd(e);
-                    setSearch("");
-                  }}
-                >
-                  {e.name}
-                </button>
-              </li>
-            ))}
-          </ul>
-        )
-      ) : null}
+      <div aria-live="polite">
+        {active && !atCap ? (
+          results.isLoading ? (
+            <p className="text-xs text-muted-foreground">Searching…</p>
+          ) : results.isError ? (
+            <p className="text-xs text-muted-foreground">
+              Couldn&apos;t reach LinkedIn — if your LinkedIn Ads connection is
+              stale, reconnect it from Integrations; otherwise try again in a
+              moment.
+            </p>
+          ) : options.length === 0 ? (
+            <p className="text-xs text-muted-foreground">No matches.</p>
+          ) : (
+            <ul id={listId} role="listbox" className="max-h-36 overflow-y-auto rounded-md border text-sm">
+              {options.map((e) => (
+                <li key={e.urn} role="option" aria-selected={false}>
+                  <button
+                    type="button"
+                    className="w-full px-2 py-1.5 text-left hover:bg-muted focus:bg-muted"
+                    onClick={() => {
+                      onAdd(e);
+                      if (!facet.listAll) setSearch("");
+                    }}
+                  >
+                    {e.name}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -226,8 +249,14 @@ export function TargetingDialog({
         toast.error((err as ApiError).message || "Check the targeting selection.");
       } else if (code === "RATE_LIMITED") {
         toast.error("LinkedIn is rate-limiting us — give it a minute and try again.");
-      } else if (code === "INVALID_TRANSITION") {
-        toast.error("This campaign can no longer be retargeted.");
+      } else if (code === "INVALID_TRANSITION" || code === "NO_PLATFORM_ID") {
+        toast.error(
+          code === "NO_PLATFORM_ID"
+            ? "This campaign has no LinkedIn identity to target — refresh the list."
+            : "This campaign can no longer be retargeted.",
+        );
+        // Either way the row is stale — resync.
+        queryClient.invalidateQueries({ queryKey: ["linkedin-managed-campaigns"] });
       } else {
         toast.error("Couldn't apply targeting. Try again in a moment.");
       }
@@ -235,10 +264,13 @@ export function TargetingDialog({
   });
 
   const addEntity = (key: TargetingFacetKey) => (entity: TargetingEntity) => {
-    setFacets((prev) => ({
-      ...prev,
-      [key]: [...(prev[key] ?? []), entity.urn],
-    }));
+    setFacets((prev) => {
+      const current = prev[key] ?? [];
+      // Dedupe + server cap guard (a rapid double-click can beat the
+      // options filter's re-render).
+      if (current.includes(entity.urn) || current.length >= MAX_PER_FACET) return prev;
+      return { ...prev, [key]: [...current, entity.urn] };
+    });
     setLabels((prev) => ({ ...prev, [entity.urn]: entity.name }));
   };
   const removeEntity = (key: TargetingFacetKey) => (urn: string) => {
@@ -246,6 +278,13 @@ export function TargetingDialog({
       ...prev,
       [key]: (prev[key] ?? []).filter((u) => u !== urn),
     }));
+    // Prune the label too — orphaned entries would otherwise persist
+    // and accumulate across edit sessions.
+    setLabels((prev) => {
+      const rest = { ...prev };
+      delete rest[urn];
+      return rest;
+    });
   };
 
   const valid = (facets.locations?.length ?? 0) > 0;

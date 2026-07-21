@@ -33,8 +33,7 @@ import {
 } from "@/components/ui/table";
 import { EmptyState } from "@/components/molecules/empty-state";
 import { Archive, Megaphone, Pause, Play, RefreshCw, Rocket, Target } from "lucide-react";
-import { TargetingDialog } from "./_components/targeting-dialog";
-import { type CampaignTargeting } from "@/lib/api/linkedin-ads";
+import { TargetingDialog, editorTargeting } from "./_components/targeting-dialog";
 
 /**
  * Ads Manager (G1 MVP) — the Growth pillar's first live surface.
@@ -235,9 +234,9 @@ function CampaignsPanel() {
         </Table>
         <p className="mt-3 border-t pt-2 text-[11px] text-muted-foreground">
           Campaigns are created in LinkedIn as drafts under a paused group —
-          they cannot spend until you activate them. Finish audience targeting
-          in LinkedIn Campaign Manager before activating; the protective
-          monitor auto-pauses any campaign that reaches its total budget.
+          they cannot spend until you activate them. Set the audience with the
+          Audience button before activating; the protective monitor
+          auto-pauses any campaign that reaches its total budget.
         </p>
       </CardContent>
     </Card>
@@ -333,12 +332,9 @@ function CampaignRow({
     Boolean(campaign.platformCampaignId) &&
     !["archived", "completed"].includes(campaign.status);
   // Editor-shaped targeting (workflow rows carry a legacy free-form
-  // object instead — feature-detect).
-  const targeting =
-    campaign.targeting && typeof campaign.targeting === "object" && "facets" in campaign.targeting
-      ? (campaign.targeting as CampaignTargeting)
-      : null;
-  const hasAudience = (targeting?.facets?.locations?.length ?? 0) > 0;
+  // object instead — feature-detected by the shared helper).
+  const hasAudience =
+    (editorTargeting(campaign.targeting)?.facets?.locations?.length ?? 0) > 0;
 
   return (
     <TableRow>
