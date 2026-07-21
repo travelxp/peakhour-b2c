@@ -33,7 +33,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { EmptyState } from "@/components/molecules/empty-state";
-import { formatDate } from "@/lib/locale";
+import { useLocale } from "@/hooks/use-locale";
 import {
   xApi,
   type XMention,
@@ -246,6 +246,7 @@ function MentionCard({
   markPending: boolean;
   onReply: () => void;
 }) {
+  const { formatDate } = useLocale();
   const m = mention.metrics;
   const isUnread = !mention.readAt;
   const handle = mention.author.handle ?? mention.author.id;
@@ -267,7 +268,7 @@ function MentionCard({
                 </Badge>
               )}
               <span>·</span>
-              <span>{formatDate(mention.mentionedAt, null)}</span>
+              <span>{formatDate(mention.mentionedAt)}</span>
               {isUnread && (
                 <Badge variant="default" className="text-xs h-4 px-1.5">
                   New

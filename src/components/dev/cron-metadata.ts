@@ -173,12 +173,20 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
         upserted += num(rr.postsUpserted);
         fetched += num(rr.postsFetched);
       }
-      if (num(d.synced) === 0 && num(d.failed) > 0)
+      const failed = num(d.failed);
+      if (num(d.synced) === 0 && failed > 0)
         return "LinkedIn sync didn't complete — please reconnect and try again.";
+      // A failed business among healthy ones (e.g. its token was
+      // revoked) must not read as all-good.
+      const failedSuffix =
+        failed > 0
+          ? ` ${failed} ${plural(failed, "account")} need${failed === 1 ? "s" : ""} reconnecting.`
+          : "";
       if (upserted > 0)
-        return `${upserted} ${plural(upserted, "post")} synced successfully.`;
-      if (fetched > 0) return "LinkedIn synced — your posts are already up to date.";
-      return "LinkedIn synced — no new posts in range yet.";
+        return `${upserted} ${plural(upserted, "post")} synced successfully.${failedSuffix}`;
+      if (fetched > 0)
+        return `LinkedIn synced — your posts are already up to date.${failedSuffix}`;
+      return `LinkedIn synced — no new posts in range yet.${failedSuffix}`;
     },
   },
   "linkedin-retention-cleanup": {
