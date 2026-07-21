@@ -358,9 +358,12 @@ function ProposalRow({
       } else if (res.status === "failed") {
         toast.error(res.failReason || "This proposal can't be applied — see the reason on the card.");
       } else if (res.status === "approved") {
-        // Honest: recorded for the engine; consumption lands in a
-        // follow-up — no fake "it's live" claim.
-        toast.success("Approved and recorded — the engine picks this up as its consumers ship.");
+        // Non-budget types are consumed by the engine (boost ranking,
+        // draft generation, schedule recommendations) on their next
+        // run — the card flips to "applied" when that happens.
+        toast.success(
+          "Approved — the engine applies it on its next run (boost ranking, drafts, or scheduling).",
+        );
       } else {
         toast.success("Dismissed.");
       }
