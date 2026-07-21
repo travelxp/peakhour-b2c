@@ -45,7 +45,10 @@ export interface ManagedCampaign {
   /** Organic post this campaign sponsors (Boost-to-Campaign). */
   sourcePostUrn?: string;
   name: string;
-  objective?: BoostObjective;
+  /** zCampaignObjective — typed to the boost set today; rows written by
+   *  other producers may carry values outside it, so treat unknown
+   *  strings as display-only rather than exhaustive-matching. */
+  objective?: BoostObjective | (string & {});
   status: ManagedCampaignStatus;
   /** ISO-4217 — matches the ad account's billing currency. */
   currency?: string;
@@ -56,9 +59,14 @@ export interface ManagedCampaign {
     endsAt?: string;
     durationDays?: number;
   };
+  /** Platform creative URN ids attached at boost time. */
+  linkedCreativeUrns?: string[];
   performance?: ManagedCampaignPerformance;
   createdAt: string;
   updatedAt?: string;
+  /** Audit ids (hex) — present on rows created via the routes. */
+  createdById?: string;
+  updatedById?: string;
 }
 
 export interface BoostCampaignInput {

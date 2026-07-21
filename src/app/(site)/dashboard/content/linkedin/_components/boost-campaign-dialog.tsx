@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api";
 import {
@@ -56,11 +56,30 @@ export function BoostCampaignDialog({
   postUrn: string;
   defaultName: string;
 }) {
+  const queryClient = useQueryClient();
   const [name, setName] = useState(defaultName);
   const [objective, setObjective] = useState<BoostObjective>("engagement");
   const [dailyBudget, setDailyBudget] = useState("10");
   const [currencyCode, setCurrencyCode] = useState("USD");
   const [durationDays, setDurationDays] = useState("14");
+
+  // Round ONCE up front so validation, the displayed cap, and the
+  // payload can never disagree (typing "14.7" must not show a x14.7
+  // cap while the server stores x15).
+  const budgetNumber = Number(dailyBudget);
+  const durationNumber = Math.round(Number(durationDays));
+  /** Fat-finger ceiling for a daily spend input — the server accepts
+   *  any positive number, so the UI is the sanity gate. */
+  const MAX_DAILY_BUDGET = 1_000_000;
+  const valid =
+    name.trim().length > 0 &&
+    Number.isFinite(budgetNumber) &&
+    budgetNumber > 0 &&
+    budgetNumber <= MAX_DAILY_BUDGET &&
+    /^[A-Za-z]{3}$/.test(currencyCode.trim()) &&
+    Number.isFinite(durationNumber) &&
+    durationNumber >= 1 &&
+    durationNumber <= 366;
 
   const boost = useMutation({
     mutationFn: () =>
@@ -68,11 +87,14 @@ export function BoostCampaignDialog({
         postUrn,
         name: name.trim(),
         objective,
-        dailyBudget: Number(dailyBudget),
+        dailyBudget: budgetNumber,
         currencyCode: currencyCode.trim().toUpperCase(),
-        durationDays: Math.round(Number(durationDays)),
+        durationDays: durationNumber,
       }),
     onSuccess: () => {
+      // The Ads Manager list must show the new campaign even within
+      // its staleTime window.
+      queryClient.invalidateQueries({ queryKey: ["linkedin-managed-campaigns"] });
       onOpenChange(false);
       toast.success("Draft campaign created on LinkedIn.", {
         description:
@@ -86,28 +108,34 @@ export function BoostCampaignDialog({
       });
     },
     onError: (err) => {
-      if (err instanceof ApiError && err.code === "CURRENCY_MISMATCH") {
-        toast.error(err.message || "Use your ad account's billing currency.");
-      } else if (err instanceof ApiError && err.code === "NOT_CONNECTED") {
+      const code = err instanceof ApiError ? err.code : undefined;
+      if (code === "CURRENCY_MISMATCH") {
+        toast.error(
+          (err as ApiError).message || "Use your ad account's billing currency.",
+        );
+      } else if (code === "NOT_CONNECTED") {
         toast.error("Connect LinkedIn Ads first (Integrations page).");
-      } else if (err instanceof ApiError && err.code === "NEEDS_REAUTH") {
+      } else if (code === "NEEDS_REAUTH") {
         toast.error("LinkedIn Ads needs a reconnect before boosting.");
+      } else if (code === "NO_AD_ACCOUNT") {
+        toast.error(
+          "Your LinkedIn Ads connection has no ad account — reconnect it, or create an ad account in LinkedIn Campaign Manager first.",
+        );
+      } else if (code === "FORBIDDEN") {
+        toast.error("Pick a business first, then boost.");
+      } else if (code === "PERSIST_FAILED") {
+        // The draft DOES exist on LinkedIn — retrying would duplicate it.
+        toast.error(
+          (err as ApiError).message ||
+            "The campaign was created on LinkedIn but couldn't be saved here — contact support (don't retry).",
+        );
+      } else if (code === "RATE_LIMITED") {
+        toast.error("LinkedIn is rate-limiting us — give it a minute and try again.");
       } else {
         toast.error("Couldn't create the campaign. Try again in a moment.");
       }
     },
   });
-
-  const budgetNumber = Number(dailyBudget);
-  const durationNumber = Number(durationDays);
-  const valid =
-    name.trim().length > 0 &&
-    Number.isFinite(budgetNumber) &&
-    budgetNumber > 0 &&
-    /^[A-Za-z]{3}$/.test(currencyCode.trim()) &&
-    Number.isFinite(durationNumber) &&
-    durationNumber >= 1 &&
-    durationNumber <= 366;
 
   const total =
     valid && Number.isFinite(budgetNumber * durationNumber)
@@ -142,12 +170,12 @@ export function BoostCampaignDialog({
           </div>
 
           <div className="space-y-1.5">
-            <Label>Objective</Label>
+            <Label htmlFor="boost-objective">Objective</Label>
             <Select
               value={objective}
               onValueChange={(v) => setObjective(v as BoostObjective)}
             >
-              <SelectTrigger>
+              <SelectTrigger id="boost-objective">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -167,6 +195,7 @@ export function BoostCampaignDialog({
                 id="boost-budget"
                 type="number"
                 min={1}
+                max={MAX_DAILY_BUDGET}
                 step="1"
                 value={dailyBudget}
                 onChange={(e) => setDailyBudget(e.target.value)}

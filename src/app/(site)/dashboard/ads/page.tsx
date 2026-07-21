@@ -62,6 +62,17 @@ const STATUS_BADGE: Record<ManagedCampaignStatus, string> = {
 
 function formatMoney(value: number | undefined, currency?: string): string {
   if (typeof value !== "number") return "—";
+  if (currency) {
+    try {
+      return new Intl.NumberFormat(undefined, {
+        style: "currency",
+        currency,
+        maximumFractionDigits: 2,
+      }).format(value);
+    } catch {
+      // Unknown ISO code — fall through to the plain render.
+    }
+  }
   const rounded = Math.round(value * 100) / 100;
   return currency ? `${currency} ${rounded}` : String(rounded);
 }
@@ -99,6 +110,12 @@ export default function AdsPage() {
             <Skeleton className="h-24 w-full" />
           </CardContent>
         </Card>
+      ) : integrations.isError ? (
+        <EmptyState
+          icon={RefreshCw}
+          title="Couldn't check your connections"
+          description="We couldn't load your integration status just now. Refresh in a moment — your campaigns are unaffected."
+        />
       ) : !isConnected ? (
         <EmptyState
           icon={Megaphone}
@@ -107,7 +124,26 @@ export default function AdsPage() {
           action={{ label: "Connect LinkedIn Ads", href: "/dashboard/integrations" }}
         />
       ) : (
-        <CampaignsPanel />
+        <>
+          {adsConnection?.status === "needs_reauth" ? (
+            <Card className="border-amber-200 bg-amber-50/50 dark:border-amber-900 dark:bg-amber-950/30">
+              <CardContent className="flex items-center justify-between gap-4 p-4 text-sm">
+                <span>
+                  Your LinkedIn Ads connection is{" "}
+                  <span className="font-medium">stale</span>. Reconnect to
+                  boost posts or change campaigns — the list below still works.
+                </span>
+                <a
+                  href="/dashboard/integrations"
+                  className="font-medium text-amber-900 underline underline-offset-4 dark:text-amber-200"
+                >
+                  Reconnect
+                </a>
+              </CardContent>
+            </Card>
+          ) : null}
+          <CampaignsPanel />
+        </>
       )}
     </div>
   );
@@ -223,6 +259,7 @@ function CampaignRow({
   onChanged: () => void;
 }) {
   const [confirmActivate, setConfirmActivate] = useState(false);
+  const [confirmArchive, setConfirmArchive] = useState(false);
 
   const status = useMutation({
     mutationFn: (next: "active" | "paused" | "archived") =>
@@ -238,10 +275,24 @@ function CampaignRow({
       onChanged();
     },
     onError: (err) => {
-      if (err instanceof ApiError && err.code === "NEEDS_REAUTH") {
-        toast.error("LinkedIn Ads needs a reconnect before changing campaigns.");
-      } else if (err instanceof ApiError && err.code === "INVALID_TRANSITION") {
+      const code = err instanceof ApiError ? err.code : undefined;
+      if (code === "NEEDS_REAUTH" || code === "NOT_CONNECTED") {
+        toast.error("LinkedIn Ads needs a reconnect before changing campaigns.", {
+          action: {
+            label: "Reconnect",
+            onClick: () => { window.location.href = "/dashboard/integrations"; },
+          },
+        });
+      } else if (code === "INVALID_TRANSITION") {
         toast.error("That status change isn't possible from the campaign's current state.");
+        // The row is by definition stale — resync the table.
+        onChanged();
+      } else if (code === "NO_PLATFORM_ID" || code === "VALIDATION_GROUP_ID_REQUIRED") {
+        toast.error(
+          "This campaign is missing its LinkedIn identity and can't be changed from here — contact support.",
+        );
+      } else if (code === "RATE_LIMITED") {
+        toast.error("LinkedIn is rate-limiting us — give it a minute and try again.");
       } else {
         toast.error("Couldn't update the campaign. Try again in a moment.");
       }
@@ -254,12 +305,26 @@ function CampaignRow({
       toast.success("Campaign metrics refreshed.");
       onChanged();
     },
-    onError: () => toast.error("Couldn't refresh metrics right now."),
+    onError: (err) => {
+      const code = err instanceof ApiError ? err.code : undefined;
+      if (code === "NEEDS_REAUTH" || code === "NOT_CONNECTED") {
+        toast.error("LinkedIn Ads needs a reconnect before syncing metrics.", {
+          action: {
+            label: "Reconnect",
+            onClick: () => { window.location.href = "/dashboard/integrations"; },
+          },
+        });
+      } else {
+        toast.error("Couldn't refresh metrics right now.");
+      }
+    },
   });
 
   const busy = status.isPending || sync.isPending;
   const perf = campaign.performance;
-  const canActivate = ["draft", "review", "paused"].includes(campaign.status);
+  const canActivate =
+    ["draft", "review", "paused"].includes(campaign.status) &&
+    Boolean(campaign.platformCampaignId && campaign.platformCampaignGroupId);
   const canPause = campaign.status === "active";
   const canArchive = !["archived"].includes(campaign.status);
   const canSync = Boolean(campaign.platformCampaignId);
@@ -308,6 +373,7 @@ function CampaignRow({
               className="h-7 px-2"
               disabled={busy}
               title="Refresh live metrics from LinkedIn"
+              aria-label="Refresh live metrics from LinkedIn"
               onClick={() => sync.mutate()}
             >
               <RefreshCw className={`size-3 ${sync.isPending ? "animate-spin" : ""}`} />
@@ -347,13 +413,38 @@ function CampaignRow({
               variant="ghost"
               className="h-7 px-2"
               disabled={busy}
-              title="Archive campaign"
-              onClick={() => status.mutate("archived")}
+              title="Archive campaign (permanent)"
+              aria-label="Archive campaign (permanent)"
+              onClick={() => setConfirmArchive(true)}
             >
               <Archive className="size-3" />
             </Button>
           ) : null}
         </div>
+
+        <AlertDialog open={confirmArchive} onOpenChange={setConfirmArchive}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Archive this campaign?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Archiving &ldquo;{campaign.name}&rdquo; stops it permanently on
+                LinkedIn{campaign.status === "active" ? " (it is currently active)" : ""} —
+                archived campaigns can&apos;t be reactivated.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Keep it</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  setConfirmArchive(false);
+                  status.mutate("archived");
+                }}
+              >
+                Archive permanently
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         <AlertDialog open={confirmActivate} onOpenChange={setConfirmActivate}>
           <AlertDialogContent>
