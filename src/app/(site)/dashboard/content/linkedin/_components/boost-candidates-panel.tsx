@@ -20,17 +20,16 @@ import {
   linkedInContentApi,
   type BoostCandidate,
 } from "@/lib/api/linkedin-content";
+import { BoostCampaignDialog } from "./boost-campaign-dialog";
 import { RetentionFootnote } from "./retention-footnote";
 
 /**
  * BoostCandidatesPanel — ranks the business's recently-published
  * LinkedIn posts by boost-worthiness and surfaces the top N.
  *
- * The "Boost this post" button is intentionally disabled with a
- * "coming soon" tooltip — autonomous ad-spend ships in workstream
- * D6 (Autonomous Ad Engine). Today the panel is a recommendation
- * surface: it tells the user *which* posts deserve the budget, but
- * the actual campaign creation is one PR away.
+ * The "Boost" button opens the Boost-to-Campaign dialog (G1): one
+ * click turns the ranked post into a REAL LinkedIn campaign — created
+ * as a non-spending draft the user activates from the Ads Manager.
  *
  * Lazy-mounted from the LinkedIn dashboard tabs (same pattern as
  * AudiencePanel) so the boost-candidates query doesn't fire on
@@ -235,6 +234,7 @@ function BoostCandidateRow({
   candidate: BoostCandidate;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [boostOpen, setBoostOpen] = useState(false);
   const ActorIcon = candidate.authorType === "org" ? Building2 : User;
 
   return (
@@ -323,13 +323,21 @@ function BoostCandidateRow({
           type="button"
           size="sm"
           variant="default"
-          disabled
           className="h-7 text-xs"
-          title="Coming soon — autonomous ad-spend deployment ships in the Ad Engine workstream. For now this surface tells you which posts deserve the budget."
+          title="Turn this post into a LinkedIn campaign — created as a non-spending draft you activate from the Ads Manager."
+          onClick={() => setBoostOpen(true)}
         >
           <Rocket className="mr-1 size-3" />
           Boost
         </Button>
+        {boostOpen ? (
+          <BoostCampaignDialog
+            open={boostOpen}
+            onOpenChange={setBoostOpen}
+            postUrn={candidate.linkedInPostUrn}
+            defaultName={`Boost: ${candidate.hookExcerpt.slice(0, 80)}`}
+          />
+        ) : null}
       </div>
     </li>
   );
