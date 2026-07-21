@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { CheckCircle2, AlertCircle, ShoppingBag, Loader2 } from "lucide-react";
+import { CheckCircle2, AlertCircle, ShoppingBag } from "lucide-react";
 import { useAuth } from "@/providers/auth-provider";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,6 +18,7 @@ import {
   claimShopifyStore,
   type ShopifyClaimCandidates,
 } from "@/lib/api/shopify-claim";
+import { LoadingScreen } from "@/components/molecules/loading-screen";
 
 /** Sentinel for "move the store in as a NEW Business" (vs an existing businessId). */
 const NEW_BUSINESS = "__new__";
@@ -116,6 +117,38 @@ export function ShopifyClaim() {
     }
   }
 
+  // One-click path for a merchant with no Peakhour account: adopt the store's
+  // auto-provisioned shell org (which already holds the catalog + Commerce plan)
+  // as their first workspace — no org to pick, no onboarding, no store URL to
+  // type. The server adopts when `orgId` is omitted and the operator owns none.
+  async function handleAdopt() {
+    if (!store || !token) return;
+    setFetchState("claiming");
+    try {
+      const res = await claimShopifyStore(store, token);
+      // Adopt has no separate org to name — the store BECOMES the account, so
+      // avoid the "Acme is now part of Acme" tautology in the done copy.
+      setClaimedName("your new Peakhour account");
+      try {
+        await switchOrg(res.orgId);
+        if (res.businessId) await switchBusiness(res.businessId);
+      } catch {
+        /* adopted regardless; the switchers pick it up on next load */
+      }
+      setFetchState("done");
+    } catch (e: unknown) {
+      setErrCode((e as { code?: string })?.code ?? "");
+      setErrMsg((e as { message?: string })?.message ?? "Couldn't set up your account.");
+      setFetchState("error");
+    }
+  }
+
+  // Sign-in that returns the merchant straight back here (with the store+token)
+  // after the magic link — no bouncing back to Shopify to re-click. `next` also
+  // carries the claim context so the API admits a brand-new merchant email.
+  const claimPath = `/claim/shopify?store=${encodeURIComponent(store)}&t=${encodeURIComponent(token)}`;
+  const signInHref = `/auth?next=${encodeURIComponent(claimPath)}`;
+
   // Derived phase: pre-auth states from props, then the async fetchState.
   const showLoading = isLoading || (ready && fetchState === "loading");
   const showMissing = !isLoading && (!store || !token);
@@ -135,10 +168,7 @@ export function ShopifyClaim() {
         </CardHeader>
         <CardContent className="space-y-4">
           {showLoading && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="size-4 animate-spin" aria-hidden />
-              Loading…
-            </div>
+            <LoadingScreen message="Loading your store…" />
           )}
 
           {showMissing && (
@@ -157,11 +187,11 @@ export function ShopifyClaim() {
           {showSignIn && (
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
-                Sign in to your Peakhour account to claim this store. After signing in, reopen the
-                “Claim this store” button from the Peakhour app in your Shopify admin.
+                Sign in to finish linking <span className="font-medium text-foreground">this store</span> to
+                your Peakhour account. We&apos;ll bring you right back here — no need to return to Shopify.
               </p>
               <Button asChild>
-                <Link href="/auth">Sign in</Link>
+                <Link href={signInHref}>Sign in to continue</Link>
               </Button>
             </div>
           )}
@@ -183,9 +213,16 @@ export function ShopifyClaim() {
               </div>
 
               {data.orgs.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  No account found on your sign-in. Create one in Peakhour, then reopen this link.
-                </p>
+                <div className="space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    Set up your Peakhour account from{" "}
+                    <span className="font-medium text-foreground">{data.store.name || "this store"}</span>.
+                    Your catalog and Commerce plan are already in place — nothing to configure.
+                  </p>
+                  <Button onClick={handleAdopt} className="w-full">
+                    Create my account with this store
+                  </Button>
+                </div>
               ) : (
                 <>
                   {data.orgs.length > 1 && (
@@ -256,21 +293,27 @@ export function ShopifyClaim() {
                 </>
               )}
 
-              <Button
-                onClick={handleClaim}
-                disabled={!selectedOrg || data.orgs.length === 0}
-                className="w-full"
-              >
-                Claim this store
-              </Button>
+              {data.orgs.length > 0 && (
+                <Button
+                  onClick={handleClaim}
+                  disabled={!selectedOrg}
+                  className="w-full"
+                >
+                  Claim this store
+                </Button>
+              )}
             </div>
           )}
 
           {ready && fetchState === "claiming" && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="size-4 animate-spin" aria-hidden />
-              Claiming…
-            </div>
+            <LoadingScreen
+              message="Setting up your store…"
+              steps={[
+                "Linking your Shopify store",
+                "Bringing your catalog across",
+                "Activating Commerce",
+              ]}
+            />
           )}
 
           {ready && fetchState === "done" && (

@@ -29,13 +29,21 @@
  *                   reads keep the intent obvious.
  */
 
+/** A summarizer may return a bare string (shown as a success toast) or an
+ *  object that also carries a severity — use `level: "warning"` when the run
+ *  technically succeeded (HTTP 2xx) but did nothing useful, e.g. a sync that
+ *  skipped every connection because none is finished being set up. Without
+ *  this a no-op reads as a green success, which is what made "sync ran, toast
+ *  green, still no data" so confusing. */
+export type CronSummary = string | { message: string; level?: "success" | "warning" };
+
 export interface CronMetadata {
   label: string;
   frequency: string;
   description: string;
-  /** Maps the parsed cron `data` payload to a friendly one-line success
-   *  message, or null to fall back to the generic toast. */
-  summarize?: (data: unknown) => string | null;
+  /** Maps the parsed cron `data` payload to a friendly one-line message
+   *  (optionally with a severity), or null to fall back to the generic toast. */
+  summarize?: (data: unknown) => CronSummary | null;
 }
 
 export const CRON_METADATA: Record<string, CronMetadata> = {
@@ -114,13 +122,37 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       const total = num(overall.connectionsTotal);
       if (total === 0) return "Performance refreshed — no connected platforms yet.";
       if (num(overall.errors) > 0)
-        return "Performance refreshed, but some platforms reported errors.";
+        return {
+          message: "Performance refreshed, but some platforms reported errors.",
+          level: "warning",
+        };
+      const notConfigured = num(overall.notConfigured);
       const run = num(overall.connectionsRun);
-      if (run > 0)
-        return `Performance refreshed across ${run} ${plural(run, "connection")}.`;
+      // Ran but every connection that ran was incomplete (e.g. GA4 with no
+      // property selected) — a 2xx no-op. Warn, and point at the fix, so this
+      // stops masquerading as a healthy sync.
+      if (notConfigured > 0 && notConfigured >= run) {
+        return {
+          message:
+            "Nothing synced — pick a GA4 property (and connect Search Console) above, then refresh.",
+          level: "warning",
+        };
+      }
+      if (run > 0) {
+        const base = `Performance refreshed across ${run} ${plural(run, "connection")}.`;
+        return notConfigured > 0
+          ? {
+              message: `${base} ${notConfigured} still ${notConfigured === 1 ? "needs" : "need"} setup.`,
+              level: "warning",
+            }
+          : base;
+      }
       // total > 0 but nothing ran → every connection was lock-skipped,
       // i.e. a refresh is already in progress (not "up to date").
-      return "A performance refresh is already running — check back shortly.";
+      return {
+        message: "A performance refresh is already running — check back shortly.",
+        level: "warning",
+      };
     },
   },
   "linkedin-post-sync": {
@@ -141,12 +173,20 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
         upserted += num(rr.postsUpserted);
         fetched += num(rr.postsFetched);
       }
-      if (num(d.synced) === 0 && num(d.failed) > 0)
+      const failed = num(d.failed);
+      if (num(d.synced) === 0 && failed > 0)
         return "LinkedIn sync didn't complete — please reconnect and try again.";
+      // A failed business among healthy ones (e.g. its token was
+      // revoked) must not read as all-good.
+      const failedSuffix =
+        failed > 0
+          ? ` ${failed} ${plural(failed, "account")} need${failed === 1 ? "s" : ""} reconnecting.`
+          : "";
       if (upserted > 0)
-        return `${upserted} ${plural(upserted, "post")} synced successfully.`;
-      if (fetched > 0) return "LinkedIn synced — your posts are already up to date.";
-      return "LinkedIn synced — no new posts in range yet.";
+        return `${upserted} ${plural(upserted, "post")} synced successfully.${failedSuffix}`;
+      if (fetched > 0)
+        return `LinkedIn synced — your posts are already up to date.${failedSuffix}`;
+      return `LinkedIn synced — no new posts in range yet.${failedSuffix}`;
     },
   },
   "linkedin-retention-cleanup": {
@@ -266,6 +306,21 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
     description:
       "Generates new posts from any recurring schedule rules you've set up.",
   },
+  "growth-optimizer": {
+    label: "Run weekly growth review",
+    frequency: "Runs Mondays 03:00 UTC",
+    description:
+      "Reviews each opted-in business's week of posts and campaigns and proposes up to three small, evidence-backed adjustments for approval.",
+    summarize: (data) => {
+      const d = data as {
+        businesses?: number; created?: number; skipped?: number; failed?: number; truncated?: boolean;
+      } | null;
+      if (!d || typeof d.businesses !== "number") return null;
+      let msg = `${d.created ?? 0} review${(d.created ?? 0) === 1 ? "" : "s"} created across ${d.businesses} business${d.businesses === 1 ? "" : "es"} (${d.skipped ?? 0} already done, ${d.failed ?? 0} failed).`;
+      if (d.truncated) msg += " More businesses pending — trigger again to continue.";
+      return (d.failed ?? 0) > 0 || d.truncated ? { message: msg, level: "warning" } : msg;
+    },
+  },
   "outcome-backfill": {
     label: "Backfill post outcomes",
     frequency: "Runs every hour",
@@ -333,6 +388,53 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       return "X ad metrics refreshed.";
     },
   },
+  "ask-weekly-digest": {
+    label: "Send weekly digest",
+    frequency: "Runs weekly (Monday 6:00 AM UTC)",
+    description:
+      "Sends each business owner their weekly performance digest — plain-English headline, what moved, and one suggested next step — over WhatsApp, falling back to in-app.",
+    summarize: (data) => {
+      const d = asRecord(data);
+      if (!d) return null;
+      const targets = num(d.targets);
+      // targets counts businesses DUE a digest, so 0 covers two very different
+      // cases: nobody has connected analytics, or everyone was digested inside
+      // the 6-day guard window. Don't claim which.
+      if (targets === 0) return "Nothing to send — no business is due a digest right now.";
+      const sent = num(d.sent);
+      const parts = [`${sent} ${plural(sent, "digest")} sent`];
+      // skipped = connected but no metrics worth a brief yet (still syncing, or
+      // no period comparison). It is NOT a re-send skip — businesses digested
+      // inside the guard window are excluded by the query and never counted here.
+      if (num(d.skipped) > 0) parts.push(`${num(d.skipped)} skipped`);
+      if (num(d.errors) > 0) parts.push(`${num(d.errors)} failed`);
+      // budgetHit means the run stopped early on wall-clock, not that it
+      // finished the queue — say so, or the count reads as complete.
+      const tail = d.budgetHit === true ? " Time budget reached — the rest roll over to the next run." : "";
+      return `${parts.join(", ")}.${tail}`;
+    },
+  },
+  "wa-outcome-billing": {
+    label: "Bill resolved chats",
+    frequency: "Runs every 3 hours",
+    description:
+      "Reviews WhatsApp conversations that have gone quiet, works out which ones actually reached an outcome (resolved, lead qualified, appointment booked), and charges Peaks once per outcome. Ongoing chat turns are always free.",
+    summarize: (data) => {
+      const d = asRecord(data);
+      if (!d) return null;
+      const scanned = num(d.scanned);
+      if (scanned === 0) return "No quiet conversations to review yet.";
+      const billed = num(d.billed);
+      const parts = [
+        billed === 0
+          ? `${scanned} ${plural(scanned, "conversation")} reviewed — none reached a billable outcome`
+          : `${billed} of ${scanned} ${plural(scanned, "conversation")} billed`,
+      ];
+      if (num(d.humanTakeover) > 0) parts.push(`${num(d.humanTakeover)} handed to a human`);
+      if (num(d.errors) > 0) parts.push(`${num(d.errors)} failed`);
+      return `${parts.join(", ")}.`;
+    },
+  },
 };
 
 /** Fallback for a cron name not yet documented in CRON_METADATA. The UI
@@ -382,13 +484,21 @@ function plural(count: number, noun: string): string {
  * generic "<label> complete") whenever there's no summarizer, the body
  * isn't parseable, or the summarizer opts out. Never throws.
  */
-export function summarizeCronBody(cron: string, body: string): string | null {
+export function summarizeCronBody(
+  cron: string,
+  body: string,
+): { message: string; level: "success" | "warning" } | null {
   const summarize = CRON_METADATA[cron]?.summarize;
   if (!summarize || !body) return null;
   try {
     const parsed = JSON.parse(body) as unknown;
     const data = asRecord(parsed)?.data;
-    return summarize(data);
+    const result = summarize(data);
+    if (result == null) return null;
+    // Normalize the bare-string form to a success-level object.
+    return typeof result === "string"
+      ? { message: result, level: "success" }
+      : { message: result.message, level: result.level ?? "success" };
   } catch {
     // Malformed / truncated body — defer to the generic toast.
     return null;

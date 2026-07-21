@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { ShopifyClaim } from "./_components/shopify-claim";
+import { LoadingScreen } from "@/components/molecules/loading-screen";
 
 /**
  * /claim/shopify?store=<connId>&t=<token>
@@ -11,13 +12,7 @@ import { ShopifyClaim } from "./_components/shopify-claim";
  */
 export default function ShopifyClaimPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="mx-auto flex min-h-[70vh] w-full max-w-lg items-center justify-center px-4 text-sm text-muted-foreground">
-          Loading…
-        </div>
-      }
-    >
+    <Suspense fallback={<LoadingScreen fullScreen message="Loading your store…" />}>
       <ShopifyClaim />
     </Suspense>
   );

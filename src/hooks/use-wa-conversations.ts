@@ -65,3 +65,16 @@ export function useWaHandoff() {
     },
   });
 }
+
+/** Hand a thread back to the AI (clears escalated → active). Inverse of handoff. */
+export function useWaResume() {
+  const qc = useQueryClient();
+  const { business } = useAuth();
+  return useMutation({
+    mutationFn: (threadId: string) => api.post(`${BASE}/${encodeURIComponent(threadId)}/resume`),
+    onSuccess: (_r, threadId) => {
+      qc.invalidateQueries({ queryKey: ["wa-conversations", business?._id ?? "none"] });
+      qc.invalidateQueries({ queryKey: ["wa-thread", business?._id ?? "none", threadId] });
+    },
+  });
+}

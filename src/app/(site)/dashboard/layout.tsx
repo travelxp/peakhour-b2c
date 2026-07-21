@@ -43,8 +43,12 @@ import { CommandMenu } from "@/components/molecules/command-menu";
 import { SidebarStorageMeter } from "@/components/dashboard/sidebar-storage-meter";
 import { FeedbackWidget } from "@/components/molecules/feedback-widget";
 import { ChatPanel } from "@/components/molecules/chat-panel";
+import { AskContextProvider } from "@/providers/ask-context-provider";
+import { AskLauncher } from "@/components/ask/ask-launcher";
+import { ASK_ENABLED } from "@/lib/flags";
 import {
   LayoutDashboard,
+  Sparkles,
   FileText,
   TrendingUp,
   Plug,
@@ -56,6 +60,9 @@ import {
   ListChecks,
   Zap,
   MessagesSquare,
+  ShoppingBag,
+  MapPin,
+  LineChart,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -65,12 +72,26 @@ import {
 } from "@/components/ui/collapsible";
 import { useMyTickets } from "@/hooks/use-feedback";
 import { useRunningJobCount } from "@/hooks/use-jobs";
+import { LockedNavItem } from "@/components/dashboard/locked-nav-item";
 
 interface NavItem {
   href: string;
   label: string;
   icon: LucideIcon;
   badge?: () => React.ReactNode;
+  /**
+   * Optional entitlement gate (a cfg_features.key). When set, the item renders
+   * only if the key is present in the org's entitlements snapshot — the same
+   * check `useFeature` runs. Absent = always visible (the default for the core
+   * Content/Growth items). Used to gate the Commerce pillar on `commerce.nav`.
+   */
+  feature?: string;
+  /**
+   * One-line value prop shown in the upgrade drawer when a `feature`-gated
+   * pillar is rendered locked (unentitled) instead of hidden. Ignored for
+   * ungated items. See LockedNavItem.
+   */
+  upsellTagline?: string;
   subItems?: { href: string; label: string; badge?: () => React.ReactNode }[];
 }
 
@@ -91,6 +112,9 @@ const NAV_GROUPS: NavGroup[] = [
     label: "",
     items: [
       { href: "/dashboard/overview", label: "Overview", icon: LayoutDashboard },
+      ...(ASK_ENABLED
+        ? [{ href: "/dashboard/ask", label: "Ask Peakhour", icon: Sparkles }]
+        : []),
       {
         href: "/dashboard/content",
         label: "Content",
@@ -125,6 +149,56 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/dashboard/ads", label: "Ads" },
           { href: "/dashboard/outcomes", label: "Outcomes" },
           { href: "/dashboard/optimizer", label: "Optimizer" },
+        ],
+      },
+      // Commerce — the third pillar. Gated on `commerce.nav` (granted to every
+      // plan bundling a Commerce product; migration 144), so only Commerce
+      // customers carry the extra sidebar weight. Sub-items are added as each
+      // surface ships — Command Center (outcomes home), Assistant + Inventory
+      // exist today; Autopilot and Channels land in later Phase-0 PRs.
+      {
+        href: "/dashboard/commerce",
+        label: "Commerce",
+        icon: ShoppingBag,
+        feature: "commerce.nav",
+        upsellTagline:
+          "Autonomous merchandising, inventory and pricing across your storefronts.",
+        subItems: [
+          { href: "/dashboard/commerce", label: "Command Center" },
+          { href: "/dashboard/commerce/channels", label: "Channels" },
+          { href: "/dashboard/commerce/autopilot", label: "Autopilot" },
+          { href: "/dashboard/commerce/catalog", label: "Catalog" },
+          { href: "/dashboard/commerce/inventory", label: "Inventory" },
+          { href: "/dashboard/commerce/pricing", label: "Pricing" },
+          { href: "/dashboard/commerce/reviews", label: "Reviews" },
+          { href: "/dashboard/commerce/assistant", label: "Assistant" },
+        ],
+      },
+      // Presence — the local-presence pillar (Google Business Profile anchor).
+      // Gated on `presence.nav` (granted free to every plan that bundles the
+      // Presence product). Surfaces render coming_soon until Google API access
+      // lands; the pillar is visible so owners can find it.
+      {
+        href: "/dashboard/presence",
+        label: "Presence",
+        icon: MapPin,
+        feature: "presence.nav",
+        upsellTagline:
+          "Own your Google Business Profile, listings and local reviews from one place.",
+      },
+      // Insights — GA4 + Search Console dashboards. Ungated (no `feature`):
+      // the pages self-gate on the relevant Google integration being
+      // connected, so the pillar stays discoverable for everyone and acts
+      // as the connect prompt. Previously these routes existed but were
+      // unreachable from the nav — only deep-linked from the Overview
+      // recommendations card / Ask Peakhour.
+      {
+        href: "/dashboard/insights/analytics",
+        label: "Insights",
+        icon: LineChart,
+        subItems: [
+          { href: "/dashboard/insights/analytics", label: "Web Analytics" },
+          { href: "/dashboard/insights/search-console", label: "Search Console" },
         ],
       },
       { href: "/dashboard/inbox", label: "Inbox", icon: MessagesSquare },
@@ -182,7 +256,7 @@ export default function DashboardLayout({
 
 function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { user, org, logout, isLoading, isAuthenticated } = useAuth();
+  const { user, org, logout, isLoading, isAuthenticated, entitlements } = useAuth();
 
   if (isLoading) {
     return (
@@ -218,6 +292,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     : user?.email?.[0]?.toUpperCase() || "?";
 
   return (
+    <AskContextProvider>
     <SidebarProvider>
       <Sidebar collapsible="icon" variant="sidebar">
         {/* ── Header: Logo + Switchers ──────────────────────── */}
@@ -259,6 +334,24 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
               <SidebarGroupContent>
                 <SidebarMenu>
                   {group.items.map((item) => {
+                    // Gated pillar the org isn't entitled to → render it
+                    // locked with an upsell affordance instead of hiding it
+                    // (entitlements are resolved by now; the shell blocks on
+                    // isLoading above, so no locked-flash for entitled orgs).
+                    if (
+                      item.feature &&
+                      !entitlements?.features?.includes(item.feature)
+                    ) {
+                      return (
+                        <LockedNavItem
+                          key={item.href}
+                          icon={item.icon}
+                          label={item.label}
+                          featureKey={item.feature}
+                          tagline={item.upsellTagline}
+                        />
+                      );
+                    }
                     const Icon = item.icon;
                     const isActive = item.subItems
                       ? item.subItems.some((s) => pathname === s.href || pathname?.startsWith(s.href + "/"))
@@ -440,7 +533,9 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       </SidebarInset>
 
       {/* ── AI Chat FAB ──────────────────────────────────── */}
-      <ChatPanel />
+      {/* Ask Peakhour (grounded) runs behind a flag; legacy ChatPanel until PR-11 cutover. */}
+      {ASK_ENABLED ? <AskLauncher /> : <ChatPanel />}
     </SidebarProvider>
+    </AskContextProvider>
   );
 }

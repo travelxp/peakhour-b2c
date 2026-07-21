@@ -92,13 +92,20 @@ export function CronToolbar({ crons, onTriggered }: Props) {
     try {
       const res = await api.post<DevCronResult>(`/v1/dev/cron/${cron}`, {});
       if (res.ok) {
-        // Show a clean, user-facing success line — never the raw cron
-        // JSON. The per-cron summarizer turns the response payload into
-        // something like "12 posts synced successfully."; absent one, we
-        // fall back to a generic "<label> complete". The raw body + timing
-        // still go to the dev console for debugging.
+        // Show a clean, user-facing line — never the raw cron JSON. The
+        // per-cron summarizer turns the response payload into something like
+        // "12 posts synced successfully."; absent one, we fall back to a
+        // generic "<label> complete". A summarizer can flag `level:"warning"`
+        // for a 2xx run that did nothing useful (e.g. a sync that skipped
+        // every connection because none is configured) so a no-op stops
+        // reading as a green success. The raw body + timing still go to the
+        // dev console for debugging.
         const summary = summarizeCronBody(cron, res.body);
-        toast.success(summary ?? `${meta.label} complete`);
+        if (summary?.level === "warning") {
+          toast.warning(summary.message);
+        } else {
+          toast.success(summary?.message ?? `${meta.label} complete`);
+        }
         if (res.body) {
           console.debug(
             `[CronToolbar] ${cron} ok in ${res.durationMs}ms:`,

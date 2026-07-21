@@ -80,6 +80,11 @@ export interface LinkedInIdentity {
     email?: string;
   };
   pages: LinkedInOrgPage[];
+  /** Personal-feed publishing is the pageless fallback only — false
+   *  whenever a Company Page is enabled on the connection (the
+   *  server rejects person authors on publish surfaces then). Absent
+   *  on older API deploys → treat as allowed. */
+  personalPostingAllowed?: boolean;
 }
 
 /** Hook DNA score. Tier badge:

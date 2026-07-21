@@ -21,7 +21,7 @@ import {
   Sparkles,
   Loader2,
 } from "lucide-react";
-import { formatDate } from "@/lib/locale";
+import { useLocale } from "@/hooks/use-locale";
 import { xApi, type XTweet } from "@/lib/api/x";
 import { ApiError } from "@/lib/api";
 
@@ -38,6 +38,7 @@ export interface TweetCardProps {
 }
 
 export function TweetCard({ tweet, onRepurpose, repurposing }: TweetCardProps) {
+  const { formatDate } = useLocale();
   const queryClient = useQueryClient();
   const del = useMutation({
     mutationFn: () => xApi.deleteTweet(tweet.id),
@@ -99,7 +100,7 @@ export function TweetCard({ tweet, onRepurpose, repurposing }: TweetCardProps) {
         </div>
 
         <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>{formatDate(tweet.createdAt, null)}</span>
+          <span>{formatDate(tweet.createdAt)}</span>
           {m && (
             <div className="flex items-center gap-3">
               <Metric icon={Heart} label="Likes" value={m.likeCount} />

@@ -1,10 +1,12 @@
 "use client";
 
-import { Sparkles, Target, TrendingUp, Zap, type LucideIcon } from "lucide-react";
+import { Target, TrendingUp, Zap, type LucideIcon } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { FeatureGate } from "@/components/upgrade/feature-gate";
 import { UpgradeButton } from "@/components/upgrade/upgrade-button";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
+import { useQueryClient } from "@tanstack/react-query";
+import { AdjustmentsBoard } from "./_components/adjustments-board";
 
 const FEATURE_KEY = "growth.optimizer";
 const FEATURE_NAME = "Optimizer";
@@ -36,13 +38,23 @@ const PILLARS: Pillar[] = [
 ];
 
 export default function OptimizerPage() {
+  const queryClient = useQueryClient();
   return (
     <div className="space-y-6">
-      <CronToolbar crons={["outcome-backfill", "per-stream-effectiveness-rollup"]} />
+      <CronToolbar
+        crons={["growth-optimizer", "outcome-backfill", "per-stream-effectiveness-rollup"]}
+        onTriggered={() =>
+          queryClient.invalidateQueries({ queryKey: ["growth-adjustments"] })
+        }
+      />
       <div>
         <h2 className="text-2xl font-bold tracking-tight">Optimizer</h2>
+        {/* Honest at today's autonomy ceiling (L0/L1): it proposes,
+            you decide. The autonomous framing stays on the locked-
+            state marketing card, not above the live board. */}
         <p className="text-muted-foreground">
-          An autonomous teammate for paid + organic — running the dials so you don&apos;t have to.
+          A weekly teammate for paid + organic — it brings you the
+          evidence and the dials; you make the calls.
         </p>
       </div>
 
@@ -53,21 +65,10 @@ export default function OptimizerPage() {
         mode="hide"
         fallback={<OptimizerWaitlistCard />}
       >
-        {/* Unlocked branch — only reachable once an org has
-            growth.optimizer entitled (today: nobody, since the
-            feature is on no plan). Until the live agent ships, we
-            render the same pillar preview + a reservation banner so
-            entitled orgs see something stable instead of an empty
-            page. */}
-        <OptimizerPreview />
-        <Card>
-          <CardContent className="flex items-center gap-3 py-5 text-sm">
-            <Sparkles aria-hidden="true" className="size-4 text-amber-600 dark:text-amber-400 shrink-0" />
-            <span className="text-muted-foreground">
-              Access reserved on your account. Live agents roll out as each Phase ships — you&apos;ll see them appear here automatically.
-            </span>
-          </CardContent>
-        </Card>
+        {/* Unlocked branch (G3): the live weekly-review board. Every
+            proposal is a human decision at today's autonomy ceiling
+            (L0/L1) — the board and its copy say so explicitly. */}
+        <AdjustmentsBoard />
       </FeatureGate>
     </div>
   );
