@@ -104,6 +104,10 @@ function SettingsContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [justConnectedProvider, setJustConnectedProvider] = useState<string | null>(null);
+  // Set when the OAuth callback flags a multi-page LinkedIn connect
+  // (`select_page=1`): the connected member admins several Company
+  // Pages, and the auto-seeded default needs human confirmation.
+  const [selectPagePrompt, setSelectPagePrompt] = useState(false);
   const [connectError, setConnectError] = useState<string | null>(null);
   // Raw context for a brand_mismatch block, so the user can dispute it ("request
   // a review"). Null unless the last connect was blocked as a wrong brand.
@@ -163,6 +167,7 @@ function SettingsContent() {
   useEffect(() => {
     if (searchParams?.get("integration") === "connected") {
       setJustConnectedProvider(searchParams.get("provider") ?? "");
+      setSelectPagePrompt(searchParams.get("select_page") === "1");
       // Refetch integration status everywhere immediately after a successful
       // OAuth. Otherwise the content/composer pages keep their cached
       // pre-connect state and show a stale "Connect" CTA — which invites a
@@ -216,6 +221,23 @@ function SettingsContent() {
         <div className="flex items-center gap-2 rounded-lg bg-green-500/10 border border-green-500/20 p-4 text-sm text-green-700 dark:text-green-400">
           <CheckCircle2 className="h-4 w-4 shrink-0" />
           {formatProviderName(justConnectedProvider)} connected successfully!
+        </div>
+      )}
+
+      {selectPagePrompt && (
+        <div className="flex flex-col gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-800 dark:text-amber-300">
+          <p className="font-medium">Which Company Page belongs to this business?</p>
+          <p>
+            Your LinkedIn account manages several Company Pages. Posts publish
+            as the page mapped to this business, so please confirm which page
+            that should be.
+          </p>
+          <Link
+            href="/dashboard/integrations?manage_pages=1"
+            className="w-fit font-medium underline underline-offset-2 hover:no-underline"
+          >
+            Choose your Company Page
+          </Link>
         </div>
       )}
 
