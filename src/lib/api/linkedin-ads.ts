@@ -36,6 +36,35 @@ export interface ManagedCampaignPerformance {
   lastUpdated?: string;
 }
 
+/** Facet keys the targeting editor exposes — mirror the api's
+ *  TARGETING_FACETS (helpers/linkedin-ad-targeting.ts). */
+export type TargetingFacetKey =
+  | "locations"
+  | "industries"
+  | "seniorities"
+  | "titles"
+  | "staffCountRanges";
+
+/** Per-facet entity-URN lists. `locations` is required at APPLY time
+ *  (server 400s without one) but optional in the type so partial
+ *  editor state is representable. */
+export type TargetingFacets = Partial<Record<TargetingFacetKey, string[]>>;
+
+export interface TargetingEntity {
+  urn: string;
+  facetUrn: string;
+  name: string;
+}
+
+/** Stored targeting selection on a managed row (set via setTargeting). */
+export interface CampaignTargeting {
+  facets?: TargetingFacets;
+  /** URN → display name, for chip redisplay. */
+  labels?: Record<string, string>;
+  criteria?: Record<string, unknown>;
+  appliedAt?: string;
+}
+
 export interface ManagedCampaign {
   _id: string;
   platform: string;
@@ -61,6 +90,10 @@ export interface ManagedCampaign {
   };
   /** Platform creative URN ids attached at boost time. */
   linkedCreativeUrns?: string[];
+  /** Audience selection. Rows written by the boost/workflow paths may
+   *  carry a legacy free-form object here instead — always feature-
+   *  detect `targeting.facets` before treating it as editor state. */
+  targeting?: CampaignTargeting | Record<string, unknown>;
   performance?: ManagedCampaignPerformance;
   createdAt: string;
   updatedAt?: string;
@@ -113,5 +146,27 @@ export const linkedInAdsApi = {
     api.patch<{ campaignId: string; status: string }>(
       `/v1/linkedin/ads/managed-campaigns/${id}/status`,
       { status },
+    ),
+
+  /** Facet-entity discovery within one LinkedIn targeting facet.
+   *  With `query` it typeaheads; without, lists the full facet
+   *  (sensible only for small facets like seniorities). */
+  targetingEntities: (facetUrn: string, query?: string) => {
+    const qs = new URLSearchParams({ facet: facetUrn });
+    if (query) qs.set("query", query);
+    return api.get<{ entities: TargetingEntity[] }>(
+      `/v1/linkedin/ads/targeting/entities?${qs.toString()}`,
+    );
+  },
+
+  /**
+   * Replace a campaign's audience targeting (platform first, then the
+   * local row). Locations required — the server 400s without one.
+   * Cannot start spend; an ACTIVE campaign re-enters LinkedIn review.
+   */
+  setTargeting: (id: string, facets: TargetingFacets, labels?: Record<string, string>) =>
+    api.patch<{ campaignId: string; facets: TargetingFacets }>(
+      `/v1/linkedin/ads/managed-campaigns/${id}/targeting`,
+      { facets, ...(labels ? { labels } : {}) },
     ),
 };

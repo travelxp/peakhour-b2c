@@ -32,7 +32,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { EmptyState } from "@/components/molecules/empty-state";
-import { Archive, Megaphone, Pause, Play, RefreshCw, Rocket } from "lucide-react";
+import { Archive, Megaphone, Pause, Play, RefreshCw, Rocket, Target } from "lucide-react";
+import { TargetingDialog, editorTargeting } from "./_components/targeting-dialog";
 
 /**
  * Ads Manager (G1 MVP) — the Growth pillar's first live surface.
@@ -233,9 +234,9 @@ function CampaignsPanel() {
         </Table>
         <p className="mt-3 border-t pt-2 text-[11px] text-muted-foreground">
           Campaigns are created in LinkedIn as drafts under a paused group —
-          they cannot spend until you activate them. Finish audience targeting
-          in LinkedIn Campaign Manager before activating; the protective
-          monitor auto-pauses any campaign that reaches its total budget.
+          they cannot spend until you activate them. Set the audience with the
+          Audience button before activating; the protective monitor
+          auto-pauses any campaign that reaches its total budget.
         </p>
       </CardContent>
     </Card>
@@ -251,6 +252,7 @@ function CampaignRow({
 }) {
   const [confirmActivate, setConfirmActivate] = useState(false);
   const [confirmArchive, setConfirmArchive] = useState(false);
+  const [targetingOpen, setTargetingOpen] = useState(false);
 
   const status = useMutation({
     mutationFn: (next: "active" | "paused" | "archived") =>
@@ -326,6 +328,13 @@ function CampaignRow({
   const canArchive =
     !["archived"].includes(campaign.status) && Boolean(campaign.platformCampaignId);
   const canSync = Boolean(campaign.platformCampaignId);
+  const canTarget =
+    Boolean(campaign.platformCampaignId) &&
+    !["archived", "completed"].includes(campaign.status);
+  // Editor-shaped targeting (workflow rows carry a legacy free-form
+  // object instead — feature-detected by the shared helper).
+  const hasAudience =
+    (editorTargeting(campaign.targeting)?.facets?.locations?.length ?? 0) > 0;
 
   return (
     <TableRow>
@@ -377,6 +386,20 @@ function CampaignRow({
               <RefreshCw className={`size-3 ${sync.isPending ? "animate-spin" : ""}`} />
             </Button>
           ) : null}
+          {canTarget ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-7 px-2 text-xs"
+              disabled={busy}
+              title={hasAudience ? "Edit audience targeting" : "Set audience targeting (required before the campaign can serve)"}
+              onClick={() => setTargetingOpen(true)}
+            >
+              <Target className="mr-1 size-3" />
+              {hasAudience ? "Audience" : "Set audience"}
+            </Button>
+          ) : null}
           {canActivate ? (
             <Button
               type="button"
@@ -420,6 +443,14 @@ function CampaignRow({
           ) : null}
         </div>
 
+        {targetingOpen ? (
+          <TargetingDialog
+            open={targetingOpen}
+            onOpenChange={setTargetingOpen}
+            campaign={campaign}
+          />
+        ) : null}
+
         <AlertDialog open={confirmArchive} onOpenChange={setConfirmArchive}>
           <AlertDialogContent>
             <AlertDialogHeader>
@@ -462,8 +493,10 @@ function CampaignRow({
                     total — we auto-pause at that cap)
                   </>
                 ) : null}
-                . Make sure its audience targeting is finished in LinkedIn
-                Campaign Manager first.
+                .{" "}
+                {hasAudience
+                  ? "Its audience is set — LinkedIn will review, then deliver."
+                  : "No audience is set yet — use the Audience button first, or LinkedIn will reject delivery."}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
