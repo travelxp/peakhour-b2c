@@ -29,6 +29,7 @@ import {
   type LinkedInFeedResponse,
 } from "@/lib/api/linkedin-content";
 import { RetentionFootnote } from "./retention-footnote";
+import { useLocale } from "@/hooks/use-locale";
 
 /** LinkedIn's comment body cap. */
 const COMMENT_MAX_LEN = 1250;
@@ -165,6 +166,7 @@ export function FeedPanel() {
 
 function FeedRow({ post }: { post: LinkedInFeedPost }) {
   const url = linkedInPostUrl(post.linkedInPostId);
+  const { formatRelativeTime } = useLocale();
   const [commenting, setCommenting] = useState(false);
   // Comment as the post's own author (your member feed, or the page that
   // published it). We can only build a valid author URN when we know the
@@ -386,20 +388,6 @@ function formatCount(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
   return String(n);
-}
-
-function formatRelativeTime(iso: string): string {
-  const then = new Date(iso).getTime();
-  if (Number.isNaN(then)) return "";
-  const diffMs = Date.now() - then;
-  const mins = Math.round(diffMs / 60_000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.round(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.round(hrs / 24);
-  if (days < 30) return `${days}d ago`;
-  return new Date(iso).toLocaleDateString();
 }
 
 // ── Sub-components ────────────────────────────────────────
