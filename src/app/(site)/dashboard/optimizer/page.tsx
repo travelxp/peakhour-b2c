@@ -1,10 +1,11 @@
 "use client";
 
-import { Sparkles, Target, TrendingUp, Zap, type LucideIcon } from "lucide-react";
+import { Target, TrendingUp, Zap, type LucideIcon } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { FeatureGate } from "@/components/upgrade/feature-gate";
 import { UpgradeButton } from "@/components/upgrade/upgrade-button";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
+import { AdjustmentsBoard } from "./_components/adjustments-board";
 
 const FEATURE_KEY = "growth.optimizer";
 const FEATURE_NAME = "Optimizer";
@@ -38,7 +39,7 @@ const PILLARS: Pillar[] = [
 export default function OptimizerPage() {
   return (
     <div className="space-y-6">
-      <CronToolbar crons={["outcome-backfill", "per-stream-effectiveness-rollup"]} />
+      <CronToolbar crons={["growth-optimizer", "outcome-backfill", "per-stream-effectiveness-rollup"]} />
       <div>
         <h2 className="text-2xl font-bold tracking-tight">Optimizer</h2>
         <p className="text-muted-foreground">
@@ -53,21 +54,10 @@ export default function OptimizerPage() {
         mode="hide"
         fallback={<OptimizerWaitlistCard />}
       >
-        {/* Unlocked branch — only reachable once an org has
-            growth.optimizer entitled (today: nobody, since the
-            feature is on no plan). Until the live agent ships, we
-            render the same pillar preview + a reservation banner so
-            entitled orgs see something stable instead of an empty
-            page. */}
-        <OptimizerPreview />
-        <Card>
-          <CardContent className="flex items-center gap-3 py-5 text-sm">
-            <Sparkles aria-hidden="true" className="size-4 text-amber-600 dark:text-amber-400 shrink-0" />
-            <span className="text-muted-foreground">
-              Access reserved on your account. Live agents roll out as each Phase ships — you&apos;ll see them appear here automatically.
-            </span>
-          </CardContent>
-        </Card>
+        {/* Unlocked branch (G3): the live weekly-review board. Every
+            proposal is a human decision at today's autonomy ceiling
+            (L0/L1) — the board and its copy say so explicitly. */}
+        <AdjustmentsBoard />
       </FeatureGate>
     </div>
   );
