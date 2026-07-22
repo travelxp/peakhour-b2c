@@ -257,7 +257,7 @@ export default async function Home({
         <section className="py-20 sm:py-28">
           <div className="mx-auto grid max-w-6xl items-center gap-14 px-4 sm:px-6 lg:grid-cols-[1.1fr_0.9fr]">
             <div>
-              <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand">
+              <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand-label">
                 <span className="h-0.5 w-7 bg-brand-gradient" aria-hidden />
                 The AI business platform for growing brands
               </span>
@@ -295,18 +295,18 @@ export default async function Home({
                 </Link>
               </div>
               <p className="mt-5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
-                <span className="font-bold text-brand">✓</span> No credit card
+                <span aria-hidden className="font-bold text-brand-label">✓</span> No credit card
                 <span aria-hidden className="opacity-40">·</span>
-                <span className="font-bold text-brand">✓</span> Free plan on every pillar
+                <span aria-hidden className="font-bold text-brand-label">✓</span> Free plan on every pillar
                 <span aria-hidden className="opacity-40">·</span>
-                <span className="font-bold text-brand">✓</span> Live the same day
+                <span aria-hidden className="font-bold text-brand-label">✓</span> Live the same day
               </p>
             </div>
 
             {/* Pillar console — always-dark product panel (fixed tones so it
                 reads on both light and dark grounds). */}
             <div
-              className="rounded-2xl border border-white/10 bg-zinc-950 p-5 shadow-2xl"
+              className="rounded-2xl border border-white/10 bg-zinc-900 p-5 shadow-2xl"
               role="img"
               aria-label="Peakhour console showing five active pillars"
             >
@@ -332,9 +332,11 @@ export default async function Home({
                   </div>
                 ))}
               </div>
-              <div className="flex items-center justify-between px-1 pt-3 text-xs text-zinc-500">
+              <div className="flex items-center justify-between px-1 pt-3 text-xs text-zinc-400">
                 <span className="flex items-center gap-1">
-                  Metered in <span className="font-bold text-brand-gradient">⚡ Peaks</span>
+                  Metered in{" "}
+                  <span aria-hidden className="text-brand">⚡</span>
+                  <span className="font-bold text-brand-gradient">Peaks</span>
                 </span>
                 <span>1,240 free Peaks/mo</span>
               </div>
@@ -346,7 +348,7 @@ export default async function Home({
         <section className="border-t bg-muted/30 py-20">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <div className="max-w-3xl">
-              <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand">
+              <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand-label">
                 <span className="h-0.5 w-7 bg-brand-gradient" aria-hidden />
                 The five pillars
               </span>
@@ -396,7 +398,7 @@ export default async function Home({
         {/* Free-first economics — always-dark panel */}
         <section className="py-20">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
-            <div className="grid gap-12 overflow-hidden rounded-3xl border border-white/10 bg-zinc-950 p-8 text-zinc-100 shadow-2xl lg:grid-cols-[1.1fr_0.9fr] lg:p-12">
+            <div className="grid gap-12 overflow-hidden rounded-3xl border border-white/10 bg-zinc-900 p-8 text-zinc-100 shadow-2xl lg:grid-cols-[1.1fr_0.9fr] lg:p-12">
               <div>
                 <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand">
                   <span className="h-0.5 w-7 bg-brand-gradient" aria-hidden />
@@ -438,7 +440,7 @@ export default async function Home({
         <section id="how-it-works" className="scroll-mt-24 border-t bg-muted/30 py-20">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <div className="max-w-3xl">
-              <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand">
+              <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand-label">
                 <span className="h-0.5 w-7 bg-brand-gradient" aria-hidden />
                 How it works
               </span>
@@ -469,7 +471,7 @@ export default async function Home({
         <section className="py-20">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <div className="max-w-3xl">
-              <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand">
+              <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand-label">
                 <span className="h-0.5 w-7 bg-brand-gradient" aria-hidden />
                 Works with your stack
               </span>
@@ -512,7 +514,7 @@ export default async function Home({
         {/* Final CTA — always-dark panel */}
         <section className="pb-24">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
-            <div className="overflow-hidden rounded-3xl border border-white/10 bg-zinc-950 px-6 py-16 text-center text-zinc-100 shadow-2xl sm:py-20">
+            <div className="overflow-hidden rounded-3xl border border-white/10 bg-zinc-900 px-6 py-16 text-center text-zinc-100 shadow-2xl sm:py-20">
               <h2 className="mx-auto max-w-2xl text-3xl font-extrabold tracking-tight text-pretty sm:text-4xl">
                 Start with one pillar.{" "}
                 <span className="font-serif italic font-normal text-brand-gradient">
@@ -526,7 +528,7 @@ export default async function Home({
               {!cta.disabled && (
                 <Link
                   href={cta.href}
-                  className="group mt-8 inline-flex items-center gap-2 rounded-xl bg-brand-gradient px-7 py-3.5 text-sm font-bold text-brand-contrast shadow-sm transition-transform hover:-translate-y-0.5 focus-visible:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
+                  className="group mt-8 inline-flex items-center gap-2 rounded-xl bg-brand-gradient px-7 py-3.5 text-sm font-bold text-brand-contrast shadow-sm transition-transform hover:-translate-y-0.5 focus-visible:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900"
                 >
                   {cta.label}
                   <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
