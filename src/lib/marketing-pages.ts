@@ -117,14 +117,24 @@ export interface MarketingSitemapEntry {
   updatedAt?: string;
 }
 
+/** Append the visitor host so the API resolves the right business (it calls us
+ *  server-side, so it can't see the host otherwise) — and so this fetch's data
+ *  cache is partitioned per host. */
+function withHost(url: string, host?: string): string {
+  if (!host) return url;
+  const sep = url.includes("?") ? "&" : "?";
+  return `${url}${sep}host=${encodeURIComponent(host)}`;
+}
+
 /**
- * Fetch a published page by slug (path may be multi-segment) + locale. Returns
- * null when unconfigured, 404 (no published page), or on any error — the
- * caller renders notFound().
+ * Fetch a published page by slug (path may be multi-segment) + locale, for the
+ * given visitor `host`. Returns null when unconfigured, 404 (no published page),
+ * or on any error — the caller renders notFound().
  */
 export async function getMarketingPage(
   slug: string,
   locale = "en",
+  host?: string,
 ): Promise<MarketingPage | null> {
   if (!API_URL) return null;
   // Encode each path segment (keeps "/" separators, but escapes ? # & etc. so a
@@ -132,7 +142,10 @@ export async function getMarketingPage(
   const encodedSlug = slug.split("/").map(encodeURIComponent).join("/");
   try {
     const res = await fetch(
-      `${API_URL}/v1/marketing/pages/${encodedSlug}?locale=${encodeURIComponent(locale)}`,
+      withHost(
+        `${API_URL}/v1/marketing/pages/${encodedSlug}?locale=${encodeURIComponent(locale)}`,
+        host,
+      ),
       {
         next: {
           revalidate: REVALIDATE_SECONDS,
@@ -149,11 +162,14 @@ export async function getMarketingPage(
   }
 }
 
-/** Published pages for the sitemap; [] on any failure (sitemap degrades). */
-export async function getMarketingSitemapEntries(): Promise<MarketingSitemapEntry[]> {
+/** Published pages for the sitemap (for the given visitor `host`); [] on any
+ *  failure (sitemap degrades to the code routes). */
+export async function getMarketingSitemapEntries(
+  host?: string,
+): Promise<MarketingSitemapEntry[]> {
   if (!API_URL) return [];
   try {
-    const res = await fetch(`${API_URL}/v1/marketing/pages`, {
+    const res = await fetch(withHost(`${API_URL}/v1/marketing/pages`, host), {
       next: { revalidate: REVALIDATE_SECONDS, tags: ["mkt-pages"] },
     });
     if (!res.ok) return [];

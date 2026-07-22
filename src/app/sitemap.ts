@@ -41,7 +41,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }),
   );
 
-  // CMS-authored pages (Pages Manager). Degrades to [] if the API is down.
+  // CMS-authored pages (Pages Manager) — this is the PLATFORM site's sitemap
+  // (peakhour.ai / SITE.url), so no visitor-host forwarding: the API's platform
+  // default resolves the platform business's pages, matching the code-route
+  // entries above (all peakhour.ai). A proper PER-TENANT sitemap (host-resolved
+  // base URL + suppressed platform code-routes) is a follow-up for when b2c
+  // actually serves customer custom domains. Degrades to [] if the API is down.
   const cmsEntries: MetadataRoute.Sitemap = (await getMarketingSitemapEntries()).map(
     (entry) => ({
       url: `${base}/${entry.slug}`,

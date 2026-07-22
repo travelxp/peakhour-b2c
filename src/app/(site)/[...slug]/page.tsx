@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
@@ -40,6 +41,14 @@ function slugFromParams(slug: string[]): string {
   return slug.join("/");
 }
 
+/** The visitor's host — forwarded to the API so it resolves the right business
+ *  (it calls us server-side and can't see the host otherwise). Lowercased to
+ *  dedupe the per-host fetch cache across case variants; the API's normalizeHost
+ *  is the single authority for the rest (www/port). */
+async function visitorHost(): Promise<string | undefined> {
+  return (await headers()).get("host")?.toLowerCase() ?? undefined;
+}
+
 export async function generateMetadata({
   params,
 }: {
@@ -47,7 +56,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params;
   const path = slugFromParams(slug);
-  const page = await getMarketingPage(path, LOCALE);
+  const page = await getMarketingPage(path, LOCALE, await visitorHost());
   if (!page) return {}; // notFound() runs in the component
 
   const canonicalPath = page.seo.canonicalPath ?? `/${path}`;
@@ -111,7 +120,7 @@ export default async function MarketingCatchAll({
 }) {
   const { slug } = await params;
   const path = slugFromParams(slug);
-  const page = await getMarketingPage(path, LOCALE);
+  const page = await getMarketingPage(path, LOCALE, await visitorHost());
   if (!page) notFound();
 
   const url = `${SITE.url.replace(/\/$/, "")}/${path}`;
