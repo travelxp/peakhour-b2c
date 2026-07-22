@@ -1,5 +1,4 @@
 import Link from "next/link";
-import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import {
   ArrowRight,
@@ -16,6 +15,7 @@ import {
 } from "lucide-react";
 import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
+import { pageMetadata } from "@/lib/seo";
 import {
   getPublicCatalog,
   dedupePublicIntegrations,
@@ -39,11 +39,12 @@ import {
   TwitterIcon,
 } from "@/components/ui/brand-icons";
 
-export const metadata: Metadata = {
+export const metadata = pageMetadata({
   title: "Peakhour.ai — The AI business platform for growing brands",
   description:
     "Five AI pillars — Commerce, Content, Growth, Support, Presence — that sell, publish, advertise, answer, and get you found. A free plan on every pillar. No credit card.",
-};
+  path: "/",
+});
 
 /**
  * The five pillars are the product. This list is stable brand architecture
