@@ -47,6 +47,7 @@
   --color-brand-soft: var(--brand-soft);
   --color-brand-ink: var(--brand-ink);
   --color-brand-contrast: var(--brand-contrast);
+  --color-brand-label: var(--brand-label);
   --font-serif: var(--font-fraunces);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -104,6 +105,11 @@
   --brand-ink: oklch(0.27 0.05 55); /* brown-black — text on flat gold (badges) */
   --brand-contrast: #170f02; /* near-black — text/icons on the molten gradient */
   --brand-gradient: linear-gradient(135deg, #ffc94f 0%, #f0a821 45%, #d97a06 100%);
+  /* Eyebrow/label gold. Theme-AWARE (unlike the flat tones above): the bright
+     brand gold is only ~2:1 on white, so small uppercase labels on light
+     grounds use this deep amber (~6:1 AA), while dark grounds get the bright
+     gold via the .dark override below. */
+  --brand-label: oklch(0.47 0.105 65);
 }
 
 .dark {
@@ -138,6 +144,11 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+
+  /* On dark grounds the bright brand gold is legible (~9:1), so eyebrows use
+     it directly here. (Only theme-aware token; the flat brand tones stay
+     theme-stable to keep the Peaks UI identical.) */
+  --brand-label: var(--brand);
 }
 
 @layer base {

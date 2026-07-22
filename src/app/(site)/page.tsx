@@ -1,24 +1,19 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import {
   ArrowRight,
-  Sparkles,
-  Brain,
-  Zap,
-  BarChart3,
+  ShoppingBag,
+  PenLine,
+  TrendingUp,
+  MessageSquare,
+  MapPin,
+  Check,
   AlertTriangle,
   CheckCircle2,
   Info,
+  Zap,
 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
 import {
@@ -44,63 +39,123 @@ import {
   TwitterIcon,
 } from "@/components/ui/brand-icons";
 
-const FEATURES = [
+export const metadata: Metadata = {
+  title: "Peakhour.ai — The AI business platform for growing brands",
+  description:
+    "Five AI pillars — Commerce, Content, Growth, Support, Presence — that sell, publish, advertise, answer, and get you found. A free plan on every pillar. No credit card.",
+};
+
+/**
+ * The five pillars are the product. This list is stable brand architecture
+ * (mirrors cfg_products.pillar); the section ids back the header/footer
+ * anchors (/#commerce …). Integrations below stay catalog-driven.
+ */
+const PILLARS = [
   {
-    icon: Brain,
-    title: "Content Intelligence",
-    description:
-      "Every piece of content is automatically tagged across 12 dimensions. Know which topics, audiences, and angles drive results.",
-    detail:
-      "Connects to any content platform, 12-dimension auto-tagger, content gap analysis",
+    id: "commerce",
+    icon: ShoppingBag,
+    name: "Commerce",
+    blurb:
+      "An AI assistant that knows your whole catalog and sells on WhatsApp and your storefront, 24/7.",
+    points: ["Catalog always in sync", "WhatsApp storefront chat", "Inventory intelligence"],
+    free: "Free plan included",
   },
   {
-    icon: Sparkles,
-    title: "AI Creative Factory",
-    description:
-      "Turn one newsletter into 10+ platform-native ad creatives in minutes. LinkedIn Lead Gen, Meta, Google — all from your content.",
-    detail: "AI generates headlines, body copy, and image briefs",
+    id: "content",
+    icon: PenLine,
+    name: "Content",
+    blurb:
+      "AI writers that publish in your voice — blogs, newsletters, socials — from your news desk to every channel.",
+    points: ["Brand-voice AI writers", "News-driven ideas", "Multi-format publishing"],
+    free: "Free plan included",
   },
   {
-    icon: Zap,
-    title: "Optimization Engine",
-    description:
-      "AI monitors performance hourly. Underperformers get paused, winners get boosted, budgets get rebalanced automatically.",
-    detail: "Daily optimization, weekly strategy, monthly pattern mining",
+    id: "growth",
+    icon: TrendingUp,
+    name: "Growth",
+    blurb:
+      "Ads and LinkedIn on autopilot — campaigns drafted, leads captured, budgets optimized while you sleep.",
+    points: ["LinkedIn growth engine", "Ad campaigns + optimizer", "Lead inbox"],
+    free: "Free plan included",
+  },
+  {
+    id: "support",
+    icon: MessageSquare,
+    name: "Support",
+    blurb:
+      "One inbox for every channel. AI answers what it can, hands you what it can't — with full context.",
+    points: ["Omnichannel inbox", "AI-drafted replies", "Human handoff"],
+    free: "Free plan included",
+  },
+  {
+    id: "presence",
+    icon: MapPin,
+    name: "Presence",
+    blurb:
+      "Own how you show up on Google — listings, hours, photos, and reviews managed from one place.",
+    points: ["Google Business Profile", "Review management", "Listing health"],
+    free: "Always free",
+  },
+] as const;
+
+/** Live console rows in the hero — illustrative snapshot of the five pillars. */
+const CONSOLE_ROWS = [
+  { name: "Commerce", status: "Answered 34 shoppers on WhatsApp today" },
+  { name: "Content", status: "2 articles drafted from this week's news" },
+  { name: "Growth", status: "LinkedIn post scheduled · 3 leads in inbox" },
+  { name: "Support", status: "Inbox clear — 12 conversations resolved" },
+  { name: "Presence", status: "Google listing synced · 2 new reviews" },
+] as const;
+
+const FREE_POINTS = [
+  {
+    title: "No credit card, ever, to start",
+    detail: "Sign up with email. Upgrade only when you outgrow your free Peaks.",
+  },
+  {
+    title: "No feature paywalls",
+    detail: "Free users see the same screens, skills, and quality — never a locked door.",
+  },
+  {
+    title: "One currency, five pillars",
+    detail: "Peaks spent on a blog post or a WhatsApp reply come from the same pool.",
   },
 ] as const;
 
 const STEPS = [
   {
     step: "1",
-    title: "Add your business",
+    title: "Connect what you have",
     description:
-      "Paste your website URL or describe what you do. AI discovers your brand, audience, and builds a strategy in minutes.",
+      "Shopify, WordPress, WooCommerce, WhatsApp, LinkedIn, Google — one click each. Peakhour reads your real catalog and content, never guesses from your name.",
   },
   {
     step: "2",
-    title: "AI tags and creates ads",
+    title: "Approve the plan",
     description:
-      "Our AI reads every piece of content, tags it across 12 dimensions, scores ad potential, and generates platform-native creatives.",
+      "AI drafts your brand voice, content calendar, and assistant behavior. You review and approve — nothing ships without your say-so, until you say otherwise.",
   },
   {
     step: "3",
-    title: "Launch and grow on autopilot",
+    title: "Let it run, watch it learn",
     description:
-      "Deploy to LinkedIn, Google, or Meta. The AI monitors hourly, pauses losers, boosts winners, and rebalances budgets — all hands-free.",
+      "Pillars work daily and report in plain language. Every approval teaches the AI your taste; autonomy grows as trust does.",
   },
 ] as const;
 
+// Static fallback for the integrations strip when the catalog API is
+// unreachable — mirrors the resolved shape so the section never hard-fails.
 const INTEGRATIONS = [
-  { name: "LinkedIn", icon: LinkedinIcon, color: "bg-[#0A66C2]", description: "Organic posts & Lead Gen ads" },
-  { name: "Facebook", icon: FacebookIcon, color: "bg-[#0668E1]", description: "Pages, ads & audience insights" },
-  { name: "Instagram", icon: InstagramIcon, color: "bg-[#E4405F]", description: "Reels, stories & ad creatives" },
-  { name: "Google Ads", icon: GoogleIcon, color: "bg-[#4285F4]", description: "Search, display & YouTube ads" },
-  { name: "YouTube", icon: YoutubeIcon, color: "bg-[#FF0000]", description: "Video content & pre-roll ads" },
-  { name: "Beehiiv", icon: BeehiivIcon, color: "bg-[#FFD100] text-black", description: "Newsletter import & tagging" },
+  { name: "Shopify", icon: ShopifyIcon, color: "bg-[#96BF48]", description: "Catalog & storefront" },
+  { name: "WordPress", icon: WordPressIcon, color: "bg-[#21759B]", description: "Content & CMS sync" },
+  { name: "LinkedIn", icon: LinkedinIcon, color: "bg-[#0A66C2]", description: "Organic posts & Lead Gen" },
+  { name: "Facebook", icon: FacebookIcon, color: "bg-[#0668E1]", description: "Pages, ads & insights" },
+  { name: "Instagram", icon: InstagramIcon, color: "bg-[#E4405F]", description: "Reels, stories & ads" },
+  { name: "Google Ads", icon: GoogleIcon, color: "bg-[#4285F4]", description: "Search, display & video" },
+  { name: "YouTube", icon: YoutubeIcon, color: "bg-[#FF0000]", description: "Video content & pre-roll" },
+  { name: "Beehiiv", icon: BeehiivIcon, color: "bg-[#FFD100] text-black", description: "Newsletter import" },
   { name: "Substack", icon: SubstackIcon, color: "bg-[#FF6719]", description: "Newsletter content sync" },
-  { name: "Mailchimp", icon: MailchimpIcon, color: "bg-[#FFE01B] text-black", description: "Email campaigns & audiences" },
-  { name: "Shopify", icon: ShopifyIcon, color: "bg-[#96BF48]", description: "Product catalog & e-commerce" },
-  { name: "WordPress", icon: WordPressIcon, color: "bg-[#21759B]", description: "Blog content & CMS sync" },
+  { name: "Mailchimp", icon: MailchimpIcon, color: "bg-[#FFE01B] text-black", description: "Email campaigns" },
   { name: "X (Twitter)", icon: TwitterIcon, color: "bg-black", description: "Posts & promoted content" },
 ] as const;
 
@@ -186,236 +241,299 @@ export default async function Home({
           <span>{platform.banner.copy}</span>
         </div>
       ) : null}
+
+      {/* Free-first announcement bar */}
+      <div className="bg-brand-gradient px-4 py-2 text-center text-sm font-semibold text-brand-contrast">
+        Every pillar has a Free plan — no credit card required.{" "}
+        <span className="font-normal opacity-80">
+          Start with any pillar, add the rest when you&rsquo;re ready.
+        </span>
+      </div>
+
       <Header />
 
       <main>
-        {/* Hero — inspired by shadcnblocks hero1 */}
-        <section className="py-24 sm:py-32">
-          <div className="container">
-            <div className="mx-auto flex max-w-4xl flex-col items-center gap-6 text-center">
-              <Badge variant="outline" className="gap-1.5 px-3 py-1">
-                <Sparkles className="size-3" />
-                Agentic AI Marketing Platform
-              </Badge>
-              <h1 className="text-4xl font-bold tracking-tight text-pretty sm:text-5xl lg:text-6xl">
-                Every hour is Peakhour
+        {/* Hero */}
+        <section className="py-20 sm:py-28">
+          <div className="mx-auto grid max-w-6xl items-center gap-14 px-4 sm:px-6 lg:grid-cols-[1.1fr_0.9fr]">
+            <div>
+              <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand-label">
+                <span className="h-0.5 w-7 bg-brand-gradient" aria-hidden />
+                The AI business platform for growing brands
+              </span>
+              <h1 className="mt-5 text-4xl font-extrabold leading-[1.03] tracking-tight text-pretty sm:text-5xl lg:text-6xl">
+                Five AI pillars. One platform.{" "}
+                <span className="font-serif italic font-normal text-brand-gradient">
+                  Free to start.
+                </span>
               </h1>
-              <p className="max-w-2xl text-lg text-muted-foreground lg:text-xl">
-                Autonomous AI agents turn your content into high-performing campaigns
-                across every channel — analyzing, creating, and optimizing around the
-                clock, so your marketing runs at its peak even when you&rsquo;re off.
+              <p className="mt-5 max-w-xl text-lg text-muted-foreground">
+                Peakhour runs the work a growing business can&rsquo;t hire for yet —
+                selling, publishing, advertising, answering, and being found — with
+                AI that learns your brand and reports back in plain language.
               </p>
-              <div className="flex w-full flex-col items-center justify-center gap-3 sm:flex-row">
+              <div className="mt-8 flex flex-wrap items-center gap-4">
                 {cta.disabled ? (
-                  // Pre-launch teaser: an intentional "Launching soon" pill, not a
-                  // dead/greyed CTA (which reads as a bug).
-                  <span className="inline-flex items-center gap-2 rounded-full border bg-muted/40 px-5 py-2.5 text-sm font-medium text-muted-foreground">
-                    <Sparkles className="size-4" aria-hidden />
+                  <span className="inline-flex items-center gap-2 rounded-full border bg-muted/40 px-5 py-3 text-sm font-medium text-muted-foreground">
+                    <Zap className="size-4" aria-hidden />
                     {cta.label}
                   </span>
                 ) : (
-                  <Button asChild size="lg" className="gap-2">
-                    <Link href={cta.href}>
-                      {cta.label}
-                      <ArrowRight className="size-4" />
-                    </Link>
-                  </Button>
-                )}
-                <Button asChild variant="outline" size="lg">
-                  <Link href="#how-it-works">See how it works</Link>
-                </Button>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Features — inspired by shadcnblocks feature3 */}
-        <section id="features" className="border-t bg-muted/40 py-20">
-          <div className="container">
-            <div className="mx-auto flex max-w-5xl flex-col items-center gap-6 text-center">
-              <h2 className="text-3xl font-semibold text-pretty lg:text-4xl">
-                Three engines, one platform
-              </h2>
-              <p className="max-w-xl text-muted-foreground">
-                Everything your marketing team does — content analysis, ad
-                creation, performance optimization — automated by AI.
-              </p>
-              <div className="mt-8 grid w-full gap-6 md:grid-cols-3">
-                {FEATURES.map((f) => {
-                  const FeatureIcon = f.icon;
-                  return (
-                    <Card key={f.title} className="text-left transition-shadow hover:shadow-md">
-                      <CardHeader className="pb-2">
-                        <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                          <FeatureIcon className="size-5 text-primary" strokeWidth={1.5} />
-                        </div>
-                        <CardTitle className="text-lg">{f.title}</CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-2">
-                        <CardDescription className="leading-relaxed">
-                          {f.description}
-                        </CardDescription>
-                        <p className="text-xs text-muted-foreground/70">
-                          {f.detail}
-                        </p>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Integrations — inspired by shadcnblocks integration1 */}
-        <section className="relative py-20">
-          <div className="container">
-            <div className="mx-auto flex max-w-5xl flex-col items-center text-center">
-              <Badge variant="outline" className="mb-4 gap-1.5 px-3 py-1 uppercase text-xs tracking-wider">
-                Integrations
-              </Badge>
-              <h2 className="text-3xl font-semibold text-pretty lg:text-4xl">
-                Connect your favourite platforms
-              </h2>
-              <p className="mt-3 max-w-xl text-muted-foreground">
-                Import content from newsletters, social media, blogs, and e-commerce — AI tags everything automatically.
-              </p>
-            </div>
-            <div className="mx-auto mt-12 grid max-w-4xl grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {integrationCards.map((item) => (
-                <Card key={item.id} className="py-2 transition-shadow hover:shadow-md">
-                  <CardHeader className="flex flex-row items-center gap-3 space-y-0 pb-0">
-                    <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-white ${item.colorClass}`}>
-                      {item.icon}
-                    </div>
-                    <div className="min-w-0">
-                      <CardTitle className="flex items-center gap-2 text-sm font-semibold">
-                        <span className="truncate">{item.name}</span>
-                        {item.comingSoon && (
-                          <Badge variant="outline" className="shrink-0 px-1.5 py-0 text-[10px]">
-                            Coming soon
-                          </Badge>
-                        )}
-                      </CardTitle>
-                      {item.description && (
-                        <CardDescription className="text-xs line-clamp-2">
-                          {item.description}
-                        </CardDescription>
-                      )}
-                    </div>
-                  </CardHeader>
-                </Card>
-              ))}
-            </div>
-            <div className="mt-8 flex items-center justify-center gap-3 text-sm text-muted-foreground">
-              <span>
-                {platform && platform.stage !== "live"
-                  ? "More integrations rolling out as we launch"
-                  : "More integrations coming soon"}
-              </span>
-              {!cta.disabled && (
-                <Button asChild variant="outline" size="sm">
-                  <Link href={cta.href}>
-                    {cta.label}
-                    <ArrowRight className="ml-1 size-3" />
+                  <Link
+                    href={cta.href}
+                    className="group inline-flex items-center gap-2 rounded-xl bg-brand-gradient px-6 py-3.5 text-sm font-bold text-brand-contrast shadow-sm transition-transform hover:-translate-y-0.5 focus-visible:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
+                  >
+                    {cta.label} — all five pillars
+                    <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
                   </Link>
-                </Button>
-              )}
+                )}
+                <Link
+                  href="/peaks"
+                  className="inline-flex items-center gap-2 rounded-xl border-2 px-6 py-3 text-sm font-bold transition-colors hover:border-brand hover:text-brand"
+                >
+                  See how Peaks work
+                </Link>
+              </div>
+              <p className="mt-5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+                <span aria-hidden className="font-bold text-brand-label">✓</span> No credit card
+                <span aria-hidden className="opacity-40">·</span>
+                <span aria-hidden className="font-bold text-brand-label">✓</span> Free plan on every pillar
+                <span aria-hidden className="opacity-40">·</span>
+                <span aria-hidden className="font-bold text-brand-label">✓</span> Live the same day
+              </p>
+            </div>
+
+            {/* Pillar console — always-dark product panel (fixed tones so it
+                reads on both light and dark grounds). */}
+            <div
+              className="rounded-2xl border border-white/10 bg-zinc-900 p-5 shadow-2xl"
+              role="img"
+              aria-label="Peakhour console showing five active pillars"
+            >
+              <div className="flex items-center justify-between px-1 pb-2 text-[0.7rem] font-bold uppercase tracking-[0.18em] text-zinc-400">
+                <span>Your business, at a glance</span>
+                <span className="flex items-center gap-1.5 text-emerald-400">
+                  <span className="size-1.5 rounded-full bg-emerald-400" aria-hidden />
+                  live
+                </span>
+              </div>
+              <div className="flex flex-col gap-2.5">
+                {CONSOLE_ROWS.map((row) => (
+                  <div
+                    key={row.name}
+                    className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/4 px-3.5 py-2.5 text-sm"
+                  >
+                    <span className="size-2 shrink-0 rounded-full bg-emerald-400" aria-hidden />
+                    <span className="w-20 shrink-0 font-bold text-zinc-100">{row.name}</span>
+                    <span className="min-w-0 flex-1 truncate text-zinc-400">{row.status}</span>
+                    <span className="shrink-0 rounded-full bg-emerald-400/15 px-2.5 py-0.5 text-[0.65rem] font-bold uppercase tracking-wide text-emerald-400">
+                      Free
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <div className="flex items-center justify-between px-1 pt-3 text-xs text-zinc-400">
+                <span className="flex items-center gap-1">
+                  Metered in{" "}
+                  <span aria-hidden className="text-brand">⚡</span>
+                  <span className="font-bold text-brand-gradient">Peaks</span>
+                </span>
+                <span>1,240 free Peaks/mo</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Pillar grid — section ids back the header/footer anchors */}
+        <section className="border-t bg-muted/30 py-20">
+          <div className="mx-auto max-w-6xl px-4 sm:px-6">
+            <div className="max-w-3xl">
+              <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand-label">
+                <span className="h-0.5 w-7 bg-brand-gradient" aria-hidden />
+                The five pillars
+              </span>
+              <h2 className="mt-4 text-3xl font-extrabold tracking-tight text-pretty lg:text-4xl">
+                Everything a modern business does online, run by AI you approve.
+              </h2>
+              <p className="mt-3 text-muted-foreground">
+                Each pillar works alone. Together they share one brain — your
+                catalog, your brand voice, your customers.
+              </p>
+            </div>
+            <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {PILLARS.map((pillar) => {
+                const PillarIcon = pillar.icon;
+                return (
+                  <div
+                    key={pillar.id}
+                    id={pillar.id}
+                    className="group flex scroll-mt-24 flex-col gap-3 rounded-2xl border bg-background p-6 transition-all hover:-translate-y-1.5 hover:border-foreground hover:shadow-xl"
+                  >
+                    <div className="flex size-11 items-center justify-center rounded-xl bg-brand-gradient shadow-inner transition-transform group-hover:scale-105">
+                      <PillarIcon className="size-5 text-brand-contrast" strokeWidth={2} />
+                    </div>
+                    <h3 className="text-lg font-bold tracking-tight">{pillar.name}</h3>
+                    <p className="flex-1 text-sm text-muted-foreground">{pillar.blurb}</p>
+                    <ul className="flex flex-col gap-1.5">
+                      {pillar.points.map((point) => (
+                        <li
+                          key={point}
+                          className="flex items-center gap-2 text-xs font-medium text-muted-foreground"
+                        >
+                          <Check className="size-3.5 shrink-0 text-brand" strokeWidth={2.5} />
+                          {point}
+                        </li>
+                      ))}
+                    </ul>
+                    <span className="self-start rounded-full bg-brand-soft px-2.5 py-1 text-[0.65rem] font-bold uppercase tracking-wide text-brand-ink">
+                      {pillar.free}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+
+        {/* Free-first economics — always-dark panel */}
+        <section className="py-20">
+          <div className="mx-auto max-w-6xl px-4 sm:px-6">
+            <div className="grid gap-12 overflow-hidden rounded-3xl border border-white/10 bg-zinc-900 p-8 text-zinc-100 shadow-2xl lg:grid-cols-[1.1fr_0.9fr] lg:p-12">
+              <div>
+                <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand">
+                  <span className="h-0.5 w-7 bg-brand-gradient" aria-hidden />
+                  Free means free
+                </span>
+                <h2 className="mt-4 text-3xl font-extrabold tracking-tight text-pretty lg:text-4xl">
+                  Same product on Free and Paid.{" "}
+                  <span className="text-brand-gradient">
+                    The only difference is how much AI work you get.
+                  </span>
+                </h2>
+                <p className="mt-4 max-w-lg text-zinc-400">
+                  Every plan — Free included — gets the full product with identical
+                  polish. AI work is metered in{" "}
+                  <span className="font-bold text-brand-gradient">Peaks</span>, one
+                  transparent currency across all five pillars. Free plans refill
+                  monthly; paid plans simply carry more Peaks and higher limits.
+                </p>
+              </div>
+              <div className="flex flex-col gap-3.5">
+                {FREE_POINTS.map((point) => (
+                  <div
+                    key={point.title}
+                    className="flex gap-3 rounded-xl border border-brand/25 bg-brand/6 px-4 py-3.5 transition-colors hover:border-brand/60"
+                  >
+                    <Check className="mt-0.5 size-4 shrink-0 text-brand" strokeWidth={2.5} />
+                    <div>
+                      <p className="text-sm font-bold">{point.title}</p>
+                      <p className="text-xs text-zinc-400">{point.detail}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </section>
 
         {/* How it works */}
-        <section id="how-it-works" className="border-t bg-muted/40 py-20">
-          <div className="container">
-            <div className="mx-auto max-w-5xl">
-              <h2 className="text-center text-3xl font-semibold text-pretty lg:text-4xl">
-                Up and running in 3 steps
+        <section id="how-it-works" className="scroll-mt-24 border-t bg-muted/30 py-20">
+          <div className="mx-auto max-w-6xl px-4 sm:px-6">
+            <div className="max-w-3xl">
+              <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand-label">
+                <span className="h-0.5 w-7 bg-brand-gradient" aria-hidden />
+                How it works
+              </span>
+              <h2 className="mt-4 text-3xl font-extrabold tracking-tight text-pretty lg:text-4xl">
+                Live in minutes, not quarters.
               </h2>
-              <div className="mt-14 grid gap-10 md:grid-cols-3">
-                {STEPS.map((s) => (
-                  <div key={s.step} className="relative text-center">
-                    <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-2xl font-bold text-primary-foreground shadow-lg">
-                      {s.step}
-                    </div>
-                    {/* Connector line (hidden on mobile and last item) */}
-                    {s.step !== "3" && (
-                      <div className="absolute top-7 left-[calc(50%+2rem)] hidden h-px w-[calc(100%-4rem)] bg-border md:block" />
-                    )}
-                    <h3 className="mt-5 text-lg font-semibold">{s.title}</h3>
-                    <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                      {s.description}
-                    </p>
+            </div>
+            <div className="mt-12 grid gap-4 md:grid-cols-3">
+              {STEPS.map((s) => (
+                <div
+                  key={s.step}
+                  className="rounded-2xl border bg-background p-7 transition-all hover:-translate-y-1 hover:border-foreground hover:shadow-xl"
+                >
+                  <div className="font-serif text-4xl font-normal italic text-brand-gradient">
+                    {s.step}
                   </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Plans — the full comparison lives on its own page (/pricing).
-            The landing only teases it with a CTA so plans stay in one place. */}
-        <section id="pricing" className="py-20">
-          <div className="container">
-            <div className="mx-auto max-w-xl text-center">
-              <h2 className="text-3xl font-semibold text-pretty lg:text-4xl">
-                Simple, transparent plans
-              </h2>
-              <p className="mx-auto mt-3 max-w-xl text-muted-foreground">
-                Commerce plans for Shopify and WooCommerce — start free, upgrade
-                when you&rsquo;re ready. Every paid plan includes Peaks.
-              </p>
-              <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
-                <Button asChild size="lg">
-                  <Link href="/pricing">View Plans</Link>
-                </Button>
-                <Button asChild size="lg" variant="outline">
-                  <Link href="/peaks">How Peaks work</Link>
-                </Button>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Final CTA — inspired by shadcnblocks cta3 */}
-        <section className="border-t bg-muted/40 py-20">
-          <div className="container">
-            <div className="mx-auto grid max-w-4xl grid-cols-1 gap-10 rounded-2xl border bg-background p-8 shadow-sm lg:grid-cols-2 lg:p-12">
-              <div>
-                <div className="mb-3 flex items-center gap-2">
-                  <span className="flex size-8 items-center justify-center rounded-full bg-primary/10">
-                    <BarChart3 className="size-4 text-primary" />
-                  </span>
-                  <h2 className="text-2xl font-bold lg:text-3xl">
-                    Stop doing marketing.
-                  </h2>
+                  <h3 className="mt-3 text-lg font-bold tracking-tight">{s.title}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                    {s.description}
+                  </p>
                 </div>
-                <p className="text-lg font-semibold text-foreground">
-                  Start growing.
-                </p>
-                <p className="mt-3 text-muted-foreground">
-                  Join businesses that replaced their marketing busywork with an AI
-                  engine that works 24/7.
-                </p>
-                <Button asChild size="lg" className="mt-6 gap-2">
-                  <Link href="/auth">
-                    Get started free
-                    <ArrowRight className="size-4" />
-                  </Link>
-                </Button>
-              </div>
-              <div className="flex flex-col justify-center gap-3">
-                {[
-                  { stat: "12", label: "dimensions of AI content tagging" },
-                  { stat: "10+", label: "ad creatives from a single piece of content" },
-                  { stat: "24/7", label: "automated performance optimization" },
-                ].map((item) => (
-                  <div key={item.label} className="flex items-center gap-4 rounded-xl border px-5 py-3">
-                    <span className="text-2xl font-bold text-primary">{item.stat}</span>
-                    <span className="text-sm text-muted-foreground">{item.label}</span>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Integrations — catalog-driven */}
+        <section className="py-20">
+          <div className="mx-auto max-w-6xl px-4 sm:px-6">
+            <div className="max-w-3xl">
+              <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand-label">
+                <span className="h-0.5 w-7 bg-brand-gradient" aria-hidden />
+                Works with your stack
+              </span>
+              <h2 className="mt-4 text-3xl font-extrabold tracking-tight text-pretty lg:text-4xl">
+                Plugged into the tools you already use.
+              </h2>
+            </div>
+            <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {integrationCards.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex items-center gap-3 rounded-2xl border bg-background p-4 transition-all hover:-translate-y-1 hover:border-foreground hover:shadow-md"
+                >
+                  <div
+                    className={`flex size-10 shrink-0 items-center justify-center rounded-lg text-white ${item.colorClass}`}
+                  >
+                    {item.icon}
                   </div>
-                ))}
-              </div>
+                  <div className="min-w-0">
+                    <p className="flex items-center gap-2 text-sm font-bold">
+                      <span className="truncate">{item.name}</span>
+                      {item.comingSoon && (
+                        <span className="shrink-0 rounded-full border px-1.5 py-0 text-[10px] font-medium text-muted-foreground">
+                          Coming soon
+                        </span>
+                      )}
+                    </p>
+                    {item.description && (
+                      <p className="line-clamp-1 text-xs text-muted-foreground">
+                        {item.description}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Final CTA — always-dark panel */}
+        <section className="pb-24">
+          <div className="mx-auto max-w-6xl px-4 sm:px-6">
+            <div className="overflow-hidden rounded-3xl border border-white/10 bg-zinc-900 px-6 py-16 text-center text-zinc-100 shadow-2xl sm:py-20">
+              <h2 className="mx-auto max-w-2xl text-3xl font-extrabold tracking-tight text-pretty sm:text-4xl">
+                Start with one pillar.{" "}
+                <span className="font-serif italic font-normal text-brand-gradient">
+                  Keep all five.
+                </span>
+              </h2>
+              <p className="mx-auto mt-4 max-w-xl text-zinc-400">
+                Free plans on Commerce, Content, Growth, Support, and Presence. No
+                credit card. Your first Peaks are on us.
+              </p>
+              {!cta.disabled && (
+                <Link
+                  href={cta.href}
+                  className="group mt-8 inline-flex items-center gap-2 rounded-xl bg-brand-gradient px-7 py-3.5 text-sm font-bold text-brand-contrast shadow-sm transition-transform hover:-translate-y-0.5 focus-visible:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900"
+                >
+                  {cta.label}
+                  <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
+                </Link>
+              )}
             </div>
           </div>
         </section>
