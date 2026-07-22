@@ -19,7 +19,7 @@ export interface PillarFeature {
 }
 
 export interface PillarContent {
-  slug: string;
+  slug: PillarSlug;
   icon: LucideIcon;
   name: string;
   /** Small uppercase eyebrow. */
@@ -118,7 +118,7 @@ export const PILLARS: Record<PillarSlug, PillarContent> = {
     eyebrow: "The Growth pillar",
     headline: "Ads and LinkedIn",
     accent: "on autopilot.",
-    lede: "Campaigns drafted, audiences found, leads captured, budgets optimized — while you sleep. Growth runs the acquisition work a small team can't get to, and stops wasting spend on what isn't working.",
+    lede: "Campaigns drafted, audiences found, leads captured, budgets optimized — around the clock. Growth runs the acquisition work a small team can't get to, and stops wasting spend on what isn't working.",
     features: [
       {
         title: "LinkedIn growth engine",

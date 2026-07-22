@@ -47,8 +47,9 @@ export const metadata: Metadata = {
 
 /**
  * The five pillars are the product. This list is stable brand architecture
- * (mirrors cfg_products.pillar); the section ids back the header/footer
- * anchors (/#commerce …). Integrations below stay catalog-driven.
+ * (mirrors cfg_products.pillar); the section ids give each pillar an on-page
+ * anchor (the header/footer now link to the dedicated /commerce … pages).
+ * Integrations below stay catalog-driven.
  */
 const PILLARS = [
   {

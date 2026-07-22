@@ -28,15 +28,24 @@ export async function PillarPage({ slug }: { slug: PillarSlug }) {
         <section className="py-16 sm:py-24">
           <div className="mx-auto grid max-w-6xl items-center gap-12 px-4 sm:px-6 lg:grid-cols-[1.1fr_0.9fr]">
             <div>
-              <p className="text-sm font-medium text-muted-foreground">
-                <Link href="/" className="transition-colors hover:text-brand">
-                  Platform
-                </Link>{" "}
-                <span aria-hidden className="opacity-40">
-                  ›
-                </span>{" "}
-                <span className="text-foreground">{pillar.name}</span>
-              </p>
+              <nav
+                aria-label="Breadcrumb"
+                className="text-sm font-medium text-muted-foreground"
+              >
+                <ol className="flex items-center gap-1.5">
+                  <li>
+                    <Link href="/" className="transition-colors hover:text-brand">
+                      Home
+                    </Link>
+                  </li>
+                  <li aria-hidden className="opacity-40">
+                    ›
+                  </li>
+                  <li aria-current="page" className="text-foreground">
+                    {pillar.name}
+                  </li>
+                </ol>
+              </nav>
               <span className="mt-5 inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand-label">
                 <span className="h-0.5 w-7 bg-brand-gradient" aria-hidden />
                 {pillar.eyebrow}
