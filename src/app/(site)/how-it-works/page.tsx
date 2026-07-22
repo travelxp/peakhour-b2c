@@ -4,6 +4,7 @@ import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
 import { pageMetadata } from "@/lib/seo";
 import { getPublicCatalog, signupCta } from "@/lib/catalog";
+import { HOW_IT_WORKS_STEPS } from "@/lib/how-it-works";
 
 export const metadata = pageMetadata({
   title: "How it works — live in minutes, not quarters | Peakhour.ai",
@@ -11,33 +12,6 @@ export const metadata = pageMetadata({
     "Connect what you have, approve the plan, then let Peakhour run and learn. Grounded in your real catalog and content — never guessed from your name.",
   path: "/how-it-works",
 });
-
-const STEPS = [
-  {
-    step: "1",
-    title: "Connect what you have",
-    description:
-      "Shopify, WordPress, WooCommerce, WhatsApp, LinkedIn, Google — one click each. Peakhour reads your real catalog and content, never guesses from your name.",
-    detail:
-      "Everything the AI does is grounded in your actual products, prices, and past content — so it's right from day one, not generic.",
-  },
-  {
-    step: "2",
-    title: "Approve the plan",
-    description:
-      "AI drafts your brand voice, content calendar, and assistant behavior. You review and approve — nothing ships without your say-so, until you say otherwise.",
-    detail:
-      "You stay in control. Approve, edit, or hand back. Autonomy is a dial you turn up as trust grows, not a switch you flip on day one.",
-  },
-  {
-    step: "3",
-    title: "Let it run, watch it learn",
-    description:
-      "Pillars work daily and report in plain language. Every approval teaches the AI your taste; autonomy grows as trust does.",
-    detail:
-      "Week one it drafts and asks. By month three it knows your bestsellers, your voice, and your customers' questions — and needs you less.",
-  },
-] as const;
 
 export default async function HowItWorks() {
   const catalog = await getPublicCatalog();
@@ -69,7 +43,7 @@ export default async function HowItWorks() {
 
         <section className="border-t bg-muted/30 py-20">
           <div className="mx-auto flex max-w-4xl flex-col gap-4 px-4 sm:px-6">
-            {STEPS.map((s) => (
+            {HOW_IT_WORKS_STEPS.map((s) => (
               <div
                 key={s.step}
                 className="grid gap-6 rounded-2xl border bg-background p-7 transition-all hover:border-foreground hover:shadow-xl sm:grid-cols-[auto_1fr]"
@@ -106,7 +80,7 @@ export default async function HowItWorks() {
                   className="group mt-8 inline-flex items-center gap-2 rounded-xl bg-brand-gradient px-7 py-3.5 text-sm font-bold text-brand-contrast shadow-sm transition-transform hover:-translate-y-0.5 focus-visible:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900"
                 >
                   {cta.label}
-                  <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
+                  <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" aria-hidden />
                 </Link>
               )}
             </div>

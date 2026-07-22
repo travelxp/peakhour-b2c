@@ -1,9 +1,10 @@
 import { ImageResponse } from "next/og";
+import { SITE } from "@/lib/utils";
 
 // Shared social-share image for the marketing surface. Text-only + inline
 // styles (Satori has no Tailwind and finicky gradient-text support), so we use
 // a solid gold accent on a dark ground — reliable across renderers.
-export const alt = "Peakhour.ai — The AI business platform for growing brands";
+export const alt = `${SITE.name} — ${SITE.tagline}`;
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -33,7 +34,7 @@ export default function OpengraphImage() {
 
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           <div style={{ display: "flex", fontSize: 68, fontWeight: 800, lineHeight: 1.05, letterSpacing: -1.5, maxWidth: 900 }}>
-            The AI business platform for growing brands
+            {SITE.tagline}
           </div>
           <div style={{ display: "flex", fontSize: 30, color: "#b9b2a2" }}>
             Five pillars. One platform. A free plan on every one.

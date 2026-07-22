@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { SITE } from "@/lib/utils";
 
 /**
  * Build per-page metadata with a canonical URL + OpenGraph + Twitter card from
@@ -21,6 +22,9 @@ export function pageMetadata({
     alternates: { canonical: path },
     openGraph: {
       type: "website",
+      // Next replaces (not deep-merges) openGraph per page, so siteName must be
+      // repeated here or og:site_name is dropped on every page using this.
+      siteName: SITE.name,
       title,
       description,
       url: path,
