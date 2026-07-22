@@ -1,7 +1,7 @@
 /**
  * Server-side client for the Pages Manager render API (peakhour-api
  * /v1/marketing/pages — MP-2a). Fetches published marketing pages as
- * content-as-data blocks for the `[[...slug]]` catch-all renderer.
+ * content-as-data blocks for the `[...slug]` catch-all renderer.
  *
  * Cached with a revalidate window + tags so a CMS publish can push a fresh
  * render via revalidateTag("mkt-pages") / revalidateTag(`mkt-page:${slug}`)
@@ -127,9 +127,12 @@ export async function getMarketingPage(
   locale = "en",
 ): Promise<MarketingPage | null> {
   if (!API_URL) return null;
+  // Encode each path segment (keeps "/" separators, but escapes ? # & etc. so a
+  // slug segment can't inject into the API query string).
+  const encodedSlug = slug.split("/").map(encodeURIComponent).join("/");
   try {
     const res = await fetch(
-      `${API_URL}/v1/marketing/pages/${encodeURI(slug)}?locale=${encodeURIComponent(locale)}`,
+      `${API_URL}/v1/marketing/pages/${encodedSlug}?locale=${encodeURIComponent(locale)}`,
       {
         next: {
           revalidate: REVALIDATE_SECONDS,

@@ -2,13 +2,27 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
-import { PageBlocks } from "@/components/marketing/page-blocks";
+import { PageBlocks, hasHeroBlock } from "@/components/marketing/page-blocks";
 import {
   getMarketingPage,
   type MarketingPage,
   type FaqBlock,
 } from "@/lib/marketing-pages";
 import { SITE } from "@/lib/utils";
+
+/**
+ * Escape a JSON string for safe embedding inside a <script> element. JSON.stringify
+ * does NOT escape "<", so a value containing "</script>" would break out of the
+ * ld+json block — the classic JSON-LD XSS. Escaping "<", ">", "&" closes it.
+ */
+function safeJsonLd(obj: Record<string, unknown>): string {
+  // Escape "<" (plus ">" and "&") so a value containing "</script>" cannot
+  // break out of the <script type="application/ld+json"> element (JSON-LD XSS).
+  return JSON.stringify(obj).replace(
+    /[<>&]/g,
+    (ch) => String.fromCharCode(92) + "u00" + ch.charCodeAt(0).toString(16),
+  );
+}
 
 /**
  * Catch-all renderer for CMS-authored marketing pages (Pages Manager, MP-2b).
@@ -109,10 +123,13 @@ export default async function MarketingCatchAll({
         <script
           key={i}
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(graph) }}
+          dangerouslySetInnerHTML={{ __html: safeJsonLd(graph) }}
         />
       ))}
       <main>
+        {/* Guarantee exactly one h1: a hero block renders it; if the page has
+            none (e.g. a rich_text-only article), supply a visually-hidden h1. */}
+        {!hasHeroBlock(page.blocks) && <h1 className="sr-only">{page.seo.title}</h1>}
         <PageBlocks blocks={page.blocks} />
       </main>
       <Footer />
