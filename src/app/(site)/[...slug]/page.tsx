@@ -42,9 +42,11 @@ function slugFromParams(slug: string[]): string {
 }
 
 /** The visitor's host — forwarded to the API so it resolves the right business
- *  (it calls us server-side and can't see the host otherwise). */
+ *  (it calls us server-side and can't see the host otherwise). Lowercased to
+ *  dedupe the per-host fetch cache across case variants; the API's normalizeHost
+ *  is the single authority for the rest (www/port). */
 async function visitorHost(): Promise<string | undefined> {
-  return (await headers()).get("host") ?? undefined;
+  return (await headers()).get("host")?.toLowerCase() ?? undefined;
 }
 
 export async function generateMetadata({

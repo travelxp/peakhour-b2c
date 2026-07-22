@@ -1,5 +1,4 @@
 import type { MetadataRoute } from "next";
-import { headers } from "next/headers";
 import { SITE } from "@/lib/utils";
 import { PILLAR_ORDER } from "@/lib/pillars";
 import { getMarketingSitemapEntries } from "@/lib/marketing-pages";
@@ -42,11 +41,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }),
   );
 
-  // CMS-authored pages (Pages Manager) for THIS host's business. Degrades to []
-  // if the API is down. Forward the visitor host so the API resolves the right
-  // business (it's called server-side and can't see the host otherwise).
-  const host = (await headers()).get("host") ?? undefined;
-  const cmsEntries: MetadataRoute.Sitemap = (await getMarketingSitemapEntries(host)).map(
+  // CMS-authored pages (Pages Manager) — this is the PLATFORM site's sitemap
+  // (peakhour.ai / SITE.url), so no visitor-host forwarding: the API's platform
+  // default resolves the platform business's pages, matching the code-route
+  // entries above (all peakhour.ai). A proper PER-TENANT sitemap (host-resolved
+  // base URL + suppressed platform code-routes) is a follow-up for when b2c
+  // actually serves customer custom domains. Degrades to [] if the API is down.
+  const cmsEntries: MetadataRoute.Sitemap = (await getMarketingSitemapEntries()).map(
     (entry) => ({
       url: `${base}/${entry.slug}`,
       lastModified: entry.updatedAt ? new Date(entry.updatedAt) : undefined,
