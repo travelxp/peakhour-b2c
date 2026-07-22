@@ -1,13 +1,15 @@
 import type { MetadataRoute } from "next";
 import { SITE } from "@/lib/utils";
 import { PILLAR_ORDER } from "@/lib/pillars";
+import { getMarketingSitemapEntries } from "@/lib/marketing-pages";
 
 /**
- * Marketing sitemap. Lists only public, indexable marketing routes — not the
- * gated app (dashboard/onboarding/auth/cms), which must stay out of the index.
- * Absolute URLs are built from SITE.url (env-overridable).
+ * Marketing sitemap. Lists the public, indexable code routes AND the
+ * CMS-authored pages from the Pages Manager (mkt_pages) — never the gated app
+ * (dashboard/onboarding/auth/cms), which stays out of the index. The API
+ * already excludes noindex + draft pages. Absolute URLs from SITE.url.
  */
-export default function sitemap(): MetadataRoute.Sitemap {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = SITE.url.replace(/\/$/, "");
 
   const staticPaths: {
@@ -31,11 +33,23 @@ export default function sitemap(): MetadataRoute.Sitemap {
     changeFrequency: "weekly" as const,
   }));
 
-  return [...staticPaths, ...pillarPaths].map(
+  const codeEntries: MetadataRoute.Sitemap = [...staticPaths, ...pillarPaths].map(
     ({ path, priority, changeFrequency }) => ({
       url: `${base}${path}`,
       changeFrequency,
       priority,
     }),
   );
+
+  // CMS-authored pages (Pages Manager). Degrades to [] if the API is down.
+  const cmsEntries: MetadataRoute.Sitemap = (await getMarketingSitemapEntries()).map(
+    (entry) => ({
+      url: `${base}/${entry.slug}`,
+      lastModified: entry.updatedAt ? new Date(entry.updatedAt) : undefined,
+      changeFrequency: "weekly",
+      priority: 0.6,
+    }),
+  );
+
+  return [...codeEntries, ...cmsEntries];
 }
