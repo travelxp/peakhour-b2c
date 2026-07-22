@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Space_Grotesk, Fraunces } from "next/font/google";
 import { connection } from "next/server";
+import { getLocale } from "next-intl/server";
 import { ThemeProvider } from "@/providers/theme-provider";
 import { QueryProvider } from "@/providers/query-provider";
 import { AuthProvider } from "@/providers/auth-provider";
@@ -63,8 +64,12 @@ export default async function SiteLayout({
   // Shopify surface gets its own dynamic behaviour independently.
   await connection();
 
+  // Resolve via next-intl (English-only today) so <html lang> tracks the
+  // active locale automatically once more languages are added.
+  const locale = await getLocale();
+
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang={locale} suppressHydrationWarning>
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${spaceGrotesk.variable} ${fraunces.variable} font-sans antialiased`}
       >
