@@ -8,6 +8,10 @@ export function cn(...inputs: ClassValue[]) {
 /** Shared site / legal metadata — single source of truth */
 export const SITE = {
   name: "Peakhour.ai",
+  /** Canonical public origin — drives metadataBase, sitemap, robots, OG URLs.
+   *  Override per-env with NEXT_PUBLIC_SITE_URL; defaults to production. */
+  url: process.env.NEXT_PUBLIC_SITE_URL ?? "https://peakhour.ai",
+  tagline: "The AI business platform for growing brands",
   legalLastUpdated: "June 1, 2026",
   /** Operating legal entity (data controller / data fiduciary). */
   company: {

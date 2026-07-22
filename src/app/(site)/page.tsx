@@ -1,5 +1,4 @@
 import Link from "next/link";
-import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import {
   ArrowRight,
@@ -16,6 +15,8 @@ import {
 } from "lucide-react";
 import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
+import { pageMetadata } from "@/lib/seo";
+import { HOW_IT_WORKS_STEPS } from "@/lib/how-it-works";
 import {
   getPublicCatalog,
   dedupePublicIntegrations,
@@ -39,11 +40,12 @@ import {
   TwitterIcon,
 } from "@/components/ui/brand-icons";
 
-export const metadata: Metadata = {
+export const metadata = pageMetadata({
   title: "Peakhour.ai — The AI business platform for growing brands",
   description:
     "Five AI pillars — Commerce, Content, Growth, Support, Presence — that sell, publish, advertise, answer, and get you found. A free plan on every pillar. No credit card.",
-};
+  path: "/",
+});
 
 /**
  * The five pillars are the product. This list is stable brand architecture
@@ -123,26 +125,8 @@ const FREE_POINTS = [
   },
 ] as const;
 
-const STEPS = [
-  {
-    step: "1",
-    title: "Connect what you have",
-    description:
-      "Shopify, WordPress, WooCommerce, WhatsApp, LinkedIn, Google — one click each. Peakhour reads your real catalog and content, never guesses from your name.",
-  },
-  {
-    step: "2",
-    title: "Approve the plan",
-    description:
-      "AI drafts your brand voice, content calendar, and assistant behavior. You review and approve — nothing ships without your say-so, until you say otherwise.",
-  },
-  {
-    step: "3",
-    title: "Let it run, watch it learn",
-    description:
-      "Pillars work daily and report in plain language. Every approval teaches the AI your taste; autonomy grows as trust does.",
-  },
-] as const;
+// Shared with the standalone /how-it-works page (single source of truth).
+const STEPS = HOW_IT_WORKS_STEPS;
 
 // Static fallback for the integrations strip when the catalog API is
 // unreachable — mirrors the resolved shape so the section never hard-fails.

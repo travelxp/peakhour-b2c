@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono, Space_Grotesk, Fraunces } from "next/font/google";
 import { connection } from "next/server";
 import { getLocale } from "next-intl/server";
+import { SITE } from "@/lib/utils";
 import { ThemeProvider } from "@/providers/theme-provider";
 import { QueryProvider } from "@/providers/query-provider";
 import { AuthProvider } from "@/providers/auth-provider";
@@ -41,10 +42,34 @@ const fraunces = Fraunces({
   display: "swap",
 });
 
+const DEFAULT_TITLE = "Peakhour.ai — The AI business platform for growing brands";
+const DEFAULT_DESCRIPTION =
+  "Five AI pillars — Commerce, Content, Growth, Support, Presence — that sell, publish, advertise, answer, and get you found. A free plan on every pillar. No credit card.";
+
 export const metadata: Metadata = {
-  title: "Peakhour.ai — Agentic AI Marketing Platform",
-  description:
-    "Peakhour.ai is an agentic AI marketing platform: autonomous AI agents analyze your content, create campaigns, and optimize performance across every channel — around the clock.",
+  metadataBase: new URL(SITE.url),
+  title: DEFAULT_TITLE,
+  description: DEFAULT_DESCRIPTION,
+  applicationName: SITE.name,
+  alternates: {
+    canonical: "/",
+    // hreflang-ready: English-only today (self-referencing). Add locales here
+    // alongside messages/<locale>.json when languages grow.
+    languages: { en: "/" },
+  },
+  openGraph: {
+    type: "website",
+    siteName: SITE.name,
+    title: DEFAULT_TITLE,
+    description: DEFAULT_DESCRIPTION,
+    url: "/",
+    locale: "en",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: DEFAULT_TITLE,
+    description: DEFAULT_DESCRIPTION,
+  },
 };
 
 /**
