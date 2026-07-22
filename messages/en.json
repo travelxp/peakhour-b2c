@@ -6,6 +6,7 @@
     "noCreditCard": "No credit card",
     "brandTagline": "The AI business platform for growing brands. Five pillars, one brain, free to start.",
     "languageChip": "English",
+    "languageChipShort": "EN",
     "languageMore": "· more soon",
     "languageTooltip": "Available in English; more languages coming"
   },
@@ -15,14 +16,14 @@
     "growth": "Growth",
     "support": "Support",
     "presence": "Presence",
-    "pricing": "Pricing",
-    "peaks": "Peaks",
-    "contact": "Contact"
+    "pricing": "Pricing"
   },
   "Footer": {
     "platform": "Platform",
     "product": "Product",
     "legal": "Legal",
+    "peaks": "Peaks",
+    "contact": "Contact",
     "privacy": "Privacy Policy",
     "terms": "Terms of Service",
     "cookies": "Cookie Policy",
