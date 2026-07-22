@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Space_Grotesk } from "next/font/google";
+import { Geist, Geist_Mono, Space_Grotesk, Fraunces } from "next/font/google";
 import { connection } from "next/server";
 import { ThemeProvider } from "@/providers/theme-provider";
 import { QueryProvider } from "@/providers/query-provider";
@@ -23,6 +23,17 @@ const geistMono = Geist_Mono({
 const spaceGrotesk = Space_Grotesk({
   variable: "--font-space-grotesk",
   subsets: ["latin"],
+});
+
+// Serif display accent for the marketing surface — used sparingly for the
+// italic gold headline flourishes (e.g. "Free to start."). Exposed via
+// --font-fraunces, which globals.css maps onto --font-serif (the `font-serif`
+// utility). Not applied to product UI, which stays on Geist.
+const fraunces = Fraunces({
+  variable: "--font-fraunces",
+  subsets: ["latin"],
+  style: ["normal", "italic"],
+  weight: ["400", "600"],
 });
 
 export const metadata: Metadata = {
@@ -51,7 +62,7 @@ export default async function SiteLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} ${spaceGrotesk.variable} font-sans antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} ${spaceGrotesk.variable} ${fraunces.variable} font-sans antialiased`}
       >
         <ThemeProvider>
           <QueryProvider>
