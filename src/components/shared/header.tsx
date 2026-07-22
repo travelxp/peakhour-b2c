@@ -3,16 +3,29 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Button } from "@/components/ui/button";
 import { useAuth } from "@/providers/auth-provider";
 import { PeakhourLogo } from "@/components/shared/peakhour-logo";
 
+// The five pillars are the product. Links target homepage anchors until the
+// dedicated pillar pages ship (PR-5); before then they resolve to the homepage
+// (graceful — no 404). Pricing is a real route today.
 const NAV_LINKS = [
-  { href: "/#features", label: "Features" },
-  { href: "/#how-it-works", label: "How it works" },
-  { href: "/pricing", label: "Plans" },
-  { href: "/peaks", label: "Peaks" },
+  { href: "/#commerce", label: "Commerce" },
+  { href: "/#content", label: "Content" },
+  { href: "/#growth", label: "Growth" },
+  { href: "/#support", label: "Support" },
+  { href: "/#presence", label: "Presence" },
+  { href: "/pricing", label: "Pricing" },
 ] as const;
+
+// Nav link with a gold underline that wipes in on hover/focus.
+const navLinkClass =
+  "relative text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:text-foreground after:absolute after:-bottom-1 after:left-0 after:h-0.5 after:w-0 after:rounded-full after:bg-brand after:transition-all after:duration-300 hover:after:w-full focus-visible:after:w-full";
+
+// Gold-gradient primary CTA — self-contained so it doesn't fight the shadcn
+// Button variant's background. Near-black ink (--brand-contrast) on molten gold.
+const ctaClass =
+  "inline-flex items-center justify-center rounded-md bg-brand-gradient px-4 py-2 text-sm font-semibold text-brand-contrast shadow-sm transition-transform hover:-translate-y-0.5 focus-visible:-translate-y-0.5";
 
 /**
  * @param minimal When true, renders only the brand lockup — no marketing nav
@@ -50,11 +63,7 @@ export function Header({ minimal = false }: { minimal?: boolean } = {}) {
             {/* Desktop nav */}
             <nav className="hidden items-center gap-6 md:flex">
               {NAV_LINKS.map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-                >
+                <Link key={link.href} href={link.href} className={navLinkClass}>
                   {link.label}
                 </Link>
               ))}
@@ -70,16 +79,22 @@ export function Header({ minimal = false }: { minimal?: boolean } = {}) {
           ) : !isAuthPage ? (
             <>
               {/* Desktop CTA */}
-              <div className="hidden items-center gap-3 md:flex">
+              <div className="hidden items-center gap-4 md:flex">
+                <span
+                  className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold text-muted-foreground"
+                  title="Available in English; more languages coming"
+                >
+                  <span aria-hidden="true">🌐</span> EN
+                </span>
                 <Link
                   href="/auth"
-                  className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+                  className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
                 >
                   Sign in
                 </Link>
-                <Button asChild size="sm">
-                  <Link href="/auth">Get started free</Link>
-                </Button>
+                <Link href="/auth" className={ctaClass}>
+                  Start free
+                </Link>
               </div>
 
               {/* Mobile menu button */}
@@ -152,11 +167,13 @@ export function Header({ minimal = false }: { minimal?: boolean } = {}) {
                   >
                     Sign in
                   </Link>
-                  <Button asChild size="sm">
-                    <Link href="/auth" onClick={() => setMenuOpen(false)}>
-                      Get started free
-                    </Link>
-                  </Button>
+                  <Link
+                    href="/auth"
+                    onClick={() => setMenuOpen(false)}
+                    className={ctaClass}
+                  >
+                    Start free
+                  </Link>
                 </>
               )}
             </div>
