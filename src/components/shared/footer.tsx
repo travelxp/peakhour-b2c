@@ -87,8 +87,7 @@ export function Footer() {
         </div>
 
         <div className="mt-10 border-t pt-6 text-center text-xs text-muted-foreground">
-          {SITE.name} &copy; {new Date().getFullYear()}. The AI business platform
-          for growing brands.
+          {SITE.name} &copy; {new Date().getFullYear()}. All rights reserved.
         </div>
       </div>
     </footer>

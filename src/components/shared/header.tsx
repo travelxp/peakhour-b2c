@@ -25,13 +25,13 @@ const navLinkClass =
 // Gold-gradient primary CTA — self-contained so it doesn't fight the shadcn
 // Button variant's background. Near-black ink (--brand-contrast) on molten gold.
 const ctaClass =
-  "inline-flex items-center justify-center rounded-md bg-brand-gradient px-4 py-2 text-sm font-semibold text-brand-contrast shadow-sm transition-transform hover:-translate-y-0.5 focus-visible:-translate-y-0.5";
+  "inline-flex items-center justify-center rounded-md bg-brand-gradient px-4 py-2 text-sm font-semibold text-brand-contrast shadow-sm transition-transform hover:-translate-y-0.5 focus-visible:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2";
 
 /**
  * @param minimal When true, renders only the brand lockup — no marketing nav
- *   (Features/Pricing), no auth CTAs, no mobile menu. Used on the public
- *   legal pages, which are reachable pre-launch (through the coming-soon gate
- *   allowlist) where those links would point at gated/non-existent routes.
+ *   (the five pillars + Pricing), no auth CTAs, no mobile menu. Used on the
+ *   public legal pages, which are reachable pre-launch (through the coming-soon
+ *   gate allowlist) where those links would point at gated/non-existent routes.
  */
 export function Header({ minimal = false }: { minimal?: boolean } = {}) {
   const pathname = usePathname();
@@ -60,8 +60,9 @@ export function Header({ minimal = false }: { minimal?: boolean } = {}) {
 
         {!minimal && !isAuthPage && (
           <>
-            {/* Desktop nav */}
-            <nav className="hidden items-center gap-6 md:flex">
+            {/* Desktop nav — collapses to the mobile menu below lg so the six
+                items + auth cluster never crowd on small laptops/tablets. */}
+            <nav aria-label="Primary" className="hidden items-center gap-6 lg:flex">
               {NAV_LINKS.map((link) => (
                 <Link key={link.href} href={link.href} className={navLinkClass}>
                   {link.label}
@@ -79,7 +80,7 @@ export function Header({ minimal = false }: { minimal?: boolean } = {}) {
           ) : !isAuthPage ? (
             <>
               {/* Desktop CTA */}
-              <div className="hidden items-center gap-4 md:flex">
+              <div className="hidden items-center gap-4 lg:flex">
                 <span
                   className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold text-muted-foreground"
                   title="Available in English; more languages coming"
@@ -101,7 +102,7 @@ export function Header({ minimal = false }: { minimal?: boolean } = {}) {
               <button
                 type="button"
                 onClick={() => setMenuOpen(!menuOpen)}
-                className="flex h-9 w-9 items-center justify-center rounded-md border md:hidden"
+                className="flex h-9 w-9 items-center justify-center rounded-md border lg:hidden"
                 aria-label={menuOpen ? "Close menu" : "Open menu"}
                 aria-expanded={menuOpen}
                 aria-controls="mobile-nav"
@@ -129,8 +130,8 @@ export function Header({ minimal = false }: { minimal?: boolean } = {}) {
 
       {/* Mobile nav panel */}
       {!minimal && !isAuthPage && menuOpen && (
-        <div id="mobile-nav" className="border-t bg-background px-4 pb-4 pt-2 md:hidden">
-          <nav className="flex flex-col gap-3">
+        <div id="mobile-nav" className="border-t bg-background px-4 pb-4 pt-2 lg:hidden">
+          <nav aria-label="Primary" className="flex flex-col gap-3">
             {NAV_LINKS.map((link) => (
               <Link
                 key={link.href}
@@ -141,7 +142,14 @@ export function Header({ minimal = false }: { minimal?: boolean } = {}) {
                 {link.label}
               </Link>
             ))}
-            <div className="mt-2 flex flex-col gap-2 border-t pt-3">
+            <div className="mt-2 flex flex-col items-start gap-3 border-t pt-3">
+              <span
+                className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold text-muted-foreground"
+                title="Available in English; more languages coming"
+              >
+                <span aria-hidden="true">🌐</span> English
+                <span className="font-normal">· more soon</span>
+              </span>
               {!isLoading && isAuthenticated ? (
                 <>
                   <Link
