@@ -6,15 +6,14 @@ import { usePathname } from "next/navigation";
 import { useAuth } from "@/providers/auth-provider";
 import { PeakhourLogo } from "@/components/shared/peakhour-logo";
 
-// The five pillars are the product. Links target homepage anchors until the
-// dedicated pillar pages ship (PR-5); before then they resolve to the homepage
-// (graceful — no 404). Pricing is a real route today.
+// The five pillars are the product — each has its own page. Pricing is a real
+// route today.
 const NAV_LINKS = [
-  { href: "/#commerce", label: "Commerce" },
-  { href: "/#content", label: "Content" },
-  { href: "/#growth", label: "Growth" },
-  { href: "/#support", label: "Support" },
-  { href: "/#presence", label: "Presence" },
+  { href: "/commerce", label: "Commerce" },
+  { href: "/content", label: "Content" },
+  { href: "/growth", label: "Growth" },
+  { href: "/support", label: "Support" },
+  { href: "/presence", label: "Presence" },
   { href: "/pricing", label: "Pricing" },
 ] as const;
 

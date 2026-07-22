@@ -2,18 +2,16 @@ import Link from "next/link";
 import { SITE } from "@/lib/utils";
 import { PeakhourLogo } from "@/components/shared/peakhour-logo";
 
-// Grouped footer nav. Pillar links target homepage anchors until the dedicated
-// pillar pages ship (PR-5) — they resolve to the homepage until then (no 404).
-// Every non-anchor href below is a route that exists today.
+// Grouped footer nav. Every href below is a route that exists today.
 const FOOTER_GROUPS = [
   {
     heading: "Platform",
     links: [
-      { href: "/#commerce", label: "Commerce" },
-      { href: "/#content", label: "Content" },
-      { href: "/#growth", label: "Growth" },
-      { href: "/#support", label: "Support" },
-      { href: "/#presence", label: "Presence" },
+      { href: "/commerce", label: "Commerce" },
+      { href: "/content", label: "Content" },
+      { href: "/growth", label: "Growth" },
+      { href: "/support", label: "Support" },
+      { href: "/presence", label: "Presence" },
     ],
   },
   {
