@@ -28,12 +28,16 @@ const spaceGrotesk = Space_Grotesk({
 // Serif display accent for the marketing surface — used sparingly for the
 // italic gold headline flourishes (e.g. "Free to start."). Exposed via
 // --font-fraunces, which globals.css maps onto --font-serif (the `font-serif`
-// utility). Not applied to product UI, which stays on Geist.
+// utility). preload:false — nothing renders it yet and the variable rides the
+// app-wide root layout, so we avoid emitting a preload on every product route;
+// it swaps in when a marketing headline first uses `font-serif`.
 const fraunces = Fraunces({
   variable: "--font-fraunces",
   subsets: ["latin"],
   style: ["normal", "italic"],
   weight: ["400", "600"],
+  preload: false,
+  display: "swap",
 });
 
 export const metadata: Metadata = {
