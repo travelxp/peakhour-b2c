@@ -3,22 +3,35 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Button } from "@/components/ui/button";
 import { useAuth } from "@/providers/auth-provider";
 import { PeakhourLogo } from "@/components/shared/peakhour-logo";
 
+// The five pillars are the product. Links target homepage anchors until the
+// dedicated pillar pages ship (PR-5); before then they resolve to the homepage
+// (graceful — no 404). Pricing is a real route today.
 const NAV_LINKS = [
-  { href: "/#features", label: "Features" },
-  { href: "/#how-it-works", label: "How it works" },
-  { href: "/pricing", label: "Plans" },
-  { href: "/peaks", label: "Peaks" },
+  { href: "/#commerce", label: "Commerce" },
+  { href: "/#content", label: "Content" },
+  { href: "/#growth", label: "Growth" },
+  { href: "/#support", label: "Support" },
+  { href: "/#presence", label: "Presence" },
+  { href: "/pricing", label: "Pricing" },
 ] as const;
+
+// Nav link with a gold underline that wipes in on hover/focus.
+const navLinkClass =
+  "relative text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:text-foreground after:absolute after:-bottom-1 after:left-0 after:h-0.5 after:w-0 after:rounded-full after:bg-brand after:transition-all after:duration-300 hover:after:w-full focus-visible:after:w-full";
+
+// Gold-gradient primary CTA — self-contained so it doesn't fight the shadcn
+// Button variant's background. Near-black ink (--brand-contrast) on molten gold.
+const ctaClass =
+  "inline-flex items-center justify-center rounded-md bg-brand-gradient px-4 py-2 text-sm font-semibold text-brand-contrast shadow-sm transition-transform hover:-translate-y-0.5 focus-visible:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2";
 
 /**
  * @param minimal When true, renders only the brand lockup — no marketing nav
- *   (Features/Pricing), no auth CTAs, no mobile menu. Used on the public
- *   legal pages, which are reachable pre-launch (through the coming-soon gate
- *   allowlist) where those links would point at gated/non-existent routes.
+ *   (the five pillars + Pricing), no auth CTAs, no mobile menu. Used on the
+ *   public legal pages, which are reachable pre-launch (through the coming-soon
+ *   gate allowlist) where those links would point at gated/non-existent routes.
  */
 export function Header({ minimal = false }: { minimal?: boolean } = {}) {
   const pathname = usePathname();
@@ -47,14 +60,11 @@ export function Header({ minimal = false }: { minimal?: boolean } = {}) {
 
         {!minimal && !isAuthPage && (
           <>
-            {/* Desktop nav */}
-            <nav className="hidden items-center gap-6 md:flex">
+            {/* Desktop nav — collapses to the mobile menu below lg so the six
+                items + auth cluster never crowd on small laptops/tablets. */}
+            <nav aria-label="Primary" className="hidden items-center gap-6 lg:flex">
               {NAV_LINKS.map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-                >
+                <Link key={link.href} href={link.href} className={navLinkClass}>
                   {link.label}
                 </Link>
               ))}
@@ -70,23 +80,29 @@ export function Header({ minimal = false }: { minimal?: boolean } = {}) {
           ) : !isAuthPage ? (
             <>
               {/* Desktop CTA */}
-              <div className="hidden items-center gap-3 md:flex">
+              <div className="hidden items-center gap-4 lg:flex">
+                <span
+                  className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold text-muted-foreground"
+                  title="Available in English; more languages coming"
+                >
+                  <span aria-hidden="true">🌐</span> EN
+                </span>
                 <Link
                   href="/auth"
-                  className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+                  className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
                 >
                   Sign in
                 </Link>
-                <Button asChild size="sm">
-                  <Link href="/auth">Get started free</Link>
-                </Button>
+                <Link href="/auth" className={ctaClass}>
+                  Start free
+                </Link>
               </div>
 
               {/* Mobile menu button */}
               <button
                 type="button"
                 onClick={() => setMenuOpen(!menuOpen)}
-                className="flex h-9 w-9 items-center justify-center rounded-md border md:hidden"
+                className="flex h-9 w-9 items-center justify-center rounded-md border lg:hidden"
                 aria-label={menuOpen ? "Close menu" : "Open menu"}
                 aria-expanded={menuOpen}
                 aria-controls="mobile-nav"
@@ -114,8 +130,8 @@ export function Header({ minimal = false }: { minimal?: boolean } = {}) {
 
       {/* Mobile nav panel */}
       {!minimal && !isAuthPage && menuOpen && (
-        <div id="mobile-nav" className="border-t bg-background px-4 pb-4 pt-2 md:hidden">
-          <nav className="flex flex-col gap-3">
+        <div id="mobile-nav" className="border-t bg-background px-4 pb-4 pt-2 lg:hidden">
+          <nav aria-label="Primary" className="flex flex-col gap-3">
             {NAV_LINKS.map((link) => (
               <Link
                 key={link.href}
@@ -126,7 +142,14 @@ export function Header({ minimal = false }: { minimal?: boolean } = {}) {
                 {link.label}
               </Link>
             ))}
-            <div className="mt-2 flex flex-col gap-2 border-t pt-3">
+            <div className="mt-2 flex flex-col items-start gap-3 border-t pt-3">
+              <span
+                className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold text-muted-foreground"
+                title="Available in English; more languages coming"
+              >
+                <span aria-hidden="true">🌐</span> English
+                <span className="font-normal">· more soon</span>
+              </span>
               {!isLoading && isAuthenticated ? (
                 <>
                   <Link
@@ -152,11 +175,13 @@ export function Header({ minimal = false }: { minimal?: boolean } = {}) {
                   >
                     Sign in
                   </Link>
-                  <Button asChild size="sm">
-                    <Link href="/auth" onClick={() => setMenuOpen(false)}>
-                      Get started free
-                    </Link>
-                  </Button>
+                  <Link
+                    href="/auth"
+                    onClick={() => setMenuOpen(false)}
+                    className={ctaClass}
+                  >
+                    Start free
+                  </Link>
                 </>
               )}
             </div>
