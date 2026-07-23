@@ -133,6 +133,7 @@ const NAV_GROUPS: NavGroup[] = [
             ? [{ href: "/dashboard/content/autopilot", label: "Autopilot" }]
             : []),
           { href: "/dashboard/content", label: "Library" },
+          { href: "/dashboard/pages", label: "Pages" },
           { href: "/dashboard/content/sources", label: "Sources" },
           { href: "/dashboard/content/news", label: "News Desk" },
           { href: "/dashboard/strategist", label: "Strategist" },
