@@ -14,6 +14,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { ApiError } from "@/lib/api";
+import type { GenerateSegmentInput } from "@/hooks/use-web-pages";
 
 /**
  * GeneratePagesDialog — the owner defines which landing pages to create by giving
@@ -44,13 +46,6 @@ interface Topic {
   audience: string;
   /** Optional free-text focus → segmentSummary. */
   focus: string;
-}
-
-/** The segment shape POST /generate accepts (subset we send). */
-export interface GenerateSegmentInput {
-  industry: string;
-  industryLabel: string;
-  segmentSummary?: string;
 }
 
 /** Lowercase kebab key from a human label: anything that is not a-z0-9 (spaces,
@@ -117,23 +112,37 @@ function GeneratePagesDialogBody({
   const [error, setError] = useState<string | null>(null);
 
   const segments = toSegments(topics);
-  // Any audience text typed at all — used to distinguish "left it all blank on
-  // purpose" (allowed → seed-default) from "typed something that didn't count".
-  const anyAudienceTyped = topics.some((t) => t.audience.trim().length > 0);
-  // Typed an audience but none produced a usable key (e.g. only punctuation/emoji).
-  const typedButUnusable = anyAudienceTyped && segments.length === 0;
+  // How many topics the owner actually typed an audience into.
+  const typedAudiences = topics.filter((t) => t.audience.trim().length > 0).length;
+  // Typed at least one audience but NONE produced a usable key (e.g. only
+  // punctuation/emoji) → block: submitting would misleadingly seed-default.
+  const typedButUnusable = typedAudiences > 0 && segments.length === 0;
+  // Some usable, some not — the unusable ones are dropped; warn so it isn't silent.
+  const droppedCount = segments.length > 0 ? typedAudiences - segments.length : 0;
+
+  /** Move focus to a topic's audience input after the list changes (add/remove) so a
+   *  keyboard user isn't stranded. rAF waits for the new/re-laid-out DOM to mount. */
+  function focusAudience(i: number) {
+    requestAnimationFrame(() => {
+      document.getElementById(`audience-${i}`)?.focus();
+    });
+  }
 
   function update(i: number, patch: Partial<Topic>) {
     setError(null);
     setTopics((prev) => prev.map((t, idx) => (idx === i ? { ...t, ...patch } : t)));
   }
   function addTopic() {
+    if (topics.length >= MAX_TOPICS) return;
     setError(null);
-    setTopics((prev) => (prev.length >= MAX_TOPICS ? prev : [...prev, emptyTopic()]));
+    setTopics((prev) => [...prev, emptyTopic()]);
+    focusAudience(topics.length); // the new row's index
   }
   function removeTopic(i: number) {
+    if (topics.length <= 1) return;
     setError(null);
-    setTopics((prev) => (prev.length <= 1 ? prev : prev.filter((_, idx) => idx !== i)));
+    setTopics((prev) => prev.filter((_, idx) => idx !== i));
+    focusAudience(Math.max(0, i - 1)); // fall back to the previous row
   }
 
   async function handleSubmit() {
@@ -146,13 +155,13 @@ function GeneratePagesDialogBody({
       await onGenerate(payload);
       onClose();
     } catch (e) {
-      // Turn the API's SEGMENTS_REQUIRED into an inline hint rather than a toast:
-      // it means this (non-platform) business must name at least one topic.
-      const code = (e as { code?: string } | null)?.code;
-      if (code === "SEGMENTS_REQUIRED") {
+      // Turn the API's SEGMENTS_REQUIRED into an inline hint rather than a toast: it
+      // means this (non-platform) business must name at least one topic. Any other
+      // failure gets a friendly generic — never surface a raw backend/AI message.
+      if (e instanceof ApiError && e.code === "SEGMENTS_REQUIRED") {
         setError("Add at least one topic — tell us who your pages should be for.");
       } else {
-        setError(e instanceof Error ? e.message : "Couldn't start generating. Please try again.");
+        setError("Couldn't start generating your pages. Please try again.");
       }
       setSubmitting(false);
     }
@@ -165,6 +174,10 @@ function GeneratePagesDialogBody({
   return (
     <DialogContent
       className="sm:max-w-lg"
+      // No built-in X — its DialogPrimitive.Close bypasses the `block` guards below
+      // (Radix fires onOpenChange directly), which would unmount mid-submit and
+      // silently swallow an in-flight failure. Cancel is the close affordance.
+      showCloseButton={false}
       onEscapeKeyDown={block}
       onPointerDownOutside={block}
       onInteractOutside={block}
@@ -236,6 +249,12 @@ function GeneratePagesDialogBody({
         {(error || typedButUnusable) && (
           <p className="text-sm text-destructive" role="alert">
             {error ?? "Please use letters or numbers to describe who a topic is for."}
+          </p>
+        )}
+        {!error && !typedButUnusable && droppedCount > 0 && (
+          <p className="text-sm text-amber-700 dark:text-amber-400" role="alert">
+            {droppedCount === 1 ? "1 topic needs" : `${droppedCount} topics need`} letters or numbers
+            to describe who they&apos;re for, and {droppedCount === 1 ? "it" : "they"} will be skipped.
           </p>
         )}
       </div>
