@@ -72,6 +72,14 @@ export interface GenerateResult {
   outcomes: GenerateOutcome[];
 }
 
+/** A page target the owner supplies from the b2c segment picker. Mirrors the subset
+ *  of the API's zSegment the UI sends; the server derives/defaults the rest. */
+export interface GenerateSegmentInput {
+  industry: string;
+  industryLabel: string;
+  segmentSummary?: string;
+}
+
 export interface PublishResult {
   pageId: string;
   slug: string;
@@ -114,7 +122,7 @@ export function useWebPageDraft(id: string | null | undefined) {
 export function useGenerateWebPages() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (body?: { segments?: unknown[]; dryRun?: boolean }) =>
+    mutationFn: (body?: { segments?: GenerateSegmentInput[]; dryRun?: boolean }) =>
       api.post<GenerateResult>("/v1/content/web-pages/generate", body ?? {}),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: webPagesKeys.all }),
   });

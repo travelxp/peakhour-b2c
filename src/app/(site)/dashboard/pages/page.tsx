@@ -1,18 +1,20 @@
 "use client";
 
+import { useState } from "react";
 import { FileStack, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/molecules/empty-state";
 import { useAuth } from "@/providers/auth-provider";
-import { ApiError } from "@/lib/api";
 import {
   usePendingWebPages,
   useGenerateWebPages,
   type GenerateResult,
+  type GenerateSegmentInput,
 } from "@/hooks/use-web-pages";
 import { WebPageRow } from "./components/web-page-row";
+import { GeneratePagesDialog } from "./components/generate-pages-dialog";
 
 /** Turn a generate result into one plain-language toast line. */
 function summarize(r: GenerateResult): { kind: "success" | "info"; msg: string } {
@@ -35,20 +37,17 @@ export default function PagesDashboard() {
   const { business, isLoading: authLoading } = useAuth();
   const pending = usePendingWebPages();
   const generate = useGenerateWebPages();
+  const [generateOpen, setGenerateOpen] = useState(false);
 
-  async function onGenerate() {
-    try {
-      const res = await generate.mutateAsync(undefined);
-      const { kind, msg } = summarize(res);
-      if (kind === "success") toast.success(msg);
-      else toast.info(msg);
-    } catch (e) {
-      if (e instanceof ApiError && e.code === "SEGMENTS_REQUIRED") {
-        toast.info("Choosing your own page topics is coming soon.");
-      } else {
-        toast.error(e instanceof ApiError ? e.message : "Couldn't generate pages. Please try again.");
-      }
-    }
+  /** Runs a generate request with the owner's chosen topics. Resolves on success
+   *  (with a plain-language toast) so the dialog closes; throws on failure so the
+   *  dialog can keep itself open and show the error inline (incl. SEGMENTS_REQUIRED,
+   *  which it turns into a "name at least one topic" hint). */
+  async function runGenerate(segments?: GenerateSegmentInput[]) {
+    const res = await generate.mutateAsync(segments && segments.length > 0 ? { segments } : undefined);
+    const { kind, msg } = summarize(res);
+    if (kind === "success") toast.success(msg);
+    else toast.info(msg);
   }
 
   const rows = pending.data?.rows ?? [];
@@ -64,7 +63,7 @@ export default function PagesDashboard() {
             approve to publish — nothing goes live until you say so.
           </p>
         </div>
-        <Button onClick={onGenerate} disabled={generate.isPending || !business}>
+        <Button onClick={() => setGenerateOpen(true)} disabled={generate.isPending || !business}>
           <Sparkles className="size-4" aria-hidden="true" />
           {generate.isPending ? "Writing pages…" : "Generate pages"}
         </Button>
@@ -99,7 +98,7 @@ export default function PagesDashboard() {
             icon={FileStack}
             title="No pages to review"
             description="Generate pages to get started. They'll appear here for you to read and approve."
-            action={{ label: "Generate pages", onClick: onGenerate }}
+            action={{ label: "Generate pages", onClick: () => setGenerateOpen(true) }}
           />
         ) : (
           <div className="space-y-3">
@@ -114,6 +113,8 @@ export default function PagesDashboard() {
           </div>
         )}
       </section>
+
+      <GeneratePagesDialog open={generateOpen} onOpenChange={setGenerateOpen} onGenerate={runGenerate} />
     </div>
   );
 }
