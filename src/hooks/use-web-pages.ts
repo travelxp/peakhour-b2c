@@ -90,11 +90,13 @@ export const webPagesKeys = {
 
 // ── Hooks ──────────────────────────────────────────────────────────────────
 
-/** The caller's own review queue — pages waiting to be approved or sent back. */
-export function usePendingWebPages() {
+/** The caller's own review queue — pages waiting to be approved or sent back.
+ *  Fetches the API's max page (50); the UI shows a "showing first N" note if the
+ *  business somehow has more pending than that (they clear as they're actioned). */
+export function usePendingWebPages(limit = 50) {
   return useQuery({
     queryKey: webPagesKeys.pending(),
-    queryFn: () => api.get<PendingWebPages>("/v1/content/web-pages/pending"),
+    queryFn: () => api.get<PendingWebPages>("/v1/content/web-pages/pending", { limit: String(limit) }),
   });
 }
 

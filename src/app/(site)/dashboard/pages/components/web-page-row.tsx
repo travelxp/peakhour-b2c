@@ -6,15 +6,18 @@ import { StatusBadge } from "@/components/molecules/status-badge";
 import type { WebPageDraft } from "@/hooks/use-web-pages";
 import { WebPageActions } from "./web-page-actions";
 
+/** Turn a kebab key ("fashion-apparel") into a readable label ("Fashion Apparel"). */
+function humanize(s: string): string {
+  return s.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 /** One page in the review queue: name, who it's for, whether it's ready, and the
- *  Review / Approve / Send-back actions. */
+ *  Review / Approve / Send-back actions. Row layout mirrors the shadcnblocks-derived
+ *  card in content/sources/components/source-row.tsx for cross-surface consistency. */
 export function WebPageRow({ draft }: { draft: WebPageDraft }) {
   const name = draft.webPage.name || draft.title || draft.webPage.slug;
   const tax = draft.webPage.taxonomy;
-  const audience = [tax?.industry, tax?.persona]
-    .filter(Boolean)
-    .map((s) => s!.replace(/-/g, " "))
-    .join(" · ");
+  const audience = [tax?.industry, tax?.persona].filter(Boolean).map((s) => humanize(s!)).join(" · ");
   const verified = draft.webPage.ai?.groundingVerified === true;
   const claims = draft.sourceMetadata?.groundingUnsupportedClaims?.length ?? 0;
   const href = `/dashboard/pages/${draft._id}`;

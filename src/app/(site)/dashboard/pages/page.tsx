@@ -32,7 +32,7 @@ function summarize(r: GenerateResult): { kind: "success" | "info"; msg: string }
 }
 
 export default function PagesDashboard() {
-  const { business } = useAuth();
+  const { business, isLoading: authLoading } = useAuth();
   const pending = usePendingWebPages();
   const generate = useGenerateWebPages();
 
@@ -65,7 +65,7 @@ export default function PagesDashboard() {
           </p>
         </div>
         <Button onClick={onGenerate} disabled={generate.isPending || !business}>
-          <Sparkles className="size-4" />
+          <Sparkles className="size-4" aria-hidden="true" />
           {generate.isPending ? "Writing pages…" : "Generate pages"}
         </Button>
       </div>
@@ -76,18 +76,18 @@ export default function PagesDashboard() {
           Waiting for your review{pending.data ? ` (${pending.data.total})` : ""}
         </h3>
 
-        {!business ? (
-          <EmptyState
-            icon={FileStack}
-            title="Pick a business first"
-            description="Choose a business at the top of the page to manage its pages."
-          />
-        ) : pending.isLoading ? (
+        {authLoading || (business && pending.isLoading) ? (
           <div className="space-y-3">
             {[0, 1, 2].map((i) => (
               <Skeleton key={i} className="h-20 w-full rounded-lg" />
             ))}
           </div>
+        ) : !business ? (
+          <EmptyState
+            icon={FileStack}
+            title="Pick a business first"
+            description="Choose a business at the top of the page to manage its pages."
+          />
         ) : pending.isError ? (
           <EmptyState
             icon={FileStack}
@@ -106,6 +106,11 @@ export default function PagesDashboard() {
             {rows.map((draft) => (
               <WebPageRow key={draft._id} draft={draft} />
             ))}
+            {pending.data && pending.data.total > rows.length && (
+              <p className="pt-1 text-center text-xs text-muted-foreground">
+                Showing the first {rows.length} of {pending.data.total}. Approve or send some back to see the rest.
+              </p>
+            )}
           </div>
         )}
       </section>

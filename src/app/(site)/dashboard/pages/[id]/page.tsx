@@ -8,10 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "@/components/molecules/status-badge";
 import { EmptyState } from "@/components/molecules/empty-state";
-import { PageBlocks } from "@/components/marketing/page-blocks";
 import type { PageBlock } from "@/lib/marketing-pages";
 import { useWebPageDraft } from "@/hooks/use-web-pages";
 import { WebPageActions } from "../components/web-page-actions";
+import { WebPagePreview } from "../components/web-page-preview";
 
 export default function WebPageReview({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -53,7 +53,10 @@ export default function WebPageReview({ params }: { params: Promise<{ id: string
 
   const name = draft.webPage.name || draft.title || draft.webPage.slug;
   const tax = draft.webPage.taxonomy;
-  const audience = [tax?.industry, tax?.persona].filter(Boolean).map((s) => s!.replace(/-/g, " ")).join(" · ");
+  const audience = [tax?.industry, tax?.persona]
+    .filter(Boolean)
+    .map((s) => s!.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()))
+    .join(" · ");
   const verified = draft.webPage.ai?.groundingVerified === true;
   const claims = draft.sourceMetadata?.groundingUnsupportedClaims ?? [];
   const blocks = (draft.webPage.blocks ?? []) as PageBlock[];
@@ -95,15 +98,11 @@ export default function WebPageReview({ params }: { params: Promise<{ id: string
         </div>
       )}
 
-      {/* Preview — exactly how the page will look once live */}
+      {/* What the page says — a readable summary of every section */}
       <div>
-        <p className="mb-2 text-sm font-semibold text-muted-foreground">Preview</p>
-        <div className="overflow-hidden rounded-lg border bg-background">
-          {blocks.length > 0 ? (
-            <PageBlocks blocks={blocks} />
-          ) : (
-            <p className="p-8 text-center text-sm text-muted-foreground">This page has no content yet.</p>
-          )}
+        <p className="mb-2 text-sm font-semibold text-muted-foreground">What this page says</p>
+        <div className="overflow-hidden rounded-lg border bg-card">
+          <WebPagePreview blocks={blocks} seo={draft.webPage.seo} />
         </div>
       </div>
     </div>
