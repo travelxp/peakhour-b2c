@@ -75,6 +75,10 @@ export default function BillingPage() {
   const selfServeExtensionUsed =
     details?.subscription?.selfServeExtensionUsed === true;
   const features = details?.entitlements?.features ?? [];
+  // Paid products held beyond the base plan (active/trial portfolio subs). The
+  // base plan can be Free while the org owns a purchased product (e.g. Commerce
+  // Assistant) — without this, the page reads "Free" and prompts a re-purchase.
+  const products = details?.products ?? [];
 
   const handleExtend = () => {
     extend.mutate(undefined, {
@@ -181,6 +185,46 @@ export default function BillingPage() {
             </div>
           </div>
         </div>
+
+        {/* Your products — paid products held beyond the base plan. Shown only
+            when the org owns at least one, so a base-plan-only org sees nothing
+            new. This is what tells a Commerce buyer they DO own the product even
+            when the base plan badge above still reads "Free". */}
+        {products.length > 0 && (
+          <div className="rounded-2xl border bg-muted/30 px-5 pt-4 pb-5">
+            <h3 className="mb-3 font-semibold">Your products</h3>
+            <ul className="space-y-2">
+              {products.map((p) => (
+                <li
+                  key={p.tier}
+                  className="flex items-center justify-between rounded-lg border bg-background px-3 py-2"
+                >
+                  <div>
+                    <p className="text-sm font-medium">{p.name}</p>
+                    {p.since ? (
+                      <p className="text-xs text-muted-foreground">
+                        Since {formatDate(p.since)}
+                      </p>
+                    ) : null}
+                  </div>
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "font-medium capitalize",
+                      p.state === "active"
+                        ? "border-emerald-500/40 text-emerald-600 dark:text-emerald-400"
+                        : p.state === "trial"
+                          ? "border-amber-500/40 text-amber-600 dark:text-amber-400"
+                          : "text-muted-foreground",
+                    )}
+                  >
+                    {p.state === "trial" ? "Trial" : p.state}
+                  </Badge>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         {/* Usage cards */}
         <div className="grid gap-4 sm:grid-cols-2">
