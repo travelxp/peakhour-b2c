@@ -19,8 +19,9 @@ import type { GenerateSegmentInput } from "@/hooks/use-web-pages";
 
 /**
  * GeneratePagesDialog — the owner defines which landing pages to create by giving
- * one or more "topics" (an audience + an optional focus note). Each topic becomes a
- * generation segment sent to POST /v1/content/web-pages/generate.
+ * one or more "topics" (an audience, optionally a specific segment of it, and a
+ * focus note). Each topic becomes a generation segment sent to
+ * POST /v1/content/web-pages/generate; a single CTA link applies to them all.
  *
  * Design notes:
  *   • Copy is deliberately non-technical (owner-facing) — no "segment", "pillar", or
@@ -37,13 +38,19 @@ import type { GenerateSegmentInput } from "@/hooks/use-web-pages";
 // round-trip to a 400. Kebab keys are derived + capped at 64; labels/summary here.
 const MAX_TOPICS = 4;
 const AUDIENCE_MAX = 200;
+const PERSONA_MAX = 200;
 const FOCUS_MAX = 1000;
 const KEY_MAX = 64;
+const HREF_MAX = 200;
+/** Same as the API's zHref: an absolute http(s) URL or a same-site "/path". */
+const SAFE_HREF = /^(https?:\/\/|\/)/;
 
 /** One page topic as the owner enters it. */
 interface Topic {
   /** Human audience/industry label, e.g. "Cafés & restaurants" → industryLabel. */
   audience: string;
+  /** Optional narrower audience, e.g. "Owners short on time" → personaLabel. */
+  who: string;
   /** Optional free-text focus → segmentSummary. */
   focus: string;
 }
@@ -61,21 +68,28 @@ function slugify(label: string): string {
     .replace(/-+$/g, ""); // in case the slice landed on a trailing hyphen
 }
 
-const emptyTopic = (): Topic => ({ audience: "", focus: "" });
+const emptyTopic = (): Topic => ({ audience: "", who: "", focus: "" });
 
 /** Map filled topics → segments. A topic counts only if its audience slugifies to a
- *  non-empty key (that key is the page's required `industry` axis). */
-function toSegments(topics: Topic[]): GenerateSegmentInput[] {
+ *  non-empty key (that key is the page's required `industry` axis). An optional
+ *  `who` adds the persona axis (only when it slugifies to a usable key); a shared
+ *  `ctaHref` (already validated by the caller) is applied to every segment. */
+function toSegments(topics: Topic[], ctaHref: string): GenerateSegmentInput[] {
+  const cta = ctaHref.trim();
   const segments: GenerateSegmentInput[] = [];
   for (const t of topics) {
     const label = t.audience.trim();
     const industry = slugify(label);
     if (!industry) continue;
     const focus = t.focus.trim();
+    const whoLabel = t.who.trim();
+    const persona = slugify(whoLabel);
     segments.push({
       industry,
       industryLabel: label.slice(0, AUDIENCE_MAX),
       ...(focus ? { segmentSummary: focus.slice(0, FOCUS_MAX) } : {}),
+      ...(persona ? { persona, personaLabel: whoLabel.slice(0, PERSONA_MAX) } : {}),
+      ...(cta ? { ctaHref: cta.slice(0, HREF_MAX) } : {}),
     });
   }
   return segments;
@@ -108,17 +122,27 @@ function GeneratePagesDialogBody({
   onClose: () => void;
 }) {
   const [topics, setTopics] = useState<Topic[]>([emptyTopic()]);
+  const [ctaHref, setCtaHref] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const segments = toSegments(topics);
-  // How many topics the owner actually typed an audience into.
-  const typedAudiences = topics.filter((t) => t.audience.trim().length > 0).length;
-  // Typed at least one audience but NONE produced a usable key (e.g. only
-  // punctuation/emoji) → block: submitting would misleadingly seed-default.
-  const typedButUnusable = typedAudiences > 0 && segments.length === 0;
-  // Some usable, some not — the unusable ones are dropped; warn so it isn't silent.
-  const droppedCount = segments.length > 0 ? typedAudiences - segments.length : 0;
+  // The CTA link is optional, but if given it must be a full http(s) URL or a
+  // "/path" (mirrors the API's zHref) — otherwise the whole request 400s.
+  const ctaTrimmed = ctaHref.trim();
+  const ctaInvalid = ctaTrimmed.length > 0 && !SAFE_HREF.test(ctaTrimmed);
+
+  const segments = toSegments(topics, ctaHref);
+  // Topics the owner put ANY detail into (audience, who, or focus) — a topic only
+  // yields a page via its audience, so a filled who/focus with a blank audience is
+  // otherwise-invisible input we must account for (else it vanishes silently).
+  const topicsWithContent = topics.filter(
+    (t) => t.audience.trim() || t.who.trim() || t.focus.trim(),
+  ).length;
+  // Content but zero usable audiences → block: submitting would misleadingly
+  // seed-default. Some usable + some not → the unusable ones are skipped; warn.
+  const typedButUnusable = topicsWithContent > 0 && segments.length === 0;
+  const droppedCount = segments.length > 0 ? topicsWithContent - segments.length : 0;
+  const canSubmit = !submitting && !typedButUnusable && !ctaInvalid;
 
   /** Move focus to a topic's audience input after the list changes (add/remove) so a
    *  keyboard user isn't stranded. rAF waits for the new/re-laid-out DOM to mount. */
@@ -131,6 +155,10 @@ function GeneratePagesDialogBody({
   function update(i: number, patch: Partial<Topic>) {
     setError(null);
     setTopics((prev) => prev.map((t, idx) => (idx === i ? { ...t, ...patch } : t)));
+  }
+  function updateCta(value: string) {
+    setError(null);
+    setCtaHref(value);
   }
   function addTopic() {
     if (topics.length >= MAX_TOPICS) return;
@@ -146,7 +174,7 @@ function GeneratePagesDialogBody({
   }
 
   async function handleSubmit() {
-    if (submitting || typedButUnusable) return;
+    if (!canSubmit) return;
     // No usable topics → seed-default path (send undefined). Otherwise send segments.
     const payload = segments.length > 0 ? segments : undefined;
     setSubmitting(true);
@@ -190,7 +218,9 @@ function GeneratePagesDialogBody({
         </DialogDescription>
       </DialogHeader>
 
-      <div className="space-y-4">
+      {/* Only the topics scroll; the CTA + validation messages stay pinned below so
+          a submit-blocking error is never hidden under the fold. */}
+      <div className="max-h-[50vh] space-y-4 overflow-y-auto">
         {topics.map((t, i) => (
           <div key={i} className="rounded-lg border p-3">
             <div className="mb-2 flex items-center justify-between">
@@ -222,6 +252,19 @@ function GeneratePagesDialogBody({
                 />
               </div>
               <div className="grid gap-1.5">
+                <Label htmlFor={`who-${i}`}>
+                  A specific group within them? <span className="text-muted-foreground">(optional)</span>
+                </Label>
+                <Input
+                  id={`who-${i}`}
+                  value={t.who}
+                  maxLength={PERSONA_MAX}
+                  disabled={submitting}
+                  placeholder="e.g. Owners short on time"
+                  onChange={(e) => update(i, { who: e.target.value })}
+                />
+              </div>
+              <div className="grid gap-1.5">
                 <Label htmlFor={`focus-${i}`}>
                   What should they focus on? <span className="text-muted-foreground">(optional)</span>
                 </Label>
@@ -245,25 +288,55 @@ function GeneratePagesDialogBody({
             Add another topic
           </Button>
         )}
-
-        {(error || typedButUnusable) && (
-          <p className="text-sm text-destructive" role="alert">
-            {error ?? "Please use letters or numbers to describe who a topic is for."}
-          </p>
-        )}
-        {!error && !typedButUnusable && droppedCount > 0 && (
-          <p className="text-sm text-amber-700 dark:text-amber-400" role="alert">
-            {droppedCount === 1 ? "1 topic needs" : `${droppedCount} topics need`} letters or numbers
-            to describe who they&apos;re for, and {droppedCount === 1 ? "it" : "they"} will be skipped.
-          </p>
-        )}
       </div>
+
+      {/* Pinned below the scroll area — applies to every page, and keeps the
+          validation messages always visible. */}
+      <div className="grid gap-1.5 border-t pt-4">
+        <Label htmlFor="cta-href">
+          Where should the buttons send visitors?{" "}
+          <span className="text-muted-foreground">(optional — applies to every page)</span>
+        </Label>
+        <Input
+          id="cta-href"
+          type="text"
+          inputMode="url"
+          value={ctaHref}
+          maxLength={HREF_MAX}
+          disabled={submitting}
+          aria-invalid={ctaInvalid}
+          aria-describedby="cta-href-hint"
+          placeholder="e.g. https://your-site.com/book or /contact"
+          onChange={(e) => updateCta(e.target.value)}
+        />
+        <p
+          id="cta-href-hint"
+          aria-live="polite"
+          className={`text-xs ${ctaInvalid ? "text-destructive" : "text-muted-foreground"}`}
+        >
+          {ctaInvalid
+            ? "Enter a full web address (https://…) or a path that starts with /."
+            : "Leave blank to point buttons at your home page."}
+        </p>
+      </div>
+
+      {(error || typedButUnusable) && (
+        <p className="text-sm text-destructive" role="alert">
+          {error ?? "Add an audience in “Who are these pages for?” so we know who at least one page is for."}
+        </p>
+      )}
+      {!error && !typedButUnusable && droppedCount > 0 && (
+        <p className="text-sm text-amber-700 dark:text-amber-400" role="alert">
+          {droppedCount === 1 ? "1 topic is missing" : `${droppedCount} topics are missing`} an audience in
+          “Who are these pages for?” and will be skipped.
+        </p>
+      )}
 
       <DialogFooter>
         <Button variant="outline" type="button" disabled={submitting} onClick={onClose}>
           Cancel
         </Button>
-        <Button type="button" disabled={submitting || typedButUnusable} onClick={handleSubmit}>
+        <Button type="button" disabled={!canSubmit} onClick={handleSubmit}>
           {submitting ? (
             <>
               <Loader2 className="mr-1.5 size-4 animate-spin" />
