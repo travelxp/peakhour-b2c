@@ -58,6 +58,8 @@ export interface ResolvedFeature {
   /** cfg_features.name — the catalog's own display label (source of truth). */
   name: string;
   tagline?: string;
+  /** cfg_features.useCases — jobs-to-be-done copy, when the catalog ships it. */
+  useCases?: string[];
 }
 
 /** A single tier within a product (e.g. commerce_assistant.lens). */
@@ -80,6 +82,8 @@ export interface ResolvedProductTier {
   pricing: PricingEntry;
   /** Included free Peaks/month for this tier (undefined = none/unlimited). */
   peaksIncluded?: number;
+  /** Integration keys this tier unlocks (present on newer API responses). */
+  allowedIntegrations?: string[];
 }
 
 /** A delivery channel available in this env, with its purchase path. */
@@ -160,48 +164,64 @@ export function formatYearly(p: PricingEntry): string {
 }
 
 /**
- * Per-tier marketing bullets. Keys mirror `PlanKey`. Kept here (not in
- * cfg_features.tagline) so marketing can tune the comparison copy
- * without a DB write — these are the punchy "what you get on this
- * tier" lines, not the technical feature descriptions.
+ * Account-level bundle plans (`cfg_plans` rows that compose every product).
+ * The resolver surfaces these as a tier *under each product* they list, keyed
+ * by the bare plan key (`agency`/`enterprise`) rather than a `<product>.<tier>`
+ * key. The pricing surface separates them out: they never belong in a single
+ * pillar's Free-vs-Paid table — they get their own Agency & Enterprise page.
  */
-export const PLAN_BULLETS: Record<PlanKey, string[]> = {
-  free: [
-    "1 LinkedIn page",
-    "10 AI-generated posts / month",
-    "Basic content engine",
-  ],
-  starter: [
-    "3 LinkedIn pages",
-    "100 posts / month",
-    "Voice card synthesis",
-    "Full content engine",
-    "14-day trial",
-  ],
-  growth: [
-    "5 LinkedIn pages",
-    "500 posts / month",
-    "Hook DNA rewrite + AQS engager scoring",
-    "Boost recommender",
-    "Multi-business workspace",
-    "14-day trial",
-  ],
-  agency: [
-    "25 LinkedIn pages × 25 businesses",
-    "2,000 posts / month",
-    "Client labels & permissions",
-    "SSO + audit log",
-    "Everything in Growth",
-    "14-day trial",
-  ],
-  enterprise: [
-    "Unlimited everything",
-    "White-label",
-    "Custom AI model keys (BYOK)",
-    "Dedicated success manager",
-    "SSO + audit log",
-  ],
-};
+export const BUNDLE_PLAN_KEYS = new Set(["agency", "enterprise"]);
+
+/** True when a tier is an account-level bundle (Agency/Enterprise), not a
+ *  product-specific Free/Paid tier. */
+export function isBundleTier(tier: ResolvedProductTier): boolean {
+  return BUNDLE_PLAN_KEYS.has(tier.key);
+}
+
+/**
+ * The product's own Free/Paid tiers — bundle plans (Agency/Enterprise) removed —
+ * sorted cheapest-first so Free leads and the paid tier(s) follow. This is what
+ * a single pillar's comparison table renders as its columns.
+ */
+export function productTiers(product: ResolvedProduct): ResolvedProductTier[] {
+  return product.tiers
+    .filter((t) => !isBundleTier(t))
+    .sort((a, b) => a.pricing.monthly - b.pricing.monthly);
+}
+
+/**
+ * Find a bundle tier (Agency/Enterprise) anywhere in the response. Bundle plans
+ * appear as a tier under every product they compose, so the first occurrence
+ * carries the canonical price + Peaks allowance (identical across products).
+ * Returns undefined when the bundle isn't publicly listed in this env.
+ */
+export function findBundleTier(
+  pricing: PricingResponse | null,
+  key: "agency" | "enterprise",
+): ResolvedProductTier | undefined {
+  if (!pricing) return undefined;
+  for (const product of pricing.products) {
+    const match = product.tiers.find((t) => t.key === key);
+    if (match) return match;
+  }
+  return undefined;
+}
+
+/** All products under a given pillar. `pillar` isn't guaranteed 1:1 with a
+ *  product (future pillars may span several), so callers group, not `.find`. */
+export function pillarProducts(
+  pricing: PricingResponse | null,
+  pillar: string,
+): ResolvedProduct[] {
+  return (pricing?.products ?? []).filter((p) => p.pillar === pillar);
+}
+
+/** The lowest paid monthly price across a product's own tiers, or null when the
+ *  product has no paid tier (free-only). Drives the hub card's "from" price. */
+export function fromMonthly(product: ResolvedProduct): ResolvedProductTier | null {
+  const paid = productTiers(product).filter((t) => t.pricing.monthly > 0);
+  return paid[0] ?? null;
+}
 
 /**
  * Display labels for cfg_feature keys used in product tier comparison cards.

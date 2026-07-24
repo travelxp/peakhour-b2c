@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
 import { SITE } from "@/lib/utils";
 import { PILLAR_ORDER } from "@/lib/pillars";
+import { PRICING_PILLAR_ORDER } from "@/lib/pricing-catalog";
 import { getMarketingSitemapEntries } from "@/lib/marketing-pages";
 
 /**
@@ -33,7 +34,21 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     changeFrequency: "weekly" as const,
   }));
 
-  const codeEntries: MetadataRoute.Sitemap = [...staticPaths, ...pillarPaths].map(
+  // Per-pillar pricing pages + the Agency/Enterprise page.
+  const pricingPaths = [
+    ...PRICING_PILLAR_ORDER.map((slug) => ({
+      path: `/pricing/${slug}`,
+      priority: 0.7,
+      changeFrequency: "weekly" as const,
+    })),
+    { path: "/pricing/teams", priority: 0.6, changeFrequency: "monthly" as const },
+  ];
+
+  const codeEntries: MetadataRoute.Sitemap = [
+    ...staticPaths,
+    ...pillarPaths,
+    ...pricingPaths,
+  ].map(
     ({ path, priority, changeFrequency }) => ({
       url: `${base}${path}`,
       changeFrequency,
