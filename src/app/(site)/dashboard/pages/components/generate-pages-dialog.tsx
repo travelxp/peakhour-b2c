@@ -132,13 +132,16 @@ function GeneratePagesDialogBody({
   const ctaInvalid = ctaTrimmed.length > 0 && !SAFE_HREF.test(ctaTrimmed);
 
   const segments = toSegments(topics, ctaHref);
-  // How many topics the owner actually typed an audience into.
-  const typedAudiences = topics.filter((t) => t.audience.trim().length > 0).length;
-  // Typed at least one audience but NONE produced a usable key (e.g. only
-  // punctuation/emoji) → block: submitting would misleadingly seed-default.
-  const typedButUnusable = typedAudiences > 0 && segments.length === 0;
-  // Some usable, some not — the unusable ones are dropped; warn so it isn't silent.
-  const droppedCount = segments.length > 0 ? typedAudiences - segments.length : 0;
+  // Topics the owner put ANY detail into (audience, who, or focus) — a topic only
+  // yields a page via its audience, so a filled who/focus with a blank audience is
+  // otherwise-invisible input we must account for (else it vanishes silently).
+  const topicsWithContent = topics.filter(
+    (t) => t.audience.trim() || t.who.trim() || t.focus.trim(),
+  ).length;
+  // Content but zero usable audiences → block: submitting would misleadingly
+  // seed-default. Some usable + some not → the unusable ones are skipped; warn.
+  const typedButUnusable = topicsWithContent > 0 && segments.length === 0;
+  const droppedCount = segments.length > 0 ? topicsWithContent - segments.length : 0;
   const canSubmit = !submitting && !typedButUnusable && !ctaInvalid;
 
   /** Move focus to a topic's audience input after the list changes (add/remove) so a
@@ -215,7 +218,9 @@ function GeneratePagesDialogBody({
         </DialogDescription>
       </DialogHeader>
 
-      <div className="max-h-[60vh] space-y-4 overflow-y-auto">
+      {/* Only the topics scroll; the CTA + validation messages stay pinned below so
+          a submit-blocking error is never hidden under the fold. */}
+      <div className="max-h-[50vh] space-y-4 overflow-y-auto">
         {topics.map((t, i) => (
           <div key={i} className="rounded-lg border p-3">
             <div className="mb-2 flex items-center justify-between">
@@ -248,7 +253,7 @@ function GeneratePagesDialogBody({
               </div>
               <div className="grid gap-1.5">
                 <Label htmlFor={`who-${i}`}>
-                  Anyone more specific? <span className="text-muted-foreground">(optional)</span>
+                  A specific group within them? <span className="text-muted-foreground">(optional)</span>
                 </Label>
                 <Input
                   id={`who-${i}`}
@@ -283,46 +288,49 @@ function GeneratePagesDialogBody({
             Add another topic
           </Button>
         )}
-
-        <div className="grid gap-1.5 border-t pt-4">
-          <Label htmlFor="cta-href">
-            Where should the buttons send visitors?{" "}
-            <span className="text-muted-foreground">(optional)</span>
-          </Label>
-          <Input
-            id="cta-href"
-            type="text"
-            inputMode="url"
-            value={ctaHref}
-            maxLength={HREF_MAX}
-            disabled={submitting}
-            aria-invalid={ctaInvalid}
-            aria-describedby="cta-href-hint"
-            placeholder="e.g. https://your-site.com/book or /contact"
-            onChange={(e) => updateCta(e.target.value)}
-          />
-          <p
-            id="cta-href-hint"
-            className={`text-xs ${ctaInvalid ? "text-destructive" : "text-muted-foreground"}`}
-          >
-            {ctaInvalid
-              ? "Enter a full web address (https://…) or a path that starts with /."
-              : "Applies to every page. Leave blank to point buttons at your home page."}
-          </p>
-        </div>
-
-        {(error || typedButUnusable) && (
-          <p className="text-sm text-destructive" role="alert">
-            {error ?? "Please use letters or numbers to describe who a topic is for."}
-          </p>
-        )}
-        {!error && !typedButUnusable && droppedCount > 0 && (
-          <p className="text-sm text-amber-700 dark:text-amber-400" role="alert">
-            {droppedCount === 1 ? "1 topic needs" : `${droppedCount} topics need`} letters or numbers
-            to describe who they&apos;re for, and {droppedCount === 1 ? "it" : "they"} will be skipped.
-          </p>
-        )}
       </div>
+
+      {/* Pinned below the scroll area — applies to every page, and keeps the
+          validation messages always visible. */}
+      <div className="grid gap-1.5 border-t pt-4">
+        <Label htmlFor="cta-href">
+          Where should the buttons send visitors?{" "}
+          <span className="text-muted-foreground">(optional — applies to every page)</span>
+        </Label>
+        <Input
+          id="cta-href"
+          type="text"
+          inputMode="url"
+          value={ctaHref}
+          maxLength={HREF_MAX}
+          disabled={submitting}
+          aria-invalid={ctaInvalid}
+          aria-describedby="cta-href-hint"
+          placeholder="e.g. https://your-site.com/book or /contact"
+          onChange={(e) => updateCta(e.target.value)}
+        />
+        <p
+          id="cta-href-hint"
+          aria-live="polite"
+          className={`text-xs ${ctaInvalid ? "text-destructive" : "text-muted-foreground"}`}
+        >
+          {ctaInvalid
+            ? "Enter a full web address (https://…) or a path that starts with /."
+            : "Leave blank to point buttons at your home page."}
+        </p>
+      </div>
+
+      {(error || typedButUnusable) && (
+        <p className="text-sm text-destructive" role="alert">
+          {error ?? "Add an audience in “Who are these pages for?” so we know who at least one page is for."}
+        </p>
+      )}
+      {!error && !typedButUnusable && droppedCount > 0 && (
+        <p className="text-sm text-amber-700 dark:text-amber-400" role="alert">
+          {droppedCount === 1 ? "1 topic is missing" : `${droppedCount} topics are missing`} an audience in
+          “Who are these pages for?” and will be skipped.
+        </p>
+      )}
 
       <DialogFooter>
         <Button variant="outline" type="button" disabled={submitting} onClick={onClose}>
