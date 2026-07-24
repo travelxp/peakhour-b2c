@@ -78,6 +78,11 @@ export interface GenerateSegmentInput {
   industry: string;
   industryLabel: string;
   segmentSummary?: string;
+  /** Optional audience refinement → slug `for/<industry>/<persona>`, sector_persona kind. */
+  persona?: string;
+  personaLabel?: string;
+  /** Where the page's calls-to-action point (absolute http(s):// or a /path). */
+  ctaHref?: string;
 }
 
 export interface PublishResult {
