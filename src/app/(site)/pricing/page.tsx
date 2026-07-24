@@ -47,7 +47,9 @@ export default async function PricingPage() {
     getPricing(country),
     getPublicCatalog(),
   ]);
-  const cta = signupCta(catalog?.platform?.signupMode ?? "open");
+  const signupMode = catalog?.platform?.signupMode ?? "open";
+  const openSignup = signupMode === "open";
+  const cta = signupCta(signupMode);
 
   const presence = pillarProducts(pricing, "presence")[0];
   const presenceFree = presence?.tiers.find((t) => t.pricing.monthly === 0);
@@ -83,7 +85,7 @@ export default async function PricingPage() {
                     href={cta.href}
                     className="group inline-flex items-center gap-2 rounded-xl bg-brand-gradient px-6 py-3.5 text-sm font-bold text-brand-contrast shadow-sm transition-transform hover:-translate-y-0.5 focus-visible:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
                   >
-                    Start free with Presence
+                    {openSignup ? "Start free with Presence" : cta.label}
                     <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
                   </Link>
                 )}
@@ -253,7 +255,7 @@ export default async function PricingPage() {
                       href={cta.href}
                       className="mt-1 inline-flex items-center justify-center gap-2 rounded-xl bg-brand-gradient px-5 py-3 text-sm font-bold text-brand-contrast shadow-sm transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
                     >
-                      Start free
+                      {openSignup ? "Start free" : cta.label}
                     </Link>
                   )}
                   <Link

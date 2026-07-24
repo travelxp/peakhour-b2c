@@ -7,6 +7,13 @@ import {
   type ResolvedProductTier,
 } from "@/lib/pricing";
 
+/** The signup CTA resolved from the platform stage (see `signupCta`). */
+export interface SignupCta {
+  label: string;
+  href: string;
+  disabled?: boolean;
+}
+
 /**
  * The per-pillar plan comparison — a data-driven Free-vs-Paid matrix. Columns
  * are the product's own tiers (bundle plans removed upstream by `productTiers`),
@@ -15,15 +22,22 @@ import {
  * that feature. Labels prefer the catalog's own `featureDetails.name` and fall
  * back to `featureLabel(key)` so an unmapped key never renders raw.
  *
+ * The tier CTAs follow the platform stage: when signup is `open` each column
+ * shows its own action ("Start free" / "Get Paid"); otherwise they mirror the
+ * platform CTA ("Join the waitlist"), and collapse to a disabled "Launching
+ * soon" when signup is closed — never a working link into a closed funnel.
+ *
  * Server component — no client state. Annual pricing is shown as a subline
  * rather than an interactive toggle, so the table stays fully SSR'd.
  */
 export function PlanComparison({
   tiers,
-  ctaHref,
+  cta,
+  openSignup,
 }: {
   tiers: ResolvedProductTier[];
-  ctaHref: string;
+  cta: SignupCta;
+  openSignup: boolean;
 }) {
   if (tiers.length === 0) return null;
 
@@ -50,7 +64,7 @@ export function PlanComparison({
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[560px] border-separate border-spacing-0">
+      <table className="w-full min-w-140 border-separate border-spacing-0">
         <thead>
           <tr>
             <th className="w-[38%] p-0 align-bottom" />
@@ -89,16 +103,29 @@ export function PlanComparison({
                         ? "No card needed"
                         : ""}
                   </div>
-                  <Link
-                    href={ctaHref}
-                    className={`mt-4 inline-flex w-full items-center justify-center rounded-xl px-4 py-2.5 text-sm font-bold transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 ${
-                      rec
-                        ? "bg-brand-gradient text-brand-contrast shadow-sm"
-                        : "border-2 hover:border-brand hover:text-brand"
-                    }`}
-                  >
-                    {isFree ? "Start free" : `Get ${tier.name}`}
-                  </Link>
+                  {cta.disabled ? (
+                    <span
+                      aria-disabled="true"
+                      className="mt-4 inline-flex w-full cursor-not-allowed items-center justify-center rounded-xl border-2 border-dashed px-4 py-2.5 text-sm font-bold text-muted-foreground"
+                    >
+                      {cta.label}
+                    </span>
+                  ) : (
+                    <Link
+                      href={cta.href}
+                      className={`mt-4 inline-flex w-full items-center justify-center rounded-xl px-4 py-2.5 text-sm font-bold transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 ${
+                        rec
+                          ? "bg-brand-gradient text-brand-contrast shadow-sm"
+                          : "border-2 hover:border-brand hover:text-brand"
+                      }`}
+                    >
+                      {openSignup
+                        ? isFree
+                          ? "Start free"
+                          : `Get ${tier.name}`
+                        : cta.label}
+                    </Link>
+                  )}
                   {!isFree && tier.pricing.trialDays > 0 && (
                     <p className="mt-2 text-center text-[11px] text-muted-foreground">
                       {tier.pricing.trialDays}-day free trial

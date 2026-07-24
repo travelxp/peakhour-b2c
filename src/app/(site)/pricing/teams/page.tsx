@@ -47,7 +47,9 @@ export default async function TeamsPricingPage() {
     getPricing(country),
     getPublicCatalog(),
   ]);
-  const cta = signupCta(catalog?.platform?.signupMode ?? "open");
+  const signupMode = catalog?.platform?.signupMode ?? "open";
+  const openSignup = signupMode === "open";
+  const cta = signupCta(signupMode);
 
   const agency = findBundleTier(pricing, "agency");
   const enterprise = findBundleTier(pricing, "enterprise");
@@ -150,7 +152,7 @@ export default async function TeamsPricingPage() {
                   href={cta.href}
                   className="mt-7 inline-flex items-center justify-center rounded-xl bg-foreground px-5 py-3 text-sm font-bold text-background transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
                 >
-                  Start an Agency plan
+                  {openSignup ? "Start an Agency plan" : cta.label}
                 </Link>
               )}
             </div>
