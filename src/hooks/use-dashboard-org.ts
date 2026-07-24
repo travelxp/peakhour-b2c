@@ -23,6 +23,18 @@ export interface DashboardOrgPlanSummary {
     computedAt?: string | null;
     features?: string[];
   } | null;
+  /** Paid products held beyond the base plan — the active/trial product-portfolio
+   *  subscriptions (T4 native billing). Empty for a base-plan-only org. Surfaced
+   *  so the billing page reflects what the org actually owns (e.g. a Commerce
+   *  Assistant purchase) instead of only the legacy base plan. */
+  products?: Array<{
+    productKey?: string | null;
+    tier: string;
+    tierVersion?: number | null;
+    state: string;
+    name: string;
+    since?: string | null;
+  }>;
   billing?: { plan?: string };
   createdAt?: string;
 }
