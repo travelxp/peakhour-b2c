@@ -81,10 +81,26 @@ export function UpgradePlanDialog({
     refetchOnWindowFocus: false,
   });
 
+  // The checkout can either mint a gateway payment surface (first product on a
+  // gateway) OR — when the org already has a live subscription for this interval
+  // — ADD the product as an item to it and charge the prorated top-up off-session
+  // (billing-consolidation-plan.md Phase 3a). The "added" case needs no payment
+  // UI: the saved mandate was used, so we just confirm + refresh.
   const checkoutMut = useMutation({
     mutationFn: (tier: string) =>
-      api.post<CheckoutResult>("/v1/billing/checkout", { tier }),
-    onSuccess: (res) => setCheckout(res),
+      api.post<CheckoutResult | { mode: "added"; tier: string; tierLabel?: string }>(
+        "/v1/billing/checkout",
+        { tier },
+      ),
+    onSuccess: (res) => {
+      if (res && "mode" in res && res.mode === "added") {
+        toast.success(`${res.tierLabel || res.tier} added to your subscription`);
+        onOpenChange(false);
+        onPurchased?.();
+        return;
+      }
+      setCheckout(res as CheckoutResult);
+    },
     onError: (e: Error) => toast.error(e.message ?? "Couldn't start checkout"),
   });
 
