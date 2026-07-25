@@ -88,13 +88,24 @@ export function UpgradePlanDialog({
   // UI: the saved mandate was used, so we just confirm + refresh.
   const checkoutMut = useMutation({
     mutationFn: (tier: string) =>
-      api.post<CheckoutResult | { mode: "added"; tier: string; tierLabel?: string }>(
-        "/v1/billing/checkout",
-        { tier },
-      ),
+      api.post<
+        | CheckoutResult
+        | { mode: "added"; tier: string; tierLabel?: string }
+        | { mode: "invoice_required"; tier: string; tierLabel?: string }
+      >("/v1/billing/checkout", { tier }),
     onSuccess: (res) => {
       if (res && "mode" in res && res.mode === "added") {
         toast.success(`${res.tierLabel || res.tier} added to your subscription`);
+        onOpenChange(false);
+        onPurchased?.();
+        return;
+      }
+      // India RBI: a total above the auto-mandate cap (₹1L) can't be auto-debited,
+      // so it's billed by invoice instead of opening a payment surface.
+      if (res && "mode" in res && res.mode === "invoice_required") {
+        toast.success(`${res.tierLabel || res.tier} — we'll email you an invoice to pay`, {
+          description: "This plan is billed by invoice (bank rules cap auto-debit amounts).",
+        });
         onOpenChange(false);
         onPurchased?.();
         return;
