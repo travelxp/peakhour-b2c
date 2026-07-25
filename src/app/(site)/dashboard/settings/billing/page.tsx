@@ -1,7 +1,7 @@
 "use client";
 
 import { toast } from "sonner";
-import { ApiError } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import { useLocale } from "@/hooks/use-locale";
 import { useDashboardOrg, useExtendTrial } from "@/hooks/use-dashboard-org";
 import { Badge } from "@/components/ui/badge";
@@ -19,7 +19,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { TaxAndInvoices } from "@/components/settings-tax-invoices";
 import { UpgradePlanDialog } from "@/components/upgrade/upgrade-plan-dialog";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 // Mirrors the navbar PlanBadge tier accents so plan presentation stays
 // consistent across surfaces.
@@ -41,6 +41,53 @@ export default function BillingPage() {
   const { data: details, isLoading } = useDashboardOrg();
   const extend = useExtendTrial();
   const [upgradeOpen, setUpgradeOpen] = useState(false);
+
+  // Reconcile-on-return: Stripe embedded Checkout redirects back to
+  // ?checkout=success&session_id=cs_… the instant the session completes — often
+  // BEFORE the async webhook has activated the plan. Confirm the session
+  // server-side so the plan is live on THIS load (idempotent against the
+  // webhook), then strip the params so a refresh can't re-fire it.
+  const confirmedRef = useRef(false);
+  useEffect(() => {
+    if (confirmedRef.current || typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("checkout") !== "success") return;
+    confirmedRef.current = true;
+    const sessionId = params.get("session_id");
+
+    const stripParams = () => {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("checkout");
+      url.searchParams.delete("session_id");
+      window.history.replaceState({}, "", url.toString());
+    };
+
+    void (async () => {
+      try {
+        if (sessionId) {
+          const res = await api.post<{ activated: boolean; tier?: string }>(
+            "/v1/billing/confirm",
+            { sessionId },
+          );
+          toast.success(
+            res?.activated
+              ? "Payment confirmed — your plan is now active."
+              : "Payment received — activating your plan…",
+            res?.activated
+              ? undefined
+              : { description: "This can take a few seconds to reflect." },
+          );
+        } else {
+          toast.success("Payment received — activating your plan…");
+        }
+      } catch {
+        // Best-effort: the webhook remains the backstop. Never alarm the buyer.
+      } finally {
+        void queryClient.invalidateQueries({ queryKey: ["/v1/dashboard/org"] });
+        stripParams();
+      }
+    })();
+  }, [queryClient]);
 
   const cronToolbar = (
     <CronToolbar
