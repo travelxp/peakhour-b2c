@@ -198,15 +198,19 @@ function ChannelRow({ channel, integration, connectionStateUnknown }: ChannelRow
   const actionDisabled =
     channel.status === "coming_soon" || connectionStateUnknown === true;
 
-  // A `live` channel with no dashboardPath is a catalog/config gap (the exact
-  // linkedin_ads failure) — make it loud in dev. Deliberately NOT gated on
-  // connectedness: the gap exists whether or not this org has connected yet.
+  // A connectable channel with no dashboardPath, that isn't one of the
+  // known integrations-managed providers, is a catalog/config gap — the exact
+  // linkedin_ads failure. Loud in dev, because the user-facing fallback
+  // ("Manage connection" → the integrations grid) is deliberately plausible and
+  // would otherwise hide a recurrence. Not gated on connectedness: the gap
+  // exists whether or not this org has connected yet.
   useEffect(() => {
     if (configGap && process.env.NODE_ENV !== "production") {
       console.error(
-        `[content-hub] "${channel.providerKey}" is live but has no dashboardPath ` +
-          `(catalog display.dashboardPath or channels.config.ts) — Manage falls back ` +
-          `to /dashboard/integrations.`,
+        `[content-hub] "${channel.providerKey}" is connectable but has no dashboardPath ` +
+          `(catalog display.dashboardPath or channels.config.ts) — its Manage falls back ` +
+          `to /dashboard/integrations. Add a path, or add the provider to ` +
+          `INTEGRATIONS_MANAGED_PROVIDERS if that grid really is its manage surface.`,
       );
     }
   }, [configGap, channel.providerKey]);

@@ -12,11 +12,14 @@
  * otherwise the selector would offer a tab that renders nothing.
  */
 
-export type AdsChannelKey = "linkedin" | "x";
-
-export interface AdsChannelDef {
+/**
+ * Shape each registry entry must satisfy. The exported `AdsChannelDef` and
+ * `AdsChannelKey` are DERIVED from the array below, so the key union can never
+ * drift from the registry and no lookup needs an unchecked cast.
+ */
+interface AdsChannelShape {
   /** URL value for `?channel=` — stable, user-visible. */
-  key: AdsChannelKey;
+  key: string;
   /** Tab label. */
   label: string;
   /** `int_connections.provider` / `cfg_integrations.key` for this channel. */
@@ -36,12 +39,13 @@ export interface AdsChannelDef {
   /**
    * Search params this channel's panel owns. Switching away drops them —
    * they're meaningless to another channel and would leak across tabs.
+   * Required (use []) so the hub can read it off any entry without narrowing.
    */
-  ownedParams?: readonly string[];
+  ownedParams: readonly string[];
 }
 
 /** Selector order. First entry is the fallback when nothing is connected. */
-export const ADS_CHANNELS: readonly AdsChannelDef[] = [
+export const ADS_CHANNELS = [
   {
     key: "linkedin",
     label: "LinkedIn Ads",
@@ -50,6 +54,7 @@ export const ADS_CHANNELS: readonly AdsChannelDef[] = [
       "Boost your proven LinkedIn posts into campaigns — created as non-spending drafts you activate when ready.",
     crons: ["performance-sync", "growth-optimizer"],
     invalidateQueryKeys: [["linkedin-managed-campaigns"], ["content-hub-integrations"]],
+    ownedParams: [],
   },
   {
     key: "x",
@@ -60,7 +65,15 @@ export const ADS_CHANNELS: readonly AdsChannelDef[] = [
     invalidateQueryKeys: [["x-ads-analytics"], ["x-ads-campaigns"]],
     ownedParams: ["account"],
   },
-];
+] as const satisfies readonly AdsChannelShape[];
+
+export type AdsChannelDef = (typeof ADS_CHANNELS)[number];
+/** Exactly the keys present in ADS_CHANNELS — derived, never hand-maintained. */
+export type AdsChannelKey = AdsChannelDef["key"];
+
+const BY_KEY: ReadonlyMap<string, AdsChannelDef> = new Map(
+  ADS_CHANNELS.map((c) => [c.key, c] as const),
+);
 
 /** Search-param name carrying the selected channel. */
 export const ADS_CHANNEL_PARAM = "channel";
@@ -70,9 +83,37 @@ export function isAdsChannelKey(value: string | null | undefined): value is AdsC
 }
 
 export function getAdsChannel(key: AdsChannelKey): AdsChannelDef {
-  // Non-null: `key` is only ever an AdsChannelKey, which by construction
-  // indexes into ADS_CHANNELS.
-  return ADS_CHANNELS.find((c) => c.key === key) as AdsChannelDef;
+  const channel = BY_KEY.get(key);
+  // Unreachable while `key` is an AdsChannelKey (derived from this very
+  // registry) — thrown rather than cast away so a future refactor that breaks
+  // the invariant fails loudly instead of returning undefined.
+  if (!channel) throw new Error(`Unknown ads channel: ${key}`);
+  return channel;
+}
+
+/**
+ * The search string for switching to `next`, given the current params.
+ *
+ * Extracted from the hub so the param-dropping rule is unit-testable: it used
+ * to live inline in the page component, where deleting it would not have failed
+ * a single test.
+ */
+export function nextAdsHubSearch(
+  current: URLSearchParams | ReadonlyURLSearchParamsLike,
+  next: AdsChannelKey,
+): string {
+  const search = new URLSearchParams(current.toString());
+  search.set(ADS_CHANNEL_PARAM, next);
+  for (const c of ADS_CHANNELS) {
+    if (c.key === next) continue;
+    for (const owned of c.ownedParams) search.delete(owned);
+  }
+  return search.toString();
+}
+
+/** Structural type for Next's ReadonlyURLSearchParams (avoids a next/navigation import here). */
+interface ReadonlyURLSearchParamsLike {
+  toString(): string;
 }
 
 /**
@@ -85,9 +126,12 @@ export function getAdsChannel(key: AdsChannelKey): AdsChannelDef {
  *     with only X Ads doesn't open onto an empty LinkedIn tab.
  *  3. Otherwise the first registered channel.
  *
- * `connectedProviderKeys` should include channels needing re-auth — the
- * connection exists, it just needs refreshing, and both panels render a
- * reconnect banner over the live data rather than the connect empty state.
+ * `connectedProviderKeys` should include channels needing re-auth: the
+ * connection exists, so the panel belongs on screen with a reconnect banner
+ * rather than the "Connect" empty state. What sits UNDER that banner differs by
+ * channel — LinkedIn Ads lists from local rows and keeps working, while every X
+ * Ads list is fetched live through a connection the api requires to be active,
+ * so it shows a reconnect prompt. Each panel owns that copy.
  */
 export function resolveAdsChannel(
   param: string | null | undefined,

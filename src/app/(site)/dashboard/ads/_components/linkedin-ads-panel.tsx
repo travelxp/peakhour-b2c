@@ -82,6 +82,8 @@ function formatMoney(value: number | undefined, currency?: string): string {
   return currency ? `${currency} ${rounded}` : String(rounded);
 }
 
+// channelKey is part of the shared panel signature (see PANELS in the hub);
+// this panel owns no search params, so it doesn't need it.
 export function LinkedInAdsPanel() {
   const integrations = useQuery({
     queryKey: ["content-hub-integrations"],

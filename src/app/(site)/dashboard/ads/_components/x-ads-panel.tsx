@@ -39,14 +39,14 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/molecules/empty-state";
-import { Megaphone, Plus } from "lucide-react";
+import { Megaphone, Plus, RefreshCw } from "lucide-react";
 import {
   xAdsApi,
   dollarsToMicros,
   microsToDollars,
   type XCampaign,
 } from "@/lib/api/x-ads";
-import { ADS_CHANNEL_PARAM } from "../ads-channels";
+import { ADS_CHANNEL_PARAM, type AdsChannelKey } from "../ads-channels";
 
 /**
  * X Ads panel, rendered inside the shared Ads hub
@@ -66,7 +66,7 @@ interface ApiIntegration {
 const ACCOUNT_PARAM = "account";
 const ANALYTICS_RANGE_DAYS = 30;
 
-export function XAdsPanel() {
+export function XAdsPanel({ channelKey }: { channelKey: AdsChannelKey }) {
   const integrations = useQuery({
     queryKey: ["content-hub-integrations"],
     queryFn: () =>
@@ -78,9 +78,13 @@ export function XAdsPanel() {
     () => integrations.data?.integrations?.find((i) => i.provider === "x_ads"),
     [integrations.data]
   );
-  // A stale connection still reads and lists — same rule as the LinkedIn Ads
-  // panel, and what the hub's channel picker assumes when it counts
-  // needs_reauth as connected.
+  // A stale connection is still a connection — show the panel with a reconnect
+  // banner, not the "Connect X Ads" empty state, matching what the hub's
+  // channel picker assumes when it counts needs_reauth as connected. NOTE the
+  // asymmetry with LinkedIn Ads: its campaign list is a local DB read, so it
+  // keeps working while stale, whereas every X list is fetched live through a
+  // connection the api requires to be "active" — hence the different banner
+  // copy and the accounts error branch below.
   const needsReauth = xAdsConnection?.status === "needs_reauth";
   const isConnected = xAdsConnection?.connected === true || needsReauth;
 
@@ -122,8 +126,9 @@ export function XAdsPanel() {
           <CardContent className="flex items-center justify-between gap-4 p-4 text-sm">
             <span>
               Your X Ads connection is <span className="font-medium">stale</span>.
-              Reconnect to create campaigns or change their status — the list
-              below still works.
+              Reconnect to load your ad accounts and campaigns — unlike LinkedIn
+              Ads, X campaigns are read live from X, so nothing lists until the
+              connection is refreshed.
             </span>
             <Link
               href="/dashboard/integrations"
@@ -134,12 +139,12 @@ export function XAdsPanel() {
           </CardContent>
         </Card>
       ) : null}
-      <ConnectedView />
+      <ConnectedView channelKey={channelKey} />
     </PanelShell>
   );
 }
 
-function ConnectedView() {
+function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
@@ -152,12 +157,16 @@ function ConnectedView() {
   });
 
   // Build every URL from useSearchParams, never window.location: the hub
-  // writes the same URL (the `channel` param), and router.replace commits in a
-  // transition, so a window.location read can still hold the superseded URL —
-  // this effect would then clobber a channel switch the user just made and
-  // silently bounce them back to X. The isActiveChannel guard is belt-and-
-  // braces: an in-flight accounts query must not write while X isn't showing.
-  const isActiveChannel = params.get(ADS_CHANNEL_PARAM) === "x";
+  // writes the same URL (the `channel` param), and router navigation commits in
+  // a transition, so a window.location read can still hold the superseded URL —
+  // this effect would then clobber a channel switch the user just made.
+  //
+  // isActiveChannel covers the OTHER window: on a cold load the hub is still
+  // pinning `?channel=` while this panel is already mounted, and writing
+  // `account` from those param-less searchParams would drop the channel the pin
+  // is about to add. (A switch AWAY from X is handled by the hub unmounting this
+  // panel synchronously via its pendingChannel state, not by this guard.)
+  const isActiveChannel = params.get(ADS_CHANNEL_PARAM) === channelKey;
   const setAccountParam = useCallback(
     (next: string) => {
       const search = new URLSearchParams(params.toString());
@@ -203,8 +212,10 @@ function ConnectedView() {
       return xAdsApi.analytics({
         accountId: accountId!,
         campaignIds: ids,
-        startDate: start.toISOString(),
-        endDate: end.toISOString(),
+        // Date-only: the api validates ^\d{4}-\d{2}-\d{2}$, so a full ISO
+        // timestamp 400s and every KPI silently renders "—".
+        startDate: start.toISOString().slice(0, 10),
+        endDate: end.toISOString().slice(0, 10),
       });
     },
     enabled: !!accountId && (campaigns.data?.length ?? 0) > 0,
@@ -253,6 +264,21 @@ function ConnectedView() {
 
   if (accounts.isLoading) {
     return <SkeletonStack />;
+  }
+
+  // A failed fetch is NOT "no ad accounts". /ad-accounts requires a connection
+  // with status "active", so a stale (needs_reauth) connection 404s here — and
+  // any upstream X error 400s — both of which used to render as "your X account
+  // doesn't have any ad accounts", sending the user to ads.x.com for nothing.
+  if (accounts.isError) {
+    return (
+      <EmptyState
+        icon={RefreshCw}
+        title="Couldn't load your ad accounts"
+        description="X didn't return your ad accounts. If your X Ads connection is stale, reconnect it — otherwise try again in a moment."
+        action={{ label: "Check connection", href: "/dashboard/integrations" }}
+      />
+    );
   }
 
   if ((accounts.data ?? []).length === 0) {

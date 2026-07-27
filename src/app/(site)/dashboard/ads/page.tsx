@@ -7,13 +7,14 @@
  * `ads-channels.ts`; the Content hub's "Manage" deep-links here with the
  * channel pre-selected.
  *
- * The hub owns the header, the selector, and the CronToolbar. Each panel
- * owns its own connection gate and empty states, because "connected" means
- * something different per channel (LinkedIn Ads stays usable while
- * needs_reauth; X Ads additionally needs an ad account).
+ * The hub owns the header, the selector, and the CronToolbar. Each panel owns
+ * its own connection gate and empty states, because "connected" means something
+ * different per channel: LinkedIn Ads lists local campaign rows and stays
+ * usable while needs_reauth, whereas X Ads reads everything live from X and
+ * additionally needs an ad account, so a stale connection lists nothing.
  */
 
-import { Suspense, useCallback, useEffect, useMemo } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -28,6 +29,7 @@ import {
   ADS_CHANNEL_PARAM,
   getAdsChannel,
   isAdsChannelKey,
+  nextAdsHubSearch,
   resolveAdsChannel,
   type AdsChannelKey,
 } from "./ads-channels";
@@ -40,12 +42,27 @@ interface ApiIntegration {
 
 /**
  * Panel per channel. Typed as a total Record so adding a key to
- * ADS_CHANNELS without a panel is a compile error, not a blank tab.
+ * ADS_CHANNELS without a panel is a compile error, not a blank tab. Each
+ * panel receives its own key rather than hardcoding it, so renaming a
+ * channel can't silently break a panel's "am I the visible one?" check.
  */
-const PANELS: Record<AdsChannelKey, () => React.JSX.Element> = {
+const PANELS: Record<
+  AdsChannelKey,
+  (props: { channelKey: AdsChannelKey }) => React.JSX.Element
+> = {
   linkedin: LinkedInAdsPanel,
   x: XAdsPanel,
 };
+
+/** Every channel's crons — used while the resolved channel isn't known yet. */
+const ALL_CRONS: readonly string[] = Array.from(
+  new Set(ADS_CHANNELS.flatMap((c) => [...c.crons])),
+);
+
+/** Union of every channel's invalidation keys, for the same unresolved state. */
+const ALL_INVALIDATE_KEYS: readonly (readonly string[])[] = ADS_CHANNELS.flatMap((c) =>
+  c.invalidateQueryKeys.map((k) => [...k]),
+);
 
 export default function AdsHubPage() {
   // useSearchParams needs a Suspense boundary or the route bails out of
@@ -94,54 +111,88 @@ function AdsHub() {
 
   const paramChannel = params.get(ADS_CHANNEL_PARAM);
   const hasExplicitChannel = isAdsChannelKey(paramChannel);
+
+  // The channel the user just clicked, held until the URL catches up.
+  // router.push/replace commit in a transition, during which useSearchParams
+  // still returns the OLD params — so without this the outgoing panel stays
+  // mounted for a beat and can write its own params back over the switch.
+  const [pendingChannel, setPendingChannel] = useState<AdsChannelKey | null>(null);
+  // Drop it the moment the URL agrees. Adjusted DURING RENDER, which is React's
+  // documented pattern for state derived from changing inputs — a setState in an
+  // effect body would cascade an extra render (and the compiler lint rejects it).
+  // Equality is the only clearing rule needed: by the time a user can hit Back,
+  // the navigation has long since committed and cleared this.
+  if (pendingChannel !== null && paramChannel === pendingChannel) {
+    setPendingChannel(null);
+  }
+
   // Without a valid `?channel=` the default depends on what's connected, so
   // hold the panel until connections resolve — picking early would render
   // LinkedIn for a second and then swap to X under the user. All precedence
   // lives in resolveAdsChannel; don't re-implement rule 1 here.
   const selected: AdsChannelKey | null =
-    !hasExplicitChannel && integrations.isPending
+    pendingChannel ??
+    (!hasExplicitChannel && integrations.isPending
       ? null
-      : resolveAdsChannel(paramChannel, connectedProviderKeys);
+      : resolveAdsChannel(paramChannel, connectedProviderKeys));
   const channel = selected ? getAdsChannel(selected) : null;
 
-  const changeChannel = useCallback(
-    (next: string) => {
-      if (!isAdsChannelKey(next)) return;
-      const search = new URLSearchParams(params.toString());
-      search.set(ADS_CHANNEL_PARAM, next);
-      // Params owned by the channel we're leaving (X's ad-account id) mean
-      // nothing to the next one — drop them, registry-driven so a new channel
-      // doesn't need an edit here.
-      for (const c of ADS_CHANNELS) {
-        if (c.key === next) continue;
-        for (const owned of c.ownedParams ?? []) search.delete(owned);
-      }
-      router.replace(`${pathname}?${search.toString()}`, { scroll: false });
+  const navigate = useCallback(
+    (next: AdsChannelKey, mode: "push" | "replace") => {
+      const url = `${pathname}?${nextAdsHubSearch(params, next)}`;
+      // A user gesture is history-worthy — Back returns to the previous tab.
+      // Normalising the URL ourselves is not.
+      if (mode === "push") router.push(url, { scroll: false });
+      else router.replace(url, { scroll: false });
     },
     [params, pathname, router],
   );
 
-  // Pin the resolved channel into the URL once. Three things this buys:
-  // the panel can't silently switch under the user when a focus-refetch
-  // changes connection state, an invalid `?channel=meta` gets normalised away
-  // instead of lingering, and the tab highlight stops depending on a pending
-  // router transition.
+  // User gesture: record the optimistic pick, then navigate.
+  const changeChannel = useCallback(
+    (next: string) => {
+      if (!isAdsChannelKey(next)) return;
+      setPendingChannel(next);
+      navigate(next, "push");
+    },
+    [navigate, setPendingChannel],
+  );
+
+  // Pin the resolved channel into the URL once connections are KNOWN. Buys
+  // three things: the panel can't silently switch under the user when a
+  // focus-refetch changes connection state, an invalid `?channel=meta` gets
+  // normalised away instead of lingering, and the tab highlight stops depending
+  // on a pending router transition.
+  //
+  // Gated on connectionStateKnown, not merely !isPending: isPending is false on
+  // ERROR too, and pinning the fallback channel then would make one transient
+  // 500 permanent — an X-only org would sit on the LinkedIn tab even after a
+  // successful retry, because the URL had become explicit.
+  // Navigates only — no setState, so this stays a pure "sync React state OUT to
+  // an external system" effect. There's no optimistic pick to record either: the
+  // pin makes the URL explicit for the channel already on screen.
   useEffect(() => {
-    if (!hasExplicitChannel && selected) changeChannel(selected);
-  }, [hasExplicitChannel, selected, changeChannel]);
+    if (!hasExplicitChannel && selected && connectionStateKnown) {
+      navigate(selected, "replace");
+    }
+  }, [hasExplicitChannel, selected, connectionStateKnown, navigate]);
 
   return (
     <div className="space-y-6">
-      {channel && channel.crons.length > 0 && (
-        <CronToolbar
-          crons={channel.crons}
-          onTriggered={() => {
-            for (const key of channel.invalidateQueryKeys) {
-              queryClient.invalidateQueries({ queryKey: [...key] });
-            }
-          }}
-        />
-      )}
+      {/* CronToolbar is mandatory on a cron-backed page (see cron-toolbar.tsx),
+          so it renders before a channel resolves too — with every channel's
+          crons rather than none. */}
+      <CronToolbar
+        crons={channel ? channel.crons : ALL_CRONS}
+        onTriggered={() => {
+          const keys: readonly (readonly string[])[] = channel
+            ? channel.invalidateQueryKeys
+            : ALL_INVALIDATE_KEYS;
+          for (const key of keys) {
+            queryClient.invalidateQueries({ queryKey: [...key] });
+          }
+        }}
+      />
 
       <HubHeader description={channel?.description} />
 
@@ -151,7 +202,15 @@ function AdsHub() {
       {selected === null ? (
         <HubSkeleton />
       ) : (
-        <Tabs value={selected} onValueChange={changeChannel}>
+        <Tabs
+          value={selected}
+          onValueChange={changeChannel}
+          // Manual activation: with the default "automatic", arrowing across
+          // the tab list selects on every focus move, and each selection is a
+          // router.replace — arrow-key users would fire a navigation per
+          // keypress. Now focus moves freely and Enter/Space commits.
+          activationMode="manual"
+        >
           <TabsList>
             {ADS_CHANNELS.map((c) => (
               <TabsTrigger key={c.key} value={c.key} className="gap-2">
@@ -174,7 +233,7 @@ function AdsHub() {
             const Panel = PANELS[c.key];
             return (
               <TabsContent key={c.key} value={c.key} className="mt-6">
-                <Panel />
+                <Panel channelKey={c.key} />
               </TabsContent>
             );
           })}

@@ -38,6 +38,22 @@ import { CHANNELS, type ChannelConfig } from "./channels.config";
  * `ChannelLifecycle` would have to carry a distinct "locked" state.
  */
 
+/**
+ * Providers whose management surface legitimately IS /dashboard/integrations —
+ * they have no screen of their own, by design:
+ *  - the Meta capability rows expanded by flattenMetaIntegration, whose
+ *    toggles / resources / Disconnect all live on the integrations card, and
+ *  - wordpress, managed from the plugin side plus that same card.
+ * Anything ELSE that ends up connected without a dashboardPath is a config gap
+ * (see `configGap`), not a designed state.
+ */
+export const INTEGRATIONS_MANAGED_PROVIDERS: ReadonlySet<string> = new Set([
+  "facebook_pages",
+  "instagram",
+  "meta_ads",
+  "wordpress",
+]);
+
 /** Fallback dashboard deep-links by providerKey, from the static config. */
 export const STATIC_DASHBOARD_PATHS: ReadonlyMap<string, string> = new Map(
   CHANNELS.filter((c) => c.dashboardPath).map(
@@ -55,11 +71,15 @@ export interface ChannelCta {
    */
   manageViaIntegrations: boolean;
   /**
-   * A genuine config gap: a `live` channel with no dashboardPath in either
-   * source. channels.config.ts asserts `live ⇒ dashboardPath` in dev, and
-   * `toLifecycle` only reports "live" for catalog rows that HAVE a path, so
-   * this should be unreachable — it exists to make the linkedin_ads failure
-   * mode loud in dev instead of silent. NOT a user-facing state.
+   * A genuine config gap: a channel the org can act on, with no dashboardPath
+   * in either source, that isn't one of the INTEGRATIONS_MANAGED_PROVIDERS.
+   *
+   * This is deliberately NOT keyed on `status === "live"`: `toLifecycle` reports
+   * "live" only for catalog rows that already HAVE a path, so a live-and-
+   * pathless row cannot reach here — a guard written that way would never have
+   * caught linkedin_ads, whose row surfaced as "available". Dev-only signal;
+   * `manageViaIntegrations` still gives the user a working destination either
+   * way, which is exactly why the gap needs its own loud channel.
    */
   configGap: boolean;
 }
@@ -80,6 +100,9 @@ export function resolveChannelCta(
     isConnected,
     dashboardPath,
     manageViaIntegrations: isConnected && !dashboardPath,
-    configGap: channel.status === "live" && !dashboardPath,
+    configGap:
+      !dashboardPath &&
+      channel.status !== "coming_soon" &&
+      !INTEGRATIONS_MANAGED_PROVIDERS.has(channel.providerKey),
   };
 }

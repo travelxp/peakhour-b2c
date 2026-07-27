@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { resolveChannelCta, STATIC_DASHBOARD_PATHS } from "./channel-cta";
+import {
+  INTEGRATIONS_MANAGED_PROVIDERS,
+  resolveChannelCta,
+  STATIC_DASHBOARD_PATHS,
+} from "./channel-cta";
 import type { ChannelConfig } from "./channels.config";
 
 const STATIC = new Map<string, string>([
@@ -47,7 +51,7 @@ describe("resolveChannelCta", () => {
     expect(r.isConnected).toBe(true);
     expect(r.dashboardPath).toBeUndefined();
     expect(r.manageViaIntegrations).toBe(true);
-    // "available" without a path is not a gap, so nothing is logged in dev.
+    // meta_ads is integrations-managed BY DESIGN, so no dev warning.
     expect(r.configGap).toBe(false);
   });
 
@@ -69,22 +73,55 @@ describe("resolveChannelCta", () => {
     ).toBe(false);
   });
 
-  it("configGap flags a `live` channel with no path anywhere — the linkedin_ads failure", () => {
-    // Regardless of connectedness: the gap is in the config, not the org.
+  it("configGap flags the REACHABLE linkedin_ads shape: available + no path + not integrations-managed", () => {
+    // The shape that actually shipped broken. `toLifecycle` maps a pathless
+    // catalog row to "available", never "live", so a `live`-keyed guard would
+    // have missed this — that's why the predicate is status !== coming_soon.
     for (const connected of [true, false]) {
       expect(
         resolveChannelCta(
-          chan({ status: "live", dashboardPath: undefined, providerKey: "unknown_provider" }),
+          chan({ status: "available", dashboardPath: undefined, providerKey: "linkedin_ads" }),
           { connected },
           STATIC,
         ).configGap,
       ).toBe(true);
     }
-    // A path from either source clears it.
+  });
+
+  it("configGap stays quiet for genuinely integrations-managed providers", () => {
+    // These have no screen by design — flagging them would be 4 false
+    // positives per mount and would train people to ignore the warning.
+    for (const providerKey of INTEGRATIONS_MANAGED_PROVIDERS) {
+      expect(
+        resolveChannelCta(
+          chan({ status: "available", dashboardPath: undefined, providerKey }),
+          { connected: true },
+          STATIC,
+        ).configGap,
+      ).toBe(false);
+    }
+  });
+
+  it("configGap is cleared by a path from either source, and never fires for coming_soon", () => {
     expect(
       resolveChannelCta(
-        chan({ status: "live", dashboardPath: undefined, providerKey: "linkedin_content" }),
+        chan({ status: "available", dashboardPath: undefined, providerKey: "linkedin_content" }),
         { connected: true },
+        STATIC,
+      ).configGap,
+    ).toBe(false);
+    expect(
+      resolveChannelCta(
+        chan({ status: "live", dashboardPath: "/dashboard/ads?channel=x", providerKey: "x_ads" }),
+        { connected: true },
+        STATIC,
+      ).configGap,
+    ).toBe(false);
+    // Not launched yet → nothing to route to, nothing to warn about.
+    expect(
+      resolveChannelCta(
+        chan({ status: "coming_soon", dashboardPath: undefined, providerKey: "google_ads" }),
+        undefined,
         STATIC,
       ).configGap,
     ).toBe(false);
