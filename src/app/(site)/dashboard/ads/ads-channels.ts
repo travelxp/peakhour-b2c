@@ -1,0 +1,93 @@
+/**
+ * Ads hub channel registry — /dashboard/ads is the ONE ads surface for every
+ * ad channel, with a channel selector instead of a page per platform.
+ *
+ * Adding a channel means: one entry here + one panel component under
+ * `_components/`, and pointing that channel's `cfg_integrations` /
+ * channels.config `dashboardPath` at `/dashboard/ads?channel=<key>`. No new
+ * route, no new nav item.
+ *
+ * Only channels that HAVE a panel belong here. A connector that is merely
+ * catalogued (meta_ads, google_ads) stays out until its panel exists —
+ * otherwise the selector would offer a tab that renders nothing.
+ */
+
+export type AdsChannelKey = "linkedin" | "x";
+
+export interface AdsChannelDef {
+  /** URL value for `?channel=` — stable, user-visible. */
+  key: AdsChannelKey;
+  /** Tab label. */
+  label: string;
+  /** `int_connections.provider` / `cfg_integrations.key` for this channel. */
+  providerKey: string;
+  /** Sub-header copy shown while this channel is selected. */
+  description: string;
+  /**
+   * Crons this channel's data depends on — rendered by <CronToolbar/> in
+   * non-prod so the panel can be exercised without waiting for Vercel Cron.
+   */
+  crons: readonly string[];
+  /**
+   * react-query key prefixes to invalidate after a cron fires, so the panel
+   * reflects what the trigger just wrote.
+   */
+  invalidateQueryKeys: readonly (readonly string[])[];
+}
+
+/** Selector order. First entry is the fallback when nothing is connected. */
+export const ADS_CHANNELS: readonly AdsChannelDef[] = [
+  {
+    key: "linkedin",
+    label: "LinkedIn Ads",
+    providerKey: "linkedin_ads",
+    description:
+      "Boost your proven LinkedIn posts into campaigns — created as non-spending drafts you activate when ready.",
+    crons: ["performance-sync", "growth-optimizer"],
+    invalidateQueryKeys: [["linkedin-managed-campaigns"], ["content-hub-integrations"]],
+  },
+  {
+    key: "x",
+    label: "X Ads",
+    providerKey: "x_ads",
+    description: "Launch and manage promoted-tweet campaigns on X.",
+    crons: ["x-ads-metrics-sync"],
+    invalidateQueryKeys: [["x-ads-analytics"], ["x-ads-campaigns"]],
+  },
+];
+
+/** Search-param name carrying the selected channel. */
+export const ADS_CHANNEL_PARAM = "channel";
+
+export function isAdsChannelKey(value: string | null | undefined): value is AdsChannelKey {
+  return ADS_CHANNELS.some((c) => c.key === value);
+}
+
+export function getAdsChannel(key: AdsChannelKey): AdsChannelDef {
+  // Non-null: `key` is only ever an AdsChannelKey, which by construction
+  // indexes into ADS_CHANNELS.
+  return ADS_CHANNELS.find((c) => c.key === key) as AdsChannelDef;
+}
+
+/**
+ * Which channel to show.
+ *
+ *  1. An explicit, valid `?channel=` always wins — a deep-link from the
+ *     Content hub's Manage button must land on the channel it names even when
+ *     that channel isn't connected yet (the panel then shows its connect CTA).
+ *  2. Otherwise the first CONNECTED channel in registry order, so a customer
+ *     with only X Ads doesn't open onto an empty LinkedIn tab.
+ *  3. Otherwise the first registered channel.
+ *
+ * `connectedProviderKeys` should include channels needing re-auth — the
+ * connection exists, it just needs refreshing, and the panels render a
+ * reconnect banner rather than the connect empty state.
+ */
+export function resolveAdsChannel(
+  param: string | null | undefined,
+  connectedProviderKeys: ReadonlySet<string>,
+): AdsChannelKey {
+  if (isAdsChannelKey(param)) return param;
+  const connected = ADS_CHANNELS.find((c) => connectedProviderKeys.has(c.providerKey));
+  return (connected ?? ADS_CHANNELS[0]).key;
+}

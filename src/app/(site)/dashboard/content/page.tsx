@@ -192,11 +192,27 @@ function ChannelRow({ channel, integration, connectionStateUnknown }: ChannelRow
   // the static dashboard path when the catalog row omits it — see
   // resolveChannelCta for the full rationale (this fixes a connected channel
   // rendering "Connect" when its catalog row lacks display.dashboardPath).
-  const { isConnected, dashboardPath } = resolveChannelCta(channel, integration);
+  const { isConnected, dashboardPath, manageUnavailable } = resolveChannelCta(
+    channel,
+    integration,
+  );
   const lastSyncedLabel = useLastSyncedLabel(integration?.lastSyncAt);
+  const actionDisabled =
+    channel.status === "coming_soon" || connectionStateUnknown === true || manageUnavailable;
+
+  // A connected channel with nowhere to manage it is a catalog/config gap, not
+  // a user error — surface it in dev instead of silently bouncing to the grid.
+  useEffect(() => {
+    if (manageUnavailable && process.env.NODE_ENV !== "production") {
+      console.error(
+        `[content-hub] "${channel.providerKey}" is connected but has no dashboardPath ` +
+          `(catalog display.dashboardPath or channels.config.ts) — Manage is disabled.`,
+      );
+    }
+  }, [manageUnavailable, channel.providerKey]);
 
   const handleAction = () => {
-    if (channel.status === "coming_soon" || connectionStateUnknown) return;
+    if (actionDisabled) return;
     // Channels that connect via their own in-app page (e.g. WhatsApp Embedded
     // Signup, status "available") route there for both connect and manage;
     // connected channels route to their dashboard. Everything else falls back
@@ -235,16 +251,23 @@ function ChannelRow({ channel, integration, connectionStateUnknown }: ChannelRow
               : "default"
         }
         size="sm"
-        disabled={channel.status === "coming_soon" || connectionStateUnknown}
+        disabled={actionDisabled}
         onClick={handleAction}
+        title={
+          manageUnavailable
+            ? "Connected — this channel has no management screen yet."
+            : undefined
+        }
       >
         {connectionStateUnknown
           ? "Status unavailable"
-          : isConnected
-            ? "Manage"
-            : channel.status === "coming_soon"
-              ? "Coming soon"
-              : "Connect"}
+          : manageUnavailable
+            ? "Connected"
+            : isConnected
+              ? "Manage"
+              : channel.status === "coming_soon"
+                ? "Coming soon"
+                : "Connect"}
       </Button>
     </div>
   );

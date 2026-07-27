@@ -40,6 +40,15 @@ export const STATIC_DASHBOARD_PATHS: ReadonlyMap<string, string> = new Map(
 export interface ChannelCta {
   isConnected: boolean;
   dashboardPath: string | undefined;
+  /**
+   * Connected, but neither the catalog nor the static config knows where to
+   * manage it. The row must NOT offer a live "Manage" in that state: routing
+   * such a click to /dashboard/integrations sends a user who is already
+   * connected straight back to the connect grid, which reads as a bug (it was
+   * one — linkedin_ads had no dashboardPath in either source). Render the row
+   * as connected-but-unmanageable instead of pretending there's a destination.
+   */
+  manageUnavailable: boolean;
 }
 
 export function resolveChannelCta(
@@ -51,5 +60,5 @@ export function resolveChannelCta(
     integration?.connected === true && channel.status !== "coming_soon";
   const dashboardPath =
     channel.dashboardPath ?? staticDashboardPaths.get(channel.providerKey);
-  return { isConnected, dashboardPath };
+  return { isConnected, dashboardPath, manageUnavailable: isConnected && !dashboardPath };
 }

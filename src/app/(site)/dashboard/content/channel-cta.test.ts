@@ -35,7 +35,7 @@ describe("resolveChannelCta", () => {
     expect(r.dashboardPath).toBe("/dashboard/content/linkedin");
   });
 
-  it("(c) connected + no path anywhere → Connected, dashboardPath undefined", () => {
+  it("(c) connected + no path anywhere → Connected, dashboardPath undefined, manage unavailable", () => {
     const r = resolveChannelCta(
       chan({ status: "available", dashboardPath: undefined, providerKey: "unknown_provider" }),
       { connected: true },
@@ -43,6 +43,27 @@ describe("resolveChannelCta", () => {
     );
     expect(r.isConnected).toBe(true);
     expect(r.dashboardPath).toBeUndefined();
+    // The row renders a disabled "Connected" instead of a Manage that bounces
+    // the user back to the connect grid.
+    expect(r.manageUnavailable).toBe(true);
+  });
+
+  it("manageUnavailable is false whenever a path exists, and for unconnected rows", () => {
+    expect(
+      resolveChannelCta(
+        chan({ status: "live", dashboardPath: "/dashboard/ads?channel=x", providerKey: "x_ads" }),
+        { connected: true },
+        STATIC,
+      ).manageUnavailable,
+    ).toBe(false);
+    // Not connected → nothing to manage yet; the row shows Connect.
+    expect(
+      resolveChannelCta(
+        chan({ status: "available", providerKey: "unknown_provider" }),
+        { connected: false },
+        STATIC,
+      ).manageUnavailable,
+    ).toBe(false);
   });
 
   it("(d) not-connected + live → not Connected", () => {
@@ -75,5 +96,13 @@ describe("resolveChannelCta", () => {
     expect(STATIC_DASHBOARD_PATHS.get("linkedin_content")).toBe(
       "/dashboard/content/linkedin",
     );
+  });
+
+  it("real STATIC_DASHBOARD_PATHS routes both ad channels into the Ads hub", () => {
+    // linkedin_ads had NO path in either source, so a connected org's Manage
+    // fell through to /dashboard/integrations. Both ad channels now deep-link
+    // into the one hub with the channel pre-selected.
+    expect(STATIC_DASHBOARD_PATHS.get("linkedin_ads")).toBe("/dashboard/ads?channel=linkedin");
+    expect(STATIC_DASHBOARD_PATHS.get("x_ads")).toBe("/dashboard/ads?channel=x");
   });
 });
