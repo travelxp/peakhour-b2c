@@ -61,16 +61,19 @@ export const xAdsApi = {
   createCampaign: (input: CreateCampaignInput) =>
     api.post<XCampaign>("/v1/x/ads/campaigns", input),
 
-  // Note: the backend resolves the ad account from the stored connection
-  // (single ad account per int_connection), so accountId isn't part of the
-  // request body. We still take it as a parameter so callers stay symmetric
-  // with the rest of this surface.
+  // accountId IS sent: an X user can have several ad accounts, and the api
+  // used to fall back to whichever one was stored at connect time — so pausing
+  // or activating a campaign could hit an account the operator wasn't looking
+  // at. The api validates it and still falls back when it's absent.
   setCampaignStatus: (
-    _accountId: string,
+    accountId: string,
     campaignId: string,
     status: "ACTIVE" | "PAUSED"
   ) =>
-    api.patch<unknown>(`/v1/x/ads/campaigns/${campaignId}/status`, { status }),
+    api.patch<unknown>(`/v1/x/ads/campaigns/${campaignId}/status`, {
+      accountId,
+      status,
+    }),
 
   analytics: (params: {
     accountId: string;
