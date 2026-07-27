@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { api } from "@/lib/api";
+import { resolveBrandLogo } from "@/lib/brand-logos";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -306,16 +307,22 @@ function ChannelLogo({ channel }: { channel: ChannelConfig }) {
   // Track CDN failures locally so a blocked / 404'd logo gracefully falls
   // back to the initial-circle without a broken-image icon.
   const [errored, setErrored] = useState(false);
-  if (channel.logoUrl && !errored) {
+  // Resolve again here (not just in channels-from-catalog) so the hardcoded
+  // channels.config fallback list — used when the catalog API is unreachable —
+  // gets the same self-hosted marks instead of first-letter squares.
+  const logoUrl = resolveBrandLogo(channel.providerKey, channel.logoUrl);
+  if (logoUrl && !errored) {
     return (
       <Image
-        src={channel.logoUrl}
+        src={logoUrl}
         alt=""
         aria-hidden
         width={40}
         height={40}
         className={cn(
-          "size-10 shrink-0 rounded",
+          // object-contain: not every official mark is square (the Woo swoosh
+          // is ~2:1) and a fixed 40×40 box would otherwise distort it.
+          "size-10 shrink-0 rounded object-contain",
           channel.logoInvertOnDark && "dark:invert",
         )}
         unoptimized

@@ -10,6 +10,8 @@ import {
   MailchimpIcon,
   ShopifyIcon,
   WordPressIcon,
+  WooCommerceIcon,
+  WhatsAppIcon,
   TwitterIcon,
 } from "@/components/ui/brand-icons";
 
@@ -39,6 +41,13 @@ const BRANDS: Record<string, Brand> = {
   mailchimp: { Icon: MailchimpIcon, color: "bg-[#FFE01B] text-black" },
   shopify: { Icon: ShopifyIcon, color: "bg-[#96BF48]" },
   wordpress: { Icon: WordPressIcon, color: "bg-[#21759B]" },
+  // The catalog ships WooCommerce under the `wordpress` connector (one plugin
+  // covers both), but a standalone row/groupKey also exists — map every spelling
+  // so neither ever falls through to the "W" initial.
+  woocommerce: { Icon: WooCommerceIcon, color: "bg-[#873EFF]" },
+  woo: { Icon: WooCommerceIcon, color: "bg-[#873EFF]" },
+  whatsapp: { Icon: WhatsAppIcon, color: "bg-[#25D366]" },
+  whatsapp_business: { Icon: WhatsAppIcon, color: "bg-[#25D366]" },
   x: { Icon: TwitterIcon, color: "bg-black" },
   x_ads: { Icon: TwitterIcon, color: "bg-black" },
 };

@@ -94,7 +94,10 @@ export type ChannelKey =
 export interface ChannelMeta {
   key: ChannelKey;
   name: string;
-  /** Two-letter tile mark. */
+  /**
+   * Two-letter tile mark. Fallback only — channels with a real brand mark
+   * render it instead (see components/marketing/pricing/channel-tile.tsx).
+   */
   tag: string;
   /** Brand color for the tile. */
   color: string;
@@ -136,7 +139,8 @@ export const CHANNELS: Record<ChannelKey, ChannelMeta> = {
     key: "woocommerce",
     name: "WooCommerce",
     tag: "Wo",
-    color: "#7F54B3",
+    // Woo's current brand purple — matches the supplied official mark.
+    color: "#873EFF",
     blurb: "Connect your WooCommerce catalog to the shop assistant.",
     billed: "Billed on peakhour.ai",
     pillars: ["commerce"],
