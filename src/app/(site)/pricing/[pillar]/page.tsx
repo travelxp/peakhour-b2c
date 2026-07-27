@@ -22,6 +22,7 @@ import { type PillarSlug } from "@/lib/pillars";
 import { pageMetadata } from "@/lib/seo";
 import { PlanComparison } from "@/components/marketing/pricing/plan-comparison";
 import { StatusChip } from "@/components/marketing/pricing/status-chip";
+import { ChannelTile } from "@/components/marketing/pricing/channel-tile";
 import { TeamsCtaBand } from "@/components/marketing/pricing/teams-cta";
 
 /** Pre-render the five known pillar slugs. */
@@ -219,13 +220,11 @@ export default async function PillarPricingPage({
                       className="group flex flex-col rounded-2xl border bg-background p-5 transition-all hover:-translate-y-1 hover:border-foreground hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
                     >
                       <div className="flex items-center gap-3">
-                        <span
-                          className="flex size-9 items-center justify-center rounded-lg text-xs font-bold text-white"
-                          style={{ backgroundColor: ch.color }}
-                          aria-hidden
-                        >
-                          {ch.tag}
-                        </span>
+                        <ChannelTile
+                          channel={key}
+                          className="size-9 rounded-lg text-xs"
+                          iconClassName="size-[18px]"
+                        />
                         <div>
                           <div className="font-bold">{ch.name}</div>
                           <div className="text-[11px] text-muted-foreground">

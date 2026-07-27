@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { CHANNELS, FEATURED_CHANNELS } from "@/lib/pricing-catalog";
+import { ChannelTile } from "@/components/marketing/pricing/channel-tile";
 
 /**
  * "Works where you already run" — the channel strip. Each card explains, in one
@@ -23,13 +24,7 @@ export function ChannelsStrip() {
               : {})}
             className="group flex flex-col rounded-2xl border bg-background p-5 transition-all hover:-translate-y-1 hover:border-foreground hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
           >
-            <span
-              className="flex size-10 items-center justify-center rounded-xl text-sm font-bold text-white"
-              style={{ backgroundColor: ch.color }}
-              aria-hidden
-            >
-              {ch.tag}
-            </span>
+            <ChannelTile channel={key} className="size-10 rounded-xl text-sm" />
             <h3 className="mt-3.5 font-bold">{ch.name}</h3>
             <p className="mt-1.5 flex-1 text-sm text-muted-foreground">{ch.blurb}</p>
             <span className="mt-4 inline-flex items-center gap-1.5 text-xs font-bold text-brand-strong">
