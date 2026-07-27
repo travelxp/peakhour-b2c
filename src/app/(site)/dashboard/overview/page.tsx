@@ -214,7 +214,7 @@ export default function OverviewPage() {
           icon={Megaphone}
           iconBg="bg-violet-500/10 text-violet-600 dark:text-violet-400"
           loading={isLoading}
-          href="/dashboard/ads"
+          href="/dashboard/ads?channel=linkedin"
         />
         <KpiCard
           label="Customers"

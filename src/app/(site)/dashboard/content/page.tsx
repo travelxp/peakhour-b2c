@@ -192,15 +192,38 @@ function ChannelRow({ channel, integration, connectionStateUnknown }: ChannelRow
   // the static dashboard path when the catalog row omits it — see
   // resolveChannelCta for the full rationale (this fixes a connected channel
   // rendering "Connect" when its catalog row lacks display.dashboardPath).
-  const { isConnected, dashboardPath } = resolveChannelCta(channel, integration);
+  const { isConnected, dashboardPath, manageViaIntegrations, configGap } =
+    resolveChannelCta(channel, integration);
   const lastSyncedLabel = useLastSyncedLabel(integration?.lastSyncAt);
+  const actionDisabled =
+    channel.status === "coming_soon" || connectionStateUnknown === true;
+
+  // A connectable channel with no dashboardPath, that isn't one of the
+  // known integrations-managed providers, is a catalog/config gap — the exact
+  // linkedin_ads failure. Loud in dev, because the user-facing fallback
+  // ("Manage connection" → the integrations grid) is deliberately plausible and
+  // would otherwise hide a recurrence. Not gated on connectedness: the gap
+  // exists whether or not this org has connected yet.
+  useEffect(() => {
+    if (configGap && process.env.NODE_ENV !== "production") {
+      console.error(
+        `[content-hub] "${channel.providerKey}" is connectable but has no dashboardPath ` +
+          `(catalog display.dashboardPath or channels.config.ts) — its Manage falls back ` +
+          `to /dashboard/integrations. Add a path, or add the provider to ` +
+          `INTEGRATIONS_MANAGED_PROVIDERS if that grid really is its manage surface.`,
+      );
+    }
+  }, [configGap, channel.providerKey]);
 
   const handleAction = () => {
-    if (channel.status === "coming_soon" || connectionStateUnknown) return;
+    if (actionDisabled) return;
     // Channels that connect via their own in-app page (e.g. WhatsApp Embedded
-    // Signup, status "available") route there for both connect and manage;
-    // connected channels route to their dashboard. Everything else falls back
-    // to the integrations OAuth grid.
+    // Signup — "available" comes from IN_APP_CONNECT_KEYS in
+    // channels-from-catalog.ts, not from channels.config.ts, where WhatsApp is
+    // "live") route there for both connect and manage; connected channels route
+    // to their dashboard. Everything else falls back to the integrations OAuth
+    // grid — which for the Meta capability rows and wordpress IS the manage
+    // surface, hence the "Manage connection" label below.
     if (dashboardPath && (isConnected || channel.status === "available")) {
       router.push(dashboardPath);
     } else {
@@ -224,6 +247,11 @@ function ChannelRow({ channel, integration, connectionStateUnknown }: ChannelRow
         {isConnected && !integration?.lastError && lastSyncedLabel && (
           <p className="text-xs text-muted-foreground">{lastSyncedLabel}</p>
         )}
+        {manageViaIntegrations && (
+          <p className="text-xs text-muted-foreground">
+            Managed from Integrations — this channel has no screen of its own.
+          </p>
+        )}
       </div>
 
       <Button
@@ -235,13 +263,17 @@ function ChannelRow({ channel, integration, connectionStateUnknown }: ChannelRow
               : "default"
         }
         size="sm"
-        disabled={channel.status === "coming_soon" || connectionStateUnknown}
+        disabled={actionDisabled}
         onClick={handleAction}
       >
         {connectionStateUnknown
           ? "Status unavailable"
           : isConnected
-            ? "Manage"
+            ? // Name the real destination rather than promising a channel
+              // screen that doesn't exist.
+              manageViaIntegrations
+              ? "Manage connection"
+              : "Manage"
             : channel.status === "coming_soon"
               ? "Coming soon"
               : "Connect"}

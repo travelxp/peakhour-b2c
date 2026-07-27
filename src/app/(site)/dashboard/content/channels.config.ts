@@ -197,13 +197,21 @@ export const CHANNELS: readonly ChannelConfig[] = [
     providerKey: "google_ads",
     status: "coming_soon",
   },
+  // Every ad channel manages inside the ONE Ads hub, selected by `?channel=`
+  // — see dashboard/ads/ads-channels.ts. No page-per-platform.
   {
     slug: "linkedin-ads",
     name: "LinkedIn Ads",
     description: "Launch B2B campaigns from your repurposed posts.",
     category: "Ads",
     providerKey: "linkedin_ads",
-    status: "coming_soon",
+    // LIVE: OAuth + provider are wired and the Ads hub manages the campaigns
+    // Boost-to-Campaign creates. Was stale `coming_soon`, which left the row
+    // without a dashboardPath — a connected org's "Manage" then fell through
+    // to the integrations grid instead of the Ads hub.
+    status: "live",
+    dashboardPath: "/dashboard/ads?channel=linkedin",
+    logoUrl: `${SHADCN_LOGOS}/linkedin-icon.svg`,
   },
   {
     slug: "x-ads",
@@ -212,7 +220,8 @@ export const CHANNELS: readonly ChannelConfig[] = [
     category: "Ads",
     providerKey: "x_ads",
     status: "live",
-    dashboardPath: "/dashboard/content/x-ads",
+    // Moved out of /dashboard/content/x-ads (that route now redirects here).
+    dashboardPath: "/dashboard/ads?channel=x",
     logoUrl: `${SHADCN_LOGOS}/x-icon.svg`,
     logoInvertOnDark: true,
   },

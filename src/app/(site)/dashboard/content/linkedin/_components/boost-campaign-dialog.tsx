@@ -106,7 +106,9 @@ export function BoostCampaignDialog({
         action: {
           label: "Open Ads Manager",
           onClick: () => {
-            window.location.href = "/dashboard/ads";
+            // Name the channel — the hub otherwise defaults to whichever ad
+            // channel is connected first, which may not be LinkedIn.
+            window.location.href = "/dashboard/ads?channel=linkedin";
           },
         },
       });
