@@ -192,31 +192,34 @@ function ChannelRow({ channel, integration, connectionStateUnknown }: ChannelRow
   // the static dashboard path when the catalog row omits it — see
   // resolveChannelCta for the full rationale (this fixes a connected channel
   // rendering "Connect" when its catalog row lacks display.dashboardPath).
-  const { isConnected, dashboardPath, manageUnavailable } = resolveChannelCta(
-    channel,
-    integration,
-  );
+  const { isConnected, dashboardPath, manageViaIntegrations, configGap } =
+    resolveChannelCta(channel, integration);
   const lastSyncedLabel = useLastSyncedLabel(integration?.lastSyncAt);
   const actionDisabled =
-    channel.status === "coming_soon" || connectionStateUnknown === true || manageUnavailable;
+    channel.status === "coming_soon" || connectionStateUnknown === true;
 
-  // A connected channel with nowhere to manage it is a catalog/config gap, not
-  // a user error — surface it in dev instead of silently bouncing to the grid.
+  // A `live` channel with no dashboardPath is a catalog/config gap (the exact
+  // linkedin_ads failure) — make it loud in dev. Deliberately NOT gated on
+  // connectedness: the gap exists whether or not this org has connected yet.
   useEffect(() => {
-    if (manageUnavailable && process.env.NODE_ENV !== "production") {
+    if (configGap && process.env.NODE_ENV !== "production") {
       console.error(
-        `[content-hub] "${channel.providerKey}" is connected but has no dashboardPath ` +
-          `(catalog display.dashboardPath or channels.config.ts) — Manage is disabled.`,
+        `[content-hub] "${channel.providerKey}" is live but has no dashboardPath ` +
+          `(catalog display.dashboardPath or channels.config.ts) — Manage falls back ` +
+          `to /dashboard/integrations.`,
       );
     }
-  }, [manageUnavailable, channel.providerKey]);
+  }, [configGap, channel.providerKey]);
 
   const handleAction = () => {
     if (actionDisabled) return;
     // Channels that connect via their own in-app page (e.g. WhatsApp Embedded
-    // Signup, status "available") route there for both connect and manage;
-    // connected channels route to their dashboard. Everything else falls back
-    // to the integrations OAuth grid.
+    // Signup — "available" comes from IN_APP_CONNECT_KEYS in
+    // channels-from-catalog.ts, not from channels.config.ts, where WhatsApp is
+    // "live") route there for both connect and manage; connected channels route
+    // to their dashboard. Everything else falls back to the integrations OAuth
+    // grid — which for the Meta capability rows and wordpress IS the manage
+    // surface, hence the "Manage connection" label below.
     if (dashboardPath && (isConnected || channel.status === "available")) {
       router.push(dashboardPath);
     } else {
@@ -240,6 +243,11 @@ function ChannelRow({ channel, integration, connectionStateUnknown }: ChannelRow
         {isConnected && !integration?.lastError && lastSyncedLabel && (
           <p className="text-xs text-muted-foreground">{lastSyncedLabel}</p>
         )}
+        {manageViaIntegrations && (
+          <p className="text-xs text-muted-foreground">
+            Managed from Integrations — this channel has no screen of its own.
+          </p>
+        )}
       </div>
 
       <Button
@@ -253,21 +261,18 @@ function ChannelRow({ channel, integration, connectionStateUnknown }: ChannelRow
         size="sm"
         disabled={actionDisabled}
         onClick={handleAction}
-        title={
-          manageUnavailable
-            ? "Connected — this channel has no management screen yet."
-            : undefined
-        }
       >
         {connectionStateUnknown
           ? "Status unavailable"
-          : manageUnavailable
-            ? "Connected"
-            : isConnected
-              ? "Manage"
-              : channel.status === "coming_soon"
-                ? "Coming soon"
-                : "Connect"}
+          : isConnected
+            ? // Name the real destination rather than promising a channel
+              // screen that doesn't exist.
+              manageViaIntegrations
+              ? "Manage connection"
+              : "Manage"
+            : channel.status === "coming_soon"
+              ? "Coming soon"
+              : "Connect"}
       </Button>
     </div>
   );

@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { ApiError } from "@/lib/api";
@@ -45,6 +46,7 @@ import {
   microsToDollars,
   type XCampaign,
 } from "@/lib/api/x-ads";
+import { ADS_CHANNEL_PARAM } from "../ads-channels";
 
 /**
  * X Ads panel, rendered inside the shared Ads hub
@@ -73,13 +75,31 @@ export function XAdsPanel() {
   });
 
   const xAdsConnection = useMemo(
-    () => integrations.data?.integrations.find((i) => i.provider === "x_ads"),
+    () => integrations.data?.integrations?.find((i) => i.provider === "x_ads"),
     [integrations.data]
   );
-  const isConnected = xAdsConnection?.connected === true;
+  // A stale connection still reads and lists — same rule as the LinkedIn Ads
+  // panel, and what the hub's channel picker assumes when it counts
+  // needs_reauth as connected.
+  const needsReauth = xAdsConnection?.status === "needs_reauth";
+  const isConnected = xAdsConnection?.connected === true || needsReauth;
 
   if (integrations.isLoading) {
     return <PanelShell loading />;
+  }
+
+  // isPending/isLoading are false on error in TanStack v5, so without this an
+  // API blip would tell an already-connected customer to "Connect X Ads".
+  if (integrations.isError) {
+    return (
+      <PanelShell>
+        <EmptyState
+          icon={Megaphone}
+          title="Couldn't check your connections"
+          description="We couldn't load your integration status just now. Refresh in a moment — your campaigns are unaffected."
+        />
+      </PanelShell>
+    );
   }
 
   if (!isConnected) {
@@ -97,6 +117,23 @@ export function XAdsPanel() {
 
   return (
     <PanelShell>
+      {needsReauth ? (
+        <Card className="border-amber-200 bg-amber-50/50 dark:border-amber-900 dark:bg-amber-950/30">
+          <CardContent className="flex items-center justify-between gap-4 p-4 text-sm">
+            <span>
+              Your X Ads connection is <span className="font-medium">stale</span>.
+              Reconnect to create campaigns or change their status — the list
+              below still works.
+            </span>
+            <Link
+              href="/dashboard/integrations"
+              className="font-medium text-amber-900 underline underline-offset-4 dark:text-amber-200"
+            >
+              Reconnect
+            </Link>
+          </CardContent>
+        </Card>
+      ) : null}
       <ConnectedView />
     </PanelShell>
   );
@@ -104,6 +141,7 @@ export function XAdsPanel() {
 
 function ConnectedView() {
   const router = useRouter();
+  const pathname = usePathname();
   const params = useSearchParams();
   const queryClient = useQueryClient();
   const queryAccountId = params.get(ACCOUNT_PARAM) ?? null;
@@ -113,25 +151,33 @@ function ConnectedView() {
     queryFn: () => xAdsApi.listAccounts(),
   });
 
+  // Build every URL from useSearchParams, never window.location: the hub
+  // writes the same URL (the `channel` param), and router.replace commits in a
+  // transition, so a window.location read can still hold the superseded URL —
+  // this effect would then clobber a channel switch the user just made and
+  // silently bounce them back to X. The isActiveChannel guard is belt-and-
+  // braces: an in-flight accounts query must not write while X isn't showing.
+  const isActiveChannel = params.get(ADS_CHANNEL_PARAM) === "x";
+  const setAccountParam = useCallback(
+    (next: string) => {
+      const search = new URLSearchParams(params.toString());
+      search.set(ACCOUNT_PARAM, next);
+      router.replace(`${pathname}?${search.toString()}`, { scroll: false });
+    },
+    [params, pathname, router],
+  );
+
   // Auto-select first account if none chosen and there's at least one.
   // Depend on the id (a primitive) rather than accounts.data (a fresh array
   // reference on every refetch) so the effect doesn't refire on every refetch.
   const firstAccountId = accounts.data?.[0]?.id;
   useEffect(() => {
-    if (!queryAccountId && firstAccountId) {
-      const url = new URL(window.location.href);
-      url.searchParams.set(ACCOUNT_PARAM, firstAccountId);
-      router.replace(url.pathname + url.search);
+    if (isActiveChannel && !queryAccountId && firstAccountId) {
+      setAccountParam(firstAccountId);
     }
-  }, [queryAccountId, firstAccountId, router]);
+  }, [isActiveChannel, queryAccountId, firstAccountId, setAccountParam]);
 
   const accountId = queryAccountId ?? firstAccountId ?? null;
-
-  function changeAccount(next: string) {
-    const url = new URL(window.location.href);
-    url.searchParams.set(ACCOUNT_PARAM, next);
-    router.replace(url.pathname + url.search);
-  }
 
   const campaigns = useQuery({
     queryKey: ["x-ads-campaigns", accountId],
@@ -227,7 +273,7 @@ function ConnectedView() {
           <Label className="text-xs uppercase tracking-wide text-muted-foreground">
             Ad account
           </Label>
-          <Select value={accountId ?? undefined} onValueChange={changeAccount}>
+          <Select value={accountId ?? undefined} onValueChange={setAccountParam}>
             <SelectTrigger className="w-72">
               <SelectValue placeholder="Choose an ad account" />
             </SelectTrigger>

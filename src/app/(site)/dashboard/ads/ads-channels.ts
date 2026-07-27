@@ -33,6 +33,11 @@ export interface AdsChannelDef {
    * reflects what the trigger just wrote.
    */
   invalidateQueryKeys: readonly (readonly string[])[];
+  /**
+   * Search params this channel's panel owns. Switching away drops them —
+   * they're meaningless to another channel and would leak across tabs.
+   */
+  ownedParams?: readonly string[];
 }
 
 /** Selector order. First entry is the fallback when nothing is connected. */
@@ -53,6 +58,7 @@ export const ADS_CHANNELS: readonly AdsChannelDef[] = [
     description: "Launch and manage promoted-tweet campaigns on X.",
     crons: ["x-ads-metrics-sync"],
     invalidateQueryKeys: [["x-ads-analytics"], ["x-ads-campaigns"]],
+    ownedParams: ["account"],
   },
 ];
 
@@ -80,8 +86,8 @@ export function getAdsChannel(key: AdsChannelKey): AdsChannelDef {
  *  3. Otherwise the first registered channel.
  *
  * `connectedProviderKeys` should include channels needing re-auth — the
- * connection exists, it just needs refreshing, and the panels render a
- * reconnect banner rather than the connect empty state.
+ * connection exists, it just needs refreshing, and both panels render a
+ * reconnect banner over the live data rather than the connect empty state.
  */
 export function resolveAdsChannel(
   param: string | null | undefined,

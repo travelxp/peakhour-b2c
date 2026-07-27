@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api, ApiError } from "@/lib/api";
@@ -90,7 +91,7 @@ export function LinkedInAdsPanel() {
   });
 
   const adsConnection = useMemo(
-    () => integrations.data?.integrations.find((i) => i.provider === "linkedin_ads"),
+    () => integrations.data?.integrations?.find((i) => i.provider === "linkedin_ads"),
     [integrations.data],
   );
   const isConnected =
@@ -130,12 +131,12 @@ export function LinkedInAdsPanel() {
                   boost posts, sync metrics, or change campaigns — the list
                   below still works.
                 </span>
-                <a
+                <Link
                   href="/dashboard/integrations"
                   className="font-medium text-amber-900 underline underline-offset-4 dark:text-amber-200"
                 >
                   Reconnect
-                </a>
+                </Link>
               </CardContent>
             </Card>
           ) : null}

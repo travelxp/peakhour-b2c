@@ -35,26 +35,29 @@ describe("resolveChannelCta", () => {
     expect(r.dashboardPath).toBe("/dashboard/content/linkedin");
   });
 
-  it("(c) connected + no path anywhere → Connected, dashboardPath undefined, manage unavailable", () => {
+  it("(c) connected + no path anywhere → Connected, managed via Integrations", () => {
+    // This is the NORMAL state for the Meta capability rows (facebook_pages,
+    // instagram, meta_ads) and wordpress: /dashboard/integrations IS where you
+    // manage them. The action must stay enabled — only the label changes.
     const r = resolveChannelCta(
-      chan({ status: "available", dashboardPath: undefined, providerKey: "unknown_provider" }),
+      chan({ status: "available", dashboardPath: undefined, providerKey: "meta_ads" }),
       { connected: true },
       STATIC,
     );
     expect(r.isConnected).toBe(true);
     expect(r.dashboardPath).toBeUndefined();
-    // The row renders a disabled "Connected" instead of a Manage that bounces
-    // the user back to the connect grid.
-    expect(r.manageUnavailable).toBe(true);
+    expect(r.manageViaIntegrations).toBe(true);
+    // "available" without a path is not a gap, so nothing is logged in dev.
+    expect(r.configGap).toBe(false);
   });
 
-  it("manageUnavailable is false whenever a path exists, and for unconnected rows", () => {
+  it("manageViaIntegrations is false whenever a path exists, and for unconnected rows", () => {
     expect(
       resolveChannelCta(
         chan({ status: "live", dashboardPath: "/dashboard/ads?channel=x", providerKey: "x_ads" }),
         { connected: true },
         STATIC,
-      ).manageUnavailable,
+      ).manageViaIntegrations,
     ).toBe(false);
     // Not connected → nothing to manage yet; the row shows Connect.
     expect(
@@ -62,8 +65,41 @@ describe("resolveChannelCta", () => {
         chan({ status: "available", providerKey: "unknown_provider" }),
         { connected: false },
         STATIC,
-      ).manageUnavailable,
+      ).manageViaIntegrations,
     ).toBe(false);
+  });
+
+  it("configGap flags a `live` channel with no path anywhere — the linkedin_ads failure", () => {
+    // Regardless of connectedness: the gap is in the config, not the org.
+    for (const connected of [true, false]) {
+      expect(
+        resolveChannelCta(
+          chan({ status: "live", dashboardPath: undefined, providerKey: "unknown_provider" }),
+          { connected },
+          STATIC,
+        ).configGap,
+      ).toBe(true);
+    }
+    // A path from either source clears it.
+    expect(
+      resolveChannelCta(
+        chan({ status: "live", dashboardPath: undefined, providerKey: "linkedin_content" }),
+        { connected: true },
+        STATIC,
+      ).configGap,
+    ).toBe(false);
+  });
+
+  it("an operator-blanked catalog path falls through to the static fallback", () => {
+    // display.dashboardPath is `z.string().optional()`, so "" is storable —
+    // `??` would treat it as set and strand the row.
+    const r = resolveChannelCta(
+      chan({ status: "available", dashboardPath: "", providerKey: "linkedin_content" }),
+      { connected: true },
+      STATIC,
+    );
+    expect(r.dashboardPath).toBe("/dashboard/content/linkedin");
+    expect(r.manageViaIntegrations).toBe(false);
   });
 
   it("(d) not-connected + live → not Connected", () => {

@@ -13,13 +13,13 @@
  * needs_reauth; X Ads additionally needs an ad account).
  */
 
-import { Suspense, useMemo } from "react";
+import { Suspense, useCallback, useEffect, useMemo } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { LinkedInAdsPanel } from "./_components/linkedin-ads-panel";
 import { XAdsPanel } from "./_components/x-ads-panel";
@@ -49,9 +49,17 @@ const PANELS: Record<AdsChannelKey, () => React.JSX.Element> = {
 
 export default function AdsHubPage() {
   // useSearchParams needs a Suspense boundary or the route bails out of
-  // static rendering at build time.
+  // static rendering at build time. The fallback carries the header so
+  // hydration doesn't shift the page down.
   return (
-    <Suspense fallback={<HubSkeleton />}>
+    <Suspense
+      fallback={
+        <div className="space-y-6">
+          <HubHeader />
+          <HubSkeleton />
+        </div>
+      }
+    >
       <AdsHub />
     </Suspense>
   );
@@ -80,25 +88,47 @@ function AdsHub() {
     return set;
   }, [integrationList]);
 
+  // Errored (not merely pending) means we can't assert connected-ness either
+  // way; `isPending` is false on error in TanStack v5, so check both.
+  const connectionStateKnown = !integrations.isPending && !integrations.isError;
+
   const paramChannel = params.get(ADS_CHANNEL_PARAM);
-  const explicit = isAdsChannelKey(paramChannel) ? paramChannel : null;
-  // Without an explicit channel the default depends on what's connected, so
+  const hasExplicitChannel = isAdsChannelKey(paramChannel);
+  // Without a valid `?channel=` the default depends on what's connected, so
   // hold the panel until connections resolve — picking early would render
-  // LinkedIn for a second and then swap to X under the user.
+  // LinkedIn for a second and then swap to X under the user. All precedence
+  // lives in resolveAdsChannel; don't re-implement rule 1 here.
   const selected: AdsChannelKey | null =
-    explicit ??
-    (integrations.isPending ? null : resolveAdsChannel(null, connectedProviderKeys));
+    !hasExplicitChannel && integrations.isPending
+      ? null
+      : resolveAdsChannel(paramChannel, connectedProviderKeys);
   const channel = selected ? getAdsChannel(selected) : null;
 
-  function changeChannel(next: string) {
-    if (!isAdsChannelKey(next)) return;
-    const search = new URLSearchParams(params.toString());
-    search.set(ADS_CHANNEL_PARAM, next);
-    // Channel-specific params from the previous panel (e.g. X's ad-account
-    // id) don't apply to the next channel — drop them.
-    search.delete("account");
-    router.replace(`${pathname}?${search.toString()}`, { scroll: false });
-  }
+  const changeChannel = useCallback(
+    (next: string) => {
+      if (!isAdsChannelKey(next)) return;
+      const search = new URLSearchParams(params.toString());
+      search.set(ADS_CHANNEL_PARAM, next);
+      // Params owned by the channel we're leaving (X's ad-account id) mean
+      // nothing to the next one — drop them, registry-driven so a new channel
+      // doesn't need an edit here.
+      for (const c of ADS_CHANNELS) {
+        if (c.key === next) continue;
+        for (const owned of c.ownedParams ?? []) search.delete(owned);
+      }
+      router.replace(`${pathname}?${search.toString()}`, { scroll: false });
+    },
+    [params, pathname, router],
+  );
+
+  // Pin the resolved channel into the URL once. Three things this buys:
+  // the panel can't silently switch under the user when a focus-refetch
+  // changes connection state, an invalid `?channel=meta` gets normalised away
+  // instead of lingering, and the tab highlight stops depending on a pending
+  // router transition.
+  useEffect(() => {
+    if (!hasExplicitChannel && selected) changeChannel(selected);
+  }, [hasExplicitChannel, selected, changeChannel]);
 
   return (
     <div className="space-y-6">
@@ -113,40 +143,60 @@ function AdsHub() {
         />
       )}
 
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight">Ad campaigns</h2>
-        <p className="text-muted-foreground">
-          {channel?.description ?? "Manage paid campaigns across your connected ad channels."}
-        </p>
-      </div>
+      <HubHeader description={channel?.description} />
 
-      <Tabs value={selected ?? undefined} onValueChange={changeChannel}>
-        <TabsList>
-          {ADS_CHANNELS.map((c) => (
-            <TabsTrigger key={c.key} value={c.key} className="gap-2">
-              {c.label}
-              {!integrations.isPending && !connectedProviderKeys.has(c.providerKey) && (
-                <Badge variant="outline" className="px-1.5 py-0 text-[10px] font-normal">
-                  Not connected
-                </Badge>
-              )}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-      </Tabs>
-
-      {selected === null ? <HubSkeleton /> : <SelectedPanel channelKey={selected} />}
+      {/* <Tabs> renders only once a channel is known, so it stays controlled
+          for its whole life — a value that starts undefined and later becomes
+          defined trips React's uncontrolled→controlled warning. */}
+      {selected === null ? (
+        <HubSkeleton />
+      ) : (
+        <Tabs value={selected} onValueChange={changeChannel}>
+          <TabsList>
+            {ADS_CHANNELS.map((c) => (
+              <TabsTrigger key={c.key} value={c.key} className="gap-2">
+                {c.label}
+                {/* Only claim "not connected" when connection state is actually
+                    known — on a failed load we don't know either way. */}
+                {connectionStateKnown && !connectedProviderKeys.has(c.providerKey) && (
+                  <Badge variant="outline" className="px-1.5 py-0 text-[10px] font-normal">
+                    Not connected
+                  </Badge>
+                )}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+          {/* Panels live in TabsContent so the ACTIVE trigger's aria-controls
+              resolves to a real panel. Radix mounts only the active one, so
+              inactive triggers' aria-controls dangle — its documented
+              behaviour, and better than having no panel at all. */}
+          {ADS_CHANNELS.map((c) => {
+            const Panel = PANELS[c.key];
+            return (
+              <TabsContent key={c.key} value={c.key} className="mt-6">
+                <Panel />
+              </TabsContent>
+            );
+          })}
+        </Tabs>
+      )}
     </div>
   );
 }
 
-function SelectedPanel({ channelKey }: { channelKey: AdsChannelKey }) {
-  const Panel = PANELS[channelKey];
-  // Distinct component types already force a remount on switch; the key just
-  // makes that explicit — panels hold their own query and dialog state.
-  return <Panel key={channelKey} />;
+/** Shared so the Suspense fallback and the resolved page agree on layout. */
+function HubHeader({ description }: { description?: string }) {
+  return (
+    <div>
+      <h2 className="text-2xl font-bold tracking-tight">Ad campaigns</h2>
+      <p className="text-muted-foreground">
+        {description ?? "Manage paid campaigns across your connected ad channels."}
+      </p>
+    </div>
+  );
 }
 
+/** Tab-row + panel placeholder. */
 function HubSkeleton() {
   return (
     <div className="space-y-4">
