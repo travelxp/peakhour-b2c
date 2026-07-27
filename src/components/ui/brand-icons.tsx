@@ -124,6 +124,24 @@ export function WordPressIcon({ className }: BrandIconProps) {
   );
 }
 
+/**
+ * WooCommerce's "W" swoosh, taken from the official Woo wordmark (the full
+ * purple wordmark ships as /brands/woocommerce-wordmark.svg). The wordmark is
+ * ~4:1, so it squashes to nothing in the square brand tiles — the swoosh is the
+ * part that stays legible at 20px.
+ */
+export function WooCommerceIcon({ className }: BrandIconProps) {
+  return (
+    <svg viewBox="0 0 88 47.5" fill="currentColor" className={cn("size-4", className)}>
+      <path
+        fillRule="evenodd"
+        clipRule="evenodd"
+        d="M77.4,0c-4.3,0-7.1,1.4-9.6,6.1L56.4,27.6V8.5c0-5.7-2.7-8.5-7.7-8.5s-7.1,1.7-9.6,6.5L28.3,27.6V8.7c0-6.1-2.5-8.7-8.6-8.7H7.3C2.6,0,0,2.2,0,6.2s2.5,6.4,7.1,6.4h5.1v24.1c0,6.8,4.6,10.8,11.2,10.8s9.6-2.6,12.9-8.7l7.2-13.5v11.4c0,6.7,4.4,10.8,11.1,10.8s9.2-2.3,13-8.7l16.6-28C87.8,4.7,85.3,0,77.3,0C77.3,0,77.3,0,77.4,0z"
+      />
+    </svg>
+  );
+}
+
 export function GhostIcon({ className }: BrandIconProps) {
   return (
     <svg viewBox="0 0 24 24" fill="currentColor" className={cn("size-4", className)}>

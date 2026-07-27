@@ -1,3 +1,4 @@
+import { resolveBrandLogo } from "@/lib/brand-logos";
 import type { ResolvedIntegration } from "@/lib/catalog";
 import type { ChannelCategory, ChannelConfig, ChannelLifecycle } from "./channels.config";
 
@@ -93,7 +94,10 @@ export function mapCatalogToChannels(integrations: ResolvedIntegration[]): Chann
       providerKey: i.key,
       status: toLifecycle(i),
       dashboardPath: i.display?.dashboardPath,
-      logoUrl: i.display?.iconUrl,
+      // Catalog icon first; self-hosted official mark as the floor so channels
+      // the CMS hasn't given an iconUrl (WhatsApp, Shopify, WordPress, Woo)
+      // render their logo instead of a first-letter square.
+      logoUrl: resolveBrandLogo(i.key, i.display?.iconUrl),
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
