@@ -44,11 +44,26 @@ interface PurchasablePlan {
    *  ever). The trial always collects a card — it runs at the gateway and defers
    *  the first charge; it never skips payment details. */
   trialApplies: boolean;
+  /** Priced at 0 WITH a tagline — talk to sales, not a buy button. */
+  contactSales?: boolean;
+  /** Spans more than one product (Agency/Enterprise). */
+  bundle?: boolean;
+  /** 0..100 from the org's connected integrations; 0 = not recommended. */
+  recommendScore?: number;
+  /** e.g. "Works with your Shopify" — the WHY behind the badge. */
+  recommendReason?: string;
 }
 interface PlansResponse {
   country: string;
   purchasable: boolean;
   plans: PurchasablePlan[];
+  /** Server-side grouping. Optional so an older api keeps working — the
+   *  component falls back to deriving the groups from the flat list. */
+  groups?: {
+    recommended: PurchasablePlan[];
+    others: PurchasablePlan[];
+    bundles: PurchasablePlan[];
+  };
 }
 
 function formatPrice(amount: number, currency: string): string {
@@ -147,6 +162,42 @@ export function UpgradePlanDialog({
   const selectedPlan = plans.find((p) => p.tier === selected) ?? null;
   const busy = checkoutMut.isPending;
 
+  // Three sections answering three different questions: what should I add next,
+  // what else exists, and what if I've outgrown per-product pricing. Bundles are
+  // SEPARATED rather than sorted down — Agency at ₹24,999 next to a ₹1,499
+  // product reads as a mistake rather than a choice, which is what the team saw
+  // when everything shared one flat grid.
+  //
+  // The server groups; this falls back to deriving them so an older api (or a
+  // cached response) still renders something sensible instead of nothing.
+  const groups = plansQ.data?.groups ?? {
+    recommended: plans.filter((p) => !p.bundle && (p.recommendScore ?? 0) > 0),
+    others: plans.filter((p) => !p.bundle && !((p.recommendScore ?? 0) > 0)),
+    bundles: plans.filter((p) => p.bundle),
+  };
+  const sections = [
+    {
+      key: "recommended",
+      title: "Recommended for you",
+      blurb: "Based on what you've already connected.",
+      items: groups.recommended,
+    },
+    {
+      key: "others",
+      // Only call them "other" when something was recommended above; with no
+      // connections there is no "other" to be other than.
+      title: groups.recommended.length > 0 ? "Other products" : "Products",
+      blurb: undefined as string | undefined,
+      items: groups.others,
+    },
+    {
+      key: "bundles",
+      title: "For larger teams",
+      blurb: "Every product in one plan — for agencies and multi-brand businesses.",
+      items: groups.bundles,
+    },
+  ];
+
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
@@ -176,71 +227,113 @@ export function UpgradePlanDialog({
               No plans available right now.
             </p>
           ) : (
-            <div className="grid gap-3 sm:grid-cols-2">
-              {plans.map((p) => {
-                const active = selected === p.tier;
-                const disabled = p.isCurrent || !purchasable;
-                return (
-                  <button
-                    key={p.tier}
-                    type="button"
-                    disabled={disabled}
-                    onClick={() => setSelected(p.tier)}
-                    className={cn(
-                      "flex flex-col rounded-lg border p-4 text-left transition",
-                      active
-                        ? "border-primary ring-1 ring-primary"
-                        : "hover:border-foreground/30",
-                      disabled && "cursor-not-allowed opacity-60",
-                    )}
-                  >
-                    {/* Header row: the badges sit INLINE beside the name rather
-                        than absolutely positioned, so a long plan name can no
-                        longer run underneath them. */}
-                    <div className="flex items-start justify-between gap-2">
-                      <span className="font-medium leading-tight">{p.name}</span>
-                      <span className="flex shrink-0 items-center gap-1">
-                        {p.recommended && (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
-                            <Sparkles className="size-3" />
-                            Popular
-                          </span>
-                        )}
-                        {active && !disabled && (
-                          <Check className="size-4 text-primary" />
-                        )}
-                      </span>
+            <div className="space-y-5">
+              {sections.map((section) =>
+                section.items.length === 0 ? null : (
+                  <div key={section.key}>
+                    <div className="mb-2">
+                      <p className="text-sm font-medium">{section.title}</p>
+                      {section.blurb ? (
+                        <p className="text-xs text-muted-foreground">{section.blurb}</p>
+                      ) : null}
                     </div>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {section.items.map((p) => {
+                        const active = selected === p.tier;
+                        // A contact-sales plan has nothing to select — its action
+                        // is an email, not a checkout — so it is never disabled
+                        // for being unpurchasable, only for being current.
+                        const disabled = p.isCurrent || (!purchasable && !p.contactSales);
+                        return (
+                          <button
+                            key={p.tier}
+                            type="button"
+                            disabled={disabled}
+                            onClick={() =>
+                              p.contactSales
+                                ? window.open(
+                                    `mailto:hello@peakhour.ai?subject=${encodeURIComponent(`Enquiry: ${p.name}`)}`,
+                                    "_blank",
+                                  )
+                                : setSelected(p.tier)
+                            }
+                            className={cn(
+                              "flex flex-col rounded-lg border p-4 text-left transition",
+                              active
+                                ? "border-primary ring-1 ring-primary"
+                                : "hover:border-foreground/30",
+                              disabled && "cursor-not-allowed opacity-60",
+                            )}
+                          >
+                            {/* Header row: the badges sit INLINE beside the name
+                                rather than absolutely positioned, so a long plan
+                                name can no longer run underneath them. */}
+                            <div className="flex items-start justify-between gap-2">
+                              <span className="font-medium leading-tight">{p.name}</span>
+                              <span className="flex shrink-0 items-center gap-1">
+                                {/* A reason beats a bare "Popular": the badge is
+                                    only credible if it says why. Falls back to the
+                                    static flag when nothing is connected. */}
+                                {p.recommendReason ? (
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
+                                    <Sparkles className="size-3" />
+                                    For you
+                                  </span>
+                                ) : p.recommended ? (
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
+                                    <Sparkles className="size-3" />
+                                    Popular
+                                  </span>
+                                ) : null}
+                                {active && !disabled && (
+                                  <Check className="size-4 text-primary" />
+                                )}
+                              </span>
+                            </div>
 
-                    {p.tagline && (
-                      <p className="mt-1 text-xs leading-snug text-muted-foreground">
-                        {p.tagline}
-                      </p>
-                    )}
+                            {p.recommendReason ? (
+                              <p className="mt-1 text-xs leading-snug text-primary">
+                                {p.recommendReason}
+                              </p>
+                            ) : p.tagline ? (
+                              <p className="mt-1 text-xs leading-snug text-muted-foreground">
+                                {p.tagline}
+                              </p>
+                            ) : null}
 
-                    {/* Price pinned to the bottom so cards of differing tagline
-                        length still line their prices up across the row. */}
-                    <div className="mt-auto pt-3">
-                      <div className="text-lg font-semibold">
-                        {formatPrice(p.amount, p.currency)}
-                        <span className="text-xs font-normal text-muted-foreground">
-                          /mo
-                        </span>
-                      </div>
-                      {p.trialDays > 0 && p.trialApplies && (
-                        <div className="text-xs text-emerald-600 dark:text-emerald-400">
-                          {p.trialDays}-day free trial · card required
-                        </div>
-                      )}
-                      {p.isCurrent && (
-                        <span className="mt-2 inline-block rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium">
-                          Current plan
-                        </span>
-                      )}
+                            {/* Price pinned to the bottom so cards of differing
+                                tagline length still line their prices up. */}
+                            <div className="mt-auto pt-3">
+                              <div className="text-lg font-semibold">
+                                {p.contactSales ? (
+                                  <span className="text-base">Contact sales</span>
+                                ) : (
+                                  <>
+                                    {formatPrice(p.amount, p.currency)}
+                                    <span className="text-xs font-normal text-muted-foreground">
+                                      /mo
+                                    </span>
+                                  </>
+                                )}
+                              </div>
+                              {!p.contactSales && p.trialDays > 0 && p.trialApplies && (
+                                <div className="text-xs text-emerald-600 dark:text-emerald-400">
+                                  {p.trialDays}-day free trial · card required
+                                </div>
+                              )}
+                              {p.isCurrent && (
+                                <span className="mt-2 inline-block rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium">
+                                  Current plan
+                                </span>
+                              )}
+                            </div>
+                          </button>
+                        );
+                      })}
                     </div>
-                  </button>
-                );
-              })}
+                  </div>
+                ),
+              )}
             </div>
           )}
 

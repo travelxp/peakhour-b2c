@@ -20,7 +20,13 @@ import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { TaxAndInvoices } from "@/components/settings-tax-invoices";
 import { UpgradePlanDialog } from "@/components/upgrade/upgrade-plan-dialog";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useBillingSummary, BILLING_SUMMARY_KEY } from "@/hooks/use-billing-summary";
+import {
+  useBillingSummary,
+  useBillingOrders,
+  useCancelProduct,
+  BILLING_SUMMARY_KEY,
+  BILLING_ORDERS_KEY,
+} from "@/hooks/use-billing-summary";
 
 /** Money in the buyer's own currency. Falls back to "CUR 1499" when Intl can't
  *  resolve the code, so a price never renders as a bare number. */
@@ -56,6 +62,8 @@ export default function BillingPage() {
   const { formatDate } = useLocale();
   const { data: details, isLoading } = useDashboardOrg();
   const { data: summary } = useBillingSummary();
+  const { data: orders } = useBillingOrders();
+  const cancelProduct = useCancelProduct();
   const extend = useExtendTrial();
   const [upgradeOpen, setUpgradeOpen] = useState(false);
 
@@ -66,6 +74,7 @@ export default function BillingPage() {
   const refreshBilling = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: ["/v1/dashboard/org"] });
     void queryClient.invalidateQueries({ queryKey: [BILLING_SUMMARY_KEY] });
+    void queryClient.invalidateQueries({ queryKey: [BILLING_ORDERS_KEY] });
   }, [queryClient]);
 
   // Reconcile-on-return: Stripe embedded Checkout redirects back to
@@ -155,8 +164,15 @@ export default function BillingPage() {
   // Assistant) — without this, the page reads "Free" and prompts a re-purchase.
   const products = details?.products ?? [];
   const hasProducts = products.length > 0;
+  // Paid vs free matters for the headline: an org can hold a free floor product
+  // (the Shopify claim grant) without having bought anything.
+  const paidCount = products.filter((p) => !p.tier.endsWith(".free")).length;
   // Per-product price / renewal, keyed by tier, so each row can show what it
   // costs rather than just that it exists.
+  // WHICH product is cancelling. One mutation instance is shared by every row, so
+  // keying the pending state off isPending alone put "Cancelling…" on all of them
+  // and disabled the lot while one was in flight.
+  const cancellingKey = cancelProduct.isPending ? cancelProduct.variables : null;
   const priceByTier = new Map(
     (summary?.products ?? []).map((p) => [p.tier ?? "", p]),
   );
@@ -213,12 +229,29 @@ export default function BillingPage() {
               <h3 className="font-semibold">
                 {hasProducts ? "Your subscription" : "Current Plan"}
               </h3>
-              <Badge
-                variant="secondary"
-                className={cn("font-medium", planClass)}
-              >
-                {planLabel}
-              </Badge>
+              {/* The badge has to describe what they OWN. It rendered the BASE
+                  plan unconditionally, so an org holding two paid products was
+                  still labelled "Peakhour.ai Content: Free" — reported by the team
+                  as the heading being wrong after buying two plans. The base plan
+                  is a floor, not the headline; once any product is held it moves
+                  to the footnote line below. */}
+              {hasProducts ? (
+                <Badge
+                  variant="secondary"
+                  className="font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300"
+                >
+                  {paidCount > 0
+                    ? `${paidCount} paid ${paidCount === 1 ? "product" : "products"}`
+                    : `${products.length} ${products.length === 1 ? "product" : "products"}`}
+                </Badge>
+              ) : (
+                <Badge
+                  variant="secondary"
+                  className={cn("font-medium", planClass)}
+                >
+                  {planLabel}
+                </Badge>
+              )}
               {trialActive && trialDays > 0 ? (
                 <Badge variant="outline" className="font-medium">
                   Trial · {trialDays}d left
@@ -285,7 +318,17 @@ export default function BillingPage() {
               charge of {money(summary.monthlyTotal, summary.currency)}
               {summary.monthlyTotalComplete ? "" : " or more"}
               {summary.nextChargeAt ? ` on ${formatDate(summary.nextChargeAt)}` : ""}.
-              {summary.basePlanName ? ` Included plan: ${summary.basePlanName}.` : ""}
+            </p>
+          ) : null}
+
+          {/* The base plan, demoted. Shown whenever products exist — the
+              combined-charge line above only renders when everything genuinely
+              rides one subscription, so tying the footnote to it meant an org
+              with a Shopify-granted product saw its included plan nowhere at all
+              after the badge stopped showing it. */}
+          {hasProducts && (summary?.basePlanName || planLabel) ? (
+            <p className="mt-2 text-xs text-muted-foreground">
+              Included plan: {summary?.basePlanName ?? planLabel}
             </p>
           ) : null}
 
@@ -340,6 +383,10 @@ export default function BillingPage() {
                       })()}
                     </p>
                   </div>
+                  {/* State stays a chip, but it is no longer the ONLY thing here:
+                      the team reported the badges as "not editable" — there was
+                      nothing to act on. Actions sit beside it. */}
+                  <div className="flex items-center gap-2">
                   <Badge
                     variant="outline"
                     className={cn(
@@ -353,6 +400,59 @@ export default function BillingPage() {
                   >
                     {p.state === "trial" ? "Trial" : p.state}
                   </Badge>
+                    {/* A FREE tier upgrades rather than cancels — offering
+                        "Cancel" on something that costs nothing is noise, and the
+                        server would refuse it anyway. */}
+                    {p.tier.endsWith(".free") ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setUpgradeOpen(true)}
+                      >
+                        Upgrade
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-muted-foreground hover:text-destructive"
+                        disabled={cancellingKey === p.productKey}
+                        onClick={() => {
+                          if (!p.productKey) return;
+                          const label = p.name || p.tier;
+                          // Removing a paid product stops access and changes what
+                          // they pay — confirm before, not a toast after.
+                          if (
+                            !window.confirm(
+                              `Cancel ${label}? You'll keep access until the end of the current period, and your monthly total will drop.`,
+                            )
+                          ) {
+                            return;
+                          }
+                          cancelProduct.mutate(p.productKey, {
+                            onSuccess: () => {
+                              toast.success(`${label} cancelled`, {
+                                description:
+                                  "Your subscription and monthly total have been updated.",
+                              });
+                              refreshBilling();
+                            },
+                            onError: (err: Error) => {
+                              // The server refuses a Shopify-billed product on
+                              // purpose — surfacing its message tells the merchant
+                              // WHERE to cancel instead of failing blankly.
+                              toast.error("Couldn't cancel", {
+                                description:
+                                  err.message ?? "Please try again or contact support.",
+                              });
+                            },
+                          });
+                        }}
+                      >
+                        {cancellingKey === p.productKey ? "Cancelling…" : "Cancel"}
+                      </Button>
+                    )}
+                  </div>
                 </li>
               ))}
             </ul>
@@ -436,6 +536,48 @@ export default function BillingPage() {
             </Button>
           </CardContent>
         </Card>
+
+        {/* Orders — the confirmations a purchase produces IMMEDIATELY.
+            These exist because a tax invoice legally cannot: with a 14-day trial
+            on every plan, the first charge (and so the first invoice) is two
+            weeks out, and until now the customer saw only an empty Invoices
+            table and concluded nothing had happened. */}
+        {orders && orders.length > 0 ? (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Orders</CardTitle>
+              <CardDescription>
+                Confirmations of changes to your subscription. Your tax invoice is
+                issued separately, when a payment is actually taken.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ul className="space-y-2">
+                {orders.map((o) => (
+                  <li
+                    key={o._id}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-background px-3 py-2"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium">
+                        {o.lines.map((l) => l.name).join(" + ") || o.tier}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatDate(o.issuedAt)} · {o.orderNumber}
+                        {o.firstChargeAt
+                          ? ` · first charge ${formatDate(o.firstChargeAt)}`
+                          : ""}
+                      </p>
+                    </div>
+                    <span className="text-sm font-medium tabular-nums">
+                      {money(Number(o.monthlyTotal), o.currency)}/mo
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+        ) : null}
 
         {/* Tax details + self-issued invoices */}
         <TaxAndInvoices />
