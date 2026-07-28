@@ -126,9 +126,10 @@ export const linkedInAdsApi = {
 
   /**
    * Boost-to-Campaign: sponsor an existing organic post. Creates the
-   * REAL LinkedIn artefacts as a non-serving draft (group PAUSED +
-   * campaign DRAFT + creative PAUSED) and persists the managed row.
-   * Nothing spends until the campaign is explicitly activated.
+   * REAL LinkedIn artefacts as a non-serving draft (group DRAFT +
+   * campaign DRAFT; the creative's own ACTIVE intent is overridden by
+   * those parents) and persists the managed row. Nothing spends until
+   * the campaign is explicitly activated.
    */
   boost: (body: BoostCampaignInput) =>
     api.post<{ campaign: ManagedCampaign }>("/v1/linkedin/ads/boost", body),

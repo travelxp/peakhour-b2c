@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api";
+import { toastUnhandledApiError } from "@/lib/api/unhandled-error-toast";
 import {
   linkedInAdsApi,
   type BoostObjective,
@@ -38,11 +39,19 @@ import { Rocket } from "lucide-react";
  * Manager behind its own confirm.
  */
 
+/**
+ * Objectives a BOOST can use. `lead_generation` is deliberately absent:
+ * LinkedIn requires a lead gen form on every creative under a lead-gen
+ * campaign, and sponsoring an existing organic post gives us nowhere to
+ * attach one — the server rejects that combination
+ * (VALIDATION_LEADGEN_FORM_REQUIRED). Offering it here only ever
+ * produced a guaranteed failure. Lead-gen campaigns are built in
+ * LinkedIn Campaign Manager; the objective stays valid on other paths.
+ */
 const OBJECTIVES: Array<{ value: BoostObjective; label: string }> = [
   { value: "engagement", label: "Engagement (boost the post)" },
   { value: "brand_awareness", label: "Brand awareness" },
   { value: "website_traffic", label: "Website traffic" },
-  { value: "lead_generation", label: "Lead generation" },
 ];
 
 export function BoostCampaignDialog({
@@ -150,8 +159,18 @@ export function BoostCampaignDialog({
         );
       } else if (code === "RATE_LIMITED") {
         toast.error("LinkedIn is rate-limiting us — give it a minute and try again.");
+      } else if (code === "VALIDATION_LEADGEN_FORM_REQUIRED") {
+        // Unreachable from this dialog (the objective isn't offered),
+        // but a server-side objective default could still produce it.
+        toast.error(
+          (err as ApiError).message ||
+            "Lead-generation campaigns need a LinkedIn lead gen form — pick another objective.",
+        );
       } else {
-        toast.error("Couldn't create the campaign. Try again in a moment.");
+        // Everything else surfaces the server's actual reason — see
+        // toastUnhandledApiError for why the old blanket "try again"
+        // hid this feature being 100% broken.
+        toastUnhandledApiError(err, "create the campaign");
       }
     },
   });

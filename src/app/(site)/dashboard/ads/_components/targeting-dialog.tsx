@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api";
+import { toastUnhandledApiError } from "@/lib/api/unhandled-error-toast";
 import {
   linkedInAdsApi,
   type ManagedCampaign,
@@ -287,7 +288,7 @@ export function TargetingDialog({
         // provider_4xx here as user-fixable) — the message names it.
         toast.error(err.message);
       } else {
-        toast.error("Couldn't apply targeting. Try again in a moment.");
+        toastUnhandledApiError(err, "apply the targeting");
       }
     },
   });

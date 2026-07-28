@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api, ApiError } from "@/lib/api";
+import { toastUnhandledApiError } from "@/lib/api/unhandled-error-toast";
 import {
   linkedInAdsApi,
   type ManagedCampaign,
@@ -319,7 +320,7 @@ function CampaignRow({
       } else if (code === "RATE_LIMITED") {
         toast.error("LinkedIn is rate-limiting us — give it a minute and try again.");
       } else {
-        toast.error("Couldn't update the campaign. Try again in a moment.");
+        toastUnhandledApiError(err, "update the campaign");
       }
     },
   });
@@ -342,7 +343,7 @@ function CampaignRow({
       } else if (code === "RATE_LIMITED") {
         toast.error("LinkedIn is rate-limiting us — give it a minute and try again.");
       } else {
-        toast.error("Couldn't refresh metrics right now.");
+        toastUnhandledApiError(err, "refresh the metrics");
       }
     },
   });
