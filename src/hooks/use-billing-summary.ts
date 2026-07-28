@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
 
@@ -63,5 +63,56 @@ export function useBillingSummary() {
     // Matches useDashboardOrg: billing state changes rarely, and every mutation
     // (checkout, trial start, cancel) invalidates this key explicitly.
     staleTime: 60_000,
+  });
+}
+
+/** One order confirmation — the document a purchase produces immediately, for
+ *  the window before any tax invoice can legally exist. */
+export interface OrderConfirmation {
+  _id: string;
+  orderNumber: string;
+  kind: "purchased" | "trial_started" | "added" | "upgraded" | "removed";
+  tier: string;
+  monthlyTotal: string;
+  currency: string;
+  firstChargeAt?: string | null;
+  issuedAt: string;
+  lines: Array<{ name: string; amount: string; trialEndsAt?: string | null }>;
+}
+
+export const BILLING_ORDERS_KEY = "/v1/billing/orders";
+
+/**
+ * Order confirmations for the billing page.
+ *
+ * Separate from invoices deliberately. With a 14-day trial on every plan a tax
+ * invoice cannot legally exist until the first charge, so without these the
+ * customer stares at an empty Invoices table for two weeks after a purchase that
+ * definitely happened — which is exactly what was reported.
+ */
+export function useBillingOrders() {
+  const { org, isAuthenticated } = useAuth();
+  return useQuery<OrderConfirmation[]>({
+    queryKey: [BILLING_ORDERS_KEY, org?._id ?? null],
+    queryFn: () => api.get<OrderConfirmation[]>("/v1/billing/orders"),
+    enabled: isAuthenticated && !!org?._id,
+    staleTime: 60_000,
+  });
+}
+
+/**
+ * Cancel ONE product, leaving the rest of the subscription billing.
+ *
+ * The server REFUSES a Shopify-billed product — Shopify owns that billing
+ * relationship — and returns a message saying where to cancel instead. Surface
+ * that message rather than flattening it into a generic failure.
+ */
+export function useCancelProduct() {
+  return useMutation({
+    mutationFn: (productKey: string) =>
+      api.post<{ cancelled: boolean; productKey: string }>(
+        `/v1/billing/products/${encodeURIComponent(productKey)}/cancel`,
+        {},
+      ),
   });
 }
