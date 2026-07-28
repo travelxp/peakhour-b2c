@@ -125,9 +125,10 @@ export function BoostCampaignDialog({
     onError: (err) => {
       const code = err instanceof ApiError ? err.code : undefined;
       if (code === "CURRENCY_MISMATCH") {
-        toast.error(
-          (err as ApiError).message || "Use your ad account's billing currency.",
-        );
+        // Server-authored ("Ad account 5123… bills in INR; use that
+        // currency") — NOT provider text, and the only message worth
+        // rendering verbatim on this surface.
+        toast.error((err as ApiError).message);
       } else if (code === "NOT_CONNECTED") {
         // Also the code a STALE (needs_reauth) connection produces —
         // the server only uses active connections.
@@ -160,6 +161,9 @@ export function BoostCampaignDialog({
         // An un-activated draft for this post already exists; sending
         // the user there beats letting them build a second one.
         onOpenChange(false);
+        // The api also returns the existing row's id in error.details,
+        // but no panel reads a ?campaign= param yet — linking to the hub
+        // is what actually works. Row-level deep-linking is a follow-up.
         toast.error("You already have a draft campaign for this post.", {
           description: "Edit or activate it from the Ads Manager instead of creating a second one.",
           action: {
@@ -180,7 +184,7 @@ export function BoostCampaignDialog({
         // Everything else: friendly copy keyed on the code, with the
         // request id for support. NOT err.message — see toast-errors.ts
         // for why surfacing raw provider text is the wrong fix.
-        toastUnhandledApiError(err, "create the campaign");
+        toastUnhandledApiError(err, "create the campaign", "LinkedIn");
       }
     },
   });

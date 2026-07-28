@@ -320,7 +320,7 @@ function CampaignRow({
       } else if (code === "RATE_LIMITED") {
         toast.error("LinkedIn is rate-limiting us — give it a minute and try again.");
       } else {
-        toastUnhandledApiError(err, "update the campaign");
+        toastUnhandledApiError(err, "update the campaign", "LinkedIn");
       }
     },
   });
@@ -343,7 +343,7 @@ function CampaignRow({
       } else if (code === "RATE_LIMITED") {
         toast.error("LinkedIn is rate-limiting us — give it a minute and try again.");
       } else {
-        toastUnhandledApiError(err, "refresh the metrics");
+        toastUnhandledApiError(err, "refresh the metrics", "LinkedIn");
       }
     },
   });

@@ -5,8 +5,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
+import { toast } from "sonner";
 import { ApiError } from "@/lib/api";
-import { toastUnhandledApiError } from "@/lib/toast-errors";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -240,10 +240,15 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
       });
     },
     onError: (err: unknown) => {
-      // Was `toast.error(err.message)` — the X Ads helper's message is
-      // the platform's raw response body, same disclosure problem the
-      // LinkedIn panel had. Friendly copy + a request id instead.
-      toastUnhandledApiError(err, "update the campaign status");
+      // Rendering the server's message IS correct here, unlike on the
+      // LinkedIn surfaces. The x-ads route sanitizes upstream errors at
+      // the boundary (`failFrom`, routes/x-ads/index.ts) — X's raw body
+      // is logged, never returned — so every message that reaches this
+      // point is curated copy: "X is rate-limiting us — try again in a
+      // minute.", "Your X Ads connection needs to be reconnected."
+      // Replacing it with a generic toast would LOSE information.
+      const message = err instanceof ApiError ? err.message : "Couldn't update campaign status.";
+      toast.error(message);
     },
   });
 

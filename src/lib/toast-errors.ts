@@ -13,17 +13,22 @@ import { ApiError } from "@/lib/api";
  *     was failing with PROVIDER_4XX_CREATE_CAMPAIGN_GROUP — a 100%
  *     reproducible API-contract bug — and users were told to retry. It
  *     went unnoticed for months.
- *  2. The obvious fix (render `err.message`) is worse: the api's message
- *     for those codes is LinkedIn's raw response body, and for the
- *     catch-alls it is an arbitrary exception string — JSON dumps,
+ *  2. The obvious fix (render `err.message`) is worse HERE: the api's
+ *     message for those codes is LinkedIn's raw response body, and for
+ *     the catch-alls it is an arbitrary exception string — JSON dumps,
  *     internal ids, even config names like "LINKEDIN_CLIENT_ID is not
- *     set". That is exactly what `no-raw-ai-errors-to-users` forbids,
- *     and what `engageErrorMessage` (audience-panel.tsx) already
- *     protects against for LinkedIn Engage.
+ *     set". That is what `no-raw-ai-errors-to-users` forbids, and what
+ *     `engageErrorMessage` (audience-panel.tsx) already protects against
+ *     for LinkedIn Engage.
  *
  * So: the CODE picks plain-language copy, the raw message stays in the
- * api's logs, and the request id goes in the toast as the handle
- * support needs to find those logs.
+ * api's logs, and the request id goes in the toast as the handle support
+ * needs to find them.
+ *
+ * NOT A BLANKET RULE. Where a route sanitizes at its own boundary and
+ * returns curated copy — x-ads' `failFrom` is the example — rendering
+ * `err.message` is CORRECT and this helper would throw information away.
+ * Use it for surfaces whose messages can carry provider text.
  *
  * RETRYABILITY COMES FROM THE CODE, NOT THE STATUS. The api returns
  * PROVIDER_4XX_* with HTTP 502 (a platform rejection isn't the caller's
@@ -31,30 +36,88 @@ import { ApiError } from "@/lib/api";
  * gets the motivating case exactly backwards.
  */
 
-/** What the code family tells us about acting on the failure. */
-type Disposition = "retry" | "permanent" | "unknown";
+/** What the code family tells us about who can act, and how. */
+type Disposition =
+  /** Transient. Say "try again in a moment" and stop there. */
+  | "retry"
+  /** The user can fix it themselves (reconnect, wait out a limit). */
+  | "user_fixable"
+  /** Real, reproducible, ours to diagnose. Point at support. */
+  | "permanent";
+
+/** Codes a caller could reasonably not have branched on, but which the
+ *  user can still act on. Kept explicit — these must never collapse
+ *  into "contact support". */
+const USER_FIXABLE = new Set([
+  "NOT_CONNECTED",
+  "NO_AD_ACCOUNT",
+  "NEEDS_REAUTH",
+  "RATE_LIMITED",
+  "FORBIDDEN",
+  "INVALID_TRANSITION",
+]);
+
+const USER_FIXABLE_COPY: Record<string, string> = {
+  NOT_CONNECTED: "Connect the ad account first, from Integrations.",
+  NO_AD_ACCOUNT: "That connection has no ad account — reconnect it, or create one on the platform.",
+  NEEDS_REAUTH: "The connection needs reconnecting, from Integrations.",
+  RATE_LIMITED: "The platform is rate-limiting us — give it a minute and try again.",
+  FORBIDDEN: "Pick a business first.",
+  INVALID_TRANSITION: "That change isn't possible from the campaign's current state.",
+};
 
 function dispositionOf(code: string, status: number): Disposition {
+  if (USER_FIXABLE.has(code)) return "user_fixable";
+
+  // "2xx with no id header" — the artefact almost certainly EXISTS
+  // platform-side and we never learned its id, so it can be neither
+  // rolled back nor deduped. Retrying mints a FRESH orphan campaign
+  // group in the customer's ad account on every click. 5xx-shaped, but
+  // the least retryable failure in the set.
+  if (code.endsWith("_ID_MISSING")) return "permanent";
+
   // The platform rejected the request itself. Repeating it unchanged
   // gets the same answer.
   if (code.startsWith("PROVIDER_4XX_") || code.startsWith("VALIDATION_")) return "permanent";
-  if (code === "VALIDATION_ERROR") return "permanent";
-  // Ours to fix, not the user's — never tell them to retry into it.
-  if (code === "ADAPTER_MISSING" || code === "CONFIG_ERROR") return "permanent";
-  // Genuinely transient: the platform or the network wobbled.
+
+  // Route catch-alls for a NON-AdsOpError throw, i.e. an unexpected
+  // programming or config error ("LINKEDIN_CLIENT_ID is not set").
+  // 5xx-shaped and never transient — telling the user to retry means
+  // telling them to retry forever.
+  if (
+    code === "BOOST_FAILED" ||
+    code === "SYNC_FAILED" ||
+    code === "UPDATE_FAILED" ||
+    code === "TARGETING_FAILED" ||
+    code === "INTERNAL_ERROR" ||
+    code === "ADAPTER_MISSING" ||
+    code === "CONFIG_ERROR" ||
+    code === "PERSIST_FAILED" ||
+    code === "STATUS_PERSIST_FAILED"
+  ) {
+    return "permanent";
+  }
+
+  // Genuinely transient: the platform or the transport wobbled.
   if (code.startsWith("PROVIDER_5XX_") || code.startsWith("NETWORK_")) return "retry";
   if (code === "TOKEN_FAILED" || code === "PARSE_ERROR") return "retry";
-  // Nothing recognisable in the code — fall back to the status, where a
-  // 5xx is at least more likely transient than a 4xx.
-  if (status >= 500 || status === 0) return "retry";
-  if (status >= 400) return "unknown";
-  return "unknown";
+
+  // Unrecognised code. A 5xx is at least more likely transient than a
+  // 4xx, which we treat as reproducible.
+  return status >= 500 ? "retry" : "permanent";
 }
 
 /**
  * @param whatFailed lower-case verb phrase — "create the campaign".
+ * @param platform display name of the ad platform, when the caller
+ *   knows it. Omit on multi-platform surfaces rather than guessing —
+ *   naming the wrong platform is worse than naming none.
  */
-export function toastUnhandledApiError(err: unknown, whatFailed: string): void {
+export function toastUnhandledApiError(
+  err: unknown,
+  whatFailed: string,
+  platform?: string,
+): void {
   const apiError = err instanceof ApiError ? err : null;
 
   if (!apiError) {
@@ -65,24 +128,36 @@ export function toastUnhandledApiError(err: unknown, whatFailed: string): void {
   }
 
   const disposition = dispositionOf(apiError.code, apiError.status);
-  const title =
-    disposition === "retry"
-      ? `Couldn't ${whatFailed}. Try again in a moment.`
-      : `Couldn't ${whatFailed}.`;
 
-  const description =
-    disposition === "permanent"
-      ? "LinkedIn rejected the request. Our team has the details — please contact support."
-      : disposition === "unknown"
-        ? "Something we didn't expect went wrong. Please contact support if it keeps happening."
-        : undefined;
+  if (disposition === "retry") {
+    // Self-healing — the sentence is complete on its own. A support
+    // reference here would be noise on something a second click fixes.
+    toast.error(`Couldn't ${whatFailed}. Try again in a moment.`);
+    return;
+  }
 
-  // The request id is the ONLY technical detail we surface: it's an
-  // opaque uuid, it leaks nothing, and it's the key to the server-side
-  // log that holds the provider's actual words.
-  const withRef = apiError.requestId
-    ? `${description ? `${description} ` : ""}Reference: ${apiError.requestId}`
-    : description;
+  if (disposition === "user_fixable") {
+    toast.error(`Couldn't ${whatFailed}.`, {
+      description: USER_FIXABLE_COPY[apiError.code],
+    });
+    return;
+  }
 
-  toast.error(title, withRef ? { description: withRef } : undefined);
+  // Permanent. This is the one case where the user genuinely needs to
+  // reach us, so the toast has to survive long enough to be read and
+  // copied — hence no auto-dismiss (the Toaster provides a close
+  // button). The request id is the ONLY technical detail we surface:
+  // an opaque uuid that leaks nothing and is the key to the server-side
+  // log holding the provider's actual words.
+  const rejected = platform
+    ? `${platform} rejected the request.`
+    : "The request was rejected.";
+  const support = apiError.requestId
+    ? `Our team has the details — please contact support and quote reference ${apiError.requestId}.`
+    : "Our team has the details — please contact support.";
+
+  toast.error(`Couldn't ${whatFailed}.`, {
+    description: `${rejected} ${support}`,
+    duration: Infinity,
+  });
 }

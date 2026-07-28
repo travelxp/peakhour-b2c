@@ -124,6 +124,13 @@ class ApiClient {
         message: "Request failed",
       };
 
+      // A retry SUPERSEDES the first response. When one happens and still
+      // fails, the error we throw must describe the RETRY — otherwise the
+      // request id we hand the user points at a log showing only the CSRF
+      // rejection or the 401, not the failure they actually hit.
+      let finalRes = res;
+      let finalJson = json;
+
       // If CSRF token was rejected, clear cache and retry once
       if (
         (error.code === "CSRF_INVALID" || error.code === "CSRF_MISSING") &&
@@ -143,16 +150,18 @@ class ApiClient {
             if (retryRes.ok && retryJson.ok) {
               return retryJson.data as T;
             }
+            finalRes = retryRes;
+            finalJson = retryJson;
           } catch {
-            // Non-JSON on the retry — fall through and throw the
-            // ORIGINAL server error below. Letting the SyntaxError
-            // escape here would discard the only useful diagnosis.
+            // Non-JSON on the retry — keep the ORIGINAL server error.
+            // Letting the SyntaxError escape here would discard the only
+            // useful diagnosis.
           }
         }
       }
 
       // Auto-refresh on 401: call /auth/refresh to renew access_token, then retry once
-      if (res.status === 401 && !path.includes("/auth/refresh")) {
+      if (finalRes.status === 401 && !path.includes("/auth/refresh")) {
         const refreshed = await this.tryRefresh();
         if (refreshed) {
           // Retry the original request with fresh access_token cookie
@@ -166,17 +175,22 @@ class ApiClient {
             if (retryRes.ok && retryJson.ok) {
               return retryJson.data as T;
             }
+            finalRes = retryRes;
+            finalJson = retryJson;
           } catch {
-            // Fall through to original error
+            // Keep whatever we had — see above.
           }
         }
       }
 
+      const errorEnvelope =
+        (finalJson.error as { code?: string; message?: string }) || error;
+
       throw new ApiError(
-        error.code || "UNKNOWN",
-        error.message || "Request failed",
-        res.status,
-        requestIdOf(json)
+        errorEnvelope.code || "UNKNOWN",
+        errorEnvelope.message || "Request failed",
+        finalRes.status,
+        requestIdOf(finalJson)
       );
     }
 
