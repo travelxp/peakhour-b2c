@@ -169,6 +169,10 @@ export default function BillingPage() {
   const paidCount = products.filter((p) => !p.tier.endsWith(".free")).length;
   // Per-product price / renewal, keyed by tier, so each row can show what it
   // costs rather than just that it exists.
+  // WHICH product is cancelling. One mutation instance is shared by every row, so
+  // keying the pending state off isPending alone put "Cancelling…" on all of them
+  // and disabled the lot while one was in flight.
+  const cancellingKey = cancelProduct.isPending ? cancelProduct.variables : null;
   const priceByTier = new Map(
     (summary?.products ?? []).map((p) => [p.tier ?? "", p]),
   );
@@ -412,7 +416,7 @@ export default function BillingPage() {
                         variant="ghost"
                         size="sm"
                         className="text-muted-foreground hover:text-destructive"
-                        disabled={cancelProduct.isPending}
+                        disabled={cancellingKey === p.productKey}
                         onClick={() => {
                           if (!p.productKey) return;
                           const label = p.name || p.tier;
@@ -445,7 +449,7 @@ export default function BillingPage() {
                           });
                         }}
                       >
-                        {cancelProduct.isPending ? "Cancelling…" : "Cancel"}
+                        {cancellingKey === p.productKey ? "Cancelling…" : "Cancel"}
                       </Button>
                     )}
                   </div>
