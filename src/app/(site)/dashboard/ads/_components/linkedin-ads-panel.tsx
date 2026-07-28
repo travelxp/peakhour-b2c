@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api, ApiError } from "@/lib/api";
-import { toastUnhandledApiError } from "@/lib/api/unhandled-error-toast";
+import { toastUnhandledApiError } from "@/lib/toast-errors";
 import {
   linkedInAdsApi,
   type ManagedCampaign,
@@ -266,7 +266,7 @@ function CampaignsPanel() {
           </TableBody>
         </Table>
         <p className="mt-3 border-t pt-2 text-[11px] text-muted-foreground">
-          Campaigns are created in LinkedIn as drafts under a paused group —
+          Campaigns are created in LinkedIn as drafts under a draft group —
           they cannot spend until you activate them. Set the audience with the
           Audience button before activating; the protective monitor
           auto-pauses any campaign that reaches its total budget.
@@ -522,8 +522,8 @@ function CampaignRow({
             <AlertDialogHeader>
               <AlertDialogTitle>Start spending on this campaign?</AlertDialogTitle>
               <AlertDialogDescription>
-                Activating &ldquo;{campaign.name}&rdquo; un-pauses its LinkedIn
-                campaign group and submits the campaign for delivery at{" "}
+                Activating &ldquo;{campaign.name}&rdquo; also activates its
+                LinkedIn campaign group and submits the campaign for delivery at{" "}
                 <span className="font-medium">
                   {formatMoney(campaign.budget?.daily, campaign.currency)}/day
                 </span>

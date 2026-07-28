@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api";
-import { toastUnhandledApiError } from "@/lib/api/unhandled-error-toast";
+import { toastUnhandledApiError } from "@/lib/toast-errors";
 import {
   linkedInAdsApi,
   type BoostObjective,
@@ -34,7 +34,7 @@ import { Rocket } from "lucide-react";
  * REAL LinkedIn campaign via POST /v1/linkedin/ads/boost.
  *
  * Safety framing baked into the copy: the campaign is created as a
- * LinkedIn DRAFT under a paused group. Nothing spends from this dialog
+ * LinkedIn DRAFT under a DRAFT group. Nothing spends from this dialog
  * — activation (the one spend-enabling action) lives in the Ads
  * Manager behind its own confirm.
  */
@@ -154,22 +154,32 @@ export function BoostCampaignDialog({
         // The draft DOES exist on LinkedIn — retrying would duplicate it.
         setTerminal(true);
         toast.error(
-          (err as ApiError).message ||
-            "The campaign was created on LinkedIn but couldn't be saved here — contact support (don't retry).",
+          "The campaign was created on LinkedIn but couldn't be saved here. Contact support — don't retry.",
         );
+      } else if (code === "DUPLICATE_DRAFT") {
+        // An un-activated draft for this post already exists; sending
+        // the user there beats letting them build a second one.
+        onOpenChange(false);
+        toast.error("You already have a draft campaign for this post.", {
+          description: "Edit or activate it from the Ads Manager instead of creating a second one.",
+          action: {
+            label: "Open Ads Manager",
+            onClick: () => { window.location.href = "/dashboard/ads?channel=linkedin"; },
+          },
+        });
       } else if (code === "RATE_LIMITED") {
         toast.error("LinkedIn is rate-limiting us — give it a minute and try again.");
       } else if (code === "VALIDATION_LEADGEN_FORM_REQUIRED") {
-        // Unreachable from this dialog (the objective isn't offered),
-        // but a server-side objective default could still produce it.
+        // Defensive only — the objective isn't in OBJECTIVES, so this
+        // dialog can't produce it today. Kept so re-adding the option
+        // fails legibly rather than through the generic branch.
         toast.error(
-          (err as ApiError).message ||
-            "Lead-generation campaigns need a LinkedIn lead gen form — pick another objective.",
+          "Lead-generation campaigns need a LinkedIn lead gen form — pick another objective.",
         );
       } else {
-        // Everything else surfaces the server's actual reason — see
-        // toastUnhandledApiError for why the old blanket "try again"
-        // hid this feature being 100% broken.
+        // Everything else: friendly copy keyed on the code, with the
+        // request id for support. NOT err.message — see toast-errors.ts
+        // for why surfacing raw provider text is the wrong fix.
         toastUnhandledApiError(err, "create the campaign");
       }
     },

@@ -4,9 +4,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { ApiError } from "@/lib/api";
+import { toastUnhandledApiError } from "@/lib/toast-errors";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -240,8 +240,10 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
       });
     },
     onError: (err: unknown) => {
-      const message = err instanceof ApiError ? err.message : "Couldn't update campaign status.";
-      toast.error(message);
+      // Was `toast.error(err.message)` — the X Ads helper's message is
+      // the platform's raw response body, same disclosure problem the
+      // LinkedIn panel had. Friendly copy + a request id instead.
+      toastUnhandledApiError(err, "update the campaign status");
     },
   });
 

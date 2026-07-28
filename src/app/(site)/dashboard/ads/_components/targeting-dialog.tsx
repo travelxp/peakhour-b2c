@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api";
-import { toastUnhandledApiError } from "@/lib/api/unhandled-error-toast";
+import { toastUnhandledApiError } from "@/lib/toast-errors";
 import {
   linkedInAdsApi,
   type ManagedCampaign,
