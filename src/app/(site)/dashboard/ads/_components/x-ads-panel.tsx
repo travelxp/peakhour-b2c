@@ -267,9 +267,10 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
   }
 
   // A failed fetch is NOT "no ad accounts". /ad-accounts requires a connection
-  // with status "active", so a stale (needs_reauth) connection 404s here — and
-  // any upstream X error 400s — both of which used to render as "your X account
-  // doesn't have any ad accounts", sending the user to ads.x.com for nothing.
+  // with status "active", so a stale (needs_reauth) connection fails here with
+  // NOT_CONNECTED — as does any upstream X error — both of which used to render
+  // as "your X account doesn't have any ad accounts", sending the user to
+  // ads.x.com for nothing.
   if (accounts.isError) {
     return (
       <EmptyState
@@ -352,6 +353,18 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
           {campaigns.isLoading ? (
             <div className="p-5">
               <Skeleton className="h-48 w-full" />
+            </div>
+          ) : campaigns.isError ? (
+            // A failed fetch is not "no campaigns". Same trap the ad-accounts
+            // list had: telling someone with live campaigns to create their
+            // first one. Reachable when the api refuses the chosen account
+            // (403) or X is briefly unavailable.
+            <div className="p-8">
+              <EmptyState
+                icon={RefreshCw}
+                title="Couldn't load campaigns"
+                description="X didn't return this account's campaigns. Try again in a moment, or pick a different ad account."
+              />
             </div>
           ) : (campaigns.data ?? []).length === 0 ? (
             <div className="p-8">
