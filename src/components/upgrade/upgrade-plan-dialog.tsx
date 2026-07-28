@@ -39,9 +39,11 @@ interface PurchasablePlan {
   taxIncluded: boolean;
   recommended: boolean;
   isCurrent: boolean;
-  /** Server says this org can start a no-card trial on this product
-   *  (plan offers trial days AND the org has never held the product). */
-  trialEligible: boolean;
+  /** Will THIS purchase include the plan's free trial? True when the plan offers
+   *  trial days AND the org has never held the product (one trial per product,
+   *  ever). The trial always collects a card — it runs at the gateway and defers
+   *  the first charge; it never skips payment details. */
+  trialApplies: boolean;
 }
 interface PlansResponse {
   country: string;
@@ -81,19 +83,39 @@ export function UpgradePlanDialog({
     refetchOnWindowFocus: false,
   });
 
-  // The checkout can either mint a gateway payment surface (first product on a
-  // gateway) OR — when the org already has a live subscription for this interval
-  // — ADD the product as an item to it and charge the prorated top-up off-session
-  // (billing-consolidation-plan.md Phase 3a). The "added" case needs no payment
-  // UI: the saved mandate was used, so we just confirm + refresh.
+  // Checkout has four outcomes:
+  //   • a gateway payment surface — first product on this gateway. A trial does
+  //     NOT skip this step: the card is collected here and the first charge is
+  //     deferred to trial end (product decision 2026-07-28, no no-card trials).
+  //   • "trial_started" — the org already has a live subscription, so the card is
+  //     already on file. Nothing is collected or charged; the product attaches to
+  //     that subscription when the trial ends.
+  //   • "added" — same, but with no trial left on this product, so the prorated
+  //     top-up was charged off-session against the saved mandate.
+  //   • "invoice_required" — India RBI, total above the auto-mandate cap.
   const checkoutMut = useMutation({
     mutationFn: (tier: string) =>
       api.post<
         | CheckoutResult
         | { mode: "added"; tier: string; tierLabel?: string }
+        | {
+            mode: "trial_started";
+            tier: string;
+            tierLabel?: string;
+            trialDays: number;
+            trialEndsAt: string;
+          }
         | { mode: "invoice_required"; tier: string; tierLabel?: string }
       >("/v1/billing/checkout", { tier }),
     onSuccess: (res) => {
+      if (res && "mode" in res && res.mode === "trial_started") {
+        toast.success(`${res.tierLabel || res.tier} added to your subscription`, {
+          description: `Free for ${res.trialDays} days — nothing to pay now. Billed with your other products from ${new Date(res.trialEndsAt).toLocaleDateString()}.`,
+        });
+        onOpenChange(false);
+        onPurchased?.();
+        return;
+      }
       if (res && "mode" in res && res.mode === "added") {
         toast.success(`${res.tierLabel || res.tier} added to your subscription`);
         onOpenChange(false);
@@ -115,27 +137,15 @@ export function UpgradePlanDialog({
     onError: (e: Error) => toast.error(e.message ?? "Couldn't start checkout"),
   });
 
-  // No-card trial — never touches a gateway, so there's no PaymentModal here.
-  // The server grants the tier immediately and the expiry cron ends it.
-  const trialMut = useMutation({
-    mutationFn: (tier: string) =>
-      api.post<{ tierLabel: string; trialDays: number }>("/v1/billing/trial", {
-        tier,
-      }),
-    onSuccess: (res) => {
-      toast.success(
-        `Your ${res.trialDays}-day free trial of ${res.tierLabel} has started.`,
-      );
-      onOpenChange(false);
-      onPurchased?.();
-    },
-    onError: (e: Error) => toast.error(e.message ?? "Couldn't start the trial"),
-  });
+  // NOTE: there is deliberately no separate "start trial" mutation. The old
+  // POST /v1/billing/trial granted a gateway-less no-card trial and now returns
+  // 410 — a trial is a property of checkout, so both paths run through
+  // checkoutMut above and the card is always collected first.
 
   const plans = plansQ.data?.plans ?? [];
   const purchasable = plansQ.data?.purchasable ?? true;
   const selectedPlan = plans.find((p) => p.tier === selected) ?? null;
-  const busy = checkoutMut.isPending || trialMut.isPending;
+  const busy = checkoutMut.isPending;
 
   return (
     <>
@@ -148,7 +158,7 @@ export function UpgradePlanDialog({
             <DialogTitle>Choose a plan</DialogTitle>
             <DialogDescription>
               {purchasable
-                ? "Pick a plan to upgrade — you'll pay securely on the next step."
+                ? "Pick a plan to upgrade — you'll add your card securely on the next step. Plans with a free trial aren't charged until the trial ends."
                 : "Payments aren't available in your country yet. We'll let you know as soon as they are."}
             </DialogDescription>
           </DialogHeader>
@@ -217,10 +227,9 @@ export function UpgradePlanDialog({
                           /mo
                         </span>
                       </div>
-                      {p.trialDays > 0 && (
+                      {p.trialDays > 0 && p.trialApplies && (
                         <div className="text-xs text-emerald-600 dark:text-emerald-400">
-                          {p.trialDays}-day free trial
-                          {p.trialEligible ? " · no card needed" : ""}
+                          {p.trialDays}-day free trial · card required
                         </div>
                       )}
                       {p.isCurrent && (
@@ -235,39 +244,30 @@ export function UpgradePlanDialog({
             </div>
           )}
 
-          {/* Trial is the primary action when the selected plan offers one —
-              it's the lower-commitment path and needs no card. Paying stays
-              available alongside it. */}
+          {/* ONE action. A trial is not a separate, lower-commitment path any
+              more — it runs through the same checkout, which collects the card
+              and defers the first charge. The copy states both facts up front so
+              the card request on the next step is never a surprise. */}
           <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
-            {selectedPlan?.trialEligible && (
+            {selectedPlan?.trialApplies && (
               <span className="mr-auto text-xs text-muted-foreground">
-                No credit card required — cancel anytime.
+                We&rsquo;ll ask for a card now and charge nothing for{" "}
+                {selectedPlan.trialDays} days. Cancel anytime.
               </span>
             )}
             <Button variant="ghost" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button
-              variant={selectedPlan?.trialEligible ? "outline" : "default"}
               disabled={!selected || !purchasable || busy}
               onClick={() => selected && checkoutMut.mutate(selected)}
             >
               {checkoutMut.isPending
                 ? "Starting…"
-                : selectedPlan?.trialEligible
-                  ? "Buy now"
+                : selectedPlan?.trialApplies
+                  ? `Start ${selectedPlan.trialDays}-day free trial`
                   : "Continue to payment"}
             </Button>
-            {selectedPlan?.trialEligible && (
-              <Button
-                disabled={busy}
-                onClick={() => selected && trialMut.mutate(selected)}
-              >
-                {trialMut.isPending
-                  ? "Starting…"
-                  : `Start ${selectedPlan.trialDays}-day free trial`}
-              </Button>
-            )}
           </div>
         </DialogContent>
       </Dialog>
