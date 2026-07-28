@@ -126,9 +126,12 @@ export function PlanComparison({
                         : cta.label}
                     </Link>
                   )}
+                  {/* A paid tier's trial always collects a card up front (product
+                      decision 2026-07-28) — say so here, or the "No card needed"
+                      line the FREE column shows reads as if it covered trials too. */}
                   {!isFree && tier.pricing.trialDays > 0 && (
                     <p className="mt-2 text-center text-[11px] text-muted-foreground">
-                      {tier.pricing.trialDays}-day free trial
+                      {tier.pricing.trialDays}-day free trial · card required
                     </p>
                   )}
                 </th>
