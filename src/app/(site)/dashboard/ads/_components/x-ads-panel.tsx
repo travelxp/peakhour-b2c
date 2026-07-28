@@ -353,6 +353,18 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
             <div className="p-5">
               <Skeleton className="h-48 w-full" />
             </div>
+          ) : campaigns.isError ? (
+            // A failed fetch is not "no campaigns". Same trap the ad-accounts
+            // list had: telling someone with live campaigns to create their
+            // first one. Reachable when the api refuses the chosen account
+            // (403) or X is briefly unavailable.
+            <div className="p-8">
+              <EmptyState
+                icon={RefreshCw}
+                title="Couldn't load campaigns"
+                description="X didn't return this account's campaigns. Try again in a moment, or pick a different ad account."
+              />
+            </div>
           ) : (campaigns.data ?? []).length === 0 ? (
             <div className="p-8">
               <EmptyState
