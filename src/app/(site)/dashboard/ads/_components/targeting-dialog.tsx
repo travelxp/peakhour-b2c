@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api";
+import { toastUnhandledApiError } from "@/lib/toast-errors";
 import {
   linkedInAdsApi,
   type ManagedCampaign,
@@ -282,12 +283,15 @@ export function TargetingDialog({
           (err as ApiError).message ||
             "Targeting was applied on LinkedIn but couldn't be saved locally — apply again to refresh the display.",
         );
-      } else if (err instanceof ApiError && err.status === 400 && err.message) {
-        // Platform-rejected entity (the api deliberately 400s
-        // provider_4xx here as user-fixable) — the message names it.
-        toast.error(err.message);
       } else {
-        toast.error("Couldn't apply targeting. Try again in a moment.");
+        // NOTE: this used to end with `if (status === 400) toast.error(
+        // err.message)`, reasoning that the api deliberately 400s
+        // provider_4xx here as "user-fixable". But the message on those
+        // codes is `LinkedIn API 400: <raw response body>` — a JSON dump
+        // with serviceErrorCodes, not something a user can act on. It
+        // was also keyed on status, the exact trap this work exists to
+        // remove. The helper's PROVIDER_4XX_* branch handles it.
+        toastUnhandledApiError(err, "apply the targeting", "LinkedIn");
       }
     },
   });

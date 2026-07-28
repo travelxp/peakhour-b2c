@@ -124,6 +124,13 @@ class ApiClient {
         message: "Request failed",
       };
 
+      // A retry SUPERSEDES the first response. When one happens and still
+      // fails, the error we throw must describe the RETRY — otherwise the
+      // request id we hand the user points at a log showing only the CSRF
+      // rejection or the 401, not the failure they actually hit.
+      let finalRes = res;
+      let finalJson = json;
+
       // If CSRF token was rejected, clear cache and retry once
       if (
         (error.code === "CSRF_INVALID" || error.code === "CSRF_MISSING") &&
@@ -138,15 +145,23 @@ class ApiClient {
             ...fetchOptions,
             headers,
           });
-          const retryJson = (await retryRes.json()) as Record<string, unknown>;
-          if (retryRes.ok && retryJson.ok) {
-            return retryJson.data as T;
+          try {
+            const retryJson = (await retryRes.json()) as Record<string, unknown>;
+            if (retryRes.ok && retryJson.ok) {
+              return retryJson.data as T;
+            }
+            finalRes = retryRes;
+            finalJson = retryJson;
+          } catch {
+            // Non-JSON on the retry — keep the ORIGINAL server error.
+            // Letting the SyntaxError escape here would discard the only
+            // useful diagnosis.
           }
         }
       }
 
       // Auto-refresh on 401: call /auth/refresh to renew access_token, then retry once
-      if (res.status === 401 && !path.includes("/auth/refresh")) {
+      if (finalRes.status === 401 && !path.includes("/auth/refresh")) {
         const refreshed = await this.tryRefresh();
         if (refreshed) {
           // Retry the original request with fresh access_token cookie
@@ -160,16 +175,22 @@ class ApiClient {
             if (retryRes.ok && retryJson.ok) {
               return retryJson.data as T;
             }
+            finalRes = retryRes;
+            finalJson = retryJson;
           } catch {
-            // Fall through to original error
+            // Keep whatever we had — see above.
           }
         }
       }
 
+      const errorEnvelope =
+        (finalJson.error as { code?: string; message?: string }) || error;
+
       throw new ApiError(
-        error.code || "UNKNOWN",
-        error.message || "Request failed",
-        res.status
+        errorEnvelope.code || "UNKNOWN",
+        errorEnvelope.message || "Request failed",
+        finalRes.status,
+        requestIdOf(finalJson)
       );
     }
 
@@ -231,7 +252,12 @@ class ApiClient {
     }
     if (!res.ok || !json.ok) {
       const error = (json.error as { code?: string; message?: string }) || { message: "Request failed" };
-      throw new ApiError(error.code || "UNKNOWN", error.message || "Request failed", res.status);
+      throw new ApiError(
+        error.code || "UNKNOWN",
+        error.message || "Request failed",
+        res.status,
+        requestIdOf(json)
+      );
     }
     return { data: json.data as T, meta: (json.meta as Record<string, unknown>) ?? {} };
   }
@@ -296,7 +322,12 @@ class ApiClient {
     }
     if (!res.ok || !json.ok) {
       const error = (json.error as { code?: string; message?: string }) || { message: "Upload failed" };
-      throw new ApiError(error.code || "UNKNOWN", error.message || "Upload failed", res.status);
+      throw new ApiError(
+        error.code || "UNKNOWN",
+        error.message || "Upload failed",
+        res.status,
+        requestIdOf(json)
+      );
     }
     return json.data as T;
   }
@@ -355,7 +386,8 @@ class ApiClient {
       throw new ApiError(
         error?.code || "STREAM_ERROR",
         error?.message || `Request failed (${res.status})`,
-        res.status
+        res.status,
+        requestIdOf(json as Record<string, unknown> | null)
       );
     }
 
@@ -367,11 +399,27 @@ export class ApiError extends Error {
   constructor(
     public code: string,
     message: string,
-    public status: number
+    public status: number,
+    /**
+     * `meta.request_id` from the api envelope, when the response had
+     * one. The api puts it on EVERY response and logs the full provider
+     * detail against it, so this is the handle that lets support find
+     * what actually went wrong — without us rendering raw provider text
+     * (which can carry internal ids and config names) to the user.
+     */
+    public requestId?: string
   ) {
     super(message);
     this.name = "ApiError";
   }
+}
+
+/** Pull `meta.request_id` out of a parsed api envelope, if present. */
+function requestIdOf(json: Record<string, unknown> | null | undefined): string | undefined {
+  const meta = json?.meta as { request_id?: unknown } | undefined;
+  return typeof meta?.request_id === "string" && meta.request_id !== "unknown"
+    ? meta.request_id
+    : undefined;
 }
 
 export const api = new ApiClient(API_URL);

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api, ApiError } from "@/lib/api";
+import { toastUnhandledApiError } from "@/lib/toast-errors";
 import {
   linkedInAdsApi,
   type ManagedCampaign,
@@ -265,7 +266,7 @@ function CampaignsPanel() {
           </TableBody>
         </Table>
         <p className="mt-3 border-t pt-2 text-[11px] text-muted-foreground">
-          Campaigns are created in LinkedIn as drafts under a paused group —
+          Campaigns are created in LinkedIn as drafts under a draft group —
           they cannot spend until you activate them. Set the audience with the
           Audience button before activating; the protective monitor
           auto-pauses any campaign that reaches its total budget.
@@ -318,8 +319,17 @@ function CampaignRow({
         );
       } else if (code === "RATE_LIMITED") {
         toast.error("LinkedIn is rate-limiting us — give it a minute and try again.");
+      } else if (code === "STATUS_PERSIST_FAILED") {
+        // Qualified FAILURE, and the most important message on this
+        // surface: the platform change DID apply — for "active" that
+        // means LinkedIn is now spending — and only our mirror failed.
+        // The server text is hardcoded and says exactly that, so it is
+        // shown verbatim; routing this through the generic handler would
+        // leave the user unaware that spend had started.
+        onChanged();
+        toast.warning((err as ApiError).message, { duration: Infinity });
       } else {
-        toast.error("Couldn't update the campaign. Try again in a moment.");
+        toastUnhandledApiError(err, "update the campaign", "LinkedIn");
       }
     },
   });
@@ -342,7 +352,7 @@ function CampaignRow({
       } else if (code === "RATE_LIMITED") {
         toast.error("LinkedIn is rate-limiting us — give it a minute and try again.");
       } else {
-        toast.error("Couldn't refresh metrics right now.");
+        toastUnhandledApiError(err, "refresh the metrics", "LinkedIn");
       }
     },
   });
@@ -521,8 +531,8 @@ function CampaignRow({
             <AlertDialogHeader>
               <AlertDialogTitle>Start spending on this campaign?</AlertDialogTitle>
               <AlertDialogDescription>
-                Activating &ldquo;{campaign.name}&rdquo; un-pauses its LinkedIn
-                campaign group and submits the campaign for delivery at{" "}
+                Activating &ldquo;{campaign.name}&rdquo; also activates its
+                LinkedIn campaign group and submits the campaign for delivery at{" "}
                 <span className="font-medium">
                   {formatMoney(campaign.budget?.daily, campaign.currency)}/day
                 </span>

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api";
+import { toastUnhandledApiError } from "@/lib/toast-errors";
 import {
   growthApi,
   type GrowthSettings,
@@ -398,7 +399,11 @@ function ProposalRow({
       } else if (code === "FORBIDDEN") {
         toast.error("Pick a business first.");
       } else {
-        toast.error("Couldn't record the decision. Try again in a moment.");
+        // Approving a budget_resplit is a real platform write, so this
+        // branch can carry the ad platform's own rejection. `platformName`
+        // is whatever channel the proposal belongs to — the helper must
+        // not hardcode a platform on a multi-platform surface.
+        toastUnhandledApiError(err, "record the decision", platformName);
       }
     },
   });

@@ -104,7 +104,11 @@ export default async function SiteLayout({
               <TooltipProvider>
                 {children}
               </TooltipProvider>
-              <Toaster richColors position="bottom-right" />
+              {/* closeButton: some error toasts deliberately don't
+                  auto-dismiss (a support reference has to survive long
+                  enough to read), and sonner's only other dismissal is a
+                  pointer swipe — unusable by keyboard or AT. */}
+              <Toaster richColors closeButton position="bottom-right" />
             </AuthProvider>
           </QueryProvider>
         </ThemeProvider>
