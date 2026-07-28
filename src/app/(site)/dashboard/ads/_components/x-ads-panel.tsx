@@ -267,9 +267,10 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
   }
 
   // A failed fetch is NOT "no ad accounts". /ad-accounts requires a connection
-  // with status "active", so a stale (needs_reauth) connection 404s here — and
-  // any upstream X error 400s — both of which used to render as "your X account
-  // doesn't have any ad accounts", sending the user to ads.x.com for nothing.
+  // with status "active", so a stale (needs_reauth) connection fails here with
+  // NOT_CONNECTED — as does any upstream X error — both of which used to render
+  // as "your X account doesn't have any ad accounts", sending the user to
+  // ads.x.com for nothing.
   if (accounts.isError) {
     return (
       <EmptyState
