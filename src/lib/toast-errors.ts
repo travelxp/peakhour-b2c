@@ -92,6 +92,11 @@ function dispositionOf(code: string, status: number): Disposition {
     code === "INTERNAL_ERROR" ||
     code === "ADAPTER_MISSING" ||
     code === "CONFIG_ERROR" ||
+    // The *_PERSIST_FAILED pair are qualified failures — the platform
+    // write landed, only our mirror didn't. Surfaces that can act on
+    // that branch on the code explicitly and show the server's own
+    // (hardcoded, safe) wording; reaching here means an unhandled
+    // surface, where "contact support" is the right floor.
     code === "PERSIST_FAILED" ||
     code === "STATUS_PERSIST_FAILED"
   ) {

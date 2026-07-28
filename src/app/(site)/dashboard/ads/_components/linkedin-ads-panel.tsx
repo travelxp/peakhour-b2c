@@ -319,6 +319,15 @@ function CampaignRow({
         );
       } else if (code === "RATE_LIMITED") {
         toast.error("LinkedIn is rate-limiting us — give it a minute and try again.");
+      } else if (code === "STATUS_PERSIST_FAILED") {
+        // Qualified FAILURE, and the most important message on this
+        // surface: the platform change DID apply — for "active" that
+        // means LinkedIn is now spending — and only our mirror failed.
+        // The server text is hardcoded and says exactly that, so it is
+        // shown verbatim; routing this through the generic handler would
+        // leave the user unaware that spend had started.
+        onChanged();
+        toast.warning((err as ApiError).message, { duration: Infinity });
       } else {
         toastUnhandledApiError(err, "update the campaign", "LinkedIn");
       }
