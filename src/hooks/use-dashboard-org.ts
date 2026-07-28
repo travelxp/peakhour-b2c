@@ -11,6 +11,10 @@ export interface DashboardOrgPlanSummary {
   name?: string;
   subscription?: {
     plan?: string;
+    /** Customer-facing plan name from cfg_plans. ALWAYS prefer this for display —
+     *  `plan` is a machine tier key ("commerce_assistant.free"), and rendering it
+     *  is what showed customers "Commerce_assistant.Free" as their plan name. */
+    planName?: string;
     planVersion?: number;
     trialEndsAt?: string | null;
     trialActive?: boolean;
@@ -34,6 +38,14 @@ export interface DashboardOrgPlanSummary {
     state: string;
     name: string;
     since?: string | null;
+    /** Next charge for this product. Every product on a consolidated subscription
+     *  shares one date — that shared date is what lets the page say they are
+     *  billed together. Null until a gateway event has established it. */
+    renewsAt?: string | null;
+    /** Set only on a pending-attach trial (a product added to an existing
+     *  subscription): the date it starts billing. A gateway-native trial carries
+     *  none, so absence does NOT mean "not trialing". */
+    trialEndsAt?: string | null;
   }>;
   billing?: { plan?: string };
   createdAt?: string;

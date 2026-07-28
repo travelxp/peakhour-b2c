@@ -19,7 +19,23 @@ import { useQueryClient } from "@tanstack/react-query";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { TaxAndInvoices } from "@/components/settings-tax-invoices";
 import { UpgradePlanDialog } from "@/components/upgrade/upgrade-plan-dialog";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useBillingSummary, BILLING_SUMMARY_KEY } from "@/hooks/use-billing-summary";
+
+/** Money in the buyer's own currency. Falls back to "CUR 1499" when Intl can't
+ *  resolve the code, so a price never renders as a bare number. */
+function money(amount: number, currency: string | null): string {
+  if (!currency) return String(amount);
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency,
+      maximumFractionDigits: 0,
+    }).format(amount);
+  } catch {
+    return `${currency} ${amount}`;
+  }
+}
 
 // Mirrors the navbar PlanBadge tier accents so plan presentation stays
 // consistent across surfaces.
@@ -39,8 +55,18 @@ export default function BillingPage() {
   const queryClient = useQueryClient();
   const { formatDate } = useLocale();
   const { data: details, isLoading } = useDashboardOrg();
+  const { data: summary } = useBillingSummary();
   const extend = useExtendTrial();
   const [upgradeOpen, setUpgradeOpen] = useState(false);
+
+  // Both billing reads must move together. The page states a combined total and a
+  // next-charge date from /billing/summary alongside the product list from
+  // /dashboard/org — refreshing one without the other shows a new product against
+  // a stale total, which is worse than showing neither.
+  const refreshBilling = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: ["/v1/dashboard/org"] });
+    void queryClient.invalidateQueries({ queryKey: [BILLING_SUMMARY_KEY] });
+  }, [queryClient]);
 
   // Reconcile-on-return: Stripe embedded Checkout redirects back to
   // ?checkout=success&session_id=cs_… the instant the session completes — often
@@ -83,18 +109,16 @@ export default function BillingPage() {
       } catch {
         // Best-effort: the webhook remains the backstop. Never alarm the buyer.
       } finally {
-        void queryClient.invalidateQueries({ queryKey: ["/v1/dashboard/org"] });
+        refreshBilling();
         stripParams();
       }
     })();
-  }, [queryClient]);
+  }, [refreshBilling]);
 
   const cronToolbar = (
     <CronToolbar
       crons={["trial-expiry-sweep"]}
-      onTriggered={() =>
-        queryClient.invalidateQueries({ queryKey: ["/v1/dashboard/org"] })
-      }
+      onTriggered={refreshBilling}
     />
   );
 
@@ -114,6 +138,10 @@ export default function BillingPage() {
   // but kept on the response for old consumers).
   const plan = details?.subscription?.plan ?? details?.billing?.plan ?? "free";
   const planClass = PLAN_STYLES[plan] ?? PLAN_STYLES.free;
+  // Prefer the server-resolved NAME. `plan` is a machine tier key, and this badge
+  // used to render it under `capitalize` — which is how customers came to see
+  // "Commerce_assistant.Free" as their plan name.
+  const planLabel = details?.subscription?.planName ?? plan;
   const trialActive = details?.subscription?.trialActive === true;
   const trialDays = details?.subscription?.trialDaysRemaining ?? 0;
   const trialEndsAt = details?.subscription?.trialEndsAt
@@ -126,6 +154,12 @@ export default function BillingPage() {
   // base plan can be Free while the org owns a purchased product (e.g. Commerce
   // Assistant) — without this, the page reads "Free" and prompts a re-purchase.
   const products = details?.products ?? [];
+  const hasProducts = products.length > 0;
+  // Per-product price / renewal, keyed by tier, so each row can show what it
+  // costs rather than just that it exists.
+  const priceByTier = new Map(
+    (summary?.products ?? []).map((p) => [p.tier ?? "", p]),
+  );
 
   const handleExtend = () => {
     extend.mutate(undefined, {
@@ -168,16 +202,22 @@ export default function BillingPage() {
       </div>
 
       <div className="max-w-3xl space-y-6">
-        {/* Current plan card */}
+        {/* Your subscription — ONE subscription, N products, one charge.
+            This card used to read "Current Plan: {tier key}", which showed
+            customers "Commerce_assistant.Free" and said nothing about the paid
+            products they actually hold. The headline is now what they are
+            charged; the base plan is a footnote. */}
         <div className="rounded-2xl border bg-muted/30 px-5 pt-4 pb-5">
           <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center mb-4">
             <div className="flex items-center gap-2">
-              <h3 className="font-semibold">Current Plan</h3>
+              <h3 className="font-semibold">
+                {hasProducts ? "Your subscription" : "Current Plan"}
+              </h3>
               <Badge
                 variant="secondary"
-                className={cn("font-medium capitalize", planClass)}
+                className={cn("font-medium", planClass)}
               >
-                {plan}
+                {planLabel}
               </Badge>
               {trialActive && trialDays > 0 ? (
                 <Badge variant="outline" className="font-medium">
@@ -209,28 +249,59 @@ export default function BillingPage() {
               </Button>
             </div>
           </div>
+          {/* Fixed labels. An earlier draft flipped the first column between
+              "Monthly total" and "Organization" depending on whether a total had
+              resolved — a label that changes meaning is worse than an em dash. */}
           <div className="grid gap-3 sm:grid-cols-3">
+            <div>
+              <p className="text-xs text-muted-foreground">Monthly total</p>
+              <p className="text-sm font-medium">
+                {summary?.monthlyTotal != null
+                  ? `${money(summary.monthlyTotal, summary.currency)}${summary.monthlyTotalComplete ? "" : "+"}`
+                  : "—"}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Next charge</p>
+              <p className="text-sm font-medium">
+                {summary?.nextChargeAt
+                  ? formatDate(summary.nextChargeAt)
+                  : trialActive && trialEndsAt
+                    ? formatDate(trialEndsAt.toISOString())
+                    : "—"}
+              </p>
+            </div>
             <div>
               <p className="text-xs text-muted-foreground">Organization</p>
               <p className="text-sm font-medium">{details?.name || "—"}</p>
             </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Member since</p>
-              <p className="text-sm font-medium">
-                {formatDate(details?.createdAt)}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">
-                {trialActive ? "Trial ends" : "Billing cycle"}
-              </p>
-              <p className="text-sm font-medium">
-                {trialActive && trialEndsAt
-                  ? formatDate(trialEndsAt.toISOString())
-                  : "Monthly"}
-              </p>
-            </div>
           </div>
+
+          {/* The combined-charge promise, stated only when it is actually true —
+              i.e. the server confirmed every product rides one subscription. */}
+          {summary?.billedTogether && summary.monthlyTotal != null ? (
+            <p className="mt-3 text-xs text-muted-foreground">
+              All {summary.products.length} products are billed together as one
+              charge of {money(summary.monthlyTotal, summary.currency)}
+              {summary.monthlyTotalComplete ? "" : " or more"}
+              {summary.nextChargeAt ? ` on ${formatDate(summary.nextChargeAt)}` : ""}.
+              {summary.basePlanName ? ` Included plan: ${summary.basePlanName}.` : ""}
+            </p>
+          ) : null}
+
+          {/* India (RBI): a bigger COMBINED debit changes what the buyer has to do
+              each cycle. Say so before the charge, not after it fails. */}
+          {summary?.collectionTier === "afa" ? (
+            <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+              Your bank will ask you to approve each renewal, because the combined
+              amount is above the limit for automatic payments in India.
+            </p>
+          ) : summary?.collectionTier === "invoice" ? (
+            <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+              This total is above the limit for automatic payments in India, so
+              we&rsquo;ll email you an invoice to pay each cycle.
+            </p>
+          ) : null}
         </div>
 
         {/* Your products — paid products held beyond the base plan. Shown only
@@ -248,11 +319,26 @@ export default function BillingPage() {
                 >
                   <div>
                     <p className="text-sm font-medium">{p.name}</p>
-                    {p.since ? (
-                      <p className="text-xs text-muted-foreground">
-                        Since {formatDate(p.since)}
-                      </p>
-                    ) : null}
+                    <p className="text-xs text-muted-foreground">
+                      {(() => {
+                        const priced = priceByTier.get(p.tier);
+                        const cost =
+                          priced && priced.amountKnown && priced.amount != null
+                            ? `${money(priced.amount, priced.currency)}/mo`
+                            : null;
+                        // A row-level trialEndsAt means the product is granted now
+                        // and starts billing on that date — say when, so a "free"
+                        // product doesn't look permanently free.
+                        const when = p.trialEndsAt
+                          ? `Free until ${formatDate(p.trialEndsAt)}`
+                          : p.renewsAt
+                            ? `Renews ${formatDate(p.renewsAt)}`
+                            : p.since
+                              ? `Since ${formatDate(p.since)}`
+                              : null;
+                        return [cost, when].filter(Boolean).join(" · ") || "—";
+                      })()}
+                    </p>
                   </div>
                   <Badge
                     variant="outline"
@@ -358,9 +444,7 @@ export default function BillingPage() {
       <UpgradePlanDialog
         open={upgradeOpen}
         onOpenChange={setUpgradeOpen}
-        onPurchased={() =>
-          queryClient.invalidateQueries({ queryKey: ["/v1/dashboard/org"] })
-        }
+        onPurchased={refreshBilling}
       />
     </div>
   );
