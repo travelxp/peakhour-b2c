@@ -32,6 +32,14 @@ export default function TermsPage() {
               &quot;Service&quot;).
             </p>
             <p className="mt-2">
+              Outside India, {SITE.name} is marketed and provided by{" "}
+              {SITE.companyUk.legalName}, a company registered in England and Wales under
+              company number {SITE.companyUk.companyNumber}, with its registered office at{" "}
+              {SITE.companyUk.address}. Where you contract with that entity, references to
+              &quot;Company&quot;, &quot;we&quot;, &quot;us&quot; and &quot;our&quot; in these
+              Terms mean {SITE.companyUk.legalName}.
+            </p>
+            <p className="mt-2">
               By creating an account or using the Service, you agree to be bound by these
               Terms. If you do not agree, you may not use the Service. If you are using the
               Service on behalf of an organization, you represent that you have authority to
@@ -153,6 +161,14 @@ export default function TermsPage() {
                 settings. Disconnecting will stop data sync but will not delete previously
                 synced data unless you request deletion.
               </li>
+              <li>
+                Access to certain platform APIs — currently Meta (including WhatsApp Business)
+                and LinkedIn — is held in the name of Celebrities Management Private Limited, an
+                affiliated company within our group that those platforms approved as developer
+                and technology provider, and is made available to us under an intra-group
+                agreement. You may see that name on a platform&apos;s authorization screen. This
+                does not change who you contract with under these Terms.
+              </li>
             </ul>
           </section>
 
@@ -188,8 +204,21 @@ export default function TermsPage() {
                 change pricing with 30 days&apos; notice.
               </li>
               <li>
-                Payments are processed through Stripe. By providing payment information, you
-                agree to Stripe&apos;s terms of service.
+                Payments are processed by third-party payment providers, which vary by the
+                country you purchase from. By providing payment information, you agree to the
+                applicable provider&apos;s terms of service.
+              </li>
+              <li>
+                <strong>Seller of record.</strong> Depending on your country, your purchase is
+                made either directly from {SITE.company.legalName} or from a third-party
+                merchant-of-record (&quot;MoR&quot;) platform that resells the Service. Where an
+                MoR platform is used, that platform — not {SITE.company.legalName} — is the
+                seller of record for the transaction: it contracts with you for the sale,
+                issues your invoice or receipt, and collects and remits any applicable sales
+                tax, VAT or GST. Its own terms and privacy policy govern the payment
+                transaction, while these Terms continue to govern your use of the Service. The
+                seller of record for each purchase is identified at checkout and on the
+                invoice or receipt you receive.
               </li>
               <li>
                 All fees are non-refundable except as required by applicable law or as

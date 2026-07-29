@@ -33,6 +33,12 @@ export default function CookiePolicyPage() {
               </a>
               .
             </p>
+            <p className="mt-2">
+              Outside India, {SITE.name} is marketed and provided by{" "}
+              {SITE.companyUk.legalName}, a company registered in England and Wales under
+              company number {SITE.companyUk.companyNumber}, with its registered office at{" "}
+              {SITE.companyUk.address}.
+            </p>
           </section>
 
           <section>

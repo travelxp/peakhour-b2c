@@ -13,11 +13,20 @@ export const SITE = {
   url: process.env.NEXT_PUBLIC_SITE_URL ?? "https://peakhour.ai",
   tagline: "The AI business platform for growing brands",
   legalLastUpdated: "June 1, 2026",
-  /** Operating legal entity (data controller / data fiduciary). */
+  /** Operating legal entity for India (data controller / data fiduciary). */
   company: {
-    legalName: "Celebrities Management Private Limited",
+    legalName: "Media Worldwide Limited",
     address:
       "5th Floor, Tech Web Centre, Link Road, Oshiwara, Mumbai 400102, Maharashtra, India",
+  },
+  /** Entity that markets and contracts for Peakhour.ai outside India.
+   *  Same legal name as the India entity — the country of incorporation and the
+   *  company registration number are what distinguish the two on documents. */
+  companyUk: {
+    legalName: "Media Worldwide Limited",
+    companyNumber: "06334375",
+    address:
+      "2nd Floor, 2 Warner House, Harrovian Business Village, Bessborough Road, Harrow, Middlesex, England, HA1 3EX",
   },
   contactPrivacy: "privacy@peakhour.ai",
   contactLegal: "legal@peakhour.ai",

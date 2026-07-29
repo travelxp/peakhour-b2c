@@ -38,6 +38,13 @@ export default function PrivacyPolicyPage() {
               personal data.
             </p>
             <p className="mt-2">
+              Outside India, {SITE.name} is marketed and provided by{" "}
+              {SITE.companyUk.legalName}, a company registered in England and Wales under
+              company number {SITE.companyUk.companyNumber}, with its registered office at{" "}
+              {SITE.companyUk.address}. Where that entity provides the Service to you, it is
+              the GDPR &quot;controller&quot; of your personal data.
+            </p>
+            <p className="mt-2">
               By accessing or using the Service, you agree to this Privacy Policy. If you do
               not agree, please do not use the Service.
             </p>
@@ -58,7 +65,8 @@ export default function PrivacyPolicyPage() {
               </li>
               <li>
                 <strong>Payment information:</strong> billing details processed through our
-                third-party payment processor (Stripe). We do not store full credit card numbers.
+                third-party payment providers, which vary by country. We do not store full
+                credit card numbers.
               </li>
               <li>
                 <strong>Content:</strong> newsletters, articles, and other content you upload
@@ -278,8 +286,8 @@ export default function PrivacyPolicyPage() {
               <li>
                 <strong>Service providers (sub-processors):</strong> vetted third-party
                 vendors that help us operate the Service — including cloud hosting,
-                database and object storage, AI/ML model providers, payment processing
-                (Stripe), and transactional email delivery. These providers act on our
+                database and object storage, AI/ML model providers, payment processing,
+                and transactional email delivery. These providers act on our
                 instructions under written contracts (including data-processing terms and,
                 where applicable, Standard Contractual Clauses) that require them to protect
                 your data and use it only to provide their service to us. A current list of
@@ -288,6 +296,17 @@ export default function PrivacyPolicyPage() {
                   {SITE.contactPrivacy}
                 </a>
                 .
+              </li>
+              <li>
+                <strong>Merchant-of-record platforms:</strong> in some countries your purchase
+                is made from a third-party merchant-of-record platform that resells the Service
+                (see Section 8 of our Terms of Service). Unlike a sub-processor, such a
+                platform is an{" "}
+                <strong>independent controller</strong> of the payment and tax data it collects
+                from you, and processes it under its own privacy policy for its own billing,
+                fraud-prevention and tax-compliance purposes. We receive only the transaction
+                and settlement records we need to provision your subscription and keep our
+                books.
               </li>
               <li>
                 <strong>Connected platforms:</strong> when you authorize us to publish
@@ -439,6 +458,22 @@ export default function PrivacyPolicyPage() {
               integration, close your account, or ask us to.
             </p>
 
+            <p className="mt-2">
+              <strong>Platform API access held by an affiliated company.</strong> Access to the
+              Meta developer platform (including WhatsApp Business) and the LinkedIn developer
+              platform is held in the name of{" "}
+              <strong>Celebrities Management Private Limited (&quot;CMPL&quot;)</strong>, an
+              affiliated company within our group, which is the entity those platforms approved
+              as developer and technology provider. When you connect a Meta or LinkedIn account
+              you may therefore see CMPL named on the platform&apos;s authorization screen or in
+              the application&apos;s developer record. CMPL makes that platform access available
+              to us under a written intra-group agreement and processes the data only on our
+              instructions, solely to deliver the integration you enabled.{" "}
+              {SITE.company.legalName} remains the controller / Data Fiduciary responsible for
+              your personal data as described in this Policy, and the rights and contacts set
+              out here apply to that data.
+            </p>
+
             <h3 className="mt-4 font-medium text-foreground">12.1 Meta Platform (Facebook, Instagram, Ads, WhatsApp)</h3>
             <p className="mt-2">
               Our use and transfer of information received from Meta APIs adheres to the{" "}
@@ -480,6 +515,7 @@ export default function PrivacyPolicyPage() {
             <p className="mt-2">
               Our use of LinkedIn data complies with the LinkedIn API Terms of Use and is
               limited to the authorized purposes for which you connected your LinkedIn account.
+              LinkedIn API access is held by CMPL as described above.
             </p>
 
             <h3 className="mt-4 font-medium text-foreground">12.5 Microsoft and other providers</h3>
