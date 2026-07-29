@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { CommerceAssistantPreview } from "@/components/commerce/assistant-preview";
+import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
 
 export const metadata: Metadata = {
   title: "Assistant preview · Commerce",
@@ -12,16 +13,12 @@ export const metadata: Metadata = {
  */
 export default function CommerceAssistantPreviewPage() {
   return (
-    <div className="mx-auto max-w-3xl px-4 py-8">
-      <header className="mb-6">
-        <h1 className="text-xl font-semibold">Assistant preview</h1>
-        <p className="mt-1 text-sm text-neutral-500">
-          This is the same catalog-grounded assistant that answers your customers on WhatsApp,
-          running against your connected store. Ask it anything a shopper might — in any language.
-          It only states facts from your real product catalog.
-        </p>
-      </header>
+    <PageShell width="narrow">
+      <PageHeader
+        title="Assistant preview"
+        description="This is the same catalog-grounded assistant that answers your customers on WhatsApp, running against your connected store. Ask it anything a shopper might — in any language. It only states facts from your real product catalog."
+      />
       <CommerceAssistantPreview />
-    </div>
+    </PageShell>
   );
 }

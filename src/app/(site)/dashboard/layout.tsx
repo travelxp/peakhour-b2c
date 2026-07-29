@@ -294,7 +294,23 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
   return (
     <AskContextProvider>
-    <SidebarProvider>
+    {/* `h-svh` is load-bearing, and it is what makes the `overflow-auto`
+        further down actually mean something. SidebarProvider ships
+        `min-h-svh` — a MINIMUM, so the wrapper grows with its content and the
+        shell has never had a definite height. A `flex: 1 1 0%` item still
+        contributes its max-content flex fraction to the container's intrinsic
+        size (Flexbox §9.9.1), so the content area below stretched with the
+        page, its `overflow-auto` never engaged, and the document scrolled
+        instead. That is also why /dashboard/ask's `calc()` was the only thing
+        holding it in: percentage/flex heights had nothing definite to resolve
+        against.
+
+        Scoped here rather than in components/ui/sidebar.tsx because /cms
+        shares that primitive and should keep document scrolling for now.
+        `min-h-0` on the inset lets the content area shrink below its content
+        so it, not the document, is the scroller. Net effect: the header row
+        stays put while the page scrolls under it. */}
+    <SidebarProvider className="h-svh">
       <Sidebar collapsible="icon" variant="sidebar">
         {/* ── Header: Logo + Switchers ──────────────────────── */}
         <SidebarHeader>
@@ -510,7 +526,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       <CommandMenu />
 
       {/* ── Main Content ──────────────────────────────────── */}
-      <SidebarInset>
+      <SidebarInset className="min-h-0">
         <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
           <SidebarTrigger className="-ml-1" />
           <div className="ml-auto flex items-center gap-3">
@@ -525,19 +541,16 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
             @/components/dashboard/page-shell). Steps down to 16px on mobile:
             at 375px a flat 24px inset costs 13% of the screen width before a
             card's own 24px padding is even applied. */}
-        {/* `flex flex-col` so a route can opt into filling the viewport
-            (<PageShell fill>) without hard-coding the chrome height. The
-            height here IS definite — `flex-1` is `flex: 1 1 0%`, so this div
-            contributes nothing to the wrapper's intrinsic height and settles
-            at exactly `100svh - 3.5rem` (the header) — which is why
-            /dashboard/ask could compute a `calc()` against it at all, and why
-            it was wrong to (it also has to subtract this padding and the
-            banner slot).
+        {/* This is the app's scroll container (see the `h-svh` note above).
+            `flex flex-col` so a route can opt into filling the viewport
+            (<PageShell fill>) without hard-coding what the chrome costs —
+            which is 104px here (header 56 + this padding 48; the banner slot
+            contributes 0 in the common case because it is `empty:hidden`).
 
-            Ordinary pages are unaffected: a block child of a column flex
-            container keeps `min-height: auto`, whose automatic minimum size
-            is its content height, so nothing shrinks below its content and
-            long pages still scroll here rather than being squashed. */}
+            Ordinary pages are unaffected by the flex change: a block child of
+            a column flex container keeps `min-height: auto`, whose automatic
+            minimum size is its content height, so nothing shrinks below its
+            content and long pages scroll here rather than being squashed. */}
         <div className="flex flex-1 flex-col overflow-auto p-4 sm:p-6">
           {/* Banner slot — sits above the route content. Trial-expiry shows
               only inside the final 3 days of a trial; the credit-cap banner

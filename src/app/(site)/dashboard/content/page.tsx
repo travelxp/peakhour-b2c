@@ -396,9 +396,14 @@ function useLastSyncedLabel(lastSyncAt: string | undefined): string | undefined 
   }, [lastSyncAt, now]);
 }
 
+/**
+ * Rendered INSIDE the page-level <PageShell> (the loading branch), so it must
+ * not open one of its own — nested page shells double the measure wrapper and
+ * break the "one per route" contract the primitive documents.
+ */
 function HubSkeleton() {
   return (
-    <PageShell>
+    <div className="space-y-4 sm:space-y-6">
       <div className="space-y-2 border-b pb-6">
         <Skeleton className="h-8 w-48" />
         <Skeleton className="h-4 w-96" />
@@ -415,6 +420,6 @@ function HubSkeleton() {
           </div>
         ))}
       </div>
-    </PageShell>
+    </div>
   );
 }

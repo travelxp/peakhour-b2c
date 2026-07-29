@@ -3,7 +3,9 @@
 import { useState, useEffect } from "react";
 import {
   DndContext,
+  DragOverlay,
   type DragEndEvent,
+  type DragStartEvent,
   PointerSensor,
   useSensor,
   useSensors,
@@ -12,7 +14,7 @@ import {
 import { api } from "@/lib/api";
 import { KanbanColumn } from "./kanban-column";
 import { PIPELINE_COLUMNS } from "./status-badge";
-import type { PipelineIdea } from "./kanban-card";
+import { KanbanCard, type PipelineIdea } from "./kanban-card";
 
 // Client-side state machine matching the API
 const VALID_TRANSITIONS: Record<string, string[]> = {
@@ -34,6 +36,12 @@ interface KanbanBoardProps {
 
 export function KanbanBoard({ data, onRefresh }: KanbanBoardProps) {
   const [localData, setLocalData] = useState(data);
+  // The card being dragged, mirrored into a <DragOverlay>. Required now that
+  // the board is a horizontal scroller: `overflow-x: auto` forces the computed
+  // `overflow-y` to `auto` too, so the board clips to its padding box and a
+  // card dragged up or out of it simply disappeared mid-drag. The overlay is
+  // portaled and positioned outside that clip.
+  const [activeIdea, setActiveIdea] = useState<PipelineIdea | null>(null);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   );
@@ -43,7 +51,14 @@ export function KanbanBoard({ data, onRefresh }: KanbanBoardProps) {
     setLocalData(data);
   }, [data]);
 
+  function handleDragStart(event: DragStartEvent) {
+    setActiveIdea((event.active.data.current?.idea as PipelineIdea) ?? null);
+  }
+
   async function handleDragEnd(event: DragEndEvent) {
+    // Clear the overlay first — every path below returns or awaits, and
+    // leaving it set would strand a floating card over the board.
+    setActiveIdea(null);
     const { active, over } = event;
     if (!over) return;
 
@@ -118,7 +133,9 @@ export function KanbanBoard({ data, onRefresh }: KanbanBoardProps) {
     <DndContext
       sensors={sensors}
       collisionDetection={closestCorners}
+      onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
+      onDragCancel={() => setActiveIdea(null)}
     >
       {/* The board scrolls sideways below `xl` instead of dividing whatever
           width it is given between five `flex-1` columns. It used to do the
@@ -127,14 +144,22 @@ export function KanbanBoard({ data, onRefresh }: KanbanBoardProps) {
           tablet with the sidebar expanded — narrow enough that a card title
           wrapped to a couple of characters per line.
 
+          The columns carry `min-w-70 flex-1`, so there is no breakpoint to
+          get wrong: they hold 280px and scroll when the board is narrower
+          than 5x280 + gaps, and share the row once it is wider. A first
+          attempt dropped the scroller at `xl` on the assumption the columns
+          fit by then — they do not. Five 280px columns plus gaps need
+          ~1448px of board, i.e. a ~1750px viewport with the sidebar
+          expanded, so `xl` (1280px) handed back 186px columns and quietly
+          reintroduced the very defect this fixes.
+
           No scroll-snap: dnd-kit auto-scrolls this container when a drag
           nears its edge, and mandatory snapping fights that.
 
-          The `xl:` overrides drop the scroll container once the columns fit
-          anyway. That matters beyond tidiness — `overflow-x: auto` forces the
-          computed `overflow-y` to `auto` as well, making this a scroll
-          container in both axes, so it is worth not having on desktop. */}
-      <div className="flex gap-3 overflow-x-auto pb-2 xl:overflow-x-visible xl:pb-0">
+          Note `overflow-x: auto` forces the computed `overflow-y` to `auto`
+          too, so this clips its own children — which is why the dragged card
+          renders in a <DragOverlay> below rather than in flow. */}
+      <div className="flex gap-3 overflow-x-auto pb-2">
         {PIPELINE_COLUMNS.map((col) => {
           // Merge ideas from all statuses that belong to this column group
           const ideas = col.statuses.flatMap((s) => localData[s] || []);
@@ -149,6 +174,17 @@ export function KanbanBoard({ data, onRefresh }: KanbanBoardProps) {
           );
         })}
       </div>
+
+      {/* Portaled out of the clipping scroll container, so the card stays
+          visible wherever the pointer takes it. `w-70` matches the column so
+          the overlay is the same size as the card it replaces. */}
+      <DragOverlay dropAnimation={null}>
+        {activeIdea ? (
+          <div className="w-70 cursor-grabbing">
+            <KanbanCard idea={activeIdea} />
+          </div>
+        ) : null}
+      </DragOverlay>
     </DndContext>
   );
 }

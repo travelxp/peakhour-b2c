@@ -226,7 +226,7 @@ export default function SearchConsoleInsightsPage() {
 
   if (statusQ.isLoading) {
     return (
-      <PageShell width="wide" className="space-y-4">
+      <PageShell width="wide">
         {cronToolbar}
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-32 w-full" />

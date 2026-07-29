@@ -164,7 +164,7 @@ export default function TeamPage() {
 
   if (loading) {
     return (
-      <PageShell width="narrow" className="space-y-4">
+      <PageShell width="narrow">
         <div className="h-8 w-48 bg-muted animate-pulse rounded" />
         <div className="h-64 bg-muted animate-pulse rounded-lg" />
       </PageShell>
@@ -186,73 +186,73 @@ export default function TeamPage() {
             <ArrowLeft className="h-4 w-4" />
           </Link>
         }
-        title="Team &amp; Permissions"
+        title="Team & Permissions"
         description={`${members.length} member${members.length !== 1 ? "s" : ""} in ${org?.name || "your organization"}`}
         actions={
           isAdmin && (
             <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
-            <DialogTrigger asChild>
-              <Button size="sm" className="gap-2">
-                <UserPlus className="h-4 w-4" />
-                Invite
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-md">
-              <DialogHeader>
-                <DialogTitle>Invite team member</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 pt-2">
-                <div>
-                  <label className="text-sm font-medium mb-1.5 block">
-                    Email address
-                  </label>
-                  <Input
-                    type="email"
-                    placeholder="colleague@company.com"
-                    value={inviteEmail}
-                    onChange={(e) => setInviteEmail(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleInvite()}
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium mb-1.5 block">
-                    Role
-                  </label>
-                  <Select value={inviteRole} onValueChange={setInviteRole}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="admin">
-                        <div className="flex items-center gap-2">
-                          <ShieldCheck className="h-3.5 w-3.5" />
-                          Admin — full access, manage settings
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="editor">
-                        <div className="flex items-center gap-2">
-                          <Pencil className="h-3.5 w-3.5" />
-                          Editor — create and edit content
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="viewer">
-                        <div className="flex items-center gap-2">
-                          <Eye className="h-3.5 w-3.5" />
-                          Viewer — read-only access
-                        </div>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Button
-                  onClick={handleInvite}
-                  disabled={inviting || !inviteEmail.trim()}
-                  className="w-full"
-                >
-                  {inviting ? "Sending..." : "Send invitation"}
+              <DialogTrigger asChild>
+                <Button size="sm" className="gap-2">
+                  <UserPlus className="h-4 w-4" />
+                  Invite
                 </Button>
-              </div>
-            </DialogContent>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Invite team member</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 pt-2">
+                  <div>
+                    <label className="text-sm font-medium mb-1.5 block">
+                      Email address
+                    </label>
+                    <Input
+                      type="email"
+                      placeholder="colleague@company.com"
+                      value={inviteEmail}
+                      onChange={(e) => setInviteEmail(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && handleInvite()}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium mb-1.5 block">
+                      Role
+                    </label>
+                    <Select value={inviteRole} onValueChange={setInviteRole}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="admin">
+                          <div className="flex items-center gap-2">
+                            <ShieldCheck className="h-3.5 w-3.5" />
+                            Admin — full access, manage settings
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="editor">
+                          <div className="flex items-center gap-2">
+                            <Pencil className="h-3.5 w-3.5" />
+                            Editor — create and edit content
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="viewer">
+                          <div className="flex items-center gap-2">
+                            <Eye className="h-3.5 w-3.5" />
+                            Viewer — read-only access
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button
+                    onClick={handleInvite}
+                    disabled={inviting || !inviteEmail.trim()}
+                    className="w-full"
+                  >
+                    {inviting ? "Sending..." : "Send invitation"}
+                  </Button>
+                </div>
+              </DialogContent>
             </Dialog>
           )
         }
@@ -433,7 +433,9 @@ export default function TeamPage() {
       {/* Role descriptions */}
       <Card className="bg-muted/30">
         <CardContent className="pt-5">
-          <h3 className="text-sm font-medium mb-3">Role permissions</h3>
+          {/* h2, not h3: PageHeader emits this page's <h1> and nothing sits
+              between, so h3 skipped a level (axe `heading-order`). */}
+          <h2 className="text-sm font-medium mb-3">Role permissions</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs text-muted-foreground">
             <div>
               <div className="font-medium text-foreground mb-1 flex items-center gap-1">
