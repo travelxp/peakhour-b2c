@@ -9,7 +9,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api, ApiError } from "@/lib/api";
 import { SITE } from "@/lib/utils";
-import { PILLAR_CONSOLE_ROWS, FREE_PEAKS_PER_MONTH } from "@/lib/pillar-console";
+import { PeaksGlyph } from "@/components/peaks/peaks-glyph";
+import {
+  PILLAR_CONSOLE_ROWS,
+  PILLAR_CONSOLE_LABEL,
+  FREE_PEAKS_PER_MONTH,
+} from "@/lib/pillar-console";
 
 // Bounded length + char set so a tampered link can't smuggle arbitrary strings
 // into the waitlist payload. Mirrors the referredByCode validator on
@@ -19,9 +24,10 @@ const REFERRAL_CODE_PATTERN = /^[0-9A-Z]{4,32}$/;
 /**
  * Mirrors peakhour-cms/src/app/login/login-form.tsx so the b2c
  * customer flow has the same "Resend link" affordance the CMS
- * operator flow does. Five states keep the button labels and
- * disabled-state logic readable; without `resending` and `error`
- * as first-class states the JSX has to hunt across booleans.
+ * operator flow does. Modelling every outcome as its own variant keeps
+ * the button labels and disabled-state logic readable; without
+ * `resending` and `error` as first-class states the JSX has to hunt
+ * across booleans.
  */
 type Status =
   | { kind: "idle" }
@@ -57,16 +63,21 @@ const RESEND_COOLDOWN_SECONDS = 60;
 // product. Every figure here is one the marketing surface already states.
 const SIGNUP_STATS = [
   { value: "5", label: "pillars, one login" },
-  { value: "0", label: "card details to start" },
+  { value: "0", label: "credit cards required" },
   { value: FREE_PEAKS_PER_MONTH, label: "free Peaks every month" },
 ] as const;
 
-// Reassurance row under the primary button — the same three promises the
-// landing hero makes, so the pitch doesn't change at the point of signup.
-const TICKS = [
+// Reassurance row under the primary button — the same promises the landing
+// hero makes, so the pitch doesn't change at the point of signup.
+const TICKS = ["No credit card", "Free plan on every pillar", "Live the same day"] as const;
+
+// Pre-launch (?intent=waitlist|invite) there is no same-day access to promise,
+// so the third tick would contradict the heading right above it. Swap it for
+// the one thing that is still true on this path.
+const PRELAUNCH_TICKS = [
   "No credit card",
   "Free plan on every pillar",
-  "Live the same day",
+  "We'll email your link",
 ] as const;
 
 // Landing CTAs route here with ?intent=waitlist|invite when the platform is
@@ -78,13 +89,13 @@ const INTENT_COPY: Record<string, { eyebrow: string; title: string; subtitle: st
     eyebrow: "Join the waitlist",
     title: "Get your spot in the queue.",
     subtitle:
-      "Enter your email and we'll send your access link as we roll out. No password, no card.",
+      "Enter your email and we’ll send your access link as we roll out. No password, no card.",
   },
   invite: {
     eyebrow: "Request an invite",
     title: "Ask for an invite.",
     subtitle:
-      "Enter your email and we'll be in touch with your access link. No password, no card.",
+      "Enter your email and we’ll be in touch with your access link. No password, no card.",
   },
 };
 
@@ -94,18 +105,43 @@ const INTENT_COPY: Record<string, { eyebrow: string; title: string; subtitle: st
 // mapped to --font-space-grotesk in globals.css.
 const NUMERIC_FONT = { fontFamily: "var(--font-space-grotesk)" } as const;
 
-/** Gold-gradient primary button, matching the header/landing CTA treatment. */
+/**
+ * Gold-gradient primary button, matching the header/landing CTA treatment.
+ *
+ * `ring-offset-background` is load-bearing: the Tailwind default offset colour
+ * is white, which paints a halo around every focused button in dark mode.
+ */
 const GOLD_BUTTON =
-  "inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand-gradient text-sm font-bold text-brand-contrast shadow-sm transition-transform hover:-translate-y-0.5 focus-visible:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-60";
+  "inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand-gradient text-sm font-bold text-brand-contrast shadow-sm transition-transform hover:-translate-y-0.5 focus-visible:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-60";
+
+/** Underlined inline link, used in the legal/help microcopy. */
+const LEGAL_LINK =
+  "underline underline-offset-2 hover:text-foreground focus-visible:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-sm";
 
 /** Quiet secondary button — outlined, gains a foreground border on hover. */
 const GHOST_BUTTON =
-  "inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border-2 text-sm font-bold transition-colors hover:border-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2";
+  "inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border-2 text-sm font-bold transition-colors hover:border-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-background";
 
-/** Eyebrow label — uppercase, gold, with the short gradient rule. */
-function Eyebrow({ children }: { children: React.ReactNode }) {
+/**
+ * Eyebrow label — uppercase, gold, with the short gradient rule.
+ *
+ * `--brand-label` is the one theme-AWARE brand token: deep amber on light
+ * grounds, bright gold on dark. That makes it right for the theme-following
+ * form column and wrong for the always-dark panel, where a light-theme
+ * visitor would get deep amber on near-black (~2.5:1). The panel passes
+ * `text-brand` instead, which is theme-stable and ~8:1 on zinc-900.
+ */
+function Eyebrow({
+  children,
+  className = "text-brand-label",
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
-    <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand-label">
+    <span
+      className={`inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] ${className}`}
+    >
       <span className="h-0.5 w-7 bg-brand-gradient" aria-hidden />
       {children}
     </span>
@@ -287,8 +323,7 @@ function AuthPageInner() {
         cooldownEndsAt: Date.now() + RESEND_COOLDOWN_SECONDS * 1000,
       });
     } catch (err) {
-      let message =
-        "We couldn't send your link just now. Try again in a moment — if it keeps failing, email hello@peakhour.ai and we'll let you in by hand.";
+      let message = `We couldn’t send your link just now. Try again in a moment — if it keeps failing, email ${SITE.contactGeneral} and we’ll let you in by hand.`;
       let isRateLimited = false;
       if (err instanceof ApiError) {
         if (err.code === "RATE_LIMITED") {
@@ -364,16 +399,21 @@ function AuthPageInner() {
         />
 
         <div className="relative z-10">
-          <Eyebrow>Five pillars · one account</Eyebrow>
-          <h1 className="mt-4 max-w-[15ch] text-3xl font-extrabold leading-[1.06] tracking-tight text-pretty xl:text-4xl">
+          {/* text-brand, not the theme-aware text-brand-label — see Eyebrow. */}
+          <Eyebrow className="text-brand">Five pillars · one account</Eyebrow>
+          {/* Deliberately not a heading: this panel is decorative brand copy
+              that disappears below lg, so making it the h1 would leave small
+              screens with no h1 at all. The state heading in the form column
+              is the page's h1 at every breakpoint. */}
+          <p className="mt-4 max-w-xl text-3xl font-extrabold leading-[1.06] tracking-tight text-pretty xl:text-4xl">
             Your whole business, waiting on the other side.{" "}
             <span className="font-serif font-normal italic text-brand-gradient">
               Free to start.
             </span>
-          </h1>
+          </p>
           <p className="mt-4 max-w-md text-zinc-400">
-            Commerce, Content, Growth, Support and Presence are all switched on
-            the moment you&rsquo;re in. Start with one, keep all five.
+            Commerce, Content, Growth, Support and Presence — five pillars on
+            one account, each with a free plan.
           </p>
         </div>
 
@@ -381,7 +421,7 @@ function AuthPageInner() {
         <div
           className="relative z-10"
           role="img"
-          aria-label="Peakhour console showing five active pillars, each on a free plan"
+          aria-label={PILLAR_CONSOLE_LABEL}
         >
           <div className="flex items-center justify-between px-1 pb-2 text-[0.7rem] font-bold uppercase tracking-[0.18em] text-zinc-400">
             <span>Your business, at a glance</span>
@@ -405,9 +445,10 @@ function AuthPageInner() {
               </div>
             ))}
           </div>
-          <p className="flex items-center gap-1 px-1 pt-3 text-xs text-zinc-400">
-            Metered in{" "}
-            <span aria-hidden className="text-brand">⚡</span>
+          {/* Peaks is always the coin glyph, never a generic bolt. */}
+          <p className="flex items-center gap-1.5 px-1 pt-3 text-xs text-zinc-400">
+            Metered in
+            <PeaksGlyph size={16} />
             <span className="font-bold text-brand-gradient">Peaks</span>
           </p>
         </div>
@@ -440,7 +481,10 @@ function AuthPageInner() {
           >
             <div className="mx-auto flex max-w-md items-center gap-2">
               <Sparkles className="size-4 shrink-0" aria-hidden />
-              <span>A friend invited you. Your free Peaks are already reserved.</span>
+              {/* Says only what the ?ref= flow actually does — the code credits
+                  the inviter on signup. Don't promise the invitee a bonus we
+                  don't grant. */}
+              <span>A friend invited you — sign up to claim your spot.</span>
             </div>
           </div>
         ) : null}
@@ -449,13 +493,13 @@ function AuthPageInner() {
           {status.kind === "waitlisted" ? (
             <div className="w-full max-w-md rounded-2xl border bg-card p-7">
               <GoldTile icon={Clock} />
-              <h2 className="mt-5 text-2xl font-extrabold tracking-tight">
+              <h1 className="mt-5 text-2xl font-extrabold tracking-tight">
                 You&rsquo;re in the queue
-              </h2>
+              </h1>
               <p className="mt-2 text-sm text-muted-foreground">
-                We&rsquo;re letting launch partners in a batch at a time so every
-                account gets set up properly. We&rsquo;ll email your sign-in link
-                the moment yours is ready — no need to check back.
+                We&rsquo;re onboarding launch partners in batches so every account
+                gets set up properly. We&rsquo;ll email your sign-in link the
+                moment yours is ready — no need to check back.
               </p>
               <div className="mt-5">
                 <EmailChip email={status.email} />
@@ -467,9 +511,9 @@ function AuthPageInner() {
           ) : status.kind === "notEligible" ? (
             <div className="w-full max-w-md rounded-2xl border bg-card p-7">
               <GoldTile icon={ShieldAlert} />
-              <h2 className="mt-5 text-2xl font-extrabold tracking-tight">
+              <h1 className="mt-5 text-2xl font-extrabold tracking-tight">
                 We don&rsquo;t have this email yet
-              </h2>
+              </h1>
               <p className="mt-2 text-sm text-muted-foreground">
                 {SITE.name} is invite-only while we onboard launch partners.
                 Apply and you&rsquo;ll get all five pillars free, plus a setup
@@ -492,9 +536,9 @@ function AuthPageInner() {
             <div className="w-full max-w-md space-y-4">
               <div className="rounded-2xl border bg-card p-7">
                 <GoldTile icon={Mail} />
-                <h2 className="mt-5 text-2xl font-extrabold tracking-tight">
+                <h1 className="mt-5 text-2xl font-extrabold tracking-tight">
                   Your link is on its way
-                </h2>
+                </h1>
                 <p className="mt-2 text-sm text-muted-foreground">
                   Open it within 15 minutes and you&rsquo;re in.
                 </p>
@@ -515,13 +559,7 @@ function AuthPageInner() {
                     className={GOLD_BUTTON}
                     disabled={status.kind === "resending" || cooldownSecondsLeft > 0}
                     onClick={() => submit(status.email, "resend")}
-                    // aria-live so a screen reader announces the changing
-                    // label as the countdown ticks ("Resend in 42s" → "...
-                    // 41s" → ... → "Resend link") without the user having
-                    // to refocus the button. polite keeps it from
-                    // interrupting other announcements; the value only
-                    // changes once per second.
-                    aria-live="polite"
+                    aria-describedby="resend-status"
                   >
                     {status.kind === "resending"
                       ? "Resending…"
@@ -529,6 +567,16 @@ function AuthPageInner() {
                         ? `Resend in ${cooldownSecondsLeft}s`
                         : "Resend link"}
                   </button>
+                  {/* The button label changes every second while the cooldown
+                      runs. Marking the button itself aria-live made a screen
+                      reader read out all sixty ticks; this region stays empty
+                      until the cooldown ends, so it announces exactly once —
+                      at the only moment the state actually changed. */}
+                  <span id="resend-status" className="sr-only" aria-live="polite">
+                    {status.kind === "resending" || cooldownSecondsLeft > 0
+                      ? ""
+                      : "You can resend the sign-in link now."}
+                  </span>
                   <button type="button" className={GHOST_BUTTON} onClick={handleReset}>
                     Use a different email
                   </button>
@@ -536,19 +584,21 @@ function AuthPageInner() {
               </div>
               <p className="text-center text-xs text-muted-foreground">
                 Nothing yet? Check spam, or add{" "}
-                <span className="font-semibold text-foreground">hello@peakhour.ai</span>{" "}
+                <span className="font-semibold text-foreground">
+                  {SITE.contactGeneral}
+                </span>{" "}
                 to your contacts.
               </p>
             </div>
           ) : (
             <div className="w-full max-w-md">
               <Eyebrow>{intentCopy?.eyebrow ?? "Sign in or sign up"}</Eyebrow>
-              <h2 className="mt-4 text-2xl font-extrabold tracking-tight text-pretty sm:text-3xl">
+              <h1 className="mt-4 text-2xl font-extrabold tracking-tight text-pretty sm:text-3xl">
                 {intentCopy?.title ?? "One email. No password. Ever."}
-              </h2>
+              </h1>
               <p className="mt-2.5 text-muted-foreground">
                 {intentCopy?.subtitle ??
-                  "We'll send a link that signs you straight in. If you're new, that same link creates your account."}
+                  "We’ll send a link that signs you straight in. If you’re new, that same link creates your account."}
               </p>
 
               <form onSubmit={handleSubmit} className="mt-8 flex flex-col gap-4">
@@ -593,7 +643,7 @@ function AuthPageInner() {
               </form>
 
               <ul className="mt-6 flex flex-wrap justify-center gap-x-4 gap-y-1.5 text-sm text-muted-foreground">
-                {TICKS.map((tick) => (
+                {(intentCopy ? PRELAUNCH_TICKS : TICKS).map((tick) => (
                   <li key={tick} className="flex items-center gap-1.5">
                     <Check className="size-3.5 shrink-0 text-brand-label" strokeWidth={3} aria-hidden />
                     {tick}
@@ -603,20 +653,47 @@ function AuthPageInner() {
 
               <p className="mt-8 text-center text-xs text-muted-foreground">
                 By continuing, you agree to our{" "}
-                <Link href="/terms" className="underline underline-offset-2 hover:text-foreground">
+                <Link href="/terms" className={LEGAL_LINK}>
                   Terms of Service
                 </Link>{" "}
                 and{" "}
-                <Link
-                  href="/privacy-policy"
-                  className="underline underline-offset-2 hover:text-foreground"
-                >
+                <Link href="/privacy-policy" className={LEGAL_LINK}>
                   Privacy Policy
                 </Link>
                 .
               </p>
             </div>
           )}
+        </div>
+
+        {/* Standing footer for the column. The auth layout drops the marketing
+            footer so the dark panel can run the full height, so the legal
+            links and the way out of a stuck sign-in live here instead — under
+            every state, not just the form. */}
+        <div className="px-4 pb-8 text-center text-xs text-muted-foreground sm:px-8">
+          <p>
+            Trouble signing in?{" "}
+            <Link href="/contact" className={LEGAL_LINK}>
+              Talk to us
+            </Link>
+          </p>
+          <p className="mt-1.5">
+            <Link href="/terms" className={LEGAL_LINK}>
+              Terms
+            </Link>
+            <span aria-hidden className="px-1.5 opacity-40">
+              ·
+            </span>
+            <Link href="/privacy-policy" className={LEGAL_LINK}>
+              Privacy
+            </Link>
+            <span aria-hidden className="px-1.5 opacity-40">
+              ·
+            </span>
+            <Link href="/cookie-policy" className={LEGAL_LINK}>
+              Cookies
+            </Link>
+          </p>
         </div>
       </div>
     </div>

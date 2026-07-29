@@ -21,6 +21,15 @@ export const PILLAR_CONSOLE_ROWS = [
 ] as const;
 
 /**
+ * The console is decorative — it's a picture of the product, not a table a
+ * screen-reader user can act on — so both surfaces render it as a single
+ * `role="img"` with this label. Shared for the same reason the rows are: the
+ * two copies had already drifted apart once.
+ */
+export const PILLAR_CONSOLE_LABEL =
+  "Peakhour console showing five active pillars";
+
+/**
  * Free Peaks granted monthly on the free plans, as shown on the marketing
  * surface. Hard-coded to match the landing hero's existing figure; when the
  * public catalog starts exposing the free grant this should read from there.

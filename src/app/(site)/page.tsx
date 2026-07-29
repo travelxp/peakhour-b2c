@@ -17,7 +17,11 @@ import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
 import { pageMetadata } from "@/lib/seo";
 import { HOW_IT_WORKS_STEPS } from "@/lib/how-it-works";
-import { PILLAR_CONSOLE_ROWS, FREE_PEAKS_PER_MONTH } from "@/lib/pillar-console";
+import {
+  PILLAR_CONSOLE_ROWS,
+  PILLAR_CONSOLE_LABEL,
+  FREE_PEAKS_PER_MONTH,
+} from "@/lib/pillar-console";
 import {
   getPublicCatalog,
   publicMarketingIntegrations,
@@ -321,7 +325,7 @@ export default async function Home({
             <div
               className="min-w-0 rounded-2xl border border-white/10 bg-zinc-900 p-4 shadow-2xl sm:p-5"
               role="img"
-              aria-label="Peakhour console showing five active pillars"
+              aria-label={PILLAR_CONSOLE_LABEL}
             >
               <div className="flex items-center justify-between px-1 pb-2 text-[0.7rem] font-bold uppercase tracking-[0.18em] text-zinc-400">
                 <span>Your business, at a glance</span>

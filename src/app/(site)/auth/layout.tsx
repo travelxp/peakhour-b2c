@@ -11,8 +11,10 @@ import { Header } from "@/components/shared/header";
  * finish. The legal links the footer used to carry are restated inline on
  * /auth itself.
  *
- * `HeaderNav` already suppresses the marketing nav and auth CTAs on /auth
- * routes, so the header renders as the brand lockup alone.
+ * `HeaderNav` already suppresses the marketing nav and the signed-out auth
+ * CTAs on /auth routes, so for a signed-out visitor the header is the brand
+ * lockup alone. A signed-in visitor still gets the user menu, which is what
+ * you want on /auth/complete-profile and /auth/accept-invite.
  */
 export default function AuthLayout({
   children,
