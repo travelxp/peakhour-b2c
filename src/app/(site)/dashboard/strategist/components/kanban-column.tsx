@@ -32,7 +32,18 @@ export function KanbanColumn({
     <div
       ref={setNodeRef}
       className={cn(
-        "flex min-h-screen/2 flex-1 flex-col rounded-xl bg-muted/40 p-3",
+        // `min-h-screen/2` was not a real utility — Tailwind has no fractional
+        // modifier for min-height, so it compiled to nothing and the column
+        // had no minimum height at all. `min-h-80` (320px) is what it was
+        // reaching for: enough that an empty column still reads as a drop
+        // target.
+        //
+        // Sized, not `flex-1`: the board is a horizontal scroller up to `xl`,
+        // where a flexible column would collapse to a fraction of the
+        // viewport. 280px is the narrowest width at which a KanbanCard's
+        // title, badge row and meta line still hold their layout. From `xl`
+        // the board stops scrolling and the columns share the row again.
+        "flex min-h-80 w-70 shrink-0 flex-col rounded-xl bg-muted/40 p-3 xl:w-auto xl:flex-1",
         isOver && "bg-accent/50 ring-2 ring-primary/20"
       )}
     >

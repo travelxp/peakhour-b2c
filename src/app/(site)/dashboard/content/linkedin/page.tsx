@@ -55,19 +55,19 @@ export default function LinkedInDashboardPage() {
   const enabledIdentity = isConnected ? identity : null;
 
   if (integrations.isLoading) {
-    return <PageShell loading />;
+    return <LinkedInPageShell loading />;
   }
 
   if (!isConnected) {
     return (
-      <PageShell>
+      <LinkedInPageShell>
         <EmptyState
           icon={MessageSquare}
           title="Connect LinkedIn to get started"
           description="Once connected, you can publish to your personal feed or any company page you administer, all from here."
           action={{ label: "Connect LinkedIn", href: "/dashboard/integrations" }}
         />
-      </PageShell>
+      </LinkedInPageShell>
     );
   }
 
@@ -77,7 +77,7 @@ export default function LinkedInDashboardPage() {
     const err = identity.error;
     const code = err instanceof ApiError ? err.code : "UNKNOWN";
     return (
-      <PageShell>
+      <LinkedInPageShell>
         <EmptyState
           icon={RefreshCw}
           title="LinkedIn needs a quick reconnect"
@@ -88,7 +88,7 @@ export default function LinkedInDashboardPage() {
           }
           action={{ label: "Reconnect LinkedIn", href: "/dashboard/integrations" }}
         />
-      </PageShell>
+      </LinkedInPageShell>
     );
   }
 
@@ -96,7 +96,7 @@ export default function LinkedInDashboardPage() {
     enabledIdentity?.data && enabledIdentity.data.status !== "active";
 
   return (
-    <PageShell>
+    <LinkedInPageShell>
       {needsReauth && (
         <Card className="border-amber-200 bg-amber-50/50 dark:border-amber-900 dark:bg-amber-950/30">
           <CardContent className="flex items-center justify-between gap-4 p-4 text-sm">
@@ -116,7 +116,7 @@ export default function LinkedInDashboardPage() {
       )}
 
       <LinkedInTabs identity={identity} enabledIdentity={enabledIdentity} />
-    </PageShell>
+    </LinkedInPageShell>
   );
 }
 
@@ -213,7 +213,14 @@ function LinkedInTabs({
   );
 }
 
-function PageShell({ children, loading }: { children?: React.ReactNode; loading?: boolean }) {
+/**
+ * Page-local wrapper: cron toolbar + rhythm + loading state. Named for this
+ * route specifically because it is NOT the shared layout primitive — that is
+ * <PageShell> in @/components/dashboard/page-shell, which owns measure. This
+ * was called `PageShell` too until the shared one landed and the collision
+ * became a trap for anyone importing the real thing here.
+ */
+function LinkedInPageShell({ children, loading }: { children?: React.ReactNode; loading?: boolean }) {
   const queryClient = useQueryClient();
   return (
     <div className="space-y-6">

@@ -22,6 +22,7 @@ import {
 } from "./channels.config";
 import { mapCatalogToChannels } from "./channels-from-catalog";
 import { resolveChannelCta } from "./channel-cta";
+import { PageShell } from "@/components/dashboard/page-shell";
 
 interface ApiIntegration {
   provider: string;
@@ -108,15 +109,15 @@ export default function ContentChannelsHubPage() {
 
   if (isLoading) {
     return (
-      <div className="container max-w-5xl py-8 space-y-6">
+      <PageShell>
         {cronToolbar}
         <HubSkeleton />
-      </div>
+      </PageShell>
     );
   }
 
   return (
-    <div className="container max-w-5xl py-8 space-y-6">
+    <PageShell>
       {cronToolbar}
       <header className="space-y-2 border-b pb-6">
         <h1 className="text-2xl font-semibold tracking-tight">Content channels</h1>
@@ -175,7 +176,7 @@ export default function ContentChannelsHubPage() {
           );
         })}
       </Tabs>
-    </div>
+    </PageShell>
   );
 }
 
@@ -397,7 +398,7 @@ function useLastSyncedLabel(lastSyncAt: string | undefined): string | undefined 
 
 function HubSkeleton() {
   return (
-    <div className="container max-w-5xl py-8 space-y-6">
+    <PageShell>
       <div className="space-y-2 border-b pb-6">
         <Skeleton className="h-8 w-48" />
         <Skeleton className="h-4 w-96" />
@@ -414,6 +415,6 @@ function HubSkeleton() {
           </div>
         ))}
       </div>
-    </div>
+    </PageShell>
   );
 }

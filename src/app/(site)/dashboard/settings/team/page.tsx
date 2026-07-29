@@ -52,6 +52,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useLocale } from "@/hooks/use-locale";
+import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
 
 const ROLE_LABELS: Record<string, string> = {
   owner: "Owner",
@@ -163,35 +164,33 @@ export default function TeamPage() {
 
   if (loading) {
     return (
-      <div className="p-6 space-y-4">
+      <PageShell width="narrow" className="space-y-4">
         <div className="h-8 w-48 bg-muted animate-pulse rounded" />
         <div className="h-64 bg-muted animate-pulse rounded-lg" />
-      </div>
+      </PageShell>
     );
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+    <PageShell width="narrow">
+      {/* The title was `text-xl` here and `text-2xl` on every sibling settings
+          page; PageHeader settles that. The back-link keeps its place as the
+          header's leading slot. */}
+      <PageHeader
+        icon={
           <Link
             href="/dashboard/settings"
-            className="p-1.5 rounded-md hover:bg-muted transition"
+            aria-label="Back to settings"
+            className="rounded-md p-1.5 transition hover:bg-muted"
           >
             <ArrowLeft className="h-4 w-4" />
           </Link>
-          <div>
-            <h1 className="text-xl font-semibold">Team & Permissions</h1>
-            <p className="text-sm text-muted-foreground">
-              {members.length} member{members.length !== 1 ? "s" : ""} in{" "}
-              {org?.name || "your organization"}
-            </p>
-          </div>
-        </div>
-
-        {isAdmin && (
-          <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
+        }
+        title="Team &amp; Permissions"
+        description={`${members.length} member${members.length !== 1 ? "s" : ""} in ${org?.name || "your organization"}`}
+        actions={
+          isAdmin && (
+            <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
             <DialogTrigger asChild>
               <Button size="sm" className="gap-2">
                 <UserPlus className="h-4 w-4" />
@@ -254,9 +253,10 @@ export default function TeamPage() {
                 </Button>
               </div>
             </DialogContent>
-          </Dialog>
-        )}
-      </div>
+            </Dialog>
+          )
+        }
+      />
 
       {/* Notifications */}
       {error && (
@@ -462,6 +462,6 @@ export default function TeamPage() {
           </div>
         </CardContent>
       </Card>
-    </div>
+    </PageShell>
   );
 }

@@ -120,7 +120,21 @@ export function KanbanBoard({ data, onRefresh }: KanbanBoardProps) {
       collisionDetection={closestCorners}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex gap-3">
+      {/* The board scrolls sideways below `xl` instead of dividing whatever
+          width it is given between five `flex-1` columns. It used to do the
+          latter, with no min-width and no overflow, so the columns collapsed
+          with the container: ~56px each on a 375px phone and ~83px at a 768px
+          tablet with the sidebar expanded — narrow enough that a card title
+          wrapped to a couple of characters per line.
+
+          No scroll-snap: dnd-kit auto-scrolls this container when a drag
+          nears its edge, and mandatory snapping fights that.
+
+          The `xl:` overrides drop the scroll container once the columns fit
+          anyway. That matters beyond tidiness — `overflow-x: auto` forces the
+          computed `overflow-y` to `auto` as well, making this a scroll
+          container in both axes, so it is worth not having on desktop. */}
+      <div className="flex gap-3 overflow-x-auto pb-2 xl:overflow-x-visible xl:pb-0">
         {PIPELINE_COLUMNS.map((col) => {
           // Merge ideas from all statuses that belong to this column group
           const ideas = col.statuses.flatMap((s) => localData[s] || []);

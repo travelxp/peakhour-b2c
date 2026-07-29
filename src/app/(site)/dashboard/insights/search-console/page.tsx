@@ -38,6 +38,7 @@ import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { TrendChart } from "@/components/ui/trend-chart";
 import { ExplainCard } from "@/components/dashboard/explain-card";
 import { useSetAskEntityIds } from "@/providers/ask-context-provider";
+import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
 
 // ── Types (mirror peakhour-api search-insights service) ─────────────────────
 interface ConnectionStatus {
@@ -225,11 +226,11 @@ export default function SearchConsoleInsightsPage() {
 
   if (statusQ.isLoading) {
     return (
-      <div className="p-6 space-y-4">
+      <PageShell width="wide" className="space-y-4">
         {cronToolbar}
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-32 w-full" />
-      </div>
+      </PageShell>
     );
   }
 
@@ -248,50 +249,55 @@ export default function SearchConsoleInsightsPage() {
   const data = insightsQ.data;
 
   return (
-    <div className="p-6 space-y-6">
+    <PageShell width="wide">
       {cronToolbar}
 
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
+      <PageHeader
+        icon={
           <div className="rounded-lg bg-[#458CF7] p-2">
             <Search className="h-5 w-5 text-white" />
           </div>
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Search Console</h1>
-            <p className="text-sm text-muted-foreground">
-              What&apos;s happening in Google Search — and what to do about it.
-            </p>
-          </div>
-        </div>
-        {isWorking && (
-          <div className="flex items-center gap-2">
-            {selectableProperties.length > 1 && (
-              <Select value={property ?? "__default__"} onValueChange={(v) => setProperty(v === "__default__" ? undefined : v)}>
-                <SelectTrigger className="w-55">
-                  <SelectValue placeholder="Property" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__default__">Default property</SelectItem>
-                  {selectableProperties.map((siteUrl) => (
-                    <SelectItem key={siteUrl} value={siteUrl}>
-                      {siteUrl}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={syncMut.isPending}
-              onClick={() => syncMut.mutate()}
-            >
-              <RefreshCw className={`mr-2 h-4 w-4 ${syncMut.isPending ? "animate-spin" : ""}`} />
-              Sync now
-            </Button>
-          </div>
-        )}
-      </div>
+        }
+        title="Search Console"
+        description="What's happening in Google Search — and what to do about it."
+        actions={
+          isWorking && (
+            <>
+              {selectableProperties.length > 1 && (
+                <Select
+                  value={property ?? "__default__"}
+                  onValueChange={(v) =>
+                    setProperty(v === "__default__" ? undefined : v)
+                  }
+                >
+                  <SelectTrigger className="w-55">
+                    <SelectValue placeholder="Property" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__default__">Default property</SelectItem>
+                    {selectableProperties.map((siteUrl) => (
+                      <SelectItem key={siteUrl} value={siteUrl}>
+                        {siteUrl}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={syncMut.isPending}
+                onClick={() => syncMut.mutate()}
+              >
+                <RefreshCw
+                  className={`mr-2 h-4 w-4 ${syncMut.isPending ? "animate-spin" : ""}`}
+                />
+                Sync now
+              </Button>
+            </>
+          )
+        }
+      />
 
       {!isWorking ? (
         <Card>
@@ -589,7 +595,7 @@ export default function SearchConsoleInsightsPage() {
           </Card>
         </>
       )}
-    </div>
+    </PageShell>
   );
 }
 

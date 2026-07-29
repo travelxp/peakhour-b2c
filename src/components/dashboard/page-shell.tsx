@@ -66,6 +66,25 @@ export type PageShellWidth = keyof typeof PAGE_WIDTHS;
 export interface PageShellProps extends React.ComponentProps<"div"> {
   /** Content measure. Defaults to `standard`. See PAGE_WIDTHS. */
   width?: PageShellWidth;
+  /**
+   * Fill the available viewport height instead of growing with content, and
+   * become a column flex container so one child can take the remaining space
+   * with `min-h-0 flex-1`. For surfaces that own their own scrolling — chat
+   * threads, boards, split panes.
+   *
+   * This exists so such a page never has to guess the shell's chrome height.
+   * /dashboard/ask used to hard-code `h-[calc(100dvh-5rem)]`, which assumed
+   * 80px of chrome when the real figure was 120px (header 56 + shell padding
+   * 48 + banner-slot margin 16) — so it overflowed by 40px on every device,
+   * pushing its composer below the fold. Anything computed from a literal
+   * goes stale the moment the shell's padding or banner slot changes; this
+   * cannot.
+   *
+   * `min-h-0` is the load-bearing half: without it this flex item's automatic
+   * minimum size is its content height, so a long thread would push the shell
+   * into a nested scrollbar instead of scrolling inside the page.
+   */
+  fill?: boolean;
 }
 
 /**
@@ -78,6 +97,7 @@ export interface PageShellProps extends React.ComponentProps<"div"> {
  */
 export function PageShell({
   width = "standard",
+  fill = false,
   className,
   children,
   ...props
@@ -85,9 +105,11 @@ export function PageShell({
   return (
     <div
       data-slot="page-shell"
+      data-fill={fill || undefined}
       className={cn(
         "mx-auto w-full space-y-4 sm:space-y-6",
         PAGE_WIDTHS[width],
+        fill && "flex min-h-0 flex-1 flex-col",
         className,
       )}
       {...props}

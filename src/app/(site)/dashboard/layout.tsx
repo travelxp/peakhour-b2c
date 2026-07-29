@@ -525,7 +525,20 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
             @/components/dashboard/page-shell). Steps down to 16px on mobile:
             at 375px a flat 24px inset costs 13% of the screen width before a
             card's own 24px padding is even applied. */}
-        <div className="flex-1 overflow-auto p-4 sm:p-6">
+        {/* `flex flex-col` so a route can opt into filling the viewport
+            (<PageShell fill>) without hard-coding the chrome height. The
+            height here IS definite — `flex-1` is `flex: 1 1 0%`, so this div
+            contributes nothing to the wrapper's intrinsic height and settles
+            at exactly `100svh - 3.5rem` (the header) — which is why
+            /dashboard/ask could compute a `calc()` against it at all, and why
+            it was wrong to (it also has to subtract this padding and the
+            banner slot).
+
+            Ordinary pages are unaffected: a block child of a column flex
+            container keeps `min-height: auto`, whose automatic minimum size
+            is its content height, so nothing shrinks below its content and
+            long pages still scroll here rather than being squashed. */}
+        <div className="flex flex-1 flex-col overflow-auto p-4 sm:p-6">
           {/* Banner slot — sits above the route content. Trial-expiry shows
               only inside the final 3 days of a trial; the credit-cap banner
               only once usage crosses its cap. Both render nothing otherwise

@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { PageShell } from "@/components/dashboard/page-shell";
 import {
   Select,
   SelectContent,
@@ -207,7 +208,7 @@ export default function WhatsAppTemplatesPage() {
   const errorCount = issues?.filter((i) => i.severity === "error").length ?? 0;
 
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-6 p-4 md:p-6">
+    <PageShell>
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">WhatsApp templates</h1>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -357,6 +358,6 @@ export default function WhatsAppTemplatesPage() {
           </Card>
         </div>
       </div>
-    </div>
+    </PageShell>
   );
 }
