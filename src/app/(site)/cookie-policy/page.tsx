@@ -24,14 +24,20 @@ export default function CookiePolicyPage() {
           <section>
             <h2 className="text-lg font-semibold text-foreground">1. Introduction</h2>
             <p className="mt-2">
-              This Cookie Policy explains how {SITE.company.legalName} (&quot;{SITE.name}&quot;,
-              &quot;we&quot;, &quot;us&quot;, or &quot;our&quot;) uses cookies and similar technologies on the
+              This Cookie Policy explains how {SITE.company.ref} (&quot;{SITE.name}&quot;,
+              &quot;we&quot;, &quot;us&quot;, or &quot;our&quot;) uses cookies and similar
+              technologies on the{" "}
               {SITE.name} platform (the &quot;Service&quot;). It should be read
               together with our{" "}
               <a href="/privacy-policy" className="text-foreground underline">
                 Privacy Policy
               </a>
               .
+            </p>
+            <p className="mt-2">
+              Where you are outside India, the company responsible for your personal data may
+              instead be {SITE.companyUk.ref} — see Section 1 of our Privacy Policy. This
+              Cookie Policy applies to cookies set by the {SITE.name} platform either way.
             </p>
           </section>
 
@@ -131,10 +137,16 @@ export default function CookiePolicyPage() {
               Questions about this Cookie Policy can be sent to:
             </p>
             <p className="mt-2">
-              {SITE.company.legalName}
+              <strong>India:</strong> {SITE.company.ref}
               <br />
               {SITE.company.address}
+            </p>
+            <p className="mt-2">
+              <strong>Outside India:</strong> {SITE.companyUk.ref}
               <br />
+              {SITE.companyUk.address}
+            </p>
+            <p className="mt-2">
               Email:{" "}
               <a href={`mailto:${SITE.contactPrivacy}`} className="text-foreground underline">
                 {SITE.contactPrivacy}

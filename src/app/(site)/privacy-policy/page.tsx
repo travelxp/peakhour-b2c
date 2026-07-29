@@ -24,18 +24,27 @@ export default function PrivacyPolicyPage() {
             <h2 className="text-lg font-semibold text-foreground">1. Introduction</h2>
             <p className="mt-2">
               This Privacy Policy explains how {SITE.company.legalName} (&quot;{SITE.name}&quot;,
-              &quot;we&quot;, &quot;us&quot;, or &quot;our&quot;) — the company that operates the {SITE.name}{" "}
-              platform, an AI-powered marketing automation service (the
+              &quot;we&quot;, &quot;us&quot;, or &quot;our&quot;) — the companies that operate the {SITE.name}{" "}
+              platform, identified below, an AI-powered marketing automation service (the
               &quot;Service&quot;) — collects, uses, discloses, and safeguards your information when
               you use our website and services.
             </p>
             <p className="mt-2">
-              {SITE.name} is a product of {SITE.company.legalName}, registered office at{" "}
-              {SITE.company.address}. For the EU/UK General Data Protection Regulation
-              (&quot;GDPR&quot;), {SITE.company.legalName} is the data &quot;controller&quot;; under
-              India&apos;s Digital Personal Data Protection Act, 2023 (&quot;DPDP Act&quot;), it is the
-              &quot;Data Fiduciary&quot; that determines the purpose and means of processing your
-              personal data.
+              {SITE.name} is a product of {SITE.company.ref}, registered office at{" "}
+              {SITE.company.address}. Under India&apos;s Digital Personal Data Protection Act,
+              2023 (&quot;DPDP Act&quot;), that company is the &quot;Data Fiduciary&quot; that
+              determines the purpose and means of processing your personal data, and it is the
+              data &quot;controller&quot; for the purposes of the EU/UK General Data Protection
+              Regulation (&quot;GDPR&quot;) except where the paragraph below applies.
+            </p>
+            <p className="mt-2">
+              Outside India, {SITE.name} is marketed and provided by {SITE.companyUk.ref}, with
+              its registered office at {SITE.companyUk.address}. The two companies share the
+              same legal name — their country of incorporation and registration number
+              distinguish them. Where the England and Wales company provides the Service to
+              you, it is the GDPR &quot;controller&quot; of your personal data and your
+              contracting counterparty, and in that case — and only in that case — references
+              in this Policy to the company responsible for your data mean that entity.
             </p>
             <p className="mt-2">
               By accessing or using the Service, you agree to this Privacy Policy. If you do
@@ -58,7 +67,8 @@ export default function PrivacyPolicyPage() {
               </li>
               <li>
                 <strong>Payment information:</strong> billing details processed through our
-                third-party payment processor (Stripe). We do not store full credit card numbers.
+                third-party payment providers, which vary by country. We do not store full
+                credit card numbers.
               </li>
               <li>
                 <strong>Content:</strong> newsletters, articles, and other content you upload
@@ -278,8 +288,8 @@ export default function PrivacyPolicyPage() {
               <li>
                 <strong>Service providers (sub-processors):</strong> vetted third-party
                 vendors that help us operate the Service — including cloud hosting,
-                database and object storage, AI/ML model providers, payment processing
-                (Stripe), and transactional email delivery. These providers act on our
+                database and object storage, AI/ML model providers, payment processing,
+                and transactional email delivery. These providers act on our
                 instructions under written contracts (including data-processing terms and,
                 where applicable, Standard Contractual Clauses) that require them to protect
                 your data and use it only to provide their service to us. A current list of
@@ -288,6 +298,26 @@ export default function PrivacyPolicyPage() {
                   {SITE.contactPrivacy}
                 </a>
                 .
+              </li>
+              <li>
+                <strong>Affiliated group companies:</strong> we share personal data with
+                companies in our group where they perform part of the Service for us — most
+                importantly Celebrities Management Private Limited, which holds the Meta and
+                LinkedIn platform API access described in Section 12 and processes the
+                associated data on our instructions under a written intra-group agreement
+                incorporating the UK International Data Transfer Agreement / EU Standard
+                Contractual Clauses where the transfer is a restricted one.
+              </li>
+              <li>
+                <strong>Merchant-of-record platforms:</strong> in some countries your purchase
+                is made from a third-party merchant-of-record platform that resells the Service
+                (see Section 8 of our Terms of Service). Unlike a sub-processor, such a
+                platform is an{" "}
+                <strong>independent controller</strong> of the payment and tax data it collects
+                from you, and processes it under its own privacy policy for its own billing,
+                fraud-prevention and tax-compliance purposes. We receive only the transaction
+                and settlement records we need to provision your subscription and keep our
+                books.
               </li>
               <li>
                 <strong>Connected platforms:</strong> when you authorize us to publish
@@ -437,6 +467,22 @@ export default function PrivacyPolicyPage() {
               advertising or to build independent user profiles, we retain it only for as
               long as needed to deliver the Service, and we delete it when you disconnect the
               integration, close your account, or ask us to.
+            </p>
+
+            <p className="mt-2">
+              <strong>Platform API access held by an affiliated company.</strong> Access to the
+              Meta developer platform (including WhatsApp Business) and the LinkedIn developer
+              platform is held in the name of{" "}
+              <strong>Celebrities Management Private Limited (&quot;CMPL&quot;)</strong>, an
+              affiliated company within our group, which is the entity those platforms approved
+              as developer and technology provider. When you connect a Meta or LinkedIn account
+              you may therefore see CMPL named on the platform&apos;s authorization screen or in
+              the application&apos;s developer record. CMPL makes that platform access available
+              to us under a written intra-group agreement and processes the data only on our
+              instructions, solely to deliver the integration you enabled. The {SITE.name}{" "}
+              entity identified in Section 1 remains the controller / Data Fiduciary
+              responsible for your personal data as described in this Policy, and the rights
+              and contacts set out here apply to that data.
             </p>
 
             <h3 className="mt-4 font-medium text-foreground">12.1 Meta Platform (Facebook, Instagram, Ads, WhatsApp)</h3>
@@ -614,10 +660,16 @@ export default function PrivacyPolicyPage() {
               If you have questions about this Privacy Policy or our data practices, contact:
             </p>
             <p className="mt-2">
-              {SITE.company.legalName}
+              <strong>India:</strong> {SITE.company.ref}
               <br />
               {SITE.company.address}
+            </p>
+            <p className="mt-2">
+              <strong>Outside India:</strong> {SITE.companyUk.ref}
               <br />
+              {SITE.companyUk.address}
+            </p>
+            <p className="mt-2">
               Privacy:{" "}
               <a href={`mailto:${SITE.contactPrivacy}`} className="text-foreground underline">
                 {SITE.contactPrivacy}

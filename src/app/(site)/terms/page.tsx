@@ -32,6 +32,16 @@ export default function TermsPage() {
               &quot;Service&quot;).
             </p>
             <p className="mt-2">
+              Outside India, {SITE.name} is marketed and provided by{" "}
+              {SITE.companyUk.ref}, with its registered office at {SITE.companyUk.address}. The
+              two companies share the same legal name — their country of incorporation and
+              registration number distinguish them. Where you contract with the England and
+              Wales company, references to &quot;Company&quot;, &quot;we&quot;, &quot;us&quot;
+              and &quot;our&quot; in these Terms mean {SITE.companyUk.ref}, and its registered
+              office and company number above apply in place of those in the preceding
+              paragraph.
+            </p>
+            <p className="mt-2">
               By creating an account or using the Service, you agree to be bound by these
               Terms. If you do not agree, you may not use the Service. If you are using the
               Service on behalf of an organization, you represent that you have authority to
@@ -153,6 +163,14 @@ export default function TermsPage() {
                 settings. Disconnecting will stop data sync but will not delete previously
                 synced data unless you request deletion.
               </li>
+              <li>
+                Access to certain platform APIs — currently Meta (including WhatsApp Business)
+                and LinkedIn — is held in the name of Celebrities Management Private Limited, an
+                affiliated company within our group that those platforms approved as developer
+                and technology provider, and is made available to us under an intra-group
+                agreement. You may see that name on a platform&apos;s authorization screen. This
+                does not change who you contract with under these Terms.
+              </li>
             </ul>
           </section>
 
@@ -188,8 +206,23 @@ export default function TermsPage() {
                 change pricing with 30 days&apos; notice.
               </li>
               <li>
-                Payments are processed through Stripe. By providing payment information, you
-                agree to Stripe&apos;s terms of service.
+                Payments are processed by third-party payment providers, which vary by the
+                country you purchase from. By providing payment information, you agree to the
+                applicable provider&apos;s terms of service.
+              </li>
+              <li>
+                <strong>Seller of record.</strong> Depending on your country, your purchase is
+                made either directly from one of the two {SITE.name} companies named in Section
+                1 (India purchases from the India company, other direct purchases from the
+                England and Wales company) or from a third-party merchant-of-record
+                (&quot;MoR&quot;) platform that resells the Service. Where an MoR platform is
+                used, that platform — not either {SITE.name} company — is the
+                seller of record for the transaction: it contracts with you for the sale,
+                issues your invoice or receipt, and collects and remits any applicable sales
+                tax, VAT or GST. Its own terms and privacy policy govern the payment
+                transaction, while these Terms continue to govern your use of the Service. The
+                seller of record for each purchase is identified at checkout and on the
+                invoice or receipt you receive.
               </li>
               <li>
                 All fees are non-refundable except as required by applicable law or as
@@ -307,8 +340,11 @@ export default function TermsPage() {
             <h2 className="text-lg font-semibold text-foreground">10. Intellectual Property</h2>
             <p className="mt-2">
               The Service, including its design, features, code, AI models, and documentation,
-              is owned by Peakhour.ai and protected by intellectual property laws. Nothing in
-              these Terms grants you any right to our trademarks, logos, or brand assets.
+              is owned by, or licensed to us by, companies within our group — including
+              Celebrities Management Private Limited, which holds the {SITE.name} trademark and
+              software intellectual property — and is protected by intellectual property laws.
+              Nothing in these Terms grants you any right to our trademarks, logos, or brand
+              assets.
             </p>
           </section>
 
@@ -330,15 +366,16 @@ export default function TermsPage() {
           <section>
             <h2 className="text-lg font-semibold text-foreground">12. Limitation of Liability</h2>
             <p className="mt-2">
-              TO THE MAXIMUM EXTENT PERMITTED BY LAW, PEAKHOUR SHALL NOT BE LIABLE FOR ANY
+              TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE COMPANY SHALL NOT BE LIABLE FOR ANY
               INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, INCLUDING
               BUT NOT LIMITED TO LOSS OF PROFITS, DATA, OR BUSINESS OPPORTUNITIES, ARISING
               OUT OF OR RELATED TO YOUR USE OF THE SERVICE.
             </p>
             <p className="mt-2">
               OUR TOTAL AGGREGATE LIABILITY FOR ALL CLAIMS ARISING FROM OR RELATED TO THE
-              SERVICE SHALL NOT EXCEED THE AMOUNT YOU PAID US IN THE 12 MONTHS PRECEDING THE
-              CLAIM.
+              SERVICE SHALL NOT EXCEED THE AMOUNT YOU PAID FOR THE SERVICE IN THE 12 MONTHS
+              PRECEDING THE CLAIM, WHETHER PAID TO US DIRECTLY OR TO A MERCHANT OF RECORD ON
+              OUR BEHALF (SECTION 8).
             </p>
           </section>
 
@@ -432,10 +469,16 @@ export default function TermsPage() {
               For questions about these Terms, contact us at:
             </p>
             <p className="mt-2">
-              {SITE.company.legalName}
+              <strong>India:</strong> {SITE.company.ref}
               <br />
               {SITE.company.address}
+            </p>
+            <p className="mt-2">
+              <strong>Outside India:</strong> {SITE.companyUk.ref}
               <br />
+              {SITE.companyUk.address}
+            </p>
+            <p className="mt-2">
               Email:{" "}
               <a href={`mailto:${SITE.contactLegal}`} className="text-foreground underline">
                 {SITE.contactLegal}
