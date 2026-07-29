@@ -106,7 +106,7 @@ const NUMERIC_FONT = { fontFamily: "var(--font-space-grotesk)" } as const;
  * is white, which paints a halo around every focused button in dark mode.
  */
 const GOLD_BUTTON =
-  "inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand-gradient text-sm font-bold text-brand-contrast shadow-sm transition-transform hover:-translate-y-0.5 focus-visible:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-60 aria-disabled:cursor-default aria-disabled:opacity-60 aria-disabled:hover:translate-y-0";
+  "inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand-gradient text-sm font-bold text-brand-contrast shadow-sm transition-transform hover:-translate-y-0.5 focus-visible:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-60 aria-disabled:cursor-default aria-disabled:opacity-60 aria-disabled:hover:translate-y-0 aria-disabled:focus-visible:translate-y-0";
 
 /** Underlined inline link, used in the legal/help microcopy. */
 const LEGAL_LINK =
@@ -238,11 +238,11 @@ export function AuthFlow({
   // second entry returns immediately. Cleared in a finally so a
   // network failure still re-enables future submissions.
   const inFlightRef = useRef(false);
-  // Set when a *resend* succeeds, so the sr-only live region can confirm the
-  // action. Without it the only announcement is the cooldown expiring 60s
-  // later, and pressing "Resend link" appears to do nothing: the button
-  // disables (dropping focus to <body>) and the visible label is the only
-  // feedback. Cleared whenever a new attempt starts or the form resets.
+  // Set when a *resend* succeeds, so the sr-only live region can confirm it.
+  // A resend stays on the same card, so no focus move happens (see
+  // outcomeBranch) — the region is the only announcement a successful resend
+  // produces, and without it the next thing heard would be the cooldown
+  // expiring a minute later. Cleared when a new attempt starts or on reset.
   const [resendNotice, setResendNotice] = useState("");
 
   const isCoolingDown =
@@ -255,15 +255,30 @@ export function AuthFlow({
   // the new card's heading both restores the position and makes the outcome
   // the next thing announced.
   const outcomeHeadingRef = useRef<HTMLHeadingElement>(null);
-  const isOutcome = isCoolingDown || status.kind === "waitlisted" || status.kind === "notEligible";
-  const wasOutcomeRef = useRef(isOutcome);
+  // Keyed on WHICH card is showing, not on a boolean "is an outcome showing".
+  // A boolean misses resending → waitlisted / notEligible: submit() branches to
+  // those for a resend as well as a first send, so the card swaps underneath a
+  // focused Resend button while the boolean stays true — the effect wouldn't
+  // re-run and focus would land on <body>, the exact bug this exists to fix.
+  // Deriving the key from the same conditions the JSX branches on also means a
+  // new outcome kind can't silently skip focus.
+  const outcomeBranch =
+    status.kind === "waitlisted"
+      ? "waitlisted"
+      : status.kind === "notEligible"
+        ? "notEligible"
+        : isCoolingDown
+          ? "cooldown"
+          : null;
+  const prevBranchRef = useRef(outcomeBranch);
   useEffect(() => {
-    const entered = isOutcome && !wasOutcomeRef.current;
-    wasOutcomeRef.current = isOutcome;
-    // Only on the transition IN. Re-focusing on every cooldown tick would trap
-    // the user on the heading, and a resend stays within the same card.
-    if (entered) outcomeHeadingRef.current?.focus();
-  }, [isOutcome]);
+    const entered = outcomeBranch !== null && outcomeBranch !== prevBranchRef.current;
+    prevBranchRef.current = outcomeBranch;
+    // preventScroll: the card is freshly mounted at the top of a fresh layout,
+    // so scrolling the heading into view buys nothing and would push the icon
+    // tile above it off-screen if the column ever does overflow.
+    if (entered) outcomeHeadingRef.current?.focus({ preventScroll: true });
+  }, [outcomeBranch]);
   const cooldownSecondsLeft = isCoolingDown
     ? Math.max(0, Math.ceil((status.cooldownEndsAt - now) / 1000))
     : 0;
@@ -595,10 +610,10 @@ export function AuthFlow({
               <div className="rounded-2xl border bg-card p-6 sm:p-7">
                 <GoldTile icon={Mail} />
                 <h1
-                ref={outcomeHeadingRef}
-                tabIndex={-1}
-                className="mt-5 text-2xl font-extrabold tracking-tight focus-visible:outline-none"
-              >
+                  ref={outcomeHeadingRef}
+                  tabIndex={-1}
+                  className="mt-5 text-2xl font-extrabold tracking-tight focus-visible:outline-none"
+                >
                   Your link is on its way
                 </h1>
                 <p className="mt-2 text-sm text-muted-foreground">
@@ -610,7 +625,7 @@ export function AuthFlow({
                 {status.kind === "sent" && status.resendError && (
                   <div
                     role="alert"
-                    className="mt-4 rounded-lg border border-destructive/30 bg-destructive/10 p-2.5 text-xs text-destructive sm:p-3 sm:text-sm"
+                    className="mt-4 rounded-lg border border-destructive/30 bg-destructive/10 p-2.5 text-xs text-destructive-on-tint sm:p-3 sm:text-sm"
                   >
                     {status.resendError}
                   </div>
@@ -631,12 +646,23 @@ export function AuthFlow({
                       submit(status.email, "resend");
                     }}
                     aria-describedby="resend-status"
+                    // Stable accessible name with the label aria-hidden: the
+                    // countdown rewrites the visible text once a second, and
+                    // this button now KEEPS focus through the cooldown (it is
+                    // aria-disabled, not disabled). Some screen readers
+                    // re-announce the name of the focused element when it
+                    // changes, which would chatter for sixty seconds. The
+                    // remaining time is visual; the live region below carries
+                    // the one moment that matters.
+                    aria-label="Resend link"
                   >
-                    {status.kind === "resending"
-                      ? "Resending…"
-                      : cooldownSecondsLeft > 0
-                        ? `Resend in ${cooldownSecondsLeft}s`
-                        : "Resend link"}
+                    <span aria-hidden>
+                      {status.kind === "resending"
+                        ? "Resending…"
+                        : cooldownSecondsLeft > 0
+                          ? `Resend in ${cooldownSecondsLeft}s`
+                          : "Resend link"}
+                    </span>
                   </button>
                   {/* The button label changes every second while the cooldown
                       runs, so marking the button itself aria-live read out all
@@ -681,7 +707,7 @@ export function AuthFlow({
                 {status.kind === "error" && (
                   <div
                     role="alert"
-                    className="rounded-lg border border-destructive/30 bg-destructive/10 p-2.5 text-xs text-destructive sm:p-3 sm:text-sm"
+                    className="rounded-lg border border-destructive/30 bg-destructive/10 p-2.5 text-xs text-destructive-on-tint sm:p-3 sm:text-sm"
                   >
                     {status.message}
                   </div>
@@ -705,7 +731,13 @@ export function AuthFlow({
                 <button
                   type="submit"
                   className={GOLD_BUTTON}
-                  disabled={status.kind === "submitting"}
+                  // aria-disabled for the same reason as Resend below: a real
+                  // `disabled` is blurred by the browser, so the primary path —
+                  // which every visitor takes and few ever leave — would throw
+                  // focus to <body> for the whole network round trip, and again
+                  // on failure. inFlightRef already refuses a double submit
+                  // synchronously, so nothing depends on the native block.
+                  aria-disabled={status.kind === "submitting"}
                 >
                   {status.kind === "submitting" ? (
                     "Sending your link…"
