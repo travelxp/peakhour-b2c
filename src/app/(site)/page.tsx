@@ -20,6 +20,7 @@ import { HOW_IT_WORKS_STEPS } from "@/lib/how-it-works";
 import {
   PILLAR_CONSOLE_ROWS,
   PILLAR_CONSOLE_LABEL,
+  PILLAR_CONSOLE_ROW_CLASS,
   SIGNUP_PROMISES,
 } from "@/lib/pillar-console";
 import {
@@ -186,13 +187,16 @@ export default async function Home({
   // Integration catalog from the platform resolver (CMS-driven, env-gated,
   // stage-capped). Falls back to the static list below if the API is
   // unreachable so the landing never hard-fails (mirrors the pricing fallback).
-  const catalog = await getPublicCatalog();
-  // "DEFAULT" (not the visitor's country): the free-Peaks grant is the tier's
-  // fair-use allowance, which is country-independent — only prices vary. Asking
-  // for DEFAULT keeps every visitor on one cache entry.
-  const freePeaks = formatPeaks(
-    minFreePeaksPerMonth(await getPricing("DEFAULT")) ?? FREE_PEAKS_FALLBACK,
-  );
+  // In parallel — two independent endpoints; awaiting them in sequence costs a
+  // second round trip on a cold cache.
+  const [catalog, pricing] = await Promise.all([
+    getPublicCatalog(),
+    // "DEFAULT" (not the visitor's country): the free-Peaks grant is a
+    // plan-level fair-use allowance, country-independent — only prices vary.
+    // One cache entry therefore serves every visitor.
+    getPricing("DEFAULT"),
+  ]);
+  const freePeaks = formatPeaks(minFreePeaksPerMonth(pricing) ?? FREE_PEAKS_FALLBACK);
   const platform = catalog?.platform;
   const cta = signupCta(platform?.signupMode ?? "open");
   // Fall back on an EMPTY published set too, not just a null catalog — a
@@ -360,7 +364,7 @@ export default async function Home({
                 {PILLAR_CONSOLE_ROWS.map((row) => (
                   <div
                     key={row.name}
-                    className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/4 px-3.5 py-2.5 text-sm"
+                    className={PILLAR_CONSOLE_ROW_CLASS}
                   >
                     <span className="size-2 shrink-0 rounded-full bg-emerald-400" aria-hidden />
                     <span className="w-20 shrink-0 font-bold text-zinc-100">{row.name}</span>
@@ -419,9 +423,13 @@ export default async function Home({
                     {/* Gold hairline that wipes across the top edge on hover. */}
                     <span
                       aria-hidden
-                      className="absolute inset-x-0 top-0 h-0.5 origin-left scale-x-0 bg-brand-gradient transition-transform duration-300 ease-out group-hover:scale-x-100 motion-reduce:transition-none"
+                      className="absolute inset-x-0 top-0 h-0.5 origin-left scale-x-0 bg-brand-gradient transition-transform duration-300 ease-out group-hover:scale-x-100 motion-reduce:hidden"
                     />
-                    <div className="flex size-11 items-center justify-center rounded-xl bg-brand-gradient shadow-inner transition-transform duration-300 ease-out group-hover:-rotate-3 group-hover:scale-105 motion-reduce:transition-none">
+                    {/* motion-reduce neutralises the transform itself, not just
+                        its duration — transition-none alone would make the tile
+                        snap to rotated+scaled instantly, which is the jump the
+                        preference exists to avoid. */}
+                    <div className="flex size-11 items-center justify-center rounded-xl bg-brand-gradient shadow-inner transition-transform duration-300 ease-out group-hover:-rotate-3 group-hover:scale-105 motion-reduce:transition-none motion-reduce:group-hover:rotate-0 motion-reduce:group-hover:scale-100">
                       <PillarIcon className="size-5 text-brand-contrast" strokeWidth={2} />
                     </div>
                     <h3 className="text-lg font-bold tracking-tight">{pillar.name}</h3>

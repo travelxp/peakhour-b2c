@@ -14,6 +14,7 @@ import { PeaksGlyph } from "@/components/peaks/peaks-glyph";
 import {
   PILLAR_CONSOLE_ROWS,
   PILLAR_CONSOLE_LABEL,
+  PILLAR_CONSOLE_ROW_CLASS,
   SIGNUP_PROMISES,
   PRELAUNCH_PROMISES,
 } from "@/lib/pillar-console";
@@ -66,7 +67,9 @@ function signupStats(freePeaks: string) {
   return [
     { value: "5", label: "pillars, one login" },
     { value: "0", label: "credit cards required" },
-    { value: freePeaks, label: "free Peaks a month, every plan" },
+    // "+" and "free plan": the figure is the floor across free plans, and
+    // paid/Agency/Enterprise carry far more. Without both, this reads as a cap.
+    { value: `${freePeaks}+`, label: "free Peaks a month, every free plan" },
   ];
 }
 
@@ -457,7 +460,7 @@ export function AuthFlow({
             {PILLAR_CONSOLE_ROWS.map((row) => (
               <div
                 key={row.name}
-                className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/4 px-3.5 py-2.5 text-sm transition-[background-color,border-color,transform] duration-300 ease-out hover:translate-x-0.5 hover:border-brand/40 hover:bg-white/8 motion-reduce:transition-none motion-reduce:hover:translate-x-0"
+                className={PILLAR_CONSOLE_ROW_CLASS}
               >
                 <span className="size-2 shrink-0 rounded-full bg-emerald-400" aria-hidden />
                 <span className="w-20 shrink-0 font-bold text-zinc-100">{row.name}</span>
@@ -515,7 +518,7 @@ export function AuthFlow({
         {/* Vertical padding steps up only once there's room for it. At mobile
             widths the dark panel is hidden, so this column is the whole page
             and desktop-sized padding was pushing it past the viewport. */}
-        <div className="flex flex-1 items-center justify-center px-4 py-8 sm:px-8 sm:py-12">
+        <div className="flex flex-1 items-center justify-center px-4 py-6 sm:px-8 sm:py-12">
           {status.kind === "waitlisted" ? (
             <div className="w-full max-w-md rounded-2xl border bg-card p-7">
               <GoldTile icon={Clock} />
@@ -627,7 +630,7 @@ export function AuthFlow({
               <h1 className="mt-4 text-2xl font-extrabold tracking-tight text-pretty sm:text-3xl">
                 {intentCopy?.title ?? "One email. No password. Ever."}
               </h1>
-              <p className="mt-2.5 text-muted-foreground">
+              <p className="mt-2.5 text-sm text-muted-foreground sm:text-base">
                 {intentCopy?.subtitle ??
                   "We’ll send a link that signs you straight in. If you’re new, that same link creates your account."}
               </p>
@@ -673,7 +676,7 @@ export function AuthFlow({
                 </button>
               </form>
 
-              <ul className="mt-5 flex flex-wrap justify-center gap-x-4 gap-y-1.5 text-sm text-muted-foreground sm:mt-6">
+              <ul className="mt-5 flex flex-wrap justify-center gap-x-3.5 gap-y-1.5 text-xs text-muted-foreground sm:mt-6 sm:gap-x-4 sm:text-sm">
                 {(isPreLaunch ? PRELAUNCH_PROMISES : SIGNUP_PROMISES).map((tick) => (
                   <li key={tick} className="flex items-center gap-1.5">
                     <Check className="size-3.5 shrink-0 text-brand-label" strokeWidth={3} aria-hidden />
@@ -682,7 +685,7 @@ export function AuthFlow({
                 ))}
               </ul>
 
-              <p className="mt-6 text-center text-xs text-muted-foreground sm:mt-8">
+              <p className="mt-5 text-center text-xs text-muted-foreground sm:mt-8">
                 By continuing, you agree to our{" "}
                 <Link href="/terms" className={LEGAL_LINK}>
                   Terms of Service

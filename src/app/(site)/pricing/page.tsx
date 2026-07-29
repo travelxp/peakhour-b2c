@@ -3,7 +3,13 @@ import Link from "next/link";
 import { ArrowRight, Check } from "lucide-react";
 import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
-import { getPricing, pillarProducts, fromMonthly, formatMonthly } from "@/lib/pricing";
+import {
+  getPricing,
+  pillarProducts,
+  fromMonthly,
+  formatMonthly,
+  formatPeaks,
+} from "@/lib/pricing";
 import { getPublicCatalog, signupCta } from "@/lib/catalog";
 import {
   PRICING_PILLAR_ORDER,
@@ -223,7 +229,7 @@ export default async function PricingPage() {
                       ...PILLARS.presence.features.map((f) => f.title),
                       ...(typeof presenceFree?.peaksIncluded === "number"
                         ? [
-                            `${presenceFree.peaksIncluded.toLocaleString()} AI credits (Peaks) each month`,
+                            `${formatPeaks(presenceFree.peaksIncluded)} AI credits (Peaks) each month`,
                           ]
                         : []),
                     ].map((item) => (

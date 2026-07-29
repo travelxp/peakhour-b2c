@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Check } from "lucide-react";
 import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
-import { getPricing, findBundleTier, formatMonthly } from "@/lib/pricing";
+import { getPricing, findBundleTier, formatMonthly, formatPeaks } from "@/lib/pricing";
 import { getPublicCatalog, signupCta } from "@/lib/catalog";
 import { pageMetadata } from "@/lib/seo";
 
@@ -57,11 +57,11 @@ export default async function TeamsPricingPage() {
   const agencyPrice = agency ? formatMonthly(agency.pricing) : "$299";
   const agencyPeaks =
     typeof agency?.peaksIncluded === "number"
-      ? agency.peaksIncluded.toLocaleString()
+      ? formatPeaks(agency.peaksIncluded)
       : "25,000";
   const enterprisePeaks =
     typeof enterprise?.peaksIncluded === "number"
-      ? enterprise.peaksIncluded.toLocaleString()
+      ? formatPeaks(enterprise.peaksIncluded)
       : "100,000";
 
   return (

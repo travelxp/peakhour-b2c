@@ -42,12 +42,15 @@ export default function AuthLayout({
       <Header />
       <main className="flex flex-1 flex-col">{children}</main>
       <footer className="flex flex-wrap items-center justify-center gap-x-1.5 gap-y-1 px-4 py-3 text-center text-xs text-muted-foreground sm:py-4">
-        <span>
-          Trouble signing in?{" "}
-          <a href={`mailto:${SITE.contactGeneral}`} className={LEGAL_LINK}>
-            {SITE.contactGeneral}
-          </a>
-        </span>
+        {/* The address spells itself out only where there's width for it. At
+            375px the full "Trouble signing in? hello@peakhour.ai" wrapped the
+            strip onto a second line, which is height /auth can't spare. */}
+        <a href={`mailto:${SITE.contactGeneral}`} className={LEGAL_LINK}>
+          <span className="sm:hidden">Help</span>
+          <span className="hidden sm:inline">
+            Trouble signing in? {SITE.contactGeneral}
+          </span>
+        </a>
         <span aria-hidden className="opacity-40">
           ·
         </span>

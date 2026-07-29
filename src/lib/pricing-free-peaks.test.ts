@@ -59,6 +59,29 @@ describe("minFreePeaksPerMonth", () => {
     expect(minFreePeaksPerMonth(res)).toBe(250);
   });
 
+  it("ignores Agency/Enterprise, which look free but grant 100k", () => {
+    // Bundle tiers carry no matrix price, so a naive zero-price test matches
+    // them. They also appear under every product — and the live API returns
+    // `enterprise` BEFORE the real free tier under growth and support_inbox,
+    // so a `.find()` on price alone silently read the wrong tier.
+    const res = response([
+      product("growth", [
+        tier({ key: "enterprise", peaksIncluded: 100000 }),
+        tier({ key: "growth.free", peaksIncluded: 500 }),
+        tier({ key: "agency", peaksIncluded: 25000 }),
+      ]),
+    ]);
+    expect(minFreePeaksPerMonth(res)).toBe(500);
+  });
+
+  it("is independent of the order tiers arrive in", () => {
+    const free = tier({ key: "growth.free", peaksIncluded: 500 });
+    const ent = tier({ key: "enterprise", peaksIncluded: 100000 });
+    expect(minFreePeaksPerMonth(response([product("growth", [free, ent])]))).toBe(
+      minFreePeaksPerMonth(response([product("growth", [ent, free])])),
+    );
+  });
+
   it("ignores paid tiers when picking each product's free tier", () => {
     const res = response([
       product("commerce", [
@@ -94,6 +117,19 @@ describe("minFreePeaksPerMonth", () => {
       product("content", [tier({ peaksIncluded: 500 })]),
     ]);
     expect(minFreePeaksPerMonth(res)).toBe(500);
+  });
+
+  it("treats a zero grant as nothing to advertise, not as a minimum of zero", () => {
+    // `0 ?? FREE_PEAKS_FALLBACK` is 0, so a zero here would reach the page and
+    // render "0+ free Peaks/mo" with no way for the caller to catch it.
+    expect(
+      minFreePeaksPerMonth(response([product("presence", [tier({ peaksIncluded: 0 })])])),
+    ).toBeNull();
+    const mixed = response([
+      product("presence", [tier({ peaksIncluded: 0 })]),
+      product("content", [tier({ peaksIncluded: 500 })]),
+    ]);
+    expect(minFreePeaksPerMonth(mixed)).toBe(500);
   });
 
   it("returns null when nothing resolves, so callers use the fallback", () => {

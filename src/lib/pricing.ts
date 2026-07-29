@@ -199,23 +199,32 @@ export function productTiers(product: ResolvedProduct): ResolvedProductTier[] {
  * but quoting that total would promise a five-pillar signup to a visitor who
  * may only ever take one. The floor is true for everybody.
  *
- * A tier counts as free when it bills nothing on either interval — read from
- * the resolved price rather than a `.free` key suffix, so a renamed tier key
- * can't silently drop a pillar out of the comparison.
+ * Bundle plans are excluded via `productTiers()`, and that exclusion is
+ * load-bearing rather than tidiness: Agency and Enterprise are sales-led, so
+ * they carry no matrix price and look free (`monthly: 0, yearly: 0`) while
+ * granting 100k Peaks. They also surface under every product, and NOT reliably
+ * after the real free tier — the live API returns `enterprise` first under
+ * `growth` and `support_inbox`, so reading "the first zero-priced tier" picks
+ * the wrong one. Among a product's own tiers, free is identified by price
+ * rather than a `.free` key suffix, so renaming a tier can't drop a pillar out
+ * of the comparison.
  *
  * Returns null when pricing is unavailable (the caller falls back to
- * FREE_PEAKS_FALLBACK) or when no free tier carries an allowance — an
- * uncapped grant has no number to show and must not be reported as 0.
+ * FREE_PEAKS_FALLBACK) or when no free tier advertises a grant. A grant of 0
+ * counts as nothing to advertise rather than as a minimum of zero — otherwise
+ * one credit-less free tier would drag the headline to "0+ free Peaks/mo",
+ * which `?? FREE_PEAKS_FALLBACK` could not rescue (0 is not nullish).
  */
 export function minFreePeaksPerMonth(pricing: PricingResponse | null): number | null {
   if (!pricing) return null;
   let min: number | null = null;
   for (const product of pricing.products) {
-    const free = product.tiers.find(
-      (t) => (t.pricing?.monthly ?? 0) === 0 && (t.pricing?.yearly ?? 0) === 0,
-    );
-    if (typeof free?.peaksIncluded !== "number") continue;
-    min = min === null ? free.peaksIncluded : Math.min(min, free.peaksIncluded);
+    for (const tier of productTiers(product)) {
+      if (tier.pricing.monthly !== 0 || tier.pricing.yearly !== 0) continue;
+      const peaks = tier.peaksIncluded;
+      if (typeof peaks !== "number" || peaks <= 0) continue;
+      min = min === null ? peaks : Math.min(min, peaks);
+    }
   }
   return min;
 }

@@ -26,11 +26,16 @@ import { AuthFlow } from "./auth-flow";
  * Mirrors how `components/shared/header.tsx` resolves the same value.
  */
 export default async function AuthPage() {
-  const signupMode = (await getPublicCatalog())?.platform?.signupMode ?? "open";
-  // Country-independent: the grant is a fair-use allowance, not a price.
-  const freePeaks = formatPeaks(
-    minFreePeaksPerMonth(await getPricing("DEFAULT")) ?? FREE_PEAKS_FALLBACK,
-  );
+  // In parallel — these are two independent endpoints, and awaiting them in
+  // sequence costs a second round trip on a cold cache.
+  const [catalog, pricing] = await Promise.all([
+    getPublicCatalog(),
+    // Country-independent: the grant is a plan-level fair-use allowance, not a
+    // price, so one cache entry serves every visitor.
+    getPricing("DEFAULT"),
+  ]);
+  const signupMode = catalog?.platform?.signupMode ?? "open";
+  const freePeaks = formatPeaks(minFreePeaksPerMonth(pricing) ?? FREE_PEAKS_FALLBACK);
 
   return (
     // useSearchParams() must sit inside a Suspense boundary (App Router). A

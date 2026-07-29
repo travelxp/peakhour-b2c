@@ -52,5 +52,13 @@ export const PRELAUNCH_PROMISES = [
   "We’ll email your link",
 ] as const;
 
+/**
+ * Row styling, shared so the two consoles keep the same behaviour as well as
+ * the same content — the hover was added to /auth first and the landing rows
+ * silently kept the old flat treatment.
+ */
+export const PILLAR_CONSOLE_ROW_CLASS =
+  "flex items-center gap-3 rounded-xl border border-white/10 bg-white/4 px-3.5 py-2.5 text-sm transition-[background-color,border-color,transform] duration-300 ease-out hover:translate-x-0.5 hover:border-brand/40 hover:bg-white/8 motion-reduce:transition-none motion-reduce:hover:translate-x-0";
+
 // The free-Peaks figure deliberately does NOT live here — it is catalog data,
-// not brand copy. See freePeaksPerMonth() in lib/pricing.ts.
+// not brand copy. See minFreePeaksPerMonth() in lib/pricing.ts.
