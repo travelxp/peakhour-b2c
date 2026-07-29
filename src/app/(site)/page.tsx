@@ -31,13 +31,7 @@ import {
   LinkedinIcon,
   FacebookIcon,
   InstagramIcon,
-  GoogleIcon,
-  YoutubeIcon,
   BeehiivIcon,
-  SubstackIcon,
-  MailchimpIcon,
-  ShopifyIcon,
-  WordPressIcon,
   TwitterIcon,
   WhatsAppIcon,
 } from "@/components/ui/brand-icons";
@@ -113,9 +107,12 @@ const CONSOLE_ROWS = [
 ] as const;
 
 /**
- * Free → Pro ladder. Tracks the current pricing architecture: a full-featured
- * Free tier that Pro extends (capacity, automations, insights, workspaces,
- * support) — not a feature paywall.
+ * Free → Pro ladder — the current pricing architecture. Free is a complete,
+ * usable product; Pro adds BOTH capacity (Peaks) and capability (automations,
+ * advanced insights, multiple workspaces, priority support). That capability
+ * half is a deliberate, advertised difference, so don't reintroduce the older
+ * "no feature paywalls / same product on Free and Paid" claim here. What stays
+ * identical across tiers is the QUALITY of any single output.
  */
 const FREE_POINTS = [
   {
@@ -138,30 +135,26 @@ const FREE_POINTS = [
 // Shared with the standalone /how-it-works page (single source of truth).
 const STEPS = HOW_IT_WORKS_STEPS;
 
-// Static fallback for the integrations strip, used only when the catalog API is
-// unreachable OR publishes nothing — mirrors the resolved shape so the section
-// never hard-fails into a heading over an empty grid.
+// Degraded-mode fallback for the integrations strip — rendered ONLY when the
+// catalog API is unreachable or publishes nothing, so the section can't fail
+// into a heading over an empty grid.
 //
-// Kept one-card-per-brand-surface like the live grid (it used to be the
-// provider-collapsed list, which omitted WhatsApp — the integration this
-// section most needs to show). It is deliberately a REDUCED "we're degraded"
-// set: the recognisable brands, no coming-soon badges, no lifecycle claims we
-// can't verify while the catalog is unreachable.
+// These cards carry no "Coming soon" badge, and an unbadged card under
+// "Plugged into the tools you already use" reads as available TODAY — the
+// strongest claim on the page. So this list is restricted to connectors that
+// are actually `live` in the production catalog. Anything coming_soon is
+// deliberately absent: without the catalog we can't badge it honestly, and a
+// silent promise is worse than a shorter list. Re-check against
+// /v1/platform/catalog when connectors go live.
 const INTEGRATIONS = [
-  { name: "Shopify", icon: ShopifyIcon, color: "bg-[#96BF48]", description: "Catalog & storefront" },
-  { name: "WordPress", icon: WordPressIcon, color: "bg-[#21759B]", description: "Content & CMS sync" },
-  { name: "WhatsApp Business", icon: WhatsAppIcon, color: "bg-[#25D366]", description: "Conversations & storefront chat" },
-  { name: "LinkedIn", icon: LinkedinIcon, color: "bg-[#0A66C2]", description: "Organic posts & Lead Gen" },
-  { name: "Facebook Pages", icon: FacebookIcon, color: "bg-[#0668E1]", description: "Pages, posts & insights" },
-  { name: "Instagram", icon: InstagramIcon, color: "bg-[#E4405F]", description: "Reels, stories & ads" },
-  { name: "Google Business Profile", icon: GoogleIcon, color: "bg-[#4285F4]", description: "Listings, hours & reviews" },
-  { name: "Google Search Console", icon: GoogleIcon, color: "bg-[#4285F4]", description: "Ranking gaps & refreshes" },
-  { name: "Google Ads", icon: GoogleIcon, color: "bg-[#4285F4]", description: "Search, display & video" },
-  { name: "YouTube", icon: YoutubeIcon, color: "bg-[#FF0000]", description: "Video content & pre-roll" },
+  { name: "WhatsApp Business", icon: WhatsAppIcon, color: "bg-[#25D366] text-black", description: "Conversations & storefront chat" },
+  { name: "Instagram", icon: InstagramIcon, color: "bg-[#E4405F] text-white", description: "Reels, stories & ads" },
+  { name: "Facebook Pages", icon: FacebookIcon, color: "bg-[#0668E1] text-white", description: "Pages, posts & insights" },
+  { name: "Meta Ads", icon: FacebookIcon, color: "bg-[#0668E1] text-white", description: "Facebook & Instagram campaigns" },
+  { name: "LinkedIn", icon: LinkedinIcon, color: "bg-[#0A66C2] text-white", description: "Organic posts & Lead Gen" },
+  { name: "X (Twitter)", icon: TwitterIcon, color: "bg-black text-white", description: "Posts & mentions inbox" },
+  { name: "X Ads", icon: TwitterIcon, color: "bg-black text-white", description: "Promoted posts & campaigns" },
   { name: "Beehiiv", icon: BeehiivIcon, color: "bg-[#FFD100] text-black", description: "Newsletter import" },
-  { name: "Substack", icon: SubstackIcon, color: "bg-[#FF6719]", description: "Newsletter content sync" },
-  { name: "Mailchimp", icon: MailchimpIcon, color: "bg-[#FFE01B] text-black", description: "Email campaigns" },
-  { name: "X (Twitter)", icon: TwitterIcon, color: "bg-black", description: "Posts & promoted content" },
 ] as const;
 
 // Same validator as /auth — sanitises a tampered ?ref= so the redirect target
@@ -202,7 +195,9 @@ export default async function Home({
     ? published.map((i) => ({
         id: i.key,
         name: i.name,
-        description: i.tagline ?? i.description ?? i.comingSoon?.copy ?? "",
+        // `||` not `??` — the CMS accepts an empty tagline, and `??` would
+        // treat "" as present and silently blank the card's only line of copy.
+        description: i.tagline || i.description || i.comingSoon?.copy || "",
         colorClass: integrationBrandColor(i.display?.groupKey, i.key),
         icon: (
           <IntegrationBrandIcon
@@ -211,7 +206,15 @@ export default async function Home({
             name={i.name}
           />
         ),
-        comingSoon: i.surfacedState === "coming_soon",
+        // Per-CONNECTOR state only. `surfacedState` folds in the global
+        // platform-stage cap, so while the platform sits at coming_soon/
+        // waitlist the resolver marks EVERY row coming_soon — badging all of
+        // them would stamp "Coming soon" on WhatsApp, Shopify and X, which are
+        // live. `cappedByPlatformStage` is exactly the flag that distinguishes
+        // "pre-launch platform" from "connector isn't built"; the platform's own
+        // state is already carried by the announcement banner and the waitlist
+        // CTA and doesn't need repeating on every card.
+        comingSoon: i.surfacedState === "coming_soon" && !i.cappedByPlatformStage,
       }))
     : INTEGRATIONS.map((item) => {
         const IntIcon = item.icon;
@@ -350,7 +353,9 @@ export default async function Home({
                   </div>
                 ))}
               </div>
-              <div className="flex items-center justify-between px-1 pt-3 text-xs text-zinc-400">
+              {/* flex-wrap: the two spans don't shrink, and they meet at ~280px
+                  (Galaxy Fold cover screen). */}
+              <div className="flex flex-wrap items-center justify-between gap-y-1 px-1 pt-3 text-xs text-zinc-400">
                 {/* Peaks is always the coin glyph, never a generic bolt. */}
                 <span className="flex items-center gap-1.5">
                   Metered in{" "}
@@ -506,8 +511,11 @@ export default async function Home({
                   key={item.id}
                   className="flex items-center gap-3 rounded-2xl border bg-background p-4 transition-all hover:-translate-y-1 hover:border-foreground hover:shadow-md"
                 >
+                  {/* No `text-white` here — the foreground ships with the brand
+                      class (see integrationBrandColor); two same-specificity
+                      text utilities would be resolved by stylesheet order. */}
                   <div
-                    className={`flex size-10 shrink-0 items-center justify-center rounded-lg text-white ${item.colorClass}`}
+                    className={`flex size-10 shrink-0 items-center justify-center rounded-lg ${item.colorClass}`}
                   >
                     {item.icon}
                   </div>
@@ -533,7 +541,7 @@ export default async function Home({
         </section>
 
         {/* Final CTA — always-dark panel */}
-        <section className="pb-16 sm:pb-20">
+        <section className="pt-12 pb-16 sm:pt-16 sm:pb-20">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <div className="overflow-hidden rounded-3xl border border-white/10 bg-zinc-900 px-6 py-16 text-center text-zinc-100 shadow-2xl sm:py-20">
               <h2 className="mx-auto max-w-2xl text-3xl font-extrabold tracking-tight text-pretty sm:text-4xl">
