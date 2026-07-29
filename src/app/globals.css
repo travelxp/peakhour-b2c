@@ -27,6 +27,7 @@
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
+  --color-destructive-on-tint: var(--destructive-on-tint);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
@@ -75,6 +76,12 @@
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
+  /* Destructive text sitting ON a destructive tint (bg-destructive/10), not on
+     the page ground. The base red is only ~4:1 there, under AA for normal
+     text; this darker step clears 4.5:1 while reading as the same red. Use it
+     for copy inside error panels — `--destructive` stays correct for solid
+     buttons and icons on the plain background. */
+  --destructive-on-tint: oklch(0.478 0.196 27.325);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
@@ -128,6 +135,10 @@
   --accent: oklch(0.269 0 0);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.704 0.191 22.216);
+  /* On dark grounds the base red already clears AA on the tint (~5.5:1), so
+     the on-tint step is the same colour — declared rather than inherited so
+     the token never falls back to the light value. */
+  --destructive-on-tint: var(--destructive);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.556 0 0);

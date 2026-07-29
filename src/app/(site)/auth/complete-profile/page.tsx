@@ -106,7 +106,7 @@ export default function CompleteProfilePage() {
           <form onSubmit={handleOtpSubmit} className="flex flex-col gap-6">
             <CardContent className="space-y-4">
               {error && (
-                <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+                <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive-on-tint">
                   {error}
                 </div>
               )}
@@ -167,7 +167,7 @@ export default function CompleteProfilePage() {
         <form onSubmit={handleProfileSubmit} className="flex flex-col gap-6">
           <CardContent className="space-y-4">
             {error && (
-              <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+              <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive-on-tint">
                 {error}
               </div>
             )}

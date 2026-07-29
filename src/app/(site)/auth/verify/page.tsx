@@ -88,7 +88,7 @@ function VerifyContent() {
       </CardHeader>
       <CardContent className="text-center">
         <div className="space-y-4">
-          <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+          <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive-on-tint">
             {error}
           </div>
           <Button className="w-full" onClick={() => router.push("/auth")}>
