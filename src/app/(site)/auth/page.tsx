@@ -30,8 +30,10 @@ export default async function AuthPage() {
   // sequence costs a second round trip on a cold cache.
   const [catalog, pricing] = await Promise.all([
     getPublicCatalog(),
-    // Country-independent: the grant is a plan-level fair-use allowance, not a
-    // price, so one cache entry serves every visitor.
+    // "DEFAULT" is not a sentinel the API honours — it fails the two-letter
+    // validation and the response comes back geo-resolved. We pass it purely
+    // to pin one cache key, and read only `peaksIncluded`, which is a
+    // plan-level allowance and country-independent. Never read a price here.
     getPricing("DEFAULT"),
   ]);
   const signupMode = catalog?.platform?.signupMode ?? "open";

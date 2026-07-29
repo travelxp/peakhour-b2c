@@ -191,9 +191,10 @@ export default async function Home({
   // second round trip on a cold cache.
   const [catalog, pricing] = await Promise.all([
     getPublicCatalog(),
-    // "DEFAULT" (not the visitor's country): the free-Peaks grant is a
-    // plan-level fair-use allowance, country-independent — only prices vary.
-    // One cache entry therefore serves every visitor.
+    // "DEFAULT" is not a sentinel the API honours — it fails the two-letter
+    // validation and the response comes back geo-resolved. We pass it purely
+    // to pin one cache key, and read only `peaksIncluded`, which is a
+    // plan-level allowance and country-independent. Never read a price here.
     getPricing("DEFAULT"),
   ]);
   const freePeaks = formatPeaks(minFreePeaksPerMonth(pricing) ?? FREE_PEAKS_FALLBACK);

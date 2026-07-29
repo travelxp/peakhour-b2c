@@ -53,12 +53,18 @@ export const PRELAUNCH_PROMISES = [
 ] as const;
 
 /**
- * Row styling, shared so the two consoles keep the same behaviour as well as
- * the same content — the hover was added to /auth first and the landing rows
- * silently kept the old flat treatment.
+ * Row styling, shared so the two consoles can't diverge in appearance the way
+ * they nearly did in content — during this change the rows briefly carried a
+ * hover on /auth and none on the landing page, from hand-copied class strings.
+ *
+ * Deliberately no hover: the console is wrapped in `role="img"` on both
+ * surfaces, so it is one picture. Rows that lift and warm under the cursor
+ * read as clickable, and nothing here is — there's no href, no handler and no
+ * cursor change. The hover polish lives on the pillar CARDS, which are the
+ * real affordance.
  */
 export const PILLAR_CONSOLE_ROW_CLASS =
-  "flex items-center gap-3 rounded-xl border border-white/10 bg-white/4 px-3.5 py-2.5 text-sm transition-[background-color,border-color,transform] duration-300 ease-out hover:translate-x-0.5 hover:border-brand/40 hover:bg-white/8 motion-reduce:transition-none motion-reduce:hover:translate-x-0";
+  "flex items-center gap-3 rounded-xl border border-white/10 bg-white/4 px-3.5 py-2.5 text-sm";
 
 // The free-Peaks figure deliberately does NOT live here — it is catalog data,
 // not brand copy. See minFreePeaksPerMonth() in lib/pricing.ts.

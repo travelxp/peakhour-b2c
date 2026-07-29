@@ -1,15 +1,23 @@
 /**
  * Server-side helper for fetching country-resolved pricing from the
  * peakhour-api `/v1/platform/pricing` endpoint. Used by the marketing
- * /pricing page and the landing-page pricing section so both render
- * with the same currency for a given visitor.
+ * /pricing pages, the landing hero and /auth — the last two for the free-Peaks
+ * figure only, not for prices.
  *
  * Country precedence on the API side:
  *   1. `?country=XX` query — passed explicitly when we already know it.
  *   2. Authenticated org subscription — N/A here (these pages are public).
  *   3. Vercel `x-vercel-ip-country` header — set on every request when
  *      deployed; absent in local dev.
- *   4. `"DEFAULT"` sentinel → USD via stripe.
+ *
+ * ⚠ There is NO `"DEFAULT"` sentinel. The route validates the query param
+ * against /^[A-Za-z]{2}$/, so `?country=DEFAULT` fails validation and falls
+ * through to the header chain — passing it is identical to passing nothing,
+ * and the response comes back geo-resolved (from Vercel's egress region, not
+ * the visitor's). Callers that pass `"DEFAULT"` do so only to pin a single
+ * cache key, and must read ONLY country-independent fields such as
+ * `peaksIncluded`. Never read a price off such a response: you would serve
+ * every visitor the currency of whichever region happened to fill the cache.
  *
  * To keep the marketing surface fast, we pass the detected country
  * explicitly (read by the caller from `headers()`) AND fall back to
@@ -155,12 +163,12 @@ export const getPricing = cache(
  */
 export function formatMonthly(p: PricingEntry): string {
   if (p.monthly === 0) return `${p.displayPrefix ?? ""}0`;
-  return `${p.displayPrefix ?? ""}${p.monthly.toLocaleString()}`;
+  return `${p.displayPrefix ?? ""}${formatNumber(p.monthly)}`;
 }
 
 export function formatYearly(p: PricingEntry): string {
   if (p.yearly === 0) return `${p.displayPrefix ?? ""}0`;
-  return `${p.displayPrefix ?? ""}${p.yearly.toLocaleString()}`;
+  return `${p.displayPrefix ?? ""}${formatNumber(p.yearly)}`;
 }
 
 /**
@@ -190,6 +198,40 @@ export function productTiers(product: ResolvedProduct): ResolvedProductTier[] {
 }
 
 /**
+ * A product's own free tier, or undefined if it has none.
+ *
+ * The one definition of "free" — reach for this rather than
+ * `product.tiers.find(t => t.pricing.monthly === 0)`, which is wrong twice
+ * over.
+ *
+ * First, it searches the raw tier list, which includes the account-level
+ * bundles. Enterprise is sales-led: it carries no matrix price, so it reads as
+ * `monthly: 0, yearly: 0` while granting 100k Peaks. (Agency is NOT a price
+ * trap — it is fully priced, ₹24,999/mo on live data — but it is still not a
+ * product's free tier, so both are excluded by key via `isBundleTier`.)
+ *
+ * Second, the resolver sorts tiers by price and breaks ties alphabetically, so
+ * among the zero-priced ones `"enterprise"` sorts BEFORE `"growth.free"` and
+ * `"support_inbox.free"` — though AFTER `"commerce_assistant.free"`. The naive
+ * find therefore lands on Enterprise for some products and the real free tier
+ * for others, which is what makes the bug so easy to miss.
+ *
+ * Both intervals must be zero: a yearly-only plan is not free.
+ */
+export function freeTiers(product: ResolvedProduct): ResolvedProductTier[] {
+  return productTiers(product).filter(
+    (t) => t.pricing.monthly === 0 && t.pricing.yearly === 0,
+  );
+}
+
+/** The product's free tier — the cheapest one first, for surfaces that show a
+ *  single Free column. Products carry one today; `freeTiers` is the honest
+ *  plural for callers that must not assume that (see minFreePeaksPerMonth). */
+export function freeTier(product: ResolvedProduct): ResolvedProductTier | undefined {
+  return freeTiers(product)[0];
+}
+
+/**
  * The smallest monthly Peaks grant on any free plan — i.e. the amount every
  * free plan is guaranteed to include at minimum.
  *
@@ -199,15 +241,15 @@ export function productTiers(product: ResolvedProduct): ResolvedProductTier[] {
  * but quoting that total would promise a five-pillar signup to a visitor who
  * may only ever take one. The floor is true for everybody.
  *
- * Bundle plans are excluded via `productTiers()`, and that exclusion is
- * load-bearing rather than tidiness: Agency and Enterprise are sales-led, so
- * they carry no matrix price and look free (`monthly: 0, yearly: 0`) while
- * granting 100k Peaks. They also surface under every product, and NOT reliably
- * after the real free tier — the live API returns `enterprise` first under
- * `growth` and `support_inbox`, so reading "the first zero-priced tier" picks
- * the wrong one. Among a product's own tiers, free is identified by price
- * rather than a `.free` key suffix, so renaming a tier can't drop a pillar out
- * of the comparison.
+ * Bundles are excluded (see `freeTier`), which is load-bearing rather than
+ * tidiness — Enterprise is sales-led, priced at 0/0, and grants 100k Peaks.
+ *
+ * Only `live` products count. The resolver does NOT narrow to live for us: in
+ * prod it merely suppresses in_development/hidden (so `coming_soon` still
+ * arrives), and outside prod it applies no status filter at all. Since this
+ * number sits beside "free plan on every pillar" as something you get on
+ * signup, a pillar you can't sign up for yet must not set the floor — nor
+ * should a half-built dev product quietly move the figure on devapi.
  *
  * Returns null when pricing is unavailable (the caller falls back to
  * FREE_PEAKS_FALLBACK) or when no free tier advertises a grant. A grant of 0
@@ -219,8 +261,10 @@ export function minFreePeaksPerMonth(pricing: PricingResponse | null): number | 
   if (!pricing) return null;
   let min: number | null = null;
   for (const product of pricing.products) {
-    for (const tier of productTiers(product)) {
-      if (tier.pricing.monthly !== 0 || tier.pricing.yearly !== 0) continue;
+    if (product.status !== "live") continue;
+    // Every free tier, not just the first: if a product ever ships two, the
+    // floor is the smaller grant, and picking one would overstate it.
+    for (const tier of freeTiers(product)) {
       const peaks = tier.peaksIncluded;
       if (typeof peaks !== "number" || peaks <= 0) continue;
       min = min === null ? peaks : Math.min(min, peaks);
@@ -237,10 +281,30 @@ export function minFreePeaksPerMonth(pricing: PricingResponse | null): number | 
  */
 export const FREE_PEAKS_FALLBACK = 500;
 
-/** Grouping separators so "2500" reads as "2,500" wherever it's quoted. */
-export function formatPeaks(value: number): string {
-  return value.toLocaleString("en-US");
+/**
+ * Grouping separators for every number on the pricing surface — prices and
+ * Peaks alike.
+ *
+ * The locale is pinned rather than left to `toLocaleString()`'s default,
+ * which on the server is the host's ICU locale (LANG/LC_ALL) and so varies
+ * between a laptop, CI and Vercel. Pinning also keeps one card internally
+ * consistent: prices and Peaks used to run through different code paths, so
+ * an en-IN host rendered "₹2,49,999" beside "100,000" — Indian grouping for
+ * the price, Western for the allowance.
+ *
+ * en-US (not en-IN) because the surface is priced for a global audience and
+ * quotes USD alongside INR; revisit alongside real localisation, at which
+ * point this should take the active locale rather than a constant.
+ */
+const NUMBER_LOCALE = "en-US";
+
+export function formatNumber(value: number): string {
+  return value.toLocaleString(NUMBER_LOCALE);
 }
+
+/** Peaks amounts. Alias of formatNumber — named for the call sites so the
+ *  intent reads at a glance. */
+export const formatPeaks = formatNumber;
 
 /**
  * Find a bundle tier (Agency/Enterprise) anywhere in the response. Bundle plans

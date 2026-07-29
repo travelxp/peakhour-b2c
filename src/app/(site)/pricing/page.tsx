@@ -9,6 +9,7 @@ import {
   fromMonthly,
   formatMonthly,
   formatPeaks,
+  freeTier,
 } from "@/lib/pricing";
 import { getPublicCatalog, signupCta } from "@/lib/catalog";
 import {
@@ -58,7 +59,7 @@ export default async function PricingPage() {
   const cta = signupCta(signupMode);
 
   const presence = pillarProducts(pricing, "presence")[0];
-  const presenceFree = presence?.tiers.find((t) => t.pricing.monthly === 0);
+  const presenceFree = presence ? freeTier(presence) : undefined;
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -118,9 +119,7 @@ export default async function PricingPage() {
                   const Icon = pillar.icon;
                   const product = pillarProducts(pricing, slug)[0];
                   const paid = product ? fromMonthly(product) : null;
-                  const hasFree = !!product?.tiers.some(
-                    (t) => t.pricing.monthly === 0,
-                  );
+                  const hasFree = !!(product && freeTier(product));
                   const price = !product
                     ? slug === "presence"
                       ? "Free"
