@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Peaks } from "@/components/peaks/peaks";
 import { AskYourInbox } from "@/components/whatsapp/ask-your-inbox";
 import { useWaAnalytics } from "@/hooks/use-wa-analytics";
+import { PageShell } from "@/components/dashboard/page-shell";
 
 const PILLAR_LABEL: Record<string, string> = {
   support: "Support",
@@ -23,7 +24,7 @@ export default function WhatsAppAnalyticsPage() {
   const maxPillar = Math.max(1, ...(data?.byPillar ?? []).map((p) => p.peaks));
 
   return (
-    <div className="mx-auto w-full max-w-5xl space-y-6 p-4 md:p-6">
+    <PageShell>
       <CronToolbar crons={["wa-outcome-billing"]} />
 
       <div>
@@ -72,6 +73,6 @@ export default function WhatsAppAnalyticsPage() {
           ))}
         </div>
       </Card>
-    </div>
+    </PageShell>
   );
 }

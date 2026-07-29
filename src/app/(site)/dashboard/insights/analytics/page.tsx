@@ -35,6 +35,7 @@ import {
   type AnalyticsInsightsResponse,
   type Ga4Digest,
 } from "@/hooks/use-analytics-insights";
+import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
 
 interface ConnectionStatus {
   provider: string;
@@ -148,30 +149,26 @@ export default function AnalyticsInsightsPage() {
 
   if (statusQ.isLoading) {
     return (
-      <div className="p-6 space-y-4">
+      <PageShell width="wide">
         {cronToolbar}
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-32 w-full" />
-      </div>
+      </PageShell>
     );
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <PageShell width="wide">
       {cronToolbar}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+      <PageHeader
+        icon={
           <div className="rounded-lg bg-[#E37400] p-2">
             <LineChart className="h-5 w-5 text-white" />
           </div>
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Analytics 4</h1>
-            <p className="text-sm text-muted-foreground">
-              Conversion funnel + top page performance — drives Optimizer budget allocation and Strategist content suggestions.
-            </p>
-          </div>
-        </div>
-      </div>
+        }
+        title="Analytics 4"
+        description="Conversion funnel + top page performance — drives Optimizer budget allocation and Strategist content suggestions."
+      />
 
       {!isWorking ? (
         <Card>
@@ -321,7 +318,7 @@ export default function AnalyticsInsightsPage() {
           )}
         </>
       )}
-    </div>
+    </PageShell>
   );
 }
 

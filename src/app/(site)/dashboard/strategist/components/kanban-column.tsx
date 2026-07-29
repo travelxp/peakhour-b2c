@@ -32,7 +32,20 @@ export function KanbanColumn({
     <div
       ref={setNodeRef}
       className={cn(
-        "flex min-h-screen/2 flex-1 flex-col rounded-xl bg-muted/40 p-3",
+        // `min-h-screen/2` was not a real utility — Tailwind has no fractional
+        // modifier for min-height, so it compiled to nothing and the column
+        // had no minimum height at all. `min-h-80` (320px) is what it was
+        // reaching for: enough that an empty column still reads as a drop
+        // target.
+        //
+        // `min-w-70 flex-1`, not a width plus a breakpoint: 280px is the
+        // narrowest width at which a KanbanCard's title, badge row and meta
+        // line hold their layout, so it is a floor the column must never go
+        // below — and above that it should use whatever room there is. This
+        // pair says exactly that at every viewport. It replaced `w-70
+        // shrink-0 xl:flex-1`, which handed back 186px columns from 1280px
+        // (five 280px columns need a ~1750px viewport to fit).
+        "flex min-h-80 min-w-70 flex-1 flex-col rounded-xl bg-muted/40 p-3",
         isOver && "bg-accent/50 ring-2 ring-primary/20"
       )}
     >

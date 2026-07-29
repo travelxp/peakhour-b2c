@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { InventoryPanel } from "@/components/commerce/inventory-panel";
 import { ReplenisherPanel } from "@/components/commerce/replenisher-panel";
+import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
 
 export const metadata: Metadata = {
   title: "Inventory & Supply · Commerce",
@@ -17,19 +18,17 @@ export const metadata: Metadata = {
  */
 export default function CommerceInventoryPage() {
   return (
-    <div className="mx-auto max-w-3xl px-4 py-8">
-      <header className="mb-6">
-        <h1 className="text-xl font-semibold">Inventory &amp; Supply</h1>
-        <p className="mt-1 text-sm text-neutral-500">
-          See which products are at risk of stocking out, which are tying up
-          capital, and exactly what to reorder — graded from your live stock and
-          the last 30 days of sales.
-        </p>
-      </header>
-      <div className="space-y-10">
+    <PageShell width="standard">
+      <PageHeader
+        title="Inventory & Supply"
+        description="See which products are at risk of stocking out, which are tying up capital, and exactly what to reorder — graded from your live stock and the last 30 days of sales."
+      />
+      {/* `space-y-10` was the only 40px rhythm in the dashboard; tracks the
+          shell's pair like everything else now. */}
+      <div className="space-y-4 sm:space-y-6">
         <InventoryPanel />
         <ReplenisherPanel />
       </div>
-    </div>
+    </PageShell>
   );
 }

@@ -294,7 +294,36 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
   return (
     <AskContextProvider>
-    <SidebarProvider>
+    {/* `h-svh` is load-bearing, and it is what makes the `overflow-auto`
+        further down actually mean something. SidebarProvider ships
+        `min-h-svh` — a MINIMUM, so the wrapper grows with its content and the
+        shell has never had a definite height. A `flex: 1 1 0%` item still
+        contributes its max-content flex fraction to the container's intrinsic
+        size (Flexbox §9.9.1), so the content area below stretched with the
+        page, its `overflow-auto` never engaged, and the document scrolled
+        instead. That is also why /dashboard/ask's `calc()` was the only thing
+        holding it in: percentage/flex heights had nothing definite to resolve
+        against.
+
+        Scoped here rather than in components/ui/sidebar.tsx because /cms
+        shares that primitive and should keep document scrolling for now.
+        Net effect: the header row stays put while the page scrolls under it.
+        (No `min-h-0` needed on SidebarInset — it is a flex item in a ROW
+        container, and automatic minimum size only applies on the main axis,
+        so its cross-axis `min-height: auto` already resolves to 0.)
+
+        `svh` not `dvh`: the small viewport height is the one that assumes
+        mobile browser chrome is fully EXPANDED, so the shell can never be
+        taller than what is actually visible — worst case it leaves a strip
+        at the bottom once the URL bar retracts, where `dvh` would instead
+        resize the scroll container mid-scroll. It also matches the unit
+        SidebarProvider already chose for its `min-h-`.
+
+        Radix's scroll lock still holds: react-remove-scroll blocks wheel and
+        touchmove outside the modal subtree rather than relying only on
+        `body { overflow: hidden }`, so moving the scroller off the document
+        does not let the background scroll behind a Dialog or Sheet. */}
+    <SidebarProvider className="h-svh">
       <Sidebar collapsible="icon" variant="sidebar">
         {/* ── Header: Logo + Switchers ──────────────────────── */}
         <SidebarHeader>
@@ -525,7 +554,26 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
             @/components/dashboard/page-shell). Steps down to 16px on mobile:
             at 375px a flat 24px inset costs 13% of the screen width before a
             card's own 24px padding is even applied. */}
-        <div className="flex-1 overflow-auto p-4 sm:p-6">
+        {/* This is the app's scroll container (see the `h-svh` note above).
+            `flex flex-col` so a route can opt into filling the viewport
+            (<PageShell fill>) without hard-coding what the chrome costs —
+            which is 104px here (header 56 + this padding 48; the banner slot
+            contributes 0 in the common case because it is `empty:hidden`).
+
+            Ordinary pages are unaffected by the flex change: a block child of
+            a column flex container keeps `min-height: auto`, whose automatic
+            minimum size is its content height, so nothing shrinks below its
+            content and long pages scroll here rather than being squashed.
+
+            `scroll-pt-*` is required, not decoration. Next's
+            ScrollAndFocusHandler tries `document.documentElement.scrollTop = 0`
+            on navigation and falls back to `scrollIntoView()` when that does
+            not move anything — and now that the document does not scroll, it
+            ALWAYS falls back. `scrollIntoView` aligns to the scrollport's
+            padding-box edge, so without a matching scroll-padding every
+            sidebar navigation from a scrolled position parked the page's
+            first element flush against the header, eating this inset. */}
+        <div className="flex flex-1 flex-col overflow-auto p-4 scroll-pt-4 sm:p-6 sm:scroll-pt-6">
           {/* Banner slot — sits above the route content. Trial-expiry shows
               only inside the final 3 days of a trial; the credit-cap banner
               only once usage crosses its cap. Both render nothing otherwise

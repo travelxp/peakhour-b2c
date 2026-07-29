@@ -58,6 +58,7 @@ import type {
 import { CalendarItemDrawer } from "./_components/calendar-item-drawer";
 import { ComposeNewSheet } from "./_components/compose-new-sheet";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
+import { PageShell } from "@/components/dashboard/page-shell";
 
 type Mode = "week" | "month";
 
@@ -418,7 +419,7 @@ export default function CalendarPage() {
   }, [data]);
 
   return (
-    <div className="flex flex-col gap-4 p-4 md:p-6">
+    <PageShell width="full">
       <CronToolbar
         crons={["publish-scheduled", "publish-retry", "recurring-spawn"]}
         onTriggered={() =>
@@ -686,6 +687,6 @@ export default function CalendarPage() {
           )}
         </SheetContent>
       </Sheet>
-    </div>
+    </PageShell>
   );
 }

@@ -20,6 +20,7 @@ import { EmptyState } from "@/components/molecules/empty-state";
 import { FeatureGate } from "@/components/upgrade/feature-gate";
 import { useLocale } from "@/hooks/use-locale";
 import { minorToMajor } from "@/lib/money";
+import { PageShell } from "@/components/dashboard/page-shell";
 import {
   usePricer,
   usePricerBrief,
@@ -73,16 +74,16 @@ function PricingBody() {
 
   if (isLoading) {
     return (
-      <div className="mx-auto max-w-5xl px-4 py-8">
+      <PageShell width="standard">
         <Header />
         <Skeleton className="h-64 w-full rounded-lg" />
-      </div>
+      </PageShell>
     );
   }
 
   if (isError || !data) {
     return (
-      <div className="mx-auto max-w-5xl px-4 py-8">
+      <PageShell width="standard">
         <Header />
         <EmptyState
           icon={Store}
@@ -90,14 +91,14 @@ function PricingBody() {
           description="Pricing & Promotions lights up once a Shopify or WooCommerce store is connected to this business."
           action={{ label: "Connect a store", href: "/dashboard/integrations" }}
         />
-      </div>
+      </PageShell>
     );
   }
 
   const { guardrails } = data;
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8">
+    <PageShell width="standard">
       <Header />
 
       {/* Guardrails — always visible so the merchant sees the safety rails */}
@@ -121,7 +122,7 @@ function PricingBody() {
       <PriceGrid proposals={data.proposals} scanned={data.scanned} money={money} />
 
       <Promotions formatMajor={formatNumber} />
-    </div>
+    </PageShell>
   );
 }
 

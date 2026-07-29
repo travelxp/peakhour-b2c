@@ -1,4 +1,5 @@
 import { WhatsAppEmbeddedSignup } from "@/components/integrations/whatsapp-embedded-signup";
+import { PageShell } from "@/components/dashboard/page-shell";
 
 type ConnectSource = "peakhour" | "shopify" | "wordpress";
 
@@ -18,7 +19,7 @@ export default async function WhatsAppConnectPage({ searchParams }: Props) {
   const trimmedShop = shop?.trim();
 
   return (
-    <div className="mx-auto w-full max-w-2xl space-y-6 p-4 md:p-6">
+    <PageShell width="narrow">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">WhatsApp</h1>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -57,6 +58,6 @@ export default async function WhatsAppConnectPage({ searchParams }: Props) {
           View WhatsApp analytics →
         </a>
       </div>
-    </div>
+    </PageShell>
   );
 }

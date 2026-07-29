@@ -42,7 +42,7 @@ const X_TABS: readonly XTab[] = ["compose", "recent", "mentions"];
  */
 export default function XContentDashboardPage() {
   return (
-    <Suspense fallback={<PageShell loading />}>
+    <Suspense fallback={<XPageShell loading />}>
       <XContentDashboardInner />
     </Suspense>
   );
@@ -140,24 +140,24 @@ function XContentDashboardInner() {
   }
 
   if (integrations.isLoading) {
-    return <PageShell loading />;
+    return <XPageShell loading />;
   }
 
   if (!isConnected) {
     return (
-      <PageShell>
+      <XPageShell>
         <EmptyState
           icon={MessageCircle}
           title="Connect X (Twitter) to get started"
           description="Once connected, you can publish tweets, track engagement, and manage your mentions inbox from here."
           action={{ label: "Connect X", href: "/dashboard/integrations" }}
         />
-      </PageShell>
+      </XPageShell>
     );
   }
 
   return (
-    <PageShell>
+    <XPageShell>
       {/* KPI strip */}
       <div className="grid gap-4 sm:grid-cols-3">
         <KpiCard title="Tweets shown" value={stats?.total} loading={tweets.isLoading} />
@@ -257,11 +257,18 @@ function XContentDashboardInner() {
         }}
         source={repurposeSource}
       />
-    </PageShell>
+    </XPageShell>
   );
 }
 
-function PageShell({ children, loading }: { children?: React.ReactNode; loading?: boolean }) {
+/**
+ * Page-local wrapper: cron toolbar + rhythm + loading state. Named for this
+ * route specifically because it is NOT the shared layout primitive — that is
+ * <PageShell> in @/components/dashboard/page-shell, which owns measure. This
+ * was called `PageShell` too until the shared one landed and the collision
+ * became a trap for anyone importing the real thing here.
+ */
+function XPageShell({ children, loading }: { children?: React.ReactNode; loading?: boolean }) {
   const queryClient = useQueryClient();
   return (
     <div className="space-y-6">
@@ -277,7 +284,9 @@ function PageShell({ children, loading }: { children?: React.ReactNode; loading?
         }}
       />
       <div>
-        <h2 className="text-2xl font-bold tracking-tight">X (Twitter)</h2>
+        {/* h1: this was the page's only heading and it was an h2, so the
+            route had no page title in the document outline at all. */}
+        <h1 className="text-2xl font-semibold tracking-tight">X (Twitter)</h1>
         <p className="text-muted-foreground">
           Publish tweets, track engagement, and manage your mentions inbox.
         </p>

@@ -10,6 +10,7 @@ import { FeatureGate } from "@/components/upgrade/feature-gate";
 import { EmptyState } from "@/components/molecules/empty-state";
 import { PendingItemsCard } from "@/components/molecules/pending-items-card";
 import { useCommerceSummary } from "@/hooks/use-commerce-summary";
+import { PageShell } from "@/components/dashboard/page-shell";
 
 /**
  * Commerce → Channels (Phase 0). The four channel archetypes. Only D2C
@@ -21,7 +22,7 @@ import { useCommerceSummary } from "@/hooks/use-commerce-summary";
 export function CommerceChannels() {
   return (
     <FeatureGate feature="commerce.nav" featureName="Commerce">
-      <div className="mx-auto max-w-5xl px-4 py-8">
+      <PageShell width="standard">
         <header className="mb-6">
           <h1 className="text-xl font-semibold">Channels</h1>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -71,7 +72,7 @@ export function CommerceChannels() {
             />
           </TabsContent>
         </Tabs>
-      </div>
+      </PageShell>
     </FeatureGate>
   );
 }

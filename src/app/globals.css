@@ -181,6 +181,28 @@
 }
 
 /*
+ * Print: undo the dashboard's fixed-height inner scroll container.
+ *
+ * /dashboard pins `h-svh` on the sidebar wrapper so the content area — not
+ * the document — is the scroller (see src/app/(site)/dashboard/layout.tsx).
+ * That is right on screen and wrong on paper: a fixed-height `overflow: auto`
+ * box clips everything past the first viewport, so Ctrl+P on a long billing,
+ * analytics or invoice page produced a single truncated page. Releasing the
+ * height and the clip lets the document paginate normally again.
+ */
+@media print {
+  [data-slot="sidebar-wrapper"] {
+    height: auto !important;
+  }
+  [data-slot="sidebar-inset"] {
+    overflow: visible !important;
+  }
+  [data-slot="sidebar-inset"] > * {
+    overflow: visible !important;
+  }
+}
+
+/*
  * Molten-gold brand gradient helpers for the marketing surface. Tailwind
  * can't express a 3-stop token gradient inline, so these thin utilities wrap
  * --brand-gradient for fills (buttons, icon tiles, announcement bar) and for

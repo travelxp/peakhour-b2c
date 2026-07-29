@@ -24,13 +24,20 @@ import { cn } from "@/lib/utils";
  * single owner, and routes that re-declare it are the bug. PageShell owns
  * MEASURE (max-width + centring) and VERTICAL RHYTHM. Pages own neither: a
  * page adopting PageShell should carry no `p-*`, `max-w-*` or `mx-auto` on its
- * root, and should pick a `width` instead. That is a convention, not yet an
- * enforced invariant. The twelve routes still declaring their own root
- * padding — ask, calendar, calendar/recurring, content, content/autopilot,
- * content/whatsapp, content/whatsapp/analytics, content/whatsapp/templates,
- * inbox, insights/analytics, insights/search-console, settings/team — are
- * migrated in the follow-up, and the lint rule that pins the convention lands
- * with them.
+ * root, and should pick a `width` instead. This is a convention, not an
+ * enforced invariant — nothing stops the next route from reintroducing its
+ * own padding, and the lint rule that would pin it is not written yet.
+ *
+ * "Root" means the outermost element the route renders, which is not always
+ * in the page.tsx: the Commerce routes are one-line pages delegating to a
+ * component in src/components/commerce, and that component is the root. A
+ * first pass searched page.tsx files only and so missed six of them, which is
+ * why they are listed here.
+ *
+ * One shell per route, though. A component rendered INSIDE a page that
+ * already opened a shell must not open another — nested shells double the
+ * measure wrapper and break any `[data-slot="page-shell"]` selector or lint
+ * rule built on this contract.
  *
  * NOTE ON TYPE SCALE: PageHeader's description renders at `text-sm` (14px).
  * The ad-hoc headers it replaces used an unsized `text-muted-foreground`
@@ -66,6 +73,30 @@ export type PageShellWidth = keyof typeof PAGE_WIDTHS;
 export interface PageShellProps extends React.ComponentProps<"div"> {
   /** Content measure. Defaults to `standard`. See PAGE_WIDTHS. */
   width?: PageShellWidth;
+  /**
+   * Fill the available viewport height instead of growing with content, and
+   * become a column flex container so one child can take the remaining space
+   * with `min-h-0 flex-1`. For surfaces that own their own scrolling — chat
+   * threads, boards, split panes.
+   *
+   * This exists so such a page never has to guess the shell's chrome height.
+   * /dashboard/ask used to hard-code `h-[calc(100dvh-5rem)]`, which assumed
+   * 80px of chrome when the real figure is 104px (header 56 + shell padding
+   * 48; the banner slot adds nothing in the common case, being
+   * `empty:hidden`) — so it overflowed its container by 24px on every device.
+   * Anything computed from a literal goes stale the moment the shell's
+   * padding changes; this cannot.
+   *
+   * Requires the shell to have a definite height, which is why the dashboard
+   * layout pins `h-svh` on SidebarProvider — see the comment there. Without
+   * that, `flex-1` here resolves against an indefinite height and sizes to
+   * content, i.e. `fill` silently does nothing.
+   *
+   * `min-h-0` is the load-bearing half: without it this flex item's automatic
+   * minimum size is its content height, so a long thread would push the shell
+   * into a nested scrollbar instead of scrolling inside the page.
+   */
+  fill?: boolean;
 }
 
 /**
@@ -78,6 +109,7 @@ export interface PageShellProps extends React.ComponentProps<"div"> {
  */
 export function PageShell({
   width = "standard",
+  fill = false,
   className,
   children,
   ...props
@@ -85,9 +117,11 @@ export function PageShell({
   return (
     <div
       data-slot="page-shell"
+      data-fill={fill || undefined}
       className={cn(
         "mx-auto w-full space-y-4 sm:space-y-6",
         PAGE_WIDTHS[width],
+        fill && "flex min-h-0 flex-1 flex-col",
         className,
       )}
       {...props}

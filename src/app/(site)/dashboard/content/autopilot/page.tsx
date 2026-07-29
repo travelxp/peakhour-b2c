@@ -13,6 +13,7 @@ import { NeedsYouRail } from "./_components/needs-you-rail";
 import { ChannelWidgets } from "./_components/channel-widgets";
 import { AutopilotEmpty } from "./_components/autopilot-empty";
 import { CommerceLane } from "./_components/commerce-lane";
+import { PageShell } from "@/components/dashboard/page-shell";
 
 /**
  * Content > Autopilot — the entitlement-composed content command center.
@@ -66,7 +67,7 @@ export default function AutopilotHomePage() {
   if (isProd) return null;
 
   return (
-    <div className="flex flex-col gap-4 p-4 md:p-6">
+    <PageShell width="wide">
       <CronToolbar
         crons={["publish-scheduled", "publish-retry", "recurring-spawn"]}
         onTriggered={() =>
@@ -127,6 +128,6 @@ export default function AutopilotHomePage() {
           )}
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }

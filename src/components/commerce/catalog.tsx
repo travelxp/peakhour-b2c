@@ -18,6 +18,7 @@ import {
 import { FeatureGate } from "@/components/upgrade/feature-gate";
 import { useLocale } from "@/hooks/use-locale";
 import { minorToMajor } from "@/lib/money";
+import { PageShell } from "@/components/dashboard/page-shell";
 import {
   useCommerceCatalog,
   LISTING_ISSUE_LABEL,
@@ -134,16 +135,16 @@ function CatalogBody() {
 
   if (isLoading) {
     return (
-      <div className="mx-auto max-w-5xl px-4 py-8">
+      <PageShell width="standard">
         <Header />
         <Skeleton className="h-64 w-full rounded-lg" />
-      </div>
+      </PageShell>
     );
   }
 
   if (isError || !data) {
     return (
-      <div className="mx-auto max-w-5xl px-4 py-8">
+      <PageShell width="standard">
         <Header />
         <EmptyState
           icon={Store}
@@ -151,7 +152,7 @@ function CatalogBody() {
           description="Catalog & Listings lights up once a Shopify or WooCommerce store is connected to this business."
           action={{ label: "Connect a store", href: "/dashboard/integrations" }}
         />
-      </div>
+      </PageShell>
     );
   }
 
@@ -162,7 +163,7 @@ function CatalogBody() {
   const capped = data.total > loaded;
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8">
+    <PageShell width="standard">
       <Header />
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -191,7 +192,7 @@ function CatalogBody() {
       />
 
       <ListingDrawer item={selected} money={money} onClose={() => setSelected(null)} />
-    </div>
+    </PageShell>
   );
 }
 

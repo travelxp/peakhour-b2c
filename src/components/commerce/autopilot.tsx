@@ -7,6 +7,7 @@ import { CommerceNeedsYou } from "@/components/commerce/needs-you-rail";
 import { PendingExecutions } from "@/components/commerce/pending-executions";
 import { AutonomyBoard } from "@/components/commerce/autonomy-board";
 import { useCommerceSummary } from "@/hooks/use-commerce-summary";
+import { PageShell } from "@/components/dashboard/page-shell";
 
 /**
  * Commerce → Autopilot (Phase 0). The engine's cockpit: the approvals queue
@@ -30,7 +31,7 @@ function CommerceAutopilotBody() {
   const { isError: noStore } = useCommerceSummary();
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8">
+    <PageShell width="standard">
       <header className="mb-6">
         <h1 className="text-xl font-semibold">Autopilot</h1>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -73,6 +74,6 @@ function CommerceAutopilotBody() {
           </section>
         </>
       )}
-    </div>
+    </PageShell>
   );
 }

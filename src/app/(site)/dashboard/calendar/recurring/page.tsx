@@ -22,6 +22,7 @@ import { scheduler } from "@/lib/scheduler/client";
 import type { RecurringRuleDto, RecurringRuleStatus } from "@/lib/scheduler/types";
 import { ApiError } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { PageShell } from "@/components/dashboard/page-shell";
 
 /**
  * /dashboard/calendar/recurring — manage recurring schedule rules
@@ -115,7 +116,7 @@ export default function RecurringRulesPage() {
       : null;
 
   return (
-    <div className="flex flex-col gap-4 p-4 md:p-6">
+    <PageShell width="standard">
       <CronToolbar crons={["recurring-spawn"]} onTriggered={invalidate} />
 
       {/* Header */}
@@ -174,7 +175,7 @@ export default function RecurringRulesPage() {
           ))}
         </ul>
       )}
-    </div>
+    </PageShell>
   );
 }
 

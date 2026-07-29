@@ -22,6 +22,7 @@ import {
 } from "./channels.config";
 import { mapCatalogToChannels } from "./channels-from-catalog";
 import { resolveChannelCta } from "./channel-cta";
+import { PageShell } from "@/components/dashboard/page-shell";
 
 interface ApiIntegration {
   provider: string;
@@ -108,15 +109,15 @@ export default function ContentChannelsHubPage() {
 
   if (isLoading) {
     return (
-      <div className="container max-w-5xl py-8 space-y-6">
+      <PageShell>
         {cronToolbar}
         <HubSkeleton />
-      </div>
+      </PageShell>
     );
   }
 
   return (
-    <div className="container max-w-5xl py-8 space-y-6">
+    <PageShell>
       {cronToolbar}
       <header className="space-y-2 border-b pb-6">
         <h1 className="text-2xl font-semibold tracking-tight">Content channels</h1>
@@ -175,7 +176,7 @@ export default function ContentChannelsHubPage() {
           );
         })}
       </Tabs>
-    </div>
+    </PageShell>
   );
 }
 
@@ -395,13 +396,22 @@ function useLastSyncedLabel(lastSyncAt: string | undefined): string | undefined 
   }, [lastSyncAt, now]);
 }
 
+/**
+ * Rendered INSIDE the page-level <PageShell> (the loading branch), so it must
+ * not open one of its own — nested page shells double the measure wrapper and
+ * break the "one per route" contract the primitive documents.
+ */
 function HubSkeleton() {
   return (
-    <div className="container max-w-5xl py-8 space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <div className="space-y-2 border-b pb-6">
         <Skeleton className="h-8 w-48" />
         <Skeleton className="h-4 w-96" />
       </div>
+      {/* Stands in for the category TabsList in the loaded branch. Without it
+          every channel row jumped down by the strip height plus its margin
+          the moment data arrived. */}
+      <Skeleton className="h-9 w-72" />
       <div className="space-y-3">
         {Array.from({ length: 6 }).map((_, i) => (
           <div key={i} className="flex items-start gap-4 rounded-lg border p-4">

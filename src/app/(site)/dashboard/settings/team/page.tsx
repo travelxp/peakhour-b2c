@@ -52,6 +52,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useLocale } from "@/hooks/use-locale";
+import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
 
 const ROLE_LABELS: Record<string, string> = {
   owner: "Owner",
@@ -163,100 +164,101 @@ export default function TeamPage() {
 
   if (loading) {
     return (
-      <div className="p-6 space-y-4">
+      <PageShell width="narrow">
         <div className="h-8 w-48 bg-muted animate-pulse rounded" />
         <div className="h-64 bg-muted animate-pulse rounded-lg" />
-      </div>
+      </PageShell>
     );
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+    <PageShell width="narrow">
+      {/* This was the only `text-xl` page title in settings — its siblings run
+          `text-2xl` in two weights and two of them have no <h1> at all —
+          so PageHeader settles it. The back-link keeps its place as the
+          header's leading slot. `narrow` matches settings/billing; it costs
+          the role grid below ~30px per column, which it can afford. */}
+      <PageHeader
+        icon={
           <Link
             href="/dashboard/settings"
-            className="p-1.5 rounded-md hover:bg-muted transition"
+            aria-label="Back to settings"
+            className="rounded-md p-1.5 transition hover:bg-muted"
           >
             <ArrowLeft className="h-4 w-4" />
           </Link>
-          <div>
-            <h1 className="text-xl font-semibold">Team & Permissions</h1>
-            <p className="text-sm text-muted-foreground">
-              {members.length} member{members.length !== 1 ? "s" : ""} in{" "}
-              {org?.name || "your organization"}
-            </p>
-          </div>
-        </div>
-
-        {isAdmin && (
-          <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
-            <DialogTrigger asChild>
-              <Button size="sm" className="gap-2">
-                <UserPlus className="h-4 w-4" />
-                Invite
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-md">
-              <DialogHeader>
-                <DialogTitle>Invite team member</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 pt-2">
-                <div>
-                  <label className="text-sm font-medium mb-1.5 block">
-                    Email address
-                  </label>
-                  <Input
-                    type="email"
-                    placeholder="colleague@company.com"
-                    value={inviteEmail}
-                    onChange={(e) => setInviteEmail(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleInvite()}
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium mb-1.5 block">
-                    Role
-                  </label>
-                  <Select value={inviteRole} onValueChange={setInviteRole}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="admin">
-                        <div className="flex items-center gap-2">
-                          <ShieldCheck className="h-3.5 w-3.5" />
-                          Admin — full access, manage settings
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="editor">
-                        <div className="flex items-center gap-2">
-                          <Pencil className="h-3.5 w-3.5" />
-                          Editor — create and edit content
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="viewer">
-                        <div className="flex items-center gap-2">
-                          <Eye className="h-3.5 w-3.5" />
-                          Viewer — read-only access
-                        </div>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Button
-                  onClick={handleInvite}
-                  disabled={inviting || !inviteEmail.trim()}
-                  className="w-full"
-                >
-                  {inviting ? "Sending..." : "Send invitation"}
+        }
+        title="Team & Permissions"
+        description={`${members.length} member${members.length !== 1 ? "s" : ""} in ${org?.name || "your organization"}`}
+        actions={
+          isAdmin && (
+            <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
+              <DialogTrigger asChild>
+                <Button size="sm" className="gap-2">
+                  <UserPlus className="h-4 w-4" />
+                  Invite
                 </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
-        )}
-      </div>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Invite team member</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 pt-2">
+                  <div>
+                    <label className="text-sm font-medium mb-1.5 block">
+                      Email address
+                    </label>
+                    <Input
+                      type="email"
+                      placeholder="colleague@company.com"
+                      value={inviteEmail}
+                      onChange={(e) => setInviteEmail(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && handleInvite()}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium mb-1.5 block">
+                      Role
+                    </label>
+                    <Select value={inviteRole} onValueChange={setInviteRole}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="admin">
+                          <div className="flex items-center gap-2">
+                            <ShieldCheck className="h-3.5 w-3.5" />
+                            Admin — full access, manage settings
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="editor">
+                          <div className="flex items-center gap-2">
+                            <Pencil className="h-3.5 w-3.5" />
+                            Editor — create and edit content
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="viewer">
+                          <div className="flex items-center gap-2">
+                            <Eye className="h-3.5 w-3.5" />
+                            Viewer — read-only access
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button
+                    onClick={handleInvite}
+                    disabled={inviting || !inviteEmail.trim()}
+                    className="w-full"
+                  >
+                    {inviting ? "Sending..." : "Send invitation"}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          )
+        }
+      />
 
       {/* Notifications */}
       {error && (
@@ -433,7 +435,9 @@ export default function TeamPage() {
       {/* Role descriptions */}
       <Card className="bg-muted/30">
         <CardContent className="pt-5">
-          <h3 className="text-sm font-medium mb-3">Role permissions</h3>
+          {/* h2, not h3: PageHeader emits this page's <h1> and nothing sits
+              between, so h3 skipped a level (axe `heading-order`). */}
+          <h2 className="text-sm font-medium mb-3">Role permissions</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs text-muted-foreground">
             <div>
               <div className="font-medium text-foreground mb-1 flex items-center gap-1">
@@ -462,6 +466,6 @@ export default function TeamPage() {
           </div>
         </CardContent>
       </Card>
-    </div>
+    </PageShell>
   );
 }

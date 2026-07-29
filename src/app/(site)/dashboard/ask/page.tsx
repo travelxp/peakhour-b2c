@@ -12,6 +12,7 @@ import { useSearchParams } from "next/navigation";
 import { Sparkles, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AskConversation } from "@/components/ask/ask-conversation";
+import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
 
 function newThreadId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -28,29 +29,37 @@ function AskPageInner() {
   const [threadId, setThreadId] = useState<string>(() => newThreadId());
 
   return (
-    <div className="mx-auto flex h-[calc(100dvh-5rem)] w-full max-w-3xl flex-col p-4">
-      <div className="mb-3 flex items-center gap-3">
-        <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10">
-          <Sparkles className="size-5 text-primary" />
-        </div>
-        <div className="flex-1">
-          <h1 className="text-lg font-semibold leading-none tracking-tight">Ask Peakhour</h1>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Your SEO manager + data analyst — answers grounded in your real analytics.
-          </p>
-        </div>
-        <Button variant="outline" size="sm" onClick={() => setThreadId(newThreadId())}>
-          <Plus className="mr-1.5 size-3.5" />
-          New conversation
-        </Button>
-      </div>
+    // `fill` instead of the old `h-[calc(100dvh-5rem)]`, which assumed 80px of
+    // shell chrome when the real figure is 104px on desktop and 88px at 375px
+    // (header 56 + the shell's own 48/32 of padding) — so this page overflowed
+    // its container on every device. The shell owns the measurement now, so
+    // nothing here goes stale when its padding changes. Also drops a duplicate
+    // `p-4`: the shell already insets the page.
+    <PageShell width="narrow" fill className="space-y-3 sm:space-y-3">
+      <PageHeader
+        icon={
+          <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10">
+            <Sparkles className="size-5 text-primary" />
+          </div>
+        }
+        title="Ask Peakhour"
+        description="Your SEO manager + data analyst — answers grounded in your real analytics."
+        actions={
+          <Button variant="outline" size="sm" onClick={() => setThreadId(newThreadId())}>
+            <Plus className="mr-1.5 size-3.5" />
+            New conversation
+          </Button>
+        }
+      />
 
-      <div className="flex-1 overflow-hidden rounded-xl border bg-background">
+      {/* min-h-0 lets this shrink below its content so the thread scrolls
+          inside the bordered box rather than growing the page. */}
+      <div className="min-h-0 flex-1 overflow-hidden rounded-xl border bg-background">
         {/* useChat resets on threadId change, so no key needed; initialInput seeds
             the composer once from the ?q deep-link. */}
         <AskConversation threadId={threadId} className="h-full" initialInput={initialInput} />
       </div>
-    </div>
+    </PageShell>
   );
 }
 

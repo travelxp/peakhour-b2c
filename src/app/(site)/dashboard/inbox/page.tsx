@@ -17,6 +17,7 @@ import {
   type WaConversation,
 } from "@/hooks/use-wa-conversations";
 import { inboxApi, type InboxItem, type InboxPriority } from "@/lib/api/inbox";
+import { PageShell } from "@/components/dashboard/page-shell";
 
 /**
  * Inbox — ONE queue for everything inbound (D-inbox): every channel is
@@ -250,7 +251,7 @@ export default function InboxPage() {
   const resume = useWaResume();
 
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-6 p-4 md:p-6">
+    <PageShell>
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Inbox</h1>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -354,6 +355,6 @@ export default function InboxPage() {
           </div>
         </TabsContent>
       </Tabs>
-    </div>
+    </PageShell>
   );
 }

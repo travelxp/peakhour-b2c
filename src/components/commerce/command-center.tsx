@@ -18,6 +18,7 @@ import { ActivityDigest } from "@/components/commerce/activity-digest";
 import { useLocale } from "@/hooks/use-locale";
 import { minorToMajor } from "@/lib/money";
 import { useCommerceSummary } from "@/hooks/use-commerce-summary";
+import { PageShell } from "@/components/dashboard/page-shell";
 
 /**
  * Commerce → Command Center (Phase 0). The outcome home for the Commerce pillar:
@@ -52,7 +53,7 @@ function CommandCenterBody() {
   };
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8">
+    <PageShell width="standard">
       <header className="mb-6">
         <h1 className="text-xl font-semibold">Command Center</h1>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -133,7 +134,7 @@ function CommandCenterBody() {
           <ActivityDigest />
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }
 
