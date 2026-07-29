@@ -135,7 +135,19 @@ export default function OverviewPage() {
           The explicit max-width is load-bearing. PageHeader holds its actions
           track at natural width (`shrink-0`) so buttons are never squashed —
           which means a variable-width action like this one has to cap itself,
-          or `truncate` below can never engage. */}
+          or `truncate` below can never engage.
+
+          The cap is flat, not viewport-relative, and it steps UP rather than
+          down. Below `sm` this link already owns a full-width row of its own
+          (PageHeader is `flex-col` there), so a `vw` cap only truncated the
+          URL earlier than necessary for no gain. The binding case is the
+          opposite end: at a 768px viewport the sidebar is expanded and the
+          content area is just 464px, so a generous cap here would leave the
+          org name a ~164px column. 192px until `lg`, 288px above it.
+
+          One deliberate visual change: the link used to be `items-end`
+          (baseline-aligned with the description); PageHeader is
+          `sm:items-start`, so it now sits level with the title. */}
       <PageHeader
         title={org?.name || "Dashboard"}
         description={stats?.businessType || "Your AI marketing command center"}
@@ -145,7 +157,7 @@ export default function OverviewPage() {
               href={stats.websiteUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex min-w-0 max-w-[60vw] items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground sm:max-w-72"
+              className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground sm:max-w-48 lg:max-w-72"
             >
               <Globe className="h-3 w-3 shrink-0" />
               <span className="truncate">

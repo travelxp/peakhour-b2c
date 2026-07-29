@@ -1,4 +1,5 @@
 import * as React from "react"
+import { Slot } from "radix-ui"
 
 import { cn } from "@/lib/utils"
 
@@ -28,9 +29,26 @@ function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
-function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
+/**
+ * `asChild` is a local addition to the stock shadcn primitive. CardTitle
+ * renders a <div>, so a card contributes NO heading to the document outline —
+ * which forces any real heading inside the card to sit directly under the
+ * page's <h1> and skip a level. Passing `asChild` lets a card supply the
+ * heading element it actually deserves:
+ *
+ *   <CardTitle asChild><h2>Where to grow next</h2></CardTitle>
+ *
+ * Styling is unchanged in both modes, and the default (no `asChild`) is
+ * byte-for-byte what it was, so existing usages are untouched.
+ */
+function CardTitle({
+  className,
+  asChild = false,
+  ...props
+}: React.ComponentProps<"div"> & { asChild?: boolean }) {
+  const Comp = asChild ? Slot.Root : "div"
   return (
-    <div
+    <Comp
       data-slot="card-title"
       className={cn("leading-none font-semibold", className)}
       {...props}

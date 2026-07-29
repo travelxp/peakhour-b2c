@@ -539,14 +539,20 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
               though — adding a bare string or `{" "}` between these children
               silently brings the dead 16px back.)
 
-              The `mx-auto max-w-[90rem]` cap keeps a rendered banner on the
-              same centre axis as the route content below it, which is capped
-              by <PageShell>. Without it the banner spanned the full inset
-              while a `narrow` page sat at 768px, so the two had no shared
-              edge. It matches the widest PageShell tier exactly; once every
-              route is migrated the slot should move inside PageShell so it
-              picks up that page's own measure. */}
-          <div className="mx-auto mb-4 flex w-full max-w-360 flex-col gap-2 empty:hidden">
+              On the `mx-auto max-w-360` cap — be precise about what it does,
+              because it is easy to overstate. It does NOT centre-align the
+              banner with the content: an `mx-auto` block and a full-width
+              block already share a centre axis, so that was never the
+              problem. What it does is stop the banner running WIDER than the
+              widest <PageShell> tier (max-w-360 here == `wide` there, keep
+              them in sync). That only binds past a ~1744px viewport with the
+              sidebar expanded, so on a 1280 or 1440 monitor this is a no-op —
+              it is ultrawide insurance, nothing more. A banner still has no
+              shared left edge with a `narrow` (768px) or `standard` (1152px)
+              page. The real fix is to move this slot inside PageShell so it
+              inherits that page's own measure, which is only possible once
+              every route has been migrated onto it. */}
+          <div className="mx-auto mb-4 flex w-full max-w-360 flex-col gap-2 empty:hidden sm:mb-6">
             <TrialExpiryBanner />
             <CreditCapBanner />
           </div>

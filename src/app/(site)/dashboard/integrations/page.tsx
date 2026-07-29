@@ -614,7 +614,12 @@ export default function IntegrationsPage() {
 
       {/* Loading skeleton */}
       {loading ? (
-        <div className="space-y-6">
+        // Rhythm must match PageShell's, because the loaded branch below
+        // spreads its category groups as DIRECT PageShell children while this
+        // one nests them under a single wrapper. With a flat `space-y-6` here
+        // the group-to-group gap jumped 24px -> 16px on mobile the moment
+        // data landed.
+        <div className="space-y-4 sm:space-y-6">
           {Array.from({ length: 2 }).map((_, gi) => (
             <div key={gi} className="space-y-3">
               <div className="h-4 w-32 animate-pulse rounded bg-muted" />

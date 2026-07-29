@@ -4,19 +4,20 @@ import { cn } from "@/lib/utils";
  * <PageShell> + <PageHeader> — the layout contract for every /dashboard route.
  *
  * WHY THIS EXISTS. There was no page-layout primitive, so all 49 dashboard
- * routes declared their own frame. 20 of them had already converged on
- * `<h1 className="text-2xl font-semibold tracking-tight">` — this codifies
- * that majority convention rather than inventing a new one. The drift it
- * replaces:
+ * routes declared their own frame. Only 20 carried an <h1> at all, and 12 of
+ * those 20 already used exactly `text-2xl font-semibold tracking-tight` —
+ * PageHeader adopts that so the largest existing group needs no restyling.
+ * The drift it replaces:
  *
  *   - Six content measures (max-w-2xl / 3xl / 4xl / 5xl / 6xl / uncapped),
  *     one of them left-aligned instead of centred, which left ~830px of empty
  *     gutter to the right of /dashboard/settings/billing at 1920px.
- *   - Three title styles — 25 `text-2xl font-bold`, 12 `text-2xl
- *     font-semibold`, 1 `text-3xl font-bold` — with the first group mostly
- *     emitted as <h2>, so those pages carried no <h1> at all.
- *   - Ten routes re-declaring their own root padding on top of the shell's,
- *     doubling it to 48px.
+ *   - Three title styles — 25 files with `text-2xl font-bold`, 12 with
+ *     `text-2xl font-semibold`, 1 with `text-3xl font-bold` — and the 29
+ *     routes with no <h1> at all.
+ *   - Twelve routes re-declaring their own root padding on top of the
+ *     shell's: 48px where both sides use `p-6`, 32px where the route uses
+ *     `p-4`, and 56px on /dashboard/content, which stacks `container … py-8`.
  *
  * DIVISION OF RESPONSIBILITY. The dashboard shell
  * (src/app/(site)/dashboard/layout.tsx) owns page PADDING — it is already the
@@ -24,10 +25,12 @@ import { cn } from "@/lib/utils";
  * MEASURE (max-width + centring) and VERTICAL RHYTHM. Pages own neither: a
  * page adopting PageShell should carry no `p-*`, `max-w-*` or `mx-auto` on its
  * root, and should pick a `width` instead. That is a convention, not yet an
- * enforced invariant — the remaining self-padding routes (calendar,
- * calendar/recurring, content/autopilot, whatsapp, inbox, insights/*,
- * settings/team, content) are migrated in the follow-up, and the lint rule
- * that pins it lands with them.
+ * enforced invariant. The twelve routes still declaring their own root
+ * padding — ask, calendar, calendar/recurring, content, content/autopilot,
+ * content/whatsapp, content/whatsapp/analytics, content/whatsapp/templates,
+ * inbox, insights/analytics, insights/search-console, settings/team — are
+ * migrated in the follow-up, and the lint rule that pins the convention lands
+ * with them.
  *
  * NOTE ON TYPE SCALE: PageHeader's description renders at `text-sm` (14px).
  * The ad-hoc headers it replaces used an unsized `text-muted-foreground`
@@ -109,9 +112,17 @@ export interface PageHeaderProps
    * The actions track is `shrink-0`, so it is held at its natural width and
    * the title absorbs the shrink — the right default for buttons, which
    * should never be squashed. An action of VARIABLE width (a URL, an email,
-   * anything user-supplied) must therefore cap itself — e.g.
-   * `max-w-[60vw] sm:max-w-72` alongside `truncate` — because it will not be
-   * shrunk for you. See the Overview hero for the worked example.
+   * anything user-supplied) must therefore cap itself with a max-width
+   * alongside `truncate`, because it will not be shrunk for you. See the
+   * Overview hero for the worked example.
+   *
+   * Caveat worth knowing before you pick that number: a caller can only see
+   * the VIEWPORT, but what constrains this row is the content area
+   * (viewport − sidebar − padding), and the sidebar toggles between 256px
+   * and 48px at runtime. So no viewport-relative unit is right in both
+   * states — prefer a flat `sm:`/`lg:` max-width tuned for the expanded
+   * sidebar (the tighter case). A container query on this header is the
+   * real answer and lands with the tablet density work.
    */
   actions?: React.ReactNode;
 }
@@ -149,8 +160,15 @@ export function PageHeader({
           <h1 className="wrap-break-word text-2xl font-semibold tracking-tight">
             {title}
           </h1>
+          {/* `wrap-break-word` here too, not just on the <h1>: overflow-wrap
+              is per-element and does not inherit from the sibling above.
+              Descriptions carry API- and AI-derived strings (Overview passes
+              `stats.businessType`), so an unbroken token would otherwise
+              overflow this narrowed track with nothing clipping it. */}
           {description && (
-            <p className="text-sm text-muted-foreground">{description}</p>
+            <p className="wrap-break-word text-sm text-muted-foreground">
+              {description}
+            </p>
           )}
         </div>
       </div>

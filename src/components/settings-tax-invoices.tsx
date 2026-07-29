@@ -173,8 +173,11 @@ export function TaxAndInvoices() {
 
   const rows = invoices ?? [];
 
+  // Rhythm tracks PageShell's `space-y-4 sm:space-y-6` pair — this panel
+  // renders inside billing's rhythm group, and a flat `space-y-6` here made a
+  // phone show 16px between the page's blocks but 24px inside this one.
   return (
-    <div className="rounded-2xl border bg-muted/30 px-5 pt-4 pb-5 space-y-6">
+    <div className="rounded-2xl border bg-muted/30 px-5 pt-4 pb-5 space-y-4 sm:space-y-6">
       <div>
         {/* h2, not h3: the billing page's <h1> comes from <PageHeader>, so a
             section heading at h3 would skip a level (axe `heading-order`).
