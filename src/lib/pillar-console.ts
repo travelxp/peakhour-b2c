@@ -30,6 +30,29 @@ export const PILLAR_CONSOLE_LABEL =
   "Peakhour console showing five active pillars";
 
 /**
+ * The three promises made under every primary CTA — landing hero and /auth.
+ * Shared for the same reason the console rows are: the point of repeating them
+ * at the point of signup is that the pitch does NOT change, which only holds
+ * if there is one copy.
+ */
+export const SIGNUP_PROMISES = [
+  "No credit card",
+  "Free plan on every pillar",
+  "Live the same day",
+] as const;
+
+/**
+ * Pre-launch variant. When signups aren't open there is no same-day access to
+ * promise, and the third promise would contradict the "join the queue" heading
+ * directly above it — so swap it for the one thing still true on that path.
+ */
+export const PRELAUNCH_PROMISES = [
+  "No credit card",
+  "Free plan on every pillar",
+  "We’ll email your link",
+] as const;
+
+/**
  * Free Peaks granted monthly on the free plans, as shown on the marketing
  * surface. Hard-coded to match the landing hero's existing figure; when the
  * public catalog starts exposing the free grant this should read from there.

@@ -20,6 +20,7 @@ import { HOW_IT_WORKS_STEPS } from "@/lib/how-it-works";
 import {
   PILLAR_CONSOLE_ROWS,
   PILLAR_CONSOLE_LABEL,
+  SIGNUP_PROMISES,
   FREE_PEAKS_PER_MONTH,
 } from "@/lib/pillar-console";
 import {
@@ -311,12 +312,22 @@ export default async function Home({
                   See how Peaks work
                 </Link>
               </div>
+              {/* Shared with /auth — the pitch must not change at the point
+                  of signup, which only holds with one copy of the strings. */}
               <p className="mt-5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
-                <span aria-hidden className="font-bold text-brand-label">✓</span> No credit card
-                <span aria-hidden className="opacity-40">·</span>
-                <span aria-hidden className="font-bold text-brand-label">✓</span> Free plan on every pillar
-                <span aria-hidden className="opacity-40">·</span>
-                <span aria-hidden className="font-bold text-brand-label">✓</span> Live the same day
+                {SIGNUP_PROMISES.map((promise, i) => (
+                  <span key={promise} className="flex items-center gap-x-2">
+                    {i > 0 && (
+                      <span aria-hidden className="opacity-40">
+                        ·
+                      </span>
+                    )}
+                    <span aria-hidden className="font-bold text-brand-label">
+                      ✓
+                    </span>
+                    {promise}
+                  </span>
+                ))}
               </p>
             </div>
 
