@@ -8,6 +8,7 @@ import { api, ApiError, API_BASE_URL } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/molecules/status-badge";
+import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
 import { ConfirmDialog } from "@/components/molecules/confirm-dialog";
 import { WhatsAppEmbeddedSignup } from "@/components/integrations/whatsapp-embedded-signup";
 import { WordPressConnectModal } from "@/components/integrations/wordpress-connect-modal";
@@ -529,14 +530,11 @@ export default function IntegrationsPage() {
   const disconnectedCount = integrations.filter((i) => !i.connected).length;
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight">Integrations</h2>
-        <p className="text-muted-foreground mt-1">
-          Connect your platforms to power AI-driven content and ads
-        </p>
-      </div>
+    <PageShell width="standard">
+      <PageHeader
+        title="Integrations"
+        description="Connect your platforms to power AI-driven content and ads"
+      />
 
       {/* Search + Tabs bar */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -616,7 +614,12 @@ export default function IntegrationsPage() {
 
       {/* Loading skeleton */}
       {loading ? (
-        <div className="space-y-6">
+        // Rhythm must match PageShell's, because the loaded branch below
+        // spreads its category groups as DIRECT PageShell children while this
+        // one nests them under a single wrapper. With a flat `space-y-6` here
+        // the group-to-group gap jumped 24px -> 16px on mobile the moment
+        // data landed.
+        <div className="space-y-4 sm:space-y-6">
           {Array.from({ length: 2 }).map((_, gi) => (
             <div key={gi} className="space-y-3">
               <div className="h-4 w-32 animate-pulse rounded bg-muted" />
@@ -640,9 +643,11 @@ export default function IntegrationsPage() {
         Object.entries(grouped).map(([category, items]) => (
           <div key={category} className="space-y-3">
             <div className="flex items-center gap-3">
-              <h3 className="text-sm font-semibold text-foreground">
+              {/* h2, not h3: PageHeader emits the page's <h1>, so a category
+                  heading at h3 would skip a level (axe `heading-order`). */}
+              <h2 className="text-sm font-semibold text-foreground">
                 {CATEGORY_LABELS[category] || category}
-              </h3>
+              </h2>
               <div className="h-px flex-1 bg-border" />
               <span className="text-xs text-muted-foreground">
                 {items.filter((i) => i.connected).length}/{items.length} connected
@@ -694,8 +699,7 @@ export default function IntegrationsPage() {
         open={connectModal === "wordpress"}
         onClose={() => setConnectModal(null)}
       />
-
-    </div>
+    </PageShell>
   );
 }
 

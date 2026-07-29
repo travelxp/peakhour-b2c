@@ -520,12 +520,39 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
             <FeedbackWidget />
           </div>
         </header>
-        <div className="flex-1 overflow-auto p-6">
-          {/* Trial-expiry warning slot — sits above the route content
-              only when a trial is within the final 3 days. Component
-              renders nothing in all other states (no trial, plenty of
-              days left, dismissed). */}
-          <div className="mb-4 flex flex-col gap-2">
+        {/* The shell is the SINGLE owner of dashboard page padding — routes
+            must not re-declare `p-*` on their root (see
+            @/components/dashboard/page-shell). Steps down to 16px on mobile:
+            at 375px a flat 24px inset costs 13% of the screen width before a
+            card's own 24px padding is even applied. */}
+        <div className="flex-1 overflow-auto p-4 sm:p-6">
+          {/* Banner slot — sits above the route content. Trial-expiry shows
+              only inside the final 3 days of a trial; the credit-cap banner
+              only once usage crosses its cap. Both render nothing otherwise
+              (no trial, plenty of days left, unlimited, dismissed).
+
+              `empty:hidden` matters: both children return null in the common
+              case, but the wrapper's own margin still applied, pushing every
+              page in the app down 16px for a band that rendered nothing.
+              (`:empty` ignores comment nodes, so React's null renders match.
+              It is NOT relaxed about whitespace in any shipping browser
+              though — adding a bare string or `{" "}` between these children
+              silently brings the dead 16px back.)
+
+              On the `mx-auto max-w-360` cap — be precise about what it does,
+              because it is easy to overstate. It does NOT centre-align the
+              banner with the content: an `mx-auto` block and a full-width
+              block already share a centre axis, so that was never the
+              problem. What it does is stop the banner running WIDER than the
+              widest <PageShell> tier (max-w-360 here == `wide` there, keep
+              them in sync). That only binds past a ~1744px viewport with the
+              sidebar expanded, so on a 1280 or 1440 monitor this is a no-op —
+              it is ultrawide insurance, nothing more. A banner still has no
+              shared left edge with a `narrow` (768px) or `standard` (1152px)
+              page. The real fix is to move this slot inside PageShell so it
+              inherits that page's own measure, which is only possible once
+              every route has been migrated onto it. */}
+          <div className="mx-auto mb-4 flex w-full max-w-360 flex-col gap-2 empty:hidden sm:mb-6">
             <TrialExpiryBanner />
             <CreditCapBanner />
           </div>

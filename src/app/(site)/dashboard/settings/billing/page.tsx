@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { featureLabel } from "@/lib/pricing";
 import { useQueryClient } from "@tanstack/react-query";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
+import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
 import { TaxAndInvoices } from "@/components/settings-tax-invoices";
 import { UpgradePlanDialog } from "@/components/upgrade/upgrade-plan-dialog";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -133,12 +134,19 @@ export default function BillingPage() {
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
+      <PageShell width="narrow">
         {cronToolbar}
+        {/* The header renders in the loading branch too: the title is static,
+            so withholding it left the page headingless (and shifting) until
+            the query resolved. */}
+        <PageHeader
+          title="Billing"
+          description="Manage your plan, usage, and payment details"
+        />
         <div className="flex justify-center py-12">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-muted border-t-primary" />
         </div>
-      </div>
+      </PageShell>
     );
   }
 
@@ -208,16 +216,21 @@ export default function BillingPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <PageShell width="narrow">
       {cronToolbar}
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight">Billing</h2>
-        <p className="text-muted-foreground mt-1">
-          Manage your plan, usage, and payment details
-        </p>
-      </div>
+      <PageHeader
+        title="Billing"
+        description="Manage your plan, usage, and payment details"
+      />
 
-      <div className="max-w-3xl space-y-6">
+      {/* The measure now comes from PageShell (narrow, CENTRED). This block
+          used to carry its own `max-w-3xl` with no `mx-auto`, so on a 1920px
+          monitor the whole billing page hugged the left edge and left ~830px
+          of empty gutter to its right. What survives is purely a rhythm
+          group, so it tracks PageShell's responsive pair rather than the flat
+          `space-y-6` it used to hold — otherwise a phone showed 16px above
+          this block and 24px inside it. */}
+      <div className="space-y-4 sm:space-y-6">
         {/* Your subscription — ONE subscription, N products, one charge.
             This card used to read "Current Plan: {tier key}", which showed
             customers "Commerce_assistant.Free" and said nothing about the paid
@@ -226,9 +239,12 @@ export default function BillingPage() {
         <div className="rounded-2xl border bg-muted/30 px-5 pt-4 pb-5">
           <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center mb-4">
             <div className="flex items-center gap-2">
-              <h3 className="font-semibold">
+              {/* h2, not h3: PageHeader now emits the page's <h1>, so a
+                  section heading at h3 would skip a level (axe
+                  `heading-order`). Visual weight is unchanged. */}
+              <h2 className="font-semibold">
                 {hasProducts ? "Your subscription" : "Current Plan"}
-              </h3>
+              </h2>
               {/* The badge has to describe what they OWN. It rendered the BASE
                   plan unconditionally, so an org holding two paid products was
                   still labelled "Peakhour.ai Content: Free" — reported by the team
@@ -353,7 +369,7 @@ export default function BillingPage() {
             when the base plan badge above still reads "Free". */}
         {products.length > 0 && (
           <div className="rounded-2xl border bg-muted/30 px-5 pt-4 pb-5">
-            <h3 className="mb-3 font-semibold">Your products</h3>
+            <h2 className="mb-3 font-semibold">Your products</h2>
             <ul className="space-y-2">
               {products.map((p) => (
                 <li
@@ -588,6 +604,6 @@ export default function BillingPage() {
         onOpenChange={setUpgradeOpen}
         onPurchased={refreshBilling}
       />
-    </div>
+    </PageShell>
   );
 }

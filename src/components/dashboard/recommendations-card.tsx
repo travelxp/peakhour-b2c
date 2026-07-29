@@ -166,9 +166,17 @@ export function RecommendationsCard({ recommendations }: RecommendationsCardProp
       <CardHeader>
         <div className="flex items-start justify-between gap-4">
           <div>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 text-primary" />
-              Where to grow next
+            {/* Rendered as a real <h2> (see CardTitle's `asChild`). Without
+                it the card contributes no heading at all, which forced the
+                per-recommendation labels below to sit directly under the
+                page's <h1> — a flat sibling list that threw away the
+                card-contains-items relationship a screen-reader user
+                navigates by. Styling is identical either way. */}
+            <CardTitle asChild className="flex items-center gap-2">
+              <h2>
+                <TrendingUp className="h-5 w-5 text-primary" />
+                Where to grow next
+              </h2>
             </CardTitle>
             <CardDescription className="mt-1">
               A few platforms that fit your business. Take your time —
@@ -198,6 +206,9 @@ export function RecommendationsCard({ recommendations }: RecommendationsCardProp
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <Sparkles className="h-4 w-4 text-primary shrink-0" />
+                    {/* h3 under the card's own h2 above — a valid
+                        h1 > h2 > h3 tree that keeps the card-contains-items
+                        relationship intact. */}
                     <h3 className="text-base font-semibold">{label}</h3>
                   </div>
                   <p className="text-sm text-muted-foreground leading-relaxed">
