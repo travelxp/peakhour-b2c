@@ -7,7 +7,7 @@ import { getPublicCatalog, signupCta } from "@/lib/catalog";
 import { HOW_IT_WORKS_STEPS } from "@/lib/how-it-works";
 
 export const metadata = pageMetadata({
-  title: "How it works — live in minutes, not quarters | Peakhour.ai",
+  title: "How it works — From Setup to Autopilot in 3 simple steps | Peakhour.ai",
   description:
     "Connect what you have, approve the plan, then let Peakhour run and learn. Grounded in your real catalog and content — never guessed from your name.",
   path: "/how-it-works",
@@ -28,9 +28,9 @@ export default async function HowItWorks() {
               How it works
             </span>
             <h1 className="mt-4 text-4xl font-extrabold leading-[1.05] tracking-tight text-pretty sm:text-5xl">
-              Live in minutes,{" "}
+              From Setup to Autopilot.{" "}
               <span className="font-serif font-normal italic text-brand-gradient">
-                not quarters.
+                In 3 simple steps.
               </span>
             </h1>
             <p className="mx-auto mt-5 max-w-xl text-lg text-muted-foreground">

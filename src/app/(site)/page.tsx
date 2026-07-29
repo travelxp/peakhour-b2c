@@ -19,25 +19,21 @@ import { pageMetadata } from "@/lib/seo";
 import { HOW_IT_WORKS_STEPS } from "@/lib/how-it-works";
 import {
   getPublicCatalog,
-  dedupePublicIntegrations,
+  publicMarketingIntegrations,
   signupCta,
 } from "@/lib/catalog";
 import {
   IntegrationBrandIcon,
   integrationBrandColor,
 } from "@/components/marketing/integration-brand";
+import { PeaksGlyph } from "@/components/peaks/peaks-glyph";
 import {
   LinkedinIcon,
   FacebookIcon,
   InstagramIcon,
-  GoogleIcon,
-  YoutubeIcon,
   BeehiivIcon,
-  SubstackIcon,
-  MailchimpIcon,
-  ShopifyIcon,
-  WordPressIcon,
   TwitterIcon,
+  WhatsAppIcon,
 } from "@/components/ui/brand-icons";
 
 export const metadata = pageMetadata({
@@ -110,38 +106,55 @@ const CONSOLE_ROWS = [
   { name: "Presence", status: "Google listing synced · 2 new reviews" },
 ] as const;
 
+/**
+ * Free → Pro ladder — the current pricing architecture. Free is a complete,
+ * usable product; Pro adds BOTH capacity (Peaks) and capability (automations,
+ * advanced insights, multiple workspaces, priority support). That capability
+ * half is a deliberate, advertised difference, so don't reintroduce the older
+ * "no feature paywalls / same product on Free and Paid" claim here. What stays
+ * identical across tiers is the QUALITY of any single output.
+ */
 const FREE_POINTS = [
   {
-    title: "No credit card, ever, to start",
-    detail: "Sign up with email. Upgrade only when you outgrow your free Peaks.",
+    title: "Start in minutes",
+    detail:
+      "No credit card required. Connect your business and start using Peakhour for free.",
   },
   {
-    title: "No feature paywalls",
-    detail: "Free users see the same screens, skills, and quality — never a locked door.",
+    title: "Upgrade when you’ve outgrown Free",
+    detail:
+      "Pro unlocks higher Peaks, more automations, advanced insights, multiple workspaces, and priority support — built for businesses using Peakhour every day.",
   },
   {
-    title: "One currency, five pillars",
-    detail: "Peaks spent on a blog post or a WhatsApp reply come from the same pool.",
+    title: "One AI currency across every product",
+    detail:
+      "Peaks power AI across Commerce, Content, Growth, Support, and Presence, giving you one simple way to manage AI usage across your business.",
   },
 ] as const;
 
 // Shared with the standalone /how-it-works page (single source of truth).
 const STEPS = HOW_IT_WORKS_STEPS;
 
-// Static fallback for the integrations strip when the catalog API is
-// unreachable — mirrors the resolved shape so the section never hard-fails.
+// Degraded-mode fallback for the integrations strip — rendered ONLY when the
+// catalog API is unreachable or publishes nothing, so the section can't fail
+// into a heading over an empty grid.
+//
+// These cards carry no "Coming soon" badge, and an unbadged card under
+// "Plugged into the tools you already use" reads as available TODAY — the
+// strongest claim on the page. So this list is restricted to connectors that
+// are actually `live` in the production catalog. Anything coming_soon is
+// deliberately absent: without the catalog we can't badge it honestly, and a
+// silent promise is worse than a shorter list. Re-check against
+// /v1/platform/catalog when connectors go live.
 const INTEGRATIONS = [
-  { name: "Shopify", icon: ShopifyIcon, color: "bg-[#96BF48]", description: "Catalog & storefront" },
-  { name: "WordPress", icon: WordPressIcon, color: "bg-[#21759B]", description: "Content & CMS sync" },
-  { name: "LinkedIn", icon: LinkedinIcon, color: "bg-[#0A66C2]", description: "Organic posts & Lead Gen" },
-  { name: "Facebook", icon: FacebookIcon, color: "bg-[#0668E1]", description: "Pages, ads & insights" },
-  { name: "Instagram", icon: InstagramIcon, color: "bg-[#E4405F]", description: "Reels, stories & ads" },
-  { name: "Google Ads", icon: GoogleIcon, color: "bg-[#4285F4]", description: "Search, display & video" },
-  { name: "YouTube", icon: YoutubeIcon, color: "bg-[#FF0000]", description: "Video content & pre-roll" },
+  { name: "WhatsApp Business", icon: WhatsAppIcon, color: "bg-[#25D366] text-black", description: "Conversations & storefront chat" },
+  { name: "Instagram", icon: InstagramIcon, color: "bg-[#E4405F] text-white", description: "Reels, stories & ads" },
+  { name: "Facebook Pages", icon: FacebookIcon, color: "bg-[#0668E1] text-white", description: "Pages, posts & insights" },
+  { name: "Meta Ads", icon: FacebookIcon, color: "bg-[#0668E1] text-white", description: "Facebook & Instagram campaigns" },
+  { name: "LinkedIn", icon: LinkedinIcon, color: "bg-[#0A66C2] text-white", description: "Organic posts & Lead Gen" },
+  { name: "X (Twitter)", icon: TwitterIcon, color: "bg-black text-white", description: "Posts & mentions inbox" },
+  { name: "X Ads", icon: TwitterIcon, color: "bg-black text-white", description: "Promoted posts & campaigns" },
   { name: "Beehiiv", icon: BeehiivIcon, color: "bg-[#FFD100] text-black", description: "Newsletter import" },
-  { name: "Substack", icon: SubstackIcon, color: "bg-[#FF6719]", description: "Newsletter content sync" },
-  { name: "Mailchimp", icon: MailchimpIcon, color: "bg-[#FFE01B] text-black", description: "Email campaigns" },
-  { name: "X (Twitter)", icon: TwitterIcon, color: "bg-black", description: "Posts & promoted content" },
 ] as const;
 
 // Same validator as /auth — sanitises a tampered ?ref= so the redirect target
@@ -174,11 +187,17 @@ export default async function Home({
   const catalog = await getPublicCatalog();
   const platform = catalog?.platform;
   const cta = signupCta(platform?.signupMode ?? "open");
-  const integrationCards = catalog
-    ? dedupePublicIntegrations(catalog.integrations).map((i) => ({
+  // Fall back on an EMPTY published set too, not just a null catalog — a
+  // catalog that publishes nothing would otherwise render the section heading
+  // over an empty grid.
+  const published = catalog ? publicMarketingIntegrations(catalog.integrations) : [];
+  const integrationCards = published.length
+    ? published.map((i) => ({
         id: i.key,
         name: i.name,
-        description: i.tagline ?? i.description ?? i.comingSoon?.copy ?? "",
+        // `||` not `??` — the CMS accepts an empty tagline, and `??` would
+        // treat "" as present and silently blank the card's only line of copy.
+        description: i.tagline || i.description || i.comingSoon?.copy || "",
         colorClass: integrationBrandColor(i.display?.groupKey, i.key),
         icon: (
           <IntegrationBrandIcon
@@ -187,7 +206,15 @@ export default async function Home({
             name={i.name}
           />
         ),
-        comingSoon: i.surfacedState === "coming_soon",
+        // Per-CONNECTOR state only. `surfacedState` folds in the global
+        // platform-stage cap, so while the platform sits at coming_soon/
+        // waitlist the resolver marks EVERY row coming_soon — badging all of
+        // them would stamp "Coming soon" on WhatsApp, Shopify and X, which are
+        // live. `cappedByPlatformStage` is exactly the flag that distinguishes
+        // "pre-launch platform" from "connector isn't built"; the platform's own
+        // state is already carried by the announcement banner and the waitlist
+        // CTA and doesn't need repeating on every card.
+        comingSoon: i.surfacedState === "coming_soon" && !i.cappedByPlatformStage,
       }))
     : INTEGRATIONS.map((item) => {
         const IntIcon = item.icon;
@@ -238,10 +265,19 @@ export default async function Home({
       <Header />
 
       <main>
-        {/* Hero */}
-        <section className="py-20 sm:py-28">
-          <div className="mx-auto grid max-w-6xl items-center gap-14 px-4 sm:px-6 lg:grid-cols-[1.1fr_0.9fr]">
-            <div>
+        {/* Hero — tighter top (the sticky header + announcement bar already
+            carry weight above it) and a bottom that steps into the same
+            py-12 sm:py-16 rhythm every band below uses, so no gap on the page
+            reads as a hole. */}
+        <section className="pt-8 pb-12 sm:pt-12 sm:pb-16">
+          {/* `min-w-0` on both tracks: the console rows below use `truncate`
+              (white-space: nowrap), whose min-content is the FULL untruncated
+              string. Without an explicit 0 minimum a grid item's automatic
+              minimum size is its min-content, so that nowrap text sized the
+              track ~519px wide and pushed the whole page into a horizontal
+              scroll on phones. */}
+          <div className="mx-auto grid max-w-6xl items-center gap-10 px-4 sm:gap-14 sm:px-6 lg:grid-cols-[1.1fr_0.9fr]">
+            <div className="min-w-0">
               <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand-label">
                 <span className="h-0.5 w-7 bg-brand-gradient" aria-hidden />
                 The AI business platform for growing brands
@@ -291,7 +327,7 @@ export default async function Home({
             {/* Pillar console — always-dark product panel (fixed tones so it
                 reads on both light and dark grounds). */}
             <div
-              className="rounded-2xl border border-white/10 bg-zinc-900 p-5 shadow-2xl"
+              className="min-w-0 rounded-2xl border border-white/10 bg-zinc-900 p-4 shadow-2xl sm:p-5"
               role="img"
               aria-label="Peakhour console showing five active pillars"
             >
@@ -317,10 +353,13 @@ export default async function Home({
                   </div>
                 ))}
               </div>
-              <div className="flex items-center justify-between px-1 pt-3 text-xs text-zinc-400">
-                <span className="flex items-center gap-1">
+              {/* flex-wrap: the two spans don't shrink, and they meet at ~280px
+                  (Galaxy Fold cover screen). */}
+              <div className="flex flex-wrap items-center justify-between gap-y-1 px-1 pt-3 text-xs text-zinc-400">
+                {/* Peaks is always the coin glyph, never a generic bolt. */}
+                <span className="flex items-center gap-1.5">
                   Metered in{" "}
-                  <span aria-hidden className="text-brand">⚡</span>
+                  <PeaksGlyph size={16} />
                   <span className="font-bold text-brand-gradient">Peaks</span>
                 </span>
                 <span>1,240 free Peaks/mo</span>
@@ -330,7 +369,7 @@ export default async function Home({
         </section>
 
         {/* Pillar grid — section ids back the header/footer anchors */}
-        <section className="border-t bg-muted/30 py-20">
+        <section className="border-t bg-muted/30 py-12 sm:py-16">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <div className="max-w-3xl">
               <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand-label">
@@ -381,26 +420,25 @@ export default async function Home({
         </section>
 
         {/* Free-first economics — always-dark panel */}
-        <section className="py-20">
+        <section className="py-12 sm:py-16">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <div className="grid gap-12 overflow-hidden rounded-3xl border border-white/10 bg-zinc-900 p-8 text-zinc-100 shadow-2xl lg:grid-cols-[1.1fr_0.9fr] lg:p-12">
               <div>
                 <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand">
                   <span className="h-0.5 w-7 bg-brand-gradient" aria-hidden />
-                  Free means free
+                  Start free. Scale when you&rsquo;re ready.
                 </span>
                 <h2 className="mt-4 text-3xl font-extrabold tracking-tight text-pretty lg:text-4xl">
-                  Same product on Free and Paid.{" "}
+                  Everything you need to get started.{" "}
                   <span className="text-brand-gradient">
-                    The only difference is how much AI work you get.
+                    More power when your business grows.
                   </span>
                 </h2>
                 <p className="mt-4 max-w-lg text-zinc-400">
-                  Every plan — Free included — gets the full product with identical
-                  polish. AI work is metered in{" "}
-                  <span className="font-bold text-brand-gradient">Peaks</span>, one
-                  transparent currency across all five pillars. Free plans refill
-                  monthly; paid plans simply carry more Peaks and higher limits.
+                  Start with the core Peakhour experience at no cost. Connect your
+                  business, explore every product, and see real value before
+                  upgrading. Move to Pro when you need more AI capacity, advanced
+                  workflows, deeper insights, and team collaboration.
                 </p>
               </div>
               <div className="flex flex-col gap-3.5">
@@ -422,7 +460,7 @@ export default async function Home({
         </section>
 
         {/* How it works */}
-        <section id="how-it-works" className="scroll-mt-24 border-t bg-muted/30 py-20">
+        <section id="how-it-works" className="scroll-mt-24 border-t bg-muted/30 py-12 sm:py-16">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <div className="max-w-3xl">
               <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand-label">
@@ -430,10 +468,13 @@ export default async function Home({
                 How it works
               </span>
               <h2 className="mt-4 text-3xl font-extrabold tracking-tight text-pretty lg:text-4xl">
-                Live in minutes, not quarters.
+                From Setup to Autopilot.{" "}
+                <span className="font-serif font-normal italic text-brand-gradient">
+                  In 3 simple steps.
+                </span>
               </h2>
             </div>
-            <div className="mt-12 grid gap-4 md:grid-cols-3">
+            <div className="mt-10 grid gap-4 md:grid-cols-3">
               {STEPS.map((s) => (
                 <div
                   key={s.step}
@@ -453,7 +494,7 @@ export default async function Home({
         </section>
 
         {/* Integrations — catalog-driven */}
-        <section className="py-20">
+        <section className="py-12 sm:py-16">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <div className="max-w-3xl">
               <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand-label">
@@ -470,8 +511,11 @@ export default async function Home({
                   key={item.id}
                   className="flex items-center gap-3 rounded-2xl border bg-background p-4 transition-all hover:-translate-y-1 hover:border-foreground hover:shadow-md"
                 >
+                  {/* No `text-white` here — the foreground ships with the brand
+                      class (see integrationBrandColor); two same-specificity
+                      text utilities would be resolved by stylesheet order. */}
                   <div
-                    className={`flex size-10 shrink-0 items-center justify-center rounded-lg text-white ${item.colorClass}`}
+                    className={`flex size-10 shrink-0 items-center justify-center rounded-lg ${item.colorClass}`}
                   >
                     {item.icon}
                   </div>
@@ -497,7 +541,7 @@ export default async function Home({
         </section>
 
         {/* Final CTA — always-dark panel */}
-        <section className="pb-24">
+        <section className="pt-12 pb-16 sm:pt-16 sm:pb-20">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <div className="overflow-hidden rounded-3xl border border-white/10 bg-zinc-900 px-6 py-16 text-center text-zinc-100 shadow-2xl sm:py-20">
               <h2 className="mx-auto max-w-2xl text-3xl font-extrabold tracking-tight text-pretty sm:text-4xl">

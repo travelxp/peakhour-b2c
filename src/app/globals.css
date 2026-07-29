@@ -158,6 +158,15 @@
   body {
     @apply bg-background text-foreground;
   }
+  /* NOTE: do NOT add `overflow-x: clip/hidden` to <html> as a catch-all for
+     sideways scroll. Per CSS Overflow 3 §3.3 the viewport takes its overflow
+     from <html>, and <body>'s only propagates when <html>'s is `visible` in
+     BOTH axes — so any non-visible value here silently disables the
+     `body { overflow: hidden }` scroll lock that react-remove-scroll-bar (via
+     Radix) uses for every Dialog/Sheet/Select across the marketing, dashboard
+     and CMS surfaces, which all share this stylesheet. Fix overflow at the
+     source instead (usually a missing `min-w-0` on a grid/flex track holding
+     `truncate` text — see the hero in src/app/(site)/page.tsx). */
 }
 
 /*

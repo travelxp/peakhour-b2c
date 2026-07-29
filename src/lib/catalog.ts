@@ -1,13 +1,16 @@
 /**
  * Server-side helper for the public platform catalog from peakhour-api's
- * `GET /v1/platform/catalog`. Replaces the hardcoded INTEGRATIONS array on the
- * landing page (and, later, the dashboard hub's channels.config.ts).
+ * `GET /v1/platform/catalog`. Drives the landing page's integration grid; the
+ * static INTEGRATIONS array there survives only as a degraded-mode fallback.
+ * (The dashboard Content hub also renders from this endpoint now, via
+ * mapCatalogToChannels — channels.config.ts is its fallback + seed input.)
  *
- * Called UNAUTHENTICATED here — the resolver returns the public view (live +
- * coming_soon, public visibility), env-gated server-side (prod hides
- * in_development/hidden) and capped by the global platform stage. The `platform`
- * block drives the announcement banner + the signup CTA, so the landing and the
- * signup flow can never disagree.
+ * Called UNAUTHENTICATED here — the resolver returns the public view (any
+ * status except the prod-suppressed in_development/hidden, i.e. live, beta,
+ * coming_soon and deprecated, at public visibility), env-gated server-side and
+ * capped by the global platform stage. The `platform` block drives the
+ * announcement banner + the signup CTA, so the landing and the signup flow can
+ * never disagree.
  *
  * The public catalog is country-independent (the resolver only applies country
  * gates for authenticated orgs), so it's cached once with a static key. A
@@ -110,25 +113,70 @@ export async function getPublicCatalog(): Promise<ResolvedCatalog | null> {
 }
 
 /**
- * Collapse the resolved catalog into one card per logical product
- * (groupKey, falling back to key) for the marketing grid — e.g. LinkedIn
- * Content + LinkedIn Ads render as a single "LinkedIn" card. Keeps the
- * lowest sortOrder representative and drops dev-only rows defensively
- * (prod already strips them; this guards a non-prod marketing build).
+ * Statuses the public grid may advertise. An ALLOW-list, not a deny-list, so a
+ * new `cfg_integrations` status added in Mongo fails CLOSED (stays off the
+ * marketing page) instead of silently shipping to it. Covers all six values of
+ * zIntegrationStatus:
+ *   • live / beta     — advertisable. `beta` is safe for a non-obvious reason
+ *                       worth recording: it normally pairs with
+ *                       `visibility: "beta_orgs_only"`, which the resolver drops
+ *                       outright for a caller with no org — so any beta row that
+ *                       reaches this filter is `visibility: public` by
+ *                       construction, i.e. genuinely public.
+ *   • coming_soon     — advertisable, rendered with a "Coming soon" badge.
+ *   • hidden          — EXCLUDED, and the gate that actually earns its keep.
+ *                       Prod strips it at the resolver (PROD_HIDDEN_STATUSES)
+ *                       but non-prod keeps it, so without this the dev landing
+ *                       advertises connectors the CMS explicitly unpublished.
+ *   • in_development  — EXCLUDED. Belt-and-braces: the resolver already tags
+ *                       these `surfacedState: "dev_only"`, which is dropped
+ *                       below too.
+ *   • deprecated      — EXCLUDED. A connector being retired. Existing
+ *                       connections still work, but "Works with your stack" is
+ *                       an acquisition promise we must not make while walking it
+ *                       back — and `surfacedState: "deprecated"` renders no
+ *                       badge, so these would look identical to live cards.
  */
-export function dedupePublicIntegrations(integrations: ResolvedIntegration[]): ResolvedIntegration[] {
-  const byGroup = new Map<string, ResolvedIntegration>();
-  for (const i of integrations) {
-    if (i.surfacedState === "dev_only") continue;
-    const g = i.display?.groupKey || i.key;
-    const existing = byGroup.get(g);
-    if (!existing || (i.display?.sortOrder ?? 100) < (existing.display?.sortOrder ?? 100)) {
-      byGroup.set(g, i);
-    }
-  }
-  return Array.from(byGroup.values()).sort(
-    (a, b) => (a.display?.sortOrder ?? 100) - (b.display?.sortOrder ?? 100),
-  );
+const MARKETING_STATUSES = new Set(["live", "beta", "coming_soon"]);
+
+/** Live/beta first, then coming_soon — see the sort note below. */
+function marketingRank(status: string): number {
+  return status === "live" || status === "beta" ? 0 : 1;
+}
+
+/**
+ * The integrations the public "Works with your stack" grid renders: every
+ * published catalog row, ONE CARD PER INTEGRATION.
+ *
+ * Deliberately NOT collapsed by `display.groupKey`. groupKey is a *provider*
+ * grouping (whatsapp + instagram + facebook_pages + meta_ads all sit under
+ * "meta"; gbp + gsc + google_ads under "google"), so collapsing on it made the
+ * marketing grid silently swallow live, headline integrations — WhatsApp and
+ * Google Search Console never appeared at all, hidden behind a single
+ * "Facebook Pages" / "Google Business Profile" card. Visitors shop by brand,
+ * so each published brand surface gets its own card and the grid mirrors what
+ * the CMS actually lists.
+ *
+ * SORT: `display.sortOrder` first, so the CMS stays in charge — but in practice
+ * almost every row still carries the default 100, which made the order purely
+ * alphabetical and buried the brands this section exists to show (WhatsApp 15th
+ * of 19, behind Ghost, Kit and Mailchimp — all coming_soon). So live/beta rows
+ * break the tie ahead of coming_soon ones before falling back to name. Set real
+ * sortOrder values in the CMS to override any of this.
+ */
+export function publicMarketingIntegrations(
+  integrations: ResolvedIntegration[],
+): ResolvedIntegration[] {
+  return integrations
+    .filter((i) => i.surfacedState !== "dev_only" && MARKETING_STATUSES.has(i.status))
+    .sort(
+      (a, b) =>
+        (a.display?.sortOrder ?? 100) - (b.display?.sortOrder ?? 100) ||
+        marketingRank(a.status) - marketingRank(b.status) ||
+        // Pinned locale: this comparator decides the whole order while
+        // sortOrder is uniform, so it must not vary with a runtime default.
+        a.name.localeCompare(b.name, "en"),
+    );
 }
 
 /** Landing-page signup CTA derived from the platform signup mode. */
