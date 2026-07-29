@@ -3,6 +3,7 @@ import { Check, Minus } from "lucide-react";
 import {
   formatMonthly,
   formatYearly,
+  formatPeaks,
   featureLabel,
   type ResolvedProductTier,
 } from "@/lib/pricing";
@@ -157,7 +158,7 @@ export function PlanComparison({
                   style={{ fontFamily: "var(--font-space-grotesk)" }}
                 >
                   {typeof tier.peaksIncluded === "number"
-                    ? tier.peaksIncluded.toLocaleString()
+                    ? formatPeaks(tier.peaksIncluded)
                     : "—"}
                 </td>
               ))}

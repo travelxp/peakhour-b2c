@@ -20,9 +20,15 @@ import { HOW_IT_WORKS_STEPS } from "@/lib/how-it-works";
 import {
   PILLAR_CONSOLE_ROWS,
   PILLAR_CONSOLE_LABEL,
+  PILLAR_CONSOLE_ROW_CLASS,
   SIGNUP_PROMISES,
-  FREE_PEAKS_PER_MONTH,
 } from "@/lib/pillar-console";
+import {
+  getPricing,
+  minFreePeaksPerMonth,
+  formatPeaks,
+  FREE_PEAKS_FALLBACK,
+} from "@/lib/pricing";
 import {
   getPublicCatalog,
   publicMarketingIntegrations,
@@ -181,7 +187,17 @@ export default async function Home({
   // Integration catalog from the platform resolver (CMS-driven, env-gated,
   // stage-capped). Falls back to the static list below if the API is
   // unreachable so the landing never hard-fails (mirrors the pricing fallback).
-  const catalog = await getPublicCatalog();
+  // In parallel — two independent endpoints; awaiting them in sequence costs a
+  // second round trip on a cold cache.
+  const [catalog, pricing] = await Promise.all([
+    getPublicCatalog(),
+    // "DEFAULT" is not a sentinel the API honours — it fails the two-letter
+    // validation and the response comes back geo-resolved. We pass it purely
+    // to pin one cache key, and read only `peaksIncluded`, which is a
+    // plan-level allowance and country-independent. Never read a price here.
+    getPricing("DEFAULT"),
+  ]);
+  const freePeaks = formatPeaks(minFreePeaksPerMonth(pricing) ?? FREE_PEAKS_FALLBACK);
   const platform = catalog?.platform;
   const cta = signupCta(platform?.signupMode ?? "open");
   // Fall back on an EMPTY published set too, not just a null catalog — a
@@ -349,7 +365,7 @@ export default async function Home({
                 {PILLAR_CONSOLE_ROWS.map((row) => (
                   <div
                     key={row.name}
-                    className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/4 px-3.5 py-2.5 text-sm"
+                    className={PILLAR_CONSOLE_ROW_CLASS}
                   >
                     <span className="size-2 shrink-0 rounded-full bg-emerald-400" aria-hidden />
                     <span className="w-20 shrink-0 font-bold text-zinc-100">{row.name}</span>
@@ -369,7 +385,7 @@ export default async function Home({
                   <PeaksGlyph size={16} />
                   <span className="font-bold text-brand-gradient">Peaks</span>
                 </span>
-                <span>{FREE_PEAKS_PER_MONTH} free Peaks/mo</span>
+                <span>{freePeaks}+ free Peaks/mo</span>
               </div>
             </div>
           </div>
@@ -398,9 +414,23 @@ export default async function Home({
                   <div
                     key={pillar.id}
                     id={pillar.id}
-                    className="group flex scroll-mt-24 flex-col gap-3 rounded-2xl border bg-background p-6 transition-all hover:-translate-y-1.5 hover:border-foreground hover:shadow-xl"
+                    // Sleeker than the old lift: a shorter travel on a real
+                    // easing curve, a gold-tinted shadow instead of a heavy
+                    // neutral one, and a border that warms to brand rather
+                    // than snapping to near-black. Every transition is
+                    // motion-reduce guarded.
+                    className="group relative flex scroll-mt-24 flex-col gap-3 overflow-hidden rounded-2xl border bg-background p-6 transition-[transform,border-color,box-shadow] duration-300 ease-out hover:-translate-y-1 hover:border-brand/50 hover:shadow-lg hover:shadow-brand/15 motion-reduce:transition-none motion-reduce:hover:translate-y-0"
                   >
-                    <div className="flex size-11 items-center justify-center rounded-xl bg-brand-gradient shadow-inner transition-transform group-hover:scale-105">
+                    {/* Gold hairline that wipes across the top edge on hover. */}
+                    <span
+                      aria-hidden
+                      className="absolute inset-x-0 top-0 h-0.5 origin-left scale-x-0 bg-brand-gradient transition-transform duration-300 ease-out group-hover:scale-x-100 motion-reduce:hidden"
+                    />
+                    {/* motion-reduce neutralises the transform itself, not just
+                        its duration — transition-none alone would make the tile
+                        snap to rotated+scaled instantly, which is the jump the
+                        preference exists to avoid. */}
+                    <div className="flex size-11 items-center justify-center rounded-xl bg-brand-gradient shadow-inner transition-transform duration-300 ease-out group-hover:-rotate-3 group-hover:scale-105 motion-reduce:transition-none motion-reduce:group-hover:rotate-0 motion-reduce:group-hover:scale-100">
                       <PillarIcon className="size-5 text-brand-contrast" strokeWidth={2} />
                     </div>
                     <h3 className="text-lg font-bold tracking-tight">{pillar.name}</h3>
@@ -416,7 +446,7 @@ export default async function Home({
                         </li>
                       ))}
                     </ul>
-                    <span className="self-start rounded-full bg-brand-soft px-2.5 py-1 text-[0.65rem] font-bold uppercase tracking-wide text-brand-ink">
+                    <span className="self-start rounded-full bg-brand-soft px-2.5 py-1 text-[0.65rem] font-bold uppercase tracking-wide text-brand-ink transition-shadow duration-300 ease-out group-hover:shadow-sm group-hover:shadow-brand/30 motion-reduce:transition-none">
                       {pillar.free}
                     </span>
                   </div>

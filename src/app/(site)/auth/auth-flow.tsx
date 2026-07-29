@@ -14,9 +14,9 @@ import { PeaksGlyph } from "@/components/peaks/peaks-glyph";
 import {
   PILLAR_CONSOLE_ROWS,
   PILLAR_CONSOLE_LABEL,
+  PILLAR_CONSOLE_ROW_CLASS,
   SIGNUP_PROMISES,
   PRELAUNCH_PROMISES,
-  FREE_PEAKS_PER_MONTH,
 } from "@/lib/pillar-console";
 
 // Bounded length + char set so a tampered link can't smuggle arbitrary strings
@@ -61,13 +61,17 @@ type Status =
 // tandem; treat the API as the source of truth.
 const RESEND_COOLDOWN_SECONDS = 60;
 
-// Proof points beside the form. Every figure is one the marketing surface
-// already states.
-const SIGNUP_STATS = [
-  { value: "5", label: "pillars, one login" },
-  { value: "0", label: "credit cards required" },
-  { value: FREE_PEAKS_PER_MONTH, label: "free Peaks every month" },
-] as const;
+// Proof points beside the form. The Peaks figure is catalog data resolved
+// server-side (see page.tsx), not a number kept in sync by hand.
+function signupStats(freePeaks: string) {
+  return [
+    { value: "5", label: "pillars, one login" },
+    { value: "0", label: "credit cards required" },
+    // "+" and "free plan": the figure is the floor across free plans, and
+    // paid/Agency/Enterprise carry far more. Without both, this reads as a cap.
+    { value: `${freePeaks}+`, label: "free Peaks a month, every free plan" },
+  ];
+}
 
 // Landing CTAs route here with ?intent=waitlist|invite when the platform is
 // pre-launch (driven by cfg_platform_stage.signupMode), so the heading matches
@@ -169,7 +173,14 @@ function EmailChip({ email }: { email: string }) {
   );
 }
 
-export function AuthFlow({ signupMode }: { signupMode: PlatformSignupMode }) {
+export function AuthFlow({
+  signupMode,
+  /** Pre-formatted so the client bundle carries no pricing logic. */
+  freePeaks,
+}: {
+  signupMode: PlatformSignupMode;
+  freePeaks: string;
+}) {
   // Anything other than "open" means access is gated behind approval, so the
   // page must not promise same-day access.
   const isPreLaunch = signupMode !== "open";
@@ -449,7 +460,7 @@ export function AuthFlow({ signupMode }: { signupMode: PlatformSignupMode }) {
             {PILLAR_CONSOLE_ROWS.map((row) => (
               <div
                 key={row.name}
-                className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/4 px-3.5 py-2.5 text-sm"
+                className={PILLAR_CONSOLE_ROW_CLASS}
               >
                 <span className="size-2 shrink-0 rounded-full bg-emerald-400" aria-hidden />
                 <span className="w-20 shrink-0 font-bold text-zinc-100">{row.name}</span>
@@ -469,7 +480,7 @@ export function AuthFlow({ signupMode }: { signupMode: PlatformSignupMode }) {
         </div>
 
         <div className="relative z-10 flex gap-8 border-t border-white/10 pt-6">
-          {SIGNUP_STATS.map((stat) => (
+          {signupStats(freePeaks).map((stat) => (
             <div key={stat.label}>
               <div
                 className="text-2xl font-bold tabular-nums text-brand-gradient"
@@ -504,7 +515,10 @@ export function AuthFlow({ signupMode }: { signupMode: PlatformSignupMode }) {
           </div>
         ) : null}
 
-        <div className="flex flex-1 items-center justify-center px-4 py-12 sm:px-8">
+        {/* Vertical padding steps up only once there's room for it. At mobile
+            widths the dark panel is hidden, so this column is the whole page
+            and desktop-sized padding was pushing it past the viewport. */}
+        <div className="flex flex-1 items-center justify-center px-4 py-6 sm:px-8 sm:py-12">
           {status.kind === "waitlisted" ? (
             <div className="w-full max-w-md rounded-2xl border bg-card p-7">
               <GoldTile icon={Clock} />
@@ -616,12 +630,12 @@ export function AuthFlow({ signupMode }: { signupMode: PlatformSignupMode }) {
               <h1 className="mt-4 text-2xl font-extrabold tracking-tight text-pretty sm:text-3xl">
                 {intentCopy?.title ?? "One email. No password. Ever."}
               </h1>
-              <p className="mt-2.5 text-muted-foreground">
+              <p className="mt-2.5 text-sm text-muted-foreground sm:text-base">
                 {intentCopy?.subtitle ??
                   "We’ll send a link that signs you straight in. If you’re new, that same link creates your account."}
               </p>
 
-              <form onSubmit={handleSubmit} className="mt-8 flex flex-col gap-4">
+              <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4 sm:mt-8">
                 {status.kind === "error" && (
                   <div
                     role="alert"
@@ -662,7 +676,7 @@ export function AuthFlow({ signupMode }: { signupMode: PlatformSignupMode }) {
                 </button>
               </form>
 
-              <ul className="mt-6 flex flex-wrap justify-center gap-x-4 gap-y-1.5 text-sm text-muted-foreground">
+              <ul className="mt-5 flex flex-wrap justify-center gap-x-3.5 gap-y-1.5 text-xs text-muted-foreground sm:mt-6 sm:gap-x-4 sm:text-sm">
                 {(isPreLaunch ? PRELAUNCH_PROMISES : SIGNUP_PROMISES).map((tick) => (
                   <li key={tick} className="flex items-center gap-1.5">
                     <Check className="size-3.5 shrink-0 text-brand-label" strokeWidth={3} aria-hidden />
@@ -671,7 +685,7 @@ export function AuthFlow({ signupMode }: { signupMode: PlatformSignupMode }) {
                 ))}
               </ul>
 
-              <p className="mt-8 text-center text-xs text-muted-foreground">
+              <p className="mt-5 text-center text-xs text-muted-foreground sm:mt-8">
                 By continuing, you agree to our{" "}
                 <Link href="/terms" className={LEGAL_LINK}>
                   Terms of Service

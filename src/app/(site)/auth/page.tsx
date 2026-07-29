@@ -1,5 +1,11 @@
 import { Suspense } from "react";
 import { getPublicCatalog } from "@/lib/catalog";
+import {
+  getPricing,
+  minFreePeaksPerMonth,
+  formatPeaks,
+  FREE_PEAKS_FALLBACK,
+} from "@/lib/pricing";
 import { AuthFlow } from "./auth-flow";
 
 /**
@@ -20,7 +26,18 @@ import { AuthFlow } from "./auth-flow";
  * Mirrors how `components/shared/header.tsx` resolves the same value.
  */
 export default async function AuthPage() {
-  const signupMode = (await getPublicCatalog())?.platform?.signupMode ?? "open";
+  // In parallel — these are two independent endpoints, and awaiting them in
+  // sequence costs a second round trip on a cold cache.
+  const [catalog, pricing] = await Promise.all([
+    getPublicCatalog(),
+    // "DEFAULT" is not a sentinel the API honours — it fails the two-letter
+    // validation and the response comes back geo-resolved. We pass it purely
+    // to pin one cache key, and read only `peaksIncluded`, which is a
+    // plan-level allowance and country-independent. Never read a price here.
+    getPricing("DEFAULT"),
+  ]);
+  const signupMode = catalog?.platform?.signupMode ?? "open";
+  const freePeaks = formatPeaks(minFreePeaksPerMonth(pricing) ?? FREE_PEAKS_FALLBACK);
 
   return (
     // useSearchParams() must sit inside a Suspense boundary (App Router). A
@@ -37,7 +54,7 @@ export default async function AuthPage() {
         </div>
       }
     >
-      <AuthFlow signupMode={signupMode} />
+      <AuthFlow signupMode={signupMode} freePeaks={freePeaks} />
     </Suspense>
   );
 }

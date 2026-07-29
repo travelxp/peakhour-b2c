@@ -3,7 +3,14 @@ import Link from "next/link";
 import { ArrowRight, Check } from "lucide-react";
 import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
-import { getPricing, pillarProducts, fromMonthly, formatMonthly } from "@/lib/pricing";
+import {
+  getPricing,
+  pillarProducts,
+  fromMonthly,
+  formatMonthly,
+  formatPeaks,
+  freeTier,
+} from "@/lib/pricing";
 import { getPublicCatalog, signupCta } from "@/lib/catalog";
 import {
   PRICING_PILLAR_ORDER,
@@ -52,7 +59,7 @@ export default async function PricingPage() {
   const cta = signupCta(signupMode);
 
   const presence = pillarProducts(pricing, "presence")[0];
-  const presenceFree = presence?.tiers.find((t) => t.pricing.monthly === 0);
+  const presenceFree = presence ? freeTier(presence) : undefined;
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -112,9 +119,7 @@ export default async function PricingPage() {
                   const Icon = pillar.icon;
                   const product = pillarProducts(pricing, slug)[0];
                   const paid = product ? fromMonthly(product) : null;
-                  const hasFree = !!product?.tiers.some(
-                    (t) => t.pricing.monthly === 0,
-                  );
+                  const hasFree = !!(product && freeTier(product));
                   const price = !product
                     ? slug === "presence"
                       ? "Free"
@@ -223,7 +228,7 @@ export default async function PricingPage() {
                       ...PILLARS.presence.features.map((f) => f.title),
                       ...(typeof presenceFree?.peaksIncluded === "number"
                         ? [
-                            `${presenceFree.peaksIncluded.toLocaleString()} AI credits (Peaks) each month`,
+                            `${formatPeaks(presenceFree.peaksIncluded)} AI credits (Peaks) each month`,
                           ]
                         : []),
                     ].map((item) => (
