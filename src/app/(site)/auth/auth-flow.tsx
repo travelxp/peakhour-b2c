@@ -106,7 +106,7 @@ const NUMERIC_FONT = { fontFamily: "var(--font-space-grotesk)" } as const;
  * is white, which paints a halo around every focused button in dark mode.
  */
 const GOLD_BUTTON =
-  "inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand-gradient text-sm font-bold text-brand-contrast shadow-sm transition-transform hover:-translate-y-0.5 focus-visible:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-60";
+  "inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand-gradient text-sm font-bold text-brand-contrast shadow-sm transition-transform hover:-translate-y-0.5 focus-visible:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-60 aria-disabled:cursor-default aria-disabled:opacity-60 aria-disabled:hover:translate-y-0";
 
 /** Underlined inline link, used in the legal/help microcopy. */
 const LEGAL_LINK =
@@ -247,9 +247,27 @@ export function AuthFlow({
 
   const isCoolingDown =
     status.kind === "sent" || status.kind === "resending";
+
+  // Submitting swaps the whole column from the form to an outcome card, which
+  // unmounts the button the user just pressed and drops focus to <body>. For a
+  // keyboard or screen-reader user that is silence plus a lost place in the
+  // document, on the screen where confirmation matters most. Moving focus to
+  // the new card's heading both restores the position and makes the outcome
+  // the next thing announced.
+  const outcomeHeadingRef = useRef<HTMLHeadingElement>(null);
+  const isOutcome = isCoolingDown || status.kind === "waitlisted" || status.kind === "notEligible";
+  const wasOutcomeRef = useRef(isOutcome);
+  useEffect(() => {
+    const entered = isOutcome && !wasOutcomeRef.current;
+    wasOutcomeRef.current = isOutcome;
+    // Only on the transition IN. Re-focusing on every cooldown tick would trap
+    // the user on the heading, and a resend stays within the same card.
+    if (entered) outcomeHeadingRef.current?.focus();
+  }, [isOutcome]);
   const cooldownSecondsLeft = isCoolingDown
     ? Math.max(0, Math.ceil((status.cooldownEndsAt - now) / 1000))
     : 0;
+  const resendBlocked = status.kind === "resending" || cooldownSecondsLeft > 0;
 
   useEffect(() => {
     if (!isCoolingDown) return;
@@ -349,7 +367,7 @@ export function AuthFlow({
         cooldownEndsAt: Date.now() + RESEND_COOLDOWN_SECONDS * 1000,
       });
     } catch (err) {
-      let message = `We couldn’t send your link just now. Try again in a moment — if it keeps failing, email ${SITE.contactGeneral} and we’ll let you in by hand.`;
+      let message = `We couldn’t send your link. Try again in a moment — if it keeps failing, email ${SITE.contactGeneral}.`;
       let isRateLimited = false;
       if (err instanceof ApiError) {
         if (err.code === "RATE_LIMITED") {
@@ -503,14 +521,17 @@ export function AuthFlow({
         {referralCode ? (
           <div
             role="status"
-            className="border-b bg-brand-soft px-4 py-3 text-sm font-medium text-brand-ink sm:px-8 dark:bg-brand/12 dark:text-brand-soft"
+            // Measured: at 375×553 (iPhone SE with the browser bars showing)
+            // this banner was the one thing tipping /auth into scrolling. The
+            // tighter padding and type keep it to a single line there.
+            className="border-b bg-brand-soft px-4 py-2.5 text-xs font-medium text-brand-ink sm:px-8 sm:py-3 sm:text-sm dark:bg-brand/12 dark:text-brand-soft"
           >
             <div className="mx-auto flex max-w-md items-center gap-2">
               <Sparkles className="size-4 shrink-0" aria-hidden />
               {/* Says only what the ?ref= flow actually does — the code credits
                   the inviter on signup. Don't promise the invitee a bonus we
                   don't grant. */}
-              <span>A friend invited you — sign up to claim your spot.</span>
+              <span>A friend invited you — claim your spot.</span>
             </div>
           </div>
         ) : null}
@@ -518,11 +539,15 @@ export function AuthFlow({
         {/* Vertical padding steps up only once there's room for it. At mobile
             widths the dark panel is hidden, so this column is the whole page
             and desktop-sized padding was pushing it past the viewport. */}
-        <div className="flex flex-1 items-center justify-center px-4 py-6 sm:px-8 sm:py-12">
+        <div className="flex flex-1 items-center justify-center px-4 py-4 sm:px-8 sm:py-12">
           {status.kind === "waitlisted" ? (
-            <div className="w-full max-w-md rounded-2xl border bg-card p-7">
+            <div className="w-full max-w-md rounded-2xl border bg-card p-6 sm:p-7">
               <GoldTile icon={Clock} />
-              <h1 className="mt-5 text-2xl font-extrabold tracking-tight">
+              <h1
+                ref={outcomeHeadingRef}
+                tabIndex={-1}
+                className="mt-5 text-2xl font-extrabold tracking-tight focus-visible:outline-none"
+              >
                 You&rsquo;re in the queue
               </h1>
               <p className="mt-2 text-sm text-muted-foreground">
@@ -538,9 +563,13 @@ export function AuthFlow({
               </button>
             </div>
           ) : status.kind === "notEligible" ? (
-            <div className="w-full max-w-md rounded-2xl border bg-card p-7">
+            <div className="w-full max-w-md rounded-2xl border bg-card p-6 sm:p-7">
               <GoldTile icon={ShieldAlert} />
-              <h1 className="mt-5 text-2xl font-extrabold tracking-tight">
+              <h1
+                ref={outcomeHeadingRef}
+                tabIndex={-1}
+                className="mt-5 text-2xl font-extrabold tracking-tight focus-visible:outline-none"
+              >
                 We don&rsquo;t have this email yet
               </h1>
               <p className="mt-2 text-sm text-muted-foreground">
@@ -563,9 +592,13 @@ export function AuthFlow({
             </div>
           ) : isCoolingDown ? (
             <div className="w-full max-w-md space-y-4">
-              <div className="rounded-2xl border bg-card p-7">
+              <div className="rounded-2xl border bg-card p-6 sm:p-7">
                 <GoldTile icon={Mail} />
-                <h1 className="mt-5 text-2xl font-extrabold tracking-tight">
+                <h1
+                ref={outcomeHeadingRef}
+                tabIndex={-1}
+                className="mt-5 text-2xl font-extrabold tracking-tight focus-visible:outline-none"
+              >
                   Your link is on its way
                 </h1>
                 <p className="mt-2 text-sm text-muted-foreground">
@@ -577,7 +610,7 @@ export function AuthFlow({
                 {status.kind === "sent" && status.resendError && (
                   <div
                     role="alert"
-                    className="mt-4 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
+                    className="mt-4 rounded-lg border border-destructive/30 bg-destructive/10 p-2.5 text-xs text-destructive sm:p-3 sm:text-sm"
                   >
                     {status.resendError}
                   </div>
@@ -586,8 +619,17 @@ export function AuthFlow({
                   <button
                     type="button"
                     className={GOLD_BUTTON}
-                    disabled={status.kind === "resending" || cooldownSecondsLeft > 0}
-                    onClick={() => submit(status.email, "resend")}
+                    // aria-disabled, not disabled: a disabled element is blurred
+                    // by the browser, so pressing Resend would throw focus to
+                    // <body> and the live region below would announce into
+                    // nowhere. aria-disabled keeps the button focusable and
+                    // announced as unavailable; the click is refused in the
+                    // handler instead.
+                    aria-disabled={resendBlocked}
+                    onClick={() => {
+                      if (resendBlocked) return;
+                      submit(status.email, "resend");
+                    }}
                     aria-describedby="resend-status"
                   >
                     {status.kind === "resending"
@@ -635,11 +677,11 @@ export function AuthFlow({
                   "We’ll send a link that signs you straight in. If you’re new, that same link creates your account."}
               </p>
 
-              <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4 sm:mt-8">
+              <form onSubmit={handleSubmit} className="mt-5 flex flex-col gap-3 sm:mt-8 sm:gap-4">
                 {status.kind === "error" && (
                   <div
                     role="alert"
-                    className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
+                    className="rounded-lg border border-destructive/30 bg-destructive/10 p-2.5 text-xs text-destructive sm:p-3 sm:text-sm"
                   >
                     {status.message}
                   </div>
@@ -676,7 +718,7 @@ export function AuthFlow({
                 </button>
               </form>
 
-              <ul className="mt-5 flex flex-wrap justify-center gap-x-3.5 gap-y-1.5 text-xs text-muted-foreground sm:mt-6 sm:gap-x-4 sm:text-sm">
+              <ul className="mt-4 flex flex-wrap justify-center gap-x-3.5 gap-y-1.5 text-xs text-muted-foreground sm:mt-6 sm:gap-x-4 sm:text-sm">
                 {(isPreLaunch ? PRELAUNCH_PROMISES : SIGNUP_PROMISES).map((tick) => (
                   <li key={tick} className="flex items-center gap-1.5">
                     <Check className="size-3.5 shrink-0 text-brand-label" strokeWidth={3} aria-hidden />
@@ -685,7 +727,7 @@ export function AuthFlow({
                 ))}
               </ul>
 
-              <p className="mt-5 text-center text-xs text-muted-foreground sm:mt-8">
+              <p className="mt-4 text-center text-xs text-muted-foreground sm:mt-8">
                 By continuing, you agree to our{" "}
                 <Link href="/terms" className={LEGAL_LINK}>
                   Terms of Service
