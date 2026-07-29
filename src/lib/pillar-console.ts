@@ -52,9 +52,5 @@ export const PRELAUNCH_PROMISES = [
   "We’ll email your link",
 ] as const;
 
-/**
- * Free Peaks granted monthly on the free plans, as shown on the marketing
- * surface. Hard-coded to match the landing hero's existing figure; when the
- * public catalog starts exposing the free grant this should read from there.
- */
-export const FREE_PEAKS_PER_MONTH = "1,240";
+// The free-Peaks figure deliberately does NOT live here — it is catalog data,
+// not brand copy. See freePeaksPerMonth() in lib/pricing.ts.

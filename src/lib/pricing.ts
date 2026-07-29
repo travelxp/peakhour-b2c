@@ -190,6 +190,50 @@ export function productTiers(product: ResolvedProduct): ResolvedProductTier[] {
 }
 
 /**
+ * The smallest monthly Peaks grant on any free plan — i.e. the amount every
+ * free plan is guaranteed to include at minimum.
+ *
+ * Deliberately the MINIMUM, not the sum. The wallet is one pool and grants do
+ * stack (peakhour-api's `stackCreditAllowance` adds up every plan an org
+ * holds), so someone on all five free pillars really does get five grants —
+ * but quoting that total would promise a five-pillar signup to a visitor who
+ * may only ever take one. The floor is true for everybody.
+ *
+ * A tier counts as free when it bills nothing on either interval — read from
+ * the resolved price rather than a `.free` key suffix, so a renamed tier key
+ * can't silently drop a pillar out of the comparison.
+ *
+ * Returns null when pricing is unavailable (the caller falls back to
+ * FREE_PEAKS_FALLBACK) or when no free tier carries an allowance — an
+ * uncapped grant has no number to show and must not be reported as 0.
+ */
+export function minFreePeaksPerMonth(pricing: PricingResponse | null): number | null {
+  if (!pricing) return null;
+  let min: number | null = null;
+  for (const product of pricing.products) {
+    const free = product.tiers.find(
+      (t) => (t.pricing?.monthly ?? 0) === 0 && (t.pricing?.yearly ?? 0) === 0,
+    );
+    if (typeof free?.peaksIncluded !== "number") continue;
+    min = min === null ? free.peaksIncluded : Math.min(min, free.peaksIncluded);
+  }
+  return min;
+}
+
+/**
+ * Shown when the pricing API is unreachable, mirroring how the landing page
+ * keeps a static integrations list for the same case. Matches the catalog at
+ * the time of writing (every free tier grants 500); it is a degraded mode, not
+ * a source of truth — `minFreePeaksPerMonth` is.
+ */
+export const FREE_PEAKS_FALLBACK = 500;
+
+/** Grouping separators so "2500" reads as "2,500" wherever it's quoted. */
+export function formatPeaks(value: number): string {
+  return value.toLocaleString("en-US");
+}
+
+/**
  * Find a bundle tier (Agency/Enterprise) anywhere in the response. Bundle plans
  * appear as a tier under every product they compose, so the first occurrence
  * carries the canonical price + Peaks allowance (identical across products).

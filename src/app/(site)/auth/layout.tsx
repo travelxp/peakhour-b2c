@@ -34,10 +34,14 @@ export default function AuthLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex min-h-screen flex-col">
+    // min-h-dvh, not min-h-screen: on mobile browsers `vh` is the tallest
+    // viewport (URL bar retracted), so a min-h-screen column is taller than
+    // what's actually visible and the page scrolls a little even when the
+    // content fits. `dvh` tracks the live viewport, so it doesn't.
+    <div className="flex min-h-dvh flex-col">
       <Header />
       <main className="flex flex-1 flex-col">{children}</main>
-      <footer className="flex flex-wrap items-center justify-center gap-x-1.5 gap-y-1 px-4 py-4 text-center text-xs text-muted-foreground">
+      <footer className="flex flex-wrap items-center justify-center gap-x-1.5 gap-y-1 px-4 py-3 text-center text-xs text-muted-foreground sm:py-4">
         <span>
           Trouble signing in?{" "}
           <a href={`mailto:${SITE.contactGeneral}`} className={LEGAL_LINK}>

@@ -1,5 +1,11 @@
 import { Suspense } from "react";
 import { getPublicCatalog } from "@/lib/catalog";
+import {
+  getPricing,
+  minFreePeaksPerMonth,
+  formatPeaks,
+  FREE_PEAKS_FALLBACK,
+} from "@/lib/pricing";
 import { AuthFlow } from "./auth-flow";
 
 /**
@@ -21,6 +27,10 @@ import { AuthFlow } from "./auth-flow";
  */
 export default async function AuthPage() {
   const signupMode = (await getPublicCatalog())?.platform?.signupMode ?? "open";
+  // Country-independent: the grant is a fair-use allowance, not a price.
+  const freePeaks = formatPeaks(
+    minFreePeaksPerMonth(await getPricing("DEFAULT")) ?? FREE_PEAKS_FALLBACK,
+  );
 
   return (
     // useSearchParams() must sit inside a Suspense boundary (App Router). A
@@ -37,7 +47,7 @@ export default async function AuthPage() {
         </div>
       }
     >
-      <AuthFlow signupMode={signupMode} />
+      <AuthFlow signupMode={signupMode} freePeaks={freePeaks} />
     </Suspense>
   );
 }
