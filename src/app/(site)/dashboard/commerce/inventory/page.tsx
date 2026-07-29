@@ -18,7 +18,7 @@ export const metadata: Metadata = {
  */
 export default function CommerceInventoryPage() {
   return (
-    <PageShell width="narrow">
+    <PageShell width="standard">
       <PageHeader
         title="Inventory & Supply"
         description="See which products are at risk of stocking out, which are tying up capital, and exactly what to reorder — graded from your live stock and the last 30 days of sales."

@@ -408,6 +408,10 @@ function HubSkeleton() {
         <Skeleton className="h-8 w-48" />
         <Skeleton className="h-4 w-96" />
       </div>
+      {/* Stands in for the category TabsList in the loaded branch. Without it
+          every channel row jumped down by the strip height plus its margin
+          the moment data arrived. */}
+      <Skeleton className="h-9 w-72" />
       <div className="space-y-3">
         {Array.from({ length: 6 }).map((_, i) => (
           <div key={i} className="flex items-start gap-4 rounded-lg border p-4">

@@ -30,11 +30,11 @@ function AskPageInner() {
 
   return (
     // `fill` instead of the old `h-[calc(100dvh-5rem)]`, which assumed 80px of
-    // shell chrome when the real figure is 120px — so this page overflowed its
-    // container by 40px on every device and pushed the composer below the fold.
-    // The shell owns the measurement now; nothing here can go stale when its
-    // padding or banner slot changes. Also drops a duplicate `p-4`: the shell
-    // already insets the page.
+    // shell chrome when the real figure is 104px on desktop and 88px at 375px
+    // (header 56 + the shell's own 48/32 of padding) — so this page overflowed
+    // its container on every device. The shell owns the measurement now, so
+    // nothing here goes stale when its padding changes. Also drops a duplicate
+    // `p-4`: the shell already insets the page.
     <PageShell width="narrow" fill className="space-y-3 sm:space-y-3">
       <PageHeader
         icon={

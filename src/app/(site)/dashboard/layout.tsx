@@ -307,9 +307,22 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
         Scoped here rather than in components/ui/sidebar.tsx because /cms
         shares that primitive and should keep document scrolling for now.
-        `min-h-0` on the inset lets the content area shrink below its content
-        so it, not the document, is the scroller. Net effect: the header row
-        stays put while the page scrolls under it. */}
+        Net effect: the header row stays put while the page scrolls under it.
+        (No `min-h-0` needed on SidebarInset — it is a flex item in a ROW
+        container, and automatic minimum size only applies on the main axis,
+        so its cross-axis `min-height: auto` already resolves to 0.)
+
+        `svh` not `dvh`: the small viewport height is the one that assumes
+        mobile browser chrome is fully EXPANDED, so the shell can never be
+        taller than what is actually visible — worst case it leaves a strip
+        at the bottom once the URL bar retracts, where `dvh` would instead
+        resize the scroll container mid-scroll. It also matches the unit
+        SidebarProvider already chose for its `min-h-`.
+
+        Radix's scroll lock still holds: react-remove-scroll blocks wheel and
+        touchmove outside the modal subtree rather than relying only on
+        `body { overflow: hidden }`, so moving the scroller off the document
+        does not let the background scroll behind a Dialog or Sheet. */}
     <SidebarProvider className="h-svh">
       <Sidebar collapsible="icon" variant="sidebar">
         {/* ── Header: Logo + Switchers ──────────────────────── */}
@@ -526,7 +539,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       <CommandMenu />
 
       {/* ── Main Content ──────────────────────────────────── */}
-      <SidebarInset className="min-h-0">
+      <SidebarInset>
         <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
           <SidebarTrigger className="-ml-1" />
           <div className="ml-auto flex items-center gap-3">
@@ -550,8 +563,17 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
             Ordinary pages are unaffected by the flex change: a block child of
             a column flex container keeps `min-height: auto`, whose automatic
             minimum size is its content height, so nothing shrinks below its
-            content and long pages scroll here rather than being squashed. */}
-        <div className="flex flex-1 flex-col overflow-auto p-4 sm:p-6">
+            content and long pages scroll here rather than being squashed.
+
+            `scroll-pt-*` is required, not decoration. Next's
+            ScrollAndFocusHandler tries `document.documentElement.scrollTop = 0`
+            on navigation and falls back to `scrollIntoView()` when that does
+            not move anything — and now that the document does not scroll, it
+            ALWAYS falls back. `scrollIntoView` aligns to the scrollport's
+            padding-box edge, so without a matching scroll-padding every
+            sidebar navigation from a scrolled position parked the page's
+            first element flush against the header, eating this inset. */}
+        <div className="flex flex-1 flex-col overflow-auto p-4 scroll-pt-4 sm:p-6 sm:scroll-pt-6">
           {/* Banner slot — sits above the route content. Trial-expiry shows
               only inside the final 3 days of a trial; the credit-cap banner
               only once usage crosses its cap. Both render nothing otherwise

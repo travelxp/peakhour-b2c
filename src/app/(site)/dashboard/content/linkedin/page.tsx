@@ -246,7 +246,9 @@ function LinkedInPageShell({ children, loading }: { children?: React.ReactNode; 
         }}
       />
       <div>
-        <h2 className="text-2xl font-bold tracking-tight">LinkedIn</h2>
+        {/* h1: this was the page's only heading and it was an h2, so the
+            route had no page title in the document outline at all. */}
+        <h1 className="text-2xl font-semibold tracking-tight">LinkedIn</h1>
         <p className="text-muted-foreground">
           Publish to your personal feed or any company page you administer.
         </p>

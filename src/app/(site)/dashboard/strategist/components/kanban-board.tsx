@@ -14,7 +14,7 @@ import {
 import { api } from "@/lib/api";
 import { KanbanColumn } from "./kanban-column";
 import { PIPELINE_COLUMNS } from "./status-badge";
-import { KanbanCard, type PipelineIdea } from "./kanban-card";
+import { KanbanCardPreview, type PipelineIdea } from "./kanban-card";
 
 // Client-side state machine matching the API
 const VALID_TRANSITIONS: Record<string, string[]> = {
@@ -175,13 +175,20 @@ export function KanbanBoard({ data, onRefresh }: KanbanBoardProps) {
         })}
       </div>
 
-      {/* Portaled out of the clipping scroll container, so the card stays
-          visible wherever the pointer takes it. `w-70` matches the column so
-          the overlay is the same size as the card it replaces. */}
+      {/* Escapes the clipping scroll container — not by portalling (dnd-kit
+          renders DragOverlay in place) but because it is a SIBLING of the
+          `overflow-x-auto` div and dnd-kit gives it `position: fixed`. `w-70`
+          matches the column so the overlay is the same width as the card it
+          stands in for.
+
+          KanbanCardPreview, not KanbanCard: the in-flow card stays mounted
+          while it is being dragged, so rendering the sortable component here
+          would register a second node under the same id. See the note on
+          KanbanCardBody. */}
       <DragOverlay dropAnimation={null}>
         {activeIdea ? (
-          <div className="w-70 cursor-grabbing">
-            <KanbanCard idea={activeIdea} />
+          <div className="w-70">
+            <KanbanCardPreview idea={activeIdea} />
           </div>
         ) : null}
       </DragOverlay>

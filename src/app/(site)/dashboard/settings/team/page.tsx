@@ -173,9 +173,11 @@ export default function TeamPage() {
 
   return (
     <PageShell width="narrow">
-      {/* The title was `text-xl` here and `text-2xl` on every sibling settings
-          page; PageHeader settles that. The back-link keeps its place as the
-          header's leading slot. */}
+      {/* This was the only `text-xl` page title in settings — its siblings run
+          `text-2xl` in two weights and two of them have no <h1> at all —
+          so PageHeader settles it. The back-link keeps its place as the
+          header's leading slot. `narrow` matches settings/billing; it costs
+          the role grid below ~30px per column, which it can afford. */}
       <PageHeader
         icon={
           <Link

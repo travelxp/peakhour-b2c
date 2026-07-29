@@ -76,50 +76,29 @@ function getPriorityLabel(score?: number): { label: string; className: string } 
   return { label: "Low", className: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400" };
 }
 
-export function KanbanCard({ idea, onChanged }: { idea: PipelineIdea; onChanged?: () => void }) {
-  const router = useRouter();
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: idea._id, data: { idea } });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
-
+/**
+ * The card's visual content, with no dnd wiring.
+ *
+ * Shared by the in-flow <KanbanCard> and the <DragOverlay> preview, so the
+ * overlay does not have to render <KanbanCard> itself. Doing that would call
+ * useSortable with the same id as the card still mounted in the column,
+ * registering a second node under one key in dnd-kit's registry, and would
+ * carry a router.push onClick onto an element that only exists mid-drag.
+ *
+ * To be accurate about the stakes: measured against @dnd-kit/core 6.3.1 the
+ * duplicate registration does not actually break drops — collision detection
+ * still resolves correctly and the overlay's own transform stays empty. What
+ * it does cost is a duplicated role/tabIndex/aria-describedby on two nodes
+ * and a second IdeaCardActions mounted for the length of every drag. This
+ * split is hygiene against a real hazard, not a fix for an observed bug.
+ */
+function KanbanCardBody({ idea, onChanged }: { idea: PipelineIdea; onChanged?: () => void }) {
   const priority = getPriorityLabel(idea.aiScore);
   const progress = STATUS_PROGRESS[idea.status] ?? 0;
   const progressPct = Math.round((progress / TOTAL_STEPS) * 100);
 
-  // The WHOLE card is the drag handle (dnd listeners below). To still allow
-  // "click to open", we record the pointer-down position and only navigate
-  // when the pointer barely moved — a real drag moves >8px (the sensor's
-  // activation distance), so it won't trigger navigation.
-  const downPos = useRef<{ x: number; y: number } | null>(null);
-
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      {...attributes}
-      {...listeners}
-      onPointerDownCapture={(e) => { downPos.current = { x: e.clientX, y: e.clientY }; }}
-      onClick={(e) => {
-        const d = downPos.current;
-        if (d && (Math.abs(e.clientX - d.x) > 8 || Math.abs(e.clientY - d.y) > 8)) return; // was a drag
-        router.push(`/dashboard/strategist/${idea._id}`);
-      }}
-      className={cn(
-        "group cursor-grab rounded-lg border bg-card p-3 shadow-sm transition-all duration-150 active:cursor-grabbing",
-        "hover:shadow-md hover:border-primary/20",
-        isDragging && "opacity-50 shadow-lg ring-2 ring-primary/20",
-      )}
-    >
+    <>
       {/* Title row — grip is now just a visual "draggable" cue; the whole
           card carries the drag listeners. */}
       <div className="flex items-start gap-1.5">
@@ -230,6 +209,61 @@ export function KanbanCard({ idea, onChanged }: { idea: PipelineIdea; onChanged?
           />
         </div>
       </div>
+    </>
+  );
+}
+
+/** Presentational clone for <DragOverlay>. Matches the in-flow card's chrome. */
+export function KanbanCardPreview({ idea }: { idea: PipelineIdea }) {
+  return (
+    <div className="group cursor-grabbing rounded-lg border bg-card p-3 shadow-lg ring-2 ring-primary/20">
+      <KanbanCardBody idea={idea} />
+    </div>
+  );
+}
+
+export function KanbanCard({ idea, onChanged }: { idea: PipelineIdea; onChanged?: () => void }) {
+  const router = useRouter();
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: idea._id, data: { idea } });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+
+  // The WHOLE card is the drag handle (dnd listeners below). To still allow
+  // "click to open", we record the pointer-down position and only navigate
+  // when the pointer barely moved — a real drag moves >8px (the sensor's
+  // activation distance), so it won't trigger navigation.
+  const downPos = useRef<{ x: number; y: number } | null>(null);
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      onPointerDownCapture={(e) => { downPos.current = { x: e.clientX, y: e.clientY }; }}
+      onClick={(e) => {
+        const d = downPos.current;
+        if (d && (Math.abs(e.clientX - d.x) > 8 || Math.abs(e.clientY - d.y) > 8)) return; // was a drag
+        router.push(`/dashboard/strategist/${idea._id}`);
+      }}
+      className={cn(
+        "group cursor-grab rounded-lg border bg-card p-3 shadow-sm transition-all duration-150 active:cursor-grabbing",
+        "hover:shadow-md hover:border-primary/20",
+        isDragging && "opacity-50 shadow-lg ring-2 ring-primary/20",
+      )}
+    >
+      <KanbanCardBody idea={idea} onChanged={onChanged} />
     </div>
   );
 }

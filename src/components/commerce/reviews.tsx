@@ -11,6 +11,7 @@ import { EmptyState } from "@/components/molecules/empty-state";
 import { RankedListCard } from "@/components/molecules/ranked-list-card";
 import { ProportionListCard } from "@/components/molecules/proportion-list-card";
 import { FeatureGate } from "@/components/upgrade/feature-gate";
+import { PageShell } from "@/components/dashboard/page-shell";
 import {
   useReviewsSummary,
   useReviewsList,
@@ -50,16 +51,16 @@ function ReviewsBody() {
 
   if (isLoading) {
     return (
-      <div className="mx-auto max-w-5xl px-4 py-8">
+      <PageShell width="standard">
         <Header />
         <Skeleton className="h-64 w-full rounded-lg" />
-      </div>
+      </PageShell>
     );
   }
 
   if (isError || !data) {
     return (
-      <div className="mx-auto max-w-5xl px-4 py-8">
+      <PageShell width="standard">
         <Header />
         <EmptyState
           icon={Store}
@@ -67,13 +68,13 @@ function ReviewsBody() {
           description="Reviews light up once a store with reviews is connected — Peakhour reads them across channels and finds the recurring themes."
           action={{ label: "Connect a store", href: "/dashboard/integrations" }}
         />
-      </div>
+      </PageShell>
     );
   }
 
   if (data.totalReviews === 0) {
     return (
-      <div className="mx-auto max-w-5xl px-4 py-8">
+      <PageShell width="standard">
         <Header />
         <Card>
           <CardContent className="py-10 text-center text-sm text-muted-foreground">
@@ -81,7 +82,7 @@ function ReviewsBody() {
             sentiment breakdown appear here.
           </CardContent>
         </Card>
-      </div>
+      </PageShell>
     );
   }
 
@@ -106,7 +107,7 @@ function ReviewsBody() {
   const fixThemes = data.topThemes.filter((t) => t.negativeCount > 0).slice(0, 6);
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8">
+    <PageShell width="standard">
       <Header />
 
       {/* Stat row + analyse */}
@@ -172,7 +173,7 @@ function ReviewsBody() {
       {fixThemes.length > 0 && <FixIntents themes={fixThemes} />}
 
       <ResponseCards />
-    </div>
+    </PageShell>
   );
 }
 

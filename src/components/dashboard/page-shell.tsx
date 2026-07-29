@@ -24,15 +24,20 @@ import { cn } from "@/lib/utils";
  * single owner, and routes that re-declare it are the bug. PageShell owns
  * MEASURE (max-width + centring) and VERTICAL RHYTHM. Pages own neither: a
  * page adopting PageShell should carry no `p-*`, `max-w-*` or `mx-auto` on its
- * root, and should pick a `width` instead. Every route that declared its own
- * root padding has been migrated, so no dashboard page double-pads today —
- * but this is still a convention rather than an enforced invariant: nothing
- * stops the next route from reintroducing one. The lint rule that would pin
- * it is not written yet.
+ * root, and should pick a `width` instead. This is a convention, not an
+ * enforced invariant — nothing stops the next route from reintroducing its
+ * own padding, and the lint rule that would pin it is not written yet.
  *
- * One shell per route. A component rendered INSIDE a page must not open its
- * own — nested shells double the measure wrapper and break any
- * `[data-slot="page-shell"]` selector or lint rule built on the contract.
+ * "Root" means the outermost element the route renders, which is not always
+ * in the page.tsx: the Commerce routes are one-line pages delegating to a
+ * component in src/components/commerce, and that component is the root. A
+ * first pass searched page.tsx files only and so missed six of them, which is
+ * why they are listed here.
+ *
+ * One shell per route, though. A component rendered INSIDE a page that
+ * already opened a shell must not open another — nested shells double the
+ * measure wrapper and break any `[data-slot="page-shell"]` selector or lint
+ * rule built on this contract.
  *
  * NOTE ON TYPE SCALE: PageHeader's description renders at `text-sm` (14px).
  * The ad-hoc headers it replaces used an unsized `text-muted-foreground`

@@ -13,7 +13,7 @@ export const metadata: Metadata = {
  */
 export default function CommerceAssistantPreviewPage() {
   return (
-    <PageShell width="narrow">
+    <PageShell width="standard">
       <PageHeader
         title="Assistant preview"
         description="This is the same catalog-grounded assistant that answers your customers on WhatsApp, running against your connected store. Ask it anything a shopper might — in any language. It only states facts from your real product catalog."

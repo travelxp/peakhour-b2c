@@ -284,7 +284,9 @@ function XPageShell({ children, loading }: { children?: React.ReactNode; loading
         }}
       />
       <div>
-        <h2 className="text-2xl font-bold tracking-tight">X (Twitter)</h2>
+        {/* h1: this was the page's only heading and it was an h2, so the
+            route had no page title in the document outline at all. */}
+        <h1 className="text-2xl font-semibold tracking-tight">X (Twitter)</h1>
         <p className="text-muted-foreground">
           Publish tweets, track engagement, and manage your mentions inbox.
         </p>
