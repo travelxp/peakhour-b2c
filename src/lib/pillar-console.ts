@@ -1,0 +1,28 @@
+/**
+ * The five-pillar "console" — the product's most recognisable marketing device.
+ * It renders in the landing hero and again on /auth, so a visitor who clicks
+ * "Start free" lands on a page that continues the same picture rather than a
+ * sign-in screen from a different product.
+ *
+ * Shared here (rather than duplicated per page) for the same reason
+ * HOW_IT_WORKS_STEPS is: two hand-maintained copies drift, and this one carries
+ * the pillar names, which are brand architecture (mirrors cfg_products.pillar).
+ *
+ * The statuses are illustrative — a plausible day, not live data. Keep them in
+ * the present tense and specific; vague statuses ("Working on it") read as
+ * placeholder copy.
+ */
+export const PILLAR_CONSOLE_ROWS = [
+  { name: "Commerce", status: "Answered 34 shoppers on WhatsApp today" },
+  { name: "Content", status: "2 articles drafted from this week's news" },
+  { name: "Growth", status: "LinkedIn post scheduled · 3 leads in inbox" },
+  { name: "Support", status: "Inbox clear — 12 conversations resolved" },
+  { name: "Presence", status: "Google listing synced · 2 new reviews" },
+] as const;
+
+/**
+ * Free Peaks granted monthly on the free plans, as shown on the marketing
+ * surface. Hard-coded to match the landing hero's existing figure; when the
+ * public catalog starts exposing the free grant this should read from there.
+ */
+export const FREE_PEAKS_PER_MONTH = "1,240";

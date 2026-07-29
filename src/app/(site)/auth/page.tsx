@@ -2,22 +2,14 @@
 
 import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Clock, Sparkles, ArrowRight } from "lucide-react";
+import { ArrowRight, Check, Clock, Mail, ShieldAlert, Sparkles } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { sendMagicLink } from "@/lib/auth";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { api, ApiError } from "@/lib/api";
 import { SITE } from "@/lib/utils";
+import { PILLAR_CONSOLE_ROWS, FREE_PEAKS_PER_MONTH } from "@/lib/pillar-console";
 
 // Bounded length + char set so a tampered link can't smuggle arbitrary strings
 // into the waitlist payload. Mirrors the referredByCode validator on
@@ -60,44 +52,90 @@ type Status =
 // tandem; treat the API as the source of truth.
 const RESEND_COOLDOWN_SECONDS = 60;
 
-const VALUE_PROPS = [
-  {
-    title: "Add your business in minutes",
-    description:
-      "Just paste your website URL. Our AI discovers your brand, audience, and creates a marketing strategy instantly.",
-  },
-  {
-    title: "AI creates ads from your content",
-    description:
-      "Connect your newsletter, blog, or social media. We turn every piece into high-performing ads across LinkedIn, Google, and Meta.",
-  },
-  {
-    title: "Hands-free optimization",
-    description:
-      "The AI monitors performance hourly, pauses what doesn't work, boosts what does, and rebalances your budget automatically.",
-  },
+// Signup-side proof points. These replaced an ads-era set ("3 ad platforms",
+// "12 dimensions of content intelligence") that no longer described the
+// product. Every figure here is one the marketing surface already states.
+const SIGNUP_STATS = [
+  { value: "5", label: "pillars, one login" },
+  { value: "0", label: "card details to start" },
+  { value: FREE_PEAKS_PER_MONTH, label: "free Peaks every month" },
 ] as const;
 
-const TRUST_STATS = [
-  { value: "12", label: "dimensions of content intelligence" },
-  { value: "3", label: "ad platforms, one dashboard" },
-  { value: "24/7", label: "autonomous optimization" },
+// Reassurance row under the primary button — the same three promises the
+// landing hero makes, so the pitch doesn't change at the point of signup.
+const TICKS = [
+  "No credit card",
+  "Free plan on every pillar",
+  "Live the same day",
 ] as const;
 
 // Landing CTAs route here with ?intent=waitlist|invite when the platform is
 // pre-launch (driven by cfg_platform_stage.signupMode), so the heading matches
 // the button the visitor clicked. The magic-link flow itself is unchanged —
 // only the framing differs.
-const INTENT_COPY: Record<string, { title: string; subtitle: string }> = {
+const INTENT_COPY: Record<string, { eyebrow: string; title: string; subtitle: string }> = {
   waitlist: {
-    title: "Join the waitlist",
-    subtitle: "Enter your email — we'll send your access link as we roll out. No password needed.",
+    eyebrow: "Join the waitlist",
+    title: "Get your spot in the queue.",
+    subtitle:
+      "Enter your email and we'll send your access link as we roll out. No password, no card.",
   },
   invite: {
-    title: "Request an invite",
-    subtitle: "Enter your email to request access. We'll be in touch with your link. No password needed.",
+    eyebrow: "Request an invite",
+    title: "Ask for an invite.",
+    subtitle:
+      "Enter your email and we'll be in touch with your access link. No password, no card.",
   },
 };
+
+// Space Grotesk is the numeric face across the marketing surface (Peaks
+// balances, prices). Applied inline via the CSS variable, matching how
+// /pricing and /peaks already reach for it — there's no Tailwind utility
+// mapped to --font-space-grotesk in globals.css.
+const NUMERIC_FONT = { fontFamily: "var(--font-space-grotesk)" } as const;
+
+/** Gold-gradient primary button, matching the header/landing CTA treatment. */
+const GOLD_BUTTON =
+  "inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand-gradient text-sm font-bold text-brand-contrast shadow-sm transition-transform hover:-translate-y-0.5 focus-visible:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-60";
+
+/** Quiet secondary button — outlined, gains a foreground border on hover. */
+const GHOST_BUTTON =
+  "inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border-2 text-sm font-bold transition-colors hover:border-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2";
+
+/** Eyebrow label — uppercase, gold, with the short gradient rule. */
+function Eyebrow({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand-label">
+      <span className="h-0.5 w-7 bg-brand-gradient" aria-hidden />
+      {children}
+    </span>
+  );
+}
+
+/**
+ * Gold icon tile used on the outcome cards — the same 11×11 rounded-xl
+ * gradient tile the landing page gives each pillar, so these cards read as
+ * part of the product rather than generic shadcn alerts.
+ */
+function GoldTile({ icon: Icon }: { icon: typeof Mail }) {
+  return (
+    <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-brand-gradient shadow-inner">
+      <Icon className="size-5 text-brand-contrast" strokeWidth={2} aria-hidden />
+    </div>
+  );
+}
+
+/** The email an outcome card refers to, set in the numeric face. */
+function EmailChip({ email }: { email: string }) {
+  return (
+    <p
+      className="break-all rounded-lg bg-muted px-3 py-2 text-sm font-semibold"
+      style={NUMERIC_FONT}
+    >
+      {email}
+    </p>
+  );
+}
 
 function AuthPageInner() {
   const searchParams = useSearchParams();
@@ -250,7 +288,7 @@ function AuthPageInner() {
       });
     } catch (err) {
       let message =
-        "Something went wrong. Please try again or contact support.";
+        "We couldn't send your link just now. Try again in a moment — if it keeps failing, email hello@peakhour.ai and we'll let you in by hand.";
       let isRateLimited = false;
       if (err instanceof ApiError) {
         if (err.code === "RATE_LIMITED") {
@@ -259,7 +297,7 @@ function AuthPageInner() {
           // drift, surface a friendly message instead of the raw
           // "magic link sent recently" copy from the API.
           message =
-            "Please wait a minute before requesting another link.";
+            "You asked for a link a moment ago. Give it a minute, then try again — the first one is probably still landing.";
           isRateLimited = true;
         } else if (err.message) {
           message = err.message;
@@ -307,242 +345,271 @@ function AuthPageInner() {
 
   return (
     <div className="flex flex-1 flex-col lg:flex-row">
-      {/* Left panel — value proposition */}
-      <div className="relative hidden flex-col justify-between bg-primary p-10 text-primary-foreground lg:flex lg:w-1/2 xl:w-[55%]">
-        {/* Background pattern */}
-        <div className="absolute inset-0 opacity-[0.03]">
-          <div className="absolute inset-0" style={{
-            backgroundImage: "radial-gradient(circle at 1px 1px, currentColor 1px, transparent 0)",
-            backgroundSize: "32px 32px",
-          }} />
-        </div>
-
-        <div className="relative z-10 space-y-10">
-          <div>
-            <h1 className="text-3xl font-bold leading-tight xl:text-4xl">
-              Your AI marketing department starts here
-            </h1>
-            <p className="mt-3 max-w-lg text-primary-foreground/70">
-              Stop spending hours on ads. Add your business, connect your
-              content, and let AI handle the rest.
-            </p>
-          </div>
-
-          <div className="space-y-6">
-            {VALUE_PROPS.map((prop, i) => (
-              <div key={i} className="flex gap-4">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-foreground/10 text-sm font-semibold">
-                  {i + 1}
-                </div>
-                <div>
-                  <h3 className="font-semibold">{prop.title}</h3>
-                  <p className="mt-1 text-sm text-primary-foreground/60">
-                    {prop.description}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+      {/* ---------------------------------------------------------------
+          Left — the always-dark product panel. Fixed zinc tones (not
+          theme tokens) so it reads identically on light and dark, exactly
+          like the landing hero's console and the free-first panel.
+          Hidden below lg; the promise still reaches small screens through
+          the tick row in the form column.
+         --------------------------------------------------------------- */}
+      <section className="relative hidden flex-col justify-between gap-8 overflow-hidden bg-zinc-900 p-10 text-zinc-100 lg:flex lg:w-1/2 xl:w-[55%] xl:p-14">
+        {/* Single warm bloom — the only decoration on the panel. */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -bottom-56 -right-36 size-115 rounded-full"
+          style={{
+            background:
+              "radial-gradient(circle, color-mix(in oklch, var(--brand) 30%, transparent), transparent 68%)",
+          }}
+        />
 
         <div className="relative z-10">
-          <div className="flex gap-8 border-t border-primary-foreground/10 pt-6">
-            {TRUST_STATS.map((stat) => (
-              <div key={stat.label}>
-                <div className="text-2xl font-bold">{stat.value}</div>
-                <div className="text-xs text-primary-foreground/50">{stat.label}</div>
+          <Eyebrow>Five pillars · one account</Eyebrow>
+          <h1 className="mt-4 max-w-[15ch] text-3xl font-extrabold leading-[1.06] tracking-tight text-pretty xl:text-4xl">
+            Your whole business, waiting on the other side.{" "}
+            <span className="font-serif font-normal italic text-brand-gradient">
+              Free to start.
+            </span>
+          </h1>
+          <p className="mt-4 max-w-md text-zinc-400">
+            Commerce, Content, Growth, Support and Presence are all switched on
+            the moment you&rsquo;re in. Start with one, keep all five.
+          </p>
+        </div>
+
+        {/* Pillar console — same device as the landing hero. */}
+        <div
+          className="relative z-10"
+          role="img"
+          aria-label="Peakhour console showing five active pillars, each on a free plan"
+        >
+          <div className="flex items-center justify-between px-1 pb-2 text-[0.7rem] font-bold uppercase tracking-[0.18em] text-zinc-400">
+            <span>Your business, at a glance</span>
+            <span className="flex items-center gap-1.5 text-emerald-400">
+              <span className="size-1.5 rounded-full bg-emerald-400" aria-hidden />
+              live
+            </span>
+          </div>
+          <div className="flex flex-col gap-2.5">
+            {PILLAR_CONSOLE_ROWS.map((row) => (
+              <div
+                key={row.name}
+                className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/4 px-3.5 py-2.5 text-sm"
+              >
+                <span className="size-2 shrink-0 rounded-full bg-emerald-400" aria-hidden />
+                <span className="w-20 shrink-0 font-bold text-zinc-100">{row.name}</span>
+                <span className="min-w-0 flex-1 truncate text-zinc-400">{row.status}</span>
+                <span className="shrink-0 rounded-full bg-emerald-400/15 px-2.5 py-0.5 text-[0.65rem] font-bold uppercase tracking-wide text-emerald-400">
+                  Free
+                </span>
               </div>
             ))}
           </div>
+          <p className="flex items-center gap-1 px-1 pt-3 text-xs text-zinc-400">
+            Metered in{" "}
+            <span aria-hidden className="text-brand">⚡</span>
+            <span className="font-bold text-brand-gradient">Peaks</span>
+          </p>
         </div>
-      </div>
 
-      {/* Right panel — auth form */}
+        <div className="relative z-10 flex gap-8 border-t border-white/10 pt-6">
+          {SIGNUP_STATS.map((stat) => (
+            <div key={stat.label}>
+              <div
+                className="text-2xl font-bold tabular-nums text-brand-gradient"
+                style={NUMERIC_FONT}
+              >
+                {stat.value}
+              </div>
+              <div className="mt-1.5 max-w-[15ch] text-xs leading-snug text-zinc-400">
+                {stat.label}
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ---------------------------------------------------------------
+          Right — the form column.
+         --------------------------------------------------------------- */}
       <div className="flex flex-1 flex-col">
         {referralCode ? (
           <div
             role="status"
-            className="border-b bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200"
+            className="border-b bg-brand-soft px-4 py-3 text-sm font-medium text-brand-ink dark:bg-brand/12 dark:text-brand-soft"
           >
             <div className="mx-auto flex max-w-md items-center gap-2">
               <Sparkles className="size-4 shrink-0" aria-hidden />
-              <span>You were invited by a friend. Sign up to claim your spot.</span>
+              <span>A friend invited you. Your free Peaks are already reserved.</span>
             </div>
           </div>
         ) : null}
-        <div className="flex flex-1 items-center justify-center px-4 py-12">
+
+        <div className="flex flex-1 items-center justify-center px-4 py-12 sm:px-8">
           {status.kind === "waitlisted" ? (
-            <Card className="w-full max-w-md">
-              <CardHeader className="text-center">
-                <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-950">
-                  <Sparkles className="h-7 w-7 text-amber-600 dark:text-amber-400" aria-hidden />
-                </div>
-                <CardTitle className="text-2xl font-bold">You&apos;re on the watchlist</CardTitle>
-                <CardDescription>
-                  We found <strong>{status.email}</strong> on the list.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3 text-center">
-                <p className="text-sm text-muted-foreground">
-                  Sign-in is invite-only while we onboard launch partners.
-                  We&apos;ll email your sign-in link the moment your invite is
-                  ready — it&apos;ll be worth the wait.
-                </p>
-              </CardContent>
-              <CardFooter>
-                <Button variant="outline" className="w-full" onClick={handleReset}>
-                  Use a different email
-                </Button>
-              </CardFooter>
-            </Card>
+            <div className="w-full max-w-md rounded-2xl border bg-card p-7">
+              <GoldTile icon={Clock} />
+              <h2 className="mt-5 text-2xl font-extrabold tracking-tight">
+                You&rsquo;re in the queue
+              </h2>
+              <p className="mt-2 text-sm text-muted-foreground">
+                We&rsquo;re letting launch partners in a batch at a time so every
+                account gets set up properly. We&rsquo;ll email your sign-in link
+                the moment yours is ready — no need to check back.
+              </p>
+              <div className="mt-5">
+                <EmailChip email={status.email} />
+              </div>
+              <button type="button" className={`${GHOST_BUTTON} mt-4`} onClick={handleReset}>
+                Use a different email
+              </button>
+            </div>
           ) : status.kind === "notEligible" ? (
-            <Card className="w-full max-w-md">
-              <CardHeader className="text-center">
-                <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
-                  <Clock className="h-7 w-7 text-primary" aria-hidden />
-                </div>
-                <CardTitle className="text-2xl font-bold">You&apos;re not on the list yet</CardTitle>
-                <CardDescription>
-                  <strong>{status.email}</strong> isn&apos;t on our launch list.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="text-center">
-                <p className="text-sm text-muted-foreground">
-                  {SITE.name} is invite-only right now. Apply to become a launch
-                  partner and we&apos;ll add you to the waitlist — the wait will
-                  be worth it.
-                </p>
-              </CardContent>
-              <CardFooter className="flex flex-col gap-2">
-                <Button asChild className="w-full">
-                  <Link href="/launch-partner">
-                    Become a launch partner
-                    <ArrowRight className="ml-1 size-4" aria-hidden />
-                  </Link>
-                </Button>
-                <Button variant="outline" className="w-full" onClick={handleReset}>
+            <div className="w-full max-w-md rounded-2xl border bg-card p-7">
+              <GoldTile icon={ShieldAlert} />
+              <h2 className="mt-5 text-2xl font-extrabold tracking-tight">
+                We don&rsquo;t have this email yet
+              </h2>
+              <p className="mt-2 text-sm text-muted-foreground">
+                {SITE.name} is invite-only while we onboard launch partners.
+                Apply and you&rsquo;ll get all five pillars free, plus a setup
+                call.
+              </p>
+              <div className="mt-5">
+                <EmailChip email={status.email} />
+              </div>
+              <div className="mt-4 flex flex-col gap-2.5">
+                <Link href="/launch-partner" className={GOLD_BUTTON}>
+                  Apply as a launch partner
+                  <ArrowRight className="size-4" aria-hidden />
+                </Link>
+                <button type="button" className={GHOST_BUTTON} onClick={handleReset}>
                   Use a different email
-                </Button>
-              </CardFooter>
-            </Card>
+                </button>
+              </div>
+            </div>
           ) : isCoolingDown ? (
-            <Card className="w-full max-w-md">
-              <CardHeader className="text-center">
-                <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
-                  <svg aria-hidden="true" className="h-7 w-7 text-primary" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
-                  </svg>
-                </div>
-                <CardTitle className="text-2xl font-bold">Check your email</CardTitle>
-                <CardDescription>
-                  We sent a sign-in link to <strong>{status.email}</strong>
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4 text-center">
-                <p className="text-sm text-muted-foreground">
-                  Click the link in the email to sign in. The link expires in 15
-                  minutes.
+            <div className="w-full max-w-md space-y-4">
+              <div className="rounded-2xl border bg-card p-7">
+                <GoldTile icon={Mail} />
+                <h2 className="mt-5 text-2xl font-extrabold tracking-tight">
+                  Your link is on its way
+                </h2>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Open it within 15 minutes and you&rsquo;re in.
                 </p>
+                <div className="mt-5">
+                  <EmailChip email={status.email} />
+                </div>
                 {status.kind === "sent" && status.resendError && (
                   <div
                     role="alert"
-                    className="rounded-md bg-destructive/10 p-3 text-left text-sm text-destructive"
+                    className="mt-4 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
                   >
                     {status.resendError}
                   </div>
                 )}
-              </CardContent>
-              <CardFooter className="flex flex-col gap-2">
-                <Button
-                  className="w-full"
-                  disabled={
-                    status.kind === "resending" || cooldownSecondsLeft > 0
-                  }
-                  onClick={() => submit(status.email, "resend")}
-                  // aria-live so a screen reader announces the changing
-                  // label as the countdown ticks ("Resend in 42s" → "...
-                  // 41s" → ... → "Resend link") without the user having
-                  // to refocus the button. polite keeps it from
-                  // interrupting other announcements; the value only
-                  // changes once per second.
-                  aria-live="polite"
-                >
-                  {status.kind === "resending"
-                    ? "Resending…"
-                    : cooldownSecondsLeft > 0
-                      ? `Resend in ${cooldownSecondsLeft}s`
-                      : "Resend link"}
-                </Button>
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={handleReset}
-                >
-                  Use a different email
-                </Button>
-              </CardFooter>
-            </Card>
-          ) : (
-            <div className="w-full max-w-md space-y-8">
-              <div className="text-center">
-                <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">
-                  {intentCopy?.title ?? `Welcome to ${SITE.name}`}
-                </h2>
-                <p className="mt-2 text-muted-foreground">
-                  {intentCopy?.subtitle ??
-                    "Enter your email to sign in or create your account. No password needed."}
-                </p>
+                <div className="mt-4 flex flex-col gap-2.5">
+                  <button
+                    type="button"
+                    className={GOLD_BUTTON}
+                    disabled={status.kind === "resending" || cooldownSecondsLeft > 0}
+                    onClick={() => submit(status.email, "resend")}
+                    // aria-live so a screen reader announces the changing
+                    // label as the countdown ticks ("Resend in 42s" → "...
+                    // 41s" → ... → "Resend link") without the user having
+                    // to refocus the button. polite keeps it from
+                    // interrupting other announcements; the value only
+                    // changes once per second.
+                    aria-live="polite"
+                  >
+                    {status.kind === "resending"
+                      ? "Resending…"
+                      : cooldownSecondsLeft > 0
+                        ? `Resend in ${cooldownSecondsLeft}s`
+                        : "Resend link"}
+                  </button>
+                  <button type="button" className={GHOST_BUTTON} onClick={handleReset}>
+                    Use a different email
+                  </button>
+                </div>
               </div>
-
-              <Card>
-                <form onSubmit={handleSubmit} className="flex flex-col gap-6">
-                  <CardContent className="space-y-4 pt-6">
-                    {status.kind === "error" && (
-                      <div role="alert" className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-                        {status.message}
-                      </div>
-                    )}
-                    <div className="space-y-2">
-                      <Label htmlFor="email">Work email</Label>
-                      <Input
-                        id="email"
-                        type="email"
-                        placeholder="you@company.com"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        required
-                        autoComplete="email"
-                        autoFocus
-                        className="h-11"
-                      />
-                    </div>
-                  </CardContent>
-                  <CardFooter className="flex flex-col gap-4">
-                    <Button
-                      type="submit"
-                      className="h-11 w-full text-base"
-                      disabled={status.kind === "submitting"}
-                    >
-                      {status.kind === "submitting"
-                        ? "Sending link…"
-                        : "Continue with email"}
-                    </Button>
-                    <p className="text-center text-xs text-muted-foreground">
-                      We&apos;ll send you a magic link. No password to remember.
-                    </p>
-                  </CardFooter>
-                </form>
-              </Card>
-
               <p className="text-center text-xs text-muted-foreground">
+                Nothing yet? Check spam, or add{" "}
+                <span className="font-semibold text-foreground">hello@peakhour.ai</span>{" "}
+                to your contacts.
+              </p>
+            </div>
+          ) : (
+            <div className="w-full max-w-md">
+              <Eyebrow>{intentCopy?.eyebrow ?? "Sign in or sign up"}</Eyebrow>
+              <h2 className="mt-4 text-2xl font-extrabold tracking-tight text-pretty sm:text-3xl">
+                {intentCopy?.title ?? "One email. No password. Ever."}
+              </h2>
+              <p className="mt-2.5 text-muted-foreground">
+                {intentCopy?.subtitle ??
+                  "We'll send a link that signs you straight in. If you're new, that same link creates your account."}
+              </p>
+
+              <form onSubmit={handleSubmit} className="mt-8 flex flex-col gap-4">
+                {status.kind === "error" && (
+                  <div
+                    role="alert"
+                    className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
+                  >
+                    {status.message}
+                  </div>
+                )}
+                <div className="space-y-2">
+                  <Label htmlFor="email" className="font-bold">
+                    Work email
+                  </Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="you@yourbusiness.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    autoComplete="email"
+                    autoFocus
+                    className="h-11"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className={GOLD_BUTTON}
+                  disabled={status.kind === "submitting"}
+                >
+                  {status.kind === "submitting" ? (
+                    "Sending your link…"
+                  ) : (
+                    <>
+                      Continue with email
+                      <ArrowRight className="size-4" aria-hidden />
+                    </>
+                  )}
+                </button>
+              </form>
+
+              <ul className="mt-6 flex flex-wrap justify-center gap-x-4 gap-y-1.5 text-sm text-muted-foreground">
+                {TICKS.map((tick) => (
+                  <li key={tick} className="flex items-center gap-1.5">
+                    <Check className="size-3.5 shrink-0 text-brand-label" strokeWidth={3} aria-hidden />
+                    {tick}
+                  </li>
+                ))}
+              </ul>
+
+              <p className="mt-8 text-center text-xs text-muted-foreground">
                 By continuing, you agree to our{" "}
-                <Link href="/terms" className="underline hover:text-foreground">
+                <Link href="/terms" className="underline underline-offset-2 hover:text-foreground">
                   Terms of Service
                 </Link>{" "}
                 and{" "}
                 <Link
                   href="/privacy-policy"
-                  className="underline hover:text-foreground"
+                  className="underline underline-offset-2 hover:text-foreground"
                 >
                   Privacy Policy
                 </Link>
@@ -563,9 +630,9 @@ export default function AuthPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen items-center justify-center">
+        <div className="flex flex-1 items-center justify-center">
           <div
-            className="size-6 animate-spin rounded-full border-2 border-muted border-t-foreground"
+            className="size-6 animate-spin rounded-full border-2 border-muted border-t-brand"
             aria-hidden
           />
           <span className="sr-only">Loading</span>

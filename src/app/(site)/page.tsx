@@ -17,6 +17,7 @@ import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
 import { pageMetadata } from "@/lib/seo";
 import { HOW_IT_WORKS_STEPS } from "@/lib/how-it-works";
+import { PILLAR_CONSOLE_ROWS, FREE_PEAKS_PER_MONTH } from "@/lib/pillar-console";
 import {
   getPublicCatalog,
   publicMarketingIntegrations,
@@ -95,15 +96,6 @@ const PILLARS = [
     points: ["Google Business Profile", "Review management", "Listing health"],
     free: "Always free",
   },
-] as const;
-
-/** Live console rows in the hero — illustrative snapshot of the five pillars. */
-const CONSOLE_ROWS = [
-  { name: "Commerce", status: "Answered 34 shoppers on WhatsApp today" },
-  { name: "Content", status: "2 articles drafted from this week's news" },
-  { name: "Growth", status: "LinkedIn post scheduled · 3 leads in inbox" },
-  { name: "Support", status: "Inbox clear — 12 conversations resolved" },
-  { name: "Presence", status: "Google listing synced · 2 new reviews" },
 ] as const;
 
 /**
@@ -339,7 +331,7 @@ export default async function Home({
                 </span>
               </div>
               <div className="flex flex-col gap-2.5">
-                {CONSOLE_ROWS.map((row) => (
+                {PILLAR_CONSOLE_ROWS.map((row) => (
                   <div
                     key={row.name}
                     className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/4 px-3.5 py-2.5 text-sm"
@@ -362,7 +354,7 @@ export default async function Home({
                   <PeaksGlyph size={16} />
                   <span className="font-bold text-brand-gradient">Peaks</span>
                 </span>
-                <span>1,240 free Peaks/mo</span>
+                <span>{FREE_PEAKS_PER_MONTH} free Peaks/mo</span>
               </div>
             </div>
           </div>
