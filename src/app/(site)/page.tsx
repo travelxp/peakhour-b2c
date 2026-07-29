@@ -18,6 +18,12 @@ import { Footer } from "@/components/shared/footer";
 import { pageMetadata } from "@/lib/seo";
 import { HOW_IT_WORKS_STEPS } from "@/lib/how-it-works";
 import {
+  PILLAR_CONSOLE_ROWS,
+  PILLAR_CONSOLE_LABEL,
+  SIGNUP_PROMISES,
+  FREE_PEAKS_PER_MONTH,
+} from "@/lib/pillar-console";
+import {
   getPublicCatalog,
   publicMarketingIntegrations,
   signupCta,
@@ -95,15 +101,6 @@ const PILLARS = [
     points: ["Google Business Profile", "Review management", "Listing health"],
     free: "Always free",
   },
-] as const;
-
-/** Live console rows in the hero — illustrative snapshot of the five pillars. */
-const CONSOLE_ROWS = [
-  { name: "Commerce", status: "Answered 34 shoppers on WhatsApp today" },
-  { name: "Content", status: "2 articles drafted from this week's news" },
-  { name: "Growth", status: "LinkedIn post scheduled · 3 leads in inbox" },
-  { name: "Support", status: "Inbox clear — 12 conversations resolved" },
-  { name: "Presence", status: "Google listing synced · 2 new reviews" },
 ] as const;
 
 /**
@@ -315,12 +312,22 @@ export default async function Home({
                   See how Peaks work
                 </Link>
               </div>
+              {/* Shared with /auth — the pitch must not change at the point
+                  of signup, which only holds with one copy of the strings. */}
               <p className="mt-5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
-                <span aria-hidden className="font-bold text-brand-label">✓</span> No credit card
-                <span aria-hidden className="opacity-40">·</span>
-                <span aria-hidden className="font-bold text-brand-label">✓</span> Free plan on every pillar
-                <span aria-hidden className="opacity-40">·</span>
-                <span aria-hidden className="font-bold text-brand-label">✓</span> Live the same day
+                {SIGNUP_PROMISES.map((promise, i) => (
+                  <span key={promise} className="flex items-center gap-x-2">
+                    {i > 0 && (
+                      <span aria-hidden className="opacity-40">
+                        ·
+                      </span>
+                    )}
+                    <span aria-hidden className="font-bold text-brand-label">
+                      ✓
+                    </span>
+                    {promise}
+                  </span>
+                ))}
               </p>
             </div>
 
@@ -329,7 +336,7 @@ export default async function Home({
             <div
               className="min-w-0 rounded-2xl border border-white/10 bg-zinc-900 p-4 shadow-2xl sm:p-5"
               role="img"
-              aria-label="Peakhour console showing five active pillars"
+              aria-label={PILLAR_CONSOLE_LABEL}
             >
               <div className="flex items-center justify-between px-1 pb-2 text-[0.7rem] font-bold uppercase tracking-[0.18em] text-zinc-400">
                 <span>Your business, at a glance</span>
@@ -339,7 +346,7 @@ export default async function Home({
                 </span>
               </div>
               <div className="flex flex-col gap-2.5">
-                {CONSOLE_ROWS.map((row) => (
+                {PILLAR_CONSOLE_ROWS.map((row) => (
                   <div
                     key={row.name}
                     className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/4 px-3.5 py-2.5 text-sm"
@@ -362,7 +369,7 @@ export default async function Home({
                   <PeaksGlyph size={16} />
                   <span className="font-bold text-brand-gradient">Peaks</span>
                 </span>
-                <span>1,240 free Peaks/mo</span>
+                <span>{FREE_PEAKS_PER_MONTH} free Peaks/mo</span>
               </div>
             </div>
           </div>

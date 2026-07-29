@@ -12,7 +12,7 @@ import { Suspense } from "react";
 export default function AcceptInvitePage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="flex flex-1 items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     }>
@@ -91,7 +91,7 @@ function AcceptInviteContent() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+    <div className="flex flex-1 items-center justify-center bg-background p-4">
       <Card className="max-w-md w-full">
         <CardContent className="pt-8 pb-8 text-center space-y-4">
           {status === "loading" && (
