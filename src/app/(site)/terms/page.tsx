@@ -340,8 +340,11 @@ export default function TermsPage() {
             <h2 className="text-lg font-semibold text-foreground">10. Intellectual Property</h2>
             <p className="mt-2">
               The Service, including its design, features, code, AI models, and documentation,
-              is owned by Peakhour.ai and protected by intellectual property laws. Nothing in
-              these Terms grants you any right to our trademarks, logos, or brand assets.
+              is owned by, or licensed to us by, companies within our group — including
+              Celebrities Management Private Limited, which holds the {SITE.name} trademark and
+              software intellectual property — and is protected by intellectual property laws.
+              Nothing in these Terms grants you any right to our trademarks, logos, or brand
+              assets.
             </p>
           </section>
 
@@ -363,15 +366,16 @@ export default function TermsPage() {
           <section>
             <h2 className="text-lg font-semibold text-foreground">12. Limitation of Liability</h2>
             <p className="mt-2">
-              TO THE MAXIMUM EXTENT PERMITTED BY LAW, PEAKHOUR SHALL NOT BE LIABLE FOR ANY
+              TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE COMPANY SHALL NOT BE LIABLE FOR ANY
               INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, INCLUDING
               BUT NOT LIMITED TO LOSS OF PROFITS, DATA, OR BUSINESS OPPORTUNITIES, ARISING
               OUT OF OR RELATED TO YOUR USE OF THE SERVICE.
             </p>
             <p className="mt-2">
               OUR TOTAL AGGREGATE LIABILITY FOR ALL CLAIMS ARISING FROM OR RELATED TO THE
-              SERVICE SHALL NOT EXCEED THE AMOUNT YOU PAID US IN THE 12 MONTHS PRECEDING THE
-              CLAIM.
+              SERVICE SHALL NOT EXCEED THE AMOUNT YOU PAID FOR THE SERVICE IN THE 12 MONTHS
+              PRECEDING THE CLAIM, WHETHER PAID TO US DIRECTLY OR TO A MERCHANT OF RECORD ON
+              OUR BEHALF (SECTION 8).
             </p>
           </section>
 

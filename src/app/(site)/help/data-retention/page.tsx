@@ -25,7 +25,7 @@ export default function DataRetentionPage() {
       <main className="mx-auto max-w-3xl px-4 py-12">
         <h1 className="text-3xl font-bold">Data Retention</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Last updated: {SITE.legalLastUpdated}
+          Last updated: {SITE.helpLastUpdated}
         </p>
 
         <div className="mt-8 space-y-8 text-sm leading-relaxed text-muted-foreground">

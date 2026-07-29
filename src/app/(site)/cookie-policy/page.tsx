@@ -24,8 +24,9 @@ export default function CookiePolicyPage() {
           <section>
             <h2 className="text-lg font-semibold text-foreground">1. Introduction</h2>
             <p className="mt-2">
-              This Cookie Policy explains how {SITE.company.legalName} (&quot;{SITE.name}&quot;,
-              &quot;we&quot;, &quot;us&quot;, or &quot;our&quot;) uses cookies and similar technologies on the
+              This Cookie Policy explains how {SITE.company.ref} (&quot;{SITE.name}&quot;,
+              &quot;we&quot;, &quot;us&quot;, or &quot;our&quot;) uses cookies and similar
+              technologies on the{" "}
               {SITE.name} platform (the &quot;Service&quot;). It should be read
               together with our{" "}
               <a href="/privacy-policy" className="text-foreground underline">

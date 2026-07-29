@@ -12,7 +12,15 @@ export const SITE = {
    *  Override per-env with NEXT_PUBLIC_SITE_URL; defaults to production. */
   url: process.env.NEXT_PUBLIC_SITE_URL ?? "https://peakhour.ai",
   tagline: "The AI business platform for growing brands",
+  /** Date stamped on Terms, Privacy and Cookie Policy. Privacy §17 and Cookie §7
+   *  define this as the signal of a material change, so bump it ONLY when one of
+   *  those three actually changes. */
   legalLastUpdated: "July 29, 2026",
+  /** Separate stamp for the Data Deletion and Data Retention pages. They are
+   *  informational, change on their own cadence, and the Data Deletion page is
+   *  read by Meta app review — sharing `legalLastUpdated` made an unrelated
+   *  policy edit look like a change to them. */
+  helpLastUpdated: "June 1, 2026",
   /** Operating legal entity for India (data controller / data fiduciary).
    *
    *  IMPORTANT — the India and UK entities share the SAME `legalName`. Rendering
@@ -33,6 +41,10 @@ export const SITE = {
     legalName: "Media Worldwide Limited",
     /** Disambiguated form — use in any identifying sentence. */
     ref: "Media Worldwide Limited (registered in England and Wales, company number 06334375)",
+    /** Structured form of the number embedded in `ref`. Kept separate because
+     *  statutory disclosure (UK Companies Act s.82 / Trading Disclosures Regs)
+     *  wants the bare number, not the prose form. The India entity has no
+     *  counterpart yet — its CIN has not been supplied. */
     companyNumber: "06334375",
     address:
       "2nd Floor, 2 Warner House, Harrovian Business Village, Bessborough Road, Harrow, Middlesex, England, HA1 3EX",

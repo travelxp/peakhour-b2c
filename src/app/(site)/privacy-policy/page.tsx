@@ -24,8 +24,8 @@ export default function PrivacyPolicyPage() {
             <h2 className="text-lg font-semibold text-foreground">1. Introduction</h2>
             <p className="mt-2">
               This Privacy Policy explains how {SITE.company.legalName} (&quot;{SITE.name}&quot;,
-              &quot;we&quot;, &quot;us&quot;, or &quot;our&quot;) — the company that operates the {SITE.name}{" "}
-              platform, an AI-powered marketing automation service (the
+              &quot;we&quot;, &quot;us&quot;, or &quot;our&quot;) — the companies that operate the {SITE.name}{" "}
+              platform, identified below, an AI-powered marketing automation service (the
               &quot;Service&quot;) — collects, uses, discloses, and safeguards your information when
               you use our website and services.
             </p>
@@ -43,8 +43,8 @@ export default function PrivacyPolicyPage() {
               same legal name — their country of incorporation and registration number
               distinguish them. Where the England and Wales company provides the Service to
               you, it is the GDPR &quot;controller&quot; of your personal data and your
-              contracting counterparty; references in this Policy to the company responsible
-              for your data mean that entity.
+              contracting counterparty, and in that case — and only in that case — references
+              in this Policy to the company responsible for your data mean that entity.
             </p>
             <p className="mt-2">
               By accessing or using the Service, you agree to this Privacy Policy. If you do
@@ -304,7 +304,9 @@ export default function PrivacyPolicyPage() {
                 companies in our group where they perform part of the Service for us — most
                 importantly Celebrities Management Private Limited, which holds the Meta and
                 LinkedIn platform API access described in Section 12 and processes the
-                associated data on our instructions under an intra-group agreement.
+                associated data on our instructions under a written intra-group agreement
+                incorporating the UK International Data Transfer Agreement / EU Standard
+                Contractual Clauses where the transfer is a restricted one.
               </li>
               <li>
                 <strong>Merchant-of-record platforms:</strong> in some countries your purchase
