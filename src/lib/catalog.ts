@@ -110,25 +110,37 @@ export async function getPublicCatalog(): Promise<ResolvedCatalog | null> {
 }
 
 /**
- * Collapse the resolved catalog into one card per logical product
- * (groupKey, falling back to key) for the marketing grid — e.g. LinkedIn
- * Content + LinkedIn Ads render as a single "LinkedIn" card. Keeps the
- * lowest sortOrder representative and drops dev-only rows defensively
- * (prod already strips them; this guards a non-prod marketing build).
+ * Rows the CMS has NOT published — never reach the public grid. Prod already
+ * strips both at the resolver (PROD_HIDDEN_STATUSES); repeating the gate here
+ * is what keeps the dev/staging landing honest, so "Works with your stack"
+ * shows the same published set everywhere instead of advertising half-built
+ * connectors that only exist in non-prod.
  */
-export function dedupePublicIntegrations(integrations: ResolvedIntegration[]): ResolvedIntegration[] {
-  const byGroup = new Map<string, ResolvedIntegration>();
-  for (const i of integrations) {
-    if (i.surfacedState === "dev_only") continue;
-    const g = i.display?.groupKey || i.key;
-    const existing = byGroup.get(g);
-    if (!existing || (i.display?.sortOrder ?? 100) < (existing.display?.sortOrder ?? 100)) {
-      byGroup.set(g, i);
-    }
-  }
-  return Array.from(byGroup.values()).sort(
-    (a, b) => (a.display?.sortOrder ?? 100) - (b.display?.sortOrder ?? 100),
-  );
+const MARKETING_HIDDEN_STATUSES = new Set(["hidden", "in_development"]);
+
+/**
+ * The integrations the public "Works with your stack" grid renders: every
+ * published catalog row, ONE CARD PER INTEGRATION, in catalog sort order.
+ *
+ * Deliberately NOT collapsed by `display.groupKey`. groupKey is a *provider*
+ * grouping (whatsapp + instagram + facebook_pages + meta_ads all sit under
+ * "meta"; gbp + gsc + google_ads under "google"), so collapsing on it made the
+ * marketing grid silently swallow live, headline integrations — WhatsApp and
+ * Google Search Console never appeared at all, hidden behind a single
+ * "Facebook Pages" / "Google Business Profile" card. Visitors shop by brand,
+ * so each published brand surface gets its own card and the grid mirrors what
+ * the CMS actually lists.
+ */
+export function publicMarketingIntegrations(
+  integrations: ResolvedIntegration[],
+): ResolvedIntegration[] {
+  return integrations
+    .filter((i) => i.surfacedState !== "dev_only" && !MARKETING_HIDDEN_STATUSES.has(i.status))
+    .sort(
+      (a, b) =>
+        (a.display?.sortOrder ?? 100) - (b.display?.sortOrder ?? 100) ||
+        a.name.localeCompare(b.name),
+    );
 }
 
 /** Landing-page signup CTA derived from the platform signup mode. */

@@ -19,13 +19,14 @@ import { pageMetadata } from "@/lib/seo";
 import { HOW_IT_WORKS_STEPS } from "@/lib/how-it-works";
 import {
   getPublicCatalog,
-  dedupePublicIntegrations,
+  publicMarketingIntegrations,
   signupCta,
 } from "@/lib/catalog";
 import {
   IntegrationBrandIcon,
   integrationBrandColor,
 } from "@/components/marketing/integration-brand";
+import { PeaksGlyph } from "@/components/peaks/peaks-glyph";
 import {
   LinkedinIcon,
   FacebookIcon,
@@ -110,18 +111,26 @@ const CONSOLE_ROWS = [
   { name: "Presence", status: "Google listing synced · 2 new reviews" },
 ] as const;
 
+/**
+ * Free → Pro ladder. Tracks the current pricing architecture: a full-featured
+ * Free tier that Pro extends (capacity, automations, insights, workspaces,
+ * support) — not a feature paywall.
+ */
 const FREE_POINTS = [
   {
-    title: "No credit card, ever, to start",
-    detail: "Sign up with email. Upgrade only when you outgrow your free Peaks.",
+    title: "Start in minutes",
+    detail:
+      "No credit card required. Connect your business and start using Peakhour for free.",
   },
   {
-    title: "No feature paywalls",
-    detail: "Free users see the same screens, skills, and quality — never a locked door.",
+    title: "Upgrade when you've outgrown Free",
+    detail:
+      "Pro unlocks higher Peaks, more automations, advanced insights, multiple workspaces, and priority support — built for businesses using Peakhour every day.",
   },
   {
-    title: "One currency, five pillars",
-    detail: "Peaks spent on a blog post or a WhatsApp reply come from the same pool.",
+    title: "One AI currency across every product",
+    detail:
+      "Peaks power AI across Commerce, Content, Growth, Support, and Presence, giving you one simple way to manage AI usage across your business.",
   },
 ] as const;
 
@@ -175,7 +184,7 @@ export default async function Home({
   const platform = catalog?.platform;
   const cta = signupCta(platform?.signupMode ?? "open");
   const integrationCards = catalog
-    ? dedupePublicIntegrations(catalog.integrations).map((i) => ({
+    ? publicMarketingIntegrations(catalog.integrations).map((i) => ({
         id: i.key,
         name: i.name,
         description: i.tagline ?? i.description ?? i.comingSoon?.copy ?? "",
@@ -238,10 +247,18 @@ export default async function Home({
       <Header />
 
       <main>
-        {/* Hero */}
-        <section className="py-20 sm:py-28">
-          <div className="mx-auto grid max-w-6xl items-center gap-14 px-4 sm:px-6 lg:grid-cols-[1.1fr_0.9fr]">
-            <div>
+        {/* Hero — tighter top (the sticky header + announcement bar already
+            carry weight above it) and a bottom step that matches the band
+            rhythm below (`SECTION_PAD`), so no gap on the page reads as a hole. */}
+        <section className="pt-8 pb-12 sm:pt-12 sm:pb-16">
+          {/* `min-w-0` on both tracks: the console rows below use `truncate`
+              (white-space: nowrap), whose min-content is the FULL untruncated
+              string. Without an explicit 0 minimum a grid item's automatic
+              minimum size is its min-content, so that nowrap text sized the
+              track ~519px wide and pushed the whole page into a horizontal
+              scroll on phones. */}
+          <div className="mx-auto grid max-w-6xl items-center gap-10 px-4 sm:gap-14 sm:px-6 lg:grid-cols-[1.1fr_0.9fr]">
+            <div className="min-w-0">
               <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand-label">
                 <span className="h-0.5 w-7 bg-brand-gradient" aria-hidden />
                 The AI business platform for growing brands
@@ -291,7 +308,7 @@ export default async function Home({
             {/* Pillar console — always-dark product panel (fixed tones so it
                 reads on both light and dark grounds). */}
             <div
-              className="rounded-2xl border border-white/10 bg-zinc-900 p-5 shadow-2xl"
+              className="min-w-0 rounded-2xl border border-white/10 bg-zinc-900 p-4 shadow-2xl sm:p-5"
               role="img"
               aria-label="Peakhour console showing five active pillars"
             >
@@ -318,9 +335,10 @@ export default async function Home({
                 ))}
               </div>
               <div className="flex items-center justify-between px-1 pt-3 text-xs text-zinc-400">
-                <span className="flex items-center gap-1">
-                  Metered in{" "}
-                  <span aria-hidden className="text-brand">⚡</span>
+                <span className="flex items-center gap-1.5">
+                  Metered in
+                  {/* The real Peaks coin — never the ⚡ stand-in. */}
+                  <PeaksGlyph size={16} />
                   <span className="font-bold text-brand-gradient">Peaks</span>
                 </span>
                 <span>1,240 free Peaks/mo</span>
@@ -330,7 +348,7 @@ export default async function Home({
         </section>
 
         {/* Pillar grid — section ids back the header/footer anchors */}
-        <section className="border-t bg-muted/30 py-20">
+        <section className="border-t bg-muted/30 py-12 sm:py-16">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <div className="max-w-3xl">
               <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand-label">
@@ -381,26 +399,25 @@ export default async function Home({
         </section>
 
         {/* Free-first economics — always-dark panel */}
-        <section className="py-20">
+        <section className="py-12 sm:py-16">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <div className="grid gap-12 overflow-hidden rounded-3xl border border-white/10 bg-zinc-900 p-8 text-zinc-100 shadow-2xl lg:grid-cols-[1.1fr_0.9fr] lg:p-12">
               <div>
                 <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand">
                   <span className="h-0.5 w-7 bg-brand-gradient" aria-hidden />
-                  Free means free
+                  Start free. Scale when you&rsquo;re ready.
                 </span>
                 <h2 className="mt-4 text-3xl font-extrabold tracking-tight text-pretty lg:text-4xl">
-                  Same product on Free and Paid.{" "}
+                  Everything you need to get started.{" "}
                   <span className="text-brand-gradient">
-                    The only difference is how much AI work you get.
+                    More power when your business grows.
                   </span>
                 </h2>
                 <p className="mt-4 max-w-lg text-zinc-400">
-                  Every plan — Free included — gets the full product with identical
-                  polish. AI work is metered in{" "}
-                  <span className="font-bold text-brand-gradient">Peaks</span>, one
-                  transparent currency across all five pillars. Free plans refill
-                  monthly; paid plans simply carry more Peaks and higher limits.
+                  Start with the core Peakhour experience at no cost. Connect your
+                  business, explore every product, and see real value before
+                  upgrading. Move to Pro when you need more AI capacity, advanced
+                  workflows, deeper insights, and team collaboration.
                 </p>
               </div>
               <div className="flex flex-col gap-3.5">
@@ -422,7 +439,7 @@ export default async function Home({
         </section>
 
         {/* How it works */}
-        <section id="how-it-works" className="scroll-mt-24 border-t bg-muted/30 py-20">
+        <section id="how-it-works" className="scroll-mt-24 border-t bg-muted/30 py-12 sm:py-16">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <div className="max-w-3xl">
               <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand-label">
@@ -430,7 +447,10 @@ export default async function Home({
                 How it works
               </span>
               <h2 className="mt-4 text-3xl font-extrabold tracking-tight text-pretty lg:text-4xl">
-                Live in minutes, not quarters.
+                From Setup to Autopilot.{" "}
+                <span className="font-serif italic font-normal text-brand-gradient">
+                  In 3 simple steps.
+                </span>
               </h2>
             </div>
             <div className="mt-12 grid gap-4 md:grid-cols-3">
@@ -453,7 +473,7 @@ export default async function Home({
         </section>
 
         {/* Integrations — catalog-driven */}
-        <section className="py-20">
+        <section className="py-12 sm:py-16">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <div className="max-w-3xl">
               <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand-label">
@@ -497,7 +517,7 @@ export default async function Home({
         </section>
 
         {/* Final CTA — always-dark panel */}
-        <section className="pb-24">
+        <section className="pb-16 sm:pb-20">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <div className="overflow-hidden rounded-3xl border border-white/10 bg-zinc-900 px-6 py-16 text-center text-zinc-100 shadow-2xl sm:py-20">
               <h2 className="mx-auto max-w-2xl text-3xl font-extrabold tracking-tight text-pretty sm:text-4xl">

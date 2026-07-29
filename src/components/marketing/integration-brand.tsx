@@ -16,12 +16,15 @@ import {
 } from "@/components/ui/brand-icons";
 
 /**
- * Maps a catalog integration's groupKey/key to a brand glyph + accent color.
+ * Maps a catalog integration's key/groupKey to a brand glyph + accent color.
  * The catalog carries a `display.brandColor`/`iconUrl`, but the landing uses
- * the hand-tuned brand SVGs; this is the bridge. Keyed by `groupKey` first
- * (linkedin_content + linkedin_ads → "linkedin"), then the raw key. Anything
- * unmapped falls back to a styled initial circle so a brand-new catalog row
- * still renders sensibly.
+ * the hand-tuned brand SVGs; this is the bridge.
+ *
+ * The integration's own KEY wins, with `groupKey` as the fallback for keys we
+ * haven't mapped (facebook_pages → "meta", gsc → "google"). Group-first was
+ * wrong: groupKey is a provider grouping, so WhatsApp and Instagram — both
+ * under "meta" — rendered the Facebook glyph. Anything unmapped falls back to
+ * a styled initial so a brand-new catalog row still renders sensibly.
  */
 type Brand = { Icon: ComponentType<{ className?: string }>; color: string };
 
@@ -63,7 +66,7 @@ export function IntegrationBrandIcon({
   name: string;
   className?: string;
 }) {
-  const brand = (groupKey && BRANDS[groupKey]) || BRANDS[integrationKey];
+  const brand = BRANDS[integrationKey] || (groupKey ? BRANDS[groupKey] : undefined);
   if (brand) {
     const { Icon } = brand;
     return <Icon className={className} />;
@@ -78,6 +81,7 @@ export function IntegrationBrandIcon({
  *  contrast against the tile's hardcoded `text-white`, so use a fixed dark
  *  neutral (~6:1 vs white in both themes). */
 export function integrationBrandColor(groupKey?: string, integrationKey?: string): string {
-  const brand = (groupKey && BRANDS[groupKey]) || (integrationKey ? BRANDS[integrationKey] : undefined);
+  const brand =
+    (integrationKey ? BRANDS[integrationKey] : undefined) || (groupKey ? BRANDS[groupKey] : undefined);
   return brand?.color ?? "bg-zinc-700";
 }

@@ -158,6 +158,13 @@
   body {
     @apply bg-background text-foreground;
   }
+  /* Belt-and-braces against sideways scroll on phones. `clip` (not `hidden`)
+     because `hidden` would turn <html> into a scroll container and break the
+     sticky site header; `clip` doesn't. This is a backstop only — an element
+     wider than the viewport is still a layout bug to fix at the source. */
+  html {
+    overflow-x: clip;
+  }
 }
 
 /*
