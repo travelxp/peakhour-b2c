@@ -7,7 +7,7 @@ import { getPublicCatalog, signupCta } from "@/lib/catalog";
 import { HOW_IT_WORKS_STEPS } from "@/lib/how-it-works";
 
 export const metadata = pageMetadata({
-  title: "How it works — from setup to autopilot in 3 simple steps | Peakhour.ai",
+  title: "How it works — From Setup to Autopilot in 3 simple steps | Peakhour.ai",
   description:
     "Connect what you have, approve the plan, then let Peakhour run and learn. Grounded in your real catalog and content — never guessed from your name.",
   path: "/how-it-works",

@@ -13,6 +13,8 @@ import {
   WooCommerceIcon,
   WhatsAppIcon,
   TwitterIcon,
+  GhostIcon,
+  SlackIcon,
 } from "@/components/ui/brand-icons";
 
 /**
@@ -53,7 +55,20 @@ const BRANDS: Record<string, Brand> = {
   whatsapp_business: { Icon: WhatsAppIcon, color: "bg-[#25D366]" },
   x: { Icon: TwitterIcon, color: "bg-black" },
   x_ads: { Icon: TwitterIcon, color: "bg-black" },
+  // Newsletter/messaging rows that carry no groupKey — without these they fall
+  // through to the grey initial tile next to hand-tuned marks. Both are
+  // `coming_soon` in prod, so they DO render on the public grid.
+  ghost: { Icon: GhostIcon, color: "bg-[#15171A]" },
+  slack: { Icon: SlackIcon, color: "bg-[#4A154B]" },
 };
+
+/**
+ * Sibling rows in the same brand family (google_business_profile / gsc /
+ * google_ads; facebook_pages / meta_ads; x / x_ads) intentionally share their
+ * brand's mark — that IS the brand's mark, and each card is labelled with its
+ * own product name. Only give a sibling its own entry when the product has a
+ * genuinely distinct official mark.
+ */
 
 export function IntegrationBrandIcon({
   groupKey,

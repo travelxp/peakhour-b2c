@@ -110,13 +110,22 @@ export async function getPublicCatalog(): Promise<ResolvedCatalog | null> {
 }
 
 /**
- * Rows the CMS has NOT published — never reach the public grid. Prod already
- * strips both at the resolver (PROD_HIDDEN_STATUSES); repeating the gate here
- * is what keeps the dev/staging landing honest, so "Works with your stack"
- * shows the same published set everywhere instead of advertising half-built
- * connectors that only exist in non-prod.
+ * Statuses the public grid must never advertise:
+ *   • hidden          — the real gate here. Prod strips it at the resolver
+ *                       (PROD_HIDDEN_STATUSES) but non-prod keeps it, so
+ *                       without this the dev landing advertises connectors the
+ *                       CMS has explicitly unpublished.
+ *   • in_development  — belt-and-braces. The resolver already tags these
+ *                       `surfacedState: "dev_only"`, which the filter below
+ *                       drops anyway; listed so a resolver change can't quietly
+ *                       leak half-built connectors onto the marketing page.
+ *   • deprecated      — a connector being retired. Existing connections still
+ *                       work, but "Works with your stack" is an acquisition
+ *                       promise and must not make one we're walking back.
+ *                       (`surfacedState: "deprecated"` renders no badge, so
+ *                       these would otherwise look identical to live cards.)
  */
-const MARKETING_HIDDEN_STATUSES = new Set(["hidden", "in_development"]);
+const MARKETING_HIDDEN_STATUSES = new Set(["hidden", "in_development", "deprecated"]);
 
 /**
  * The integrations the public "Works with your stack" grid renders: every

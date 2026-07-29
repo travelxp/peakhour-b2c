@@ -39,6 +39,7 @@ import {
   ShopifyIcon,
   WordPressIcon,
   TwitterIcon,
+  WhatsAppIcon,
 } from "@/components/ui/brand-icons";
 
 export const metadata = pageMetadata({
@@ -123,7 +124,7 @@ const FREE_POINTS = [
       "No credit card required. Connect your business and start using Peakhour for free.",
   },
   {
-    title: "Upgrade when you've outgrown Free",
+    title: "Upgrade when you’ve outgrown Free",
     detail:
       "Pro unlocks higher Peaks, more automations, advanced insights, multiple workspaces, and priority support — built for businesses using Peakhour every day.",
   },
@@ -137,14 +138,24 @@ const FREE_POINTS = [
 // Shared with the standalone /how-it-works page (single source of truth).
 const STEPS = HOW_IT_WORKS_STEPS;
 
-// Static fallback for the integrations strip when the catalog API is
-// unreachable — mirrors the resolved shape so the section never hard-fails.
+// Static fallback for the integrations strip, used only when the catalog API is
+// unreachable OR publishes nothing — mirrors the resolved shape so the section
+// never hard-fails into a heading over an empty grid.
+//
+// Kept one-card-per-brand-surface like the live grid (it used to be the
+// provider-collapsed list, which omitted WhatsApp — the integration this
+// section most needs to show). It is deliberately a REDUCED "we're degraded"
+// set: the recognisable brands, no coming-soon badges, no lifecycle claims we
+// can't verify while the catalog is unreachable.
 const INTEGRATIONS = [
   { name: "Shopify", icon: ShopifyIcon, color: "bg-[#96BF48]", description: "Catalog & storefront" },
   { name: "WordPress", icon: WordPressIcon, color: "bg-[#21759B]", description: "Content & CMS sync" },
+  { name: "WhatsApp Business", icon: WhatsAppIcon, color: "bg-[#25D366]", description: "Conversations & storefront chat" },
   { name: "LinkedIn", icon: LinkedinIcon, color: "bg-[#0A66C2]", description: "Organic posts & Lead Gen" },
-  { name: "Facebook", icon: FacebookIcon, color: "bg-[#0668E1]", description: "Pages, ads & insights" },
+  { name: "Facebook Pages", icon: FacebookIcon, color: "bg-[#0668E1]", description: "Pages, posts & insights" },
   { name: "Instagram", icon: InstagramIcon, color: "bg-[#E4405F]", description: "Reels, stories & ads" },
+  { name: "Google Business Profile", icon: GoogleIcon, color: "bg-[#4285F4]", description: "Listings, hours & reviews" },
+  { name: "Google Search Console", icon: GoogleIcon, color: "bg-[#4285F4]", description: "Ranking gaps & refreshes" },
   { name: "Google Ads", icon: GoogleIcon, color: "bg-[#4285F4]", description: "Search, display & video" },
   { name: "YouTube", icon: YoutubeIcon, color: "bg-[#FF0000]", description: "Video content & pre-roll" },
   { name: "Beehiiv", icon: BeehiivIcon, color: "bg-[#FFD100] text-black", description: "Newsletter import" },
@@ -183,8 +194,12 @@ export default async function Home({
   const catalog = await getPublicCatalog();
   const platform = catalog?.platform;
   const cta = signupCta(platform?.signupMode ?? "open");
-  const integrationCards = catalog
-    ? publicMarketingIntegrations(catalog.integrations).map((i) => ({
+  // Fall back on an EMPTY published set too, not just a null catalog — a
+  // catalog that publishes nothing would otherwise render the section heading
+  // over an empty grid.
+  const published = catalog ? publicMarketingIntegrations(catalog.integrations) : [];
+  const integrationCards = published.length
+    ? published.map((i) => ({
         id: i.key,
         name: i.name,
         description: i.tagline ?? i.description ?? i.comingSoon?.copy ?? "",
@@ -248,8 +263,9 @@ export default async function Home({
 
       <main>
         {/* Hero — tighter top (the sticky header + announcement bar already
-            carry weight above it) and a bottom step that matches the band
-            rhythm below (`SECTION_PAD`), so no gap on the page reads as a hole. */}
+            carry weight above it) and a bottom that steps into the same
+            py-12 sm:py-16 rhythm every band below uses, so no gap on the page
+            reads as a hole. */}
         <section className="pt-8 pb-12 sm:pt-12 sm:pb-16">
           {/* `min-w-0` on both tracks: the console rows below use `truncate`
               (white-space: nowrap), whose min-content is the FULL untruncated
@@ -335,9 +351,9 @@ export default async function Home({
                 ))}
               </div>
               <div className="flex items-center justify-between px-1 pt-3 text-xs text-zinc-400">
+                {/* Peaks is always the coin glyph, never a generic bolt. */}
                 <span className="flex items-center gap-1.5">
-                  Metered in
-                  {/* The real Peaks coin — never the ⚡ stand-in. */}
+                  Metered in{" "}
                   <PeaksGlyph size={16} />
                   <span className="font-bold text-brand-gradient">Peaks</span>
                 </span>
@@ -448,12 +464,12 @@ export default async function Home({
               </span>
               <h2 className="mt-4 text-3xl font-extrabold tracking-tight text-pretty lg:text-4xl">
                 From Setup to Autopilot.{" "}
-                <span className="font-serif italic font-normal text-brand-gradient">
+                <span className="font-serif font-normal italic text-brand-gradient">
                   In 3 simple steps.
                 </span>
               </h2>
             </div>
-            <div className="mt-12 grid gap-4 md:grid-cols-3">
+            <div className="mt-10 grid gap-4 md:grid-cols-3">
               {STEPS.map((s) => (
                 <div
                   key={s.step}
