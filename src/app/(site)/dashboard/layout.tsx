@@ -520,12 +520,22 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
             <FeedbackWidget />
           </div>
         </header>
-        <div className="flex-1 overflow-auto p-6">
+        {/* The shell is the SINGLE owner of dashboard page padding — routes
+            must not re-declare `p-*` on their root (see
+            @/components/dashboard/page-shell). Steps down to 16px on mobile:
+            at 375px a flat 24px inset costs 13% of the screen width before a
+            card's own 24px padding is even applied. */}
+        <div className="flex-1 overflow-auto p-4 sm:p-6">
           {/* Trial-expiry warning slot — sits above the route content
               only when a trial is within the final 3 days. Component
               renders nothing in all other states (no trial, plenty of
-              days left, dismissed). */}
-          <div className="mb-4 flex flex-col gap-2">
+              days left, dismissed).
+
+              `empty:hidden` matters: both children return null in the common
+              case, but the wrapper's own margin still applied, pushing every
+              page in the app down 16px for a band that rendered nothing.
+              (`:empty` ignores comment nodes, so React's null renders match.) */}
+          <div className="mb-4 flex flex-col gap-2 empty:hidden">
             <TrialExpiryBanner />
             <CreditCapBanner />
           </div>

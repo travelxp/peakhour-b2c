@@ -8,6 +8,7 @@ import { api, ApiError, API_BASE_URL } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/molecules/status-badge";
+import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
 import { ConfirmDialog } from "@/components/molecules/confirm-dialog";
 import { WhatsAppEmbeddedSignup } from "@/components/integrations/whatsapp-embedded-signup";
 import { WordPressConnectModal } from "@/components/integrations/wordpress-connect-modal";
@@ -529,14 +530,11 @@ export default function IntegrationsPage() {
   const disconnectedCount = integrations.filter((i) => !i.connected).length;
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight">Integrations</h2>
-        <p className="text-muted-foreground mt-1">
-          Connect your platforms to power AI-driven content and ads
-        </p>
-      </div>
+    <PageShell width="standard">
+      <PageHeader
+        title="Integrations"
+        description="Connect your platforms to power AI-driven content and ads"
+      />
 
       {/* Search + Tabs bar */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -694,8 +692,7 @@ export default function IntegrationsPage() {
         open={connectModal === "wordpress"}
         onClose={() => setConnectModal(null)}
       />
-
-    </div>
+    </PageShell>
   );
 }
 

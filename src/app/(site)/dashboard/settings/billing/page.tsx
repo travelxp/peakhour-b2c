@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { featureLabel } from "@/lib/pricing";
 import { useQueryClient } from "@tanstack/react-query";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
+import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
 import { TaxAndInvoices } from "@/components/settings-tax-invoices";
 import { UpgradePlanDialog } from "@/components/upgrade/upgrade-plan-dialog";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -133,12 +134,12 @@ export default function BillingPage() {
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
+      <PageShell width="narrow">
         {cronToolbar}
         <div className="flex justify-center py-12">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-muted border-t-primary" />
         </div>
-      </div>
+      </PageShell>
     );
   }
 
@@ -208,16 +209,18 @@ export default function BillingPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <PageShell width="narrow">
       {cronToolbar}
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight">Billing</h2>
-        <p className="text-muted-foreground mt-1">
-          Manage your plan, usage, and payment details
-        </p>
-      </div>
+      <PageHeader
+        title="Billing"
+        description="Manage your plan, usage, and payment details"
+      />
 
-      <div className="max-w-3xl space-y-6">
+      {/* The measure now comes from PageShell (narrow, CENTRED). This block
+          used to carry its own `max-w-3xl` with no `mx-auto`, so on a 1920px
+          monitor the whole billing page hugged the left edge and left ~830px
+          of empty gutter to its right. */}
+      <div className="space-y-6">
         {/* Your subscription — ONE subscription, N products, one charge.
             This card used to read "Current Plan: {tier key}", which showed
             customers "Commerce_assistant.Free" and said nothing about the paid
@@ -588,6 +591,6 @@ export default function BillingPage() {
         onOpenChange={setUpgradeOpen}
         onPurchased={refreshBilling}
       />
-    </div>
+    </PageShell>
   );
 }

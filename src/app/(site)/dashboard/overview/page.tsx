@@ -35,6 +35,7 @@ import { FootprintReviewCard } from "@/components/dashboard/footprint-review-car
 import { RecommendationsCard } from "@/components/dashboard/recommendations-card";
 import { BrandMirrorCard } from "@/components/dashboard/brand-mirror-card";
 import { AskCard } from "@/components/dashboard/ask-card";
+import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
 
 interface DashboardStats {
   content: {
@@ -109,7 +110,7 @@ export default function OverviewPage() {
   const hasContent = (stats?.content.total ?? 0) > 0;
 
   return (
-    <div className="space-y-6">
+    <PageShell width="wide">
       <CronToolbar
         crons={[
           "discovery-runner",
@@ -123,28 +124,32 @@ export default function OverviewPage() {
           queryClient.invalidateQueries({ queryKey: ["dashboard-discovery"] });
         }}
       />
-      {/* Hero header */}
-      <div className="flex items-end justify-between">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight">
-            {org?.name || "Dashboard"}
-          </h2>
-          <p className="text-muted-foreground mt-1">
-            {stats?.businessType || "Your AI marketing command center"}
-          </p>
-        </div>
-        {stats?.websiteUrl && (
-          <a
-            href={stats.websiteUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
-          >
-            <Globe className="h-3 w-3" />
-            {stats.websiteUrl.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "")}
-          </a>
-        )}
-      </div>
+      {/* Hero header. Was the app's only `text-3xl` title, in a
+          non-wrapping `items-end justify-between` row — a long org name
+          squeezed the website link to a few characters on narrow screens.
+          PageHeader wraps the actions below the title under `sm` and puts the
+          page on the same title scale as every other route. */}
+      <PageHeader
+        title={org?.name || "Dashboard"}
+        description={stats?.businessType || "Your AI marketing command center"}
+        actions={
+          stats?.websiteUrl ? (
+            <a
+              href={stats.websiteUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <Globe className="h-3 w-3 shrink-0" />
+              <span className="truncate">
+                {stats.websiteUrl
+                  .replace(/^https?:\/\/(www\.)?/, "")
+                  .replace(/\/$/, "")}
+              </span>
+            </a>
+          ) : undefined
+        }
+      />
 
       {/* Discovery progress strip — only visible while a bg job is alive */}
       {discovery?.activeJob && (
@@ -359,7 +364,7 @@ export default function OverviewPage() {
           />
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }
 
