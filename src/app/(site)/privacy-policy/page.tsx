@@ -30,19 +30,21 @@ export default function PrivacyPolicyPage() {
               you use our website and services.
             </p>
             <p className="mt-2">
-              {SITE.name} is a product of {SITE.company.legalName}, registered office at{" "}
-              {SITE.company.address}. For the EU/UK General Data Protection Regulation
-              (&quot;GDPR&quot;), {SITE.company.legalName} is the data &quot;controller&quot;; under
-              India&apos;s Digital Personal Data Protection Act, 2023 (&quot;DPDP Act&quot;), it is the
-              &quot;Data Fiduciary&quot; that determines the purpose and means of processing your
-              personal data.
+              {SITE.name} is a product of {SITE.company.ref}, registered office at{" "}
+              {SITE.company.address}. Under India&apos;s Digital Personal Data Protection Act,
+              2023 (&quot;DPDP Act&quot;), that company is the &quot;Data Fiduciary&quot; that
+              determines the purpose and means of processing your personal data, and it is the
+              data &quot;controller&quot; for the purposes of the EU/UK General Data Protection
+              Regulation (&quot;GDPR&quot;) except where the paragraph below applies.
             </p>
             <p className="mt-2">
-              Outside India, {SITE.name} is marketed and provided by{" "}
-              {SITE.companyUk.legalName}, a company registered in England and Wales under
-              company number {SITE.companyUk.companyNumber}, with its registered office at{" "}
-              {SITE.companyUk.address}. Where that entity provides the Service to you, it is
-              the GDPR &quot;controller&quot; of your personal data.
+              Outside India, {SITE.name} is marketed and provided by {SITE.companyUk.ref}, with
+              its registered office at {SITE.companyUk.address}. The two companies share the
+              same legal name — their country of incorporation and registration number
+              distinguish them. Where the England and Wales company provides the Service to
+              you, it is the GDPR &quot;controller&quot; of your personal data and your
+              contracting counterparty; references in this Policy to the company responsible
+              for your data mean that entity.
             </p>
             <p className="mt-2">
               By accessing or using the Service, you agree to this Privacy Policy. If you do
@@ -298,6 +300,13 @@ export default function PrivacyPolicyPage() {
                 .
               </li>
               <li>
+                <strong>Affiliated group companies:</strong> we share personal data with
+                companies in our group where they perform part of the Service for us — most
+                importantly Celebrities Management Private Limited, which holds the Meta and
+                LinkedIn platform API access described in Section 12 and processes the
+                associated data on our instructions under an intra-group agreement.
+              </li>
+              <li>
                 <strong>Merchant-of-record platforms:</strong> in some countries your purchase
                 is made from a third-party merchant-of-record platform that resells the Service
                 (see Section 8 of our Terms of Service). Unlike a sub-processor, such a
@@ -468,10 +477,10 @@ export default function PrivacyPolicyPage() {
               you may therefore see CMPL named on the platform&apos;s authorization screen or in
               the application&apos;s developer record. CMPL makes that platform access available
               to us under a written intra-group agreement and processes the data only on our
-              instructions, solely to deliver the integration you enabled.{" "}
-              {SITE.company.legalName} remains the controller / Data Fiduciary responsible for
-              your personal data as described in this Policy, and the rights and contacts set
-              out here apply to that data.
+              instructions, solely to deliver the integration you enabled. The {SITE.name}{" "}
+              entity identified in Section 1 remains the controller / Data Fiduciary
+              responsible for your personal data as described in this Policy, and the rights
+              and contacts set out here apply to that data.
             </p>
 
             <h3 className="mt-4 font-medium text-foreground">12.1 Meta Platform (Facebook, Instagram, Ads, WhatsApp)</h3>
@@ -515,7 +524,6 @@ export default function PrivacyPolicyPage() {
             <p className="mt-2">
               Our use of LinkedIn data complies with the LinkedIn API Terms of Use and is
               limited to the authorized purposes for which you connected your LinkedIn account.
-              LinkedIn API access is held by CMPL as described above.
             </p>
 
             <h3 className="mt-4 font-medium text-foreground">12.5 Microsoft and other providers</h3>
@@ -650,10 +658,16 @@ export default function PrivacyPolicyPage() {
               If you have questions about this Privacy Policy or our data practices, contact:
             </p>
             <p className="mt-2">
-              {SITE.company.legalName}
+              <strong>India:</strong> {SITE.company.ref}
               <br />
               {SITE.company.address}
+            </p>
+            <p className="mt-2">
+              <strong>Outside India:</strong> {SITE.companyUk.ref}
               <br />
+              {SITE.companyUk.address}
+            </p>
+            <p className="mt-2">
               Privacy:{" "}
               <a href={`mailto:${SITE.contactPrivacy}`} className="text-foreground underline">
                 {SITE.contactPrivacy}

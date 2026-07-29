@@ -33,11 +33,13 @@ export default function TermsPage() {
             </p>
             <p className="mt-2">
               Outside India, {SITE.name} is marketed and provided by{" "}
-              {SITE.companyUk.legalName}, a company registered in England and Wales under
-              company number {SITE.companyUk.companyNumber}, with its registered office at{" "}
-              {SITE.companyUk.address}. Where you contract with that entity, references to
-              &quot;Company&quot;, &quot;we&quot;, &quot;us&quot; and &quot;our&quot; in these
-              Terms mean {SITE.companyUk.legalName}.
+              {SITE.companyUk.ref}, with its registered office at {SITE.companyUk.address}. The
+              two companies share the same legal name — their country of incorporation and
+              registration number distinguish them. Where you contract with the England and
+              Wales company, references to &quot;Company&quot;, &quot;we&quot;, &quot;us&quot;
+              and &quot;our&quot; in these Terms mean {SITE.companyUk.ref}, and its registered
+              office and company number above apply in place of those in the preceding
+              paragraph.
             </p>
             <p className="mt-2">
               By creating an account or using the Service, you agree to be bound by these
@@ -210,9 +212,11 @@ export default function TermsPage() {
               </li>
               <li>
                 <strong>Seller of record.</strong> Depending on your country, your purchase is
-                made either directly from {SITE.company.legalName} or from a third-party
-                merchant-of-record (&quot;MoR&quot;) platform that resells the Service. Where an
-                MoR platform is used, that platform — not {SITE.company.legalName} — is the
+                made either directly from one of the two {SITE.name} companies named in Section
+                1 (India purchases from the India company, other direct purchases from the
+                England and Wales company) or from a third-party merchant-of-record
+                (&quot;MoR&quot;) platform that resells the Service. Where an MoR platform is
+                used, that platform — not either {SITE.name} company — is the
                 seller of record for the transaction: it contracts with you for the sale,
                 issues your invoice or receipt, and collects and remits any applicable sales
                 tax, VAT or GST. Its own terms and privacy policy govern the payment
@@ -461,10 +465,16 @@ export default function TermsPage() {
               For questions about these Terms, contact us at:
             </p>
             <p className="mt-2">
-              {SITE.company.legalName}
+              <strong>India:</strong> {SITE.company.ref}
               <br />
               {SITE.company.address}
+            </p>
+            <p className="mt-2">
+              <strong>Outside India:</strong> {SITE.companyUk.ref}
               <br />
+              {SITE.companyUk.address}
+            </p>
+            <p className="mt-2">
               Email:{" "}
               <a href={`mailto:${SITE.contactLegal}`} className="text-foreground underline">
                 {SITE.contactLegal}

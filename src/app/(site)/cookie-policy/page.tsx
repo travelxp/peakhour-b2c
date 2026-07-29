@@ -34,10 +34,9 @@ export default function CookiePolicyPage() {
               .
             </p>
             <p className="mt-2">
-              Outside India, {SITE.name} is marketed and provided by{" "}
-              {SITE.companyUk.legalName}, a company registered in England and Wales under
-              company number {SITE.companyUk.companyNumber}, with its registered office at{" "}
-              {SITE.companyUk.address}.
+              Where you are outside India, the company responsible for your personal data may
+              instead be {SITE.companyUk.ref} — see Section 1 of our Privacy Policy. This
+              Cookie Policy applies to cookies set by the {SITE.name} platform either way.
             </p>
           </section>
 
@@ -137,10 +136,16 @@ export default function CookiePolicyPage() {
               Questions about this Cookie Policy can be sent to:
             </p>
             <p className="mt-2">
-              {SITE.company.legalName}
+              <strong>India:</strong> {SITE.company.ref}
               <br />
               {SITE.company.address}
+            </p>
+            <p className="mt-2">
+              <strong>Outside India:</strong> {SITE.companyUk.ref}
               <br />
+              {SITE.companyUk.address}
+            </p>
+            <p className="mt-2">
               Email:{" "}
               <a href={`mailto:${SITE.contactPrivacy}`} className="text-foreground underline">
                 {SITE.contactPrivacy}

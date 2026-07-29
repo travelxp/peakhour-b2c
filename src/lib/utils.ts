@@ -12,18 +12,27 @@ export const SITE = {
    *  Override per-env with NEXT_PUBLIC_SITE_URL; defaults to production. */
   url: process.env.NEXT_PUBLIC_SITE_URL ?? "https://peakhour.ai",
   tagline: "The AI business platform for growing brands",
-  legalLastUpdated: "June 1, 2026",
-  /** Operating legal entity for India (data controller / data fiduciary). */
+  legalLastUpdated: "July 29, 2026",
+  /** Operating legal entity for India (data controller / data fiduciary).
+   *
+   *  IMPORTANT — the India and UK entities share the SAME `legalName`. Rendering
+   *  a bare `legalName` in a sentence whose job is to IDENTIFY the entity
+   *  produces a tautology ("references to Company mean Media Worldwide Limited"
+   *  reads identically for both). Use `ref` wherever the text distinguishes one
+   *  entity from the other; `legalName` is only for prose that means "the
+   *  company", where either reading is correct. */
   company: {
     legalName: "Media Worldwide Limited",
+    /** Disambiguated form — use in any identifying sentence. */
+    ref: "Media Worldwide Limited (incorporated in India)",
     address:
       "5th Floor, Tech Web Centre, Link Road, Oshiwara, Mumbai 400102, Maharashtra, India",
   },
-  /** Entity that markets and contracts for Peakhour.ai outside India.
-   *  Same legal name as the India entity — the country of incorporation and the
-   *  company registration number are what distinguish the two on documents. */
+  /** Entity that markets and contracts for Peakhour.ai outside India. */
   companyUk: {
     legalName: "Media Worldwide Limited",
+    /** Disambiguated form — use in any identifying sentence. */
+    ref: "Media Worldwide Limited (registered in England and Wales, company number 06334375)",
     companyNumber: "06334375",
     address:
       "2nd Floor, 2 Warner House, Harrovian Business Village, Bessborough Road, Harrow, Middlesex, England, HA1 3EX",
