@@ -638,9 +638,11 @@ export default function IntegrationsPage() {
         Object.entries(grouped).map(([category, items]) => (
           <div key={category} className="space-y-3">
             <div className="flex items-center gap-3">
-              <h3 className="text-sm font-semibold text-foreground">
+              {/* h2, not h3: PageHeader emits the page's <h1>, so a category
+                  heading at h3 would skip a level (axe `heading-order`). */}
+              <h2 className="text-sm font-semibold text-foreground">
                 {CATEGORY_LABELS[category] || category}
-              </h3>
+              </h2>
               <div className="h-px flex-1 bg-border" />
               <span className="text-xs text-muted-foreground">
                 {items.filter((i) => i.connected).length}/{items.length} connected

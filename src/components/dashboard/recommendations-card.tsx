@@ -198,7 +198,14 @@ export function RecommendationsCard({ recommendations }: RecommendationsCardProp
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <Sparkles className="h-4 w-4 text-primary shrink-0" />
-                    <h3 className="text-base font-semibold">{label}</h3>
+                    {/* h2, not h3: Overview's <h1> now comes from
+                        <PageHeader>, and <CardTitle> renders a <div> (no
+                        heading semantics), so h3 here skipped a level (axe
+                        `heading-order`). These labels are the only navigable
+                        headings Overview offers a screen-reader user, so they
+                        sit directly under the page title. This component is
+                        rendered only by /dashboard/overview. */}
+                    <h2 className="text-base font-semibold">{label}</h2>
                   </div>
                   <p className="text-sm text-muted-foreground leading-relaxed">
                     {rec.rationale}

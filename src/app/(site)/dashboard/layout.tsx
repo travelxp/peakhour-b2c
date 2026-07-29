@@ -526,16 +526,27 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
             at 375px a flat 24px inset costs 13% of the screen width before a
             card's own 24px padding is even applied. */}
         <div className="flex-1 overflow-auto p-4 sm:p-6">
-          {/* Trial-expiry warning slot — sits above the route content
-              only when a trial is within the final 3 days. Component
-              renders nothing in all other states (no trial, plenty of
-              days left, dismissed).
+          {/* Banner slot — sits above the route content. Trial-expiry shows
+              only inside the final 3 days of a trial; the credit-cap banner
+              only once usage crosses its cap. Both render nothing otherwise
+              (no trial, plenty of days left, unlimited, dismissed).
 
               `empty:hidden` matters: both children return null in the common
               case, but the wrapper's own margin still applied, pushing every
               page in the app down 16px for a band that rendered nothing.
-              (`:empty` ignores comment nodes, so React's null renders match.) */}
-          <div className="mb-4 flex flex-col gap-2 empty:hidden">
+              (`:empty` ignores comment nodes, so React's null renders match.
+              It is NOT relaxed about whitespace in any shipping browser
+              though — adding a bare string or `{" "}` between these children
+              silently brings the dead 16px back.)
+
+              The `mx-auto max-w-[90rem]` cap keeps a rendered banner on the
+              same centre axis as the route content below it, which is capped
+              by <PageShell>. Without it the banner spanned the full inset
+              while a `narrow` page sat at 768px, so the two had no shared
+              edge. It matches the widest PageShell tier exactly; once every
+              route is migrated the slot should move inside PageShell so it
+              picks up that page's own measure. */}
+          <div className="mx-auto mb-4 flex w-full max-w-360 flex-col gap-2 empty:hidden">
             <TrialExpiryBanner />
             <CreditCapBanner />
           </div>

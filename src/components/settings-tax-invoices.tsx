@@ -176,7 +176,10 @@ export function TaxAndInvoices() {
   return (
     <div className="rounded-2xl border bg-muted/30 px-5 pt-4 pb-5 space-y-6">
       <div>
-        <h3 className="font-semibold">Tax details</h3>
+        {/* h2, not h3: the billing page's <h1> comes from <PageHeader>, so a
+            section heading at h3 would skip a level (axe `heading-order`).
+            This component is rendered only by /dashboard/settings/billing. */}
+        <h2 className="font-semibold">Tax details</h2>
         <p className="text-muted-foreground text-sm mt-1">
           Add your GSTIN (India) or VAT number (UK/EU) so it appears on your tax invoices.
         </p>
@@ -238,7 +241,7 @@ export function TaxAndInvoices() {
       )}
 
       <div className="pt-2">
-        <h3 className="font-semibold">Invoices</h3>
+        <h2 className="font-semibold">Invoices</h2>
         {invoicesError ? (
           <p className="text-destructive text-sm mt-1">Couldn&apos;t load your invoices — refresh to try again.</p>
         ) : invoicesLoading ? (

@@ -124,11 +124,18 @@ export default function OverviewPage() {
           queryClient.invalidateQueries({ queryKey: ["dashboard-discovery"] });
         }}
       />
-      {/* Hero header. Was the app's only `text-3xl` title, in a
-          non-wrapping `items-end justify-between` row — a long org name
-          squeezed the website link to a few characters on narrow screens.
-          PageHeader wraps the actions below the title under `sm` and puts the
-          page on the same title scale as every other route. */}
+      {/* Hero header. Was the app's only `text-3xl` title, and sat in a
+          non-wrapping `items-end justify-between` row: because the URL is one
+          unbreakable word, its automatic minimum size was the full URL width,
+          so a long org name plus a long domain forced the row wider than the
+          viewport rather than either side giving way. PageHeader stacks the
+          two under `sm` and puts the page on the same title scale as every
+          other route.
+
+          The explicit max-width is load-bearing. PageHeader holds its actions
+          track at natural width (`shrink-0`) so buttons are never squashed —
+          which means a variable-width action like this one has to cap itself,
+          or `truncate` below can never engage. */}
       <PageHeader
         title={org?.name || "Dashboard"}
         description={stats?.businessType || "Your AI marketing command center"}
@@ -138,7 +145,7 @@ export default function OverviewPage() {
               href={stats.websiteUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+              className="flex min-w-0 max-w-[60vw] items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground sm:max-w-72"
             >
               <Globe className="h-3 w-3 shrink-0" />
               <span className="truncate">
