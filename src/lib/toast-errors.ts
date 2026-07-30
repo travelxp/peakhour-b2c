@@ -83,8 +83,15 @@ function dispositionOf(code: string, status: number): Disposition {
   // Our app isn't authorised on the advertiser account. Emphatically NOT
   // user_fixable — that classification is what produced a Reconnect CTA
   // for a problem no reconnect can reach. See toastAdAccountNotAuthorized
-  // for the surfaces that say it properly.
+  // for the surfaces that say it properly. Explicit rather than left to
+  // the status-based tail: a 403 already falls through to "permanent", but
+  // the api could answer 5xx on a future path and the tail would then say
+  // "try again" forever.
   if (code === "AD_ACCOUNT_NOT_AUTHORIZED") return "permanent";
+  // Advertiser-fixable on the platform (billing hold, suspended account,
+  // access removed) — permanent for US, and the surfaces that can act on
+  // it render the api's authored message instead of this floor.
+  if (code === "AD_ACCOUNT_FORBIDDEN") return "permanent";
 
   // Route catch-alls for a NON-AdsOpError throw, i.e. an unexpected
   // programming or config error ("LINKEDIN_CLIENT_ID is not set").

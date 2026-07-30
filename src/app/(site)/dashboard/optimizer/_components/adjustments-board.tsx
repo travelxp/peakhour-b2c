@@ -4,7 +4,8 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api";
-import { toastUnhandledApiError } from "@/lib/toast-errors";
+import { toastUnhandledApiError, toastAdAccountNotAuthorized } from "@/lib/toast-errors";
+import { reconnectHref, LINKEDIN_ADS_PROVIDER } from "@/lib/integrations-connect";
 import {
   growthApi,
   type GrowthSettings,
@@ -358,12 +359,23 @@ function ProposalRow({
       if (res.status === "applied") {
         toast.success(`Approved and applied — the budget change is live on ${platformName}.`);
       } else if (res.status === "retryable") {
-        // The proposal reverted to proposed — fixable, decide again.
-        toast.warning(
-          res.failReason
-            ? `Couldn't apply it yet: ${res.failReason}. Fix that and approve again.`
-            : "Couldn't apply it yet — fix the cause and approve again.",
-        );
+        // "Fix that and approve again" is wrong for a refusal the user
+        // cannot clear. A current api sends that case as 403
+        // AD_ACCOUNT_NOT_AUTHORIZED (handled in onError), so this flag only
+        // matters against an api deployment that predates it — which the
+        // prod api's known lag behind master makes a real state.
+        if (res.notAuthorized) {
+          toast.error(res.failReason ?? "That ad account isn't authorised for this app.", {
+            duration: Infinity,
+          });
+        } else {
+          // The proposal reverted to proposed — fixable, decide again.
+          toast.warning(
+            res.failReason
+              ? `Couldn't apply it yet: ${res.failReason}. Fix that and approve again.`
+              : "Couldn't apply it yet — fix the cause and approve again.",
+          );
+        }
       } else if (res.status === "failed") {
         toast.error(res.failReason || "This proposal can't be applied — see the reason on the card.");
       } else if (res.status === "approved") {
@@ -385,11 +397,28 @@ function ProposalRow({
       if (code === "ALREADY_DECIDED") {
         toast.info("This proposal was already decided — refreshing.");
         onChanged();
+      } else if (code === "AD_ACCOUNT_NOT_AUTHORIZED") {
+        // The api used to answer this with a bare `retryable`, so the
+        // success branch below rendered "Fix that and approve again" and
+        // left Approve armed — for a refusal no user action can clear.
+        // It is now its own code (api: growth route), handled here with no
+        // Reconnect CTA and no retry instruction.
+        toastAdAccountNotAuthorized(err, "Applying budget changes", platformName);
+        onChanged();
+      } else if (code === "AD_ACCOUNT_FORBIDDEN") {
+        // Advertiser-fixable in the platform's own campaign manager
+        // (billing hold, suspended account, access removed) — so neither
+        // "reconnect" nor "contact support". The api authors this message.
+        toast.error(err instanceof ApiError ? err.message : "The ad account refused this change.", {
+          duration: Infinity,
+        });
+        onChanged();
       } else if (code === "NEEDS_REAUTH") {
         toast.error(`${platformName} Ads needs a reconnect before applying budget changes.`, {
           action: {
             label: "Reconnect",
-            onClick: () => { window.location.href = "/dashboard/integrations"; },
+            // returnTo brings them back to this board, not to Settings.
+            onClick: () => { window.location.href = reconnectHref("/dashboard/optimizer", LINKEDIN_ADS_PROVIDER); },
           },
         });
         onChanged();

@@ -5,7 +5,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api";
 import { toastUnhandledApiError, toastAdAccountNotAuthorized } from "@/lib/toast-errors";
-import { reconnectHref, ADS_LINKEDIN_PATH } from "@/lib/integrations-connect";
+import {
+  reconnectHref,
+  ADS_LINKEDIN_PATH,
+  LINKEDIN_ADS_PROVIDER,
+} from "@/lib/integrations-connect";
 import {
   linkedInAdsApi,
   type ManagedCampaign,
@@ -259,7 +263,7 @@ export function TargetingDialog({
           action: {
             label: "Reconnect",
             onClick: () => {
-              window.location.href = reconnectHref(ADS_LINKEDIN_PATH);
+              window.location.href = reconnectHref(ADS_LINKEDIN_PATH, LINKEDIN_ADS_PROVIDER);
             },
           },
         });
@@ -267,6 +271,14 @@ export function TargetingDialog({
         // Reaches this surface as a 403 too — and a Reconnect CTA here
         // would be the same dead end it is on boost.
         toastAdAccountNotAuthorized(err, "Updating targeting");
+      } else if (code === "AD_ACCOUNT_FORBIDDEN") {
+        // Server-authored, names the account and what to check in Campaign
+        // Manager (billing hold / suspended / access removed). NOT provider
+        // text, so it renders verbatim — and NOT a reconnect or a retry.
+        toast.error(
+          err instanceof ApiError ? err.message : "LinkedIn refused this ad account.",
+          { duration: Infinity },
+        );
       } else if (code === "VALIDATION_ERROR") {
         toast.error((err as ApiError).message || "Check the targeting selection.");
       } else if (code === "RATE_LIMITED") {

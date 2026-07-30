@@ -35,6 +35,7 @@ import {
   type AnalyticsInsightsResponse,
   type Ga4Digest,
 } from "@/hooks/use-analytics-insights";
+import { OAuthConnectResult } from "@/components/integrations/oauth-connect-result";
 import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
 
 interface ConnectionStatus {
@@ -137,14 +138,22 @@ export default function AnalyticsInsightsPage() {
   // the dev trigger is reachable during the very query its data refreshes,
   // and so the toolbar's in-flight state isn't lost on remount.
   const cronToolbar = (
-    <CronToolbar
-      crons={["performance-sync", "outcome-backfill"]}
-      onTriggered={() => {
-        qc.invalidateQueries({ queryKey: ["integration-status"] });
-        qc.invalidateQueries({ queryKey: ["integration-cap"] });
-        qc.invalidateQueries({ queryKey: [ANALYTICS_INSIGHTS_KEY] });
-      }}
-    />
+    <>
+      {/* Google Analytics is the ONE provider whose callback lands here
+          rather than on the returnTo surface (its property picker is a
+          required post-OAuth step), and nothing on this page read
+          ?integration=connected — so a GA connect was silent and the
+          params lingered in the URL forever. */}
+      <OAuthConnectResult />
+      <CronToolbar
+        crons={["performance-sync", "outcome-backfill"]}
+        onTriggered={() => {
+          qc.invalidateQueries({ queryKey: ["integration-status"] });
+          qc.invalidateQueries({ queryKey: ["integration-cap"] });
+          qc.invalidateQueries({ queryKey: [ANALYTICS_INSIGHTS_KEY] });
+        }}
+      />
+    </>
   );
 
   if (statusQ.isLoading) {

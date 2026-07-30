@@ -186,6 +186,41 @@ describe("AD_ACCOUNT_NOT_AUTHORIZED never offers a reconnect", () => {
     expect(duration).toBe(Infinity);
   });
 
+  /**
+   * The 403 case above passes even with the explicit `dispositionOf` line
+   * deleted, because a 403 already falls through to "permanent" on the
+   * status tail — so it documents intent without protecting it. THIS is
+   * what the explicit line buys: on any status the tail would call
+   * transient, the code still must not tell the user to retry a refusal
+   * that will never change.
+   */
+  it.each([500, 502, 503])(
+    "stays permanent on a %i, where the status tail would say 'try again'",
+    (status) => {
+      toastUnhandledApiError(
+        apiError("AD_ACCOUNT_NOT_AUTHORIZED", status),
+        "create the campaign",
+        "LinkedIn",
+      );
+      const { title, description } = shown();
+      expect(`${title} ${description}`).not.toMatch(/try again/i);
+      expect(description).toContain(`reference ${REQ}`);
+    },
+  );
+
+  it("AD_ACCOUNT_FORBIDDEN is permanent for us, and never says reconnect", () => {
+    // The advertiser CAN fix it (billing hold, suspended account, access
+    // removed), but not from here and not by reconnecting — the surfaces
+    // that can act render the api's authored message instead of this floor.
+    for (const status of [403, 500]) {
+      errorToast.mockClear();
+      toastUnhandledApiError(apiError("AD_ACCOUNT_FORBIDDEN", status), "activate the campaign", "LinkedIn");
+      const { title, description } = shown();
+      expect(`${title} ${description}`, String(status)).not.toMatch(/reconnect/i);
+      expect(`${title} ${description}`, String(status)).not.toMatch(/try again/i);
+    }
+  });
+
   it("the dedicated helper names the cause without the provider body", () => {
     toastAdAccountNotAuthorized(
       apiError(
