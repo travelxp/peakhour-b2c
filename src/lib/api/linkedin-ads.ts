@@ -136,6 +136,16 @@ export interface BoostCampaignInput {
    *  a mismatch with code CURRENCY_MISMATCH naming the expected code. */
   currencyCode: string;
   durationDays: number;
+  /**
+   * The advertiser ticking LinkedIn's political-advertising consent notice.
+   *
+   * LinkedIn REQUIRES an app that creates ads to present that notice and
+   * pass back what was confirmed (`politicalIntent` on the campaign — it
+   * became a required field with the EU's TTPA regulation, and omitting it
+   * 422s every create). Absent/false means NOT_DECLARED, never
+   * "not political": that is a legal declaration the customer makes, not us.
+   */
+  notPolitical?: boolean;
 }
 
 export const linkedInAdsApi = {

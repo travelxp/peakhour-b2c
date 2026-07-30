@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -90,6 +91,12 @@ export function BoostCampaignDialog({
   const [dailyBudget, setDailyBudget] = useState("10");
   const [currencyCode, setCurrencyCode] = useState("USD");
   const [durationDays, setDurationDays] = useState("14");
+  // LinkedIn requires an ads-creating app to show its political-advertising
+  // notice and pass back the advertiser's confirmation. Their spec says the
+  // notice "must be clearly presented and checked by default", so it starts
+  // ticked — and unticking it is meaningful: the campaign is then created
+  // NOT_DECLARED, which LinkedIn may hold from EU delivery until declared.
+  const [notPolitical, setNotPolitical] = useState(true);
   // Latched on a failure a resubmit cannot improve on — the button stays
   // disabled for this dialog instance, and the reason picks its label:
   //   "persisted"      PERSIST_FAILED — the draft EXISTS on LinkedIn, so
@@ -126,6 +133,7 @@ export function BoostCampaignDialog({
         dailyBudget: budgetNumber,
         currencyCode: currencyCode.trim().toUpperCase(),
         durationDays: durationNumber,
+        notPolitical,
       }),
     onSuccess: () => {
       // The Ads Manager list must show the new campaign even within
@@ -323,6 +331,46 @@ export function BoostCampaignDialog({
                 onChange={(e) => setDurationDays(e.target.value)}
               />
             </div>
+          </div>
+
+          {/* LinkedIn's political-advertising self-declaration. Not our
+              wording to soften: their Advertising API contract requires an
+              app that creates ads to present this notice and pass back what
+              the advertiser confirmed (`politicalIntent`), and it became a
+              REQUIRED campaign field with the EU's TTPA regulation — every
+              create 422'd without it. Checked by default, per their spec. */}
+          <div className="flex items-start gap-2 rounded-md border bg-muted/30 p-3">
+            <Checkbox
+              id="boost-not-political"
+              checked={notPolitical}
+              onCheckedChange={(v) => setNotPolitical(v === true)}
+              className="mt-0.5"
+            />
+            <Label
+              htmlFor="boost-not-political"
+              className="text-[11px] font-normal leading-relaxed text-muted-foreground"
+            >
+              I confirm this is not political advertising. None of my ads
+              qualify as political advertising under the law of the targeted
+              countries, including EU law for ads targeted to the EU.
+              Advertisers must comply with LinkedIn&apos;s policies and
+              regulatory requirements.{" "}
+              <a
+                href="https://www.linkedin.com/legal/ads-policy"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline underline-offset-2"
+              >
+                Learn more
+              </a>
+              {!notPolitical ? (
+                <span className="mt-1 block text-amber-700 dark:text-amber-400">
+                  Left unticked, the campaign is created without a declaration
+                  — LinkedIn may hold delivery to EU audiences until you make
+                  one in Campaign Manager.
+                </span>
+              ) : null}
+            </Label>
           </div>
 
           <p className="text-[11px] text-muted-foreground">
