@@ -12,7 +12,7 @@ import {
 import { reconnectHref, adsProviderFor } from "@/lib/integrations-connect";
 import {
   growthApi,
-  type GrowthSettings,
+  type GrowthSettingsResponse,
   type OptimizerProposal,
   type OptimizerRun,
   type ProposalStatus,
@@ -164,7 +164,7 @@ export function AdjustmentsBoard() {
     <div className="space-y-4">
       <Card>
         <CardContent className="space-y-3 p-4">
-          {settings.isError ? (
+          {(settings.isError && !settings.data) ? (
             // Honest failure: NEVER render a confident OFF state from a
             // failed read — the business may well be opted in and
             // running.
@@ -203,7 +203,7 @@ export function AdjustmentsBoard() {
               </Button>
             </div>
           )}
-          {!settings.isError && optimizerEnabled ? (
+          {!(settings.isError && !settings.data) && optimizerEnabled ? (
             <EnvelopeEditor
               current={settings.data?.settings.weeklyBudgetEnvelope}
               onSaved={(res) => queryClient.setQueryData(["growth-settings"], res)}
@@ -245,7 +245,7 @@ function EnvelopeEditor({
   onSaved,
 }: {
   current: number | undefined;
-  onSaved: (settings: { settings: GrowthSettings }) => void;
+  onSaved: (settings: GrowthSettingsResponse) => void;
 }) {
   const [value, setValue] = useState(current !== undefined ? String(current) : "");
 

@@ -43,6 +43,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { AdvertisingDeclarationCard } from "@/components/ads/advertising-declaration-card";
 import { EmptyState } from "@/components/molecules/empty-state";
 import { AlertTriangle, Archive, Megaphone, Pause, Play, RefreshCw, Rocket, Target } from "lucide-react";
 import { TargetingDialog, editorTargeting } from "./targeting-dialog";
@@ -121,6 +122,13 @@ export function LinkedInAdsPanel() {
           gate below renders an EmptyState — which used to hide this warning in
           the one case it matters most. */}
       <SpendAlarmBanner />
+      {/* Above the gate for the same reason, plus one of its own: the
+          declaration governs every campaign create including the autonomous
+          ones, and a business can make it before it connects. Not on
+          /dashboard/optimizer — that page is FeatureGate'd on
+          growth.optimizer, so a business entitled to ads but not the
+          optimizer could boost campaigns and never be able to declare. */}
+      <AdvertisingDeclarationCard />
       {integrations.isLoading ? (
         <Card>
           <CardContent className="space-y-3 p-6">
