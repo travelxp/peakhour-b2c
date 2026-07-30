@@ -23,7 +23,13 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Loader2, ShieldCheck, ShieldAlert, ShieldQuestion } from "lucide-react";
+import {
+  Loader2,
+  RefreshCw,
+  ShieldAlert,
+  ShieldCheck,
+  ShieldQuestion,
+} from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -40,7 +46,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { growthApi } from "@/lib/api/growth";
 import {
-  POLITICAL_DECLARATION_NOTICE,
+  noticeTextFor,
   POLITICAL_DECLARATION_POLICY_URL,
   POLITICAL_DECLARATION_CONSEQUENCE,
   POLITICAL_DECLARATION_WITHDRAW_WARNING,
@@ -84,14 +90,24 @@ export function AdvertisingDeclarationCard() {
     declaration: settings.data?.settings.advertisingDeclaration,
     currentNoticeVersion: settings.data?.currentNoticeVersion,
     declaredByName: settings.data?.declaredByName,
-    failed: settings.isError,
+    // `isError` alone is wrong: a failed BACKGROUND refetch sets it while
+    // `data` is retained, which would flip a business that has declared to
+    // "we couldn't check" — and hide the checkbox, so they couldn't act
+    // either. Only claim ignorance when we genuinely have nothing.
+    failed: settings.isError && !settings.data,
   });
 
-  if (settings.isLoading) return null;
+  // Not `isLoading`: that is pending AND fetching, so a paused/offline fetch
+  // leaves it false with no data, and `declarationState` would then render a
+  // confident "not declared" plus a Save button that hangs. Render nothing
+  // until we have either data or a definite failure.
+  if (!settings.data && !settings.isError) return null;
+
+  const noticeText = noticeTextFor(settings.data?.currentNoticeVersion);
 
   const notice = (
     <>
-      {POLITICAL_DECLARATION_NOTICE}{" "}
+      {noticeText}{" "}
       <a
         href={POLITICAL_DECLARATION_POLICY_URL}
         target="_blank"
@@ -106,7 +122,30 @@ export function AdvertisingDeclarationCard() {
   return (
     <Card>
       <CardContent className="p-4">
-        {state.kind === "declared" ? (
+        {state.kind === "political" ? (
+          // READ-ONLY. Political advertising carries obligations Peakhour does
+          // not support, so this must not offer the tick-box that would
+          // overwrite a legal statement in one click.
+          <div className="flex items-start gap-2">
+            <ShieldAlert className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-500" />
+            <div className="min-w-0 flex-1 space-y-1">
+              <p className="text-sm">
+                This business is recorded as running{" "}
+                <span className="font-medium">political advertising</span>
+                {state.declaredByName ? <> by {state.declaredByName}</> : null}
+                {formatDeclaredAt(state.declaredAt) ? (
+                  <> on {formatDeclaredAt(state.declaredAt)}</>
+                ) : null}
+                .
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Peakhour doesn&apos;t support the extra obligations political
+                advertising carries. Manage this campaign&apos;s declaration in
+                LinkedIn Campaign Manager.
+              </p>
+            </div>
+          </div>
+        ) : state.kind === "declared" ? (
           <div className="flex items-start gap-2">
             <ShieldCheck className="mt-0.5 size-4 shrink-0 text-emerald-600 dark:text-emerald-500" />
             <div className="min-w-0 flex-1 space-y-1">
@@ -135,6 +174,9 @@ export function AdvertisingDeclarationCard() {
                 disabled={save.isPending}
                 onClick={() => setWithdrawOpen(true)}
               >
+                {save.isPending ? (
+                  <Loader2 className="mr-1 size-3 animate-spin" />
+                ) : null}
                 Withdraw
               </Button>
             </div>
@@ -208,7 +250,24 @@ export function AdvertisingDeclarationCard() {
                 {save.isPending ? <Loader2 className="mr-1 size-3 animate-spin" /> : null}
                 {state.kind === "superseded" ? "Confirm" : "Save declaration"}
               </Button>
-            ) : null}
+            ) : (
+              // "Refresh in a moment" with no way to refresh is a dead end,
+              // and refetchOnWindowFocus is off so tabbing away won't retry.
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={settings.isFetching}
+                onClick={() => void settings.refetch()}
+              >
+                {settings.isFetching ? (
+                  <Loader2 className="mr-1 size-3 animate-spin" />
+                ) : (
+                  <RefreshCw className="mr-1 size-3" />
+                )}
+                Try again
+              </Button>
+            )}
           </div>
         )}
       </CardContent>

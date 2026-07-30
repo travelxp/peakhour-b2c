@@ -18,12 +18,50 @@
  * can be tested without rendering.
  */
 
-/** LinkedIn's notice, verbatim. Do not edit for tone. */
-export const POLITICAL_DECLARATION_NOTICE =
-  "I confirm this is not political advertising. None of my ads qualify as " +
-  "political advertising under the law of the targeted countries, including " +
-  "EU law for ads targeted to the EU. Advertisers must comply with " +
-  "LinkedIn's policies and regulatory requirements.";
+/**
+ * LinkedIn's notice text, KEYED BY THE VERSION IT IS.
+ *
+ * The text lives here but the version in force is decided by the api
+ * (`CURRENT_NOTICE_VERSION`), and nothing used to couple them. That gap was a
+ * real hazard, not a tidiness point: bump the version server-side and deploy
+ * before the b2c ships the new wording, and the card would tell the user "the
+ * notice has been updated, please confirm the current wording" while showing
+ * them the OLD text — then stamp the NEW version against it. The record would
+ * claim consent to wording the user never saw, which is the one thing this
+ * whole feature exists to prevent.
+ *
+ * Keying the text by version closes it: an unrecognised version means we do
+ * not have the text the api is asking about, so `declarationState` returns
+ * `unknown` and the card refuses to collect consent rather than collecting the
+ * wrong consent. Add the new wording here in the same PR that bumps the api.
+ *
+ * Verbatim. Not our wording to soften — LinkedIn's Advertising API contract
+ * requires an app that creates ads to present this text and pass back what the
+ * advertiser confirmed.
+ */
+export const POLITICAL_DECLARATION_NOTICES: Record<string, string> = {
+  "linkedin-ttpa-2025-10":
+    "I confirm this is not political advertising. None of my ads qualify as " +
+    "political advertising under the law of the targeted countries, including " +
+    "EU law for ads targeted to the EU. Advertisers must comply with " +
+    "LinkedIn's policies and regulatory requirements.",
+};
+
+/**
+ * The most recent wording we hold, for surfaces that must show SOMETHING.
+ *
+ * Only the Boost dialog uses this, and only for its per-campaign answer —
+ * which is passed straight to LinkedIn and never recorded against a version,
+ * so a deploy-skew mismatch has no lasting effect. Anything that STAMPS a
+ * version must use `noticeTextFor` and refuse when it returns undefined.
+ */
+export const LATEST_POLITICAL_DECLARATION_NOTICE =
+  POLITICAL_DECLARATION_NOTICES["linkedin-ttpa-2025-10"];
+
+/** The notice for a version, or undefined when we don't hold that wording. */
+export function noticeTextFor(version?: string | null): string | undefined {
+  return version ? POLITICAL_DECLARATION_NOTICES[version] : undefined;
+}
 
 export const POLITICAL_DECLARATION_POLICY_URL =
   "https://www.linkedin.com/legal/ads-policy";
@@ -54,6 +92,13 @@ export interface AdvertisingDeclaration {
 export type DeclarationState =
   /** Nobody has declared. The default for every business. */
   | { kind: "undeclared" }
+  /**
+   * A POLITICAL declaration is on record. READ-ONLY here: political
+   * advertising carries obligations Peakhour does not support, so this surface
+   * must neither claim it is handled nor offer a checkbox that would overwrite
+   * a legal statement in one click. Points the user at Campaign Manager.
+   */
+  | { kind: "political"; declaredAt: string; declaredByName?: string }
   /** Declared under the wording currently in force. */
   | { kind: "declared"; declaredAt: string; declaredByName?: string }
   /**
@@ -85,19 +130,28 @@ export function declarationState(input: {
 }): DeclarationState {
   if (input.failed) return { kind: "unknown" };
 
-  const d = input.declaration;
-  // Only NOT_POLITICAL is a declaration this UI can represent. POLITICAL
-  // advertising carries obligations Peakhour doesn't support, so a business
-  // that somehow holds one is shown as undeclared here rather than being
-  // offered a tick-box that would silently overwrite it.
-  if (!d || d.politicalIntent !== "NOT_POLITICAL") return { kind: "undeclared" };
+  // No current version to compare against means we cannot tell active from
+  // stale, and no notice text for it means we cannot honestly ASK. Both are
+  // "we don't know" rather than "not declared" — checked before the
+  // declaration itself so an undeclared business can't be shown a Save button
+  // that would record consent to wording we don't hold.
+  if (!input.currentNoticeVersion) return { kind: "unknown" };
+  if (!noticeTextFor(input.currentNoticeVersion)) return { kind: "unknown" };
 
+  const d = input.declaration;
   const declaredByName = input.declaredByName ?? undefined;
 
-  // No current version to compare against means we cannot tell active from
-  // stale. Treat as unknown rather than assuming it is still valid — that
-  // assumption is the one that overstates coverage.
-  if (!input.currentNoticeVersion) return { kind: "unknown" };
+  // A POLITICAL record gets its own read-only state. Rendering it as
+  // undeclared would both misreport it (the api sends POLITICAL through) and
+  // put a one-click overwrite of a legal statement on screen.
+  if (d?.politicalIntent === "POLITICAL") {
+    return {
+      kind: "political",
+      declaredAt: d.declaredAt,
+      ...(declaredByName ? { declaredByName } : {}),
+    };
+  }
+  if (!d || d.politicalIntent !== "NOT_POLITICAL") return { kind: "undeclared" };
 
   if (d.noticeVersion !== input.currentNoticeVersion) {
     return { kind: "superseded", declaredAt: d.declaredAt, ...(declaredByName ? { declaredByName } : {}) };
@@ -105,7 +159,15 @@ export function declarationState(input: {
   return { kind: "declared", declaredAt: d.declaredAt, ...(declaredByName ? { declaredByName } : {}) };
 }
 
-/** "30 Jul 2026" — locale-formatted, never a hardcoded month array. */
+/**
+ * "30 Jul 2026" — locale-formatted, never a hardcoded month array.
+ *
+ * Pinned to UTC, matching the convention the optimizer board already sets. The
+ * stamp is a UTC instant, so rendering it in the viewer's zone would show the
+ * previous day for anyone west of UTC — and "declared on the 29th" against a
+ * record that says the 30th is the kind of discrepancy that matters on a
+ * compliance record.
+ */
 export function formatDeclaredAt(iso: string, locale?: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
@@ -113,5 +175,6 @@ export function formatDeclaredAt(iso: string, locale?: string): string {
     day: "numeric",
     month: "short",
     year: "numeric",
+    timeZone: "UTC",
   }).format(d);
 }

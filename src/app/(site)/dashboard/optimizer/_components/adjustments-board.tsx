@@ -12,7 +12,7 @@ import {
 import { reconnectHref, adsProviderFor } from "@/lib/integrations-connect";
 import {
   growthApi,
-  type GrowthSettings,
+  type GrowthSettingsResponse,
   type OptimizerProposal,
   type OptimizerRun,
   type ProposalStatus,
@@ -245,7 +245,7 @@ function EnvelopeEditor({
   onSaved,
 }: {
   current: number | undefined;
-  onSaved: (settings: { settings: GrowthSettings }) => void;
+  onSaved: (settings: GrowthSettingsResponse) => void;
 }) {
   const [value, setValue] = useState(current !== undefined ? String(current) : "");
 

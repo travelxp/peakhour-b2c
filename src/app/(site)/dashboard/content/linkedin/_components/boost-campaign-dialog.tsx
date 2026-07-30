@@ -1,10 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api";
 import { growthApi } from "@/lib/api/growth";
+import {
+  LATEST_POLITICAL_DECLARATION_NOTICE,
+  noticeTextFor,
+  POLITICAL_DECLARATION_POLICY_URL,
+} from "@/lib/ads-copy";
 import {
   toastUnhandledApiError,
   toastAdAccountNotAuthorized,
@@ -107,6 +112,18 @@ export function BoostCampaignDialog({
   // statement than answering for one campaign, so it is opt-in even though
   // LinkedIn's own notice is checked by default.
   const [applyToFuture, setApplyToFuture] = useState(false);
+
+  // Shared cache with the Ads-hub declaration card. Read here for ONE reason:
+  // to know which notice version the api will stamp if the user opts in
+  // durably. The per-campaign answer below needs no version — it rides the
+  // boost request straight to LinkedIn and is never recorded against wording.
+  const settings = useQuery({
+    queryKey: ["growth-settings"],
+    queryFn: () => growthApi.settings(),
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+  });
+  const stampableNotice = noticeTextFor(settings.data?.currentNoticeVersion);
   // Latched on a failure a resubmit cannot improve on — the button stays
   // disabled for this dialog instance, and the reason picks its label:
   //   "persisted"      PERSIST_FAILED — the draft EXISTS on LinkedIn, so
@@ -135,7 +152,11 @@ export function BoostCampaignDialog({
     durationNumber <= 366;
 
   const boost = useMutation({
-    mutationFn: () =>
+    // The declaration answers travel as VARIABLES, not read from state in
+    // onSuccess. Inputs stay enabled while the request is in flight, so a
+    // toggle during that window would otherwise make the durable declaration
+    // disagree with the campaign that was actually created.
+    mutationFn: (vars: { notPolitical: boolean; applyToFuture: boolean }) =>
       linkedInAdsApi.boost({
         postUrn,
         name: name.trim(),
@@ -143,9 +164,9 @@ export function BoostCampaignDialog({
         dailyBudget: budgetNumber,
         currencyCode: currencyCode.trim().toUpperCase(),
         durationDays: durationNumber,
-        notPolitical,
+        notPolitical: vars.notPolitical,
       }),
-    onSuccess: () => {
+    onSuccess: async (_data, vars) => {
       // The Ads Manager list must show the new campaign even within
       // its staleTime window.
       queryClient.invalidateQueries({ queryKey: ["linkedin-managed-campaigns"] });
@@ -154,13 +175,20 @@ export function BoostCampaignDialog({
       // answer on its own create call, so a settings write that fails costs
       // the user nothing they can see. Silent by design — a toast about a
       // settings write would bury the one that matters.
-      if (applyToFuture && notPolitical) {
-        growthApi
-          .updateSettings({ notPolitical: true })
-          .then((res) => queryClient.setQueryData(["growth-settings"], res))
-          .catch(() => {
-            /* campaign is created and declared; the Ads-hub card still offers this */
-          });
+      if (vars.applyToFuture && vars.notPolitical) {
+        // NOT fire-and-forget. The success toast offers "Open Ads Manager",
+        // which is a full-document navigation — that aborts an in-flight
+        // request, so a user who ticked this and clicked through would land on
+        // the Ads hub being told they had not declared. Awaited inside the
+        // mutation instead, before the dialog closes.
+        try {
+          const res = await growthApi.updateSettings({ notPolitical: true });
+          queryClient.setQueryData(["growth-settings"], res);
+        } catch {
+          // The campaign itself is created and already carries the answer, so
+          // this is not worth a second error toast — the Ads-hub card still
+          // offers the durable declaration.
+        }
       }
       onOpenChange(false);
       toast.success("Draft campaign created on LinkedIn.", {
@@ -366,20 +394,21 @@ export function BoostCampaignDialog({
             <Checkbox
               id="boost-not-political"
               checked={notPolitical}
-              onCheckedChange={(v) => setNotPolitical(v === true)}
+              onCheckedChange={(v) => {
+                setNotPolitical(v === true);
+                // Un-ticking the notice must also clear the durable opt-in, or
+                // re-ticking shows it already armed without a fresh gesture.
+                if (v !== true) setApplyToFuture(false);
+              }}
               className="mt-0.5"
             />
             <Label
               htmlFor="boost-not-political"
               className="text-[11px] font-normal leading-relaxed text-muted-foreground"
             >
-              I confirm this is not political advertising. None of my ads
-              qualify as political advertising under the law of the targeted
-              countries, including EU law for ads targeted to the EU.
-              Advertisers must comply with LinkedIn&apos;s policies and
-              regulatory requirements.{" "}
+              {stampableNotice ?? LATEST_POLITICAL_DECLARATION_NOTICE}{" "}
               <a
-                href="https://www.linkedin.com/legal/ads-policy"
+                href={POLITICAL_DECLARATION_POLICY_URL}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="underline underline-offset-2"
@@ -396,7 +425,7 @@ export function BoostCampaignDialog({
             </Label>
           </div>
 
-          {notPolitical ? (
+          {notPolitical && stampableNotice ? (
             <div className="flex items-start gap-2 pl-3">
               <Checkbox
                 id="boost-apply-future"
@@ -442,7 +471,7 @@ export function BoostCampaignDialog({
           </Button>
           <Button
             type="button"
-            onClick={() => boost.mutate()}
+            onClick={() => boost.mutate({ notPolitical, applyToFuture })}
             disabled={!valid || boost.isPending || blocked !== null}
           >
             {boost.isPending
