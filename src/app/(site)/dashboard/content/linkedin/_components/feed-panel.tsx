@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useInfiniteQuery, useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api";
-import { reconnectHref } from "@/lib/integrations-connect";
+import { reconnectHref, LINKEDIN_CONTENT_PROVIDER } from "@/lib/integrations-connect";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -283,13 +283,21 @@ function CommentBox({
       // invalidate.
     },
     onError: (err: unknown) => {
-      if (err instanceof ApiError && err.code === "RECONNECT_REQUIRED") {
+      // BOTH codes, not just one: the api's mapLinkedInWriteError sends a
+      // 403 to RECONNECT_REQUIRED and a 401 — an actually expired token,
+      // the case a reconnect definitely fixes — to NOT_CONNECTED. Only the
+      // former had a CTA, so the more fixable failure was the one with no
+      // way forward.
+      if (
+        err instanceof ApiError &&
+        (err.code === "RECONNECT_REQUIRED" || err.code === "NOT_CONNECTED")
+      ) {
         toast.error("Reconnect LinkedIn to comment.", {
           action: {
             label: "Reconnect",
             onClick: () => {
               // returnTo lands them back on this hub, not on Settings.
-              window.location.href = reconnectHref("/dashboard/content/linkedin");
+              window.location.href = reconnectHref("/dashboard/content/linkedin", LINKEDIN_CONTENT_PROVIDER);
             },
           },
         });

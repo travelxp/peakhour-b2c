@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { OAuthConnectResult } from "@/components/integrations/oauth-connect-result";
-import { reconnectHref } from "@/lib/integrations-connect";
+import { reconnectHref, LINKEDIN_CONTENT_PROVIDER } from "@/lib/integrations-connect";
 import { api, ApiError } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -22,7 +22,7 @@ import { FeedPanel } from "./_components/feed-panel";
 import { SuggestedDraftsPanel } from "./_components/suggested-drafts-panel";
 
 /** Reconnect round trips come back to this hub, not to Settings. */
-const RECONNECT_HREF = reconnectHref("/dashboard/content/linkedin");
+const RECONNECT_HREF = reconnectHref("/dashboard/content/linkedin", LINKEDIN_CONTENT_PROVIDER);
 
 interface ApiIntegration {
   provider: string;

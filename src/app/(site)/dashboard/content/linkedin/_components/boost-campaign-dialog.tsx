@@ -4,8 +4,17 @@ import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api";
-import { toastUnhandledApiError, toastAdAccountNotAuthorized } from "@/lib/toast-errors";
-import { reconnectHref, ADS_LINKEDIN_PATH } from "@/lib/integrations-connect";
+import {
+  toastUnhandledApiError,
+  toastAdAccountNotAuthorized,
+  toastAdAccountForbidden,
+  RECONNECT_NUANCE,
+} from "@/lib/toast-errors";
+import {
+  reconnectHref,
+  ADS_LINKEDIN_PATH,
+  LINKEDIN_ADS_PROVIDER,
+} from "@/lib/integrations-connect";
 import {
   linkedInAdsApi,
   type BoostObjective,
@@ -47,7 +56,7 @@ import { Rocket } from "lucide-react";
  * the old flow dropped them on /dashboard/settings, several clicks from the
  * post they came to boost.
  */
-const RECONNECT_HREF = reconnectHref("/dashboard/content/linkedin");
+const RECONNECT_HREF = reconnectHref("/dashboard/content/linkedin", LINKEDIN_ADS_PROVIDER);
 
 /**
  * Objectives a BOOST can use. `lead_generation` is deliberately absent:
@@ -154,6 +163,7 @@ export function BoostCampaignDialog({
         });
       } else if (code === "NEEDS_REAUTH") {
         toast.error("LinkedIn Ads needs a reconnect before boosting.", {
+          description: RECONNECT_NUANCE,
           action: {
             label: "Reconnect",
             // returnTo brings the user back HERE after the OAuth round
@@ -169,6 +179,13 @@ export function BoostCampaignDialog({
         // the answer will not change until the access is granted.
         setBlocked("not_authorized");
         toastAdAccountNotAuthorized(err, "Boosting");
+      } else if (code === "AD_ACCOUNT_FORBIDDEN") {
+        // Advertiser-fixable, but in LinkedIn Campaign Manager — so no
+        // Reconnect CTA. Deliberately NOT latched like the not-authorised
+        // case: once a billing hold is cleared the very same request works,
+        // so the button stays live. The helper keeps the request id on the
+        // toast — this code is also the api's unattributable-403 catch-all.
+        toastAdAccountForbidden(err, "Boosting isn't possible on this ad account.");
       } else if (code === "NO_AD_ACCOUNT") {
         toast.error(
           "Your LinkedIn Ads connection has no ad account — reconnect it, or create an ad account in LinkedIn Campaign Manager first.",

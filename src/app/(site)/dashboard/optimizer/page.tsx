@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { FeatureGate } from "@/components/upgrade/feature-gate";
 import { UpgradeButton } from "@/components/upgrade/upgrade-button";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
+import { OAuthConnectResult } from "@/components/integrations/oauth-connect-result";
 import { useQueryClient } from "@tanstack/react-query";
 import { AdjustmentsBoard } from "./_components/adjustments-board";
 
@@ -41,6 +42,9 @@ export default function OptimizerPage() {
   const queryClient = useQueryClient();
   return (
     <div className="space-y-6">
+      {/* This board's Reconnect CTA passes ?returnTo=/dashboard/optimizer,
+          so the round trip has to be confirmed here. */}
+      <OAuthConnectResult />
       <CronToolbar
         crons={["growth-optimizer", "outcome-backfill", "per-stream-effectiveness-rollup"]}
         onTriggered={() =>

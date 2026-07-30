@@ -266,6 +266,29 @@ function safeReturnTo(raw: string | null | undefined): string {
   ) {
     return DEFAULT_RETURN_TO;
   }
+  // Kept in step with the api's safeReturnToPath ON PURPOSE. Anything the
+  // api rejects but we forward gets silently dropped there, and the user
+  // lands on /dashboard/settings — the exact behaviour this whole feature
+  // exists to remove, with no diagnostic anywhere. Two rules matter here:
+  //   • printable ASCII only — a non-Latin-1 code point makes the api's
+  //     Location header an invalid ByteString, which throws AFTER the
+  //     connection is written and reports a success as an error;
+  //   • no dot segments — "/dashboard/../x" passes a prefix check and then
+  //     resolves out of /dashboard/ in the browser.
+  for (let i = 0; i < value.length; i++) {
+    const code = value.charCodeAt(i);
+    if (code < 0x21 || code > 0x7e) return DEFAULT_RETURN_TO;
+  }
+  const pathname = value.split("?", 1)[0];
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(pathname);
+  } catch {
+    return DEFAULT_RETURN_TO;
+  }
+  if (decoded.split("/").some((seg) => seg === "." || seg === "..")) {
+    return DEFAULT_RETURN_TO;
+  }
   return value;
 }
 
@@ -273,6 +296,11 @@ export default function IntegrationsPage() {
   const { org } = useAuth();
   const searchParams = useSearchParams();
   const returnTo = safeReturnTo(searchParams?.get("returnTo"));
+  /** Provider the incoming returnTo was about, if the CTA named one.
+   *  Scoping matters: a user who came here to reconnect LinkedIn Ads and
+   *  then also connects Instagram must not be sent to the LinkedIn Ads hub
+   *  with "Instagram connected." */
+  const returnFor = searchParams?.get("returnFor") ?? null;
   const [integrations, setIntegrations] = useState<Integration[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -333,9 +361,19 @@ export default function IntegrationsPage() {
       return;
     }
     if (authType === "oauth2") {
+      // Compare against BOTH the card's own key and the resolved OAuth
+      // provider. The Meta cards are virtual — `facebook_pages`,
+      // `instagram`, `meta_ads` and `whatsapp` all resolve to `facebook` —
+      // so matching only `realProvider` would drop the returnTo for a CTA
+      // that named the exact card the user then clicked, which is the
+      // inverse of what this scoping is for.
+      const landing =
+        !returnFor || returnFor === realProvider || returnFor === provider
+          ? returnTo
+          : DEFAULT_RETURN_TO;
       window.location.href =
         `${API_BASE_URL}/v1/integrations/${realProvider}/authorize` +
-        `?returnTo=${encodeURIComponent(returnTo)}`;
+        `?returnTo=${encodeURIComponent(landing)}`;
     } else if (authType === "api_key") {
       setConnectModal(realProvider);
     }

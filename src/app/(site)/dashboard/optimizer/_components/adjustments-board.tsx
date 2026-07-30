@@ -4,7 +4,12 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api";
-import { toastUnhandledApiError } from "@/lib/toast-errors";
+import {
+  toastUnhandledApiError,
+  toastAdAccountNotAuthorized,
+  toastAdAccountForbidden,
+} from "@/lib/toast-errors";
+import { reconnectHref, adsProviderFor } from "@/lib/integrations-connect";
 import {
   growthApi,
   type GrowthSettings,
@@ -358,7 +363,13 @@ function ProposalRow({
       if (res.status === "applied") {
         toast.success(`Approved and applied — the budget change is live on ${platformName}.`);
       } else if (res.status === "retryable") {
-        // The proposal reverted to proposed — fixable, decide again.
+        // The proposal reverted to proposed — fixable, decide again. The
+        // refusals a user CAN'T clear no longer arrive here: the api answers
+        // them 403 AD_ACCOUNT_NOT_AUTHORIZED / AD_ACCOUNT_FORBIDDEN, handled
+        // in onError below. (An earlier draft guarded this branch on a
+        // `notAuthorized` flag "for a lagging api" — dead code: the api that
+        // sets the flag is the same one that intercepts it before the 200,
+        // and an older api never sets it at all.)
         toast.warning(
           res.failReason
             ? `Couldn't apply it yet: ${res.failReason}. Fix that and approve again.`
@@ -385,11 +396,32 @@ function ProposalRow({
       if (code === "ALREADY_DECIDED") {
         toast.info("This proposal was already decided — refreshing.");
         onChanged();
+      } else if (code === "AD_ACCOUNT_NOT_AUTHORIZED") {
+        // The api used to answer this with a bare `retryable`, so the
+        // success branch below rendered "Fix that and approve again" and
+        // left Approve armed — for a refusal no user action can clear.
+        // It is now its own code (api: growth route), handled here with no
+        // Reconnect CTA and no retry instruction.
+        toastAdAccountNotAuthorized(err, "Applying budget changes", platformName);
+        onChanged();
+      } else if (code === "AD_ACCOUNT_FORBIDDEN") {
+        // Advertiser-fixable in the platform's own campaign manager (billing
+        // hold, suspended account, access removed) — so neither a reconnect
+        // nor an approve-again from here.
+        toastAdAccountForbidden(err, `${platformName} refused this ad account.`);
+        onChanged();
       } else if (code === "NEEDS_REAUTH") {
         toast.error(`${platformName} Ads needs a reconnect before applying budget changes.`, {
           action: {
             label: "Reconnect",
-            onClick: () => { window.location.href = "/dashboard/integrations"; },
+            // returnTo brings them back to this board, not to Settings —
+            // named for the proposal's OWN platform, because this surface is
+            // multi-platform (see the platformLabel note below). Hardcoding
+            // linkedin_ads would silently drop the returnTo the moment a
+            // second ad channel ships.
+            onClick: () => {
+              window.location.href = reconnectHref("/dashboard/optimizer", adsProviderFor(platform));
+            },
           },
         });
         onChanged();

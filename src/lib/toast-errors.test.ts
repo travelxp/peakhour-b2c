@@ -3,7 +3,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const errorToast = vi.fn();
 vi.mock("sonner", () => ({ toast: { error: (...args: unknown[]) => errorToast(...args) } }));
 
-import { toastUnhandledApiError, toastAdAccountNotAuthorized } from "./toast-errors";
+import {
+  toastUnhandledApiError,
+  toastAdAccountNotAuthorized,
+  toastAdAccountForbidden,
+} from "./toast-errors";
 import { ApiError } from "@/lib/api";
 
 const REQ = "bc662f49-6c8a-41cb-9e40-5156925f6202";
@@ -184,6 +188,74 @@ describe("AD_ACCOUNT_NOT_AUTHORIZED never offers a reconnect", () => {
     // Permanent: support, with the id, and no auto-dismiss.
     expect(description).toContain(`reference ${REQ}`);
     expect(duration).toBe(Infinity);
+  });
+
+  /**
+   * The 403 case above passes even with the explicit `dispositionOf` line
+   * deleted, because a 403 already falls through to "permanent" on the
+   * status tail — so it documents intent without protecting it. THIS is
+   * what the explicit line buys: on any status the tail would call
+   * transient, the code still must not tell the user to retry a refusal
+   * that will never change.
+   */
+  it.each([500, 502, 503])(
+    "stays permanent on a %i, where the status tail would say 'try again'",
+    (status) => {
+      toastUnhandledApiError(
+        apiError("AD_ACCOUNT_NOT_AUTHORIZED", status),
+        "create the campaign",
+        "LinkedIn",
+      );
+      const { title, description } = shown();
+      expect(`${title} ${description}`).not.toMatch(/try again/i);
+      expect(description).toContain(`reference ${REQ}`);
+    },
+  );
+
+  // Split per status, and 500 is the one that PINS the disposition line:
+  // at 403 the status tail already returns "permanent", so a 403-only case
+  // would pass with the production line deleted — the same flaw called out
+  // two tests above. Sharing one `it()` would also let a 403 failure mask
+  // the 500 case.
+  it.each([403, 500])(
+    "AD_ACCOUNT_FORBIDDEN stays permanent on a %i, and never says reconnect",
+    (status) => {
+      toastUnhandledApiError(apiError("AD_ACCOUNT_FORBIDDEN", status), "activate the campaign", "LinkedIn");
+      const { title, description, duration } = shown();
+      const rendered = `${title} ${description}`;
+      expect(rendered).not.toMatch(/reconnect/i);
+      expect(rendered).not.toMatch(/try again/i);
+      // A permanent toast has to survive being read and copied.
+      expect(description).toContain(`reference ${REQ}`);
+      expect(duration).toBe(Infinity);
+    },
+  );
+
+  it("the dedicated forbidden helper keeps the api's message AND the reference", () => {
+    // The message is authored server-side (it names the ad account), so it
+    // renders verbatim — but the request id must not be dropped: this code
+    // is the api's landing spot for any 403 it can't attribute, so "check
+    // Campaign Manager" may find nothing and support needs the handle.
+    toastAdAccountForbidden(
+      apiError(
+        "AD_ACCOUNT_FORBIDDEN",
+        403,
+        "LinkedIn refused this request for ad account 549055351. Check the account in LinkedIn Campaign Manager.",
+      ),
+      "fallback copy",
+    );
+    const { title, description, duration } = shown();
+    expect(title).toContain("549055351");
+    expect(title).not.toBe("fallback copy");
+    expect(description).toContain(`reference ${REQ}`);
+    expect(duration).toBe(Infinity);
+  });
+
+  it("the forbidden helper falls back when the throw isn't an ApiError", () => {
+    toastAdAccountForbidden(new TypeError("Failed to fetch"), "fallback copy");
+    const { title, description } = shown();
+    expect(title).toBe("fallback copy");
+    expect(description).toMatch(/contact support\.$/);
   });
 
   it("the dedicated helper names the cause without the provider body", () => {

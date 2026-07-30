@@ -36,6 +36,20 @@ import { ApiError } from "@/lib/api";
  * gets the motivating case exactly backwards.
  */
 
+/**
+ * Second sentence for every ads NEEDS_REAUTH toast.
+ *
+ * LinkedIn returns the SAME "Not enough permissions" 403 for a short scope
+ * grant (a reconnect fixes it) and for a member with no role on the ad
+ * account (only an ad-account admin can). The api can't tell them apart
+ * from the response, so it stopped promising a reconnect would work — but
+ * every surface hardcodes its own reconnect sentence and drops the api's
+ * `message`, so that nuance reached no user until this existed.
+ */
+export const RECONNECT_NUANCE =
+  "If reconnecting doesn't help, your LinkedIn user may not have access to this ad " +
+  "account — an ad-account admin has to grant it.";
+
 /** What the code family tells us about who can act, and how. */
 type Disposition =
   /** Transient. Say "try again in a moment" and stop there. */
@@ -83,8 +97,15 @@ function dispositionOf(code: string, status: number): Disposition {
   // Our app isn't authorised on the advertiser account. Emphatically NOT
   // user_fixable — that classification is what produced a Reconnect CTA
   // for a problem no reconnect can reach. See toastAdAccountNotAuthorized
-  // for the surfaces that say it properly.
+  // for the surfaces that say it properly. Explicit rather than left to
+  // the status-based tail: a 403 already falls through to "permanent", but
+  // the api could answer 5xx on a future path and the tail would then say
+  // "try again" forever.
   if (code === "AD_ACCOUNT_NOT_AUTHORIZED") return "permanent";
+  // Advertiser-fixable on the platform (billing hold, suspended account,
+  // access removed) — permanent for US, and the surfaces that can act on
+  // it render the api's authored message instead of this floor.
+  if (code === "AD_ACCOUNT_FORBIDDEN") return "permanent";
 
   // Route catch-alls for a NON-AdsOpError throw, i.e. an unexpected
   // programming or config error ("LINKEDIN_CLIENT_ID is not set").
@@ -199,6 +220,35 @@ export function toastAdAccountNotAuthorized(
       (requestId
         ? `Contact support quoting reference ${requestId}.`
         : "Please contact support."),
+    duration: Infinity,
+  });
+}
+
+/**
+ * AD_ACCOUNT_FORBIDDEN — the platform refused the AD ACCOUNT itself. The
+ * known causes are advertiser-fixable in the platform's own campaign
+ * manager (billing hold, suspended or closed account, the member's access
+ * removed), so this says neither "reconnect" nor "contact support" as its
+ * headline.
+ *
+ * BUT it is also the api's landing spot for any 403 wording it cannot
+ * attribute, so the request id is not optional here: when the real cause
+ * is something else, the user goes to Campaign Manager, finds nothing
+ * wrong, and support needs that id to find the provider's actual words in
+ * ts_logs. The five surfaces that render this had copy-pasted the toast
+ * and all five had dropped it.
+ *
+ * The MESSAGE is the api's, deliberately: it is authored server-side (it
+ * names the ad account), never provider text — the same exception
+ * CURRENCY_MISMATCH gets.
+ */
+export function toastAdAccountForbidden(err: unknown, fallback: string): void {
+  const apiError = err instanceof ApiError ? err : null;
+  const support = apiError?.requestId
+    ? `If everything looks fine there, contact support quoting reference ${apiError.requestId}.`
+    : "If everything looks fine there, contact support.";
+  toast.error(apiError?.message ?? fallback, {
+    description: support,
     duration: Infinity,
   });
 }

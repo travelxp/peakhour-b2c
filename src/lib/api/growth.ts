@@ -72,9 +72,20 @@ export const growthApi = {
   /** Human decision on one proposal. Approving a budget_resplit also
    *  attempts the guarded platform apply — the response's status says
    *  what ACTUALLY happened (approved / applied / failed / retryable).
-   *  Reauth failures arrive as 409 NEEDS_REAUTH instead. */
+   *  Reauth failures arrive as 409 NEEDS_REAUTH instead, and a platform
+   *  refusing OUR APP on the ad account as 403 AD_ACCOUNT_NOT_AUTHORIZED.
+   *
+   *  `notAuthorized` is the same condition arriving on a 200 `retryable`
+   *  from an api deployment that predates that code — the board uses it to
+   *  suppress its "fix that and approve again" copy, which is wrong for a
+   *  refusal no user action can clear. */
   decide: (runId: string, proposalId: string, decision: "approve" | "dismiss") =>
-    api.post<{ ok: true; status: DecisionStatus; failReason?: string }>(
+    api.post<{
+      ok: true;
+      status: DecisionStatus;
+      failReason?: string;
+      notAuthorized?: boolean;
+    }>(
       `/v1/growth/adjustments/${runId}/proposals/${proposalId}/${decision}`,
     ),
 
