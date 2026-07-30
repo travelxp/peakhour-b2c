@@ -98,6 +98,27 @@ export interface ManagedCampaign {
    *  detect `targeting.facets` before treating it as editor state. */
   targeting?: CampaignTargeting | Record<string, unknown>;
   performance?: ManagedCampaignPerformance;
+  /**
+   * SPEND ALARM — set by the api (derived, never stored) when this campaign
+   * is at or over its total budget cap AND still `active`.
+   *
+   * That combination means the protective auto-pause did not take: it failed
+   * (LinkedIn refusing our app on the ad account, a suspended account, a
+   * dead token) or never ran (a dead workflow, exhausted monitor polls). The
+   * api leaves the row `active` on purpose, because it IS still serving —
+   * flipping it locally would tell the user spend had stopped while LinkedIn
+   * kept billing. Rendering this is the only thing that makes real money
+   * leaking past a user-set cap visible to them.
+   *
+   * `reason` is the api's authored sentence from the last recorded failure,
+   * when there was one — absent when the monitor never got that far.
+   *
+   * `spend` and `cap` are the figures the api JUDGED on. Render these, not
+   * `budget.spent`: that field "is not reliably maintained" (the api's own
+   * words, in ads-monitoring-skills.ts), so re-deriving here could show a
+   * number under the cap next to an alarm saying it was over.
+   */
+  spendAlarm?: { overCap: true; spend: number; cap: number; reason?: string };
   createdAt: string;
   updatedAt?: string;
   /** Audit ids (hex) — present on rows created via the routes. */
