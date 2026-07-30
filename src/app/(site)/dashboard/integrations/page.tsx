@@ -361,7 +361,16 @@ export default function IntegrationsPage() {
       return;
     }
     if (authType === "oauth2") {
-      const landing = !returnFor || returnFor === realProvider ? returnTo : DEFAULT_RETURN_TO;
+      // Compare against BOTH the card's own key and the resolved OAuth
+      // provider. The Meta cards are virtual — `facebook_pages`,
+      // `instagram`, `meta_ads` and `whatsapp` all resolve to `facebook` —
+      // so matching only `realProvider` would drop the returnTo for a CTA
+      // that named the exact card the user then clicked, which is the
+      // inverse of what this scoping is for.
+      const landing =
+        !returnFor || returnFor === realProvider || returnFor === provider
+          ? returnTo
+          : DEFAULT_RETURN_TO;
       window.location.href =
         `${API_BASE_URL}/v1/integrations/${realProvider}/authorize` +
         `?returnTo=${encodeURIComponent(landing)}`;

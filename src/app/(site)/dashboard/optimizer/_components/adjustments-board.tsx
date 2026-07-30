@@ -4,8 +4,12 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api";
-import { toastUnhandledApiError, toastAdAccountNotAuthorized } from "@/lib/toast-errors";
-import { reconnectHref, LINKEDIN_ADS_PROVIDER } from "@/lib/integrations-connect";
+import {
+  toastUnhandledApiError,
+  toastAdAccountNotAuthorized,
+  toastAdAccountForbidden,
+} from "@/lib/toast-errors";
+import { reconnectHref, adsProviderFor } from "@/lib/integrations-connect";
 import {
   growthApi,
   type GrowthSettings,
@@ -359,23 +363,18 @@ function ProposalRow({
       if (res.status === "applied") {
         toast.success(`Approved and applied — the budget change is live on ${platformName}.`);
       } else if (res.status === "retryable") {
-        // "Fix that and approve again" is wrong for a refusal the user
-        // cannot clear. A current api sends that case as 403
-        // AD_ACCOUNT_NOT_AUTHORIZED (handled in onError), so this flag only
-        // matters against an api deployment that predates it — which the
-        // prod api's known lag behind master makes a real state.
-        if (res.notAuthorized) {
-          toast.error(res.failReason ?? "That ad account isn't authorised for this app.", {
-            duration: Infinity,
-          });
-        } else {
-          // The proposal reverted to proposed — fixable, decide again.
-          toast.warning(
-            res.failReason
-              ? `Couldn't apply it yet: ${res.failReason}. Fix that and approve again.`
-              : "Couldn't apply it yet — fix the cause and approve again.",
-          );
-        }
+        // The proposal reverted to proposed — fixable, decide again. The
+        // refusals a user CAN'T clear no longer arrive here: the api answers
+        // them 403 AD_ACCOUNT_NOT_AUTHORIZED / AD_ACCOUNT_FORBIDDEN, handled
+        // in onError below. (An earlier draft guarded this branch on a
+        // `notAuthorized` flag "for a lagging api" — dead code: the api that
+        // sets the flag is the same one that intercepts it before the 200,
+        // and an older api never sets it at all.)
+        toast.warning(
+          res.failReason
+            ? `Couldn't apply it yet: ${res.failReason}. Fix that and approve again.`
+            : "Couldn't apply it yet — fix the cause and approve again.",
+        );
       } else if (res.status === "failed") {
         toast.error(res.failReason || "This proposal can't be applied — see the reason on the card.");
       } else if (res.status === "approved") {
@@ -406,19 +405,23 @@ function ProposalRow({
         toastAdAccountNotAuthorized(err, "Applying budget changes", platformName);
         onChanged();
       } else if (code === "AD_ACCOUNT_FORBIDDEN") {
-        // Advertiser-fixable in the platform's own campaign manager
-        // (billing hold, suspended account, access removed) — so neither
-        // "reconnect" nor "contact support". The api authors this message.
-        toast.error(err instanceof ApiError ? err.message : "The ad account refused this change.", {
-          duration: Infinity,
-        });
+        // Advertiser-fixable in the platform's own campaign manager (billing
+        // hold, suspended account, access removed) — so neither a reconnect
+        // nor an approve-again from here.
+        toastAdAccountForbidden(err, `${platformName} refused this ad account.`);
         onChanged();
       } else if (code === "NEEDS_REAUTH") {
         toast.error(`${platformName} Ads needs a reconnect before applying budget changes.`, {
           action: {
             label: "Reconnect",
-            // returnTo brings them back to this board, not to Settings.
-            onClick: () => { window.location.href = reconnectHref("/dashboard/optimizer", LINKEDIN_ADS_PROVIDER); },
+            // returnTo brings them back to this board, not to Settings —
+            // named for the proposal's OWN platform, because this surface is
+            // multi-platform (see the platformLabel note below). Hardcoding
+            // linkedin_ads would silently drop the returnTo the moment a
+            // second ad channel ships.
+            onClick: () => {
+              window.location.href = reconnectHref("/dashboard/optimizer", adsProviderFor(platform));
+            },
           },
         });
         onChanged();

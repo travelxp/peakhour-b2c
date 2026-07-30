@@ -4,7 +4,12 @@ import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api";
-import { toastUnhandledApiError, toastAdAccountNotAuthorized } from "@/lib/toast-errors";
+import {
+  toastUnhandledApiError,
+  toastAdAccountNotAuthorized,
+  toastAdAccountForbidden,
+  RECONNECT_NUANCE,
+} from "@/lib/toast-errors";
 import {
   reconnectHref,
   ADS_LINKEDIN_PATH,
@@ -158,6 +163,7 @@ export function BoostCampaignDialog({
         });
       } else if (code === "NEEDS_REAUTH") {
         toast.error("LinkedIn Ads needs a reconnect before boosting.", {
+          description: RECONNECT_NUANCE,
           action: {
             label: "Reconnect",
             // returnTo brings the user back HERE after the OAuth round
@@ -174,13 +180,12 @@ export function BoostCampaignDialog({
         setBlocked("not_authorized");
         toastAdAccountNotAuthorized(err, "Boosting");
       } else if (code === "AD_ACCOUNT_FORBIDDEN") {
-        // Server-authored, names the account and what to check in Campaign
-        // Manager (billing hold / suspended / access removed). NOT provider
-        // text, so it renders verbatim — and NOT a reconnect or a retry.
-        toast.error(
-          err instanceof ApiError ? err.message : "LinkedIn refused this ad account.",
-          { duration: Infinity },
-        );
+        // Advertiser-fixable, but in LinkedIn Campaign Manager — so no
+        // Reconnect CTA. Deliberately NOT latched like the not-authorised
+        // case: once a billing hold is cleared the very same request works,
+        // so the button stays live. The helper keeps the request id on the
+        // toast — this code is also the api's unattributable-403 catch-all.
+        toastAdAccountForbidden(err, "Boosting isn't possible on this ad account.");
       } else if (code === "NO_AD_ACCOUNT") {
         toast.error(
           "Your LinkedIn Ads connection has no ad account — reconnect it, or create an ad account in LinkedIn Campaign Manager first.",

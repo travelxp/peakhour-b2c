@@ -5,7 +5,12 @@ import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api, ApiError } from "@/lib/api";
-import { toastUnhandledApiError, toastAdAccountNotAuthorized } from "@/lib/toast-errors";
+import {
+  toastUnhandledApiError,
+  toastAdAccountNotAuthorized,
+  toastAdAccountForbidden,
+  RECONNECT_NUANCE,
+} from "@/lib/toast-errors";
 import {
   reconnectHref,
   ADS_LINKEDIN_PATH,
@@ -313,6 +318,7 @@ function CampaignRow({
       const code = err instanceof ApiError ? err.code : undefined;
       if (code === "NEEDS_REAUTH" || code === "NOT_CONNECTED") {
         toast.error("LinkedIn Ads needs a reconnect before changing campaigns.", {
+          description: RECONNECT_NUANCE,
           action: {
             label: "Reconnect",
             onClick: () => { window.location.href = RECONNECT_HREF; },
@@ -323,13 +329,12 @@ function CampaignRow({
         // CTA here, it can't clear it. See toastAdAccountNotAuthorized.
         toastAdAccountNotAuthorized(err, "Changing campaigns");
       } else if (code === "AD_ACCOUNT_FORBIDDEN") {
-        // Server-authored, names the account and what to check in Campaign
-        // Manager (billing hold / suspended / access removed). NOT provider
-        // text, so it renders verbatim — and NOT a reconnect or a retry.
-        toast.error(
-          err instanceof ApiError ? err.message : "LinkedIn refused this ad account.",
-          { duration: Infinity },
-        );
+        // Advertiser-fixable, but in LinkedIn Campaign Manager — so no
+        // Reconnect CTA. Deliberately NOT latched like the not-authorised
+        // case: once a billing hold is cleared the very same request works,
+        // so the button stays live. The helper keeps the request id on the
+        // toast — this code is also the api's unattributable-403 catch-all.
+        toastAdAccountForbidden(err, "LinkedIn refused this ad account.");
       } else if (code === "INVALID_TRANSITION") {
         toast.error("That status change isn't possible from the campaign's current state.");
         // The row is by definition stale — resync the table.
@@ -373,10 +378,7 @@ function CampaignRow({
       } else if (code === "AD_ACCOUNT_NOT_AUTHORIZED") {
         toastAdAccountNotAuthorized(err, "Refreshing metrics");
       } else if (code === "AD_ACCOUNT_FORBIDDEN") {
-        toast.error(
-          err instanceof ApiError ? err.message : "LinkedIn refused this ad account.",
-          { duration: Infinity },
-        );
+        toastAdAccountForbidden(err, "LinkedIn refused this ad account.");
       } else if (code === "RATE_LIMITED") {
         toast.error("LinkedIn is rate-limiting us — give it a minute and try again.");
       } else {

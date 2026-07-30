@@ -4,7 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api";
-import { toastUnhandledApiError, toastAdAccountNotAuthorized } from "@/lib/toast-errors";
+import {
+  toastUnhandledApiError,
+  toastAdAccountNotAuthorized,
+  toastAdAccountForbidden,
+  RECONNECT_NUANCE,
+} from "@/lib/toast-errors";
 import {
   reconnectHref,
   ADS_LINKEDIN_PATH,
@@ -260,6 +265,7 @@ export function TargetingDialog({
       const code = err instanceof ApiError ? err.code : undefined;
       if (code === "NEEDS_REAUTH" || code === "NOT_CONNECTED") {
         toast.error("LinkedIn Ads needs a reconnect before updating targeting.", {
+          description: RECONNECT_NUANCE,
           action: {
             label: "Reconnect",
             onClick: () => {
@@ -272,13 +278,12 @@ export function TargetingDialog({
         // would be the same dead end it is on boost.
         toastAdAccountNotAuthorized(err, "Updating targeting");
       } else if (code === "AD_ACCOUNT_FORBIDDEN") {
-        // Server-authored, names the account and what to check in Campaign
-        // Manager (billing hold / suspended / access removed). NOT provider
-        // text, so it renders verbatim — and NOT a reconnect or a retry.
-        toast.error(
-          err instanceof ApiError ? err.message : "LinkedIn refused this ad account.",
-          { duration: Infinity },
-        );
+        // Advertiser-fixable, but in LinkedIn Campaign Manager — so no
+        // Reconnect CTA. Deliberately NOT latched like the not-authorised
+        // case: once a billing hold is cleared the very same request works,
+        // so the button stays live. The helper keeps the request id on the
+        // toast — this code is also the api's unattributable-403 catch-all.
+        toastAdAccountForbidden(err, "LinkedIn refused this ad account.");
       } else if (code === "VALIDATION_ERROR") {
         toast.error((err as ApiError).message || "Check the targeting selection.");
       } else if (code === "RATE_LIMITED") {

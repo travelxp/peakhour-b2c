@@ -46,3 +46,28 @@ export const ADS_LINKEDIN_PATH = "/dashboard/ads?channel=linkedin";
  *  the ones these CTAs name — this is not the full catalogue. */
 export const LINKEDIN_ADS_PROVIDER = "linkedin_ads";
 export const LINKEDIN_CONTENT_PROVIDER = "linkedin_content";
+
+/**
+ * `ad_campaigns.platform` / optimizer-run platform → the int_connections
+ * provider carrying its ads credentials. Mirrors the api's
+ * ADS_PROVIDER_BY_PLATFORM.
+ *
+ * Exists so channel-common surfaces (the Optimizer board renders whatever
+ * platform its run is stamped with) can name a provider WITHOUT hardcoding
+ * one. Hardcoding is not merely untidy here: the Integrations page honours
+ * a returnTo only for the provider named, so a wrong slug silently drops
+ * the return trip — the bug `returnFor` was added to prevent.
+ *
+ * Unknown platform → undefined, i.e. an unscoped link rather than a wrong
+ * one, which degrades to the Integrations page instead of misfiring.
+ */
+const ADS_PROVIDER_BY_PLATFORM: Record<string, string> = {
+  linkedin: LINKEDIN_ADS_PROVIDER,
+  x: "x_ads",
+  meta: "meta_ads",
+  google_ads: "google_ads",
+};
+
+export function adsProviderFor(platform: string): string | undefined {
+  return ADS_PROVIDER_BY_PLATFORM[platform];
+}

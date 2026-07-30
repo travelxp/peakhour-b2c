@@ -3,7 +3,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const errorToast = vi.fn();
 vi.mock("sonner", () => ({ toast: { error: (...args: unknown[]) => errorToast(...args) } }));
 
-import { toastUnhandledApiError, toastAdAccountNotAuthorized } from "./toast-errors";
+import {
+  toastUnhandledApiError,
+  toastAdAccountNotAuthorized,
+  toastAdAccountForbidden,
+} from "./toast-errors";
 import { ApiError } from "@/lib/api";
 
 const REQ = "bc662f49-6c8a-41cb-9e40-5156925f6202";
@@ -208,17 +212,50 @@ describe("AD_ACCOUNT_NOT_AUTHORIZED never offers a reconnect", () => {
     },
   );
 
-  it("AD_ACCOUNT_FORBIDDEN is permanent for us, and never says reconnect", () => {
-    // The advertiser CAN fix it (billing hold, suspended account, access
-    // removed), but not from here and not by reconnecting — the surfaces
-    // that can act render the api's authored message instead of this floor.
-    for (const status of [403, 500]) {
-      errorToast.mockClear();
+  // Split per status, and 500 is the one that PINS the disposition line:
+  // at 403 the status tail already returns "permanent", so a 403-only case
+  // would pass with the production line deleted — the same flaw called out
+  // two tests above. Sharing one `it()` would also let a 403 failure mask
+  // the 500 case.
+  it.each([403, 500])(
+    "AD_ACCOUNT_FORBIDDEN stays permanent on a %i, and never says reconnect",
+    (status) => {
       toastUnhandledApiError(apiError("AD_ACCOUNT_FORBIDDEN", status), "activate the campaign", "LinkedIn");
-      const { title, description } = shown();
-      expect(`${title} ${description}`, String(status)).not.toMatch(/reconnect/i);
-      expect(`${title} ${description}`, String(status)).not.toMatch(/try again/i);
-    }
+      const { title, description, duration } = shown();
+      const rendered = `${title} ${description}`;
+      expect(rendered).not.toMatch(/reconnect/i);
+      expect(rendered).not.toMatch(/try again/i);
+      // A permanent toast has to survive being read and copied.
+      expect(description).toContain(`reference ${REQ}`);
+      expect(duration).toBe(Infinity);
+    },
+  );
+
+  it("the dedicated forbidden helper keeps the api's message AND the reference", () => {
+    // The message is authored server-side (it names the ad account), so it
+    // renders verbatim — but the request id must not be dropped: this code
+    // is the api's landing spot for any 403 it can't attribute, so "check
+    // Campaign Manager" may find nothing and support needs the handle.
+    toastAdAccountForbidden(
+      apiError(
+        "AD_ACCOUNT_FORBIDDEN",
+        403,
+        "LinkedIn refused this request for ad account 549055351. Check the account in LinkedIn Campaign Manager.",
+      ),
+      "fallback copy",
+    );
+    const { title, description, duration } = shown();
+    expect(title).toContain("549055351");
+    expect(title).not.toBe("fallback copy");
+    expect(description).toContain(`reference ${REQ}`);
+    expect(duration).toBe(Infinity);
+  });
+
+  it("the forbidden helper falls back when the throw isn't an ApiError", () => {
+    toastAdAccountForbidden(new TypeError("Failed to fetch"), "fallback copy");
+    const { title, description } = shown();
+    expect(title).toBe("fallback copy");
+    expect(description).toMatch(/contact support\.$/);
   });
 
   it("the dedicated helper names the cause without the provider body", () => {
