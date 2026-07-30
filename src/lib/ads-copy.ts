@@ -93,12 +93,22 @@ export type DeclarationState =
   /** Nobody has declared. The default for every business. */
   | { kind: "undeclared" }
   /**
-   * A POLITICAL declaration is on record. READ-ONLY here: political
-   * advertising carries obligations Peakhour does not support, so this surface
-   * must neither claim it is handled nor offer a checkbox that would overwrite
-   * a legal statement in one click. Points the user at Campaign Manager.
+   * A POLITICAL declaration is on record. READ-ONLY apart from withdrawal:
+   * political advertising carries obligations Peakhour does not support, so
+   * this surface must neither claim it is handled nor offer a checkbox that
+   * would overwrite a legal statement in one click.
+   *
+   * `superseded` matters even here. The api ignores ANY declaration whose
+   * wording has changed — intent included — so a POLITICAL record under stale
+   * wording means autonomous creates are sending NOT_DECLARED right now. The
+   * card must say that rather than implying the record is in force.
    */
-  | { kind: "political"; declaredAt: string; declaredByName?: string }
+  | {
+      kind: "political";
+      declaredAt: string;
+      declaredByName?: string;
+      superseded: boolean;
+    }
   /** Declared under the wording currently in force. */
   | { kind: "declared"; declaredAt: string; declaredByName?: string }
   /**
@@ -108,11 +118,21 @@ export type DeclarationState =
    */
   | { kind: "superseded"; declaredAt: string; declaredByName?: string }
   /**
-   * The settings read failed, so we don't know. Deliberately distinct from
-   * `undeclared`: a false "not declared" is safe (it only over-warns), a
-   * false "declared" is not. Never collapse this into either.
+   * We cannot state the declaration, for one of two DIFFERENT reasons that
+   * need different copy and different remedies:
+   *
+   *   read_failed        — the settings request failed. Retrying may help.
+   *   unsupported_notice — the read SUCCEEDED, but the api is on a notice
+   *                        version whose wording this app doesn't hold. There
+   *                        is nothing to retry: it needs a deploy. And it is
+   *                        not benign — every stored declaration is superseded
+   *                        under that version, so autonomous creates are
+   *                        falling back to NOT_DECLARED.
+   *
+   * Distinct from `undeclared` either way: a false "not declared" only
+   * over-warns, a false "declared" is a claim we cannot support.
    */
-  | { kind: "unknown" };
+  | { kind: "unknown"; reason: "read_failed" | "unsupported_notice" };
 
 /**
  * Resolve which of the four states to render.
@@ -128,18 +148,26 @@ export function declarationState(input: {
   declaredByName?: string | null;
   failed?: boolean;
 }): DeclarationState {
-  if (input.failed) return { kind: "unknown" };
+  if (input.failed) return { kind: "unknown", reason: "read_failed" };
 
   // No current version to compare against means we cannot tell active from
   // stale, and no notice text for it means we cannot honestly ASK. Both are
   // "we don't know" rather than "not declared" — checked before the
   // declaration itself so an undeclared business can't be shown a Save button
   // that would record consent to wording we don't hold.
-  if (!input.currentNoticeVersion) return { kind: "unknown" };
-  if (!noticeTextFor(input.currentNoticeVersion)) return { kind: "unknown" };
+  // No version at all is indistinguishable from a failed read — we have no
+  // response to reason about.
+  if (!input.currentNoticeVersion) return { kind: "unknown", reason: "read_failed" };
+  // A version we don't hold text for is a DEPLOY problem, not a network one.
+  if (!noticeTextFor(input.currentNoticeVersion)) {
+    return { kind: "unknown", reason: "unsupported_notice" };
+  }
 
   const d = input.declaration;
   const declaredByName = input.declaredByName ?? undefined;
+  // Computed BEFORE the intent branches: the api ignores a superseded
+  // declaration whatever its intent, so every branch below needs this.
+  const superseded = !!d && d.noticeVersion !== input.currentNoticeVersion;
 
   // A POLITICAL record gets its own read-only state. Rendering it as
   // undeclared would both misreport it (the api sends POLITICAL through) and
@@ -148,13 +176,18 @@ export function declarationState(input: {
     return {
       kind: "political",
       declaredAt: d.declaredAt,
+      superseded,
       ...(declaredByName ? { declaredByName } : {}),
     };
   }
   if (!d || d.politicalIntent !== "NOT_POLITICAL") return { kind: "undeclared" };
 
-  if (d.noticeVersion !== input.currentNoticeVersion) {
-    return { kind: "superseded", declaredAt: d.declaredAt, ...(declaredByName ? { declaredByName } : {}) };
+  if (superseded) {
+    return {
+      kind: "superseded",
+      declaredAt: d.declaredAt,
+      ...(declaredByName ? { declaredByName } : {}),
+    };
   }
   return { kind: "declared", declaredAt: d.declaredAt, ...(declaredByName ? { declaredByName } : {}) };
 }

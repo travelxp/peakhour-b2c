@@ -140,9 +140,35 @@ export function AdvertisingDeclarationCard() {
               </p>
               <p className="text-xs text-muted-foreground">
                 Peakhour doesn&apos;t support the extra obligations political
-                advertising carries. Manage this campaign&apos;s declaration in
-                LinkedIn Campaign Manager.
+                advertising carries, so this can&apos;t be changed here — only
+                withdrawn.
+                {state.superseded ? (
+                  <>
+                    {" "}
+                    LinkedIn has also updated its notice since this was
+                    recorded, so automatic campaigns are currently sending no
+                    declaration at all.
+                  </>
+                ) : null}
               </p>
+              {/* An exit, not a tick-box. Withdrawal UNSETS the record — a
+                  retraction rather than a new legal claim — so it is the one
+                  change this surface can safely offer. Without it a business
+                  that ever acquires a POLITICAL record could never clear it,
+                  and every autonomous create would keep sending POLITICAL. */}
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-xs text-muted-foreground"
+                disabled={save.isPending}
+                onClick={() => setWithdrawOpen(true)}
+              >
+                {save.isPending ? (
+                  <Loader2 className="mr-1 size-3 animate-spin" />
+                ) : null}
+                Withdraw
+              </Button>
             </div>
           </div>
         ) : state.kind === "declared" ? (
@@ -194,7 +220,9 @@ export function AdvertisingDeclarationCard() {
                   {state.kind === "superseded"
                     ? "Please confirm the current wording"
                     : state.kind === "unknown"
-                      ? "We couldn't check your advertising declaration"
+                      ? state.reason === "unsupported_notice"
+                        ? "This notice has changed"
+                        : "We couldn't check your advertising declaration"
                       : "Advertising declaration"}
                 </p>
                 <p className="text-xs text-muted-foreground">
@@ -211,10 +239,23 @@ export function AdvertisingDeclarationCard() {
                     // Honest about not knowing rather than showing a confident
                     // "not declared": a false "not declared" only over-warns,
                     // but a false "declared" would be a claim we can't support.
-                    <>
-                      The state shown here may be wrong. Refresh in a moment — your
-                      campaigns are unaffected.
-                    </>
+                    // The two causes need different copy — saying "your
+                    // campaigns are unaffected" would be FALSE on a notice
+                    // change, where every stored declaration is superseded.
+                    state.reason === "unsupported_notice" ? (
+                      <>
+                        LinkedIn has updated this notice and Peakhour needs an
+                        update before you can confirm the new wording. Until
+                        then, automatic campaigns send no declaration — so
+                        LinkedIn may hold them from EU audiences. Contact
+                        support if this persists.
+                      </>
+                    ) : (
+                      <>
+                        The state shown here may be wrong. Try again in a moment
+                        — your campaigns are unaffected.
+                      </>
+                    )
                   ) : (
                     POLITICAL_DECLARATION_CONSEQUENCE
                   )}
@@ -250,9 +291,14 @@ export function AdvertisingDeclarationCard() {
                 {save.isPending ? <Loader2 className="mr-1 size-3 animate-spin" /> : null}
                 {state.kind === "superseded" ? "Confirm" : "Save declaration"}
               </Button>
+            ) : state.reason === "unsupported_notice" ? (
+              // No retry: the read succeeded. Re-fetching returns the same
+              // version we don't hold, so a button here would be a dead end
+              // dressed as a remedy.
+              null
             ) : (
-              // "Refresh in a moment" with no way to refresh is a dead end,
-              // and refetchOnWindowFocus is off so tabbing away won't retry.
+              // "Try again in a moment" with no way to try is a dead end, and
+              // refetchOnWindowFocus is off so tabbing away won't retry.
               <Button
                 type="button"
                 variant="outline"

@@ -80,6 +80,11 @@ const OBJECTIVES: Array<{ value: BoostObjective; label: string }> = [
   { value: "website_traffic", label: "Website traffic" },
 ];
 
+/** How long the boost will wait for the durable declaration write before
+ *  closing anyway. Long enough for a normal PATCH, short enough that a stalled
+ *  one can't hide a campaign that already exists. */
+const DURABLE_WRITE_CAP_MS = 2500;
+
 export function BoostCampaignDialog({
   open,
   onOpenChange,
@@ -181,14 +186,24 @@ export function BoostCampaignDialog({
         // request, so a user who ticked this and clicked through would land on
         // the Ads hub being told they had not declared. Awaited inside the
         // mutation instead, before the dialog closes.
-        try {
-          const res = await growthApi.updateSettings({ notPolitical: true });
-          queryClient.setQueryData(["growth-settings"], res);
-        } catch {
-          // The campaign itself is created and already carries the answer, so
-          // this is not worth a second error toast — the Ads-hub card still
-          // offers the durable declaration.
-        }
+        // Awaited so the success toast's "Open Ads Manager" — a full-document
+        // navigation — can't abort it. But CAPPED: Cancel is disabled while
+        // this mutation is pending and the dismissal guard blocks Escape, so an
+        // un-capped await would trap the user on "Creating…" with no hint that
+        // the LinkedIn draft already exists. After the cap we stop waiting; the
+        // request usually still lands, and the Ads-hub card offers the
+        // declaration either way.
+        const write = growthApi
+          .updateSettings({ notPolitical: true })
+          .then((res) => queryClient.setQueryData(["growth-settings"], res))
+          .catch(() => {
+            // The campaign is created and already carries this answer, so a
+            // second error toast would bury the one that matters.
+          });
+        await Promise.race([
+          write,
+          new Promise((resolve) => setTimeout(resolve, DURABLE_WRITE_CAP_MS)),
+        ]);
       }
       onOpenChange(false);
       toast.success("Draft campaign created on LinkedIn.", {
@@ -425,7 +440,12 @@ export function BoostCampaignDialog({
             </Label>
           </div>
 
-          {notPolitical && stampableNotice ? (
+          {/* Shown while the settings query is still in flight: gating on
+              `stampableNotice` alone hid this on a fast submit — every field is
+              pre-filled, so open-then-create inside 300ms is ordinary, and the
+              user would never learn the durable option exists. Hidden only
+              when we positively KNOW the api is on wording we don't hold. */}
+          {notPolitical && !(settings.data && !stampableNotice) ? (
             <div className="flex items-start gap-2 pl-3">
               <Checkbox
                 id="boost-apply-future"

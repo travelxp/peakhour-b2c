@@ -18,7 +18,6 @@ import {
   formatDeclaredAt,
   noticeTextFor,
   POLITICAL_DECLARATION_NOTICES,
-  LATEST_POLITICAL_DECLARATION_NOTICE,
 } from "./ads-copy";
 
 const CURRENT = "linkedin-ttpa-2025-10";
@@ -70,9 +69,13 @@ describe("declarationState", () => {
 
   it("unknown — not undeclared — when the settings read failed", () => {
     // Distinct state on purpose: we cannot claim either answer.
-    expect(declarationState({ failed: true })).toEqual({ kind: "unknown" });
+    expect(declarationState({ failed: true })).toEqual({
+      kind: "unknown",
+      reason: "read_failed",
+    });
     expect(declarationState({ declaration, currentNoticeVersion: CURRENT, failed: true })).toEqual({
       kind: "unknown",
+      reason: "read_failed",
     });
   });
 
@@ -97,6 +100,24 @@ describe("declarationState", () => {
       kind: "political",
       declaredAt: declaration.declaredAt,
       declaredByName: "Vanshita Garg",
+      superseded: false,
+    });
+  });
+
+  it("a POLITICAL record under STALE wording reports superseded", () => {
+    // The api ignores any superseded declaration regardless of intent, so
+    // autonomous creates are sending NOT_DECLARED. Rendering this as an
+    // in-force political record would overstate it — the same mistake
+    // `superseded` exists to prevent, and the POLITICAL branch had it because
+    // the intent check ran before the version comparison.
+    const out = declarationState({
+      declaration: { ...declaration, politicalIntent: "POLITICAL", noticeVersion: "old" },
+      currentNoticeVersion: CURRENT,
+    });
+    expect(out).toEqual({
+      kind: "political",
+      declaredAt: declaration.declaredAt,
+      superseded: true,
     });
   });
 
@@ -115,21 +136,24 @@ describe("declarationState", () => {
     // against the OLD text the user actually read. Refusing to ask is the only
     // safe answer, and it must win even with nothing declared — otherwise an
     // undeclared business gets a Save button that records unseen wording.
+    // And it is a DEPLOY problem, not a network one — the read succeeded, so
+    // "try again" would be a dead end and "campaigns are unaffected" is false.
     expect(declarationState({ currentNoticeVersion: "linkedin-ttpa-2099-01" })).toEqual({
       kind: "unknown",
+      reason: "unsupported_notice",
     });
     expect(
       declarationState({
         declaration,
         currentNoticeVersion: "linkedin-ttpa-2099-01",
       }),
-    ).toEqual({ kind: "unknown" });
+    ).toEqual({ kind: "unknown", reason: "unsupported_notice" });
   });
 
   it("renders nothing confidently when there is no data at all", () => {
     // declarationState({}) must not resolve to `undeclared`: the card would
     // then show an amber warning and a Save button on a failed/paused fetch.
-    expect(declarationState({})).toEqual({ kind: "unknown" });
+    expect(declarationState({})).toEqual({ kind: "unknown", reason: "read_failed" });
   });
 
   it("a failed read wins over every other input", () => {
@@ -165,12 +189,13 @@ describe("formatDeclaredAt", () => {
 });
 
 describe("the notice text is keyed by the version it is", () => {
-  it("holds wording for the version the api currently stamps", () => {
-    // If the api bumps CURRENT_NOTICE_VERSION, this fails until the matching
-    // wording is added here — which is the point: the two must ship together
-    // or the card silently stops offering the declaration.
+  it("holds wording for the version this app expects the api to stamp", () => {
+    // NOTE: this cannot detect the api bumping its own constant — CURRENT here
+    // is a local literal and nothing compares the two repos. The real guard is
+    // runtime: an unheld version resolves to `unknown` and the card refuses to
+    // collect consent. This only asserts we shipped text for the version we
+    // believe is current.
     expect(noticeTextFor(CURRENT)).toBeTypeOf("string");
-    expect(noticeTextFor(CURRENT)).toBe(POLITICAL_DECLARATION_NOTICES[CURRENT]);
   });
 
   it("returns undefined for a version we don't hold, rather than a fallback", () => {
@@ -191,9 +216,4 @@ describe("the notice text is keyed by the version it is", () => {
     expect(text).toContain("LinkedIn's policies");
   });
 
-  it("the Boost dialog's display fallback is the wording we hold", () => {
-    // Used only for the per-campaign answer, which is never recorded against a
-    // version — anything that STAMPS must go through noticeTextFor.
-    expect(LATEST_POLITICAL_DECLARATION_NOTICE).toBe(POLITICAL_DECLARATION_NOTICES[CURRENT]);
-  });
 });
