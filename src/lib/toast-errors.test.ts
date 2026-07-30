@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const errorToast = vi.fn();
 vi.mock("sonner", () => ({ toast: { error: (...args: unknown[]) => errorToast(...args) } }));
 
-import { toastUnhandledApiError } from "./toast-errors";
+import { toastUnhandledApiError, toastAdAccountNotAuthorized } from "./toast-errors";
 import { ApiError } from "@/lib/api";
 
 const REQ = "bc662f49-6c8a-41cb-9e40-5156925f6202";
@@ -168,4 +168,47 @@ describe("never leaks the raw provider message", () => {
       expect(rendered).not.toContain("E11000");
     });
   }
+});
+
+describe("AD_ACCOUNT_NOT_AUTHORIZED never offers a reconnect", () => {
+  // THE regression this code exists to end: the api used to answer this 403
+  // with NEEDS_REAUTH, so every ads surface told the user to reconnect a
+  // connection that was already healthy. Reconnecting cannot grant our app
+  // access to an advertiser account.
+  it("is not treated as user_fixable by the fallback handler", () => {
+    toastUnhandledApiError(apiError("AD_ACCOUNT_NOT_AUTHORIZED", 403), "create the campaign", "LinkedIn");
+    const { title, description, duration } = shown();
+    const rendered = `${title} ${description}`;
+    expect(rendered).not.toMatch(/reconnect/i);
+    expect(rendered).not.toMatch(/try again/i);
+    // Permanent: support, with the id, and no auto-dismiss.
+    expect(description).toContain(`reference ${REQ}`);
+    expect(duration).toBe(Infinity);
+  });
+
+  it("the dedicated helper names the cause without the provider body", () => {
+    toastAdAccountNotAuthorized(
+      apiError(
+        "AD_ACCOUNT_NOT_AUTHORIZED",
+        403,
+        '{"code":"FORBIDDEN","message":"…Account Management list.","status":403}',
+      ),
+      "Boosting",
+    );
+    const { title, description, duration } = shown();
+    expect(title).toBe("LinkedIn hasn't authorised Peakhour on this ad account yet.");
+    expect(description).toMatch(/^Boosting can't work/);
+    expect(description).toContain(`reference ${REQ}`);
+    expect(`${title} ${description}`).not.toMatch(/reconnect/i);
+    expect(`${title} ${description}`).not.toContain("FORBIDDEN");
+    expect(duration).toBe(Infinity);
+  });
+
+  it("falls back to a plain support pointer with no request id", () => {
+    toastAdAccountNotAuthorized(
+      new ApiError("AD_ACCOUNT_NOT_AUTHORIZED", "raw", 403),
+      "Updating targeting",
+    );
+    expect(shown().description).toMatch(/Please contact support\.$/);
+  });
 });

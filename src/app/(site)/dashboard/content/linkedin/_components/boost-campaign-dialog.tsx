@@ -4,7 +4,8 @@ import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api";
-import { toastUnhandledApiError } from "@/lib/toast-errors";
+import { toastUnhandledApiError, toastAdAccountNotAuthorized } from "@/lib/toast-errors";
+import { reconnectHref, ADS_LINKEDIN_PATH } from "@/lib/integrations-connect";
 import {
   linkedInAdsApi,
   type BoostObjective,
@@ -40,6 +41,15 @@ import { Rocket } from "lucide-react";
  */
 
 /**
+ * Where the Connect / Reconnect CTAs send the user. The `returnTo` is
+ * forwarded by the Integrations page into the OAuth authorize call, so the
+ * callback lands them back on the LinkedIn hub they were boosting from —
+ * the old flow dropped them on /dashboard/settings, several clicks from the
+ * post they came to boost.
+ */
+const RECONNECT_HREF = reconnectHref("/dashboard/content/linkedin");
+
+/**
  * Objectives a BOOST can use. `lead_generation` is deliberately absent:
  * LinkedIn requires a lead gen form on every creative under a lead-gen
  * campaign, and sponsoring an existing organic post gives us nowhere to
@@ -71,10 +81,14 @@ export function BoostCampaignDialog({
   const [dailyBudget, setDailyBudget] = useState("10");
   const [currencyCode, setCurrencyCode] = useState("USD");
   const [durationDays, setDurationDays] = useState("14");
-  // Latched after PERSIST_FAILED: the draft EXISTS on LinkedIn, so a
-  // resubmit would duplicate it — the button stays disabled for this
-  // dialog instance.
-  const [terminal, setTerminal] = useState(false);
+  // Latched on a failure a resubmit cannot improve on — the button stays
+  // disabled for this dialog instance, and the reason picks its label:
+  //   "persisted"      PERSIST_FAILED — the draft EXISTS on LinkedIn, so
+  //                    a resubmit would duplicate it.
+  //   "not_authorized" AD_ACCOUNT_NOT_AUTHORIZED — LinkedIn refuses this
+  //                    ad account for our app; nothing was created and
+  //                    nothing will be until that access is granted.
+  const [blocked, setBlocked] = useState<"persisted" | "not_authorized" | null>(null);
 
   // Round ONCE up front so validation, the displayed cap, and the
   // payload can never disagree (typing "14.7" must not show a x14.7
@@ -115,9 +129,9 @@ export function BoostCampaignDialog({
         action: {
           label: "Open Ads Manager",
           onClick: () => {
-            // Name the channel — the hub otherwise defaults to whichever ad
-            // channel is connected first, which may not be LinkedIn.
-            window.location.href = "/dashboard/ads?channel=linkedin";
+            // ADS_LINKEDIN_PATH names the channel — the hub otherwise
+            // defaults to whichever ad channel is connected first.
+            window.location.href = ADS_LINKEDIN_PATH;
           },
         },
       });
@@ -135,16 +149,26 @@ export function BoostCampaignDialog({
         toast.error("Connect (or reconnect) LinkedIn Ads first.", {
           action: {
             label: "Integrations",
-            onClick: () => { window.location.href = "/dashboard/integrations"; },
+            onClick: () => { window.location.href = RECONNECT_HREF; },
           },
         });
       } else if (code === "NEEDS_REAUTH") {
         toast.error("LinkedIn Ads needs a reconnect before boosting.", {
           action: {
             label: "Reconnect",
-            onClick: () => { window.location.href = "/dashboard/integrations"; },
+            // returnTo brings the user back HERE after the OAuth round
+            // trip instead of stranding them on Settings.
+            onClick: () => { window.location.href = RECONNECT_HREF; },
           },
         });
+      } else if (code === "AD_ACCOUNT_NOT_AUTHORIZED") {
+        // The 403 that used to masquerade as NEEDS_REAUTH. LinkedIn only
+        // lets an app write to ad accounts it has been granted in the
+        // Developer Portal, so this is OURS to fix — offering Reconnect
+        // here is the loop that wasted the user's time. No retry either:
+        // the answer will not change until the access is granted.
+        setBlocked("not_authorized");
+        toastAdAccountNotAuthorized(err, "Boosting");
       } else if (code === "NO_AD_ACCOUNT") {
         toast.error(
           "Your LinkedIn Ads connection has no ad account — reconnect it, or create an ad account in LinkedIn Campaign Manager first.",
@@ -153,7 +177,7 @@ export function BoostCampaignDialog({
         toast.error("Pick a business first, then boost.");
       } else if (code === "PERSIST_FAILED") {
         // The draft DOES exist on LinkedIn — retrying would duplicate it.
-        setTerminal(true);
+        setBlocked("persisted");
         toast.error(
           "The campaign was created on LinkedIn but couldn't be saved here. Contact support — don't retry.",
         );
@@ -168,7 +192,7 @@ export function BoostCampaignDialog({
           description: "Edit or activate it from the Ads Manager instead of creating a second one.",
           action: {
             label: "Open Ads Manager",
-            onClick: () => { window.location.href = "/dashboard/ads?channel=linkedin"; },
+            onClick: () => { window.location.href = ADS_LINKEDIN_PATH; },
           },
         });
       } else if (code === "RATE_LIMITED") {
@@ -312,9 +336,15 @@ export function BoostCampaignDialog({
           <Button
             type="button"
             onClick={() => boost.mutate()}
-            disabled={!valid || boost.isPending || terminal}
+            disabled={!valid || boost.isPending || blocked !== null}
           >
-            {boost.isPending ? "Creating…" : terminal ? "Created — see support note" : "Create draft campaign"}
+            {boost.isPending
+              ? "Creating…"
+              : blocked === "persisted"
+                ? "Created — see support note"
+                : blocked === "not_authorized"
+                  ? "Blocked — see support note"
+                  : "Create draft campaign"}
           </Button>
         </DialogFooter>
       </DialogContent>

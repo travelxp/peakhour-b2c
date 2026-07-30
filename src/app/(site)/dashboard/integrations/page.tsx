@@ -11,6 +11,7 @@ import { StatusBadge } from "@/components/molecules/status-badge";
 import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
 import { ConfirmDialog } from "@/components/molecules/confirm-dialog";
 import { WhatsAppEmbeddedSignup } from "@/components/integrations/whatsapp-embedded-signup";
+import { OAuthConnectResult } from "@/components/integrations/oauth-connect-result";
 import { WordPressConnectModal } from "@/components/integrations/wordpress-connect-modal";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -238,8 +239,40 @@ function friendlyRepairWebhookError(err: ApiError, providerLabel: string): strin
   }
 }
 
+/**
+ * Post-connect landing for OAuth started from THIS page. Passed to the api
+ * as `?returnTo=` and honoured by the callback, which otherwise dumps every
+ * provider on /dashboard/settings — the redirect that made "reconnect
+ * LinkedIn Ads" end two clicks away from the ads surface that needed it.
+ *
+ * A surface that sends the user here to reconnect (the Boost dialog, the
+ * LinkedIn ads panel) passes its OWN path as `?returnTo=`; we forward that
+ * so the round trip ends where the user actually was. Validated, not
+ * trusted: the api re-checks it too, but a bad value should never make it
+ * into an authorize URL in the first place.
+ */
+const DEFAULT_RETURN_TO = "/dashboard/integrations";
+
+function safeReturnTo(raw: string | null | undefined): string {
+  if (!raw) return DEFAULT_RETURN_TO;
+  const value = raw.trim();
+  if (
+    value.length === 0 ||
+    value.length > 256 ||
+    !value.startsWith("/dashboard/") ||
+    value.includes("\\") ||
+    value.includes("://") ||
+    value.includes("#")
+  ) {
+    return DEFAULT_RETURN_TO;
+  }
+  return value;
+}
+
 export default function IntegrationsPage() {
   const { org } = useAuth();
+  const searchParams = useSearchParams();
+  const returnTo = safeReturnTo(searchParams?.get("returnTo"));
   const [integrations, setIntegrations] = useState<Integration[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -300,7 +333,9 @@ export default function IntegrationsPage() {
       return;
     }
     if (authType === "oauth2") {
-      window.location.href = `${API_BASE_URL}/v1/integrations/${realProvider}/authorize`;
+      window.location.href =
+        `${API_BASE_URL}/v1/integrations/${realProvider}/authorize` +
+        `?returnTo=${encodeURIComponent(returnTo)}`;
     } else if (authType === "api_key") {
       setConnectModal(realProvider);
     }
@@ -531,6 +566,10 @@ export default function IntegrationsPage() {
 
   return (
     <PageShell width="standard">
+      {/* Confirms an OAuth round trip that came back here (?returnTo=). The
+          page's own fetch already shows the new state; this is the "it
+          worked" the user is owed. */}
+      <OAuthConnectResult />
       <PageHeader
         title="Integrations"
         description="Connect your platforms to power AI-driven content and ads"

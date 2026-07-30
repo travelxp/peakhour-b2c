@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api";
-import { toastUnhandledApiError } from "@/lib/toast-errors";
+import { toastUnhandledApiError, toastAdAccountNotAuthorized } from "@/lib/toast-errors";
+import { reconnectHref, ADS_LINKEDIN_PATH } from "@/lib/integrations-connect";
 import {
   linkedInAdsApi,
   type ManagedCampaign,
@@ -257,9 +258,15 @@ export function TargetingDialog({
         toast.error("LinkedIn Ads needs a reconnect before updating targeting.", {
           action: {
             label: "Reconnect",
-            onClick: () => { window.location.href = "/dashboard/integrations"; },
+            onClick: () => {
+              window.location.href = reconnectHref(ADS_LINKEDIN_PATH);
+            },
           },
         });
+      } else if (code === "AD_ACCOUNT_NOT_AUTHORIZED") {
+        // Reaches this surface as a 403 too — and a Reconnect CTA here
+        // would be the same dead end it is on boost.
+        toastAdAccountNotAuthorized(err, "Updating targeting");
       } else if (code === "VALIDATION_ERROR") {
         toast.error((err as ApiError).message || "Check the targeting selection.");
       } else if (code === "RATE_LIMITED") {

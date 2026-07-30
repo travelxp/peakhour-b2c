@@ -80,6 +80,12 @@ function dispositionOf(code: string, status: number): Disposition {
   // gets the same answer.
   if (code.startsWith("PROVIDER_4XX_") || code.startsWith("VALIDATION_")) return "permanent";
 
+  // Our app isn't authorised on the advertiser account. Emphatically NOT
+  // user_fixable — that classification is what produced a Reconnect CTA
+  // for a problem no reconnect can reach. See toastAdAccountNotAuthorized
+  // for the surfaces that say it properly.
+  if (code === "AD_ACCOUNT_NOT_AUTHORIZED") return "permanent";
+
   // Route catch-alls for a NON-AdsOpError throw, i.e. an unexpected
   // programming or config error ("LINKEDIN_CLIENT_ID is not set").
   // 5xx-shaped and never transient — telling the user to retry means
@@ -163,6 +169,36 @@ export function toastUnhandledApiError(
 
   toast.error(`Couldn't ${whatFailed}.`, {
     description: `${rejected} ${support}`,
+    duration: Infinity,
+  });
+}
+
+/**
+ * AD_ACCOUNT_NOT_AUTHORIZED — the ad platform refuses the account because
+ * OUR APP hasn't been granted it (LinkedIn: the Developer Portal's Account
+ * Management list / Development tier), with a perfectly valid token.
+ *
+ * It has its own helper because the WRONG copy for it is so tempting: the
+ * api used to return NEEDS_REAUTH here, so every ads surface offered a
+ * Reconnect that could not possibly clear it, and users burned real time
+ * re-authorising a healthy connection. No Reconnect CTA, no "try again" —
+ * it is ours to fix, and support is the only useful next step.
+ *
+ * @param whatBlocked noun phrase for the blocked operation — "Boosting",
+ *   "Activating this campaign".
+ */
+export function toastAdAccountNotAuthorized(
+  err: unknown,
+  whatBlocked: string,
+  platform = "LinkedIn",
+): void {
+  const requestId = err instanceof ApiError ? err.requestId : undefined;
+  toast.error(`${platform} hasn't authorised Peakhour on this ad account yet.`, {
+    description:
+      `${whatBlocked} can't work until that access is granted — we've logged it. ` +
+      (requestId
+        ? `Contact support quoting reference ${requestId}.`
+        : "Please contact support."),
     duration: Infinity,
   });
 }
