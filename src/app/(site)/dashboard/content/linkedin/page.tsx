@@ -3,6 +3,8 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
+import { OAuthConnectResult } from "@/components/integrations/oauth-connect-result";
+import { reconnectHref } from "@/lib/integrations-connect";
 import { api, ApiError } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -18,6 +20,9 @@ import { AudiencePanel } from "./_components/audience-panel";
 import { BoostCandidatesPanel } from "./_components/boost-candidates-panel";
 import { FeedPanel } from "./_components/feed-panel";
 import { SuggestedDraftsPanel } from "./_components/suggested-drafts-panel";
+
+/** Reconnect round trips come back to this hub, not to Settings. */
+const RECONNECT_HREF = reconnectHref("/dashboard/content/linkedin");
 
 interface ApiIntegration {
   provider: string;
@@ -65,7 +70,7 @@ export default function LinkedInDashboardPage() {
           icon={MessageSquare}
           title="Connect LinkedIn to get started"
           description="Once connected, you can publish to your personal feed or any company page you administer, all from here."
-          action={{ label: "Connect LinkedIn", href: "/dashboard/integrations" }}
+          action={{ label: "Connect LinkedIn", href: RECONNECT_HREF }}
         />
       </LinkedInPageShell>
     );
@@ -86,7 +91,7 @@ export default function LinkedInDashboardPage() {
               ? "We're missing your LinkedIn member identity. Reconnect to repair the integration."
               : "We couldn't read your LinkedIn identity. Reconnect to continue posting."
           }
-          action={{ label: "Reconnect LinkedIn", href: "/dashboard/integrations" }}
+          action={{ label: "Reconnect LinkedIn", href: RECONNECT_HREF }}
         />
       </LinkedInPageShell>
     );
@@ -106,7 +111,7 @@ export default function LinkedInDashboardPage() {
               Reconnect to keep publishing.
             </span>
             <a
-              href="/dashboard/integrations"
+              href={RECONNECT_HREF}
               className="font-medium text-amber-900 underline underline-offset-4 dark:text-amber-200"
             >
               Reconnect
@@ -224,6 +229,10 @@ function LinkedInPageShell({ children, loading }: { children?: React.ReactNode; 
   const queryClient = useQueryClient();
   return (
     <div className="space-y-6">
+      {/* Confirms a reconnect that started here (the Boost dialog's CTAs pass
+          ?returnTo=/dashboard/content/linkedin) — in the shell so every branch
+          of this page, including the empty states, announces it. */}
+      <OAuthConnectResult />
       {/* jobs-runner is required AFTER linkedin-post-sync on dev: the sync cron
           ENQUEUES a linkedin_post_sync job (it doesn't drain inline), so click
           linkedin-post-sync first, then jobs-runner to actually run it and

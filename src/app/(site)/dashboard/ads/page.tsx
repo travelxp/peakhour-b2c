@@ -22,6 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
+import { OAuthConnectResult } from "@/components/integrations/oauth-connect-result";
 import { LinkedInAdsPanel } from "./_components/linkedin-ads-panel";
 import { XAdsPanel } from "./_components/x-ads-panel";
 import {
@@ -179,6 +180,10 @@ function AdsHub() {
 
   return (
     <div className="space-y-6">
+      {/* Confirms a reconnect that started from this hub (its CTAs pass
+          ?returnTo=/dashboard/ads?channel=linkedin) and strips the callback's
+          params without disturbing ?channel=. */}
+      <OAuthConnectResult />
       {/* CronToolbar is mandatory on a cron-backed page (see cron-toolbar.tsx),
           so it renders before a channel resolves too — with every channel's
           crons rather than none. */}

@@ -7,6 +7,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/providers/auth-provider";
 import { api, ApiError } from "@/lib/api";
 import { useLocale } from "@/hooks/use-locale";
+// Shared with every other surface the OAuth callback can return to
+// (?returnTo=), so a new provider is labelled once, not per page.
+import { formatProviderName } from "@/lib/provider-names";
 import { IntegrationFitAttention } from "@/components/integrations/integration-fit-attention";
 import { RequestReviewButton } from "@/components/integrations/request-review-button";
 import { CreateWorkspaceButton } from "@/components/integrations/create-workspace-button";
@@ -506,48 +509,6 @@ function SettingsContent() {
         </Link>
       </div>
     </div>
-  );
-}
-
-// Display names for known provider slugs the OAuth callback can pass back via
-// ?integration=connected&provider=<slug>. Unknown slugs fall through to a
-// title-cased fallback so a brand-new provider doesn't render "undefined" —
-// it just looks a bit raw until added here. Source of truth for the canonical
-// labels is each provider's `displayName` in peakhour-api/src/v1/integrations/providers/*.
-const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
-  x: "X (Twitter)",
-  x_ads: "X Ads",
-  linkedin_content: "LinkedIn",
-  linkedin_ads: "LinkedIn Ads",
-  facebook: "Meta",
-  meta_ads: "Meta Ads",
-  instagram: "Instagram",
-  youtube: "YouTube",
-  beehiiv: "Beehiiv",
-  substack: "Substack",
-  kit: "Kit",
-  mailchimp: "Mailchimp",
-  ghost: "Ghost",
-  wordpress: "WordPress",
-  shopify: "Shopify",
-  discord: "Discord",
-  slack: "Slack",
-  teams: "Microsoft Teams",
-  telegram: "Telegram",
-  google_ads: "Google Ads",
-  google_analytics: "Google Analytics",
-  google_search_console: "Google Search Console",
-  google_business_profile: "Google Business Profile",
-};
-
-function formatProviderName(slug: string): string {
-  if (!slug) return "Account";
-  return (
-    PROVIDER_DISPLAY_NAMES[slug] ??
-    slug
-      .split("_")
-      .map((w) => (w[0] ? w[0].toUpperCase() + w.slice(1) : w))
-      .join(" ")
   );
 }
 

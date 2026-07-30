@@ -5,7 +5,8 @@ import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api, ApiError } from "@/lib/api";
-import { toastUnhandledApiError } from "@/lib/toast-errors";
+import { toastUnhandledApiError, toastAdAccountNotAuthorized } from "@/lib/toast-errors";
+import { reconnectHref, ADS_LINKEDIN_PATH } from "@/lib/integrations-connect";
 import {
   linkedInAdsApi,
   type ManagedCampaign,
@@ -56,6 +57,10 @@ interface ApiIntegration {
   connected?: boolean;
   status?: string;
 }
+
+/** Reconnect CTAs come back HERE, not to /dashboard/settings — this is the
+ *  surface whose work the reconnect was meant to unblock. */
+const RECONNECT_HREF = reconnectHref(ADS_LINKEDIN_PATH);
 
 const STATUS_BADGE: Record<ManagedCampaignStatus, string> = {
   draft: "bg-muted text-muted-foreground",
@@ -121,7 +126,7 @@ export function LinkedInAdsPanel() {
           icon={Megaphone}
           title="Connect LinkedIn Ads to get started"
           description="Connect your LinkedIn ad account, then boost your best organic posts into campaigns from the Content → LinkedIn → Boost tab. Campaigns are created as drafts — nothing spends until you activate it."
-          action={{ label: "Connect LinkedIn Ads", href: "/dashboard/integrations" }}
+          action={{ label: "Connect LinkedIn Ads", href: RECONNECT_HREF }}
         />
       ) : (
         <>
@@ -135,7 +140,7 @@ export function LinkedInAdsPanel() {
                   below still works.
                 </span>
                 <Link
-                  href="/dashboard/integrations"
+                  href={RECONNECT_HREF}
                   className="font-medium text-amber-900 underline underline-offset-4 dark:text-amber-200"
                 >
                   Reconnect
@@ -306,9 +311,13 @@ function CampaignRow({
         toast.error("LinkedIn Ads needs a reconnect before changing campaigns.", {
           action: {
             label: "Reconnect",
-            onClick: () => { window.location.href = "/dashboard/integrations"; },
+            onClick: () => { window.location.href = RECONNECT_HREF; },
           },
         });
+      } else if (code === "AD_ACCOUNT_NOT_AUTHORIZED") {
+        // A 403 that looks like a token problem and isn't — no Reconnect
+        // CTA here, it can't clear it. See toastAdAccountNotAuthorized.
+        toastAdAccountNotAuthorized(err, "Changing campaigns");
       } else if (code === "INVALID_TRANSITION") {
         toast.error("That status change isn't possible from the campaign's current state.");
         // The row is by definition stale — resync the table.
@@ -346,9 +355,11 @@ function CampaignRow({
         toast.error("LinkedIn Ads needs a reconnect before syncing metrics.", {
           action: {
             label: "Reconnect",
-            onClick: () => { window.location.href = "/dashboard/integrations"; },
+            onClick: () => { window.location.href = RECONNECT_HREF; },
           },
         });
+      } else if (code === "AD_ACCOUNT_NOT_AUTHORIZED") {
+        toastAdAccountNotAuthorized(err, "Refreshing metrics");
       } else if (code === "RATE_LIMITED") {
         toast.error("LinkedIn is rate-limiting us — give it a minute and try again.");
       } else {
