@@ -116,6 +116,11 @@ export function LinkedInAdsPanel() {
 
   return (
     <div className="space-y-6">
+      {/* Before the connection gate, deliberately: a revoked connection is a
+          state that makes the protective auto-pause fail PERMANENTLY, and the
+          gate below renders an EmptyState — which used to hide this warning in
+          the one case it matters most. */}
+      <SpendAlarmBanner />
       {integrations.isLoading ? (
         <Card>
           <CardContent className="space-y-3 p-6">
@@ -161,6 +166,68 @@ export function LinkedInAdsPanel() {
         </>
       )}
     </div>
+  );
+}
+
+/**
+ * Campaigns still SERVING past the budget cap the user set.
+ *
+ * The api derives `spendAlarm` (at/over cap AND still active), which covers
+ * both an auto-pause that failed and one that never ran — including the case
+ * that makes this the ONLY protection there is: campaigns created through the
+ * Ads Manager get no monitor at all, because the monitoring workflow starts
+ * only from the WhatsApp BOOST command.
+ *
+ * Own component, mounted above the connection gate, sharing CampaignsPanel's
+ * queryKey (react-query dedupes, so no extra request).
+ */
+function SpendAlarmBanner() {
+  const campaigns = useQuery({
+    queryKey: ["linkedin-managed-campaigns"],
+    queryFn: () => linkedInAdsApi.managedCampaigns(),
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+  });
+  const overCap = (campaigns.data?.campaigns ?? []).filter((r) => r.spendAlarm?.overCap);
+  if (overCap.length === 0) return null;
+
+  return (
+    // role=alert (implies aria-live=assertive): money still going out past a
+    // cap is worth interrupting a screen-reader user for.
+    <Card role="alert" className="border-destructive/40 bg-destructive/5">
+      <CardContent className="space-y-2 p-4 text-sm">
+        <div className="flex items-start gap-2">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden="true" />
+          <div className="space-y-1">
+            <p className="font-medium text-destructive">
+              {overCap.length === 1
+                ? "A campaign is still running past its budget cap"
+                : `${overCap.length} campaigns are still running past their budget cap`}
+            </p>
+            <p className="text-muted-foreground">
+              LinkedIn may still be spending on{" "}
+              {overCap.length === 1 ? "it" : "them"}.{" "}
+              <strong className="font-medium text-foreground">
+                Pause {overCap.length === 1 ? "it" : "them"} in LinkedIn Campaign Manager
+              </strong>{" "}
+              — the Pause button here uses the same connection, so if that is
+              what failed it will fail again.
+            </p>
+            <ul className="space-y-1 pt-1">
+              {overCap.map((r) => (
+                <li key={r._id} className="text-muted-foreground">
+                  <span className="font-medium text-foreground">{r.name}</span>
+                  {" — "}
+                  {formatMoney(r.spendAlarm?.spend, r.currency)} of{" "}
+                  {formatMoney(r.spendAlarm?.cap, r.currency)}
+                  {r.spendAlarm?.reason ? `. ${r.spendAlarm.reason}.` : "."}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -225,53 +292,7 @@ function CampaignsPanel() {
     0,
   );
 
-  // Campaigns still SERVING past the budget cap the user set. The api
-  // derives this (over cap + status active) rather than storing a flag, so
-  // it covers both a protective auto-pause that failed and one that never
-  // ran. It is the only surface that makes real money leaking visible, so it
-  // sits above the table, not in a row detail.
-  const overCap = rows.filter((r) => r.spendAlarm?.overCap);
-
   return (
-    <>
-      {/* role=alert (implies aria-live=assertive): the banner is inserted
-          after the campaigns query resolves, and money still going out past a
-          cap is worth interrupting a screen-reader user for. */}
-      {overCap.length > 0 ? (
-        <Card role="alert" className="mb-4 border-destructive/40 bg-destructive/5">
-          <CardContent className="space-y-2 p-4 text-sm">
-            <div className="flex items-start gap-2">
-              <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden="true" />
-              <div className="space-y-1">
-                <p className="font-medium text-destructive">
-                  {overCap.length === 1
-                    ? "A campaign is still running past its budget cap"
-                    : `${overCap.length} campaigns are still running past their budget cap`}
-                </p>
-                <p className="text-muted-foreground">
-                  We try to pause a campaign automatically when it reaches its total
-                  budget. That didn&apos;t take here, so LinkedIn may still be spending.{" "}
-                  <strong className="font-medium text-foreground">
-                    Pause {overCap.length === 1 ? "it" : "them"} in LinkedIn Campaign Manager
-                  </strong>{" "}
-                  if the Pause button below doesn&apos;t work.
-                </p>
-                <ul className="space-y-1 pt-1">
-                  {overCap.map((r) => (
-                    <li key={r._id} className="text-muted-foreground">
-                      <span className="font-medium text-foreground">{r.name}</span>
-                      {" — "}
-                      {formatMoney(r.spendAlarm?.spend, r.currency)} of{" "}
-                      {formatMoney(r.spendAlarm?.cap, r.currency)}
-                      {r.spendAlarm?.reason ? `. ${r.spendAlarm.reason}.` : "."}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      ) : null}
     <Card>
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between gap-3">
@@ -328,14 +349,13 @@ function CampaignsPanel() {
         <p className="mt-3 border-t pt-2 text-[11px] text-muted-foreground">
           Campaigns are created in LinkedIn as drafts under a draft group —
           they cannot spend until you activate them. Set the audience with the
-          Audience button before activating; the protective monitor tries to
-          auto-pause any campaign that reaches its total budget — if that
-          fails, the campaign is flagged above so you can pause it in
-          LinkedIn Campaign Manager.
+          Audience button before activating. Campaigns are watched against
+          their total budget and flagged above if spend passes it — automatic
+          pausing currently runs only for campaigns started from WhatsApp, so
+          treat the flag as your signal to pause in LinkedIn Campaign Manager.
         </p>
       </CardContent>
     </Card>
-    </>
   );
 }
 
