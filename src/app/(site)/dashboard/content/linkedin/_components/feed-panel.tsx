@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useInfiniteQuery, useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api";
+import { reconnectHref } from "@/lib/integrations-connect";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -287,7 +288,8 @@ function CommentBox({
           action: {
             label: "Reconnect",
             onClick: () => {
-              window.location.href = "/dashboard/integrations";
+              // returnTo lands them back on this hub, not on Settings.
+              window.location.href = reconnectHref("/dashboard/content/linkedin");
             },
           },
         });

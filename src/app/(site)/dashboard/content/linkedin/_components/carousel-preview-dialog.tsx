@@ -16,6 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { GalleryHorizontalEnd, ImageOff, Loader2, Send } from "lucide-react";
 import { ApiError } from "@/lib/api";
+import { reconnectHref } from "@/lib/integrations-connect";
 import {
   linkedInContentApi,
   type CarouselPreviewResult,
@@ -77,7 +78,8 @@ export function CarouselPreviewDialog({
           action: {
             label: "Reconnect",
             onClick: () => {
-              window.location.href = "/dashboard/integrations";
+              // returnTo lands them back on this hub, not on Settings.
+              window.location.href = reconnectHref("/dashboard/content/linkedin");
             },
           },
         });
