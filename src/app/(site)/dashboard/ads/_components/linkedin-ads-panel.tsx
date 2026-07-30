@@ -44,7 +44,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { EmptyState } from "@/components/molecules/empty-state";
-import { Archive, Megaphone, Pause, Play, RefreshCw, Rocket, Target } from "lucide-react";
+import { AlertTriangle, Archive, Megaphone, Pause, Play, RefreshCw, Rocket, Target } from "lucide-react";
 import { TargetingDialog, editorTargeting } from "./targeting-dialog";
 
 /**
@@ -225,7 +225,53 @@ function CampaignsPanel() {
     0,
   );
 
+  // Campaigns still SERVING past the budget cap the user set. The api
+  // derives this (over cap + status active) rather than storing a flag, so
+  // it covers both a protective auto-pause that failed and one that never
+  // ran. It is the only surface that makes real money leaking visible, so it
+  // sits above the table, not in a row detail.
+  const overCap = rows.filter((r) => r.spendAlarm?.overCap);
+
   return (
+    <>
+      {overCap.length > 0 ? (
+        <Card className="mb-4 border-destructive/40 bg-destructive/5">
+          <CardContent className="space-y-2 p-4 text-sm">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden="true" />
+              <div className="space-y-1">
+                <p className="font-medium text-destructive">
+                  {overCap.length === 1
+                    ? "A campaign is still running past its budget cap"
+                    : `${overCap.length} campaigns are still running past their budget cap`}
+                </p>
+                <p className="text-muted-foreground">
+                  We try to pause a campaign automatically when it reaches its total
+                  budget. That didn&apos;t take here, so LinkedIn may still be spending.{" "}
+                  <strong className="font-medium text-foreground">
+                    Pause {overCap.length === 1 ? "it" : "them"} in LinkedIn Campaign Manager
+                  </strong>{" "}
+                  if the Pause button below doesn&apos;t work.
+                </p>
+                <ul className="space-y-1 pt-1">
+                  {overCap.map((r) => (
+                    <li key={r._id} className="text-muted-foreground">
+                      <span className="font-medium text-foreground">{r.name}</span>
+                      {" — "}
+                      {formatMoney(
+                        r.budget?.spent ?? r.performance?.spend,
+                        r.currency,
+                      )}{" "}
+                      of {formatMoney(r.budget?.total, r.currency)}
+                      {r.spendAlarm?.reason ? `. ${r.spendAlarm.reason}.` : "."}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
     <Card>
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between gap-3">
@@ -282,11 +328,14 @@ function CampaignsPanel() {
         <p className="mt-3 border-t pt-2 text-[11px] text-muted-foreground">
           Campaigns are created in LinkedIn as drafts under a draft group —
           they cannot spend until you activate them. Set the audience with the
-          Audience button before activating; the protective monitor
-          auto-pauses any campaign that reaches its total budget.
+          Audience button before activating; the protective monitor tries to
+          auto-pause any campaign that reaches its total budget — if that
+          fails, the campaign is flagged above so you can pause it in
+          LinkedIn Campaign Manager.
         </p>
       </CardContent>
     </Card>
+    </>
   );
 }
 
