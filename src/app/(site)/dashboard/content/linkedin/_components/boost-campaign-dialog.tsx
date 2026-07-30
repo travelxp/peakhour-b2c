@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api";
+import { growthApi } from "@/lib/api/growth";
 import {
   toastUnhandledApiError,
   toastAdAccountNotAuthorized,
@@ -97,6 +98,15 @@ export function BoostCampaignDialog({
   // ticked — and unticking it is meaningful: the campaign is then created
   // NOT_DECLARED, which LinkedIn may hold from EU delivery until declared.
   const [notPolitical, setNotPolitical] = useState(true);
+  // "Also apply to my future campaigns" — converts this per-campaign answer
+  // into the business-level declaration in the SAME gesture. The user is
+  // already reading LinkedIn's wording and ticking it here; expecting them to
+  // visit a settings page afterwards is how the record stays empty, and an
+  // empty record is why autonomous creates (WhatsApp, optimizer) fall back to
+  // NOT_DECLARED. Defaults OFF: recording a durable declaration is a bigger
+  // statement than answering for one campaign, so it is opt-in even though
+  // LinkedIn's own notice is checked by default.
+  const [applyToFuture, setApplyToFuture] = useState(false);
   // Latched on a failure a resubmit cannot improve on — the button stays
   // disabled for this dialog instance, and the reason picks its label:
   //   "persisted"      PERSIST_FAILED — the draft EXISTS on LinkedIn, so
@@ -139,6 +149,19 @@ export function BoostCampaignDialog({
       // The Ads Manager list must show the new campaign even within
       // its staleTime window.
       queryClient.invalidateQueries({ queryKey: ["linkedin-managed-campaigns"] });
+      // Record the durable declaration only AFTER the boost succeeded, and
+      // never block or fail the boost on it: the campaign already carries this
+      // answer on its own create call, so a settings write that fails costs
+      // the user nothing they can see. Silent by design — a toast about a
+      // settings write would bury the one that matters.
+      if (applyToFuture && notPolitical) {
+        growthApi
+          .updateSettings({ notPolitical: true })
+          .then((res) => queryClient.setQueryData(["growth-settings"], res))
+          .catch(() => {
+            /* campaign is created and declared; the Ads-hub card still offers this */
+          });
+      }
       onOpenChange(false);
       toast.success("Draft campaign created on LinkedIn.", {
         description:
@@ -372,6 +395,25 @@ export function BoostCampaignDialog({
               ) : null}
             </Label>
           </div>
+
+          {notPolitical ? (
+            <div className="flex items-start gap-2 pl-3">
+              <Checkbox
+                id="boost-apply-future"
+                checked={applyToFuture}
+                onCheckedChange={(v) => setApplyToFuture(v === true)}
+                className="mt-0.5"
+              />
+              <Label
+                htmlFor="boost-apply-future"
+                className="text-[11px] font-normal leading-relaxed text-muted-foreground"
+              >
+                Also apply this to my future campaigns, including ones created
+                automatically from WhatsApp or by the optimizer. You can withdraw
+                it any time from the Ads hub.
+              </Label>
+            </div>
+          ) : null}
 
           <p className="text-[11px] text-muted-foreground">
             Currency must match your LinkedIn ad account&apos;s billing

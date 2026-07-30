@@ -1,4 +1,5 @@
 import { api } from "@/lib/api";
+import type { AdvertisingDeclaration } from "@/lib/ads-copy";
 
 /**
  * Growth-engine client (G3) — the channel-common /v1/growth surface.
@@ -29,6 +30,30 @@ export interface GrowthSettings {
   optimizerEnabled?: boolean;
   autonomyLevel?: number;
   weeklyBudgetEnvelope?: number;
+  /** The business's one-time political-advertising declaration, with
+   *  provenance. Absent means nobody has declared — the single reading of
+   *  absence, which is why withdrawing UNSETS it rather than storing
+   *  NOT_DECLARED. */
+  advertisingDeclaration?: AdvertisingDeclaration;
+}
+
+/**
+ * The settings envelope. `currentNoticeVersion` and `declaredByName` are
+ * read-only siblings of `settings`, not part of the stored record:
+ *   - `currentNoticeVersion` is the wording in force RIGHT NOW. The UI
+ *     compares it with the declaration's own version to tell "declared" from
+ *     "needs re-confirming". Never hardcode a copy — it would drift from the
+ *     api's CURRENT_NOTICE_VERSION and mis-state every business's status.
+ *   - `declaredByName` is resolved server-side from declaredByUserId, because
+ *     an ObjectId is not an attribution a human recognises. Absent when there
+ *     is no declaration or the declaring user is gone.
+ * Both GET and PATCH return this shape, so the card renders identically from
+ * either without waiting for a refetch.
+ */
+export interface GrowthSettingsResponse {
+  settings: GrowthSettings;
+  currentNoticeVersion?: string;
+  declaredByName?: string;
 }
 
 export interface OptimizerProposal {
@@ -89,10 +114,23 @@ export const growthApi = {
       `/v1/growth/adjustments/${runId}/proposals/${proposalId}/${decision}`,
     ),
 
-  /** Per-business growth settings (the optimizer opt-in lives here). */
-  settings: () => api.get<{ settings: GrowthSettings }>("/v1/growth/settings"),
+  /** Per-business growth settings (the optimizer opt-in and the advertising
+   *  declaration live here), plus the notice version in force. */
+  settings: () => api.get<GrowthSettingsResponse>("/v1/growth/settings"),
 
-  /** Self-serve optimizer opt-in / weekly budget envelope. */
-  updateSettings: (patch: { optimizerEnabled?: boolean; weeklyBudgetEnvelope?: number | null }) =>
-    api.patch<{ settings: GrowthSettings }>("/v1/growth/settings", patch),
+  /**
+   * Self-serve optimizer opt-in / weekly budget envelope / advertising
+   * declaration.
+   *
+   * `notPolitical: true` records the declaration with server-stamped
+   * provenance (who, when, which wording); `false` WITHDRAWS it by unsetting
+   * the record. The client cannot set declaredAt / declaredByUserId /
+   * noticeVersion — the whole value of the field is that the server knows a
+   * real person declared it at a known time under known wording.
+   */
+  updateSettings: (patch: {
+    optimizerEnabled?: boolean;
+    weeklyBudgetEnvelope?: number | null;
+    notPolitical?: boolean;
+  }) => api.patch<GrowthSettingsResponse>("/v1/growth/settings", patch),
 };
