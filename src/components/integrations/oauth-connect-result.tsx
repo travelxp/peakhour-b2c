@@ -60,7 +60,6 @@ export function OAuthConnectResult() {
     const next = new URLSearchParams(searchParams.toString());
     next.delete("integration");
     next.delete("provider");
-    next.delete("select_page");
     const qs = next.toString();
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   }, [searchParams, pathname, router, queryClient]);

@@ -41,15 +41,6 @@ import { Rocket } from "lucide-react";
  */
 
 /**
- * Objectives a BOOST can use. `lead_generation` is deliberately absent:
- * LinkedIn requires a lead gen form on every creative under a lead-gen
- * campaign, and sponsoring an existing organic post gives us nowhere to
- * attach one — the server rejects that combination
- * (VALIDATION_LEADGEN_FORM_REQUIRED). Offering it here only ever
- * produced a guaranteed failure. Lead-gen campaigns are built in
- * LinkedIn Campaign Manager; the objective stays valid on other paths.
- */
-/**
  * Where the Connect / Reconnect CTAs send the user. The `returnTo` is
  * forwarded by the Integrations page into the OAuth authorize call, so the
  * callback lands them back on the LinkedIn hub they were boosting from —
@@ -58,6 +49,15 @@ import { Rocket } from "lucide-react";
  */
 const RECONNECT_HREF = reconnectHref("/dashboard/content/linkedin");
 
+/**
+ * Objectives a BOOST can use. `lead_generation` is deliberately absent:
+ * LinkedIn requires a lead gen form on every creative under a lead-gen
+ * campaign, and sponsoring an existing organic post gives us nowhere to
+ * attach one — the server rejects that combination
+ * (VALIDATION_LEADGEN_FORM_REQUIRED). Offering it here only ever
+ * produced a guaranteed failure. Lead-gen campaigns are built in
+ * LinkedIn Campaign Manager; the objective stays valid on other paths.
+ */
 const OBJECTIVES: Array<{ value: BoostObjective; label: string }> = [
   { value: "engagement", label: "Engagement (boost the post)" },
   { value: "brand_awareness", label: "Brand awareness" },
