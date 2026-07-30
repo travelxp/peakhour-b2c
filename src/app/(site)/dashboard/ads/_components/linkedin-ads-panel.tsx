@@ -234,8 +234,11 @@ function CampaignsPanel() {
 
   return (
     <>
+      {/* role=alert (implies aria-live=assertive): the banner is inserted
+          after the campaigns query resolves, and money still going out past a
+          cap is worth interrupting a screen-reader user for. */}
       {overCap.length > 0 ? (
-        <Card className="mb-4 border-destructive/40 bg-destructive/5">
+        <Card role="alert" className="mb-4 border-destructive/40 bg-destructive/5">
           <CardContent className="space-y-2 p-4 text-sm">
             <div className="flex items-start gap-2">
               <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden="true" />
@@ -258,11 +261,8 @@ function CampaignsPanel() {
                     <li key={r._id} className="text-muted-foreground">
                       <span className="font-medium text-foreground">{r.name}</span>
                       {" — "}
-                      {formatMoney(
-                        r.budget?.spent ?? r.performance?.spend,
-                        r.currency,
-                      )}{" "}
-                      of {formatMoney(r.budget?.total, r.currency)}
+                      {formatMoney(r.spendAlarm?.spend, r.currency)} of{" "}
+                      {formatMoney(r.spendAlarm?.cap, r.currency)}
                       {r.spendAlarm?.reason ? `. ${r.spendAlarm.reason}.` : "."}
                     </li>
                   ))}

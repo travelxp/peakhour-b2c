@@ -112,8 +112,13 @@ export interface ManagedCampaign {
    *
    * `reason` is the api's authored sentence from the last recorded failure,
    * when there was one — absent when the monitor never got that far.
+   *
+   * `spend` and `cap` are the figures the api JUDGED on. Render these, not
+   * `budget.spent`: that field "is not reliably maintained" (the api's own
+   * words, in ads-monitoring-skills.ts), so re-deriving here could show a
+   * number under the cap next to an alarm saying it was over.
    */
-  spendAlarm?: { overCap: true; reason?: string };
+  spendAlarm?: { overCap: true; spend: number; cap: number; reason?: string };
   createdAt: string;
   updatedAt?: string;
   /** Audit ids (hex) — present on rows created via the routes. */
