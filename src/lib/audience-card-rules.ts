@@ -18,17 +18,15 @@ export function audienceClaim(origin: ManagedCampaign["audienceOrigin"]): Audien
   if (!origin || !origin.verified) return "unverified";
   if (origin.autoSelectedUnconfirmed) return "auto_unconfirmed";
   if (origin.source === "user_set") return "user_set";
-  return "approved";
+  // ★`confirmed` IS READ, and the fallback is not "approved". A
+  // `platform_set` audience — one targeted in Campaign Manager, which the
+  // schema allows — is confirmed by nobody, and falling through would put a
+  // green check reading "You approved this" on a decision no user made.
+  // Nothing writes `platform_set` today; a claim that depends on that staying
+  // true is a claim waiting to become false.
+  return origin.confirmed ? "approved" : "unverified";
 }
 
-/**
- * The reach sentence, or nothing.
- *
- * ★LINKEDIN'S `total: 0` MEANS "FEWER THAN 300", so the number is deliberately
- * absent and `belowFloor` arrives instead. Rendering "0 people" would be a
- * false statement about the customer's market; saying the campaign will not
- * deliver is both true and more useful than the number would have been.
- */
 /**
  * ★A FIXED LOCALE, not the ambient one. `toLocaleString()` groups by whatever
  * locale the runtime has — "2,400,000" in Node's default, "24,00,000" under
@@ -40,11 +38,25 @@ export function audienceClaim(origin: ManagedCampaign["audienceOrigin"]): Audien
  */
 const REACH_FORMAT = new Intl.NumberFormat("en-US");
 
+/**
+ * The reach sentence, or nothing.
+ *
+ * ★LINKEDIN'S `total: 0` MEANS "FEWER THAN 300", so the number is deliberately
+ * absent and `belowFloor` arrives instead. Rendering "0 people" would be a
+ * false statement about the customer's market; saying the campaign will not
+ * deliver is both true and more useful than the number would have been.
+ */
 export function reachLine(
   reach: NonNullable<ManagedCampaign["targetingProvenance"]>["reach"],
 ): string | null {
   if (!reach) return null;
   if (reach.belowFloor) return "Under LinkedIn's 300-member minimum — this won't deliver";
+  // ★A LITERAL ZERO IS TREATED AS THE FLOOR, not printed. The api maps
+  // LinkedIn's masked `total: 0` to `belowFloor` with no number, so a zero
+  // reaching here means something upstream changed — and "About 0 people" is
+  // the exact sentence this function's whole reason for existing forbids.
+  // Guarding it here rather than trusting a convention two repos away.
+  if (reach.value === 0) return "Under LinkedIn's 300-member minimum — this won't deliver";
   if (!reach.supported || typeof reach.value !== "number") {
     return "LinkedIn didn't give us a size for this audience";
   }

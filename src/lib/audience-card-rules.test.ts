@@ -30,6 +30,16 @@ describe("reachLine — the number a customer divides their budget by", () => {
   it("says nothing at all when reach was never fetched", () => {
     expect(reachLine(undefined)).toBeNull();
   });
+
+  it("★a literal 0 is the floor, never 'About 0 people'", () => {
+    // The api maps LinkedIn's masked total:0 to belowFloor with no number, so
+    // a zero arriving here means something upstream changed — and the sentence
+    // it would have produced is the one this function exists to forbid.
+    // Guarded here rather than trusted from two repos away.
+    const line = reachLine({ supported: true, value: 0 });
+    expect(line).toContain("300");
+    expect(line).not.toContain("About 0");
+  });
 });
 
 describe("audienceClaim — who chose this", () => {
@@ -58,5 +68,19 @@ describe("audienceClaim — who chose this", () => {
 
   it("claims nothing when the api sent no reading", () => {
     expect(audienceClaim(undefined)).toBe("unverified");
+  });
+
+  it("★never puts 'You approved this' on something nobody approved", () => {
+    // `platform_set` — an audience targeted in Campaign Manager, which the
+    // schema allows — is confirmed by nobody. A fallback that ignored
+    // `confirmed` would give it a green check reading "You approved this".
+    expect(
+      audienceClaim({
+        source: "platform_set",
+        confirmed: false,
+        verified: true,
+        autoSelectedUnconfirmed: false,
+      }),
+    ).toBe("unverified");
   });
 });

@@ -488,7 +488,7 @@ function CampaignRow({
   // ★THE AUDIENCE GETS ITS OWN ROW, not a tooltip. It is the thing that decides
   // who sees the ad and where the money goes, and for a year it was recorded in
   // a column nothing rendered. A second row rather than a cell because the
-  // basis is a list of readable chips and this table is already ten columns
+  // basis is a list of readable chips and this table is already nine columns
   // wide.
   const showAudience = Boolean(campaign.targetingProvenance?.basis?.length);
 

@@ -75,7 +75,11 @@ export function AudienceCard({ campaign }: { campaign: ManagedCampaign }) {
   const reach = reachLine(prov.reach);
 
   return (
-    <div className="rounded-md border bg-muted/30 p-3 text-sm">
+    // `whitespace-normal`: TableCell's base class sets `whitespace-nowrap` and
+    // white-space INHERITS, so every paragraph below would render as one
+    // unbreakable line and push a horizontal scrollbar onto the whole
+    // nine-column table.
+    <div className="rounded-md border bg-muted/30 p-3 text-sm whitespace-normal">
       <div className="mb-2 flex flex-wrap items-center gap-2">
         {unverified ? (
           // No claim about WHO — we cannot tell, and the honest sentence is the
@@ -83,12 +87,12 @@ export function AudienceCard({ campaign }: { campaign: ManagedCampaign }) {
           <Badge variant="outline">Audience</Badge>
         ) : unconfirmed ? (
           <Badge variant="outline" className="gap-1">
-            <Sparkles className="h-3 w-3" />
+    <Sparkles className="h-3 w-3" aria-hidden="true" />
             Auto-selected from your business
           </Badge>
         ) : (
           <Badge variant="secondary" className="gap-1">
-            <Check className="h-3 w-3" />
+            <Check className="h-3 w-3" aria-hidden="true" />
             {claim === "user_set" ? "You chose this" : "You approved this"}
           </Badge>
         )}
@@ -113,8 +117,9 @@ export function AudienceCard({ campaign }: { campaign: ManagedCampaign }) {
 
       {unverified && (
         <p className="mt-2 text-xs text-muted-foreground">
-          This is what we last recorded. The audience has changed since, so we can&apos;t say who
-          chose the current one — open the audience editor to see it.
+          This is what we last recorded. We can&apos;t confirm it still describes the campaign&apos;s
+          current audience, so we&apos;re not saying who chose it — open the audience editor to see
+          what it is now.
         </p>
       )}
 
