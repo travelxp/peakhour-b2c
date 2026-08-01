@@ -153,6 +153,11 @@ export interface ProposalResponse {
     }>;
     /** Platform-sourced only; `belowFloor` carries NO number. */
     reach?: { supported: boolean; value?: number; belowFloor?: boolean; fetchedAt?: string };
+    /** ★The ISO-2 codes this audience was built from — NOT derivable from
+     *  `basis`, whose values are display labels ("India", never "IN"). A
+     *  client that pre-fills a codes box from the labels turns confirming the
+     *  inference into deleting it. */
+    geoCodes: string[];
     /** What we wanted to express and could not — surfaced, never dropped. */
     unresolved: Array<{ attribute: string; value: string; reason: string }>;
   } | null;

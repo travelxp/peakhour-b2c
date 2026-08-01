@@ -107,6 +107,11 @@ export function BoostCampaignDialog({
    * the two differently.
    */
   const [geo, setGeo] = useState<string[] | undefined>(undefined);
+  /** Whether the engine could actually build an audience for this boost. The
+   *  campaign is still creatable without one — that is deliberate, /boost never
+   *  fails over a missing audience — but the user must not be told a campaign
+   *  is ready when LinkedIn will refuse to deliver it. */
+  const [willTarget, setWillTarget] = useState(true);
   const [dailyBudget, setDailyBudget] = useState("10");
   const [currencyCode, setCurrencyCode] = useState("USD");
   const [durationDays, setDurationDays] = useState("14");
@@ -377,7 +382,19 @@ export function BoostCampaignDialog({
 
           {/* The audience this boost will get, BEFORE the money is committed —
               and the single inference the user is asked to confirm. */}
-          <AudiencePreview geo={geo} onGeoChange={setGeo} enabled={open} />
+          <AudiencePreview
+            geo={geo}
+            onGeoChange={setGeo}
+            // Guarded on inequality: the child reports during render, and an
+            // unconditional setState there would loop.
+            onOutcome={(next) => setWillTarget((prev) => (prev === next ? prev : next))}
+          />
+          {!willTarget && (
+            <p className="text-xs text-muted-foreground">
+              We can&apos;t build an audience for this one, so the campaign will be created without
+              targeting — LinkedIn won&apos;t deliver it until you set one from the Ads Manager.
+            </p>
+          )}
 
           <div className="grid grid-cols-3 gap-3">
             <div className="space-y-1.5">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { audiencesApi, type ProposalResponse } from "@/lib/api/audiences";
 import { Badge } from "@/components/ui/badge";
@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { reachLine } from "@/lib/audience-card-rules";
-import { parseCountryCodes } from "@/lib/audience-preview-rules";
+import { parseCountryCodes, unusableCountryTokens } from "@/lib/audience-preview-rules";
 import { Pencil } from "lucide-react";
 
 /**
@@ -38,15 +38,20 @@ import { Pencil } from "lucide-react";
 export function AudiencePreview({
   geo,
   onGeoChange,
-  enabled,
+  onOutcome,
 }: {
   /** Confirmed ISO-2 codes, or undefined for "use what we inferred". */
   geo: string[] | undefined;
   onGeoChange: (next: string[] | undefined) => void;
-  /** False while the dialog is closed — no point asking LinkedIn for a count
-   *  nobody is looking at, and /propose costs a typeahead round trip per
-   *  country plus an audienceCounts call. */
-  enabled: boolean;
+  /**
+   * Whether this boost will get an audience at all.
+   *
+   * ★THE DIALOG HAS TO KNOW. Without it the Boost button, the confirm copy and
+   * the success toast are identical whether the campaign gets a real audience
+   * or none — and an untargeted campaign that looks ready is the exact failure
+   * this screen exists to delete.
+   */
+  onOutcome: (willTarget: boolean) => void;
 }) {
   const [editing, setEditing] = useState<{ draft: string } | null>(null);
 
@@ -56,7 +61,6 @@ export function AudiencePreview({
     // audience they just changed away from.
     queryKey: ["audience-proposal", geo ?? null],
     queryFn: () => audiencesApi.propose(geo ? { geo } : {}),
-    enabled,
     // The answer depends on the business profile and LinkedIn's own counts,
     // neither of which moves minute to minute.
     staleTime: 5 * 60_000,
@@ -68,11 +72,16 @@ export function AudiencePreview({
   const proposal = data?.proposal ?? null;
   const refusal = data?.refusal ?? null;
 
-  const inferredCodes = useMemo(
-    () =>
-      proposal?.basis.find((b) => b.attribute === "geo")?.values ?? [],
-    [proposal],
-  );
+  // Reported during render rather than from an effect (this repo's lint forbids
+  // setState in an effect, and the parent's own state is what changes). The
+  // parent guards on equality, so this cannot loop.
+  onOutcome(proposal !== null);
+
+  // ★THE CODES, NOT THE LABELS. `basis[].values` are display names — "India",
+  // never "IN" — so seeding them into a two-letter box turned the act of
+  // CONFIRMING the inference into an act of deleting it. `geoCodes` is what the
+  // audience was actually built from, and only what resolved.
+  const inferredCodes = proposal?.geoCodes ?? [];
 
   // ★SEEDED AT OPEN, not in an effect. The editor's initial text is whatever is
   // currently in force — the user's own confirmation if they made one, else
@@ -80,21 +89,32 @@ export function AudiencePreview({
   // overwrite what they are typing the moment a refetch changed the inference.
   const openEditor = () => setEditing({ draft: (geo ?? inferredCodes).join(", ") });
 
+  const draftCodes = editing ? parseCountryCodes(editing.draft) : [];
+  const draftUnusable = editing ? unusableCountryTokens(editing.draft) : [];
+  /**
+   * ★AN EMPTY BOX AND AN UNREADABLE BOX ARE NOT THE SAME ANSWER. Empty means
+   * "none of these", which the api treats as a statement and which produces an
+   * untargeted campaign — a real thing a user may want to say. "India" means
+   * they tried to name a country and we could not read it, and treating THAT as
+   * the same statement is how confirming an audience came to delete it.
+   */
+  const blocked =
+    editing !== null && draftCodes.length === 0 && editing.draft.trim().length > 0
+      ? draftUnusable.length > 0
+        ? `We need two-letter country codes — "${draftUnusable[0]}" isn't one. India is IN, Singapore is SG.`
+        : "Use two-letter country codes, like IN or SG."
+      : undefined;
+
   const apply = () => {
-    if (!editing) return;
-    const codes = parseCountryCodes(editing.draft);
-    // An empty box means "none of these", which the api treats as a statement
-    // rather than a fallback — so it is sent as an empty array, not undefined.
-    onGeoChange(codes);
+    if (!editing || blocked) return;
+    onGeoChange(draftCodes);
     setEditing(null);
   };
-
-  if (!enabled) return null;
 
   return (
     <div className="space-y-2 rounded-md border bg-muted/30 p-3">
       <div className="flex items-center justify-between gap-2">
-        <Label className="text-sm font-medium">Audience</Label>
+        <span className="text-sm font-medium">Audience</span>
         {editing === null && (
           <Button
             type="button"
@@ -115,8 +135,8 @@ export function AudiencePreview({
         // Not a blocker: the boost builds its own audience server-side, so a
         // failed PREVIEW must not stop the campaign. Say what we can't do.
         <p className="text-sm text-muted-foreground">
-          We couldn&apos;t work out the audience just now. Boosting still picks one from your
-          business profile.
+          We couldn&apos;t work out the audience just now, so we can&apos;t show you what this
+          campaign would target.
         </p>
       ) : refusal ? (
         <p className="text-sm text-muted-foreground">{refusal.message}</p>
@@ -142,7 +162,16 @@ export function AudiencePreview({
           </ul>
           <p className="text-xs text-muted-foreground">
             {reachLine(proposal.reach) ?? "We couldn't get a size for this audience"}
-            {geo === undefined && " · inferred from your business — change it if it's wrong"}
+            {geo === undefined &&
+              // ★"INFERRED" ONLY WHEN IT WAS. The geography usually comes from
+              // the business record or the user's own correction, both of which
+              // are STATED — calling a customer's typed fact a guess is the
+              // opposite of what the evidence tiers are for.
+              (proposal.basis
+                .find((b) => b.attribute === "geo")
+                ?.evidence.some((e) => e.tier === "stated")
+                ? " · from your business profile — change it if it's wrong"
+                : " · our best guess — change it if it's wrong")}
           </p>
           {proposal.unresolved.length > 0 && (
             // ★NAMED, NOT DROPPED. A campaign narrower than the profile — one
@@ -168,14 +197,43 @@ export function AudiencePreview({
               onChange={(e) => setEditing({ draft: e.target.value })}
               placeholder="IN, SG, AE"
               autoFocus
+              aria-describedby={blocked ? "audience-geo-error" : "audience-geo-hint"}
+              aria-invalid={blocked !== undefined}
+              onKeyDown={(e) => {
+                // Escape closes the EDITOR, not the whole boost dialog — which
+                // would discard the name, budget and duration the user had
+                // already filled in. Enter applies, because a box with one
+                // affirmative action should take the obvious key.
+                if (e.key === "Escape") {
+                  e.stopPropagation();
+                  setEditing(null);
+                }
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  apply();
+                }
+              }}
             />
-            <Button type="button" variant="outline" onClick={apply}>
+            <Button type="button" variant="outline" onClick={apply} disabled={blocked !== undefined}>
               Use these
             </Button>
+            <Button type="button" variant="ghost" onClick={() => setEditing(null)}>
+              Cancel
+            </Button>
           </div>
-          <p className="text-xs text-muted-foreground">
-            This decides where the budget goes, so it&apos;s the one thing we ask you to check.
-          </p>
+          {blocked ? (
+            <p id="audience-geo-error" className="text-xs text-destructive" aria-live="polite">
+              {blocked}
+            </p>
+          ) : (
+            <p id="audience-geo-hint" className="text-xs text-muted-foreground">
+              This decides where the budget goes, so it&apos;s the one thing we ask you to check.
+              {draftUnusable.length > 0 &&
+                ` We'll ignore: ${draftUnusable.join(", ")}.`}
+              {editing !== null && editing.draft.trim().length === 0 &&
+                " Leave it empty to tell us none of these — the campaign will be created without an audience."}
+            </p>
+          )}
         </div>
       )}
     </div>
