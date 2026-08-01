@@ -46,6 +46,7 @@ import {
 import { AdvertisingDeclarationCard } from "@/components/ads/advertising-declaration-card";
 import { EmptyState } from "@/components/molecules/empty-state";
 import { AlertTriangle, Archive, Megaphone, Pause, Play, RefreshCw, Rocket, Target } from "lucide-react";
+import { AudienceCard } from "./audience-card";
 import { TargetingDialog, editorTargeting } from "./targeting-dialog";
 
 /**
@@ -484,9 +485,16 @@ function CampaignRow({
   // object instead — feature-detected by the shared helper).
   const hasAudience =
     (editorTargeting(campaign.targeting)?.facets?.locations?.length ?? 0) > 0;
+  // ★THE AUDIENCE GETS ITS OWN ROW, not a tooltip. It is the thing that decides
+  // who sees the ad and where the money goes, and for a year it was recorded in
+  // a column nothing rendered. A second row rather than a cell because the
+  // basis is a list of readable chips and this table is already ten columns
+  // wide.
+  const showAudience = Boolean(campaign.targetingProvenance?.basis?.length);
 
   return (
-    <TableRow>
+    <>
+    <TableRow className={showAudience ? "border-b-0" : undefined}>
       <TableCell className="max-w-[260px]">
         <p className="truncate text-sm font-medium" title={campaign.name}>
           {campaign.name}
@@ -671,5 +679,15 @@ function CampaignRow({
         </AlertDialog>
       </TableCell>
     </TableRow>
+      {showAudience ? (
+        <TableRow className="hover:bg-transparent">
+          {/* Spans the whole row: the audience describes the campaign, not any
+              one of its numbers. */}
+          <TableCell colSpan={9} className="pt-0">
+            <AudienceCard campaign={campaign} />
+          </TableCell>
+        </TableRow>
+      ) : null}
+    </>
   );
 }
