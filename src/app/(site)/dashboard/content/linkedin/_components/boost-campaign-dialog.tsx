@@ -45,7 +45,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Rocket } from "lucide-react";
-import { AudiencePreview } from "./audience-preview";
+import { AudiencePreview, useAudienceProposal } from "./audience-preview";
 
 /**
  * Boost-to-Campaign dialog (G1) — turns a ranked organic post into a
@@ -107,11 +107,24 @@ export function BoostCampaignDialog({
    * the two differently.
    */
   const [geo, setGeo] = useState<string[] | undefined>(undefined);
-  /** Whether the engine could actually build an audience for this boost. The
-   *  campaign is still creatable without one — that is deliberate, /boost never
-   *  fails over a missing audience — but the user must not be told a campaign
-   *  is ready when LinkedIn will refuse to deliver it. */
-  const [willTarget, setWillTarget] = useState(true);
+  /**
+   * Whether the engine could actually build an audience for this boost.
+   *
+   * Read from the SAME query the preview renders (react-query shares the cache,
+   * so there is one request) rather than reported up by a callback: a child
+   * setting a parent's state during render is an update to a different
+   * component mid-render, and the value is derived data that never needed to be
+   * state at all. The campaign is still creatable without an audience — /boost
+   * deliberately never fails over one — but the user must not be told a
+   * campaign is ready when LinkedIn will refuse to deliver it.
+   */
+  const proposal = useAudienceProposal(geo);
+  // ★A FAILED PREVIEW SAYS NOTHING ABOUT THE CAMPAIGN. `/boost` re-resolves the
+  // audience server-side, so a 502 on `/propose` has no bearing on whether the
+  // campaign gets targeting — and warning that it will not would be two
+  // contradictory sentences 40px apart, with the frightening one wrong.
+  const willTarget =
+    proposal.isPending || proposal.isError || proposal.data?.proposal != null;
   const [dailyBudget, setDailyBudget] = useState("10");
   const [currencyCode, setCurrencyCode] = useState("USD");
   const [durationDays, setDurationDays] = useState("14");
@@ -382,13 +395,7 @@ export function BoostCampaignDialog({
 
           {/* The audience this boost will get, BEFORE the money is committed —
               and the single inference the user is asked to confirm. */}
-          <AudiencePreview
-            geo={geo}
-            onGeoChange={setGeo}
-            // Guarded on inequality: the child reports during render, and an
-            // unconditional setState there would loop.
-            onOutcome={(next) => setWillTarget((prev) => (prev === next ? prev : next))}
-          />
+          <AudiencePreview geo={geo} onGeoChange={setGeo} />
           {!willTarget && (
             <p className="text-xs text-muted-foreground">
               We can&apos;t build an audience for this one, so the campaign will be created without

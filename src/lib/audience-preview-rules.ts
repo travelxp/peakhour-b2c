@@ -7,6 +7,11 @@
  * guess they had just rejected — the same explicitly-empty rule the proposer
  * applies server-side. So this always returns an array.
  */
+/** What both `/propose` and `/boost` accept. The proposer may use FEWER — its
+ *  own cap comes from the capability registry and is editable at runtime — so
+ *  it reports the overflow rather than this pretending to know. */
+export const MAX_COUNTRIES = 25;
+
 export function parseCountryCodes(input: string): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
@@ -19,8 +24,11 @@ export function parseCountryCodes(input: string): string[] {
     seen.add(code);
     out.push(code);
   }
-  // The server caps a boost's geo at 25.
-  return out.slice(0, 25);
+  // Truncation here is a LAST RESORT, not the user-facing rule: the editor
+  // blocks and says so before it can happen, because silently dropping the
+  // 26th country is the same quiet narrowing this whole screen exists to
+  // prevent.
+  return out.slice(0, MAX_COUNTRIES);
 }
 
 /** What the user typed that we could not use — so the box can say so rather
