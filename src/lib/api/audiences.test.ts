@@ -3,11 +3,18 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 /**
  * The audiences client's REQUEST SHAPES.
  *
- * Thin by design, so what is worth pinning is the thing a thin client gets
- * wrong: the paths and the body the server actually accepts. `PATCH /profile`
- * takes `{corrections: [...]}` where each correction carries `to` OR `toList`
- * — the FIELD decides which, and sending the wrong one is a 400 the user reads
- * as "my correction was wrong".
+ * ⚠️ THIS FILE IS THIN, AND SO IS WHAT IT CAN PROVE. `audiences.ts` is a
+ * pass-through, so the body assertions below are close to `x => x` — they pin
+ * the PATHS and the wrapper shape, which is what a hand-written client actually
+ * gets wrong, and nothing more. The judgement worth testing lives in
+ * `audience-profile-rules.test.ts`, where the panel's decisions are pure
+ * functions: which evidence tier a claim rests on, whether a correction is safe
+ * to send, whether it changes anything at all.
+ *
+ * The panel itself has no test: this repo is vitest `environment: "node"` with
+ * no jsdom by design (see vitest.config.ts), and adding a DOM stack is a
+ * bigger change than this PR should carry. Extracting the decisions was the
+ * trade — and it is the half that would have been wrong silently.
  */
 
 const h = vi.hoisted(() => ({
@@ -31,7 +38,10 @@ describe("audiencesApi", () => {
     expect(h.get).toHaveBeenCalledWith("/v1/audiences/profile");
   });
 
-  it("refreshes with a body, because the api rejects a bodiless POST", async () => {
+  it("refreshes with an explicit empty body", async () => {
+    // Not because the route needs one — it reads nothing — but because
+    // `api.post(path)` and `api.post(path, {})` differ in whether a
+    // Content-Type is sent, and pinning the call keeps that stable.
     h.post.mockResolvedValue({ profile: {}, classified: true });
     await audiencesApi.refreshProfile();
     expect(h.post).toHaveBeenCalledWith("/v1/audiences/profile/refresh", {});

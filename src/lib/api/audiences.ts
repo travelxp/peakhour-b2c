@@ -87,6 +87,10 @@ export interface AudienceProfile {
     at: string;
   }>;
   profileVersion: number;
+  /** Which skill instance produced each stage. ★The panel reads
+   *  `understand_business_for_ads` to tell "we found nothing" from "the deeper
+   *  read never ran" — two very different facts behind the same empty list. */
+  skillVersions?: Record<string, string>;
   status: "active" | "stale" | "building" | "failed";
   computedAt?: string;
   updatedAt?: string;

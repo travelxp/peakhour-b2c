@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { toastUnhandledApiError } from "@/lib/toast-errors";
@@ -10,6 +10,14 @@ import {
   type EvidenceTier,
   type ProfileSource,
 } from "@/lib/api/audiences";
+import {
+  correctionBlockedReason,
+  correctionIsNoop,
+  dedupeLabels,
+  highestTier,
+  mergeSources,
+  topSource,
+} from "@/lib/audience-profile-rules";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -95,26 +103,30 @@ const MARKET_TYPE_LABEL: Record<string, string> = {
 };
 
 function EvidenceBadge({ sources }: { sources?: ProfileSource[] }) {
-  // The HIGHEST tier present, because that is what the claim rests on: a
-  // segment the business declared AND we then measured is stated, not observed.
-  const tier: EvidenceTier | undefined = sources?.some((s) => s.tier === "stated")
-    ? "stated"
-    : sources?.some((s) => s.tier === "observed")
-      ? "observed"
-      : sources?.some((s) => s.tier === "inferred")
-        ? "inferred"
-        : undefined;
+  const tier: EvidenceTier | undefined = highestTier(sources);
   if (!tier) return null;
-  const detail = sources?.find((s) => s.detail)?.detail;
   return (
     <span
       className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${TIER_CLASS[tier]}`}
-      // The evidence itself, for anyone who wants to check our working.
-      title={detail ? `${TIER_LABEL[tier]} — ${detail}` : TIER_LABEL[tier]}
     >
+      {/* The tier is carried as TEXT, not colour alone — the badge has to mean
+          the same thing to a colour-blind reader and a screen reader. */}
       {TIER_LABEL[tier]}
     </span>
   );
+}
+
+/** The evidence itself, rendered rather than hidden in a `title`.
+ *
+ *  ★NOT A TOOLTIP. A `title` is invisible to keyboard users and to touch, and
+ *  this is the panel's whole argument — "here is what we think AND why". Copy
+ *  a user cannot reach is copy that does not exist. */
+function EvidenceDetail({ sources }: { sources?: ProfileSource[] }) {
+  // From the WINNING tier's own source. "the first source with a detail" put a
+  // measurement's detail under a stated badge.
+  const detail = topSource(sources)?.detail;
+  if (!detail) return null;
+  return <p className="mt-0.5 text-xs text-muted-foreground">{detail}</p>;
 }
 
 /** A claim and its evidence, with an edit affordance when the server says the
@@ -142,6 +154,7 @@ function ClaimRow({
           </span>
           <EvidenceBadge sources={sources} />
         </div>
+        <EvidenceDetail sources={sources} />
       </div>
       {onEdit && (
         <Button
@@ -160,7 +173,18 @@ function ClaimRow({
 
 /** Editing state: one field at a time, so a half-finished correction can never
  *  be submitted alongside a finished one. */
-type Editing = { spec: CorrectableFieldSpec; value: string; list: string[] } | null;
+type Editing = {
+  spec: CorrectableFieldSpec;
+  value: string;
+  list: string[];
+  /** What the profile said when the editor opened — so a no-op save can be
+   *  refused, and so the delta the log records is one the user actually made. */
+  original: { value: string; list: string[] };
+  /** The profile this snapshot came from. If the underlying profile moves —
+   *  a refetch on window focus, a re-read, a business switch — the snapshot is
+   *  stale and saving it would write values the user never saw. */
+  profileVersion: number;
+} | null;
 
 export function AudienceProfilePanel() {
   const queryClient = useQueryClient();
@@ -179,10 +203,22 @@ export function AudienceProfilePanel() {
   const refresh = useMutation({
     mutationFn: () => audiencesApi.refreshProfile(),
     onSuccess: (res) => {
-      queryClient.setQueryData(["audience-profile"], {
-        profile: res.profile,
-        correctableFields: specs,
-      });
+      // ★UPDATER FORM, so the specs come from whatever the cache already holds
+      // rather than from this render's closure. If the initial GET had failed,
+      // `specs` here is [] — and writing that back would leave the freshly
+      // refreshed profile with no edit controls at all, which reads as "this
+      // is not correctable" rather than "we lost the spec list".
+      queryClient.setQueryData(
+        ["audience-profile"],
+        (old: { correctableFields?: CorrectableFieldSpec[] } | undefined) => ({
+          profile: res.profile,
+          correctableFields: old?.correctableFields ?? specs,
+        }),
+      );
+      // A re-read replaces the profile underneath any open editor, so the
+      // snapshot in it describes a profile that no longer exists. Closing is
+      // the honest move — saving it would write values the user never saw.
+      setEditing(null);
       toast.success(
         res.classified
           ? "Refreshed what we understand about your business."
@@ -199,10 +235,13 @@ export function AudienceProfilePanel() {
     mutationFn: (corrections: Parameters<typeof audiencesApi.correctProfile>[0]) =>
       audiencesApi.correctProfile(corrections),
     onSuccess: (res) => {
-      queryClient.setQueryData(["audience-profile"], {
-        profile: res.profile,
-        correctableFields: specs,
-      });
+      queryClient.setQueryData(
+        ["audience-profile"],
+        (old: { correctableFields?: CorrectableFieldSpec[] } | undefined) => ({
+          profile: res.profile,
+          correctableFields: old?.correctableFields ?? specs,
+        }),
+      );
       setEditing(null);
       toast.success("Thanks — we'll use that from now on.");
       // The audience is built from this profile, so a correction changes what
@@ -214,30 +253,53 @@ export function AudienceProfilePanel() {
 
   const startEdit = (field: string, current: string | string[]) => {
     const spec = specFor(field);
-    if (!spec) return;
-    setEditing({
-      spec,
+    if (!spec || !profile) return;
+    const original = {
       value: typeof current === "string" ? current : "",
       list: Array.isArray(current) ? current : [],
-    });
+    };
+    setEditing({ spec, ...original, original, profileVersion: profile.profileVersion });
   };
 
   const submitEdit = () => {
     if (!editing) return;
     const { spec } = editing;
+    // ★A NO-OP SAVE IS NOT HARMLESS. Every entry a list correction names is
+    // rewritten as `stated / user_correction`, so opening the editor, changing
+    // nothing and pressing Save would turn inferred claims into "You told us"
+    // ones the user never made — and append a null delta to the log. The
+    // server cannot tell the difference; only this can.
+    if (correctionIsNoop(spec, editing.original, { value: editing.value, list: editing.list })) {
+      setEditing(null);
+      return;
+    }
+    // Every limit the server enforces, checked here first — with the server's
+    // own numbers, which arrived in the spec. A user should never learn a
+    // limit by being refused.
+    const blocked = correctionBlockedReason(spec, { value: editing.value, list: editing.list });
+    if (blocked) {
+      toast.error(blocked);
+      return;
+    }
     if (spec.shape === "list") {
-      correct.mutate([{ field: spec.field, toList: editing.list }]);
+      // Deduped exactly as the server dedupes, so the correction log and the
+      // field it produces cannot disagree.
+      correct.mutate([{ field: spec.field, toList: dedupeLabels(editing.list) }]);
       return;
     }
-    const value = editing.value.trim();
-    // The server refuses a blank scalar, and it is right to — but bouncing off
-    // a 400 to learn that is a worse experience than not offering it.
-    if (!value) {
-      toast.error("Give us something to go on, or cancel.");
-      return;
-    }
-    correct.mutate([{ field: spec.field, to: value }]);
+    correct.mutate([{ field: spec.field, to: editing.value.trim() }]);
   };
+
+  // ★THE SNAPSHOT IS RECONCILED, not trusted. react-query refetches on window
+  // focus, `switchBusiness` clears the whole cache without unmounting this
+  // panel, and either one replaces the profile under an open editor. Saving
+  // then writes a list the user never saw — and after a business switch, writes
+  // business A's ICP onto business B, which is the wrong-business class of bug
+  // the server is business-scoped to prevent. If the profile moved or went
+  // away, the editor goes with it.
+  if (editing && (!profile || profile.profileVersion !== editing.profileVersion)) {
+    setEditing(null);
+  }
 
   if (isLoading) {
     return (
@@ -252,7 +314,10 @@ export function AudienceProfilePanel() {
 
   // A failed READ is not "no profile" — offering the build button here would
   // invite a user to rebuild something that may already exist.
-  if (isError) {
+  // `isError && !data`: a BACKGROUND refetch failure must not throw away a
+  // perfectly good cached profile. Replacing it with an error card would hide
+  // the user's own data because a refresh blinked.
+  if (isError && !data) {
     return (
       <Card>
         <CardContent className="py-4 text-sm text-muted-foreground">
@@ -282,6 +347,12 @@ export function AudienceProfilePanel() {
   }
 
   const conflicts = profile.conflicts ?? [];
+  // ★"NOTHING HERE YET" vs "WE COULDN'T WORK IT OUT" — the same empty list, two
+  // completely different facts, and rendering them identically is how an
+  // absence gets read as a finding. `GET /profile` does not return the refresh
+  // route's `classified` flag, but the profile itself records which classifier
+  // produced it, and its absence means the deeper read has never succeeded.
+  const classified = Boolean(profile.skillVersions?.understand_business_for_ads);
 
   return (
     <Card>
@@ -325,7 +396,7 @@ export function AudienceProfilePanel() {
                   key={conflict.field}
                   className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 p-2.5 text-sm"
                 >
-                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
                   <div>
                     <span className="font-medium">
                       {FIELD_LABEL[conflict.field] ?? conflict.field}
@@ -411,7 +482,13 @@ export function AudienceProfilePanel() {
                 <ClaimRow
                   label={FIELD_LABEL["classification.regionalPresence"]!}
                   value={profile.classification.regionalPresence?.map((r) => r.value).join(", ")}
-                  sources={profile.classification.regionalPresence?.[0]?.sources}
+                  // Every entry's evidence, not the first entry's: the line is
+                  // one sentence built from many claims, and badging it from
+                  // [0] calls the whole list "You told us" because one country
+                  // came from the business record.
+                  sources={mergeSources(
+                    (profile.classification.regionalPresence ?? []).map((r) => r.sources),
+                  )}
                   onEdit={
                     specFor("classification.regionalPresence")
                       ? () =>
@@ -479,10 +556,20 @@ export function AudienceProfilePanel() {
               onEdit={() => startEdit("personas", profile.personas.map((p) => p.label))}
             />
 
+            {!classified && (
+              <p className="rounded-md border border-dashed p-2.5 text-sm text-muted-foreground">
+                These are the facts we can measure. The deeper read — who buys, who signs, what
+                you solve — hasn&apos;t run for this business yet, so the lists above being empty
+                doesn&apos;t mean there&apos;s nothing there. Re-read to try it.
+              </p>
+            )}
+
             <p className="text-xs text-muted-foreground">
               Version {profile.profileVersion}
               {profile.corrections.length > 0 &&
-                ` · ${profile.corrections.length} correction${profile.corrections.length === 1 ? "" : "s"} from you`}
+                // "recent", because the server caps the log at 200 and trims
+                // the oldest — a bare count would quietly stop going up.
+                ` · ${profile.corrections.length} recent correction${profile.corrections.length === 1 ? "" : "s"} from you`}
             </p>
           </CardContent>
         </CollapsibleContent>
@@ -491,6 +578,7 @@ export function AudienceProfilePanel() {
       {editing && (
         <CardContent className="border-t pt-4">
           <CorrectionEditor
+            key={editing.spec.field}
             editing={editing}
             setEditing={setEditing}
             onSubmit={submitEdit}
@@ -540,8 +628,8 @@ function ListSection({
         </p>
       ) : (
         <ul className="space-y-1.5">
-          {items.map((item) => (
-            <li key={`${field}:${item.key}`} className="flex flex-wrap items-center gap-2 text-sm">
+          {items.map((item, index) => (
+            <li key={`${field}:${index}:${item.key}`} className="flex flex-wrap items-center gap-2 text-sm">
               <span>{item.primary}</span>
               {item.secondary && (
                 <span className="text-muted-foreground">— {item.secondary}</span>
@@ -577,9 +665,21 @@ function CorrectionEditor({
 }) {
   const { spec, value, list } = editing;
   const [draft, setDraft] = useState("");
+  const inputId = useId();
+  const hintId = useId();
+  const firstFieldRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
+
+  // ★FOCUS MOVES TO THE EDITOR. It renders BELOW the collapsible while focus
+  // stays on the pencil that opened it, so to a keyboard or screen-reader user
+  // the pencil appeared to do nothing at all. The component is keyed by field,
+  // so this fires once per open rather than on every keystroke.
+  useEffect(() => {
+    firstFieldRef.current?.focus();
+  }, []);
   const label = FIELD_LABEL[spec.field] ?? spec.field;
   const atItemCap = spec.maxItems !== undefined && list.length >= spec.maxItems;
   const draftTooLong = draft.trim().length > spec.maxLength;
+  const blockedReason = correctionBlockedReason(spec, { value, list });
 
   const addDraft = () => {
     const v = draft.trim();
@@ -597,8 +697,16 @@ function CorrectionEditor({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
-        <Label className="text-sm font-medium">Correct: {label}</Label>
-        <Button variant="ghost" size="sm" onClick={() => setEditing(null)} aria-label="Cancel">
+        <Label htmlFor={inputId} className="text-sm font-medium">
+          Correct: {label}
+        </Label>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setEditing(null)}
+          disabled={pending}
+          aria-label="Cancel"
+        >
           <X className="h-4 w-4" />
         </Button>
       </div>
@@ -627,16 +735,22 @@ function CorrectionEditor({
           <div className="flex gap-2">
             {spec.maxLength > 300 ? (
               <Textarea
+                id={inputId}
+                ref={firstFieldRef as React.RefObject<HTMLTextAreaElement>}
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 placeholder={`Add — up to ${spec.maxLength} characters`}
+                aria-describedby={hintId}
                 rows={2}
                 className="text-sm"
               />
             ) : (
               <Input
+                id={inputId}
+                ref={firstFieldRef as React.RefObject<HTMLInputElement>}
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
+                aria-describedby={hintId}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
                     e.preventDefault();
@@ -650,7 +764,7 @@ function CorrectionEditor({
               Add
             </Button>
           </div>
-          <p className="text-xs text-muted-foreground">
+          <p id={hintId} className="text-xs text-muted-foreground">
             {draftTooLong
               ? `Too long — keep each one under ${spec.maxLength} characters.`
               : atItemCap
@@ -661,11 +775,8 @@ function CorrectionEditor({
           </p>
         </div>
       ) : spec.values ? (
-        <Select
-          value={value}
-          onValueChange={(v) => setEditing({ ...editing, value: v })}
-        >
-          <SelectTrigger>
+        <Select value={value} onValueChange={(v) => setEditing({ ...editing, value: v })}>
+          <SelectTrigger id={inputId} aria-label={`Correct ${label}`}>
             <SelectValue placeholder="Choose" />
           </SelectTrigger>
           <SelectContent>
@@ -679,20 +790,35 @@ function CorrectionEditor({
       ) : (
         <div className="space-y-1">
           <Input
+            id={inputId}
+            ref={firstFieldRef as React.RefObject<HTMLInputElement>}
             value={value}
             onChange={(e) => setEditing({ ...editing, value: e.target.value })}
             placeholder={
               spec.csv === "iso2" ? "Two-letter country codes, e.g. IN, SG, AE" : "Your answer"
             }
-            aria-invalid={value.trim().length > spec.maxLength}
+            // Every reason the value is unusable, not only the length one —
+            // a malformed country list was silently valid to assistive tech.
+            aria-invalid={blockedReason !== undefined}
+            aria-describedby={hintId}
           />
           {spec.csv === "iso2" && (
-            <p className="text-xs text-muted-foreground">
+            <p id={hintId} className="text-xs text-muted-foreground">
               Country codes only{spec.maxCount ? `, up to ${spec.maxCount}` : ""} — this is what we
               target, so it decides where your budget goes.
             </p>
           )}
         </div>
+      )}
+
+      {/* The reason is SHOWN, not only used to disable. A disabled button with
+          no explanation is a dead end the user cannot reason about — and the
+          numbers in it are the server's own, so this is what the server would
+          have said. `aria-live` because it appears in response to typing. */}
+      {blockedReason && (
+        <p className="text-xs text-destructive" role="status" aria-live="polite">
+          {blockedReason}
+        </p>
       )}
 
       <div className="flex justify-end gap-2">
@@ -701,11 +827,7 @@ function CorrectionEditor({
         </Button>
         <Button
           onClick={onSubmit}
-          disabled={
-            pending ||
-            (spec.shape === "scalar" &&
-              (!value.trim() || value.trim().length > spec.maxLength))
-          }
+          disabled={pending || blockedReason !== undefined}
         >
           {pending ? "Saving…" : "Save"}
         </Button>
