@@ -138,6 +138,43 @@ export interface CorrectionInput {
   toList?: string[];
 }
 
+/** What the engine would target, without writing anything. */
+export interface ProposalResponse {
+  proposal: {
+    /** Platform-native criteria — opaque here; the campaign gets its own copy. */
+    criteria: Record<string, unknown>;
+    facets: Record<string, string[]>;
+    labels: Record<string, string>;
+    /** Why each attribute is in the audience, in business language. */
+    basis: Array<{
+      attribute: string;
+      values: string[];
+      evidence: Array<{ tier: EvidenceTier; kind: string; detail?: string }>;
+    }>;
+    /** Platform-sourced only; `belowFloor` carries NO number. */
+    reach?: { supported: boolean; value?: number; belowFloor?: boolean; fetchedAt?: string };
+    /** ★The ISO-2 codes this audience was built from — NOT derivable from
+     *  `basis`, whose values are display labels ("India", never "IN"). A
+     *  client that pre-fills a codes box from the labels turns confirming the
+     *  inference into deleting it. */
+    geoCodes?: string[];
+    /** What we wanted to express and could not — surfaced, never dropped. */
+    unresolved: Array<{ attribute: string; value: string; reason: string }>;
+  } | null;
+  /** A refusal is a 200 with a REASON, because "we don't know your country" is
+   *  a question for the user rather than a failure of the request. */
+  refusal: {
+    reason:
+      | "no_profile"
+      | "no_geography"
+      | "geo_unresolved"
+      | "platform_unsupported"
+      | "registry_empty"
+      | "not_servable";
+    message: string;
+  } | null;
+}
+
 export const audiencesApi = {
   /** What we understand about this business. `profile: null` is a first-class
    *  answer — nobody has asked for audiences yet — not an error. */
@@ -151,6 +188,17 @@ export const audiencesApi = {
   /** Corrections are APPENDED to a log, never written over the field: the
    *  delta is what teaches the engine, and storing only the result would let a
    *  later rebuild silently revert it. */
+  /**
+   * What we WOULD target, resolved against the platform with a real reach
+   * number. Read-only: it writes nothing and touches no campaign.
+   *
+   * `geo` is decision D13's confirmed geography. Omitting it means "use what
+   * the profile says"; sending an EMPTY array is the user saying none of these,
+   * and the api treats the two differently.
+   */
+  propose: (body: { geo?: string[] } = {}) =>
+    api.post<ProposalResponse>("/v1/audiences/propose", body),
+
   correctProfile: (corrections: CorrectionInput[]) =>
     api.patch<{ profile: AudienceProfile }>("/v1/audiences/profile", { corrections }),
 };

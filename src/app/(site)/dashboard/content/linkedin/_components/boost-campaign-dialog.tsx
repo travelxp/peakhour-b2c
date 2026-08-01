@@ -45,6 +45,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Rocket } from "lucide-react";
+import { AudiencePreview, useAudienceProposal } from "./audience-preview";
 
 /**
  * Boost-to-Campaign dialog (G1) — turns a ranked organic post into a
@@ -99,6 +100,31 @@ export function BoostCampaignDialog({
   const queryClient = useQueryClient();
   const [name, setName] = useState(defaultName);
   const [objective, setObjective] = useState<BoostObjective>("engagement");
+  /**
+   * Decision D13's confirmed geography. `undefined` means "use what we inferred
+   * from the business", which is the default and today's behaviour; an array —
+   * INCLUDING an empty one — is the user's own statement, and `/boost` treats
+   * the two differently.
+   */
+  const [geo, setGeo] = useState<string[] | undefined>(undefined);
+  /**
+   * Whether the engine could actually build an audience for this boost.
+   *
+   * Read from the SAME query the preview renders (react-query shares the cache,
+   * so there is one request) rather than reported up by a callback: a child
+   * setting a parent's state during render is an update to a different
+   * component mid-render, and the value is derived data that never needed to be
+   * state at all. The campaign is still creatable without an audience — /boost
+   * deliberately never fails over one — but the user must not be told a
+   * campaign is ready when LinkedIn will refuse to deliver it.
+   */
+  const proposal = useAudienceProposal(geo);
+  // ★A FAILED PREVIEW SAYS NOTHING ABOUT THE CAMPAIGN. `/boost` re-resolves the
+  // audience server-side, so a 502 on `/propose` has no bearing on whether the
+  // campaign gets targeting — and warning that it will not would be two
+  // contradictory sentences 40px apart, with the frightening one wrong.
+  const willTarget =
+    proposal.isPending || proposal.isError || proposal.data?.proposal != null;
   const [dailyBudget, setDailyBudget] = useState("10");
   const [currencyCode, setCurrencyCode] = useState("USD");
   const [durationDays, setDurationDays] = useState("14");
@@ -170,6 +196,10 @@ export function BoostCampaignDialog({
         currencyCode: currencyCode.trim().toUpperCase(),
         durationDays: durationNumber,
         notPolitical: vars.notPolitical,
+        // Sent so the campaign gets the audience the preview showed. Without
+        // it the boost would resolve from the profile's own countries and the
+        // preview would be a lie about its own effect.
+        ...(geo !== undefined ? { geo } : {}),
       }),
     onSuccess: async (_data, vars) => {
       // The Ads Manager list must show the new campaign even within
@@ -362,6 +392,16 @@ export function BoostCampaignDialog({
               </SelectContent>
             </Select>
           </div>
+
+          {/* The audience this boost will get, BEFORE the money is committed —
+              and the single inference the user is asked to confirm. */}
+          <AudiencePreview geo={geo} onGeoChange={setGeo} />
+          {!willTarget && (
+            <p className="text-xs text-muted-foreground">
+              We can&apos;t build an audience for this one, so the campaign will be created without
+              targeting — LinkedIn won&apos;t deliver it until you set one from the Ads Manager.
+            </p>
+          )}
 
           <div className="grid grid-cols-3 gap-3">
             <div className="space-y-1.5">
