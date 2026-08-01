@@ -23,6 +23,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { OAuthConnectResult } from "@/components/integrations/oauth-connect-result";
+import { AudienceProfilePanel } from "./_components/audience-profile-panel";
 import { LinkedInAdsPanel } from "./_components/linkedin-ads-panel";
 import { XAdsPanel } from "./_components/x-ads-panel";
 import {
@@ -200,6 +201,15 @@ function AdsHub() {
       />
 
       <HubHeader description={channel?.description} />
+
+      {/* ★ABOVE THE CHANNEL TABS, ON PURPOSE. What we understand about a
+          business is channel-NEUTRAL — the same profile decides who a LinkedIn
+          campaign and an X campaign target — so putting it inside a channel
+          panel would make it look like a LinkedIn setting and would need
+          copying for every channel added afterwards. It lives here for the same
+          reason the hub owns the header: one surface, channels select into it.
+          Not a new route either (ads-hub-single-surface). */}
+      <AudienceProfilePanel />
 
       {/* <Tabs> renders only once a channel is known, so it stays controlled
           for its whole life — a value that starts undefined and later becomes
