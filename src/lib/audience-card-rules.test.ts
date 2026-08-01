@@ -74,6 +74,11 @@ describe("audienceClaim — who chose this", () => {
     // `platform_set` — an audience targeted in Campaign Manager, which the
     // schema allows — is confirmed by nobody. A fallback that ignored
     // `confirmed` would give it a green check reading "You approved this".
+    //
+    // ★AND IT IS NOT `unverified` EITHER. That bucket's copy says we cannot
+    // confirm the record describes the current audience — which would be false
+    // here, because the api verified exactly that. Two different untrue
+    // sentences are not an improvement on one.
     expect(
       audienceClaim({
         source: "platform_set",
@@ -81,6 +86,12 @@ describe("audienceClaim — who chose this", () => {
         verified: true,
         autoSelectedUnconfirmed: false,
       }),
-    ).toBe("unverified");
+    ).toBe("unclaimed");
+  });
+
+  it("says nothing about the platform's silence being a floor", () => {
+    // `{supported: false, value: 0}` is "LinkedIn told us nothing", not "fewer
+    // than 300 people". Order of checks decides which sentence appears.
+    expect(reachLine({ supported: false, value: 0 })).toContain("didn't give us");
   });
 });

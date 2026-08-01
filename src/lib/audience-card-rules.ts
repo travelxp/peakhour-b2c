@@ -1,7 +1,16 @@
 import type { ManagedCampaign } from "@/lib/api/linkedin-ads";
 
 /** The claim the audience card is allowed to make about who chose an audience. */
-export type AudienceClaim = "auto_unconfirmed" | "approved" | "user_set" | "unverified";
+export type AudienceClaim =
+  | "auto_unconfirmed"
+  | "approved"
+  | "user_set"
+  /** We verified the record describes the current audience, but nobody has
+   *  approved it and nobody claims to have chosen it. Distinct from
+   *  `unverified`, whose copy says we cannot confirm the record is current —
+   *  which would be FALSE here, because we did. */
+  | "unclaimed"
+  | "unverified";
 
 /**
  * ★"WE CANNOT TELL" IS ITS OWN ANSWER. `verified` is false when the provenance
@@ -24,7 +33,7 @@ export function audienceClaim(origin: ManagedCampaign["audienceOrigin"]): Audien
   // green check reading "You approved this" on a decision no user made.
   // Nothing writes `platform_set` today; a claim that depends on that staying
   // true is a claim waiting to become false.
-  return origin.confirmed ? "approved" : "unverified";
+  return origin.confirmed ? "approved" : "unclaimed";
 }
 
 /**
@@ -50,6 +59,9 @@ export function reachLine(
   reach: NonNullable<ManagedCampaign["targetingProvenance"]>["reach"],
 ): string | null {
   if (!reach) return null;
+  // Order matters: "the platform told us nothing" outranks any reading of the
+  // number, so `{supported: false, value: 0}` must not claim a floor.
+  if (!reach.supported) return "LinkedIn didn't give us a size for this audience";
   if (reach.belowFloor) return "Under LinkedIn's 300-member minimum — this won't deliver";
   // ★A LITERAL ZERO IS TREATED AS THE FLOOR, not printed. The api maps
   // LinkedIn's masked `total: 0` to `belowFloor` with no number, so a zero
@@ -57,7 +69,7 @@ export function reachLine(
   // the exact sentence this function's whole reason for existing forbids.
   // Guarding it here rather than trusting a convention two repos away.
   if (reach.value === 0) return "Under LinkedIn's 300-member minimum — this won't deliver";
-  if (!reach.supported || typeof reach.value !== "number") {
+  if (typeof reach.value !== "number") {
     return "LinkedIn didn't give us a size for this audience";
   }
   return `About ${REACH_FORMAT.format(reach.value)} people on LinkedIn`;

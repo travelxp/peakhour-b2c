@@ -72,7 +72,13 @@ export function AudienceCard({ campaign }: { campaign: ManagedCampaign }) {
   const claim = audienceClaim(origin);
   const unconfirmed = claim === "auto_unconfirmed";
   const unverified = claim === "unverified";
-  const reach = reachLine(prov.reach);
+  // ★REACH IS SUPPRESSED WHEN WE CANNOT VERIFY THE RECORD. The api $unsets the
+  // engine's reach the moment a human edits an audience, for a reason it states
+  // plainly: "reach is the number a customer divides their budget by, so a
+  // stale one is worse than none". A record that no longer matches the
+  // targeting is exactly that stale number, and rendering it above a paragraph
+  // saying we can't confirm the audience would be the worst of both.
+  const reach = unverified ? null : reachLine(prov.reach);
 
   return (
     // `whitespace-normal`: TableCell's base class sets `whitespace-nowrap` and
@@ -81,9 +87,11 @@ export function AudienceCard({ campaign }: { campaign: ManagedCampaign }) {
     // nine-column table.
     <div className="rounded-md border bg-muted/30 p-3 text-sm whitespace-normal">
       <div className="mb-2 flex flex-wrap items-center gap-2">
-        {unverified ? (
-          // No claim about WHO — we cannot tell, and the honest sentence is the
-          // one that says nothing rather than the one that guesses.
+        {unverified || claim === "unclaimed" ? (
+          // No claim about WHO. For `unverified` we cannot tell; for
+          // `unclaimed` the record IS current and simply nobody has approved
+          // it. Both are honest as a bare label; neither may borrow the other's
+          // sentence.
           <Badge variant="outline">Audience</Badge>
         ) : unconfirmed ? (
           <Badge variant="outline" className="gap-1">
@@ -106,8 +114,17 @@ export function AudienceCard({ campaign }: { campaign: ManagedCampaign }) {
               {ATTRIBUTE_LABEL[b.attribute] ?? b.attribute}
             </span>
             {/* Readable chips, never URNs — "Mumbai", not urn:li:geo:1. */}
-            {b.values.map((v) => (
-              <Badge key={`${b.attribute}:${v}`} variant="outline" className="font-normal">
+            {b.values.map((v, i) => (
+              // Keyed by index as well as value: two distinct URNs can share a
+              // display name (LinkedIn has several "Cambridge"), and the label
+              // is all that survives into the basis.
+              <Badge
+                key={`${b.attribute}:${i}:${v}`}
+                variant="outline"
+                // Badge is `whitespace-nowrap` by default, so a long job title
+                // would overflow the cell the same way the prose did.
+                className="font-normal whitespace-normal"
+              >
                 {v}
               </Badge>
             ))}

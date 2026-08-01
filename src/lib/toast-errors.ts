@@ -78,6 +78,11 @@ const USER_FIXABLE = new Set([
   "NO_PROVENANCE",
   "NOT_A_PROPOSAL",
   "CONFIRM_FAILED",
+  // ★AND `NOT_FOUND`, which is the one that would have fired most often. It is
+  // also what `app.onError`'s unknown-route handler returns, so if b2c ships
+  // ahead of the api EVERY click on a new endpoint tells the user to open a
+  // support ticket — a deploy-order hazard, not a hypothetical.
+  "NOT_FOUND",
 ]);
 
 const USER_FIXABLE_COPY: Record<string, string> = {
@@ -92,6 +97,7 @@ const USER_FIXABLE_COPY: Record<string, string> = {
   NO_PROVENANCE: "There's no audience record on this campaign to approve.",
   NOT_A_PROPOSAL: "You set this audience yourself, so there's nothing for us to record.",
   CONFIRM_FAILED: "Couldn't record that just now — try again.",
+  NOT_FOUND: "That's gone — reload the page to see what's there now.",
 };
 
 function dispositionOf(code: string, status: number): Disposition {
