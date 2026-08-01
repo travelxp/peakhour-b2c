@@ -69,9 +69,29 @@ export function correctionIsNoop(
   draft: { value: string; list: string[] },
 ): boolean {
   if (spec.shape === "list") {
-    const a = dedupeLabels(original.list);
-    const b = dedupeLabels(draft.list);
-    return a.length === b.length && a.every((v, i) => v === b[i]);
+    // ★THE ORIGINAL IS COMPARED AS THE SERVER HOLDS IT, NOT DEDUPED. The
+    // evidence layer does not dedupe: `taxonomy.audienceSegments` is mapped
+    // verbatim and tagged segments are merged with a CASE-SENSITIVE check, so
+    // a profile can legitimately hold ["Travel Buyers", "travel buyers"] and
+    // the panel renders both. Deduping both sides made removing that duplicate
+    // a no-op — the editor closed, nothing was sent, and the duplicate stayed
+    // on screen FOREVER, with no way for the user to tell why.
+    const before = original.list.map((v) => v.trim()).filter((v) => v.length > 0);
+    const after = dedupeLabels(draft.list);
+    return before.length === after.length && before.every((v, i) => v === after[i]);
+  }
+  // ★CSV IS COMPARED AS THE SERVER PARSES IT. "IN, SG" → "IN,SG" is the same
+  // audience: the server splits on commas and uppercases, so the profile does
+  // not move — but a plain string compare called it a change and appended a
+  // null delta to the log this function exists to keep honest.
+  if (spec.csv === "iso2") {
+    const codes = (v: string) =>
+      v
+        .split(",")
+        .map((x) => x.trim().toUpperCase())
+        .filter((x) => x.length > 0)
+        .join(",");
+    return codes(original.value) === codes(draft.value);
   }
   return original.value.trim() === draft.value.trim();
 }
@@ -110,7 +130,12 @@ export function correctionBlockedReason(
   if (spec.shape === "list") {
     const clean = dedupeLabels(draft.list);
     if (spec.maxItems !== undefined && clean.length > spec.maxItems) {
-      return `That's more than the maximum of ${spec.maxItems}.`;
+      // ★THIS CAN BE OUR FAULT, NOT THEIRS, and the copy has to admit it.
+      // `personas` is evidence-built from declared segments plus up to 25
+      // tagged ones against a cap of 20, so a content-rich business opens the
+      // editor already over the limit having done nothing. Blaming the user
+      // for a list we produced is the wrong sentence.
+      return `We can only store ${spec.maxItems} of these — remove ${clean.length - spec.maxItems} to save.`;
     }
     const tooLong = clean.find((v) => v.length > spec.maxLength);
     if (tooLong) return `Keep each one under ${spec.maxLength} characters.`;

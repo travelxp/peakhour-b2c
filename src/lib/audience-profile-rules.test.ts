@@ -65,6 +65,16 @@ describe("correctionBlockedReason", () => {
     expect(correctionBlockedReason(listSpec, { value: "", list: [] })).toBeUndefined();
   });
 
+  it("★says an over-cap list is OUR limit, not the user's mistake", () => {
+    // `personas` is evidence-built from declared segments plus up to 25 tagged
+    // ones against a cap of 20, so a content-rich business opens the editor
+    // already over it having done nothing.
+    const over = Array.from({ length: 27 }, (_, i) => `Segment ${i}`);
+    const reason = correctionBlockedReason(listSpec, { value: "", list: over });
+    expect(reason).toContain("We can only store 20");
+    expect(reason).toContain("remove 7");
+  });
+
   it("blocks a list entry over the field's own cap", () => {
     expect(
       correctionBlockedReason(listSpec, { value: "", list: ["x".repeat(257)] }),
@@ -158,10 +168,47 @@ describe("correctionIsNoop — saving nothing must not restate everything", () =
     ).toBe(false);
   });
 
-  it("a case-only retype is a no-op, because the server would collapse it anyway", () => {
+  it("★removing a DUPLICATE the server actually holds is a real correction", () => {
+    // The evidence layer does not dedupe — `taxonomy.audienceSegments` is
+    // mapped verbatim and tagged segments merge with a CASE-SENSITIVE check —
+    // so a profile can hold ["A", "a"] and the panel renders both. Deduping
+    // BOTH sides made removing the duplicate a no-op: the editor closed,
+    // nothing was sent, and the duplicate stayed on screen forever with no way
+    // for the user to tell why.
     expect(
       correctionIsNoop(listSpec, { value: "", list: ["A", "a"] }, { value: "", list: ["A"] }),
+    ).toBe(false);
+    expect(
+      correctionIsNoop(listSpec, { value: "", list: ["A", "A"] }, { value: "", list: ["A"] }),
+    ).toBe(false);
+  });
+
+  it("a case-only RETYPE is a real change, because the stored casing moves", () => {
+    // dedupeLabels keeps the first occurrence's casing, so these differ and
+    // the server stores the new one. Naming it a no-op would be a false claim
+    // about the system.
+    expect(
+      correctionIsNoop(
+        listSpec,
+        { value: "", list: ["Head of Travel"] },
+        { value: "", list: ["head of travel"] },
+      ),
+    ).toBe(false);
+  });
+
+  it("★a CSV whitespace edit is a no-op, because the server parses it the same", () => {
+    // "IN, SG" → "IN,SG" is the same audience. A plain string compare called
+    // it a change and appended a null delta to the log.
+    expect(
+      correctionIsNoop(geoSpec, { value: "IN, SG", list: [] }, { value: "IN,SG", list: [] }),
     ).toBe(true);
+    expect(
+      correctionIsNoop(geoSpec, { value: "IN, SG", list: [] }, { value: "in, sg ", list: [] }),
+    ).toBe(true);
+    // …and a real change still reads as one.
+    expect(
+      correctionIsNoop(geoSpec, { value: "IN, SG", list: [] }, { value: "IN, AE", list: [] }),
+    ).toBe(false);
   });
 
   it("clearing a non-empty list is a real correction", () => {

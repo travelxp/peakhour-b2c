@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { toastUnhandledApiError } from "@/lib/toast-errors";
@@ -140,7 +140,7 @@ function ClaimRow({
   label: string;
   value?: string;
   sources?: ProfileSource[];
-  onEdit?: () => void;
+  onEdit?: (opener: HTMLElement) => void;
 }) {
   return (
     <div className="flex items-start justify-between gap-3 py-2">
@@ -161,7 +161,7 @@ function ClaimRow({
           variant="ghost"
           size="sm"
           className="h-7 shrink-0 px-2"
-          onClick={onEdit}
+          onClick={(e) => onEdit(e.currentTarget)}
           aria-label={`Correct ${label}`}
         >
           <Pencil className="h-3.5 w-3.5" />
@@ -190,6 +190,16 @@ export function AudienceProfilePanel() {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Editing>(null);
+  /** The control that opened the editor, so focus can go back to it on close.
+   *  Without this the editor unmounts and focus falls to `<body>` — the
+   *  keyboard user is dropped at the top of the document. */
+  const openerRef = useRef<HTMLElement | null>(null);
+  /** Set when the reconcile above closed an editor out from under the user. */
+  const [closedByRefresh, setClosedByRefresh] = useState(false);
+  const closeEditor = useCallback(() => {
+    setEditing(null);
+    openerRef.current?.focus();
+  }, []);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["audience-profile"],
@@ -242,7 +252,7 @@ export function AudienceProfilePanel() {
           correctableFields: old?.correctableFields ?? specs,
         }),
       );
-      setEditing(null);
+      closeEditor();
       toast.success("Thanks — we'll use that from now on.");
       // The audience is built from this profile, so a correction changes what
       // the next campaign would target.
@@ -251,7 +261,9 @@ export function AudienceProfilePanel() {
     onError: (err) => toastUnhandledApiError(err, "save that correction"),
   });
 
-  const startEdit = (field: string, current: string | string[]) => {
+  const startEdit = (field: string, current: string | string[], opener?: HTMLElement | null) => {
+    openerRef.current = opener ?? null;
+    setClosedByRefresh(false);
     const spec = specFor(field);
     if (!spec || !profile) return;
     const original = {
@@ -270,7 +282,11 @@ export function AudienceProfilePanel() {
     // ones the user never made — and append a null delta to the log. The
     // server cannot tell the difference; only this can.
     if (correctionIsNoop(spec, editing.original, { value: editing.value, list: editing.list })) {
-      setEditing(null);
+      // Said out loud. Closing silently is indistinguishable from Cancel, and
+      // the list hint invites exactly this on an already-empty list — a user
+      // who follows it would believe they made a statement they did not.
+      toast.info("That's what we already have — nothing to save.");
+      closeEditor();
       return;
     }
     // Every limit the server enforces, checked here first — with the server's
@@ -291,14 +307,31 @@ export function AudienceProfilePanel() {
   };
 
   // ★THE SNAPSHOT IS RECONCILED, not trusted. react-query refetches on window
-  // focus, `switchBusiness` clears the whole cache without unmounting this
-  // panel, and either one replaces the profile under an open editor. Saving
-  // then writes a list the user never saw — and after a business switch, writes
-  // business A's ICP onto business B, which is the wrong-business class of bug
-  // the server is business-scoped to prevent. If the profile moved or went
-  // away, the editor goes with it.
+  // focus and `switchBusiness` clears the whole cache without unmounting this
+  // panel, so the profile can move or vanish under an open editor. Saving then
+  // writes a list the user never saw — and after a business switch, writes
+  // business A's ICP onto business B, the wrong-business class of bug the
+  // server is business-scoped to prevent.
+  //
+  // TWO DIFFERENT CHECKS, because they catch different things and only one of
+  // them is the version. `!profile` is what catches the business switch — two
+  // businesses are both `profileVersion: 1` far more often than not, since only
+  // a re-read increments it. The version catches a re-read from another tab.
+  // (A correction from another tab moves neither: PATCH does not bump the
+  // version. That case is not covered, and saying so is better than implying
+  // it is.)
+  //
+  // DURING RENDER, which is React's sanctioned "adjust state when the input
+  // changes" pattern — same component, conditional, and it converges because
+  // `editing` becomes null. An effect would be the obvious alternative and is
+  // lint-forbidden here for good reason: it would render one frame with a stale
+  // editor still on screen. The cost is that a toast cannot fire from render,
+  // so the explanation is a NOTICE instead — closing silently is what the last
+  // version did, and it is indistinguishable from the editor never having
+  // opened.
   if (editing && (!profile || profile.profileVersion !== editing.profileVersion)) {
     setEditing(null);
+    setClosedByRefresh(Boolean(profile));
   }
 
   if (isLoading) {
@@ -370,7 +403,9 @@ export function AudienceProfilePanel() {
                 variant="outline"
                 size="sm"
                 onClick={() => refresh.mutate()}
-                disabled={refresh.isPending}
+                // Also blocked while a correction is in flight: both writers
+                // $set the profile, so the loser is silently discarded.
+                disabled={refresh.isPending || correct.isPending}
               >
                 <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${refresh.isPending ? "animate-spin" : ""}`} />
                 {refresh.isPending ? "Reading…" : "Re-read"}
@@ -385,6 +420,13 @@ export function AudienceProfilePanel() {
               </CollapsibleTrigger>
             </div>
           </div>
+
+          {closedByRefresh && (
+            <p className="mt-3 rounded-md border border-dashed p-2.5 text-sm text-muted-foreground">
+              Your business profile changed while you were editing, so we closed the editor rather
+              than save something you couldn&apos;t see. Have another look.
+            </p>
+          )}
 
           {/* ★CONFLICTS ARE ALWAYS VISIBLE, collapsed or not. They are the most
               interesting thing the engine found and the thing a user is most
@@ -424,10 +466,11 @@ export function AudienceProfilePanel() {
                   sources={profile.classification.industry?.sources}
                   onEdit={
                     specFor("classification.industry")
-                      ? () =>
+                      ? (opener) =>
                           startEdit(
                             "classification.industry",
                             profile.classification.industry?.value ?? "",
+                            opener,
                           )
                       : undefined
                   }
@@ -438,10 +481,11 @@ export function AudienceProfilePanel() {
                   sources={profile.classification.subIndustry?.sources}
                   onEdit={
                     specFor("classification.subIndustry")
-                      ? () =>
+                      ? (opener) =>
                           startEdit(
                             "classification.subIndustry",
                             profile.classification.subIndustry?.value ?? "",
+                            opener,
                           )
                       : undefined
                   }
@@ -457,10 +501,11 @@ export function AudienceProfilePanel() {
                   sources={profile.classification.marketType?.sources}
                   onEdit={
                     specFor("classification.marketType")
-                      ? () =>
+                      ? (opener) =>
                           startEdit(
                             "classification.marketType",
                             profile.classification.marketType?.value ?? "",
+                            opener,
                           )
                       : undefined
                   }
@@ -471,10 +516,11 @@ export function AudienceProfilePanel() {
                   sources={profile.classification.lifecycleStage?.sources}
                   onEdit={
                     specFor("classification.lifecycleStage")
-                      ? () =>
+                      ? (opener) =>
                           startEdit(
                             "classification.lifecycleStage",
                             profile.classification.lifecycleStage?.value ?? "",
+                            opener,
                           )
                       : undefined
                   }
@@ -491,11 +537,12 @@ export function AudienceProfilePanel() {
                   )}
                   onEdit={
                     specFor("classification.regionalPresence")
-                      ? () =>
+                      ? (opener) =>
                           startEdit(
                             "classification.regionalPresence",
                             profile.classification.regionalPresence?.map((r) => r.value).join(", ") ??
                               "",
+                            opener,
                           )
                       : undefined
                   }
@@ -513,7 +560,7 @@ export function AudienceProfilePanel() {
                 secondary: i.description,
                 sources: i.sources,
               }))}
-              onEdit={() => startEdit("icp", profile.icp.map((i) => i.label))}
+              onEdit={(opener) => startEdit("icp", profile.icp.map((i) => i.label), opener)}
             />
 
             <ListSection
@@ -526,8 +573,12 @@ export function AudienceProfilePanel() {
                 secondary: d.seniority,
                 sources: d.sources,
               }))}
-              onEdit={() =>
-                startEdit("decisionMakers", profile.decisionMakers.map((d) => d.titleFamily))
+              onEdit={(opener) =>
+                startEdit(
+                  "decisionMakers",
+                  profile.decisionMakers.map((d) => d.titleFamily),
+                  opener,
+                )
               }
             />
 
@@ -540,7 +591,9 @@ export function AudienceProfilePanel() {
                 primary: p.statement,
                 sources: p.sources,
               }))}
-              onEdit={() => startEdit("painPoints", profile.painPoints.map((p) => p.statement))}
+              onEdit={(opener) =>
+                startEdit("painPoints", profile.painPoints.map((p) => p.statement), opener)
+              }
             />
 
             <ListSection
@@ -553,7 +606,7 @@ export function AudienceProfilePanel() {
                 secondary: [p.role, p.seniority].filter(Boolean).join(" · ") || undefined,
                 sources: p.sources,
               }))}
-              onEdit={() => startEdit("personas", profile.personas.map((p) => p.label))}
+              onEdit={(opener) => startEdit("personas", profile.personas.map((p) => p.label), opener)}
             />
 
             {!classified && (
@@ -581,6 +634,7 @@ export function AudienceProfilePanel() {
             key={editing.spec.field}
             editing={editing}
             setEditing={setEditing}
+            onClose={closeEditor}
             onSubmit={submitEdit}
             pending={correct.isPending}
           />
@@ -601,7 +655,7 @@ function ListSection({
   field: string;
   spec?: CorrectableFieldSpec;
   items: Array<{ key: string; primary: string; secondary?: string; sources?: ProfileSource[] }>;
-  onEdit: () => void;
+  onEdit: (opener: HTMLElement) => void;
 }) {
   return (
     <section>
@@ -614,7 +668,7 @@ function ListSection({
             variant="ghost"
             size="sm"
             className="h-7 px-2"
-            onClick={onEdit}
+            onClick={(e) => onEdit(e.currentTarget)}
             aria-label={`Correct ${title}`}
           >
             <Pencil className="h-3.5 w-3.5" />
@@ -655,11 +709,15 @@ function ListSection({
 function CorrectionEditor({
   editing,
   setEditing,
+  onClose,
   onSubmit,
   pending,
 }: {
   editing: NonNullable<Editing>;
   setEditing: (e: Editing) => void;
+  /** Closes AND returns focus to the control that opened it — the editor
+   *  unmounts, so without this a keyboard user is dropped at `<body>`. */
+  onClose: () => void;
   onSubmit: () => void;
   pending: boolean;
 }) {
@@ -667,6 +725,7 @@ function CorrectionEditor({
   const [draft, setDraft] = useState("");
   const inputId = useId();
   const hintId = useId();
+  const reasonId = useId();
   const firstFieldRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
 
   // ★FOCUS MOVES TO THE EDITOR. It renders BELOW the collapsible while focus
@@ -677,7 +736,9 @@ function CorrectionEditor({
     firstFieldRef.current?.focus();
   }, []);
   const label = FIELD_LABEL[spec.field] ?? spec.field;
-  const atItemCap = spec.maxItems !== undefined && list.length >= spec.maxItems;
+  // Deduped, matching the rule Save uses. Counting raw entries meant Add was
+  // disabled while Save was enabled on the same screen, at 21 raw / 20 unique.
+  const atItemCap = spec.maxItems !== undefined && dedupeLabels(list).length >= spec.maxItems;
   const draftTooLong = draft.trim().length > spec.maxLength;
   const blockedReason = correctionBlockedReason(spec, { value, list });
 
@@ -703,7 +764,7 @@ function CorrectionEditor({
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => setEditing(null)}
+          onClick={onClose}
           disabled={pending}
           aria-label="Cancel"
         >
@@ -740,7 +801,7 @@ function CorrectionEditor({
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 placeholder={`Add — up to ${spec.maxLength} characters`}
-                aria-describedby={hintId}
+                aria-describedby={blockedReason ? `${hintId} ${reasonId}` : hintId}
                 rows={2}
                 className="text-sm"
               />
@@ -750,7 +811,7 @@ function CorrectionEditor({
                 ref={firstFieldRef as React.RefObject<HTMLInputElement>}
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
-                aria-describedby={hintId}
+                aria-describedby={blockedReason ? `${hintId} ${reasonId}` : hintId}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
                     e.preventDefault();
@@ -769,14 +830,27 @@ function CorrectionEditor({
               ? `Too long — keep each one under ${spec.maxLength} characters.`
               : atItemCap
                 ? `That's the maximum of ${spec.maxItems}.`
-                : // The clear case, said plainly: an empty list is a real answer,
-                  // not a way of cancelling.
-                  "Remove everything and save to tell us none of these apply."}
+                : list.length > 0
+                  ? // The clear case, said plainly: an empty list is a real
+                    // answer, not a way of cancelling.
+                    "Remove everything and save to tell us none of these apply."
+                  : // …and NOT offered when the list is already empty, where
+                    // following it would send nothing and leave the user
+                    // believing they had made a statement.
+                    "Add what we've missed."}
           </p>
         </div>
       ) : spec.values ? (
         <Select value={value} onValueChange={(v) => setEditing({ ...editing, value: v })}>
-          <SelectTrigger id={inputId} aria-label={`Correct ${label}`}>
+          <SelectTrigger
+            id={inputId}
+            // The market-type editor is the one branch with no text input, so
+            // without a ref here the pencil still did nothing for a keyboard
+            // user — the a11y fix covered eight of the nine fields.
+            ref={firstFieldRef as unknown as React.RefObject<HTMLButtonElement>}
+            aria-label={`Correct ${label}`}
+            aria-describedby={blockedReason ? reasonId : undefined}
+          >
             <SelectValue placeholder="Choose" />
           </SelectTrigger>
           <SelectContent>
@@ -800,7 +874,16 @@ function CorrectionEditor({
             // Every reason the value is unusable, not only the length one —
             // a malformed country list was silently valid to assistive tech.
             aria-invalid={blockedReason !== undefined}
-            aria-describedby={hintId}
+            // Only what actually exists: the hint renders for the ISO-2 field
+            // alone, and pointing at a missing id is worse than pointing at
+            // nothing. The blocked reason is included because a live region's
+            // INITIAL content is not announced — and a scalar editor opened on
+            // an absent claim is blocked from the first frame.
+            aria-describedby={
+              [spec.csv === "iso2" ? hintId : null, blockedReason ? reasonId : null]
+                .filter(Boolean)
+                .join(" ") || undefined
+            }
           />
           {spec.csv === "iso2" && (
             <p id={hintId} className="text-xs text-muted-foreground">
@@ -816,13 +899,13 @@ function CorrectionEditor({
           numbers in it are the server's own, so this is what the server would
           have said. `aria-live` because it appears in response to typing. */}
       {blockedReason && (
-        <p className="text-xs text-destructive" role="status" aria-live="polite">
+        <p id={reasonId} className="text-xs text-destructive" aria-live="polite">
           {blockedReason}
         </p>
       )}
 
       <div className="flex justify-end gap-2">
-        <Button variant="ghost" onClick={() => setEditing(null)} disabled={pending}>
+        <Button variant="ghost" onClick={onClose} disabled={pending}>
           Cancel
         </Button>
         <Button
