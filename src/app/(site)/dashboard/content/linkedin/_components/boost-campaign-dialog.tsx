@@ -45,6 +45,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Rocket } from "lucide-react";
+import { AudiencePreview } from "./audience-preview";
 
 /**
  * Boost-to-Campaign dialog (G1) — turns a ranked organic post into a
@@ -99,6 +100,13 @@ export function BoostCampaignDialog({
   const queryClient = useQueryClient();
   const [name, setName] = useState(defaultName);
   const [objective, setObjective] = useState<BoostObjective>("engagement");
+  /**
+   * Decision D13's confirmed geography. `undefined` means "use what we inferred
+   * from the business", which is the default and today's behaviour; an array —
+   * INCLUDING an empty one — is the user's own statement, and `/boost` treats
+   * the two differently.
+   */
+  const [geo, setGeo] = useState<string[] | undefined>(undefined);
   const [dailyBudget, setDailyBudget] = useState("10");
   const [currencyCode, setCurrencyCode] = useState("USD");
   const [durationDays, setDurationDays] = useState("14");
@@ -170,6 +178,10 @@ export function BoostCampaignDialog({
         currencyCode: currencyCode.trim().toUpperCase(),
         durationDays: durationNumber,
         notPolitical: vars.notPolitical,
+        // Sent so the campaign gets the audience the preview showed. Without
+        // it the boost would resolve from the profile's own countries and the
+        // preview would be a lie about its own effect.
+        ...(geo !== undefined ? { geo } : {}),
       }),
     onSuccess: async (_data, vars) => {
       // The Ads Manager list must show the new campaign even within
@@ -362,6 +374,10 @@ export function BoostCampaignDialog({
               </SelectContent>
             </Select>
           </div>
+
+          {/* The audience this boost will get, BEFORE the money is committed —
+              and the single inference the user is asked to confirm. */}
+          <AudiencePreview geo={geo} onGeoChange={setGeo} enabled={open} />
 
           <div className="grid grid-cols-3 gap-3">
             <div className="space-y-1.5">

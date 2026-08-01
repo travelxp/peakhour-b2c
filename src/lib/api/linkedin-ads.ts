@@ -171,6 +171,11 @@ export interface BoostCampaignInput {
   postUrn: string;
   name: string;
   objective: BoostObjective;
+  /** Decision D13's CONFIRMED geography, ISO-3166 alpha-2. Absent = use what
+   *  the business profile says. An EMPTY array is the user's own statement
+   *  ("none of these") and the api treats the two differently — so the audience
+   *  the preview showed is the audience the campaign gets. */
+  geo?: string[];
   dailyBudget: number;
   /** Must match the ad account's billing currency — the server rejects
    *  a mismatch with code CURRENCY_MISMATCH naming the expected code. */
