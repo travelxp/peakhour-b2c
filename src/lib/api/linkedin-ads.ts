@@ -97,6 +97,46 @@ export interface ManagedCampaign {
    *  carry a legacy free-form object here instead — always feature-
    *  detect `targeting.facets` before treating it as editor state. */
   targeting?: CampaignTargeting | Record<string, unknown>;
+  /**
+   * WHO chose this audience, on what evidence, and whether a human has ever
+   * looked at it (mig 208).
+   *
+   * ★`confirmedAt` ABSENT is what earns the phrase "auto-selected from your
+   * business — you can change this". The moment it is set, the campaign is a
+   * reviewed one and must stop being described as unreviewed.
+   */
+  targetingProvenance?: {
+    source?: "auto_proposed" | "user_set" | "platform_set";
+    proposedAt?: string;
+    engineVersion?: string;
+    /** Why each attribute is in the audience, in BUSINESS language — "India",
+     *  never `urn:li:geo:1` — with the profile's own evidence tiers. */
+    basis?: Array<{
+      attribute: string;
+      values: string[];
+      evidence: Array<{ tier: "stated" | "observed" | "inferred"; kind: string; detail?: string }>;
+    }>;
+    /** Platform-sourced ONLY. `belowFloor` carries NO number, because
+     *  LinkedIn's `total: 0` means "fewer than 300" — rendering it as
+     *  "0 people" would be a false statement about the customer's market. */
+    reach?: { supported: boolean; value?: number; belowFloor?: boolean; fetchedAt?: string };
+    confirmedAt?: string;
+    confirmedByUserId?: string;
+  };
+  /**
+   * The api's own read of the provenance, derived per request — the UI must
+   * use THIS rather than re-deriving, because `verified` depends on a
+   * fingerprint comparison the client cannot make.
+   */
+  audienceOrigin?: {
+    source: string;
+    confirmed: boolean;
+    /** False when the provenance may no longer describe `targeting`. The UI
+     *  then shows the audience WITHOUT claiming who chose it. */
+    verified: boolean;
+    /** The one flag to act on: ours, and nobody has looked at it yet. */
+    autoSelectedUnconfirmed: boolean;
+  };
   performance?: ManagedCampaignPerformance;
   /**
    * SPEND ALARM — set by the api (derived, never stored) when this campaign
@@ -193,6 +233,21 @@ export const linkedInAdsApi = {
       `/v1/linkedin/ads/targeting/entities?${qs.toString()}`,
     );
   },
+
+  /**
+   * Record that a human read the auto-selected audience and agreed with it.
+   *
+   * Cannot spend and cannot retarget: it sets `confirmedAt` on a row whose
+   * audience LinkedIn already has. It is also the ACCEPTED-as-proposed half of
+   * the learning signal — the targeting PATCH only ever records edits, and an
+   * engine that hears about nothing but its mistakes learns a pessimistic
+   * lesson.
+   */
+  confirmAudience: (id: string) =>
+    api.post<{ campaignId: string; confirmedAt: string; alreadyConfirmed: boolean }>(
+      `/v1/linkedin/ads/managed-campaigns/${id}/confirm-audience`,
+      {},
+    ),
 
   /**
    * Replace a campaign's audience targeting (platform first, then the

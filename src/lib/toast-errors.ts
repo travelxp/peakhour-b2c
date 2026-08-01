@@ -69,6 +69,20 @@ const USER_FIXABLE = new Set([
   "RATE_LIMITED",
   "FORBIDDEN",
   "INVALID_TRANSITION",
+  // ★The api authors an actionable sentence for each of these and, without
+  // this list, none of it reached anyone: a 409 falls through to "permanent",
+  // which renders a non-dismissable "contact support and quote a reference"
+  // toast. Telling a user to open a ticket because their audience moved in
+  // another tab is exactly the failure this file exists to prevent.
+  "PROVENANCE_STALE",
+  "NO_PROVENANCE",
+  "NOT_A_PROPOSAL",
+  "CONFIRM_FAILED",
+  // ★AND `NOT_FOUND`, which is the one that would have fired most often. It is
+  // also what `app.onError`'s unknown-route handler returns, so if b2c ships
+  // ahead of the api EVERY click on a new endpoint tells the user to open a
+  // support ticket — a deploy-order hazard, not a hypothetical.
+  "NOT_FOUND",
 ]);
 
 const USER_FIXABLE_COPY: Record<string, string> = {
@@ -78,6 +92,12 @@ const USER_FIXABLE_COPY: Record<string, string> = {
   RATE_LIMITED: "The platform is rate-limiting us — give it a minute and try again.",
   FORBIDDEN: "Pick a business first.",
   INVALID_TRANSITION: "That change isn't possible from the campaign's current state.",
+  PROVENANCE_STALE:
+    "This audience has changed since we described it — reload, or open the audience editor to see what it is now.",
+  NO_PROVENANCE: "There's no audience record on this campaign to approve.",
+  NOT_A_PROPOSAL: "You set this audience yourself, so there's nothing for us to record.",
+  CONFIRM_FAILED: "Couldn't record that just now — try again.",
+  NOT_FOUND: "That's gone — reload the page to see what's there now.",
 };
 
 function dispositionOf(code: string, status: number): Disposition {
