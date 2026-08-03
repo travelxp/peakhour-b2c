@@ -28,12 +28,19 @@ import { Input } from "@/components/ui/input";
 /** Buyer-facing checkout summary from the api — the tax label is derived from
  *  the SAME plan flag that stamps the charge, so copy and money always agree. */
 export interface CheckoutSummary {
-  tier: string;
-  /** Human plan name (cfg_plans.name) — always prefer over the machine key. */
+  /** cfg_plans.key on a subscription. Absent on a one-time Peaks pack. */
+  tier?: string;
+  /** cfg_addons.key on a one-time Peaks pack. Absent on a subscription. */
+  packKey?: string;
+  /** Human plan or pack name — always prefer over the machine key. */
   tierLabel?: string;
+  /** Peaks granted, on a pack summary only. */
+  credits?: number;
   amount: number;
   currency: string;
-  interval: "month" | "year";
+  /** ABSENT on a one-time pack. Rendering "/mo" beside a one-off price would
+   *  tell the buyer they are starting a subscription they are not. */
+  interval?: "month" | "year";
   buyerCountry: string;
   taxIncluded: boolean;
   taxLabel: string;
@@ -52,7 +59,14 @@ export type CheckoutResult =
       gateway: "razorpay";
       embed: {
         kind: "razorpay";
-        subscriptionId: string;
+        /** Set for a SUBSCRIPTION (an e-mandate is authorised). */
+        subscriptionId?: string;
+        /** Set for a ONE-TIME pack purchase (an order is charged once).
+         *  Exactly one of the two is present; the launcher branches on it. */
+        orderId?: string;
+        /** Paise/cents — required by Checkout.js alongside `order_id`. */
+        amountMinor?: number;
+        currency?: string;
         keyId: string;
         prefill?: { name?: string; email?: string };
       };
@@ -91,13 +105,39 @@ function loadScript(src: string, id: string): Promise<void> {
   });
 }
 
+/** Locale currency formatting, with a raw fallback for an unknown code. */
+function fmtAmount(amount: number, currency: string): string {
+  try {
+    return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(amount);
+  } catch {
+    return `${currency} ${amount}`;
+  }
+}
+
 function SummaryLine({ summary }: { summary: CheckoutSummary }) {
   return (
     <div className="rounded-xl border bg-muted/40 px-4 py-3 text-sm">
       <div className="flex items-baseline justify-between gap-3">
-        <span className="font-medium truncate">{summary.tierLabel || summary.tier}</span>
+        <span className="font-medium truncate">
+          {summary.tierLabel || summary.tier || summary.packKey}
+          {/* The Peaks count is the ONE number that tells the packs apart —
+              without it the overlay shows a name and a price and the buyer
+              cannot check they picked the right pack. */}
+          {summary.credits ? (
+            <span className="text-muted-foreground font-normal">
+              {" "}
+              · {summary.credits.toLocaleString()} Peaks
+            </span>
+          ) : null}
+        </span>
         <span className="font-semibold whitespace-nowrap">
-          {summary.currency} {summary.amount}/{summary.interval === "year" ? "yr" : "mo"}
+          {/* Formatted, not concatenated: the api sends "49.00" to the pack card
+              and 49 here, so raw interpolation quoted the same purchase two
+              different ways on two surfaces. */}
+          {fmtAmount(summary.amount, summary.currency)}
+          {/* No suffix on a one-time pack — "/mo" beside a one-off price tells
+              the buyer they are starting a subscription they are not. */}
+          {summary.interval ? `/${summary.interval === "year" ? "yr" : "mo"}` : ""}
         </span>
       </div>
       <div className="text-muted-foreground mt-1 flex flex-wrap items-baseline justify-between gap-x-3 text-xs">
@@ -273,16 +313,29 @@ function GatewayLauncher({
     (async () => {
       try {
         if (checkout.gateway === "razorpay") {
-          const { subscriptionId, keyId, prefill } = checkout.embed;
+          const { subscriptionId, orderId, amountMinor, currency, keyId, prefill } = checkout.embed;
           await loadScript(RAZORPAY_SRC, "razorpay-checkout");
           if (!window.Razorpay) throw new Error("Razorpay SDK unavailable");
           const rzp = new window.Razorpay({
             key: keyId,
-            subscription_id: subscriptionId,
+            // An ORDER (one-time pack) and a SUBSCRIPTION are different
+            // Checkout.js modes. Sending both would be ambiguous; sending the
+            // wrong one silently opens an overlay that charges nothing.
+            ...(orderId
+              ? {
+                  order_id: orderId,
+                  ...(amountMinor !== undefined ? { amount: amountMinor } : {}),
+                  ...(currency ? { currency } : {}),
+                }
+              : { subscription_id: subscriptionId }),
             // Seller identity is data-driven from the billing entity's invoice
             // branding (Phase 6) — never hardcoded.
             name: summary?.sellerName || "Peakhour",
-            ...(summary ? { description: `${summary.tierLabel || summary.tier} — ${summary.taxLabel}` } : {}),
+            ...(summary
+              ? {
+                  description: `${summary.tierLabel || summary.tier || summary.packKey} — ${summary.taxLabel}`,
+                }
+              : {}),
             ...(prefill ? { prefill } : {}),
             handler: () => {
               onSuccess?.();
