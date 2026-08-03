@@ -79,6 +79,14 @@ export function buyPack(packKey: string): Promise<CheckoutResult> {
  */
 export function confirmPackPurchase(
   sessionId: string,
-): Promise<{ credited: boolean; credits?: number; packKey?: string; reason?: string }> {
+): Promise<{
+  credited: boolean;
+  credits?: number;
+  packKey?: string;
+  /** "pending" — ours, still settling (safe to reassure the buyer).
+   *  "not_found" — not a pack session of ours; affirming a payment for it
+   *  would be a money claim we cannot support. */
+  reason?: "pending" | "not_found" | "unconfigured";
+}> {
   return api.post("/v1/billing/packs/confirm", { sessionId });
 }

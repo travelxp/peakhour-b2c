@@ -32,6 +32,31 @@ import {
   type PackBlockedReason,
 } from "@/hooks/use-peaks-packs";
 import { PaymentModal, type CheckoutResult } from "@/components/upgrade/payment-modal";
+import { ApiError } from "@/lib/api";
+import { toastUnhandledApiError } from "@/lib/toast-errors";
+
+/**
+ * Refusals from POST /v1/billing/packs/checkout whose `message` is written for
+ * the buyer and is the most useful thing we can show. Everything NOT on this
+ * list — transport failures, auth expiry, parse errors, config errors — goes
+ * through the shared handler, which never renders a raw message.
+ *
+ * An allowlist rather than a denylist on purpose: a new api error code should
+ * default to the safe generic copy, not to whatever string it happens to carry.
+ */
+const BUYER_FACING_CODES = new Set([
+  "ORG_NOT_BILLABLE",
+  "COUNTRY_UNAVAILABLE",
+  "COUNTRY_COMING_SOON",
+  "PACK_UNAVAILABLE",
+  "PACK_CURRENCY_UNAVAILABLE",
+  "PACK_TAX_CONFIG_INVALID",
+  "PACK_NOT_PURCHASABLE",
+  "WALLET_UNLIMITED",
+  "PLAN_REQUIRED",
+  "GATEWAY_UNAVAILABLE",
+  "BILLING_UNAVAILABLE",
+]);
 
 // ── Formatting helpers ────────────────────────────────────────────────────
 
@@ -45,6 +70,10 @@ function fmtPeaks(n: number): string {
  *  quote the same purchase differently (the api sends "49.00" to one and 49 to
  *  the other). Falls back to the raw string if the currency code is unknown. */
 function fmtPrice(amount: string, currency: string): string {
+  // `Number("")` and `Number(" ")` are BOTH 0 and pass Number.isFinite, so an
+  // empty amount rendered as a real price of zero — the worst possible output
+  // of a guard whose whole job is catching bad input on a money surface.
+  if (!amount.trim()) return `${currency} ${amount}`;
   const n = Number(amount);
   if (!Number.isFinite(n)) return `${currency} ${amount}`;
   try {
@@ -143,8 +172,16 @@ function blockedCopy(reason: PackBlockedReason | null): string | null {
       return "These packs aren't priced for your region yet.";
     case "no_wallet":
       return "We couldn't load your Peaks wallet. Please contact support.";
-    default:
+    case null:
       return null;
+    default: {
+      // A fifth reason added on the api side is a BUILD failure here, not a
+      // silent regression to the original defect (a greyed button with no
+      // explanation). The union is hand-mirrored from the api, so nothing else
+      // enforces that they stay in step.
+      const _exhaustive: never = reason;
+      return _exhaustive;
+    }
   }
 }
 
@@ -183,8 +220,12 @@ function BuyPeaks() {
   const confirmed = useRef(false);
   useEffect(() => {
     if (confirmed.current || typeof window === "undefined") return;
-    const sessionId = new URLSearchParams(window.location.search).get("session_id");
-    if (!sessionId) return;
+    const params = new URLSearchParams(window.location.search);
+    const sessionId = params.get("session_id");
+    // Gate on EITHER marker. A return that carries only `?purchase=success`
+    // (no session id substituted) previously left the param in the URL forever
+    // and said nothing at all.
+    if (!sessionId && params.get("purchase") !== "success") return;
     confirmed.current = true;
 
     const stripParams = () => {
@@ -193,6 +234,20 @@ function BuyPeaks() {
       url.searchParams.delete("session_id");
       window.history.replaceState({}, "", url.toString());
     };
+    // ★STRIPPED BEFORE THE AWAIT, not in the finally. The confirm round trip is
+    // a Stripe retrieve plus a wallet credit — comfortably seconds — and the
+    // ref guard is per-instance, so navigating away and back inside that window
+    // remounted with a fresh ref and a URL that still carried the session id.
+    // The double toast this was meant to stop simply moved.
+    stripParams();
+
+    if (!sessionId) {
+      toast.success("Payment received — adding your Peaks…", {
+        description: "This can take a few seconds to reflect.",
+      });
+      void qc.invalidateQueries({ queryKey: ["/v1/dashboard/credits"] });
+      return;
+    }
 
     void (async () => {
       try {
@@ -201,6 +256,11 @@ function BuyPeaks() {
           toast.success(
             res.credits ? `${res.credits.toLocaleString()} Peaks added.` : "Your Peaks have been added.",
           );
+        } else if (res.reason === "not_found") {
+          // The id isn't a pack session of ours. Saying "payment received"
+          // for any `cs_…` in the address bar would be an affirmative money
+          // claim we cannot support.
+          void 0;
         } else {
           // NOT silence. `credited:false` means the session is still finalising
           // (an async payment method, or Stripe's redirect beating its own
@@ -222,7 +282,6 @@ function BuyPeaks() {
         // error message on the buyer's return page.
       } finally {
         void qc.invalidateQueries({ queryKey: ["/v1/dashboard/credits"] });
-        stripParams();
       }
     })();
   }, [qc]);
@@ -232,15 +291,17 @@ function BuyPeaks() {
     try {
       setCheckout(await buyPack(packKey));
     } catch (err) {
-      // The api's refusals are written FOR the buyer and are mostly terminal —
-      // wrong region, no paid plan, unlimited wallet, contact support. Replacing
-      // them all with "please try again" invites retrying something that can
-      // never succeed.
-      const message =
-        err && typeof err === "object" && "message" in err && typeof err.message === "string"
-          ? err.message
-          : "We couldn't start checkout. Please try again.";
-      toast.error(message);
+      // The packs route authors its refusals FOR the buyer, so those messages
+      // are worth showing — but ONLY those. A duck-typed `err.message` admits
+      // everything else the api client can throw: "Failed to fetch" from an
+      // offline tab, "Missing authentication. Provide Authorization header…"
+      // from an expired session, even "NEXT_PUBLIC_API_URL is not configured".
+      // toast-errors.ts exists because of exactly this trap and says so.
+      if (err instanceof ApiError && BUYER_FACING_CODES.has(err.code)) {
+        toast.error(err.message);
+      } else {
+        toastUnhandledApiError(err, "start checkout");
+      }
     } finally {
       setBusyKey(null);
     }
@@ -311,7 +372,12 @@ function BuyPeaks() {
         <CardContent>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {data.packs.map((p) => {
-              const reason = countryBlocked ?? blockedCopy(p.blockedReason);
+              // Only when it ADDS something. When every pack is blocked for the
+              // same reason the card already says it once — repeating it under
+              // each button turned one message into N+1 identical sentences,
+              // which is what the card-level line existed to avoid.
+              const packReason = countryBlocked ?? blockedCopy(p.blockedReason);
+              const reason = packReason === cardBlocked ? null : packReason;
               const reasonId = `pack-reason-${p.key.replace(/[^a-z0-9]/gi, "-")}`;
               return (
                 <div
