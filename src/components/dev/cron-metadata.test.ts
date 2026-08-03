@@ -19,31 +19,30 @@ import { CRON_METADATA, getCronMetadata, summarizeCronBody } from "./cron-metada
  * fails — a b2c-only clone should still have a green suite.
  */
 
-function readScheduledCrons(): string[] | null {
-  const path = fileURLToPath(new URL("../../../../peakhour-api/vercel.json", import.meta.url));
+const VERCEL_JSON = fileURLToPath(
+  new URL("../../../../peakhour-api/vercel.json", import.meta.url),
+);
+
+/**
+ * Read the sibling api's schedule, or null when that checkout simply isn't
+ * there (a b2c-only clone should still have a green suite).
+ *
+ * ONLY the read is allowed to produce a skip. A first draft threw its sanity
+ * checks inside the same try, so the local catch swallowed them and an emptied
+ * or renamed `crons` key silently disabled both coverage assertions — the exact
+ * invisible no-op this file exists to prevent, reproduced one level up. The
+ * checks now live outside, where they fail loudly.
+ */
+function readVercelJson(): string[] | null {
   try {
-    const config = JSON.parse(readFileSync(path, "utf8")) as {
+    const config = JSON.parse(readFileSync(VERCEL_JSON, "utf8")) as {
       crons?: Array<{ path: string }>;
     };
-    const names = (config.crons ?? []).map((c) => c.path.replace(/^\/v1\/cron\//, ""));
-    if (names.length === 0) {
-      // Distinct from "sibling absent": the file parsed and had no crons, which
-      // means the key was renamed or emptied — a real problem, not a skip.
-      throw new Error("vercel.json parsed but listed no crons");
-    }
-    // A path that stopped matching the prefix would survive whole and turn into
-    // a baffling orphan; catch it here where the cause is obvious.
-    const malformed = names.filter((n) => n.includes("/"));
-    if (malformed.length > 0) {
-      throw new Error(`cron paths did not match /v1/cron/: ${malformed.join(", ")}`);
-    }
-    return names;
+    return (config.crons ?? []).map((c) => c.path.replace(/^\/v1\/cron\//, ""));
   } catch (err) {
-    // Skipping is right for a b2c-only clone, but a SILENT skip turns the two
-    // assertions that matter into invisible no-ops — which is the failure this
-    // whole file exists to prevent, one level up.
+    // A silent skip is indistinguishable from a pass, so say it out loud.
     console.warn(
-      `[cron-metadata.test] Skipping api coverage — could not read ${path}: ${
+      `[cron-metadata.test] Skipping api coverage — could not read ${VERCEL_JSON}: ${
         err instanceof Error ? err.message : String(err)
       }`,
     );
@@ -51,9 +50,19 @@ function readScheduledCrons(): string[] | null {
   }
 }
 
-const scheduled = readScheduledCrons();
+const scheduled = readVercelJson();
 
 describe("cron metadata coverage", () => {
+  // Outside the reader's try/catch on purpose — these FAIL, they do not skip.
+  // "vercel.json exists but lists nothing" means the key was renamed or
+  // emptied, which would otherwise turn both assertions below into no-ops that
+  // report green.
+  it.runIf(scheduled)("read a usable schedule from the api", () => {
+    expect(scheduled!.length, "vercel.json parsed but listed no crons").toBeGreaterThan(20);
+    const malformed = scheduled!.filter((n) => n.includes("/"));
+    expect(malformed, `cron paths did not match /v1/cron/: ${malformed.join(", ")}`).toEqual([]);
+  });
+
   it.runIf(scheduled)("documents every cron the api schedules", () => {
     const undocumented = scheduled!.filter((c) => !(c in CRON_METADATA));
     expect(undocumented, `No friendly label for: ${undocumented.join(", ")}`).toEqual([]);
@@ -124,7 +133,19 @@ describe("summarizeCronBody", () => {
     expect(summarizeCronBody("ai-credits-rollup", "")).toBeNull();
   });
 
+  it("warns when a purge did nothing because storage isn't configured", () => {
+    // The handler early-returns `{success, skipped, purged:0}`. Now that flat
+    // bodies reach summarizers, "0 purged" would otherwise read as healthy.
+    const body = JSON.stringify({ success: true, skipped: "storage_not_configured", purged: 0 });
+    const summary = summarizeCronBody("media-hard-delete", body);
+    expect(summary?.level).toBe("warning");
+  });
+
   it("returns null for a cron with no summarizer", () => {
-    expect(summarizeCronBody("billing-dunning", JSON.stringify({ ok: true }))).toBeNull();
+    // Picked by SEARCHING for one rather than naming a cron, so adding a
+    // summarizer to any particular entry can't break an unrelated test.
+    const withoutSummarizer = Object.keys(CRON_METADATA).find((k) => !CRON_METADATA[k].summarize);
+    expect(withoutSummarizer, "every cron now has a summarizer — pick another case").toBeDefined();
+    expect(summarizeCronBody(withoutSummarizer!, JSON.stringify({ ok: true }))).toBeNull();
   });
 });

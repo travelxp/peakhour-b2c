@@ -65,7 +65,15 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
     description:
       "Permanently removes media that has been in the trash past its 30-day recovery window, freeing the storage for good.",
     summarize: (data) => {
-      const d = data as { purged?: number } | null;
+      const d = data as { purged?: number; skipped?: string } | null;
+      // The handler early-returns `{success:true, skipped:"storage_not_configured",
+      // purged:0}` when there is no object store. Now that flat bodies actually
+      // reach this summarizer, that path would otherwise read as a healthy
+      // "0 expired items purged." — a green toast for a cron that did nothing
+      // because it CAN'T.
+      if (d?.skipped) {
+        return { message: "Nothing purged — media storage isn't configured.", level: "warning" };
+      }
       return typeof d?.purged === "number" ? `${d.purged} expired item${d.purged === 1 ? "" : "s"} purged.` : null;
     },
   },
@@ -643,13 +651,16 @@ export function summarizeCronBody(
   try {
     const parsed = JSON.parse(body) as unknown;
     const root = asRecord(parsed);
-    // The api has TWO cron response conventions and always has: most handlers
-    // return `{ok, data:{…}}`, but ai-credits-rollup and every media-* cron
-    // return the payload FLAT (`{success, processed, …}`). Reading only `.data`
-    // silently handed `undefined` to those summarizers, so all five returned
-    // null and fell back to "<label> complete" — including, in the rollup's
-    // case, turning a run that charged nothing into a green success, which is
-    // the exact outcome the warning level exists to prevent.
+    // The api has THREE cron response conventions and always has:
+    //   • `{ok, data:{…}}`            — most handlers
+    //   • `{success, processed, …}`   — flat: ai-credits-rollup, every media-*
+    //   • `{ok:true, ...result}`      — flat under `ok`: the site-graph-* trio,
+    //                                   voice-card-learning
+    // Reading only `.data` silently handed `undefined` to every summarizer in
+    // the last two groups, so they returned null and fell back to "<label>
+    // complete" — including, in the rollup's case, turning a run that charged
+    // nothing into a green success, which is the exact outcome the warning
+    // level exists to prevent. Falling back to the root covers all three.
     const data = root?.data !== undefined ? root.data : root;
     const result = summarize(data);
     if (result == null) return null;
