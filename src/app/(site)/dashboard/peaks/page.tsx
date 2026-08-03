@@ -24,7 +24,13 @@ import {
 } from "@/components/ui/table";
 import Link from "next/link";
 import { useCreditsBalance, useCreditsRateCard, useCreditsHistory } from "@/hooks/use-credits";
-import { usePeaksPacks, buyPack, confirmPackPurchase } from "@/hooks/use-peaks-packs";
+import {
+  usePeaksPacks,
+  buyPack,
+  confirmPackPurchase,
+  type PeaksPack,
+  type PackBlockedReason,
+} from "@/hooks/use-peaks-packs";
 import { PaymentModal, type CheckoutResult } from "@/components/upgrade/payment-modal";
 
 // ── Formatting helpers ────────────────────────────────────────────────────
@@ -33,6 +39,19 @@ function fmtPeaks(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
   return n.toLocaleString();
+}
+
+/** One formatter for a pack price, so the card and the payment overlay cannot
+ *  quote the same purchase differently (the api sends "49.00" to one and 49 to
+ *  the other). Falls back to the raw string if the currency code is unknown. */
+function fmtPrice(amount: string, currency: string): string {
+  const n = Number(amount);
+  if (!Number.isFinite(n)) return `${currency} ${amount}`;
+  try {
+    return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(n);
+  } catch {
+    return `${currency} ${amount}`;
+  }
 }
 
 function fmtDate(iso: string): string {
@@ -109,18 +128,40 @@ function UsageHistorySheet({ open, onOpenChange }: { open: boolean; onOpenChange
 
 // ── Buy more Peaks ─────────────────────────────────────────────────────────
 
-/** Card-level copy when nothing is buyable, so the section leads with one
- *  message and a way forward instead of repeating itself per pack. */
-function blockedCopy(reason: "plan_required" | "unlimited" | null): string | null {
-  if (reason === "unlimited") return "Your plan already includes unlimited Peaks.";
-  if (reason === "plan_required") return "Peaks packs need an active paid plan.";
-  return null;
+/** Why a pack can't be bought, in the buyer's words. EVERY reason the api can
+ *  return is named — an unexplained row of greyed-out Buy buttons under a sales
+ *  pitch is worse than not showing the section at all. */
+function blockedCopy(reason: PackBlockedReason | null): string | null {
+  switch (reason) {
+    case "unlimited":
+      return "Your plan already includes unlimited Peaks.";
+    case "plan_required":
+      return "Peaks packs need an active paid plan.";
+    case "not_priced_here":
+      // Real, not hypothetical: a pack priced only in USD viewed by an Indian
+      // org resolves a currency the gateway for that country can't charge.
+      return "These packs aren't priced for your region yet.";
+    case "no_wallet":
+      return "We couldn't load your Peaks wallet. Please contact support.";
+    default:
+      return null;
+  }
+}
+
+/** The card-level reason, only when NOTHING is buyable. A real reduction, not
+ *  `packs[0]` — `planRequired` and the pricing row are both per-pack, so a
+ *  catalogue mixing two reasons would otherwise show copy for neither. */
+function cardBlockedCopy(packs: PeaksPack[]): string | null {
+  if (packs.length === 0 || packs.some((p) => p.purchasable)) return null;
+  const reasons = new Set(packs.map((p) => p.blockedReason));
+  if (reasons.size === 1) return blockedCopy(packs[0].blockedReason);
+  return "None of these packs is available on your account right now.";
 }
 
 function BuyPeaks() {
   const qc = useQueryClient();
   const search = useSearchParams();
-  const { data, isLoading } = usePeaksPacks();
+  const { data, isLoading, isError } = usePeaksPacks();
   const [checkout, setCheckout] = useState<CheckoutResult | null>(null);
   const [busyKey, setBusyKey] = useState<string | null>(null);
 
@@ -131,12 +172,28 @@ function BuyPeaks() {
 
   // Stripe returns the buyer here with `?purchase=success&session_id=cs_…`.
   // Confirm synchronously so the new Peaks are visible on this paint rather
-  // than whenever the webhook happens to land. Runs ONCE per session id.
-  const confirmed = useRef<string | null>(null);
+  // than whenever the webhook happens to land.
+  //
+  // ★AND STRIP THE PARAMS AFTERWARDS — the same thing the billing page does,
+  // for the same reason. The ref guard survives StrictMode's double-effect but
+  // NOT a remount, and nothing else removes the query string: a refresh or a
+  // back-navigation re-fired the confirm and re-toasted "Peaks added", which on
+  // a money surface reads as a second charge. It also keeps a Stripe session id
+  // out of a URL the merchant might copy.
+  const confirmed = useRef(false);
   useEffect(() => {
-    const sessionId = search.get("session_id");
-    if (!sessionId || confirmed.current === sessionId) return;
-    confirmed.current = sessionId;
+    if (confirmed.current || typeof window === "undefined") return;
+    const sessionId = new URLSearchParams(window.location.search).get("session_id");
+    if (!sessionId) return;
+    confirmed.current = true;
+
+    const stripParams = () => {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("purchase");
+      url.searchParams.delete("session_id");
+      window.history.replaceState({}, "", url.toString());
+    };
+
     void (async () => {
       try {
         const res = await confirmPackPurchase(sessionId);
@@ -144,34 +201,89 @@ function BuyPeaks() {
           toast.success(
             res.credits ? `${res.credits.toLocaleString()} Peaks added.` : "Your Peaks have been added.",
           );
+        } else {
+          // NOT silence. `credited:false` means the session is still finalising
+          // (an async payment method, or Stripe's redirect beating its own
+          // bookkeeping) — the webhook will land. Saying nothing left a buyer
+          // looking at an unchanged balance having just paid, which is the exact
+          // failure this whole return path exists to prevent.
+          toast.success("Payment received — adding your Peaks…", {
+            description: "This can take a few seconds to reflect.",
+          });
+          // One follow-up refetch so a webhook landing moments later repaints
+          // without the buyer reloading.
+          setTimeout(
+            () => void qc.invalidateQueries({ queryKey: ["/v1/dashboard/credits"] }),
+            6000,
+          );
         }
       } catch {
         // The webhook is the backstop — never turn a successful payment into an
         // error message on the buyer's return page.
       } finally {
         void qc.invalidateQueries({ queryKey: ["/v1/dashboard/credits"] });
+        stripParams();
       }
     })();
-  }, [search, qc]);
+  }, [qc]);
 
   const start = async (packKey: string) => {
     setBusyKey(packKey);
     try {
       setCheckout(await buyPack(packKey));
-    } catch {
-      toast.error("We couldn't start checkout. Please try again.");
+    } catch (err) {
+      // The api's refusals are written FOR the buyer and are mostly terminal —
+      // wrong region, no paid plan, unlimited wallet, contact support. Replacing
+      // them all with "please try again" invites retrying something that can
+      // never succeed.
+      const message =
+        err && typeof err === "object" && "message" in err && typeof err.message === "string"
+          ? err.message
+          : "We couldn't start checkout. Please try again.";
+      toast.error(message);
     } finally {
       setBusyKey(null);
     }
   };
 
   // Dormant by design: no public priced pack means nothing to show at all,
-  // rather than an empty card that reads like a fault.
+  // rather than an empty card that reads like a fault. A FAILED read is a
+  // different thing and must not be indistinguishable from it — otherwise a 500
+  // silently removes the buy surface, including for someone who arrived on a
+  // `?pack=` deep link from Shopify or WordPress.
+  if (isError) {
+    return (
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Buy more Peaks</CardTitle>
+          <CardDescription className="mt-1">
+            We couldn&apos;t load the top-up packs just now.{" "}
+            <button
+              type="button"
+              className="underline underline-offset-2"
+              onClick={() => void qc.invalidateQueries({ queryKey: ["/v1/billing/packs"] })}
+            >
+              Try again
+            </button>
+          </CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
   if (isLoading || !data || data.packs.length === 0) return null;
 
-  const cardBlocked = data.packs.some((p) => p.purchasable)
-    ? null
-    : blockedCopy(data.packs[0].blockedReason);
+  // The api reports the country gate on the READ and enforces it on the POST —
+  // so a surface that ignores it shows a live Buy button that can only 403.
+  // `resolveBillingCountry` returns "DEFAULT" for an org with no stored country,
+  // and DEFAULT is never live, so this is the common case rather than an edge.
+  const countryBlocked =
+    data.countryStatus === "blocked"
+      ? "Peaks packs aren't available in your country."
+      : data.countryStatus !== "live"
+        ? "Peaks packs are coming soon in your country."
+        : null;
+  const cardBlocked = countryBlocked ?? cardBlockedCopy(data.packs);
+  const canBuy = (p: PeaksPack) => p.purchasable && countryBlocked === null;
 
   return (
     <>
@@ -198,33 +310,49 @@ function BuyPeaks() {
         </CardHeader>
         <CardContent>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {data.packs.map((p) => (
-              <div
-                key={p.key}
-                className={`flex flex-col gap-3 rounded-xl border p-4 ${
-                  p.key === wanted ? "border-primary ring-primary/20 ring-2" : ""
-                }`}
-              >
-                <div>
-                  <p className="font-medium">{p.name}</p>
-                  <p className="text-muted-foreground text-sm">
-                    {fmtPeaks(p.credits)} Peaks
-                  </p>
+            {data.packs.map((p) => {
+              const reason = countryBlocked ?? blockedCopy(p.blockedReason);
+              const reasonId = `pack-reason-${p.key.replace(/[^a-z0-9]/gi, "-")}`;
+              return (
+                <div
+                  key={p.key}
+                  className={`flex flex-col gap-3 rounded-xl border p-4 ${
+                    p.key === wanted ? "border-primary ring-primary/20 ring-2" : ""
+                  }`}
+                >
+                  <div>
+                    <p className="font-medium">
+                      {p.name}
+                      {/* The pre-selection is otherwise conveyed by a ring only,
+                          which a screen reader cannot see. */}
+                      {p.key === wanted ? <span className="sr-only"> (the pack you chose)</span> : null}
+                    </p>
+                    <p className="text-muted-foreground text-sm">{fmtPeaks(p.credits)} Peaks</p>
+                  </div>
+                  <div className="mt-auto flex items-end justify-between gap-2">
+                    <span className="text-lg font-semibold tabular-nums">
+                      {fmtPrice(p.amount, p.currency)}
+                    </span>
+                    <Button
+                      size="sm"
+                      disabled={!canBuy(p) || busyKey !== null}
+                      aria-busy={busyKey === p.key}
+                      {...(reason && !canBuy(p) ? { "aria-describedby": reasonId } : {})}
+                      onClick={() => void start(p.key)}
+                    >
+                      {busyKey === p.key ? "Opening…" : "Buy"}
+                    </Button>
+                  </div>
+                  {/* Per-pack reason, so a mixed catalogue explains each greyed
+                      button rather than leaving the card copy to cover one. */}
+                  {reason && !canBuy(p) ? (
+                    <p id={reasonId} className="text-muted-foreground text-xs">
+                      {reason}
+                    </p>
+                  ) : null}
                 </div>
-                <div className="mt-auto flex items-end justify-between gap-2">
-                  <span className="text-lg font-semibold tabular-nums">
-                    {p.currency} {p.amount}
-                  </span>
-                  <Button
-                    size="sm"
-                    disabled={!p.purchasable || busyKey !== null}
-                    onClick={() => void start(p.key)}
-                  >
-                    {busyKey === p.key ? "Opening…" : "Buy"}
-                  </Button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </CardContent>
       </Card>

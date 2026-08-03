@@ -14,6 +14,15 @@ import type { CheckoutResult } from "@/components/upgrade/payment-modal";
  * peakhour-mongodb/docs/idea/peaks-pack-hosted-checkout-plan.md.
  */
 
+/** Every reason the api's `blockedReason` can carry. `no_wallet` and
+ *  `not_priced_here` are hosted-rail states the POST also refuses; omitting them
+ *  from this union is how a blocked card ends up with no explanation. */
+export type PackBlockedReason =
+  | "plan_required"
+  | "unlimited"
+  | "no_wallet"
+  | "not_priced_here";
+
 export interface PeaksPack {
   key: string;
   name: string;
@@ -24,7 +33,7 @@ export interface PeaksPack {
   planRequired: boolean;
   purchasable: boolean;
   /** Why not, when `purchasable` is false. */
-  blockedReason: "plan_required" | "unlimited" | null;
+  blockedReason: PackBlockedReason | null;
 }
 
 export interface PeaksPacksResponse {

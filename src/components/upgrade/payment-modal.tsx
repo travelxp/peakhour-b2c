@@ -105,15 +105,36 @@ function loadScript(src: string, id: string): Promise<void> {
   });
 }
 
+/** Locale currency formatting, with a raw fallback for an unknown code. */
+function fmtAmount(amount: number, currency: string): string {
+  try {
+    return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(amount);
+  } catch {
+    return `${currency} ${amount}`;
+  }
+}
+
 function SummaryLine({ summary }: { summary: CheckoutSummary }) {
   return (
     <div className="rounded-xl border bg-muted/40 px-4 py-3 text-sm">
       <div className="flex items-baseline justify-between gap-3">
         <span className="font-medium truncate">
           {summary.tierLabel || summary.tier || summary.packKey}
+          {/* The Peaks count is the ONE number that tells the packs apart —
+              without it the overlay shows a name and a price and the buyer
+              cannot check they picked the right pack. */}
+          {summary.credits ? (
+            <span className="text-muted-foreground font-normal">
+              {" "}
+              · {summary.credits.toLocaleString()} Peaks
+            </span>
+          ) : null}
         </span>
         <span className="font-semibold whitespace-nowrap">
-          {summary.currency} {summary.amount}
+          {/* Formatted, not concatenated: the api sends "49.00" to the pack card
+              and 49 here, so raw interpolation quoted the same purchase two
+              different ways on two surfaces. */}
+          {fmtAmount(summary.amount, summary.currency)}
           {/* No suffix on a one-time pack — "/mo" beside a one-off price tells
               the buyer they are starting a subscription they are not. */}
           {summary.interval ? `/${summary.interval === "year" ? "yr" : "mo"}` : ""}
