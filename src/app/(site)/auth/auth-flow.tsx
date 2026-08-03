@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Check, Clock, Mail, ShieldAlert, Sparkles } from "lucide-react";
 import { useSearchParams } from "next/navigation";
+import { useIsomorphicLayoutEffect } from "@/hooks/use-isomorphic-layout-effect";
 import { sendMagicLink } from "@/lib/auth";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -223,15 +224,26 @@ export function AuthFlow({
     const upper = raw.toUpperCase();
     return REFERRAL_CODE_PATTERN.test(upper) ? upper : null;
   })();
-  /** Params the embedded Shopify app puts in the fragment (`email`, `next`). */
-  const shopifyFrag =
-    typeof window === "undefined" ? null : new URLSearchParams(window.location.hash.slice(1));
+  /**
+   * Params the embedded Shopify app puts in the fragment (`email`, `next`).
+   *
+   * ★CAPTURED ONCE, because the layout effect below erases the hash. Recomputed
+   * per render it survived exactly one: `prefillEmail` was safe (it is captured
+   * into useState) but `next` was not, so the first re-render — typing in the
+   * field, or the status change that reveals the "check your email" card — read
+   * an empty hash and dropped the destination. Every resend went out with no
+   * returnTo, and any merchant who corrected the prefilled address landed on
+   * /dashboard/overview instead of the page they came from.
+   */
+  const [shopifyFrag] = useState<URLSearchParams | null>(() =>
+    typeof window === "undefined" ? null : new URLSearchParams(window.location.hash.slice(1)),
+  );
   // `?next=` — where to return after verify (server sanitizes it to same-origin).
   // Only same-origin relative paths are forwarded.
   const next = (() => {
-    // Fragment first: the Shopify sign-in link puts `h`, `email` AND `next`
-    // there. Reading only the query silently dropped every first-visit deep
-    // link from the embedded app onto /dashboard/overview.
+    // Fragment first: the embedded app's dashboard link puts `email` and `next`
+    // there. Reading only the query dropped every deep link from that app onto
+    // /dashboard/overview.
     const raw = shopifyFrag?.get("next") ?? searchParams.get("next");
     // Same-origin relative only: single leading slash, no protocol-relative
     // form (// or /\ — browsers normalize backslash to slash). The server and
@@ -268,7 +280,7 @@ export function AuthFlow({
    * server — it stays out of the b2c edge log and ours.
    */
   const prefillEmail = (() => {
-    const raw = (shopifyFrag?.get("email") ?? searchParams.get("email"))?.trim() ?? "";
+    const raw = shopifyFrag?.get("email")?.trim() ?? "";
     return raw.length > 0 && raw.length <= 256 && raw.includes("@") ? raw : "";
   })();
 
@@ -276,8 +288,8 @@ export function AuthFlow({
   // data and this page lingers on the "check your email" screen, into history
   // and session restore. Layout effect so it runs before paint; the values are
   // already captured above, so nothing downstream re-reads the hash.
-  useLayoutEffect(() => {
-    if (shopifyFrag && window.location.hash) {
+  useIsomorphicLayoutEffect(() => {
+    if ((shopifyFrag?.has("email") || shopifyFrag?.has("next")) && window.location.hash) {
       window.history.replaceState(null, "", window.location.pathname + window.location.search);
     }
     // Once, on mount: the values this guards are read during the first render.
