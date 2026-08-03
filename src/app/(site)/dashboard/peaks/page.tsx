@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useSearchParams } from "next/navigation";
+import { toast } from "sonner";
 import { Zap, History, ArrowUpRight, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
 import {
   Sheet,
   SheetContent,
@@ -22,6 +24,8 @@ import {
 } from "@/components/ui/table";
 import Link from "next/link";
 import { useCreditsBalance, useCreditsRateCard, useCreditsHistory } from "@/hooks/use-credits";
+import { usePeaksPacks, buyPack, confirmPackPurchase } from "@/hooks/use-peaks-packs";
+import { PaymentModal, type CheckoutResult } from "@/components/upgrade/payment-modal";
 
 // ── Formatting helpers ────────────────────────────────────────────────────
 
@@ -100,6 +104,131 @@ function UsageHistorySheet({ open, onOpenChange }: { open: boolean; onOpenChange
         </div>
       </SheetContent>
     </Sheet>
+  );
+}
+
+// ── Buy more Peaks ─────────────────────────────────────────────────────────
+
+/** Card-level copy when nothing is buyable, so the section leads with one
+ *  message and a way forward instead of repeating itself per pack. */
+function blockedCopy(reason: "plan_required" | "unlimited" | null): string | null {
+  if (reason === "unlimited") return "Your plan already includes unlimited Peaks.";
+  if (reason === "plan_required") return "Peaks packs need an active paid plan.";
+  return null;
+}
+
+function BuyPeaks() {
+  const qc = useQueryClient();
+  const search = useSearchParams();
+  const { data, isLoading } = usePeaksPacks();
+  const [checkout, setCheckout] = useState<CheckoutResult | null>(null);
+  const [busyKey, setBusyKey] = useState<string | null>(null);
+
+  // The pack a link-out asked for (Shopify and the WordPress plugin both send
+  // `?pack=`), highlighted so a merchant who already chose doesn't have to
+  // choose again.
+  const wanted = search.get("pack");
+
+  // Stripe returns the buyer here with `?purchase=success&session_id=cs_…`.
+  // Confirm synchronously so the new Peaks are visible on this paint rather
+  // than whenever the webhook happens to land. Runs ONCE per session id.
+  const confirmed = useRef<string | null>(null);
+  useEffect(() => {
+    const sessionId = search.get("session_id");
+    if (!sessionId || confirmed.current === sessionId) return;
+    confirmed.current = sessionId;
+    void (async () => {
+      try {
+        const res = await confirmPackPurchase(sessionId);
+        if (res.credited) {
+          toast.success(
+            res.credits ? `${res.credits.toLocaleString()} Peaks added.` : "Your Peaks have been added.",
+          );
+        }
+      } catch {
+        // The webhook is the backstop — never turn a successful payment into an
+        // error message on the buyer's return page.
+      } finally {
+        void qc.invalidateQueries({ queryKey: ["/v1/dashboard/credits"] });
+      }
+    })();
+  }, [search, qc]);
+
+  const start = async (packKey: string) => {
+    setBusyKey(packKey);
+    try {
+      setCheckout(await buyPack(packKey));
+    } catch {
+      toast.error("We couldn't start checkout. Please try again.");
+    } finally {
+      setBusyKey(null);
+    }
+  };
+
+  // Dormant by design: no public priced pack means nothing to show at all,
+  // rather than an empty card that reads like a fault.
+  if (isLoading || !data || data.packs.length === 0) return null;
+
+  const cardBlocked = data.packs.some((p) => p.purchasable)
+    ? null
+    : blockedCopy(data.packs[0].blockedReason);
+
+  return (
+    <>
+      <PaymentModal
+        checkout={checkout}
+        onOpenChange={(open) => {
+          if (!open) setCheckout(null);
+        }}
+        onSuccess={() => {
+          // Razorpay's overlay reports success in-page; the webhook does the
+          // crediting, so refetch rather than assuming a number.
+          toast.success("Payment received — your Peaks are on the way.");
+          void qc.invalidateQueries({ queryKey: ["/v1/dashboard/credits"] });
+        }}
+      />
+
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Buy more Peaks</CardTitle>
+          <CardDescription className="mt-1">
+            {cardBlocked ??
+              "One-time top-ups. Bought Peaks don't expire and are used after your monthly allowance."}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {data.packs.map((p) => (
+              <div
+                key={p.key}
+                className={`flex flex-col gap-3 rounded-xl border p-4 ${
+                  p.key === wanted ? "border-primary ring-primary/20 ring-2" : ""
+                }`}
+              >
+                <div>
+                  <p className="font-medium">{p.name}</p>
+                  <p className="text-muted-foreground text-sm">
+                    {fmtPeaks(p.credits)} Peaks
+                  </p>
+                </div>
+                <div className="mt-auto flex items-end justify-between gap-2">
+                  <span className="text-lg font-semibold tabular-nums">
+                    {p.currency} {p.amount}
+                  </span>
+                  <Button
+                    size="sm"
+                    disabled={!p.purchasable || busyKey !== null}
+                    onClick={() => void start(p.key)}
+                  >
+                    {busyKey === p.key ? "Opening…" : "Buy"}
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    </>
   );
 }
 
@@ -211,6 +340,13 @@ export default function PeaksPage() {
             )}
           </CardContent>
         </Card>
+
+        {/* ── Buy more Peaks ────────────────────────────────────────── */}
+        {/* Suspense: BuyPeaks reads useSearchParams (the ?pack= deep link and
+            Stripe's ?session_id= return), which Next requires a boundary for. */}
+        <Suspense fallback={null}>
+          <BuyPeaks />
+        </Suspense>
 
         {/* ── Rate card ─────────────────────────────────────────────── */}
         <Card>
