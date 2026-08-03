@@ -92,7 +92,22 @@ const inFlightCrons = new Set<string>();
 export function CronToolbar({ crons, requiresConfirmation, onTriggered }: Props) {
   // Hooks must run unconditionally; the production gate decides what to
   // render below, not whether to mount.
-  const [runningCron, setRunningCron] = useState<string | null>(null);
+  //
+  // A SET, not a single slot. Parallel firing is the documented design (see the
+  // per-button comment), but one `string | null` meant firing B overwrote A's
+  // "Running…", and whichever finished FIRST re-enabled both buttons while the
+  // other was still in flight. The module-scoped guard stopped a real
+  // double-fire, so this was only ever confusing — but /cms/crons now renders
+  // 56 buttons, which makes it easy to hit.
+  const [runningCrons, setRunningCrons] = useState<ReadonlySet<string>>(new Set());
+  const startRunning = (cron: string) =>
+    setRunningCrons((prev) => new Set(prev).add(cron));
+  const stopRunning = (cron: string) =>
+    setRunningCrons((prev) => {
+      const next = new Set(prev);
+      next.delete(cron);
+      return next;
+    });
 
   if (isProductionEnv() || crons.length === 0) return null;
 
@@ -103,16 +118,16 @@ export function CronToolbar({ crons, requiresConfirmation, onTriggered }: Props)
     // separate tenant but has real stores on it, and these send real email /
     // hit a real tax portal — a one-click toolbar is the wrong shape for that.
     const needsConfirm = requiresConfirmation?.includes(cron) ?? false;
-    if (
-      needsConfirm &&
-      !window.confirm(
-        `${meta.label} affects things outside Peakhour — it can email real merchants or call an external provider. Run it now?`,
-      )
-    ) {
+    // The cron's OWN description, not a one-size-fits-all sentence. An earlier
+    // draft asserted these "email real merchants or call an external provider",
+    // which is wrong for two of the five: internal-settlement never calls a
+    // gateway, and billing-dunning sends nothing — it freezes access. Guessing
+    // at the danger is how you train people to click through the dialog.
+    if (needsConfirm && !window.confirm(`${meta.label}\n\n${meta.description}\n\nRun it now?`)) {
       return;
     }
     inFlightCrons.add(cron);
-    setRunningCron(cron);
+    startRunning(cron);
     try {
       // The api requires the cron's own name as the confirmation token, so a
       // generic `{confirm:true}` is deliberately not enough.
@@ -162,12 +177,25 @@ export function CronToolbar({ crons, requiresConfirmation, onTriggered }: Props)
       // for a refusal that will never succeed on retry. These two codes are the
       // api telling us something actionable, so say it.
       const code = err instanceof ApiError ? err.code : null;
-      if (code === "CONFIRMATION_REQUIRED") {
-        // Only reachable when this toolbar wasn't told the cron needs
-        // confirming — the api knows and we didn't.
-        toast.error(`${meta.label} needs confirmation`, {
-          description: "This cron reaches outside Peakhour. Run it from the Crons page.",
-        });
+      if (code === "CONFIRMATION_REQUIRED" && !needsConfirm) {
+        // Reachable when the api knows a cron is dangerous and this build
+        // doesn't — an api deployed ahead of b2c, which is the normal order.
+        // Telling the user to "run it from the Crons page" was the one thing
+        // that could never help: /cms/crons is the only surface that passes
+        // `requiresConfirmation`, so it is exactly where they already are.
+        // Ask properly and retry once instead.
+        if (window.confirm(`${meta.label}\n\n${err instanceof ApiError ? err.message : ""}\n\nRun it now?`)) {
+          try {
+            const retry = await api.post<DevCronResult>(`/v1/dev/cron/${cron}`, { confirm: cron });
+            toast.success(summarizeCronBody(cron, retry.body)?.message ?? `${meta.label} complete`);
+            if (retry.ok) onTriggered?.(retry);
+          } catch (retryErr) {
+            console.error(`[CronToolbar] ${cron} retry failed:`, retryErr);
+            toast.error(`${meta.label} couldn't run`, {
+              description: "Please try again in a moment.",
+            });
+          }
+        }
       } else if (code === "DEV_ONLY") {
         toast.error("Cron triggers are disabled here", {
           description: "This environment is treated as production.",
@@ -179,7 +207,7 @@ export function CronToolbar({ crons, requiresConfirmation, onTriggered }: Props)
       }
     } finally {
       inFlightCrons.delete(cron);
-      setRunningCron(null);
+      stopRunning(cron);
     }
   }
 
@@ -200,12 +228,17 @@ export function CronToolbar({ crons, requiresConfirmation, onTriggered }: Props)
         <div className="flex flex-wrap gap-1">
           {crons.map((cron) => {
             const meta = getCronMetadata(cron);
-            const running = runningCron === cron;
+            const running = runningCrons.has(cron);
             // Only disable the in-flight cron's button. Independent crons
             // can fire in parallel — strategist surfaces 5 of them and
             // serializing here would force a ~minute of waiting to
             // exercise the whole row.
             const disabled = running;
+            // Marked from the API's own list rather than a hardcoded set here.
+            // Baking the marker into the label would recreate the drift this
+            // whole change exists to remove: the api would add a sixth
+            // dangerous cron and b2c would render it unmarked.
+            const guarded = requiresConfirmation?.includes(cron) ?? false;
             return (
               <Tooltip key={cron}>
                 <TooltipTrigger asChild>
@@ -217,7 +250,7 @@ export function CronToolbar({ crons, requiresConfirmation, onTriggered }: Props)
                     onClick={() => trigger(cron)}
                     disabled={disabled}
                   >
-                    {running ? "Running…" : meta.label}
+                    {running ? "Running…" : guarded ? `⚠️ ${meta.label}` : meta.label}
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent className="max-w-xs">

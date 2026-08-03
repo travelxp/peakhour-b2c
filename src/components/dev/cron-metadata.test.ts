@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { CRON_METADATA, getCronMetadata } from "./cron-metadata";
+import { CRON_METADATA, getCronMetadata, summarizeCronBody } from "./cron-metadata";
 
 /**
  * Cron metadata vs the crons the api will actually let us fire.
@@ -20,16 +20,33 @@ import { CRON_METADATA, getCronMetadata } from "./cron-metadata";
  */
 
 function readScheduledCrons(): string[] | null {
+  const path = fileURLToPath(new URL("../../../../peakhour-api/vercel.json", import.meta.url));
   try {
-    const path = fileURLToPath(
-      new URL("../../../../peakhour-api/vercel.json", import.meta.url),
-    );
     const config = JSON.parse(readFileSync(path, "utf8")) as {
       crons?: Array<{ path: string }>;
     };
     const names = (config.crons ?? []).map((c) => c.path.replace(/^\/v1\/cron\//, ""));
-    return names.length > 0 ? names.sort() : null;
-  } catch {
+    if (names.length === 0) {
+      // Distinct from "sibling absent": the file parsed and had no crons, which
+      // means the key was renamed or emptied — a real problem, not a skip.
+      throw new Error("vercel.json parsed but listed no crons");
+    }
+    // A path that stopped matching the prefix would survive whole and turn into
+    // a baffling orphan; catch it here where the cause is obvious.
+    const malformed = names.filter((n) => n.includes("/"));
+    if (malformed.length > 0) {
+      throw new Error(`cron paths did not match /v1/cron/: ${malformed.join(", ")}`);
+    }
+    return names;
+  } catch (err) {
+    // Skipping is right for a b2c-only clone, but a SILENT skip turns the two
+    // assertions that matter into invisible no-ops — which is the failure this
+    // whole file exists to prevent, one level up.
+    console.warn(
+      `[cron-metadata.test] Skipping api coverage — could not read ${path}: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
     return null;
   }
 }
@@ -61,18 +78,13 @@ describe("cron metadata coverage", () => {
     }
   });
 
-  it("marks the crons that reach outside Peakhour", () => {
-    // These can email real merchants or call an external provider. The api
-    // refuses them without a confirmation; the label is what warns the operator
-    // BEFORE they click, so it must carry the marker.
-    for (const cron of [
-      "billing-dunning",
-      "billing-reconcile",
-      "shopify-billing-reconcile",
-      "internal-settlement",
-      "einvoice-register",
-    ]) {
-      expect(CRON_METADATA[cron]?.label, cron).toContain("⚠️");
+  it("does not hardcode which crons are dangerous", () => {
+    // The warning marker is rendered from the api's `requiresConfirmation`, not
+    // baked into a label here. Keeping a second list would recreate exactly the
+    // drift this file exists to kill — the api adds a sixth dangerous cron and
+    // b2c renders it unmarked, with nothing failing.
+    for (const [name, meta] of Object.entries(CRON_METADATA)) {
+      expect(meta.label, `${name} hardcodes a warning marker`).not.toContain("⚠️");
     }
   });
 
@@ -80,6 +92,39 @@ describe("cron metadata coverage", () => {
     // Deploys are independent, so the api can list a cron this build predates.
     const meta = getCronMetadata("some-brand-new-cron");
     expect(meta.label).toContain("some-brand-new-cron");
-    expect(meta.frequency).toBeTruthy();
+    expect(meta.frequency).toContain("undocumented");
+  });
+});
+
+describe("summarizeCronBody", () => {
+  // The api has TWO cron response conventions, and reading only `.data` made
+  // every summarizer for the flat ones dead code — five of them, including
+  // ai-credits-rollup, where it turned "charged nothing" into a green success.
+  it("reads a WRAPPED {ok,data} body", () => {
+    const body = JSON.stringify({ ok: true, data: { purged: 3 } });
+    expect(summarizeCronBody("media-hard-delete", body)?.message).toContain("3");
+  });
+
+  it("reads a FLAT body", () => {
+    const body = JSON.stringify({ success: true, processed: 12, topUpDebited: 0, failed: 0 });
+    const summary = summarizeCronBody("ai-credits-rollup", body);
+    expect(summary?.message).toContain("12");
+    expect(summary?.level).toBe("success");
+  });
+
+  it("warns rather than congratulating when the rollup charged nothing", () => {
+    const body = JSON.stringify({ success: true, processed: 0, failed: 0, skipped: 0 });
+    const summary = summarizeCronBody("ai-credits-rollup", body);
+    expect(summary?.level).toBe("warning");
+    expect(summary?.message).toMatch(/no new/i);
+  });
+
+  it("defers to the generic toast on a malformed or truncated body", () => {
+    expect(summarizeCronBody("ai-credits-rollup", "{not json")).toBeNull();
+    expect(summarizeCronBody("ai-credits-rollup", "")).toBeNull();
+  });
+
+  it("returns null for a cron with no summarizer", () => {
+    expect(summarizeCronBody("billing-dunning", JSON.stringify({ ok: true }))).toBeNull();
   });
 });

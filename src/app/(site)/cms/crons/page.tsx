@@ -92,10 +92,16 @@ export default function CmsCronsPage() {
         <>
           <div className="flex items-center gap-2 text-xs">
             <span className="text-muted-foreground">Environment:</span>
-            <Badge variant="outline">{data.env}</Badge>
-            {/* Both signals, because the api's gate consults both — showing one
-                would let this page display an env that didn't decide anything. */}
-            {data.appEnv ? <Badge variant="outline">APP_ENV {data.appEnv}</Badge> : null}
+            {/* Both signals, because the api's gate refuses on EITHER — showing
+                one lets this page display an env that didn't decide anything.
+                `undefined` means an api older than the field; `null` means
+                APP_ENV genuinely isn't set, which is itself the diagnostic
+                (the api can't tell dev from prod without it). Rendering those
+                two identically would hide the case worth seeing. */}
+            <Badge variant="outline">VERCEL_ENV {data.env}</Badge>
+            {data.appEnv !== undefined ? (
+              <Badge variant="outline">APP_ENV {data.appEnv ?? "unset"}</Badge>
+            ) : null}
             <span className="text-muted-foreground">·</span>
             <span className="text-muted-foreground">{data.crons.length} crons</span>
           </div>

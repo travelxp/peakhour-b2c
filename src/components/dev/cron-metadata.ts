@@ -438,8 +438,9 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
 
   // ── Billing + money ────────────────────────────────────────────────
   // Undocumented until now because none of them could be triggered at all
-  // (peakhour-api#1017). ⚠️ marks the ones the api refuses without an explicit
-  // confirmation, because their effects leave Peakhour.
+  // (peakhour-api#1017). Which of these need an explicit confirmation is NOT
+  // recorded here — the api reports it via `requiresConfirmation` and the UI
+  // marks them from that, so there is no second list to drift.
   "ai-credits-rollup": {
     label: "Charge Peaks used",
     frequency: "Runs every minute",
@@ -459,31 +460,31 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
     },
   },
   "billing-dunning": {
-    label: "⚠️ Enforce failed payments",
+    label: "Enforce failed payments",
     frequency: "Runs hourly",
     description:
-      "Ends the grace period for subscriptions whose payment failed, freezing access once retries have run out. Can email real customers — dev has real stores on it.",
+      "Ends the grace period for subscriptions whose payment failed, freezing access once the retry window has run out. Revokes entitlements from real organisations — dev has real stores on it.",
   },
   "billing-reconcile": {
-    label: "⚠️ Re-check card subscriptions",
+    label: "Re-check card subscriptions",
     frequency: "Runs daily at 4am UTC",
     description:
       "Compares every Stripe/Razorpay subscription against what the gateway actually says, correcting anything a dropped webhook left stale — such as a cancellation that never arrived.",
   },
   "shopify-billing-reconcile": {
-    label: "⚠️ Re-check Shopify subscriptions",
+    label: "Re-check Shopify subscriptions",
     frequency: "Runs daily at 3:30am UTC",
     description:
       "The safety net for a dropped Shopify billing webhook. Re-reads each store's live subscription state so an uninstall or cancellation that never reached us stops granting access.",
   },
   "internal-settlement": {
-    label: "⚠️ Settle internal accounts",
-    frequency: "Runs monthly on the 1st",
+    label: "Settle internal accounts",
+    frequency: "Runs monthly (1st, 3:00 AM UTC)",
     description:
       "Produces the notional invoice and matching credit note for non-billable internal orgs, netting to zero. Never calls a payment gateway.",
   },
   "einvoice-register": {
-    label: "⚠️ Register GST e-invoices",
+    label: "Register GST e-invoices",
     frequency: "Runs every 2 hours",
     description:
       "Submits pending B2B GST invoices to the government IRP to obtain an IRN and signed QR code. Talks to a real external tax portal.",
@@ -504,7 +505,7 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
   },
   "site-graph-metrics": {
     label: "Sync page metrics",
-    frequency: "Runs weekly on Monday",
+    frequency: "Runs weekly (Mon 5:00 AM UTC)",
     description:
       "Pulls per-URL clicks and impressions from Search Console into the site graph so page-level performance is current.",
   },
@@ -539,10 +540,10 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       "For each WordPress site with autopilot due, re-checks the site still holds a paid Content entitlement and then publishes the next scheduled piece. A lapsed subscription disables autopilot rather than publishing.",
   },
   "wp-identity-reconcile": {
-    label: "Re-check WordPress identity",
+    label: "Clean up WordPress shells",
     frequency: "Runs daily at 6am UTC",
     description:
-      "Server-side backstop for WordPress sites whose domain or connection changed, so a plugin re-connect can't silently bind a site to the wrong account.",
+      "Deletes leftover placeholder accounts from WordPress silent-connect that ended up with no site attached — after an interrupted claim, for example. Only ever removes a placeholder with zero connections, never a real account.",
   },
 
   // ── Already triggerable, never documented ──────────────────────────
@@ -558,11 +559,17 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
     label: "Convert finished trials",
     frequency: "Runs daily at 3:45am UTC",
     description:
-      "Turns a trial that has run its course into a real billing line on the customer's existing subscription, so the first charge lands on schedule.",
+      "Turns a trial that has run its course into a real billing line on the customer's live payment-gateway subscription, so the first charge lands on schedule. This changes what a real customer is billed.",
+  },
+  "shopify-deadstock-score": {
+    label: "Score dead stock",
+    frequency: "Runs daily at 2:15am UTC",
+    description:
+      "Scores each Shopify store's catalog for stock that isn't selling and writes the diagnosis the Commerce insights read from. Uses AI, so it costs Peaks.",
   },
   "media-overage-snapshot": {
     label: "Snapshot storage overage",
-    frequency: "Runs monthly on the 1st",
+    frequency: "Runs monthly (1st, 6:00 AM UTC)",
     description:
       "Captures how much storage each organisation used beyond its plan for the month that just closed, which is what any overage is billed from.",
   },
@@ -572,17 +579,11 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
     description:
       "Refreshes long-lived Meta tokens for connections nothing has touched recently, so a dormant account doesn't quietly expire and need reconnecting.",
   },
-  "shopify-deadstock-score": {
-    label: "Score dead stock",
-    frequency: "Runs daily at 2:15am UTC",
-    description:
-      "Scores each Shopify store's catalog for stock that isn't selling and writes the diagnosis the Commerce insights read from.",
-  },
   "shopify-voice-card-learn": {
     label: "Learn store voice",
     frequency: "Runs daily at 3:45am UTC",
     description:
-      "Reviews how each Shopify store's assistant has been answering and updates its voice card, so replies sound more like the merchant over time.",
+      "Feeds each merchant's approvals, edits and rejections of AI suggestions back into their voice card, so future suggestions sound more like them. Skips a store until it has enough new verdicts to learn from. Uses AI, so it costs Peaks.",
   },
 };
 
@@ -641,7 +642,15 @@ export function summarizeCronBody(
   if (!summarize || !body) return null;
   try {
     const parsed = JSON.parse(body) as unknown;
-    const data = asRecord(parsed)?.data;
+    const root = asRecord(parsed);
+    // The api has TWO cron response conventions and always has: most handlers
+    // return `{ok, data:{…}}`, but ai-credits-rollup and every media-* cron
+    // return the payload FLAT (`{success, processed, …}`). Reading only `.data`
+    // silently handed `undefined` to those summarizers, so all five returned
+    // null and fell back to "<label> complete" — including, in the rollup's
+    // case, turning a run that charged nothing into a green success, which is
+    // the exact outcome the warning level exists to prevent.
+    const data = root?.data !== undefined ? root.data : root;
     const result = summarize(data);
     if (result == null) return null;
     // Normalize the bare-string form to a success-level object.
