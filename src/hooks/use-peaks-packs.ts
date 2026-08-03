@@ -84,9 +84,11 @@ export function confirmPackPurchase(
   credits?: number;
   packKey?: string;
   /** "pending" — ours, still settling (safe to reassure the buyer).
-   *  "not_found" — not a pack session of ours; affirming a payment for it
-   *  would be a money claim we cannot support. */
-  reason?: "pending" | "not_found" | "unconfigured";
+   *  Anything else means we established nothing ("unknown"), it isn't ours
+   *  ("not_found"), Stripe isn't wired ("unconfigured"), or the charge landed
+   *  and NOBODY credited ("not_credited"). None of those may be reported to
+   *  the buyer as a received payment. */
+  reason?: "pending" | "not_found" | "unknown" | "unconfigured" | "not_credited";
 }> {
   return api.post("/v1/billing/packs/confirm", { sessionId });
 }

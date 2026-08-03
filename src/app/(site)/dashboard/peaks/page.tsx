@@ -256,10 +256,14 @@ function BuyPeaks() {
           toast.success(
             res.credits ? `${res.credits.toLocaleString()} Peaks added.` : "Your Peaks have been added.",
           );
-        } else if (res.reason === "not_found") {
-          // The id isn't a pack session of ours. Saying "payment received"
-          // for any `cs_…` in the address bar would be an affirmative money
-          // claim we cannot support.
+        } else if (res.reason !== "pending") {
+          // ★ALLOWLIST, not a denylist. Only "pending" means "this really is
+          // your purchase and the money is still settling". Everything else —
+          // a retrieve that threw, a session that isn't ours, Stripe unwired,
+          // or a charge nobody credited — establishes nothing, and an
+          // affirmative money claim is the wrong default when we don't know.
+          // Reporting the benign case by elimination is how
+          // `?session_id=cs_anything` came to say "Payment received".
           void 0;
         } else {
           // NOT silence. `credited:false` means the session is still finalising
