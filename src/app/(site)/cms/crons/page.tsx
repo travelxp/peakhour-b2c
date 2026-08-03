@@ -1,9 +1,11 @@
 "use client";
 
 /**
- * /cms/crons — Dev cron hub. Lists every cron handler that can be
- * manually triggered (the same whitelist the api enforces) with a
- * one-click "Run now" button per row.
+ * /cms/crons — Dev cron hub. Lists every cron handler that can be manually
+ * triggered (the same whitelist the api enforces), with the <CronToolbar/>
+ * above holding the actual trigger buttons — the rows below are reference,
+ * not controls. Crons whose effects leave Peakhour are marked and confirm
+ * before firing; which those are comes from the api, never a list here.
  *
  * Vercel Cron only runs on production deployments, so previews + local
  * dev had no UI way to exercise cron paths. This page is the central
@@ -26,7 +28,14 @@ import { AlertTriangle, Zap } from "lucide-react";
 
 interface DevCronList {
   env: string;
+  /** APP_ENV, which the api's production gate also consults — reported so this
+   *  page can't show an environment that disagrees with the one that decided. */
+  appEnv?: string | null;
   crons: string[];
+  /** Crons the api refuses without an explicit confirmation. Optional because
+   *  this page and the api deploy separately; absent simply means no cron is
+   *  pre-confirmed here and the api's own refusal is the backstop. */
+  requiresConfirmation?: string[];
 }
 
 export default function CmsCronsPage() {
@@ -85,25 +94,48 @@ export default function CmsCronsPage() {
         <>
           <div className="flex items-center gap-2 text-xs">
             <span className="text-muted-foreground">Environment:</span>
-            <Badge variant="outline">{data.env}</Badge>
+            {/* Both signals, because the api's gate refuses on EITHER — showing
+                one lets this page display an env that didn't decide anything.
+                `undefined` means an api older than the field; `null` means
+                APP_ENV genuinely isn't set, which is itself the diagnostic
+                (the api can't tell dev from prod without it). Rendering those
+                two identically would hide the case worth seeing. */}
+            <Badge variant="outline">VERCEL_ENV {data.env}</Badge>
+            {data.appEnv !== undefined ? (
+              <Badge variant="outline">APP_ENV {data.appEnv ?? "unset"}</Badge>
+            ) : null}
             <span className="text-muted-foreground">·</span>
             <span className="text-muted-foreground">{data.crons.length} crons</span>
           </div>
           {/* The toolbar pattern, applied to every cron at once — same
-              friendly labels + hover tooltips as the per-page toolbars. */}
-          <CronToolbar crons={data.crons} />
+              friendly labels + hover tooltips as the per-page toolbars.
+              `requiresConfirmation` comes straight from the api so the
+              dangerous ones ask before firing rather than 400-ing into a
+              "try again" that can never succeed. */}
+          <CronToolbar crons={data.crons} requiresConfirmation={data.requiresConfirmation} />
           <Card>
             <CardContent className="pt-6">
               <div className="grid gap-2">
                 {data.crons.map((name) => {
                   const meta = getCronMetadata(name);
+                  // The same marker the toolbar button carries. Without it the
+                  // identical cron reads as dangerous above and ordinary in the
+                  // list right below, which teaches people to ignore the ⚠️.
+                  const guarded = data.requiresConfirmation?.includes(name) ?? false;
                   return (
                     <div
                       key={name}
                       className="flex items-start justify-between border-b pb-2 last:border-b-0 last:pb-0"
                     >
                       <div className="flex flex-col">
-                        <span className="font-medium text-sm">{meta.label}</span>
+                        <span className="font-medium text-sm">
+                          {guarded ? `⚠️ ${meta.label}` : meta.label}
+                        </span>
+                        {guarded ? (
+                          <span className="text-xs font-medium text-amber-600 dark:text-amber-500">
+                            Reaches outside Peakhour — asks before running
+                          </span>
+                        ) : null}
                         <span className="text-xs text-muted-foreground">
                           {meta.frequency}
                         </span>

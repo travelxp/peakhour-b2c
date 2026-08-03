@@ -42,8 +42,8 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { toast } from "sonner";
-import { api } from "@/lib/api";
-import { getCronMetadata, summarizeCronBody } from "./cron-metadata";
+import { api, ApiError } from "@/lib/api";
+import { CRON_METADATA, getCronMetadata, summarizeCronBody } from "./cron-metadata";
 
 interface DevCronResult {
   cron: string;
@@ -57,6 +57,18 @@ interface DevCronResult {
 interface Props {
   /** Ordered list of cron names. The toolbar renders one button per name. */
   crons: readonly string[];
+  /**
+   * Crons the api refuses to fire without `{"confirm":"<name>"}` — its effects
+   * leave our database (a customer email, an external tax portal, a payment
+   * gateway). Comes from `GET /v1/dev/cron`; pass it through rather than
+   * hardcoding, so the api stays the single source of truth for what is
+   * dangerous.
+   *
+   * Omitted on the per-page toolbars, which list only everyday crons. A cron
+   * that turns out to need confirmation without being named here still can't
+   * fire by accident — the api refuses and the toast says exactly why.
+   */
+  requiresConfirmation?: readonly string[];
   /** Optional callback fired ONLY when the cron handler responded 2xx
    *  (result.ok === true). Host pages typically use this to invalidate
    *  the React Query keys whose data the cron just mutated; invalidating
@@ -77,64 +89,160 @@ function isProductionEnv(): boolean {
 // in-flight cron registers itself here and unregisters in the finally.
 const inFlightCrons = new Set<string>();
 
-export function CronToolbar({ crons, onTriggered }: Props) {
+/**
+ * The confirmation prompt for a cron whose effects leave our database.
+ *
+ * Leads with the cron's OWN description rather than one blanket sentence: an
+ * earlier draft asserted these "email real merchants or call an external
+ * provider", which is wrong for two of the five — internal-settlement never
+ * calls a gateway and billing-dunning sends nothing, it freezes access.
+ * Guessing at the danger is how you train people to click straight through.
+ *
+ * But `requiresConfirmation` is RUNTIME data from the api, so the newly
+ * dangerous cron is precisely the one this build may have no metadata for — and
+ * the fallback description is a note to a developer ("Add this cron to
+ * cron-metadata.ts"), which tells the person clicking nothing at all. So the
+ * consequence line is always appended; it is the only part guaranteed to be
+ * true and useful for a cron we have never heard of.
+ */
+function confirmText(cron: string, meta: { label: string; description: string }): string {
+  const known = cron in CRON_METADATA;
+  return [
+    meta.label,
+    "",
+    known ? meta.description : `The "${cron}" cron.`,
+    "",
+    "This one has effects outside Peakhour — it can reach real customers or an external provider.",
+    "",
+    "Run it now?",
+  ].join("\n");
+}
+
+export function CronToolbar({ crons, requiresConfirmation, onTriggered }: Props) {
   // Hooks must run unconditionally; the production gate decides what to
   // render below, not whether to mount.
-  const [runningCron, setRunningCron] = useState<string | null>(null);
+  //
+  // A SET, not a single slot. Parallel firing is the documented design (see the
+  // per-button comment), but one `string | null` meant firing B overwrote A's
+  // "Running…", and whichever finished FIRST re-enabled both buttons while the
+  // other was still in flight. The module-scoped guard stopped a real
+  // double-fire, so this was only ever confusing — but /cms/crons now renders
+  // 56 buttons, which makes it easy to hit.
+  const [runningCrons, setRunningCrons] = useState<ReadonlySet<string>>(new Set());
+  const startRunning = (cron: string) =>
+    setRunningCrons((prev) => new Set(prev).add(cron));
+  const stopRunning = (cron: string) =>
+    setRunningCrons((prev) => {
+      const next = new Set(prev);
+      next.delete(cron);
+      return next;
+    });
 
   if (isProductionEnv() || crons.length === 0) return null;
 
+  /**
+   * What to do with a dev-cron response, for EVERY path that gets one.
+   *
+   * Extracted because the confirmation-retry path grew its own copy and
+   * immediately diverged: it toasted success without checking `ok`, so a cron
+   * that 500'd inside the dev route's 200 envelope reported green with nothing
+   * logged — on the retry path for the dangerous crons, of all places. Two
+   * copies of this will always drift; one cannot.
+   */
+  function handleResult(cron: string, label: string, res: DevCronResult) {
+    if (res.ok) {
+      // Show a clean, user-facing line — never the raw cron JSON. The per-cron
+      // summarizer turns the response payload into something like "12 posts
+      // synced successfully."; absent one, we fall back to a generic "<label>
+      // complete". A summarizer can flag `level:"warning"` for a 2xx run that
+      // did nothing useful (e.g. a sync that skipped every connection because
+      // none is configured) so a no-op stops reading as a green success. The
+      // raw body + timing still go to the dev console for debugging.
+      const summary = summarizeCronBody(cron, res.body);
+      if (summary?.level === "warning") {
+        toast.warning(summary.message);
+      } else {
+        toast.success(summary?.message ?? `${label} complete`);
+      }
+      if (res.body) {
+        console.debug(`[CronToolbar] ${cron} ok in ${res.durationMs}ms:`, res.body);
+      }
+      // A truncated body can't be JSON.parsed, so the summary silently
+      // disappears and the toast falls back to "<label> complete". Say so in
+      // the console rather than leaving it looking like a missing summarizer.
+      if (res.truncated) {
+        console.debug(`[CronToolbar] ${cron} body was truncated — no summary available.`);
+      }
+      // Success-only callback — see Props.onTriggered jsdoc. A failed cron run
+      // already surfaced via the toast.error branch; the host page doesn't need
+      // to invalidate queries for a no-op or error.
+      onTriggered?.(res);
+    } else {
+      // Keep the failure toast friendly too — the HTTP status + body are dev
+      // detail, not something to surface verbatim. Log them instead.
+      console.error(`[CronToolbar] ${cron} failed: HTTP ${res.status}`, res.body);
+      toast.error(`${label} didn't complete`, {
+        description: "Please try again in a moment.",
+      });
+    }
+  }
+
   async function trigger(cron: string) {
     if (inFlightCrons.has(cron)) return;
-    inFlightCrons.add(cron);
-    setRunningCron(cron);
     const meta = getCronMetadata(cron);
+    // Ask BEFORE firing anything whose effects leave our database. Dev is a
+    // separate tenant but has real stores on it, and these send real email /
+    // hit a real tax portal — a one-click toolbar is the wrong shape for that.
+    const needsConfirm = requiresConfirmation?.includes(cron) ?? false;
+    if (needsConfirm && !window.confirm(confirmText(cron, meta))) {
+      return;
+    }
+    inFlightCrons.add(cron);
+    startRunning(cron);
     try {
-      const res = await api.post<DevCronResult>(`/v1/dev/cron/${cron}`, {});
-      if (res.ok) {
-        // Show a clean, user-facing line — never the raw cron JSON. The
-        // per-cron summarizer turns the response payload into something like
-        // "12 posts synced successfully."; absent one, we fall back to a
-        // generic "<label> complete". A summarizer can flag `level:"warning"`
-        // for a 2xx run that did nothing useful (e.g. a sync that skipped
-        // every connection because none is configured) so a no-op stops
-        // reading as a green success. The raw body + timing still go to the
-        // dev console for debugging.
-        const summary = summarizeCronBody(cron, res.body);
-        if (summary?.level === "warning") {
-          toast.warning(summary.message);
-        } else {
-          toast.success(summary?.message ?? `${meta.label} complete`);
+      // The api requires the cron's own name as the confirmation token, so a
+      // generic `{confirm:true}` is deliberately not enough.
+      const res = await api.post<DevCronResult>(
+        `/v1/dev/cron/${cron}`,
+        needsConfirm ? { confirm: cron } : {},
+      );
+      handleResult(cron, meta.label, res);
+    } catch (err) {
+      console.error(`[CronToolbar] ${cron} request failed:`, err);
+      // "Try again in a moment" is right for a flake and actively misleading
+      // for a refusal that will never succeed on retry. These two codes are the
+      // api telling us something actionable, so say it.
+      const code = err instanceof ApiError ? err.code : null;
+      if (code === "CONFIRMATION_REQUIRED" && !needsConfirm) {
+        // Reachable when the api knows a cron is dangerous and this build
+        // doesn't — an api deployed ahead of b2c, which is the normal order.
+        // Telling the user to "run it from the Crons page" was the one thing
+        // that could never help: /cms/crons is the only surface that passes
+        // `requiresConfirmation`, so it is exactly where they already are.
+        // Ask properly and retry once instead.
+        if (window.confirm(confirmText(cron, meta))) {
+          try {
+            const retry = await api.post<DevCronResult>(`/v1/dev/cron/${cron}`, { confirm: cron });
+            handleResult(cron, meta.label, retry);
+          } catch (retryErr) {
+            console.error(`[CronToolbar] ${cron} retry failed:`, retryErr);
+            toast.error(`${meta.label} couldn't run`, {
+              description: "Please try again in a moment.",
+            });
+          }
         }
-        if (res.body) {
-          console.debug(
-            `[CronToolbar] ${cron} ok in ${res.durationMs}ms:`,
-            res.body,
-          );
-        }
-        // Success-only callback — see Props.onTriggered jsdoc. A failed
-        // cron run already surfaced via the toast.error branch; the host
-        // page doesn't need to invalidate queries for a no-op or error.
-        onTriggered?.(res);
+      } else if (code === "DEV_ONLY") {
+        toast.error("Cron triggers are disabled here", {
+          description: "This environment is treated as production.",
+        });
       } else {
-        // Keep the failure toast friendly too — the HTTP status + body are
-        // dev detail, not something to surface verbatim. Log them instead.
-        console.error(
-          `[CronToolbar] ${cron} failed: HTTP ${res.status}`,
-          res.body,
-        );
-        toast.error(`${meta.label} didn't complete`, {
+        toast.error(`${meta.label} couldn't run`, {
           description: "Please try again in a moment.",
         });
       }
-    } catch (err) {
-      console.error(`[CronToolbar] ${cron} request failed:`, err);
-      toast.error(`${meta.label} couldn't run`, {
-        description: "Please try again in a moment.",
-      });
     } finally {
       inFlightCrons.delete(cron);
-      setRunningCron(null);
+      stopRunning(cron);
     }
   }
 
@@ -155,12 +263,17 @@ export function CronToolbar({ crons, onTriggered }: Props) {
         <div className="flex flex-wrap gap-1">
           {crons.map((cron) => {
             const meta = getCronMetadata(cron);
-            const running = runningCron === cron;
+            const running = runningCrons.has(cron);
             // Only disable the in-flight cron's button. Independent crons
             // can fire in parallel — strategist surfaces 5 of them and
             // serializing here would force a ~minute of waiting to
             // exercise the whole row.
             const disabled = running;
+            // Marked from the API's own list rather than a hardcoded set here.
+            // Baking the marker into the label would recreate the drift this
+            // whole change exists to remove: the api would add a sixth
+            // dangerous cron and b2c would render it unmarked.
+            const guarded = requiresConfirmation?.includes(cron) ?? false;
             return (
               <Tooltip key={cron}>
                 <TooltipTrigger asChild>
@@ -171,8 +284,9 @@ export function CronToolbar({ crons, onTriggered }: Props) {
                     className="h-6 px-2 text-xs"
                     onClick={() => trigger(cron)}
                     disabled={disabled}
+                    aria-busy={running}
                   >
-                    {running ? "Running…" : meta.label}
+                    {running ? "Running…" : guarded ? `⚠️ ${meta.label}` : meta.label}
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent className="max-w-xs">
@@ -181,6 +295,13 @@ export function CronToolbar({ crons, onTriggered }: Props) {
                     {meta.frequency}
                   </p>
                   <p className="text-xs mt-1">{meta.description}</p>
+                  {/* Says what the ⚠️ MEANS. An unexplained emoji on a button
+                      is a warning nobody can act on. */}
+                  {guarded ? (
+                    <p className="text-xs mt-1 font-medium">
+                      ⚠️ Reaches outside Peakhour — asks before running.
+                    </p>
+                  ) : null}
                   <p className="text-[10px] text-muted-foreground mt-1 font-mono">
                     cron: {cron}
                   </p>
