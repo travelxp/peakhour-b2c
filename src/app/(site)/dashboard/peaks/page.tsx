@@ -33,6 +33,7 @@ import {
 } from "@/hooks/use-peaks-packs";
 import { PaymentModal, type CheckoutResult } from "@/components/upgrade/payment-modal";
 import { ApiError } from "@/lib/api";
+import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { toastUnhandledApiError } from "@/lib/toast-errors";
 
 /**
@@ -436,6 +437,7 @@ export default function PeaksPage() {
   const { data: balance, isLoading: balanceLoading } = useCreditsBalance();
   const { data: rateCard, isLoading: rateLoading } = useCreditsRateCard();
   const [historyOpen, setHistoryOpen] = useState(false);
+  const pageQc = useQueryClient();
 
   const pct =
     balance && !balance.unlimited && balance.hardCap > 0
@@ -456,6 +458,21 @@ export default function PeaksPage() {
       <UsageHistorySheet open={historyOpen} onOpenChange={setHistoryOpen} />
 
       <div className="space-y-6">
+        {/* The architecture requirement, applied to the page it matters most on:
+            every number here is downstream of ai-credits-rollup, and on dev
+            Vercel never fires it. Without this the balance sits at 0 used
+            forever while "Where your Peaks go" fills up, which is exactly how
+            the wallet looked broken. */}
+        <CronToolbar
+          crons={["ai-credits-rollup"]}
+          onTriggered={() => {
+            // Balance AND history: the rollup writes the meters both read, so
+            // refreshing one would leave the page disagreeing with itself.
+            void pageQc.invalidateQueries({ queryKey: ["/v1/dashboard/credits"] });
+            void pageQc.invalidateQueries({ queryKey: ["/v1/dashboard/credits/history"] });
+          }}
+        />
+
         {/* Page header */}
         <div className="flex items-start justify-between gap-4">
           <div>

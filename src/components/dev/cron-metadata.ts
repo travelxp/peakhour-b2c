@@ -435,6 +435,155 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       return `${parts.join(", ")}.`;
     },
   },
+
+  // ── Billing + money ────────────────────────────────────────────────
+  // Undocumented until now because none of them could be triggered at all
+  // (peakhour-api#1017). ⚠️ marks the ones the api refuses without an explicit
+  // confirmation, because their effects leave Peakhour.
+  "ai-credits-rollup": {
+    label: "Charge Peaks used",
+    frequency: "Runs every minute",
+    description:
+      "Turns AI work already done into Peaks charged against each plan's allowance. Until this runs, usage shows under 'Where your Peaks go' but no balance has moved. Only covers the last 6 hours, so it can't backfill older usage.",
+    summarize: (data) => {
+      const d = asRecord(data);
+      if (!d) return null;
+      const processed = num(d.processed);
+      if (processed === 0) {
+        return { message: "No new AI usage to charge.", level: "warning" };
+      }
+      const parts = [`${processed} AI ${plural(processed, "call")} charged`];
+      if (num(d.topUpDebited) > 0) parts.push(`${num(d.topUpDebited)} Peaks drawn from top-ups`);
+      if (num(d.failed) > 0) parts.push(`${num(d.failed)} failed`);
+      return `${parts.join(", ")}.`;
+    },
+  },
+  "billing-dunning": {
+    label: "⚠️ Enforce failed payments",
+    frequency: "Runs hourly",
+    description:
+      "Ends the grace period for subscriptions whose payment failed, freezing access once retries have run out. Can email real customers — dev has real stores on it.",
+  },
+  "billing-reconcile": {
+    label: "⚠️ Re-check card subscriptions",
+    frequency: "Runs daily at 4am UTC",
+    description:
+      "Compares every Stripe/Razorpay subscription against what the gateway actually says, correcting anything a dropped webhook left stale — such as a cancellation that never arrived.",
+  },
+  "shopify-billing-reconcile": {
+    label: "⚠️ Re-check Shopify subscriptions",
+    frequency: "Runs daily at 3:30am UTC",
+    description:
+      "The safety net for a dropped Shopify billing webhook. Re-reads each store's live subscription state so an uninstall or cancellation that never reached us stops granting access.",
+  },
+  "internal-settlement": {
+    label: "⚠️ Settle internal accounts",
+    frequency: "Runs monthly on the 1st",
+    description:
+      "Produces the notional invoice and matching credit note for non-billable internal orgs, netting to zero. Never calls a payment gateway.",
+  },
+  "einvoice-register": {
+    label: "⚠️ Register GST e-invoices",
+    frequency: "Runs every 2 hours",
+    description:
+      "Submits pending B2B GST invoices to the government IRP to obtain an IRN and signed QR code. Talks to a real external tax portal.",
+  },
+
+  // ── Site graph, analytics + integrations ───────────────────────────
+  "site-graph-health": {
+    label: "Check link health",
+    frequency: "Runs every 6 hours",
+    description:
+      "Scans a batch of the least-recently-checked pages for broken links and redirects, so the site graph reflects what visitors actually hit.",
+  },
+  "site-graph-inspection": {
+    label: "Sync URL inspection",
+    frequency: "Runs daily at 4am UTC",
+    description:
+      "Asks Google Search Console how it sees a batch of your URLs — indexed, excluded, or blocked — and stores the verdict against each page.",
+  },
+  "site-graph-metrics": {
+    label: "Sync page metrics",
+    frequency: "Runs weekly on Monday",
+    description:
+      "Pulls per-URL clicks and impressions from Search Console into the site graph so page-level performance is current.",
+  },
+  "pin-rollup": {
+    label: "Roll up network insights",
+    frequency: "Runs daily at 4am UTC",
+    description:
+      "Contributes anonymised, consent-gated catalog signals to the Insights Network and refreshes the benchmarks each business sees. Never carries a business identifier.",
+  },
+  "linkedin-conversion-stream": {
+    label: "Send conversions to LinkedIn",
+    frequency: "Runs daily at 5am UTC",
+    description:
+      "Streams matured lead attribution back to LinkedIn's Conversions API so ad reporting closes the loop on what actually converted.",
+  },
+  "integration-fit-reconcile": {
+    label: "Flag mismatched connections",
+    frequency: "Runs daily at 6:30am UTC",
+    description:
+      "Finds existing connections whose brand doesn't match the business that owns them — pollution the connect-time guard now prevents but can't retroactively clean.",
+  },
+  "support-sla-sweep": {
+    label: "Flag overdue support",
+    frequency: "Runs hourly",
+    description:
+      "Marks open inbox items whose first-response or resolution deadline has passed, so a breach surfaces instead of ageing quietly.",
+  },
+  "wp-autopilot": {
+    label: "Run WordPress autopilot",
+    frequency: "Runs hourly",
+    description:
+      "For each WordPress site with autopilot due, re-checks the site still holds a paid Content entitlement and then publishes the next scheduled piece. A lapsed subscription disables autopilot rather than publishing.",
+  },
+  "wp-identity-reconcile": {
+    label: "Re-check WordPress identity",
+    frequency: "Runs daily at 6am UTC",
+    description:
+      "Server-side backstop for WordPress sites whose domain or connection changed, so a plugin re-connect can't silently bind a site to the wrong account.",
+  },
+
+  // ── Already triggerable, never documented ──────────────────────────
+  // Surfaced by the coverage test: these were on the api's allowlist all along
+  // but had no entry here, so they rendered as "Run fx-rates" with no schedule.
+  "fx-rates": {
+    label: "Refresh exchange rates",
+    frequency: "Runs daily at 4:30am UTC",
+    description:
+      "Pulls fresh USD-base currency rates so revenue reported in USD reflects today's rates rather than the day a sale happened to land.",
+  },
+  "trial-conversion-sweep": {
+    label: "Convert finished trials",
+    frequency: "Runs daily at 3:45am UTC",
+    description:
+      "Turns a trial that has run its course into a real billing line on the customer's existing subscription, so the first charge lands on schedule.",
+  },
+  "media-overage-snapshot": {
+    label: "Snapshot storage overage",
+    frequency: "Runs monthly on the 1st",
+    description:
+      "Captures how much storage each organisation used beyond its plan for the month that just closed, which is what any overage is billed from.",
+  },
+  "meta-token-keepalive": {
+    label: "Keep Meta tokens alive",
+    frequency: "Runs daily at 4am UTC",
+    description:
+      "Refreshes long-lived Meta tokens for connections nothing has touched recently, so a dormant account doesn't quietly expire and need reconnecting.",
+  },
+  "shopify-deadstock-score": {
+    label: "Score dead stock",
+    frequency: "Runs daily at 2:15am UTC",
+    description:
+      "Scores each Shopify store's catalog for stock that isn't selling and writes the diagnosis the Commerce insights read from.",
+  },
+  "shopify-voice-card-learn": {
+    label: "Learn store voice",
+    frequency: "Runs daily at 3:45am UTC",
+    description:
+      "Reviews how each Shopify store's assistant has been answering and updates its voice card, so replies sound more like the merchant over time.",
+  },
 };
 
 /** Fallback for a cron name not yet documented in CRON_METADATA. The UI

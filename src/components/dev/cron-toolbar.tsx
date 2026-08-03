@@ -42,7 +42,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { toast } from "sonner";
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import { getCronMetadata, summarizeCronBody } from "./cron-metadata";
 
 interface DevCronResult {
@@ -57,6 +57,18 @@ interface DevCronResult {
 interface Props {
   /** Ordered list of cron names. The toolbar renders one button per name. */
   crons: readonly string[];
+  /**
+   * Crons the api refuses to fire without `{"confirm":"<name>"}` — its effects
+   * leave our database (a customer email, an external tax portal, a payment
+   * gateway). Comes from `GET /v1/dev/cron`; pass it through rather than
+   * hardcoding, so the api stays the single source of truth for what is
+   * dangerous.
+   *
+   * Omitted on the per-page toolbars, which list only everyday crons. A cron
+   * that turns out to need confirmation without being named here still can't
+   * fire by accident — the api refuses and the toast says exactly why.
+   */
+  requiresConfirmation?: readonly string[];
   /** Optional callback fired ONLY when the cron handler responded 2xx
    *  (result.ok === true). Host pages typically use this to invalidate
    *  the React Query keys whose data the cron just mutated; invalidating
@@ -77,7 +89,7 @@ function isProductionEnv(): boolean {
 // in-flight cron registers itself here and unregisters in the finally.
 const inFlightCrons = new Set<string>();
 
-export function CronToolbar({ crons, onTriggered }: Props) {
+export function CronToolbar({ crons, requiresConfirmation, onTriggered }: Props) {
   // Hooks must run unconditionally; the production gate decides what to
   // render below, not whether to mount.
   const [runningCron, setRunningCron] = useState<string | null>(null);
@@ -86,11 +98,28 @@ export function CronToolbar({ crons, onTriggered }: Props) {
 
   async function trigger(cron: string) {
     if (inFlightCrons.has(cron)) return;
+    const meta = getCronMetadata(cron);
+    // Ask BEFORE firing anything whose effects leave our database. Dev is a
+    // separate tenant but has real stores on it, and these send real email /
+    // hit a real tax portal — a one-click toolbar is the wrong shape for that.
+    const needsConfirm = requiresConfirmation?.includes(cron) ?? false;
+    if (
+      needsConfirm &&
+      !window.confirm(
+        `${meta.label} affects things outside Peakhour — it can email real merchants or call an external provider. Run it now?`,
+      )
+    ) {
+      return;
+    }
     inFlightCrons.add(cron);
     setRunningCron(cron);
-    const meta = getCronMetadata(cron);
     try {
-      const res = await api.post<DevCronResult>(`/v1/dev/cron/${cron}`, {});
+      // The api requires the cron's own name as the confirmation token, so a
+      // generic `{confirm:true}` is deliberately not enough.
+      const res = await api.post<DevCronResult>(
+        `/v1/dev/cron/${cron}`,
+        needsConfirm ? { confirm: cron } : {},
+      );
       if (res.ok) {
         // Show a clean, user-facing line — never the raw cron JSON. The
         // per-cron summarizer turns the response payload into something like
@@ -129,9 +158,25 @@ export function CronToolbar({ crons, onTriggered }: Props) {
       }
     } catch (err) {
       console.error(`[CronToolbar] ${cron} request failed:`, err);
-      toast.error(`${meta.label} couldn't run`, {
-        description: "Please try again in a moment.",
-      });
+      // "Try again in a moment" is right for a flake and actively misleading
+      // for a refusal that will never succeed on retry. These two codes are the
+      // api telling us something actionable, so say it.
+      const code = err instanceof ApiError ? err.code : null;
+      if (code === "CONFIRMATION_REQUIRED") {
+        // Only reachable when this toolbar wasn't told the cron needs
+        // confirming — the api knows and we didn't.
+        toast.error(`${meta.label} needs confirmation`, {
+          description: "This cron reaches outside Peakhour. Run it from the Crons page.",
+        });
+      } else if (code === "DEV_ONLY") {
+        toast.error("Cron triggers are disabled here", {
+          description: "This environment is treated as production.",
+        });
+      } else {
+        toast.error(`${meta.label} couldn't run`, {
+          description: "Please try again in a moment.",
+        });
+      }
     } finally {
       inFlightCrons.delete(cron);
       setRunningCron(null);
