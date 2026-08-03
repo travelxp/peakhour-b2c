@@ -250,7 +250,36 @@ export function AuthFlow({
       return undefined;
     }
   })();
-  const [email, setEmail] = useState("");
+  /**
+   * Shopify dashboard handoff, first visit. `/embedded/dashboard/link` sends the
+   * merchant here with the store connection, their Shopify staff `sub`, and the
+   * address the linked org already holds — so the sign-in they still have to
+   * complete costs one click instead of typing an email we have had since the
+   * store connected. Completing it records the mapping; there is no second time.
+   *
+   * The store/sub pair is carried back to the magic-link request as an
+   * unverified HINT. It grants nothing: the mapping is only written after the
+   * mailbox is proven, and only if the confirmed user turns out to belong to
+   * that store's org.
+   */
+  const shopifyHandoff = (() => {
+    const store = searchParams.get("store");
+    const sub = searchParams.get("sub");
+    return store && sub ? { store, sub } : undefined;
+  })();
+
+  /**
+   * Prefilled address. Only ever a PREFILL — the link still goes to whatever
+   * address is submitted, so a wrong guess costs a correction, never access.
+   * Trimmed and length-capped here so a junk query param can't be pushed
+   * straight into the request; the field stays editable either way.
+   */
+  const prefillEmail = (() => {
+    const raw = searchParams.get("email")?.trim() ?? "";
+    return raw.length > 0 && raw.length <= 256 && raw.includes("@") ? raw : "";
+  })();
+
+  const [email, setEmail] = useState(prefillEmail);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   // Tick once per second while a cooldown is running so the button
   // label re-renders. A single shared timestamp + Math.ceil derives
@@ -398,6 +427,7 @@ export function AuthFlow({
       const res = await sendMagicLink(targetEmail, {
         ...(next ? { returnTo: next } : {}),
         ...(shopifyClaim ? { shopifyClaim } : {}),
+        ...(shopifyHandoff ? { shopifyHandoff } : {}),
       });
       // Pre-launch invite gate: the endpoint may return without sending a
       // link. Branch to the matching card instead of the "check your email"
