@@ -135,14 +135,6 @@ export async function sendMagicLink(
     /** Shopify claim context — admits a merchant's email through the pre-launch
      *  gate when the token is valid (server re-checks it). */
     shopifyClaim?: { store: string; token: string };
-    /** Shopify dashboard-handoff context: a SIGNED statement, minted by
-     *  `/embedded/dashboard/link`, naming the store connection and the Shopify
-     *  staff user holding that admin session. Carried so a CONFIRMED sign-in
-     *  records the mapping and this person never types an email for this store
-     *  again. Opaque here — the server verifies the signature and reads the pins
-     *  out of it; an unsigned pair would let a teammate claim someone else's
-     *  staff id and receive their next session. */
-    shopifyHandoff?: { intent: string };
   },
 ): Promise<{ outcome?: MagicLinkOutcome; message: string }> {
   return api.post<{ outcome?: MagicLinkOutcome; message: string }>(
@@ -151,25 +143,8 @@ export async function sendMagicLink(
       email,
       ...(opts?.returnTo ? { returnTo: opts.returnTo } : {}),
       ...(opts?.shopifyClaim ? { shopifyClaim: opts.shopifyClaim } : {}),
-      ...(opts?.shopifyHandoff ? { shopifyHandoff: opts.shopifyHandoff } : {}),
     },
   );
-}
-
-/**
- * Spend a one-time Shopify dashboard-handoff token for a session.
- *
- * Unauthenticated by necessity — the caller arrives from the Shopify admin with
- * no peakhour.ai session, which is the whole reason the token exists. The token
- * is single-use and lives for minutes; the server re-checks at spend time that
- * the store still exists and the user is still a member of its org.
- */
-export async function redeemShopifyHandoff(
-  token: string,
-): Promise<{ user: AuthUser; redirectTo: string }> {
-  return api.post<{ user: AuthUser; redirectTo: string }>("/v1/auth/shopify-handoff", {
-    token,
-  });
 }
 
 export async function verifyMagicLink(

@@ -223,7 +223,8 @@ export function AuthFlow({
     const upper = raw.toUpperCase();
     return REFERRAL_CODE_PATTERN.test(upper) ? upper : null;
   })();
-  const handoffFrag =
+  /** Params the embedded Shopify app puts in the fragment (`email`, `next`). */
+  const shopifyFrag =
     typeof window === "undefined" ? null : new URLSearchParams(window.location.hash.slice(1));
   // `?next=` — where to return after verify (server sanitizes it to same-origin).
   // Only same-origin relative paths are forwarded.
@@ -231,7 +232,7 @@ export function AuthFlow({
     // Fragment first: the Shopify sign-in link puts `h`, `email` AND `next`
     // there. Reading only the query silently dropped every first-visit deep
     // link from the embedded app onto /dashboard/overview.
-    const raw = handoffFrag?.get("next") ?? searchParams.get("next");
+    const raw = shopifyFrag?.get("next") ?? searchParams.get("next");
     // Same-origin relative only: single leading slash, no protocol-relative
     // form (// or /\ — browsers normalize backslash to slash). The server and
     // the verify page re-validate; this just avoids forwarding a doomed value.
@@ -256,45 +257,27 @@ export function AuthFlow({
     }
   })();
   /**
-   * Shopify dashboard handoff, first visit. `/embedded/dashboard/link` sends the
-   * merchant here with a SIGNED intent naming the store and their Shopify staff
-   * user, plus the address the linked org already holds — so the sign-in they
-   * still have to complete costs one click instead of typing an email we have
-   * had since the store connected. Completing it records the mapping; there is
-   * no second time.
+   * Prefilled address, carried in the fragment by the embedded Shopify app's
+   * "Open Peakhour Dashboard" — the org's own account email, so there is
+   * nothing to type. Only ever a PREFILL: the link goes to whatever address is
+   * submitted, so a wrong guess costs a correction, never access, and the field
+   * stays editable. Trimmed and length-capped so a junk value can't be pushed
+   * straight into the request.
    *
-   * Signed, not a raw `store`+`sub` pair, and that distinction is the whole
-   * security of it: an unsigned pair is a claim anyone can make, and the only
-   * downstream check is org membership — which a teammate passes by
-   * construction. They could bind someone else's staff id to their own account
-   * and be handed that person's next session. Only the endpoint can mint an
-   * intent, and only for the session the caller actually holds.
-   */
-
-  const shopifyHandoff = (() => {
-    const intent = handoffFrag?.get("h");
-    return intent ? { intent } : undefined;
-  })();
-
-  /**
-   * Prefilled address. Only ever a PREFILL — the link still goes to whatever
-   * address is submitted, so a wrong guess costs a correction, never access.
-   * Trimmed and length-capped here so a junk query param can't be pushed
-   * straight into the request; the field stays editable either way.
+   * In the fragment because it is personal data and a fragment never reaches a
+   * server — it stays out of the b2c edge log and ours.
    */
   const prefillEmail = (() => {
-    const raw = (handoffFrag?.get("email") ?? searchParams.get("email"))?.trim() ?? "";
+    const raw = (shopifyFrag?.get("email") ?? searchParams.get("email"))?.trim() ?? "";
     return raw.length > 0 && raw.length <= 256 && raw.includes("@") ? raw : "";
   })();
 
-  // Drop the fragment once it has been read into state. The intent is a bearer
-  // credential for its lifetime — whoever holds it can complete a sign-in with
-  // their OWN address — and /auth sits on the marketing route group and lingers
-  // on the "check your email" screen. Same treatment /auth/shopify gives its
-  // token. Layout effect so it runs before paint; the values are already
-  // captured above, so nothing downstream re-reads the hash.
+  // Drop the fragment once it has been read into state: the address is personal
+  // data and this page lingers on the "check your email" screen, into history
+  // and session restore. Layout effect so it runs before paint; the values are
+  // already captured above, so nothing downstream re-reads the hash.
   useLayoutEffect(() => {
-    if (handoffFrag && window.location.hash) {
+    if (shopifyFrag && window.location.hash) {
       window.history.replaceState(null, "", window.location.pathname + window.location.search);
     }
     // Once, on mount: the values this guards are read during the first render.
@@ -452,7 +435,6 @@ export function AuthFlow({
       const res = await sendMagicLink(targetEmail, {
         ...(next ? { returnTo: next } : {}),
         ...(shopifyClaim ? { shopifyClaim } : {}),
-        ...(shopifyHandoff ? { shopifyHandoff } : {}),
       });
       // Pre-launch invite gate: the endpoint may return without sending a
       // link. Branch to the matching card instead of the "check your email"
