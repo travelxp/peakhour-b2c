@@ -265,8 +265,10 @@ export function AuthFlow({
    * and be handed that person's next session. Only the endpoint can mint an
    * intent, and only for the session the caller actually holds.
    */
+  const handoffFrag =
+    typeof window === "undefined" ? null : new URLSearchParams(window.location.hash.slice(1));
   const shopifyHandoff = (() => {
-    const intent = searchParams.get("h");
+    const intent = handoffFrag?.get("h");
     return intent ? { intent } : undefined;
   })();
 
@@ -277,7 +279,7 @@ export function AuthFlow({
    * straight into the request; the field stays editable either way.
    */
   const prefillEmail = (() => {
-    const raw = searchParams.get("email")?.trim() ?? "";
+    const raw = (handoffFrag?.get("email") ?? searchParams.get("email"))?.trim() ?? "";
     return raw.length > 0 && raw.length <= 256 && raw.includes("@") ? raw : "";
   })();
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { AlertCircle, ShoppingBag } from "lucide-react";
@@ -35,29 +35,45 @@ export function ShopifyHandoff() {
   /**
    * The token arrives in the FRAGMENT, not the query — a fragment is never sent
    * to a server, so a bearer-equivalent secret stays out of the b2c edge log,
-   * any WAF in front of it, and anything else that records URLs. Read once, from
-   * `window.location.hash`, which also means this only runs client-side (the
-   * server could not see it even if it wanted to).
+   * any WAF in front of it, and anything else that records URLs.
+   *
+   * ★READ VIA useSyncExternalStore SO THE SERVER SNAPSHOT IS `null`, NOT "".
+   * The server cannot see a fragment, so a server pass that treated an empty
+   * hash as "no token" would ship the red "that link has expired" card as the
+   * static HTML of a page that is about to succeed — every merchant, every
+   * working link, plus a hydration mismatch when the client disagreed. `null`
+   * means "not knowable yet" and renders the loading state, which is also
+   * exactly what the first client paint shows.
    */
-  const [hash] = useState(() =>
-    typeof window === "undefined" ? "" : window.location.hash.slice(1),
+  const subscribeToNothing = useCallback(() => () => {}, []);
+  const hash = useSyncExternalStore(
+    subscribeToNothing,
+    () => window.location.hash.slice(1),
+    () => null,
   );
-  const frag = new URLSearchParams(hash);
+  const frag = new URLSearchParams(hash ?? "");
   const token = frag.get("t") ?? "";
 
-  // Same-origin relative only, mirroring the sign-in page's guard: a single
-  // leading slash, no protocol-relative form (browsers normalise "\" to "/").
+  // Same-origin relative only. Mirrors the api's sanitizeDashboardPath rather
+  // than the looser client-side copies: the fragment is fully attacker-supplied,
+  // so this rejects control characters and a scheme as well as the
+  // protocol-relative forms (browsers normalise "\" to "/", so "/\host"
+  // resolves to "//host").
   const next = (() => {
     const raw = frag.get("next");
-    return raw && raw.startsWith("/") && !raw.startsWith("//") && !raw.includes("\\")
-      ? raw
-      : null;
+    if (!raw || raw.length > 512) return null;
+    if (!raw.startsWith("/") || raw.startsWith("//")) return null;
+    if (raw.includes("://")) return null;
+    if (/[\u0000-\u0020\\]/.test(raw)) return null;
+    return raw;
   })();
 
   // A missing token is knowable at RENDER time, so it is derived rather than
   // set from the effect — the same shape the store-claim page uses, and what
   // keeps setState out of the effect body (cascading-render lint rule).
-  const missingToken = !token;
+  // `null` is "the hash isn't readable yet" (server / pre-hydration), which is
+  // NOT the same as "there is no token" and must not render the failure card.
+  const missingToken = hash !== null && !token;
   const [failed, setFailed] = useState(false);
   // A token is single-use, and StrictMode double-invokes effects in dev: a
   // second POST would spend nothing and report failure for a sign-in that
@@ -68,7 +84,7 @@ export function ShopifyHandoff() {
   const spent = useRef(false);
 
   useEffect(() => {
-    if (missingToken || spent.current) return;
+    if (hash === null || !token || spent.current) return;
     spent.current = true;
 
     // Drop the token from the address bar before spending it, so it survives
@@ -86,7 +102,7 @@ export function ShopifyHandoff() {
         router.replace(next ?? res.redirectTo ?? "/dashboard");
       })
       .catch(() => setFailed(true));
-  }, [missingToken, token, next, router, refreshUser]);
+  }, [hash, token, next, router, refreshUser]);
 
   if (!failed && !missingToken) {
     return <LoadingScreen fullScreen message="Signing you in…" />;
