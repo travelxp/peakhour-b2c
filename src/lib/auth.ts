@@ -135,13 +135,14 @@ export async function sendMagicLink(
     /** Shopify claim context — admits a merchant's email through the pre-launch
      *  gate when the token is valid (server re-checks it). */
     shopifyClaim?: { store: string; token: string };
-    /** Shopify dashboard-handoff context: the store connection the merchant
-     *  arrived from and the Shopify staff user holding the admin session.
-     *  Carried so that a CONFIRMED sign-in records the mapping and this person
-     *  never types an email for this store again. An unverified hint — it grants
-     *  nothing on its own, and the server only writes the mapping once the
-     *  mailbox is proven AND the user turns out to belong to the store's org. */
-    shopifyHandoff?: { store: string; sub: string };
+    /** Shopify dashboard-handoff context: a SIGNED statement, minted by
+     *  `/embedded/dashboard/link`, naming the store connection and the Shopify
+     *  staff user holding that admin session. Carried so a CONFIRMED sign-in
+     *  records the mapping and this person never types an email for this store
+     *  again. Opaque here — the server verifies the signature and reads the pins
+     *  out of it; an unsigned pair would let a teammate claim someone else's
+     *  staff id and receive their next session. */
+    shopifyHandoff?: { intent: string };
   },
 ): Promise<{ outcome?: MagicLinkOutcome; message: string }> {
   return api.post<{ outcome?: MagicLinkOutcome; message: string }>(

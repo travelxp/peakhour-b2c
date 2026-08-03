@@ -252,20 +252,22 @@ export function AuthFlow({
   })();
   /**
    * Shopify dashboard handoff, first visit. `/embedded/dashboard/link` sends the
-   * merchant here with the store connection, their Shopify staff `sub`, and the
-   * address the linked org already holds — so the sign-in they still have to
-   * complete costs one click instead of typing an email we have had since the
-   * store connected. Completing it records the mapping; there is no second time.
+   * merchant here with a SIGNED intent naming the store and their Shopify staff
+   * user, plus the address the linked org already holds — so the sign-in they
+   * still have to complete costs one click instead of typing an email we have
+   * had since the store connected. Completing it records the mapping; there is
+   * no second time.
    *
-   * The store/sub pair is carried back to the magic-link request as an
-   * unverified HINT. It grants nothing: the mapping is only written after the
-   * mailbox is proven, and only if the confirmed user turns out to belong to
-   * that store's org.
+   * Signed, not a raw `store`+`sub` pair, and that distinction is the whole
+   * security of it: an unsigned pair is a claim anyone can make, and the only
+   * downstream check is org membership — which a teammate passes by
+   * construction. They could bind someone else's staff id to their own account
+   * and be handed that person's next session. Only the endpoint can mint an
+   * intent, and only for the session the caller actually holds.
    */
   const shopifyHandoff = (() => {
-    const store = searchParams.get("store");
-    const sub = searchParams.get("sub");
-    return store && sub ? { store, sub } : undefined;
+    const intent = searchParams.get("h");
+    return intent ? { intent } : undefined;
   })();
 
   /**

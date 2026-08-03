@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { AlertCircle, ShoppingBag } from "lucide-react";
 import { useAuth } from "@/providers/auth-provider";
@@ -29,15 +29,26 @@ import { redeemShopifyHandoff } from "@/lib/auth";
  * worth trapping a merchant over — the fallback costs them one emailed link.
  */
 export function ShopifyHandoff() {
-  const params = useSearchParams();
   const router = useRouter();
   const { refreshUser } = useAuth();
-  const token = params.get("t") ?? "";
+
+  /**
+   * The token arrives in the FRAGMENT, not the query — a fragment is never sent
+   * to a server, so a bearer-equivalent secret stays out of the b2c edge log,
+   * any WAF in front of it, and anything else that records URLs. Read once, from
+   * `window.location.hash`, which also means this only runs client-side (the
+   * server could not see it even if it wanted to).
+   */
+  const [hash] = useState(() =>
+    typeof window === "undefined" ? "" : window.location.hash.slice(1),
+  );
+  const frag = new URLSearchParams(hash);
+  const token = frag.get("t") ?? "";
 
   // Same-origin relative only, mirroring the sign-in page's guard: a single
   // leading slash, no protocol-relative form (browsers normalise "\" to "/").
   const next = (() => {
-    const raw = params.get("next");
+    const raw = frag.get("next");
     return raw && raw.startsWith("/") && !raw.startsWith("//") && !raw.includes("\\")
       ? raw
       : null;
@@ -48,36 +59,33 @@ export function ShopifyHandoff() {
   // keeps setState out of the effect body (cascading-render lint rule).
   const missingToken = !token;
   const [failed, setFailed] = useState(false);
-  // A token is single-use: React 18 StrictMode double-invokes effects in dev,
-  // and a second POST would spend a token that the first already consumed and
-  // then report failure for a sign-in that actually worked.
+  // A token is single-use, and StrictMode double-invokes effects in dev: a
+  // second POST would spend nothing and report failure for a sign-in that
+  // worked. The ref alone is the single-shot guarantee — deliberately WITHOUT a
+  // per-run `cancelled` flag, because StrictMode's first cleanup would set it on
+  // the only in-flight request and the page would then spin forever having
+  // already signed the merchant in.
   const spent = useRef(false);
 
   useEffect(() => {
-    if (missingToken) return;
-    if (spent.current) return;
+    if (missingToken || spent.current) return;
     spent.current = true;
 
-    let cancelled = false;
+    // Drop the token from the address bar before spending it, so it survives
+    // neither a screenshot nor session restore.
+    window.history.replaceState(null, "", window.location.pathname);
+
     redeemShopifyHandoff(token)
       .then(async (res) => {
-        if (cancelled) return;
         // The api set the session cookies on that response; pull the user into
         // context before navigating so the dashboard doesn't render a signed-out
         // frame and bounce.
         await refreshUser().catch(() => {
           /* the cookies are set either way — the dashboard re-fetches */
         });
-        if (cancelled) return;
         router.replace(next ?? res.redirectTo ?? "/dashboard");
       })
-      .catch(() => {
-        if (!cancelled) setFailed(true);
-      });
-
-    return () => {
-      cancelled = true;
-    };
+      .catch(() => setFailed(true));
   }, [missingToken, token, next, router, refreshUser]);
 
   if (!failed && !missingToken) {
