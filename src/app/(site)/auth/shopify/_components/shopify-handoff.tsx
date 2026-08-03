@@ -73,7 +73,12 @@ export function ShopifyHandoff() {
   // keeps setState out of the effect body (cascading-render lint rule).
   // `null` is "the hash isn't readable yet" (server / pre-hydration), which is
   // NOT the same as "there is no token" and must not render the failure card.
-  const missingToken = hash !== null && !token;
+  //
+  // ...and neither is "" AFTER we stripped the hash ourselves. useSyncExternalStore
+  // re-reads on every render, and a render IS guaranteed while the redeem is in
+  // flight — AuthProvider's own mount /me resolves and setStates. Without the
+  // `spent` guard the merchant would watch "That link has expired", with a
+  // button that abandons a sign-in about to succeed, for the whole round-trip.
   const [failed, setFailed] = useState(false);
   // A token is single-use, and StrictMode double-invokes effects in dev: a
   // second POST would spend nothing and report failure for a sign-in that
@@ -83,16 +88,27 @@ export function ShopifyHandoff() {
   // already signed the merchant in.
   const spent = useRef(false);
 
+  // `null` is "the hash isn't readable yet" (server / pre-hydration), which is
+  // NOT the same as "there is no token" and must not render the failure card.
+  const missingToken = hash !== null && !token;
+
   useEffect(() => {
     if (hash === null || !token || spent.current) return;
     spent.current = true;
 
-    // Drop the token from the address bar before spending it, so it survives
-    // neither a screenshot nor session restore.
-    window.history.replaceState(null, "", window.location.pathname);
+    // ★STRIPPED AFTER THE REQUEST, NOT BEFORE. useSyncExternalStore re-reads the
+    // hash on EVERY render, and a render is guaranteed mid-redeem — AuthProvider's
+    // own mount /me resolves and setStates while the POST is in flight. Clearing
+    // the hash first would make the next render see "" (which is not null), flip
+    // `missingToken`, and paint "That link has expired" over a sign-in that is
+    // about to succeed — with a button that abandons it. The token is spent by
+    // then, so the address bar is cleaned a moment later and loses nothing.
+    const stripHash = () =>
+      window.history.replaceState(null, "", window.location.pathname + window.location.search);
 
     redeemShopifyHandoff(token)
       .then(async (res) => {
+        stripHash();
         // The api set the session cookies on that response; pull the user into
         // context before navigating so the dashboard doesn't render a signed-out
         // frame and bounce.
@@ -101,7 +117,10 @@ export function ShopifyHandoff() {
         });
         router.replace(next ?? res.redirectTo ?? "/dashboard");
       })
-      .catch(() => setFailed(true));
+      .catch(() => {
+        stripHash();
+        setFailed(true);
+      });
   }, [hash, token, next, router, refreshUser]);
 
   if (!failed && !missingToken) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Check, Clock, Mail, ShieldAlert, Sparkles } from "lucide-react";
 import { useSearchParams } from "next/navigation";
@@ -223,10 +223,15 @@ export function AuthFlow({
     const upper = raw.toUpperCase();
     return REFERRAL_CODE_PATTERN.test(upper) ? upper : null;
   })();
+  const handoffFrag =
+    typeof window === "undefined" ? null : new URLSearchParams(window.location.hash.slice(1));
   // `?next=` — where to return after verify (server sanitizes it to same-origin).
   // Only same-origin relative paths are forwarded.
   const next = (() => {
-    const raw = searchParams.get("next");
+    // Fragment first: the Shopify sign-in link puts `h`, `email` AND `next`
+    // there. Reading only the query silently dropped every first-visit deep
+    // link from the embedded app onto /dashboard/overview.
+    const raw = handoffFrag?.get("next") ?? searchParams.get("next");
     // Same-origin relative only: single leading slash, no protocol-relative
     // form (// or /\ — browsers normalize backslash to slash). The server and
     // the verify page re-validate; this just avoids forwarding a doomed value.
@@ -265,8 +270,7 @@ export function AuthFlow({
    * and be handed that person's next session. Only the endpoint can mint an
    * intent, and only for the session the caller actually holds.
    */
-  const handoffFrag =
-    typeof window === "undefined" ? null : new URLSearchParams(window.location.hash.slice(1));
+
   const shopifyHandoff = (() => {
     const intent = handoffFrag?.get("h");
     return intent ? { intent } : undefined;
@@ -283,6 +287,23 @@ export function AuthFlow({
     return raw.length > 0 && raw.length <= 256 && raw.includes("@") ? raw : "";
   })();
 
+  // Drop the fragment once it has been read into state. The intent is a bearer
+  // credential for its lifetime — whoever holds it can complete a sign-in with
+  // their OWN address — and /auth sits on the marketing route group and lingers
+  // on the "check your email" screen. Same treatment /auth/shopify gives its
+  // token. Layout effect so it runs before paint; the values are already
+  // captured above, so nothing downstream re-reads the hash.
+  useLayoutEffect(() => {
+    if (handoffFrag && window.location.hash) {
+      window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    }
+    // Once, on mount: the values this guards are read during the first render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // NOTE: computed from the fragment at hydration while the server render saw
+  // "". React excludes `value` from hydration diffing, so this is safe — but it
+  // is a deliberate reliance, not an accident.
   const [email, setEmail] = useState(prefillEmail);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   // Tick once per second while a cooldown is running so the button
