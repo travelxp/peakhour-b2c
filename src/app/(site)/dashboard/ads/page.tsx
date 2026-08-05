@@ -23,7 +23,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { OAuthConnectResult } from "@/components/integrations/oauth-connect-result";
-import { AudienceProfilePanel } from "./_components/audience-profile-panel";
+import { BusinessProfileSummary } from "@/components/audience/business-profile-summary";
 import { LinkedInAdsPanel } from "./_components/linkedin-ads-panel";
 import { XAdsPanel } from "./_components/x-ads-panel";
 import {
@@ -202,14 +202,18 @@ function AdsHub() {
 
       <HubHeader description={channel?.description} />
 
-      {/* ★ABOVE THE CHANNEL TABS, ON PURPOSE. What we understand about a
-          business is channel-NEUTRAL — the same profile decides who a LinkedIn
-          campaign and an X campaign target — so putting it inside a channel
-          panel would make it look like a LinkedIn setting and would need
-          copying for every channel added afterwards. It lives here for the same
-          reason the hub owns the header: one surface, channels select into it.
-          Not a new route either (ads-hub-single-surface). */}
-      <AudienceProfilePanel />
+      {/* ★A SUMMARY AND A LINK, NOT THE PANEL ITSELF (G2). What we understand
+          about a business is channel-NEUTRAL, and it turned out not to be an
+          ADS thing either: Content, Support and Commerce all want to read it,
+          and burying the one correctable surface in the engine under Ads is
+          why nobody has ever corrected one. It moved to
+          /dashboard/growth/business.
+
+          Still above the channel tabs, for the original reason — inside a
+          channel panel it would read as a LinkedIn setting and would need
+          copying for every channel added afterwards — and still not a new route
+          off the hub (ads-hub-single-surface). */}
+      <BusinessProfileSummary />
 
       {/* <Tabs> renders only once a channel is known, so it stays controlled
           for its whole life — a value that starts undefined and later becomes

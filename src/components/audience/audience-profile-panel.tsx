@@ -186,9 +186,21 @@ type Editing = {
   profileVersion: number;
 } | null;
 
-export function AudienceProfilePanel() {
+/**
+ * ★MOVED OUT OF `dashboard/ads/_components` (G2). It is not an ads screen: it
+ * is what the platform understands about the CUSTOMER, and Content, Support and
+ * Commerce all want to read it. Burying it under Ads is why nobody has ever
+ * corrected one.
+ *
+ * `defaultOpen` exists because on its own page there is nothing else to look
+ * at, and collapsing the only content behind a click is how a surface stays
+ * unread. It defaults to collapsed so that any future caller embedding this
+ * beside other things gets the old behaviour; the Ads hub now renders
+ * `BusinessProfileSummary` instead.
+ */
+export function AudienceProfilePanel({ defaultOpen = false }: { defaultOpen?: boolean }) {
   const queryClient = useQueryClient();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const [editing, setEditing] = useState<Editing>(null);
   /** The control that opened the editor, so focus can go back to it on close.
    *  Without this the editor unmounts and focus falls to `<body>` — the
@@ -255,8 +267,24 @@ export function AudienceProfilePanel() {
       closeEditor();
       toast.success("Thanks — we'll use that from now on.");
       // The audience is built from this profile, so a correction changes what
-      // the next campaign would target.
-      void queryClient.invalidateQueries({ queryKey: ["linkedin-managed-campaigns"] });
+      // the next campaign WOULD target.
+      //
+      // ★THE PROPOSAL, WHICH NOTHING HAS EVER INVALIDATED. `audience-proposal`
+      // is the query that literally resolves this profile into targeting, and
+      // it is cached for five minutes — so correcting Industry and returning to
+      // the boost dialog inside that window shows, and boosts against, the
+      // pre-correction audience. That is the failure this line was written for,
+      // in the one query it never named.
+      //
+      // ★AND NOT THE CAMPAIGN LISTS. A first cut invalidated LinkedIn's; the
+      // fix after that looped over the ads hub's channel registry — which is
+      // documented as "what to invalidate after a CRON fires" and is a
+      // different question, so it both missed this and dragged in
+      // `content-hub-integrations`, a connection list a profile correction
+      // cannot change. A campaign's stored provenance records what was chosen
+      // at the time and does not move when the profile does; re-fetching it
+      // would be work that changes nothing.
+      void queryClient.invalidateQueries({ queryKey: ["audience-proposal"] });
     },
     onError: (err) => toastUnhandledApiError(err, "save that correction"),
   });
