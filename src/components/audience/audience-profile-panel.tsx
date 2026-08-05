@@ -186,9 +186,20 @@ type Editing = {
   profileVersion: number;
 } | null;
 
-export function AudienceProfilePanel() {
+/**
+ * ★MOVED OUT OF `dashboard/ads/_components` (G2). It is not an ads screen: it
+ * is what the platform understands about the CUSTOMER, and Content, Support and
+ * Commerce all want to read it. Burying it under Ads is why nobody has ever
+ * corrected one.
+ *
+ * `defaultOpen` is what lets the same component be a summary card inside the
+ * Ads hub and the whole of `/dashboard/growth/business` — on its own page there
+ * is nothing else to look at, so collapsing it by default would hide the page's
+ * only content behind a click.
+ */
+export function AudienceProfilePanel({ defaultOpen = false }: { defaultOpen?: boolean } = {}) {
   const queryClient = useQueryClient();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const [editing, setEditing] = useState<Editing>(null);
   /** The control that opened the editor, so focus can go back to it on close.
    *  Without this the editor unmounts and focus falls to `<body>` — the
