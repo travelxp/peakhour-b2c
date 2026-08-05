@@ -45,9 +45,20 @@ import {
 } from "@/components/ui/table";
 import { AdvertisingDeclarationCard } from "@/components/ads/advertising-declaration-card";
 import { EmptyState } from "@/components/molecules/empty-state";
-import { AlertTriangle, Archive, Megaphone, Pause, Play, RefreshCw, Rocket, Target } from "lucide-react";
+import {
+  AlertTriangle,
+  Archive,
+  Library,
+  Megaphone,
+  Pause,
+  Play,
+  RefreshCw,
+  Rocket,
+  Target,
+} from "lucide-react";
 import { AudienceCard } from "./audience-card";
 import { TargetingDialog, editorTargeting } from "./targeting-dialog";
+import { UseSavedAudienceDialog } from "@/components/audience/use-saved-audience-dialog";
 
 /**
  * LinkedIn Ads panel (G1 MVP) — the Growth pillar's first live surface,
@@ -378,6 +389,7 @@ function CampaignRow({
   const [confirmActivate, setConfirmActivate] = useState(false);
   const [confirmArchive, setConfirmArchive] = useState(false);
   const [targetingOpen, setTargetingOpen] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
 
   const status = useMutation({
     mutationFn: (next: "active" | "paused" | "archived") =>
@@ -565,6 +577,25 @@ function CampaignRow({
               {hasAudience ? "Audience" : "Set audience"}
             </Button>
           ) : null}
+          {/* ★AND THE OTHER WAY TO GET AN AUDIENCE, WHICH THE LIBRARY EXISTS
+              FOR (G4). Every boosted campaign has taken whatever the engine
+              proposed at the moment it was created; the rows a customer had
+              already built, imported or corrected could not be put on anything.
+              Applying spends nothing — a draft stays a draft. */}
+          {canTarget ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-7 px-2 text-xs"
+              disabled={busy}
+              title="Use an audience you already have"
+              onClick={() => setLibraryOpen(true)}
+            >
+              <Library className="mr-1 size-3" />
+              Saved
+            </Button>
+          ) : null}
           {canActivate ? (
             <Button
               type="button"
@@ -613,6 +644,16 @@ function CampaignRow({
             open={targetingOpen}
             onOpenChange={setTargetingOpen}
             campaign={campaign}
+          />
+        ) : null}
+
+        {libraryOpen ? (
+          <UseSavedAudienceDialog
+            open={libraryOpen}
+            onOpenChange={setLibraryOpen}
+            campaignId={campaign._id}
+            campaignName={campaign.name}
+            platform="linkedin"
           />
         ) : null}
 

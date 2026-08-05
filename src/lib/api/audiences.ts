@@ -399,6 +399,58 @@ export const audienceLibraryApi = {
   getSet: (id: string) => api.get<AudienceSetResponse>(`/v1/audiences/sets/${id}`),
 
   /**
+   * Put a library audience on a campaign (G4).
+   *
+   * ★IT SPENDS NOTHING AND ACTIVATES NOTHING. A draft campaign stays a draft;
+   * an active one re-enters the platform's review with a new audience, exactly
+   * as the manual targeting editor already does. Generating an audience is not
+   * authority to spend it, and neither is putting it on a campaign.
+   *
+   * ★AND IT ASKS FOR THE CAMPAIGN'S OWN CHANNEL. The api materialises the set
+   * for whatever platform the campaign runs on and REFUSES to spend against a
+   * resolution it cannot confirm — so a 409 here is the engine declining to
+   * guess, not a broken request.
+   */
+  applySet: (setId: string, campaignId: string) =>
+    api.post<{
+      setId: string;
+      campaignId: string;
+      appliedAt: string;
+      /** Sets this replaced, counting only those now running nowhere else.
+       *  Empty is the common answer and is not an error. */
+      supersededSetIds: string[];
+    }>(`/v1/audiences/sets/${setId}/apply`, { campaignId }),
+
+  /**
+   * Keep the audience someone built by hand (F3/G4).
+   *
+   * ★OFFERED, NEVER AUTOMATIC. A library that fills up with every one-off
+   * experiment is a library nobody opens — so the api creates the set when
+   * asked, and the targeting editor goes on doing nothing of the sort. This is
+   * where the ask comes from.
+   *
+   * It lands at evidence tier `stated`: they chose it, usually against a
+   * proposal we had just shown them, which the design calls the best signal
+   * this engine gets.
+   */
+  saveFromCampaign: (body: { campaignId: string; name?: string; description?: string }) =>
+    api.post<{
+      set: AudienceSet;
+      /**
+       * What did not survive the trip into business language, each with its
+       * reason — a facet we have no name for, one whose entities the campaign
+       * never named, one only partly named, or an attribute past the cap.
+       *
+       * ★AND THE DIRECTION IS BROADER, NOT NARROWER: a lost include removes a
+       * whole AND-block, so the saved audience reaches MORE people than the
+       * campaign did. Silence here would be the dangerous half.
+       */
+      lost: Array<{ facet: string; reason: string }>;
+      /** So a client can say "you already saved this" rather than "saved!". */
+      alreadySaved: boolean;
+    }>("/v1/audiences/sets/from-campaign", body),
+
+  /**
    * What this audience looks like on ONE channel.
    *
    * ★IT WRITES ON A GET, DELIBERATELY, AND THE API SAYS SO. The typeahead round
