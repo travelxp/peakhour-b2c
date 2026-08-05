@@ -390,6 +390,49 @@ export interface AudienceSetResponse {
   set: AudienceSet;
 }
 
+/**
+ * What the engine has learned about this business's audiences (H1).
+ *
+ * ★EVERY FIELD HERE HAD A WRITER AND NO READER. The weekly tuning cron has been
+ * distilling `whatWorks`/`whatDoesntWork` from corrections and outcomes since
+ * D3, and nothing has ever shown a customer one of them.
+ */
+export interface AudienceSkillLearning {
+  skillId: string;
+  /** What this skill does, in the customer's terms. */
+  label: string;
+  /** ★FALSE MEANS NEVER SET UP FOR THIS BUSINESS, which is not "learned
+   *  nothing" — a business whose skills have never been cloned has not
+   *  disappointed anybody. */
+  configured: boolean;
+  status?: string;
+  /** Absent — not empty — when the extractor has never had enough to distil.
+   *  It refuses below `minimumObservations` on purpose. */
+  learnings?: {
+    whatWorks: string[];
+    whatDoesntWork: string[];
+    /** ★HOW MANY OBSERVATIONS THESE CAME FROM. A pattern from 4 and one from
+     *  400 read differently, and this is the only thing that says which. */
+    sampleSize?: number;
+    updatedAt?: string;
+  };
+  /** ★NEVER A SCORE WITHOUT ITS COUNTS. The api sends both or neither. */
+  effectiveness?: {
+    score?: number;
+    totalUses: number;
+    accepted: number;
+    edited: number;
+    rejected: number;
+  };
+}
+
+export interface AudienceLearningResponse {
+  /** How many decided observations the extractor needs before it publishes
+   *  anything. Sent by the api so "not yet" can say how far off it is. */
+  minimumObservations: number;
+  skills: AudienceSkillLearning[];
+}
+
 export const audienceLibraryApi = {
   /**
    * The library. Filters are SERVER-SIDE and the enums are the server's: a
@@ -407,6 +450,9 @@ export const audienceLibraryApi = {
 
   /** One audience, with the channels it is already known to work on. */
   getSet: (id: string) => api.get<AudienceSetResponse>(`/v1/audiences/sets/${id}`),
+
+  /** What the engine has learned about this business's audiences (H1). */
+  getLearning: () => api.get<AudienceLearningResponse>("/v1/audiences/learning"),
 
   /**
    * Put a library audience on a campaign (G4).
