@@ -294,6 +294,16 @@ export interface AudienceSet {
 export interface AudienceSetsQuery {
   platform?: string;
   status?: AudienceSetStatus;
+  /**
+   * Everything EXCEPT one status, which `status` cannot express.
+   *
+   * ★"NOT DISCARDED" IS THE QUESTION A PICKER ASKS. A discarded audience must
+   * not be offered — the customer decided, and apply 409s it — but `status`
+   * takes one value, so the only available proxy was `proposed`, and apply
+   * sets `applied`: every audience they had ever used vanished from the
+   * picker, and the second campaign could not reuse the audience.
+   */
+  excludeStatus?: AudienceSetStatus;
   source?: AudienceSource;
   q?: string;
   limit?: number;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Check, Library } from "lucide-react";
@@ -17,6 +17,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError } from "@/lib/api";
+import {
+  toastAdAccountForbidden,
+  toastAdAccountNotAuthorized,
+  toastUnhandledApiError,
+} from "@/lib/toast-errors";
+import { classifyApplyError } from "@/lib/audience-apply-errors";
+import { SEARCH_MAX } from "@/app/(site)/dashboard/growth/audiences/filters";
 import { audienceLibraryApi, type AudienceSet } from "@/lib/api/audiences";
 import { useAudienceSets } from "@/hooks/use-audience-library";
 import {
@@ -45,6 +52,22 @@ import {
  * and since resolved for X belongs in both lists. That is the channel-neutral
  * library's entire claim, and this is the first place a customer feels it.
  */
+
+/** How many to show. Searching is the way through a bigger library — a picker
+ *  with pagination is a page. */
+const PAGE = 20;
+
+/** Debounce a value. Same shape as the library page's and the targeting
+ *  dialog's; kept local rather than shared until a fourth caller wants it. */
+function useDebounced<T>(value: T, ms: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), ms);
+    return () => clearTimeout(t);
+  }, [value, ms]);
+  return debounced;
+}
+
 export function UseSavedAudienceDialog({
   open,
   onOpenChange,
@@ -63,16 +86,24 @@ export function UseSavedAudienceDialog({
   const queryClient = useQueryClient();
   const [q, setQ] = useState("");
   const [chosen, setChosen] = useState<AudienceSet | null>(null);
+  // ★DEBOUNCED, LIKE THE LIBRARY PAGE. `GET /sets` runs a regex `find` AND a
+  // `countDocuments` per request, over a query the api itself documents as a
+  // blocking-sort collection scan — so an undebounced picker double-scans a
+  // customer's library on every keystroke.
+  const search = useDebounced(q.trim(), 350);
 
-  // ★DISCARDED AUDIENCES ARE NOT OFFERED. A discard is a decision the customer
-  // made, and re-offering it as a suggestion is the surface arguing with them.
-  // The api would refuse it anyway (409 SET_DISCARDED), so offering it would be
-  // a dead control as well as a rude one.
+  // ★NOT-DISCARDED, NOT "PROPOSED". A discard is a decision the customer made,
+  // and re-offering it is the surface arguing with them (the api 409s it
+  // anyway) — but a first cut asked for `proposed` because that was the only
+  // filter the api had, and apply sets `applied`. So every audience they had
+  // ever used disappeared from this list: the SECOND campaign could not reuse
+  // the audience, which is the whole of what a library is for. `excludeStatus`
+  // exists for this.
   const sets = useAudienceSets({
     platform,
-    status: "proposed",
-    ...(q.trim() ? { q: q.trim() } : {}),
-    limit: 20,
+    excludeStatus: "discarded",
+    ...(search ? { q: search } : {}),
+    limit: PAGE,
   });
 
   const apply = useMutation({
@@ -95,37 +126,49 @@ export function UseSavedAudienceDialog({
       onApplied?.();
     },
     onError: (err) => {
-      const code = err instanceof ApiError ? err.code : undefined;
       const message = err instanceof ApiError ? err.message : "";
-      // ★THE API'S REFUSALS ARE ANSWERS AND ARE SHOWN AS THEY ARE WRITTEN. Every
-      // one of these is a sentence about THIS audience on THIS channel —
-      // "we won't spend against a version we can't confirm", "X can't express
-      // anything that makes this audience specific" — and replacing them with
-      // "something went wrong" would throw away the only useful part.
-      if (
-        code &&
-        [
-          "SET_STALE",
-          "SET_NOT_SERVABLE",
-          "SET_DISCARDED",
-          "PLATFORM_MISMATCH",
-          "FACET_NOT_APPLIABLE",
-          "NO_HYPOTHESIS",
-          "INVALID_TRANSITION",
-        ].includes(code)
-      ) {
-        toast.error(message || "We couldn't put that audience on this campaign.");
-        return;
+      switch (classifyApplyError(err instanceof ApiError ? err.code : undefined)) {
+        case "persisted_on_platform":
+          // ★A QUALIFIED SUCCESS, NOT A FAILURE. The platform HAS the new
+          // audience; only our mirror did not save. A first cut said "nothing
+          // was changed" — about a campaign whose targeting had already moved,
+          // to a customer whose next act is to activate it.
+          void queryClient.invalidateQueries({ queryKey: ["linkedin-managed-campaigns"] });
+          void queryClient.invalidateQueries({ queryKey: ["audience-sets"] });
+          onOpenChange(false);
+          setChosen(null);
+          toast.warning(
+            message ||
+              `The audience was applied on ${platformLabel(platform)} but we couldn't save it here — apply again to refresh.`,
+          );
+          return;
+        case "ad_account_not_authorized":
+          // Not a reconnect, and the shared helper is the one place that says
+          // so properly — this is the 403 that is live on the boost path.
+          toastAdAccountNotAuthorized(err, "Putting an audience on this campaign");
+          return;
+        case "ad_account_forbidden":
+          toastAdAccountForbidden(err, `${platformLabel(platform)} refused this ad account.`);
+          return;
+        case "audience":
+          // ★THE API'S SENTENCE, AS WRITTEN. Each is about THIS audience on
+          // THIS channel — "we won't spend against a version we can't
+          // confirm", "add a location to it first" — and it is the only useful
+          // part of the answer.
+          toast.error(message || "We couldn't put that audience on this campaign.");
+          return;
+        default:
+          // ★AND EVERYTHING ELSE TO THE SHARED HANDLER, which owns the
+          // retry-versus-permanent split, the support reference, and the
+          // NOT_FOUND deploy-order hazard. A bare `toast.error` here is the
+          // pattern `toast-errors.ts` was written to end.
+          toastUnhandledApiError(err, "put that audience on the campaign", platformLabel(platform));
       }
-      if (code === "NEEDS_REAUTH" || code === "NOT_CONNECTED") {
-        toast.error(`${platformLabel(platform)} Ads needs reconnecting before we can do that.`);
-        return;
-      }
-      toast.error("We couldn't put that audience on this campaign. Nothing was changed.");
     },
   });
 
   const rows = sets.data?.sets ?? [];
+  const total = sets.data?.total ?? 0;
 
   return (
     <Dialog
@@ -150,12 +193,20 @@ export function UseSavedAudienceDialog({
 
         <Input
           value={q}
-          onChange={(e) => setQ(e.target.value.slice(0, 80))}
-          maxLength={80}
+          onChange={(e) => setQ(e.target.value.slice(0, SEARCH_MAX))}
+          maxLength={SEARCH_MAX}
           placeholder="Search your audiences…"
           aria-label="Search your audiences"
         />
 
+        {total > PAGE && (
+          // ★SAID, BECAUSE A LIST THAT STOPS AT TWENTY WITH NOTHING SAYING SO
+          // IS A LIBRARY THAT LOOKS SMALLER THAN IT IS. Searching is the way
+          // through; paginating a picker is not worth the surface.
+          <p className="text-xs text-muted-foreground">
+            Showing {rows.length} of {total} — search to narrow it down.
+          </p>
+        )}
         <div className="max-h-[45vh] space-y-2 overflow-y-auto pr-1">
           {sets.isPending ? (
             <>
@@ -171,7 +222,7 @@ export function UseSavedAudienceDialog({
             // matches that search" is not "you have no audiences that work
             // here", and the second is not "you have no audiences".
             <p className="text-sm text-muted-foreground">
-              {q.trim()
+              {search
                 ? "Nothing in your library matches that."
                 : `None of your saved audiences has been worked out for ${platformLabel(platform)} yet — open one from Audiences and check this channel first.`}
             </p>

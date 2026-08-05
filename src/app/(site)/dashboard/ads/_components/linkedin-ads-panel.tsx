@@ -653,7 +653,10 @@ function CampaignRow({
             onOpenChange={setLibraryOpen}
             campaignId={campaign._id}
             campaignName={campaign.name}
-            platform="linkedin"
+            // The campaign's OWN channel, which is what the api materialises
+            // the set for. Hardcoding this panel's would list the wrong
+            // channel's audiences and then take a 409 from the api.
+            platform={campaign.platform ?? "linkedin"}
           />
         ) : null}
 

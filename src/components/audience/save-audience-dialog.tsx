@@ -16,7 +16,10 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useRouter } from "next/navigation";
 import { ApiError } from "@/lib/api";
+import { toastUnhandledApiError } from "@/lib/toast-errors";
+import { classifyApplyError } from "@/lib/audience-apply-errors";
 import { audienceLibraryApi } from "@/lib/api/audiences";
 
 /**
@@ -45,6 +48,7 @@ export function SaveAudienceDialog({
   campaignName: string;
 }) {
   const queryClient = useQueryClient();
+  const router = useRouter();
   const [name, setName] = useState("");
 
   const save = useMutation({
@@ -76,23 +80,27 @@ export function SaveAudienceDialog({
         duration: res.lost.length > 0 ? 12_000 : undefined,
         action: {
           label: "Open",
-          onClick: () => {
-            window.location.href = `/dashboard/growth/audiences/${res.set.id}`;
-          },
+          // `router.push`, not `window.location` — this is an in-app route, and
+          // a full document reload of the SPA to reach it throws away every
+          // cache the customer just filled.
+          onClick: () => router.push(`/dashboard/growth/audiences/${res.set.id}`),
         },
       });
     },
     onError: (err) => {
-      const code = err instanceof ApiError ? err.code : undefined;
-      if (code === "NO_TARGETING") {
-        toast.error("This campaign has no targeting to save yet — set its audience first.");
+      // ★THE SAME CLASSIFIER AS THE APPLY PATH. A first cut named two codes and
+      // flattened the rest — including `NO_HYPOTHESIS`, whose message names the
+      // exact facets that could not be described and explains that saving would
+      // produce an audience usable on one campaign only. That sentence is the
+      // whole answer.
+      if (classifyApplyError(err instanceof ApiError ? err.code : undefined) === "audience") {
+        toast.error(
+          (err instanceof ApiError && err.message) ||
+            "We couldn't save that audience. Nothing was changed.",
+        );
         return;
       }
-      if (code === "LIBRARY_FULL") {
-        toast.error(err instanceof ApiError ? err.message : "Your library is full.");
-        return;
-      }
-      toast.error("We couldn't save that audience. Nothing was changed.");
+      toastUnhandledApiError(err, "save that audience");
     },
   });
 
