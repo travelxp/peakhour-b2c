@@ -41,15 +41,18 @@ import { ChannelCard } from "./_components/channel-card";
 function detailErrorState(error: unknown): {
   title: string;
   description: string;
-  action: { label: string; href: string };
+  action?: { label: string; href: string };
 } {
   const back = { label: "Back to your audiences", href: "/dashboard/growth/audiences" };
   const code = error instanceof ApiError ? error.code : undefined;
   if (code === "FORBIDDEN") {
+    // ★NO ACTION, WHICH IS THE LIST'S RULE AND NOT A DIFFERENCE OF TASTE. The
+    // list answers this same 403 with the same sentence and deliberately
+    // offers no button; sending the customer "back to your audiences" walks
+    // them from "Pick a business first" to "Pick a business first".
     return {
       title: "Pick a business first",
       description: "Audiences belong to one business at a time — choose one and this will load.",
-      action: back,
     };
   }
   if (code === "VALIDATION_ERROR") {

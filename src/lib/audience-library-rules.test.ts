@@ -478,9 +478,16 @@ describe("detailChannels", () => {
     // premise is that it knows more than the row know less.
     expect(detailChannels({ channels: [channel({ platform: "meta" })] })).toEqual([
       "linkedin",
-      "meta",
       "x",
+      "meta",
     ]);
+  });
+
+  it("★leads with the channels a customer can act on, not with alphabet", () => {
+    // A plain `.sort()` put `google_ads` — the kind of row this union exists
+    // for, and one no adapter can answer for — at the TOP of the page, above
+    // the two channels that work.
+    expect(detailChannels({ channels: [channel({ platform: "google_ads" })] })[0]).toBe("linkedin");
   });
 
   it("offers the unasked ones too, without duplicating the asked", () => {

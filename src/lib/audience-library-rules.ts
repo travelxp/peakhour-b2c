@@ -377,7 +377,15 @@ export function detailChannels(
   set: Pick<AudienceSet, "channels">,
   known: readonly string[] = LIBRARY_CHANNELS,
 ): string[] {
-  return [...new Set([...set.channels.map((c) => c.platform), ...known])].sort();
+  // ★THE KNOWN CHANNELS LEAD, IN THEIR OWN ORDER. A plain `.sort()` put
+  // `google_ads` — the kind of row this union exists for, and one no adapter
+  // can answer for — at the TOP of the page, above the two channels a customer
+  // can actually act on.
+  const extras = set.channels
+    .map((c) => c.platform)
+    .filter((p) => !known.includes(p))
+    .sort();
+  return [...known, ...new Set(extras)];
 }
 
 /**

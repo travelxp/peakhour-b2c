@@ -19,7 +19,9 @@ import {
 } from "@/lib/api/audiences";
 import {
   attributeLabel,
+  channelNotes,
   gapSentence,
+  reachReading,
   platformLabel,
   refreshability,
   resolutionReach,
@@ -78,8 +80,20 @@ export function ChannelCard({ set, platform }: { set: AudienceSet; platform: str
   async function refresh() {
     setRefreshing(true);
     try {
+      // ★CANCEL FIRST. A focus refetch is in flight exactly when the cached
+      // answer is older than `staleTime` — which is the state a customer is in
+      // when they press this — and it would land AFTER the forced write with a
+      // response carrying no `refreshFailed`: the toast says the refresh failed
+      // and the card shows a clean cache hit.
+      await queryClient.cancelQueries({ queryKey });
       const fresh = await audienceLibraryApi.getResolution(set.id, platform, { refresh: true });
       queryClient.setQueryData(queryKey, fresh);
+      // The forced call WRITES the resolution back server-side, so the parent
+      // set's `channels[]` — its staleness, its reach — is now behind. Without
+      // this the library list keeps showing the old number and a remount
+      // decides whether to ask using flags that have moved.
+      void queryClient.invalidateQueries({ queryKey: ["audience-set"] });
+      void queryClient.invalidateQueries({ queryKey: ["audience-sets"] });
       if (fresh.available && fresh.refreshFailed) {
         toast.warning(`We couldn't ask ${platformLabel(platform)} again.`, {
           description: fresh.refreshFailed.message,
@@ -107,22 +121,51 @@ export function ChannelCard({ set, platform }: { set: AudienceSet; platform: str
           {!asked ? (
             <Button size="sm" variant="outline" onClick={() => setAsked(true)}>
               <Search className="mr-1.5 size-3.5" aria-hidden="true" />
-              Check this channel
+              {known ? "Check again" : "Check this channel"}
             </Button>
           ) : (
             <RefreshControl data={data} platform={platform} onRefresh={refresh} busy={refreshing} />
           )}
         </div>
 
-        {/* ★NOBODY HAS ASKED IS ITS OWN ANSWER. Not "it doesn't work here", and
-            not a blank — a claim about a customer's reach on a channel nobody
-            has queried is the thing this surface exists not to make. */}
-        {!asked ? (
+        {/* ★TWO DIFFERENT UNASKED STATES, AND A FIRST CUT RENDERED BOTH AS THE
+            SECOND. `known` present means we HAVE a stored answer and are simply
+            not re-asking for a fresh one — so withholding its reach and its
+            gaps made this page know LESS than the library row that links to it,
+            which is the opposite of the page's entire premise. `known` absent
+            is the real "nobody has asked", which is its own answer and not
+            "it doesn't work here". */}
+        {!asked && known ? (
+          <div className="space-y-2">
+            {(() => {
+              const reach = reachReading(known);
+              const notes = channelNotes(known);
+              return (
+                <>
+                  <p
+                    className={
+                      reach.kind === "counted" ? "text-sm font-medium" : "text-sm text-muted-foreground"
+                    }
+                  >
+                    {reach.text}
+                  </p>
+                  {notes.length > 0 && (
+                    <p className="text-xs text-muted-foreground">{notes.join(" · ")}</p>
+                  )}
+                </>
+              );
+            })()}
+            <p className="text-xs text-muted-foreground">
+              This is what we worked out last time. Checking asks{" "}
+              {platformLabel(platform)} again — it puts nothing on a campaign and spends no
+              budget.
+            </p>
+          </div>
+        ) : !asked ? (
           <p className="text-sm text-muted-foreground">
             We haven&apos;t worked out what this audience looks like on{" "}
-            {platformLabel(platform)}
-            {known?.stale ? " recently" : ""}. Checking asks {platformLabel(platform)} directly
-            — it puts nothing on a campaign and spends no budget.
+            {platformLabel(platform)}. Checking asks {platformLabel(platform)} directly — it
+            puts nothing on a campaign and spends no budget.
           </p>
         ) : resolution.isPending ? (
           <div className="space-y-2">
@@ -130,14 +173,29 @@ export function ChannelCard({ set, platform }: { set: AudienceSet; platform: str
             <Skeleton className="h-3 w-full max-w-sm" />
           </div>
         ) : resolution.isError ? (
-          <p className="text-sm text-muted-foreground">
-            {resolution.error instanceof ApiError && resolution.error.code === "RATE_LIMITED"
-              ? "We're still working out the last one — give it a moment and ask again."
-              : resolution.error instanceof ApiError &&
-                  resolution.error.code === "PLATFORM_UNSUPPORTED"
-                ? `We can't build audiences for ${platformLabel(platform)} yet.`
-                : "We couldn't ask just now. Nothing was changed."}
-          </p>
+          // ★AND A CONTROL, BECAUSE THE COPY PROMISES ONE. `asked` is one-way
+          // and `RefreshControl` renders nothing without data, so a rate-limited
+          // card told the customer to "ask again" with nothing to press and
+          // stayed inert until a full page reload — on the state they reach by
+          // doing what the page just told them to.
+          <div className="space-y-2">
+            <p className="text-sm text-muted-foreground">
+              {resolution.error instanceof ApiError && resolution.error.code === "RATE_LIMITED"
+                ? "We're still working out the last one — give it a moment and ask again."
+                : resolution.error instanceof ApiError &&
+                    resolution.error.code === "PLATFORM_UNSUPPORTED"
+                  ? `We can't build audiences for ${platformLabel(platform)} yet.`
+                  : "We couldn't ask just now. Nothing was changed."}
+            </p>
+            {!(
+              resolution.error instanceof ApiError &&
+              resolution.error.code === "PLATFORM_UNSUPPORTED"
+            ) && (
+              <Button size="sm" variant="ghost" onClick={() => void resolution.refetch()}>
+                Ask again
+              </Button>
+            )}
+          </div>
         ) : !data ? null : !data.available ? (
           // ★A REFUSAL IS THE ANSWER, RENDERED AS ONE. The api returns 200 with
           // a reason precisely so this is not a broken screen: "this audience
@@ -221,14 +279,33 @@ export function ChannelCard({ set, platform }: { set: AudienceSet; platform: str
             {data.stale && data.rematerialisable && (
               <p className="text-xs text-muted-foreground">
                 This was worked out by an older version of us, so we can&apos;t promise it&apos;s
-                today&apos;s answer — ask again for a fresh one.
+                today&apos;s answer
+                {/* ★AND NO IMPERATIVE TO PRESS A BUTTON WE KNOW WILL FAIL. When
+                    the refresh failed for a reason nothing on this card can fix,
+                    "ask again for a fresh one" is an instruction to repeat what
+                    just did not work. */}
+                {data.refreshFailed ? "." : " — ask again for a fresh one."}
               </p>
             )}
             {data.refreshFailed && (
-              <p className="text-xs text-muted-foreground">
-                We couldn&apos;t ask {platformLabel(platform)} again just now, so this is what we
-                had. {data.refreshFailed.message}
-              </p>
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground">
+                  We couldn&apos;t ask {platformLabel(platform)} again just now, so this is what
+                  we had. {data.refreshFailed.message}
+                </p>
+                {/* ★THE SAME CONNECTION CODES ARRIVE ON THIS PATH TOO, AND A
+                    FIRST CUT LOOKED FOR THEM ONLY ON `available: false`. The api
+                    returns the CACHED entry whenever one exists — so a business
+                    that resolved LinkedIn once and later lost the token got a
+                    "reconnect" sentence with no route to Integrations, while a
+                    business that had never resolved it got the link. The more
+                    common case had the worse answer. */}
+                {CONNECTION_CODES.has(data.refreshFailed.code) && (
+                  <Button asChild size="sm" variant="outline">
+                    <Link href="/dashboard/integrations">Go to integrations</Link>
+                  </Button>
+                )}
+              </div>
             )}
           </div>
         )}
