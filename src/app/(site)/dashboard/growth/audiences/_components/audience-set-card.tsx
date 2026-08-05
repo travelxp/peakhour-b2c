@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import type { AudienceSet } from "@/lib/api/audiences";
 import {
   audienceShape,
-  channelNote,
+  channelNotes,
   historyLine,
   originIsOurs,
   originLabel,
@@ -105,7 +105,7 @@ export function AudienceSetCard({ set }: { set: AudienceSet }) {
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
           {set.channels.map((channel) => {
             const reach = reachReading(channel);
-            const note = channelNote(channel);
+            const notes = channelNotes(channel);
             return (
               <span key={channel.platform} className="flex items-center gap-1.5">
                 <span
@@ -115,7 +115,11 @@ export function AudienceSetCard({ set }: { set: AudienceSet }) {
                 >
                   {reach.text}
                 </span>
-                {note && <span className="text-muted-foreground">· {note}</span>}
+                {notes.map((note) => (
+                  <span key={note} className="text-muted-foreground">
+                    · {note}
+                  </span>
+                ))}
               </span>
             );
           })}

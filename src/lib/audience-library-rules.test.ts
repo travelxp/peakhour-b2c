@@ -1,8 +1,26 @@
 import { describe, it, expect } from "vitest";
-import type { AudienceChannel, AudienceSet } from "@/lib/api/audiences";
+import type { AudienceChannel, AudienceSet, AudienceSource, AudienceSetStatus } from "@/lib/api/audiences";
+
+/** The api's own enums, restated so a change to either side is a failing test
+ *  rather than a filter option nobody can reach. Kept as literal tuples: a
+ *  `satisfies` against the union catches a value that leaves the api, and the
+ *  comparisons below catch one that joins it. */
+const SOURCE_VALUES = [
+  "generated",
+  "fallback",
+  "imported",
+  "user_defined",
+] as const satisfies readonly AudienceSource[];
+const STATUS_VALUES = [
+  "proposed",
+  "applied",
+  "discarded",
+  "superseded",
+] as const satisfies readonly AudienceSetStatus[];
+import { SOURCES, STATUSES, SEARCH_MAX } from "@/app/(site)/dashboard/growth/audiences/filters";
 import {
   audienceShape,
-  channelNote,
+  channelNotes,
   historyLine,
   originIsOurs,
   originLabel,
@@ -37,12 +55,40 @@ describe("originLabel", () => {
     // `imported` is something they ran with their own money; `user_defined` is
     // something they wrote, usually while disagreeing with us.
     expect(originLabel("generated")).toBe("Peakhour suggested");
-    expect(originLabel("fallback")).toBe("Peakhour suggested");
     expect(originLabel("imported")).toBe("From your past campaigns");
     expect(originLabel("user_defined")).toBe("You built this");
     expect(originIsOurs("generated")).toBe(true);
+    expect(originIsOurs("fallback")).toBe(true);
     expect(originIsOurs("imported")).toBe(false);
     expect(originIsOurs("user_defined")).toBe(false);
+  });
+
+  it("★gives every source its OWN label, because the filter sends one value", () => {
+    // `fallback` shared "Peakhour suggested" with `generated` in a first cut,
+    // and the api's `source` filter takes ONE enum member — so the baseline set
+    // every plan carries was badged identically to the rows the filter returned
+    // and reachable from no option in any dropdown. Two sources, one label, is
+    // an accepted-then-ignored filter with extra steps.
+    const labels = SOURCE_VALUES.map(originLabel);
+    expect(new Set(labels).size).toBe(SOURCE_VALUES.length);
+  });
+});
+
+describe("the filter options and the api's enums", () => {
+  it("★offers every source the api accepts", () => {
+    // The seam nothing covered, and where the fallback defect lived. A value
+    // the api takes and the UI never offers is a row a customer cannot reach.
+    expect([...SOURCES].map((s) => s.value).sort()).toEqual([...SOURCE_VALUES].sort());
+  });
+
+  it("offers every status the api accepts", () => {
+    expect([...STATUSES].map((s) => s.value).sort()).toEqual([...STATUS_VALUES].sort());
+  });
+
+  it("never sends a search longer than the api will take", () => {
+    // `q` is `.min(1).max(80)` server-side, and an over-long one is a 400 whose
+    // only offered action refetches the same invalid query.
+    expect(SEARCH_MAX).toBeLessThanOrEqual(80);
   });
 });
 
@@ -62,7 +108,12 @@ describe("reachReading", () => {
     const reading = reachReading(channel({ platform: "x", reachSupported: false, reachValue: undefined }));
     expect(reading.kind).toBe("unknown");
     expect(reading.text).toBe("No size from X");
-    expect(reading.text).not.toMatch(/\b0\b/);
+    // And a stale VALUE left on the row cannot leak into the sentence when the
+    // channel says it has no count — which is how a number nobody sourced
+    // reaches a screen.
+    expect(
+      reachReading(channel({ platform: "x", reachSupported: false, reachValue: 4_200_000 })).text,
+    ).toBe("No size from X");
   });
 
   it("treats a literal zero as the serving floor rather than printing it", () => {
@@ -81,14 +132,14 @@ describe("reachReading", () => {
   });
 });
 
-describe("channelNote", () => {
+describe("channelNotes", () => {
   it("names what a channel could not express, in the plural a person would use", () => {
-    expect(channelNote(channel({ platform: "x", droppedAttributes: 1 }))).toBe(
+    expect(channelNotes(channel({ platform: "x", droppedAttributes: 1 }))).toEqual([
       "1 thing X can't express",
-    );
-    expect(channelNote(channel({ platform: "x", droppedAttributes: 2 }))).toBe(
+    ]);
+    expect(channelNotes(channel({ platform: "x", droppedAttributes: 2 }))).toEqual([
       "2 things X can't express",
-    );
+    ]);
   });
 
   it("★never calls an IMPORTED audience out of date", () => {
@@ -97,16 +148,26 @@ describe("channelNote", () => {
     // could be out of date WITH. "May be out of date" over it invites an
     // action that does not exist — the exact collapse `rematerialisable`
     // exists to prevent, and one the api has already made once.
-    expect(channelNote(channel({ stale: true, rematerialisable: false }))).toBeNull();
-    expect(channelNote(channel({ stale: true, rematerialisable: true }))).toBe("May be out of date");
+    expect(channelNotes(channel({ stale: true, rematerialisable: false }))).toEqual([]);
+    expect(channelNotes(channel({ stale: true, rematerialisable: true }))).toEqual([
+      "May be out of date",
+    ]);
   });
 
-  it("leads with what was lost rather than with staleness", () => {
-    // A dropped attribute is a fact about the audience the customer would be
-    // buying; staleness is a fact about our cache.
-    expect(channelNote(channel({ stale: true, droppedAttributes: 1 }))).toBe(
+  it("★says BOTH when a channel is stale and lossy, leading with what was lost", () => {
+    // A first cut returned one string and stopped at the dropped-attribute
+    // case, so a stale AND lossy channel rendered byte-identically to a fresh
+    // one. What was lost is a fact about the audience the customer would be
+    // buying; staleness is a fact about our copy of it. Two facts, two
+    // sentences — the order says which matters more.
+    expect(channelNotes(channel({ stale: true, droppedAttributes: 1 }))).toEqual([
       "1 thing LinkedIn can't express",
-    );
+      "May be out of date",
+    ]);
+  });
+
+  it("says nothing about a channel with nothing to report", () => {
+    expect(channelNotes(channel())).toEqual([]);
   });
 });
 
@@ -164,6 +225,17 @@ describe("historyLine", () => {
     expect(historyLine({ status: "discarded" })).toBe("You discarded this");
   });
 
+  it("★keeps the correction count on a discard, which is where it matters most", () => {
+    // "Discarded after being corrected four times" is the most informative row
+    // in a library: an audience we kept getting wrong until they gave up on it.
+    // A first cut computed the figure and then dropped it on exactly the sets
+    // most likely to carry one. Suppressing the OUTCOME on a discard is the
+    // rule; suppressing this was an accident of ordering.
+    expect(
+      historyLine({ status: "discarded", userEdits: [{ at: "a" }, { at: "b" }] }),
+    ).toBe("You discarded this (corrected 2 times)");
+  });
+
   it("counts the corrections, because an audience corrected four times is one we keep getting wrong", () => {
     expect(historyLine({ status: "proposed", userEdits: [{ at: "x" }] })).toBe(
       "Suggested, corrected 1 time",
@@ -210,5 +282,11 @@ describe("outcomeLine", () => {
     // one every reader will nonetheless treat as money.
     expect(outcomeLine(outcome({ spend: 4210, currency: "INR" }))).toContain("INR 4,210 spent");
     expect(outcomeLine(outcome({ spend: 4210 }))).not.toContain("4,210 spent");
+  });
+
+  it("never rounds real spend down to zero", () => {
+    // `Math.round(0.49)` is 0, and "INR 0 spent" beside a campaign that did
+    // spend is exactly the confident-wrong number this file refuses.
+    expect(outcomeLine(outcome({ spend: 0.49, currency: "USD" }))).toContain("USD 0.49 spent");
   });
 });

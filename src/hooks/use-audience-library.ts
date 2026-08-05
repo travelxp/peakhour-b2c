@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import {
   audienceLibraryApi,
   type AudienceSetsQuery,
@@ -22,12 +22,10 @@ export function useAudienceSets(query: AudienceSetsQuery = {}) {
     // a list that lies about what it is showing.
     queryKey: ["audience-sets", query],
     queryFn: () => audienceLibraryApi.listSets(query),
-    // A library is a durable object, not a feed — it changes when somebody
-    // plans, imports or discards, all of which happen on this surface and
-    // invalidate it directly.
-    staleTime: 30_000,
+    // ★THE PREVIOUS PAGE STAYS ON SCREEN WHILE THE NEXT LOADS. Without it
+    // every filter keystroke and every page turn replaces the list with
+    // skeletons, because a new key is `isPending` — so a customer refining a
+    // search watches their library disappear and come back on each character.
+    placeholderData: keepPreviousData,
   });
 }
-
-/** Every query this feature owns, for a caller that has just changed one. */
-export const AUDIENCE_LIBRARY_KEY = ["audience-sets"] as const;

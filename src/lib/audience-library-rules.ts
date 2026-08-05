@@ -40,6 +40,18 @@ export function originLabel(source: AudienceSource): string {
     case "user_defined":
       return "You built this";
     case "fallback":
+      // ★NOT "Peakhour suggested", AND THE REASON IS THE FILTER. The api takes
+      // ONE `source` value, so a badge that says the same thing for two enum
+      // members leaves the second reachable from no option in any dropdown: a
+      // customer filtering to "Peakhour suggested" loses a row badged
+      // "Peakhour suggested", which is the accepted-then-ignored-filter failure
+      // this surface exists to avoid.
+      //
+      // It is also a real distinction rather than a workaround. `fallback` is
+      // the deterministic geography × industry set every plan carries — the
+      // one the strategist's ideas are MEASURED AGAINST — so saying which one
+      // it is tells the customer more, not less.
+      return "Peakhour baseline";
     case "generated":
     default:
       return "Peakhour suggested";
@@ -57,22 +69,43 @@ export function originIsOurs(source: AudienceSource): boolean {
  *  look complete, which is the one thing this surface must not do. Same map as
  *  the campaign audience card, kept in step deliberately. */
 const ATTRIBUTE_LABEL: Record<string, string> = {
-  geo: "Location",
-  company_industry: "Industry",
-  company_size: "Company size",
+  // person / professional
   job_title: "Job title",
   seniority: "Seniority",
   job_function: "Job function",
-  member_interest: "Interests",
-  company_name: "Companies",
-  school: "Schools",
   skill: "Skills",
-  degree: "Degrees",
   years_experience: "Years of experience",
-  member_behaviour: "Behaviour",
-  company_follower: "Followers",
+  education_degree: "Degrees",
+  field_of_study: "Fields of study",
+  group_membership: "Groups",
+  member_interest: "Interests",
+  // company / firmographic
+  company_industry: "Industry",
+  company_size: "Company size",
+  company_name: "Companies",
+  company_follower: "Company followers",
+  company_category: "Company category",
+  company_growth_rate: "Company growth",
+  company_revenue: "Company revenue",
+  school: "Schools",
+  // demographic, place, language
+  age_range: "Age",
+  gender: "Gender",
+  geo: "Location",
+  language: "Language",
+  // behavioural / intent
+  behaviour: "Behaviour",
+  purchase_intent: "Purchase intent",
+  life_event: "Life events",
+  search_keyword: "Search terms",
+  // audience objects
   custom_audience: "Your own lists",
-  lookalike: "Lookalikes",
+  lookalike_seed: "Lookalike seed",
+  retargeting_audience: "Retargeting",
+  // delivery
+  device: "Platform",
+  device_model: "Device",
+  placement: "Placement",
 };
 
 export function attributeLabel(attribute: string): string {
@@ -170,18 +203,33 @@ export function reachReading(channel: AudienceChannel): ReachReading {
  * does not exist — which is exactly the collapse the api's own
  * `rematerialisable` flag was added to prevent.
  */
-export function channelNote(channel: AudienceChannel): string | null {
+export function channelNotes(channel: AudienceChannel): string[] {
+  const notes: string[] = [];
   if (channel.droppedAttributes > 0) {
     const n = channel.droppedAttributes;
-    return `${n} thing${n === 1 ? "" : "s"} ${platformLabel(channel.platform)} can't express`;
+    notes.push(`${n} thing${n === 1 ? "" : "s"} ${platformLabel(channel.platform)} can't express`);
   }
-  if (channel.stale && channel.rematerialisable) return "May be out of date";
-  return null;
+  // ★BOTH, NOT THE FIRST. A first cut returned one string and stopped at the
+  // dropped-attribute case — so a channel that was stale AND lossy rendered
+  // byte-identically to one that was merely lossy. They are two true and
+  // different facts: one is about the audience the customer would be buying,
+  // the other about how old our copy of it is, and this file's whole argument
+  // is that collapsing two facts into one sentence is the failure.
+  if (channel.stale && channel.rematerialisable) notes.push("May be out of date");
+  return notes;
 }
 
-/** Every channel this business can advertise on, whether or not this audience
- *  has been resolved against it. The library's own rows carry only the ones
- *  that HAVE been asked. */
+/**
+ * Every channel this business can advertise on, whether or not this audience
+ * has been resolved against it. A row carries only the ones that HAVE been
+ * asked, so this is what makes "nobody has asked X" sayable at all.
+ *
+ * ⚠️ HAND-MIRRORED FROM THE API'S ADAPTER REGISTRY, and said here rather than
+ * discovered: `listAudiencePlatforms()` is the authority and this client cannot
+ * import it. The consequence of drift is bounded and one-directional — a third
+ * channel would simply never be offered as "not checked yet" until somebody
+ * edits this line — but it is drift, and `GET /sets` does not publish the list.
+ */
 export const LIBRARY_CHANNELS = ["linkedin", "x"] as const;
 
 /**
@@ -212,9 +260,16 @@ export function historyLine(set: Pick<AudienceSet, "status" | "userEdits" | "dis
   const edits = set.userEdits?.length ?? 0;
   const corrected = edits > 0 ? `corrected ${edits} time${edits === 1 ? "" : "s"}` : null;
   if (set.status === "discarded") {
-    return set.discardReason
+    // ★THE COUNT SURVIVES THE DISCARD. "Discarded after being corrected four
+    // times" is the most informative row in the library — it is an audience we
+    // kept getting wrong and they finally gave up on — and a first cut computed
+    // the figure and then dropped it on exactly the sets most likely to carry
+    // one. Suppressing the OUTCOME on a discard is the rule; suppressing the
+    // correction count was an accident of ordering.
+    const base = set.discardReason
       ? `You discarded this — "${set.discardReason}"`
       : "You discarded this";
+    return corrected ? `${base} (${corrected})` : base;
   }
   if (set.status === "superseded") {
     return corrected ? `Replaced by a newer audience, ${corrected}` : "Replaced by a newer audience";
@@ -247,7 +302,14 @@ export function outcomeLine(outcome: AudienceSet["outcome"]): string | null {
     parts.push("never served");
   }
   if (typeof outcome.spend === "number" && outcome.currency) {
-    parts.push(`${outcome.currency} ${REACH_FORMAT.format(Math.round(outcome.spend))} spent`);
+    // ★ROUNDED TO WHOLE UNITS EXCEPT WHERE THAT WOULD PRINT A ZERO OVER REAL
+    // SPEND. `Math.round(0.49)` is 0, and "INR 0 spent" beside a campaign that
+    // did spend is the confident-wrong number this file exists to refuse.
+    const spend =
+      outcome.spend > 0 && outcome.spend < 1
+        ? outcome.spend.toFixed(2)
+        : REACH_FORMAT.format(Math.round(outcome.spend));
+    parts.push(`${outcome.currency} ${spend} spent`);
   }
   return parts.join(" · ");
 }

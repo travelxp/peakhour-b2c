@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Users } from "lucide-react";
+import { ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -17,6 +18,7 @@ import { useAudienceSets } from "@/hooks/use-audience-library";
 import { platformLabel, LIBRARY_CHANNELS } from "@/lib/audience-library-rules";
 import type { AudienceSetsQuery } from "@/lib/api/audiences";
 import { AudienceSetCard } from "./_components/audience-set-card";
+import { ALL, MAX_OFFSET, PAGE_SIZE, SEARCH_MAX, SOURCES, STATUSES } from "./filters";
 
 /**
  * The audience library (G1).
@@ -33,24 +35,16 @@ import { AudienceSetCard } from "./_components/audience-set-card";
  * customer reads as "I have no audiences".
  */
 
-/** `all` rather than an empty string: a Radix Select item may not have an empty
- *  value, and the query simply omits the key. */
-const ALL = "all";
-
-const SOURCES = [
-  { value: "generated", label: "Peakhour suggested" },
-  { value: "imported", label: "From past campaigns" },
-  { value: "user_defined", label: "You built" },
-] as const;
-
-const STATUSES = [
-  { value: "proposed", label: "Suggested" },
-  { value: "applied", label: "On a campaign" },
-  { value: "discarded", label: "Discarded" },
-  { value: "superseded", label: "Replaced" },
-] as const;
-
-const PAGE_SIZE = 20;
+/** Debounce a value. Same shape as the targeting dialog's, kept local rather
+ *  than shared until a third caller wants it. */
+function useDebounced<T>(value: T, ms: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), ms);
+    return () => clearTimeout(t);
+  }, [value, ms]);
+  return debounced;
+}
 
 export default function AudienceLibraryPage() {
   const [q, setQ] = useState("");
@@ -59,10 +53,17 @@ export default function AudienceLibraryPage() {
   const [platform, setPlatform] = useState<string>(ALL);
   const [offset, setOffset] = useState(0);
 
+  // ★DEBOUNCED, BECAUSE EVERY KEYSTROKE IS A COLLECTION SCAN. `GET /sets`
+  // cannot use an index for `createdAt` ordering once a channel filter exists
+  // (the api says so itself), and it pairs the page with a `countDocuments`.
+  // Typing "enterprise travel" undebounced is seventeen double-scans of a
+  // customer's library.
+  const search = useDebounced(q.trim(), 350);
+
   const query: AudienceSetsQuery = {
     limit: PAGE_SIZE,
     offset,
-    ...(q.trim() ? { q: q.trim() } : {}),
+    ...(search ? { q: search } : {}),
     ...(source !== ALL ? { source: source as AudienceSetsQuery["source"] } : {}),
     ...(status !== ALL ? { status: status as AudienceSetsQuery["status"] } : {}),
     ...(platform !== ALL ? { platform } : {}),
@@ -80,7 +81,20 @@ export default function AudienceLibraryPage() {
 
   const rows = sets.data?.sets ?? [];
   const total = sets.data?.total ?? 0;
-  const filtered = q.trim() !== "" || source !== ALL || status !== ALL || platform !== ALL;
+  const filtered = search !== "" || source !== ALL || status !== ALL || platform !== ALL;
+  /** ★A PAGE PAST THE END IS A THIRD EMPTY STATE. A customer on page 3 whose
+   *  library shrinks — a discard, a business switch — would otherwise be told
+   *  "No audiences yet" with no way back, because the pagination lives in the
+   *  branch the empty state replaces. */
+  const pastTheEnd = rows.length === 0 && offset > 0;
+
+  function clearFilters() {
+    setQ("");
+    setSource(ALL);
+    setStatus(ALL);
+    setPlatform(ALL);
+    setOffset(0);
+  }
 
   return (
     <div className="space-y-6">
@@ -96,9 +110,10 @@ export default function AudienceLibraryPage() {
         <Input
           value={q}
           onChange={(e) => {
-            setQ(e.target.value);
+            setQ(e.target.value.slice(0, SEARCH_MAX));
             setOffset(0);
           }}
+          maxLength={SEARCH_MAX}
           placeholder="Search names and descriptions…"
           className="w-full sm:max-w-xs"
           aria-label="Search audiences"
@@ -154,11 +169,24 @@ export default function AudienceLibraryPage() {
           <Skeleton className="h-32 w-full" />
         </div>
       ) : sets.isError ? (
+        // ★NOT EVERY FAILURE IS OURS, AND A RETRY BUTTON ON THE ONES THAT ARE
+        // NOT IS A LOOP. `GET /sets` answers 403 FORBIDDEN when no business is
+        // active — retrying never fixes that — and the api carries a sentence
+        // of its own on every error. A first cut showed "that's on us, try
+        // again" over both.
         <EmptyState
           icon={Users}
           title="We couldn't load your audiences"
-          description="That's on us. Try again in a moment — nothing has been changed."
-          action={{ label: "Try again", onClick: () => void sets.refetch() }}
+          description={
+            sets.error instanceof ApiError && sets.error.code === "FORBIDDEN"
+              ? "Pick a business first — audiences belong to one business at a time."
+              : sets.error instanceof ApiError && sets.error.message
+                ? sets.error.message
+                : "That's on us. Try again in a moment — nothing has been changed."
+          }
+          {...(sets.error instanceof ApiError && sets.error.code === "FORBIDDEN"
+            ? {}
+            : { action: { label: "Try again", onClick: () => void sets.refetch() } })}
         />
       ) : rows.length === 0 ? (
         // ★TWO DIFFERENT EMPTIES, AND THEY ARE NOT THE SAME SENTENCE. A filter
@@ -167,26 +195,25 @@ export default function AudienceLibraryPage() {
         // typed a word — is the accepted-then-ignored failure one layer up.
         <EmptyState
           icon={Users}
-          title={filtered ? "No audiences match that" : "No audiences yet"}
-          description={
-            filtered
-              ? "Try a different search, or clear the filters to see everything in your library."
-              : "When Peakhour suggests an audience for a campaign, or reads the ones you've already run, they'll be kept here so you can use them again."
+          title={
+            pastTheEnd
+              ? "Nothing on this page"
+              : filtered
+                ? "No audiences match that"
+                : "No audiences yet"
           }
-          {...(filtered
-            ? {
-                action: {
-                  label: "Clear filters",
-                  onClick: () => {
-                    setQ("");
-                    setSource(ALL);
-                    setStatus(ALL);
-                    setPlatform(ALL);
-                    setOffset(0);
-                  },
-                },
-              }
-            : {})}
+          description={
+            pastTheEnd
+              ? "There are fewer audiences than there were — something was discarded, or you switched business."
+              : filtered
+                ? "Try a different search, or clear the filters to see everything in your library."
+                : "When Peakhour suggests an audience for a campaign, or reads the ones you've already run, they'll be kept here so you can use them again."
+          }
+          {...(pastTheEnd
+            ? { action: { label: "Back to the start", onClick: () => setOffset(0) } }
+            : filtered
+              ? { action: { label: "Clear filters", onClick: clearFilters } }
+              : {})}
         />
       ) : (
         <>
@@ -194,7 +221,7 @@ export default function AudienceLibraryPage() {
             {/* The api's own total, not the page length — a count that silently
                 equals the page size is a number we did not source. */}
             {total} audience{total === 1 ? "" : "s"}
-            {filtered ? " match this filter" : ""}
+            {filtered ? (total === 1 ? " matches this filter" : " match this filter") : ""}
           </p>
           <div className="space-y-3">
             {rows.map((set) => (
@@ -217,7 +244,10 @@ export default function AudienceLibraryPage() {
               <Button
                 variant="outline"
                 size="sm"
-                disabled={offset + PAGE_SIZE >= total}
+                // The api caps `offset` at 1000 and 400s past it, so the last
+                // reachable page is the last one it will serve. Walking into
+                // that would be a dead end wearing an error message.
+                disabled={offset + PAGE_SIZE >= total || offset + PAGE_SIZE > MAX_OFFSET}
                 onClick={() => setOffset((o) => o + PAGE_SIZE)}
               >
                 Next
