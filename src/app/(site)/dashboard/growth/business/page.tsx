@@ -1,6 +1,7 @@
 "use client";
 
 import { AudienceProfilePanel } from "@/components/audience/audience-profile-panel";
+import { WhatWeveLearned } from "@/components/audience/what-weve-learned";
 
 /**
  * Your Business (G2) — what the platform understands about the customer.
@@ -36,6 +37,12 @@ export default function YourBusinessPage() {
           collapsing the only content behind a click is how a surface stays
           unread. */}
       <AudienceProfilePanel defaultOpen />
+
+      {/* ★AND WHAT THE CORRECTIONS ABOVE HAVE ACTUALLY TAUGHT US (H1). A
+          customer asked to correct our understanding, whose corrections
+          visibly go nowhere, stops correcting — and the loop has been running
+          for months with nothing rendering a single thing it learned. */}
+      <WhatWeveLearned />
     </div>
   );
 }

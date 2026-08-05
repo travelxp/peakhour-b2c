@@ -20,6 +20,7 @@ import {
   originLabel,
   outcomeLine,
 } from "@/lib/audience-library-rules";
+import { editLines } from "@/lib/audience-learning-rules";
 import { ChannelCard } from "./_components/channel-card";
 
 /**
@@ -175,6 +176,37 @@ export default function AudienceDetailPage({ params }: { params: Promise<{ id: s
               )}
             </CardContent>
           </Card>
+
+          {/* ★WHAT WE PROPOSED, WHAT YOU CHANGED, WHAT HAPPENED (H1). The
+              corrections have been recorded on this row since B5 and shown to
+              nobody — and a proposal-then-correction pair is what the design
+              calls the single best signal this engine gets. A customer who
+              cannot see that we kept theirs has no reason to make another. */}
+          {(() => {
+            const edits = editLines(row);
+            if (edits.length === 0) return null;
+            return (
+              <Card>
+                <CardContent className="space-y-2 p-4">
+                  <h3 className="text-sm font-medium">What you changed</h3>
+                  <ul className="space-y-1">
+                    {edits.map((edit, i) => (
+                      <li key={`${edit.attribute}:${i}`} className="text-sm text-muted-foreground">
+                        {edit.text}
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="text-xs text-muted-foreground">
+                    We use these to change what we suggest next — see{" "}
+                    <Link href="/dashboard/growth/business" className="underline">
+                      what we&apos;ve learned
+                    </Link>
+                    .
+                  </p>
+                </CardContent>
+              </Card>
+            );
+          })()}
 
           <div className="space-y-3">
             <div>
