@@ -13,7 +13,9 @@ import { audienceClaim, reachLine } from "@/lib/audience-card-rules";
 import { attributeLabel } from "@/lib/audience-library-rules";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Check, Sparkles } from "lucide-react";
+import { useState } from "react";
+import { BookmarkPlus, Check, Sparkles } from "lucide-react";
+import { SaveAudienceDialog } from "@/components/audience/save-audience-dialog";
 
 /**
  * The audience a campaign actually has, said out loud.
@@ -42,6 +44,7 @@ import { Check, Sparkles } from "lucide-react";
 
 export function AudienceCard({ campaign }: { campaign: ManagedCampaign }) {
   const queryClient = useQueryClient();
+  const [saveOpen, setSaveOpen] = useState(false);
   const prov = campaign.targetingProvenance;
   const origin = campaign.audienceOrigin;
 
@@ -147,6 +150,39 @@ export function AudienceCard({ campaign }: { campaign: ManagedCampaign }) {
           </Button>
         </div>
       )}
+
+      {/* ★KEEP THE ONE THEY BUILT (G4). "Learned from the user through their
+          MANUAL campaigns" was half-built for a year: a hand-edit was captured
+          as a diff on the campaign and on the set, and never became a library
+          entry — so the single audience a customer authored was the one they
+          could not reuse. Offered rather than automatic: a library that fills
+          up with every one-off experiment is a library nobody opens.
+
+          ★AND NOT ON AN UNVERIFIED RECORD. When the provenance no longer
+          matches the campaign's targeting we cannot say what this audience IS,
+          so "save this" would save a description of something else. */}
+      {!unverified && (
+        <div className="mt-2">
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 px-2 text-xs"
+            onClick={() => setSaveOpen(true)}
+          >
+            <BookmarkPlus className="mr-1 size-3" aria-hidden="true" />
+            Save as an audience
+          </Button>
+        </div>
+      )}
+
+      {saveOpen ? (
+        <SaveAudienceDialog
+          open={saveOpen}
+          onOpenChange={setSaveOpen}
+          campaignId={campaign._id}
+          campaignName={campaign.name}
+        />
+      ) : null}
     </div>
   );
 }
