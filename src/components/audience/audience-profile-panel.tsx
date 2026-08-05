@@ -4,6 +4,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { toastUnhandledApiError } from "@/lib/toast-errors";
+import { ADS_CHANNELS } from "@/app/(site)/dashboard/ads/ads-channels";
 import {
   audiencesApi,
   type CorrectableFieldSpec,
@@ -192,12 +193,13 @@ type Editing = {
  * Commerce all want to read it. Burying it under Ads is why nobody has ever
  * corrected one.
  *
- * `defaultOpen` is what lets the same component be a summary card inside the
- * Ads hub and the whole of `/dashboard/growth/business` — on its own page there
- * is nothing else to look at, so collapsing it by default would hide the page's
- * only content behind a click.
+ * `defaultOpen` exists because on its own page there is nothing else to look
+ * at, and collapsing the only content behind a click is how a surface stays
+ * unread. It defaults to collapsed so that any future caller embedding this
+ * beside other things gets the old behaviour; the Ads hub now renders
+ * `BusinessProfileSummary` instead.
  */
-export function AudienceProfilePanel({ defaultOpen = false }: { defaultOpen?: boolean } = {}) {
+export function AudienceProfilePanel({ defaultOpen = false }: { defaultOpen?: boolean }) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(defaultOpen);
   const [editing, setEditing] = useState<Editing>(null);
@@ -266,8 +268,22 @@ export function AudienceProfilePanel({ defaultOpen = false }: { defaultOpen?: bo
       closeEditor();
       toast.success("Thanks — we'll use that from now on.");
       // The audience is built from this profile, so a correction changes what
-      // the next campaign would target.
-      void queryClient.invalidateQueries({ queryKey: ["linkedin-managed-campaigns"] });
+      // the next campaign would target — on EVERY channel.
+      // ★NOT LINKEDIN ALONE, WHICH IS WHAT THIS WAS. The line predates the move
+      // and the move is what made it wrong: this panel now sits on a
+      // channel-neutral page whose stated premise is that one understanding
+      // decides who a LinkedIn campaign AND an X campaign target, while X's
+      // caches went on serving a correction the customer had already made. The
+      // ads hub's own channel registry is the list, so adding Meta updates this
+      // by construction rather than by somebody remembering.
+      // `flatMap` over a `readonly` tuple-of-tuples narrows to a union rather
+      // than a list, so the keys are widened once, deliberately.
+      const keys: readonly (readonly string[])[] = ADS_CHANNELS.flatMap(
+        (c) => c.invalidateQueryKeys as readonly (readonly string[])[],
+      );
+      for (const key of keys) {
+        void queryClient.invalidateQueries({ queryKey: [...key] });
+      }
     },
     onError: (err) => toastUnhandledApiError(err, "save that correction"),
   });
