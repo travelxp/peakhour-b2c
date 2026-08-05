@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import type { AudienceChannel, AudienceSet, AudienceSource, AudienceSetStatus } from "@/lib/api/audiences";
+import type {
+  AudienceChannel,
+  AudienceResolution,
+  AudienceSet,
+  AudienceSource,
+  AudienceSetStatus,
+} from "@/lib/api/audiences";
 
 /**
  * The api's own enums, derived so that a change on EITHER side breaks.
@@ -29,11 +35,14 @@ import { SOURCES, STATUSES, SEARCH_MAX } from "@/app/(site)/dashboard/growth/aud
 import {
   audienceShape,
   channelNotes,
+  gapSentence,
   historyLine,
   originIsOurs,
   originLabel,
   outcomeLine,
   reachReading,
+  refreshability,
+  resolutionReach,
   unaskedChannels,
 } from "./audience-library-rules";
 
@@ -307,5 +316,121 @@ describe("outcomeLine", () => {
     // `Math.round(-0.4)` is JavaScript's `-0`, which renders as "-0". A number
     // we cannot explain is one we do not show.
     expect(outcomeLine(outcome({ spend: -1, currency: "USD" }))).not.toContain("spent");
+  });
+});
+
+describe("resolutionReach — the per-channel view knows one thing the list does not", () => {
+  const resolution = (over: Partial<AudienceResolution> = {}): AudienceResolution => ({
+    resolvedAt: "2026-08-01T00:00:00Z",
+    ...over,
+  });
+
+  it("★tells 'nobody asked' from 'the channel has no count'", () => {
+    // The list gets a stored entry and cannot separate these — the api reports
+    // "the platform publishes none" and "our call failed" identically, on
+    // purpose. Here we also know whether anybody asked at all, and that is a
+    // third fact.
+    expect(resolutionReach(resolution(), "x")).toEqual({
+      text: "We haven't asked X for a size.",
+      sourced: false,
+    });
+    expect(resolutionReach(resolution({ reach: { supported: false } }), "x")).toEqual({
+      text: "X doesn't give us a size for this audience.",
+      sourced: false,
+    });
+  });
+
+  it("gives the number, and marks it as one we sourced", () => {
+    expect(
+      resolutionReach(resolution({ reach: { supported: true, value: 2_400_000 } }), "linkedin"),
+    ).toEqual({ text: "About 2,400,000 people on LinkedIn", sourced: true });
+  });
+
+  it("★never prints a zero, and says what a floor MEANS", () => {
+    // LinkedIn's masked `total: 0` means "fewer than 300" — so the useful
+    // sentence is not the number, it is that the campaign will not deliver.
+    for (const reach of [
+      { supported: true, belowFloor: true },
+      { supported: true, value: 0 },
+    ]) {
+      const out = resolutionReach(resolution({ reach }), "linkedin");
+      expect(out.sourced).toBe(false);
+      expect(out.text).toContain("wouldn't deliver");
+      expect(out.text).not.toMatch(/\b0\b/);
+    }
+  });
+
+  it("refuses a supported reach with no number rather than rendering undefined", () => {
+    expect(resolutionReach(resolution({ reach: { supported: true } }), "x").sourced).toBe(false);
+  });
+});
+
+describe("gapSentence — two kinds of gap, two different complaints", () => {
+  it("uses the channel's OWN reason when it cannot express the attribute at all", () => {
+    expect(
+      gapSentence(
+        {
+          attribute: "seniority",
+          variant: "any",
+          unsupported: true,
+          reason: "X has no way to target seniority.",
+          values: [],
+        },
+        "x",
+      ),
+    ).toBe("X has no way to target seniority.");
+  });
+
+  it("falls back to a sentence rather than rendering nothing", () => {
+    // ★A GAP WITH NO PROSE IS STILL A GAP. The stored shape records no reason —
+    // only `attribute|variant` — so a reader that showed nothing would report a
+    // clean audience over one that lost an attribute.
+    expect(
+      gapSentence({ attribute: "job_title", variant: "current", unsupported: true, values: [] }, "x"),
+    ).toBe("X can't target job title.");
+  });
+
+  it("★counts the VALUES separately, because that is a different fact", () => {
+    // "X can't target job title" is about the channel. "X couldn't match 2 of
+    // your job titles" is about those two values, and a customer can act on it.
+    expect(
+      gapSentence(
+        {
+          attribute: "job_title",
+          variant: "current",
+          unsupported: false,
+          values: [
+            { value: "Head of Corporate Travel", reason: "no match" },
+            { value: "Travel Ops Lead", reason: "no match" },
+          ],
+        },
+        "x",
+      ),
+    ).toBe("X couldn't match 2 job title values.");
+  });
+});
+
+describe("refreshability — three questions, and none of them is the other two", () => {
+  it("★never re-asks a channel shape a HUMAN built", () => {
+    // There is no producer for it to be out of date with, and re-resolving
+    // would run the platform's typeahead on the customer's own chip text and
+    // replace their entity ids with whatever ranks first today. The api refuses
+    // it too, `force` included; offering the button would be a dead control.
+    const out = refreshability({ authored: true }, { rematerialisable: true });
+    expect(out.canRefresh).toBe(false);
+    expect(out.reason).toContain("by hand");
+  });
+
+  it("★never re-asks an IMPORTED set either, and for a different reason", () => {
+    // Its criteria are a record of what somebody actually ran. Nothing to
+    // re-derive — and the sentence has to say that rather than "you built this",
+    // which would be false.
+    const out = refreshability({}, { rematerialisable: false });
+    expect(out.canRefresh).toBe(false);
+    expect(out.reason).toContain("read off a campaign");
+  });
+
+  it("offers the refresh on an ordinary derived shape", () => {
+    expect(refreshability({}, { rematerialisable: true })).toEqual({ canRefresh: true });
   });
 });

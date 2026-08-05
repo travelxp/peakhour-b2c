@@ -1,5 +1,7 @@
 import type {
   AudienceChannel,
+  AudienceChannelGap,
+  AudienceResolution,
   AudienceHypothesisAttribute,
   AudienceSet,
   AudienceSource,
@@ -334,4 +336,117 @@ export function outcomeLine(outcome: AudienceSet["outcome"]): string | null {
     }
   }
   return parts.join(" · ");
+}
+
+/**
+ * One channel's answer, in the sentences a person reads (G3).
+ *
+ * ★THE THREE ABSENCES ARE THREE DIFFERENT ANSWERS AND THIS IS WHERE THEY STOP
+ * BEING A COUNT. The list view can say "1 thing X can't express"; this view has
+ * to say WHICH thing and WHY, because that is the difference between a customer
+ * who knows their audience is narrower on X and one who finds out by spending.
+ */
+export interface ChannelVerdict {
+  /** `available` — the channel can run this audience. `refused` — it cannot,
+   *  and the reason is the answer rather than an error. `unasked` — nobody has
+   *  asked, which is neither. */
+  kind: "available" | "refused" | "unasked";
+  headline: string;
+  /** Present on `refused`: the channel's own reason, in the customer's terms. */
+  detail?: string;
+}
+
+/**
+ * What a gap MEANS, as a sentence.
+ *
+ * ★TWO KINDS, AND THEY ARE NOT THE SAME COMPLAINT. `unsupported` is the channel
+ * having no way to express the attribute at all — a fact about the channel.
+ * Values that did not bind are the channel trying and failing on specific ones
+ * — a fact about those values. Collapsing them tells a customer their channel
+ * cannot do something it does perfectly well, or the reverse.
+ */
+export function gapSentence(gap: AudienceChannelGap, platform: string): string {
+  if (gap.unsupported) {
+    return gap.reason ?? `${platformLabel(platform)} can't target ${attributeLabel(gap.attribute).toLowerCase()}.`;
+  }
+  const n = gap.values.length;
+  return (
+    `${platformLabel(platform)} couldn't match ${n} ${attributeLabel(gap.attribute).toLowerCase()} ` +
+    `value${n === 1 ? "" : "s"}.`
+  );
+}
+
+/**
+ * The reach line for a per-channel view, where we know whether the channel was
+ * ASKED.
+ *
+ * ★THIS IS THE ONE PLACE THE THREE READINGS ARE ALL DISTINGUISHABLE. The list
+ * gets a stored entry and cannot tell "the platform publishes no count" from
+ * "our call for it failed" — the api reports both as `supported: false` on
+ * purpose. Here we also know whether anybody asked at all, and "nobody has
+ * asked" is a different sentence from either.
+ */
+export function resolutionReach(
+  resolution: AudienceResolution,
+  platform: string,
+): { text: string; sourced: boolean } {
+  const reach = resolution.reach;
+  if (!reach) {
+    return { text: `We haven't asked ${platformLabel(platform)} for a size.`, sourced: false };
+  }
+  if (!reach.supported) {
+    return {
+      text: `${platformLabel(platform)} doesn't give us a size for this audience.`,
+      sourced: false,
+    };
+  }
+  if (reach.belowFloor || reach.value === 0) {
+    // ★A LITERAL ZERO IS THE FLOOR, NOT A COUNT — LinkedIn's masked `total: 0`
+    // means "fewer than 300", and the api maps it to `belowFloor` with no
+    // number. "0 people" is the sentence this whole file refuses.
+    return {
+      text: `Too small for ${platformLabel(platform)} to count — a campaign on it wouldn't deliver.`,
+      sourced: false,
+    };
+  }
+  if (typeof reach.value !== "number") {
+    return {
+      text: `${platformLabel(platform)} doesn't give us a size for this audience.`,
+      sourced: false,
+    };
+  }
+  return {
+    text: `About ${REACH_FORMAT.format(reach.value)} people on ${platformLabel(platform)}`,
+    sourced: true,
+  };
+}
+
+/**
+ * Whether a channel's stored shape may be refreshed, and what to say if not.
+ *
+ * ★THREE DIFFERENT QUESTIONS, AND COLLAPSING ANY TWO BREAKS SOMETHING REAL.
+ * `authored` — a human built this shape; there is no producer to be out of date
+ * with and re-resolving would overwrite their own choices with a search result.
+ * `rematerialisable` — there is a business-language hypothesis to re-express;
+ * false for an imported set, whose criteria are a record of what was RUN.
+ * `stale` — the entry cannot be shown to be current. Only the third is a reason
+ * to refresh, and only when the first two allow it.
+ */
+export function refreshability(
+  entry: { authored?: boolean },
+  opts: { rematerialisable: boolean },
+): { canRefresh: boolean; reason?: string } {
+  if (entry.authored) {
+    return {
+      canRefresh: false,
+      reason: "You built this one by hand, so there's nothing for us to re-work out.",
+    };
+  }
+  if (!opts.rematerialisable) {
+    return {
+      canRefresh: false,
+      reason: "This was read off a campaign as it ran, so there's no description to rebuild from.",
+    };
+  }
+  return { canRefresh: true };
 }
