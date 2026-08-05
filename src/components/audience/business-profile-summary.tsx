@@ -19,12 +19,20 @@ import { audiencesApi } from "@/lib/api/audiences";
  * says nothing about where its targeting comes from is the state the whole
  * engine was invisible inside, so the link is not optional either.
  *
- * ★AND IT ASKS FOR NOTHING NEW. Same query key as the panel, so on a page that
- * has already loaded it this is a cache read, and on one that has not the panel
- * gets a warm cache when the customer follows the link.
+ * ★AND IT ASKS FOR NOTHING NEW. Same query key as the panel — one endpoint,
+ * one cache entry, and whichever surface is visited second gets a warm one
+ * (within the client's 30s staleTime; after that it is the same single request
+ * the panel used to make from here).
  */
 export function BusinessProfileSummary() {
-  const { data, isLoading, isError } = useQuery({
+  // ★`isPending`, NOT `isLoading`. In TanStack v5 `isLoading` is
+  // `isPending && isFetching`, so a query PAUSED by the default
+  // `networkMode: "online"` — an offline tab — reports false for it: the card
+  // would fall through to "We haven't read your business yet" beside a button
+  // reading "Set it up", over a profile that exists and simply could not be
+  // fetched. That is the rebuild-what-already-exists invitation this component
+  // was rewritten to remove, reachable by losing connectivity.
+  const { data, isPending, isError } = useQuery({
     queryKey: ["audience-profile"],
     queryFn: () => audiencesApi.getProfile(),
   });
@@ -52,7 +60,37 @@ export function BusinessProfileSummary() {
    * failed: the rebuild-what-already-exists invitation the panel refuses two
    * screens down, and the exact rule the comment below claims to follow.
    */
-  const cta = profile ? "Review it" : isLoading || isError ? "Open" : "Set it up";
+  /**
+   * ★"SET IT UP" ONLY WHEN WE HAVE AN ANSWER SAYING THERE IS NOTHING. `profile`
+   * is null in three states — nobody asked yet, the ask failed, and the ask
+   * succeeded and said null — and only the third is an invitation to build one.
+   * Keying on `data` rather than on the loading/error flags is what makes the
+   * three distinguishable: a response we hold is knowledge, however stale.
+   */
+  const cta = profile ? "Review it" : data ? "Set it up" : "Open";
+  /**
+   * Whether the profile says ANYTHING, across every field the panel renders —
+   * not just the four this card counts.
+   *
+   * ★A FIRST CUT ASKED ONLY THE FOUR, and three of them are the commonly-empty
+   * ones. A business with `subIndustry`, an ICP, pain points and a market type
+   * — four full sections on the panel — read "We've read it, but haven't
+   * worked out much yet" on the hub.
+   */
+  const hasAnything = Boolean(
+    profile &&
+      (industry ||
+        profile.classification?.subIndustry?.value ||
+        profile.classification?.marketType?.value ||
+        (profile.classification?.regionalPresence?.length ?? 0) > 0 ||
+        profile.icp?.length ||
+        personas ||
+        profile.decisionMakers?.length ||
+        profile.painPoints?.length ||
+        profile.intentSignals?.length ||
+        corrections ||
+        conflicts),
+  );
 
   return (
     <Card>
@@ -61,7 +99,7 @@ export function BusinessProfileSummary() {
           <Building2 className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
           <div className="min-w-0">
             <div className="text-sm font-medium">What we understand about your business</div>
-            {isLoading ? (
+            {isPending ? (
               <Skeleton className="mt-1 h-3 w-64" />
             ) : isError && !data ? (
               // A failed READ is not "no profile" — saying "we haven't read
@@ -74,12 +112,18 @@ export function BusinessProfileSummary() {
               <p className="text-sm text-muted-foreground">
                 We haven&apos;t read your business yet. Every campaign is targeted from this.
               </p>
+            ) : !hasAnything && classified ? (
+              <p className="text-sm text-muted-foreground">
+                We&apos;ve read it, but haven&apos;t worked out much yet.
+              </p>
             ) : (
               <p className="text-sm text-muted-foreground">
                 {[
                   // No article: `industry` is free-text model output, and "A
-                  // Advertising business" is what an article costs.
-                  industry ?? null,
+                  // Advertising business" is what an article costs. The noun
+                  // stays, because a bare "Advertising" on an ads hub is a
+                  // fragment nobody can place.
+                  industry ? `${industry} business` : null,
                   // ★"KINDS OF BUYER", NOT "AUDIENCES". `personas` is the ICP's
                   // people; an AUDIENCE is a row in the library one nav item
                   // away, and using the same word for both would give a
@@ -102,13 +146,23 @@ export function BusinessProfileSummary() {
                   conflicts > 0
                     ? `${conflicts} thing${conflicts === 1 ? "" : "s"} that don't line up`
                     : null,
-                ].filter(Boolean).join(" · ") ||
-                  // Neither a finding nor a failure: we read the business and
-                  // either found little, or the deeper read never ran. Those
-                  // are different sentences.
-                  (classified
-                    ? "We've read it, but haven't worked out much yet."
-                    : "The deeper read hasn't run yet — re-read it and we'll try again.")}
+                  // ★SAID WHENEVER THE DEEPER READ HAS NOT RUN, NOT ONLY WHEN
+                  // EVERYTHING ELSE IS EMPTY. A first cut reached this only
+                  // through the `||` fallback below — and the EVIDENCED half of
+                  // the profile fills `industry`, `personas` and `conflicts`
+                  // without the classifier ever succeeding, so a business that
+                  // picked a sector at onboarding rendered exactly like a fully
+                  // classified one while the panel two clicks away showed its
+                  // "the deeper read hasn't run for this business yet" notice.
+                  // Two surfaces, opposite claims, about the same profile.
+                  !classified ? "the deeper read hasn't run yet" : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ") ||
+                  // Read, and genuinely quiet. Distinct from the line above:
+                  // this one says we looked and found little, which is a
+                  // finding rather than a gap.
+                  "We've read it, but haven't worked out much yet."}
               </p>
             )}
           </div>

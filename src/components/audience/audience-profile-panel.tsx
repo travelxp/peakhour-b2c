@@ -4,7 +4,6 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { toastUnhandledApiError } from "@/lib/toast-errors";
-import { ADS_CHANNELS } from "@/app/(site)/dashboard/ads/ads-channels";
 import {
   audiencesApi,
   type CorrectableFieldSpec,
@@ -268,22 +267,24 @@ export function AudienceProfilePanel({ defaultOpen = false }: { defaultOpen?: bo
       closeEditor();
       toast.success("Thanks — we'll use that from now on.");
       // The audience is built from this profile, so a correction changes what
-      // the next campaign would target — on EVERY channel.
-      // ★NOT LINKEDIN ALONE, WHICH IS WHAT THIS WAS. The line predates the move
-      // and the move is what made it wrong: this panel now sits on a
-      // channel-neutral page whose stated premise is that one understanding
-      // decides who a LinkedIn campaign AND an X campaign target, while X's
-      // caches went on serving a correction the customer had already made. The
-      // ads hub's own channel registry is the list, so adding Meta updates this
-      // by construction rather than by somebody remembering.
-      // `flatMap` over a `readonly` tuple-of-tuples narrows to a union rather
-      // than a list, so the keys are widened once, deliberately.
-      const keys: readonly (readonly string[])[] = ADS_CHANNELS.flatMap(
-        (c) => c.invalidateQueryKeys as readonly (readonly string[])[],
-      );
-      for (const key of keys) {
-        void queryClient.invalidateQueries({ queryKey: [...key] });
-      }
+      // the next campaign WOULD target.
+      //
+      // ★THE PROPOSAL, WHICH NOTHING HAS EVER INVALIDATED. `audience-proposal`
+      // is the query that literally resolves this profile into targeting, and
+      // it is cached for five minutes — so correcting Industry and returning to
+      // the boost dialog inside that window shows, and boosts against, the
+      // pre-correction audience. That is the failure this line was written for,
+      // in the one query it never named.
+      //
+      // ★AND NOT THE CAMPAIGN LISTS. A first cut invalidated LinkedIn's; the
+      // fix after that looped over the ads hub's channel registry — which is
+      // documented as "what to invalidate after a CRON fires" and is a
+      // different question, so it both missed this and dragged in
+      // `content-hub-integrations`, a connection list a profile correction
+      // cannot change. A campaign's stored provenance records what was chosen
+      // at the time and does not move when the profile does; re-fetching it
+      // would be work that changes nothing.
+      void queryClient.invalidateQueries({ queryKey: ["audience-proposal"] });
     },
     onError: (err) => toastUnhandledApiError(err, "save that correction"),
   });
