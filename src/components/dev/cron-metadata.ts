@@ -226,6 +226,12 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
     description:
       "Scans recently-sent content vs. the AI draft and promotes phrases your team kept (signatures) or edited out (avoid) onto the matching voice card.",
   },
+  "skill-tuning": {
+    label: "Learn from what worked",
+    frequency: "Runs weekly (Monday 8 AM UTC)",
+    description:
+      "Rescores each skill from the feedback and outcomes it collected, and writes back what it learned — the loop that stops the same suggestion being made twice.",
+  },
   "sync-ai-models": {
     label: "Sync AI model catalog",
     frequency: "Runs daily at 3 AM UTC",

@@ -202,3 +202,125 @@ export const audiencesApi = {
   correctProfile: (corrections: CorrectionInput[]) =>
     api.patch<{ profile: AudienceProfile }>("/v1/audiences/profile", { corrections }),
 };
+
+// ── The library ─────────────────────────────────────────────────────────
+//
+// ★EVERYTHING BELOW IS THE FIRST CALLER E1–F4 HAS EVER HAD. The engine has
+// planned portfolios, imported the audiences a business actually ran, scored
+// them, argued against them and resolved them per channel — all of it API-only,
+// with this client calling exactly four profile endpoints. "Built" means a
+// caller can reach it, and until now nothing did.
+
+/** Where an audience came from — the brief's own distinction, and the one the
+ *  list has to make visible. */
+export type AudienceSource = "generated" | "fallback" | "imported" | "user_defined";
+
+export type AudienceSetStatus = "proposed" | "applied" | "discarded" | "superseded";
+
+/**
+ * One channel this audience is KNOWN to work on, as `GET /sets` reports it.
+ *
+ * ★A CHANNEL MISSING FROM THE LIST HAS NOT BEEN ASKED. That is a different
+ * statement from "it doesn't work there", and a client that renders them the
+ * same is making a claim about a customer's reach on a channel nobody has
+ * queried. The list is what is already stored; asking a channel costs a
+ * typeahead round and lives behind `GET /sets/:id/resolutions/:platform`.
+ */
+export interface AudienceChannel {
+  platform: string;
+  /** The entry is real but cannot be shown to be current — the adapter build
+   *  that produced it has moved, or none was recorded. */
+  stale: boolean;
+  /** False for an audience with no business-language hypothesis to re-express
+   *  — an imported set. Its criteria are a record of what was RUN, so `stale`
+   *  on such a row would invite an action that does not exist. */
+  rematerialisable: boolean;
+  /** True only when we HAVE a number. False covers both "the channel publishes
+   *  no count" and "we could not get one", which the api collapses on purpose:
+   *  from the customer's side both are "we don't have a size". Neither is a
+   *  zero. */
+  reachSupported: boolean;
+  reachValue?: number;
+  /** The platform masked the count because the audience is under its serving
+   *  floor. Carries NO figure, deliberately. */
+  belowFloor: boolean;
+  /** How many attributes this channel could not express at all. The names live
+   *  behind the per-channel view. */
+  droppedAttributes: number;
+  resolvedAt?: string;
+}
+
+/** The business-language shape of an audience — no URNs, no platform enums.
+ *  This IS the audience; a channel's criteria are a cache of it. */
+export interface AudienceHypothesisAttribute {
+  attribute: string;
+  variant: string;
+  values: string[];
+}
+
+export interface AudienceSet {
+  id: string;
+  name: string;
+  description?: string;
+  source: AudienceSource;
+  status: AudienceSetStatus;
+  archetype?: string;
+  hypothesis?: {
+    attributes: AudienceHypothesisAttribute[];
+    rationale?: string;
+    cites?: string[];
+  };
+  channels: AudienceChannel[];
+  /** Every hand-correction to this audience's targeting. The count is the
+   *  interesting figure on a list: an audience corrected four times is one we
+   *  keep getting wrong. */
+  userEdits?: Array<{ at: string; attribute?: string; from?: string[]; to?: string[] }>;
+  /** Copied from the campaigns that ran it, never independently measured. */
+  outcome?: {
+    campaignIds: string[];
+    impressions: number;
+    clicks: number;
+    ctr?: number;
+    conversions?: number;
+    spend?: number;
+    currency?: string;
+    note?: string;
+    syncedAt: string;
+  };
+  discardReason?: string;
+  createdAt: string;
+}
+
+export interface AudienceSetsQuery {
+  platform?: string;
+  status?: AudienceSetStatus;
+  source?: AudienceSource;
+  q?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface AudienceSetsResponse {
+  sets: AudienceSet[];
+  /** The true total, not the page size — so the header can say "23 audiences"
+   *  rather than a number that silently equals the page. */
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export const audienceLibraryApi = {
+  /**
+   * The library. Filters are SERVER-SIDE and the enums are the server's: a
+   * value it does not recognise is a 400, not a silently empty list.
+   */
+  listSets: (query: AudienceSetsQuery = {}) => {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(query)) {
+      if (value === undefined || value === "") continue;
+      params.set(key, String(value));
+    }
+    const qs = params.toString();
+    return api.get<AudienceSetsResponse>(`/v1/audiences/sets${qs ? `?${qs}` : ""}`);
+  },
+};
