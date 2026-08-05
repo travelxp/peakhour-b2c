@@ -135,17 +135,37 @@ export function UseSavedAudienceDialog({
           // to a customer whose next act is to activate it.
           void queryClient.invalidateQueries({ queryKey: ["linkedin-managed-campaigns"] });
           void queryClient.invalidateQueries({ queryKey: ["audience-sets"] });
+          // The set really did move to `applied` — the claim is not released on
+          // this path — so a detail page open elsewhere is now wrong too.
+          void queryClient.invalidateQueries({ queryKey: ["audience-set"] });
           onOpenChange(false);
           setChosen(null);
+          // Same as the success path: this IS a success on the platform, and a
+          // caller advancing a flow on it would otherwise stall silently.
+          onApplied?.();
           toast.warning(
             message ||
               `The audience was applied on ${platformLabel(platform)} but we couldn't save it here — apply again to refresh.`,
+            // ★AND IT DOES NOT AUTO-DISMISS. This is the money-critical
+            // message on this surface — the campaign's targeting has moved and
+            // our copy has not — and a four-second toast is how a customer
+            // activates against an audience they never saw.
+            { duration: Number.POSITIVE_INFINITY },
           );
           return;
         case "ad_account_not_authorized":
           // Not a reconnect, and the shared helper is the one place that says
           // so properly — this is the 403 that is live on the boost path.
-          toastAdAccountNotAuthorized(err, "Putting an audience on this campaign");
+          // ★THE CHANNEL, NAMED. The helper defaults its third argument to
+          // "LinkedIn", and this is the one component in the codebase that
+          // takes `platform` as a prop precisely so it can be channel-neutral
+          // — the same storage-key-in-a-headline defect api#1026 fixed on the
+          // server, reintroduced one layer up by omitting an argument.
+          toastAdAccountNotAuthorized(
+            err,
+            "Putting an audience on this campaign",
+            platformLabel(platform),
+          );
           return;
         case "ad_account_forbidden":
           toastAdAccountForbidden(err, `${platformLabel(platform)} refused this ad account.`);
@@ -169,6 +189,14 @@ export function UseSavedAudienceDialog({
 
   const rows = sets.data?.sets ?? [];
   const total = sets.data?.total ?? 0;
+  /**
+   * ★A SELECTION THE CUSTOMER CAN NO LONGER SEE MAY NOT BE APPLIED. Pick an
+   * audience, then type a search that excludes it: the row disappears, nothing
+   * on screen is selected, and "Use this audience" stayed enabled — applying
+   * the invisible one. Derived rather than cleared in an effect, so it cannot
+   * be out of step with the rows for a render.
+   */
+  const selected = chosen && rows.some((r) => r.id === chosen.id) ? chosen : null;
 
   return (
     <Dialog
@@ -279,8 +307,8 @@ export function UseSavedAudienceDialog({
           </Button>
           <Button
             type="button"
-            disabled={!chosen || apply.isPending}
-            onClick={() => chosen && apply.mutate(chosen.id)}
+            disabled={!selected || apply.isPending}
+            onClick={() => selected && apply.mutate(selected.id)}
           >
             {apply.isPending ? "Applying…" : "Use this audience"}
           </Button>

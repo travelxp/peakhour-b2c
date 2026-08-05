@@ -47,6 +47,17 @@ export type ApplyErrorKind =
  * `MaterialiseResult` codes, which the route passes through verbatim.
  */
 const AUDIENCE_REFUSALS = new Set([
+  // ★A PRODUCT GAP IS NOT A SUPPORT TICKET. Both routes author a specific
+  // sentence for this ("we don't have X's targeting vocabulary yet"), and
+  // sending it to the shared handler made it a 4xx with no disposition —
+  // therefore `permanent`, therefore a NON-DISMISSABLE "contact support and
+  // quote this reference" toast, for something no support agent can clear. It
+  // is reachable today: the capability registry is empty for a platform until
+  // its migration runs, and the registry crons do not run in dev.
+  "PLATFORM_UNSUPPORTED",
+  // Same shape: "this campaign has no identity on the platform to target",
+  // which is a sentence about this campaign and not a ticket.
+  "NO_PLATFORM_ID",
   // the route's own
   "SET_DISCARDED",
   "SET_STALE",
@@ -68,7 +79,15 @@ const AUDIENCE_REFUSALS = new Set([
 export function classifyApplyError(code: string | undefined): ApplyErrorKind {
   if (!code) return "unhandled";
   if (code === "APPLY_PERSIST_FAILED") return "persisted_on_platform";
-  if (code === "AD_ACCOUNT_NOT_AUTHORIZED") return "ad_account_not_authorized";
+  // ★BOTH SPELLINGS, BECAUSE ONLY ONE OF THEM IS DEPLOYED. api#1026 renamed
+  // `APP_NOT_AUTHORIZED` to the platform-wide `AD_ACCOUNT_NOT_AUTHORIZED`, and
+  // until that api is in production the LIVE code is the old one — so a
+  // classifier that knew only the new name would have left the very 403 this
+  // was written for falling through to "contact support", with a green test
+  // asserting the name that is not yet on the wire.
+  if (code === "AD_ACCOUNT_NOT_AUTHORIZED" || code === "APP_NOT_AUTHORIZED") {
+    return "ad_account_not_authorized";
+  }
   if (code === "AD_ACCOUNT_FORBIDDEN") return "ad_account_forbidden";
   if (AUDIENCE_REFUSALS.has(code)) return "audience";
   // ★EVERYTHING ELSE GOES TO THE SHARED HANDLER, INCLUDING THE ONES THAT LOOK

@@ -654,9 +654,11 @@ function CampaignRow({
             campaignId={campaign._id}
             campaignName={campaign.name}
             // The campaign's OWN channel, which is what the api materialises
-            // the set for. Hardcoding this panel's would list the wrong
-            // channel's audiences and then take a 409 from the api.
-            platform={campaign.platform ?? "linkedin"}
+            // the set for. Every row in THIS panel is linkedin — the route
+            // filters on it server-side and `platform` is required on the type,
+            // so this changes nothing today; it is what stops the picker being
+            // wrong the day a campaign list carries a second channel.
+            platform={campaign.platform}
           />
         ) : null}
 

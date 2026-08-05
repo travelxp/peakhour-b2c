@@ -291,24 +291,24 @@ export interface AudienceSet {
   createdAt: string;
 }
 
-export interface AudienceSetsQuery {
+/**
+ * ★`status` AND `excludeStatus` ARE MUTUALLY EXCLUSIVE, AND THE TYPE SAYS SO.
+ * They filter the same field, so the api answers 400 when both arrive — a rule
+ * it spent a `refine()` on. As two independent optionals, the obvious next
+ * change ("hide discarded" added to the library page's existing status
+ * dropdown) would send both and 400 the whole library.
+ */
+type StatusFilter =
+  | { status?: AudienceSetStatus; excludeStatus?: never }
+  | { status?: never; excludeStatus?: AudienceSetStatus };
+
+export type AudienceSetsQuery = StatusFilter & {
   platform?: string;
-  status?: AudienceSetStatus;
-  /**
-   * Everything EXCEPT one status, which `status` cannot express.
-   *
-   * ★"NOT DISCARDED" IS THE QUESTION A PICKER ASKS. A discarded audience must
-   * not be offered — the customer decided, and apply 409s it — but `status`
-   * takes one value, so the only available proxy was `proposed`, and apply
-   * sets `applied`: every audience they had ever used vanished from the
-   * picker, and the second campaign could not reuse the audience.
-   */
-  excludeStatus?: AudienceSetStatus;
   source?: AudienceSource;
   q?: string;
   limit?: number;
   offset?: number;
-}
+};
 
 export interface AudienceSetsResponse {
   sets: AudienceSet[];

@@ -26,6 +26,11 @@ const API_CODES: Array<[code: string, kind: ReturnType<typeof classifyApplyError
   // about a campaign they are about to activate.
   ["APPLY_PERSIST_FAILED", "persisted_on_platform"],
   ["AD_ACCOUNT_NOT_AUTHORIZED", "ad_account_not_authorized"],
+  // ★THE SPELLING THAT IS STILL DEPLOYED. api#1026 renamed it; until that api
+  // is in production this is the code on the wire, and a table asserting only
+  // the new name is green while the live path tells the customer to open a
+  // ticket.
+  ["APP_NOT_AUTHORIZED", "ad_account_not_authorized"],
   ["AD_ACCOUNT_FORBIDDEN", "ad_account_forbidden"],
   // Shared copy lives in toast-errors.ts; a second sentence here would drift.
   ["NOT_CONNECTED", "unhandled"],
@@ -35,10 +40,12 @@ const API_CODES: Array<[code: string, kind: ReturnType<typeof classifyApplyError
   ["INVALID_TRANSITION", "unhandled"],
   ["NOT_FOUND", "unhandled"],
   ["FORBIDDEN", "unhandled"],
-  ["NO_PLATFORM_ID", "unhandled"],
+  ["NO_PLATFORM_ID", "audience"],
   ["APPLY_FAILED", "unhandled"],
   ["TOKEN_FAILED", "unhandled"],
-  ["PLATFORM_UNSUPPORTED", "unhandled"],
+  // ★A PRODUCT GAP, NOT A TICKET. Both routes author a sentence for it, and
+  // `unhandled` makes a 4xx `permanent` — a non-dismissable "contact support".
+  ["PLATFORM_UNSUPPORTED", "audience"],
   // ── passed through from materialiseForPlatform ─────────────────────────
   // ★THE TWO THE FIRST CUT MISSED. Their messages are the ones the feature's
   // own commit message quoted as the reason not to flatten anything.
@@ -52,6 +59,13 @@ const API_CODES: Array<[code: string, kind: ReturnType<typeof classifyApplyError
   ["TIMED_OUT", "unhandled"],
   // ── the from-campaign route ────────────────────────────────────────────
   ["NO_TARGETING", "audience"],
+  // Its insert catch-all. `unhandled` is a DECISION here, not where an
+  // unlisted code lands: a 502 has no sentence worth quoting and the shared
+  // handler's "try again in a moment" is right.
+  ["SAVE_FAILED", "unhandled"],
+  // Both routes. Practically unreachable from these dialogs — both clamp to the
+  // server's own limits — but it is a code they can return.
+  ["VALIDATION_ERROR", "unhandled"],
   ["LIBRARY_FULL", "audience"],
   ["NO_HYPOTHESIS", "audience"],
 ];
