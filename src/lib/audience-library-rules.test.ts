@@ -35,6 +35,7 @@ import { SOURCES, STATUSES, SEARCH_MAX } from "@/app/(site)/dashboard/growth/aud
 import {
   audienceShape,
   channelNotes,
+  detailChannels,
   gapSentence,
   historyLine,
   originIsOurs,
@@ -43,6 +44,7 @@ import {
   reachReading,
   refreshability,
   resolutionReach,
+  shouldAskOnMount,
   unaskedChannels,
 } from "./audience-library-rules";
 
@@ -430,7 +432,62 @@ describe("refreshability — three questions, and none of them is the other two"
     expect(out.reason).toContain("read off a campaign");
   });
 
+  it("★says 'you built this' about a set that is BOTH authored and importless", () => {
+    // A captured set carries a human-built channel shape AND a hypothesis. Both
+    // reasons are true of the row; only one of them is true of the SHAPE, and
+    // "read off a campaign as it ran" would be a false sentence about it.
+    expect(refreshability({ authored: true }, { rematerialisable: false }).reason).toContain(
+      "by hand",
+    );
+  });
+
   it("offers the refresh on an ordinary derived shape", () => {
     expect(refreshability({}, { rematerialisable: true })).toEqual({ canRefresh: true });
+  });
+});
+
+describe("shouldAskOnMount — a cache read is free and a stale entry is not", () => {
+  it("★never fires a metered resolution just because a page opened", () => {
+    // The route is a cache read only when the stored entry is CURRENT. On a
+    // stale, re-expressible one it takes an ORG-WIDE rate-limit token and runs
+    // a full typeahead round, a reach call and a write — and the pre-E1
+    // `resolved` block is stale BY CONSTRUCTION, so opening a detail page used
+    // to spend several of those before the customer touched anything.
+    expect(shouldAskOnMount(channel({ stale: true, rematerialisable: true }))).toBe(false);
+  });
+
+  it("asks for a fresh entry, which costs nothing", () => {
+    expect(shouldAskOnMount(channel({ stale: false }))).toBe(true);
+  });
+
+  it("asks for a stale IMPORTED entry, which the api cannot re-resolve anyway", () => {
+    // No hypothesis to re-express, so the api returns the cached entry after
+    // one findOne. Withholding it would hide what we already have for nothing.
+    expect(shouldAskOnMount(channel({ stale: true, rematerialisable: false }))).toBe(true);
+  });
+
+  it("asks nothing about a channel we have never resolved", () => {
+    expect(shouldAskOnMount(undefined)).toBe(false);
+  });
+});
+
+describe("detailChannels", () => {
+  it("★shows every channel the SET carries, not only the ones we hardcode", () => {
+    // A set resolved against a platform this client does not list still shows a
+    // reach line on the library ROW; dropping it here would make the page whose
+    // premise is that it knows more than the row know less.
+    expect(detailChannels({ channels: [channel({ platform: "meta" })] })).toEqual([
+      "linkedin",
+      "meta",
+      "x",
+    ]);
+  });
+
+  it("offers the unasked ones too, without duplicating the asked", () => {
+    expect(detailChannels({ channels: [channel({ platform: "linkedin" })] })).toEqual([
+      "linkedin",
+      "x",
+    ]);
+    expect(detailChannels({ channels: [] })).toEqual(["linkedin", "x"]);
   });
 });

@@ -14,8 +14,8 @@ import { audienceLibraryApi } from "@/lib/api/audiences";
 import { useAuth } from "@/providers/auth-provider";
 import {
   audienceShape,
+  detailChannels,
   historyLine,
-  LIBRARY_CHANNELS,
   originIsOurs,
   originLabel,
   outcomeLine,
@@ -36,6 +36,43 @@ import { ChannelCard } from "./_components/channel-card";
  * than the thing itself. A channel resolving badly does not make the audience
  * worse; it makes that channel a worse fit, and the page is arranged to say so.
  */
+/** What to say when one audience will not load. Mirrors the list's own
+ *  branching: the conditions are the route's, not this page's. */
+function detailErrorState(error: unknown): {
+  title: string;
+  description: string;
+  action: { label: string; href: string };
+} {
+  const back = { label: "Back to your audiences", href: "/dashboard/growth/audiences" };
+  const code = error instanceof ApiError ? error.code : undefined;
+  if (code === "FORBIDDEN") {
+    return {
+      title: "Pick a business first",
+      description: "Audiences belong to one business at a time — choose one and this will load.",
+      action: back,
+    };
+  }
+  if (code === "VALIDATION_ERROR") {
+    return {
+      title: "That isn't an audience link",
+      description: "The address is missing part of an audience id.",
+      action: back,
+    };
+  }
+  if (error instanceof ApiError && error.status === 404) {
+    return {
+      title: "We couldn't find that audience",
+      description: "It may belong to another business, or have been removed.",
+      action: back,
+    };
+  }
+  return {
+    title: "We couldn't load that audience",
+    description: "That's on us. Nothing has been changed.",
+    action: back,
+  };
+}
+
 export default function AudienceDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { business } = useAuth();
@@ -63,20 +100,12 @@ export default function AudienceDetailPage({ params }: { params: Promise<{ id: s
           <Skeleton className="h-32 w-full" />
         </div>
       ) : set.isError || !row ? (
-        <EmptyState
-          icon={Users}
-          title={
-            set.error instanceof ApiError && set.error.status === 404
-              ? "We couldn't find that audience"
-              : "We couldn't load that audience"
-          }
-          description={
-            set.error instanceof ApiError && set.error.status === 404
-              ? "It may belong to another business, or have been removed."
-              : "That's on us. Nothing has been changed."
-          }
-          action={{ label: "Back to your audiences", href: "/dashboard/growth/audiences" }}
-        />
+        // ★THE SAME VOCABULARY AS THE LIST, because they answer to the same
+        // conditions. A customer with no active business got "Pick a business
+        // first" one click away and "That's on us" here — two answers to one
+        // condition inside one feature — and a pasted bad id got an apology for
+        // something that is not our fault.
+        <EmptyState icon={Users} {...detailErrorState(set.error)} />
       ) : (
         <>
           <div className="space-y-2">
@@ -152,7 +181,12 @@ export default function AudienceDetailPage({ params }: { params: Promise<{ id: s
                 what a channel can&apos;t say.
               </p>
             </div>
-            {LIBRARY_CHANNELS.map((platform) => (
+            {/* ★THE UNION OF WHAT WE KNOW AND WHAT COULD BE ASKED. Rendering
+                the hardcoded list alone dropped any channel a set carries that
+                the constant does not name — a legacy row born on a third
+                platform showed a reach line on the library ROW and then
+                vanished from the page whose premise is that it knows more. */}
+            {detailChannels(row).map((platform) => (
               <ChannelCard key={platform} set={row} platform={platform} />
             ))}
           </div>

@@ -339,21 +339,45 @@ export function outcomeLine(outcome: AudienceSet["outcome"]): string | null {
 }
 
 /**
- * One channel's answer, in the sentences a person reads (G3).
+ * Should this channel be asked the moment the page opens?
  *
- * ★THE THREE ABSENCES ARE THREE DIFFERENT ANSWERS AND THIS IS WHERE THEY STOP
- * BEING A COUNT. The list view can say "1 thing X can't express"; this view has
- * to say WHICH thing and WHY, because that is the difference between a customer
- * who knows their audience is narrower on X and one who finds out by spending.
+ * ★"IT ASKS ONLY WHEN ASKED" WAS FALSE FOR EVERY STALE CHANNEL, and this
+ * function is the fix. `GET /sets/:id/resolutions/:platform` is only a cache
+ * read when the stored entry is CURRENT; on a stale one the api takes a
+ * rate-limit token and runs a full typeahead round, a reach call and a write.
+ * The pre-E1 `resolved` block is stale BY CONSTRUCTION — it records no adapter
+ * build — and every derived set in a business goes stale at once the day an
+ * adapter version moves. So opening a detail page could spend several metered
+ * resolutions before the customer touched anything, and two page opens could
+ * exhaust an ORG-WIDE bucket.
+ *
+ * A stale entry is still shown, from what the list already carries; asking for
+ * a fresh one is a button.
  */
-export interface ChannelVerdict {
-  /** `available` — the channel can run this audience. `refused` — it cannot,
-   *  and the reason is the answer rather than an error. `unasked` — nobody has
-   *  asked, which is neither. */
-  kind: "available" | "refused" | "unasked";
-  headline: string;
-  /** Present on `refused`: the channel's own reason, in the customer's terms. */
-  detail?: string;
+export function shouldAskOnMount(
+  channel: Pick<AudienceChannel, "stale" | "rematerialisable"> | undefined,
+): boolean {
+  if (!channel) return false;
+  // A stale entry the api CANNOT re-resolve (an imported set) is returned
+  // straight from cache, so asking costs nothing and shows more.
+  return !channel.stale || !channel.rematerialisable;
+}
+
+/**
+ * Every channel worth a card on the detail page: the ones we know about, plus
+ * the ones a customer could ask about.
+ *
+ * ★A UNION, NOT A HARDCODED LIST. The page rendered `LIBRARY_CHANNELS` alone,
+ * so a set carrying a resolution for anything else — a legacy row born on a
+ * third platform, or the next adapter before this constant is edited — showed a
+ * reach line on the library ROW and then vanished from the page whose whole
+ * premise is that it knows more than the row.
+ */
+export function detailChannels(
+  set: Pick<AudienceSet, "channels">,
+  known: readonly string[] = LIBRARY_CHANNELS,
+): string[] {
+  return [...new Set([...set.channels.map((c) => c.platform), ...known])].sort();
 }
 
 /**
@@ -436,6 +460,10 @@ export function refreshability(
   entry: { authored?: boolean },
   opts: { rematerialisable: boolean },
 ): { canRefresh: boolean; reason?: string } {
+  // ★`authored` OUTRANKS `rematerialisable`, and the order is the point. A
+  // captured set is BOTH — a human built the channel shape and it carries a
+  // hypothesis — and "you built this one by hand" is the true sentence;
+  // "read off a campaign as it ran" would be false about the same row.
   if (entry.authored) {
     return {
       canRefresh: false,

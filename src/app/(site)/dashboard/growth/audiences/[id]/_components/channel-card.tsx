@@ -1,16 +1,20 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import Link from "next/link";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { RefreshCw, Search } from "lucide-react";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError } from "@/lib/api";
+import { useAuth } from "@/providers/auth-provider";
 import {
   audienceLibraryApi,
   type AudienceChannelGap,
+  type AudienceResolutionResponse,
   type AudienceSet,
 } from "@/lib/api/audiences";
 import {
@@ -19,6 +23,7 @@ import {
   platformLabel,
   refreshability,
   resolutionReach,
+  shouldAskOnMount,
 } from "@/lib/audience-library-rules";
 
 /**
@@ -29,27 +34,26 @@ import {
  * be expressed there" is the sentence this whole track exists to be able to
  * say.
  *
- * ★AND IT ASKS ONLY WHEN ASKED. `GET /sets/:id/resolutions/:platform` runs a
- * typeahead round and a reach call, and it WRITES the answer back — so firing
- * it on mount for every channel would spend a customer's rate limit rendering a
- * page. The card opens with what is already stored and offers the question.
+ * ★AND IT ASKS ONLY WHEN THE ANSWER IS ALREADY PAID FOR. The route is a cache
+ * read when the stored entry is CURRENT; on a stale one it takes an org-wide
+ * rate-limit token and runs a full typeahead round, a reach call and a write.
+ * `shouldAskOnMount` is that distinction, and it is a tested function rather
+ * than a `Boolean(known)` — the first cut fired a metered resolution for every
+ * pre-E1 entry (stale by construction) just by opening the page.
  */
-export function ChannelCard({
-  set,
-  platform,
-}: {
-  set: AudienceSet;
-  platform: string;
-}) {
+export function ChannelCard({ set, platform }: { set: AudienceSet; platform: string }) {
+  const { business } = useAuth();
+  const queryClient = useQueryClient();
   const known = set.channels.find((c) => c.platform === platform);
-  /** Nobody asks a channel by accident: the query is disabled until they do,
-   *  or until the channel is one we have already resolved (where the answer is
-   *  a cache read on the api's side and costs nothing). */
-  const [asked, setAsked] = useState(Boolean(known));
+  const [asked, setAsked] = useState(() => shouldAskOnMount(known));
   const [refreshing, setRefreshing] = useState(false);
 
+  // The business is in the key like every other business-scoped query here:
+  // the route is business-scoped server-side, and a key that does not say which
+  // business is one cache `clear()` away from rendering another one's answer.
+  const queryKey = ["audience-resolution", business?._id ?? "none", set.id, platform] as const;
   const resolution = useQuery({
-    queryKey: ["audience-resolution", set.id, platform],
+    queryKey,
     queryFn: () => audienceLibraryApi.getResolution(set.id, platform),
     enabled: asked,
     // The answer is cached server-side into the set; re-asking on every focus
@@ -58,13 +62,38 @@ export function ChannelCard({
     retry: false,
   });
 
+  /**
+   * Ask the channel again.
+   *
+   * ★THE FORCED CALL'S OWN ANSWER IS WHAT GETS RENDERED. A first cut awaited it,
+   * THREW THE PAYLOAD AWAY and then issued a second, unforced GET — so
+   * `refreshFailed`, which only the attempting call produces, was unreachable
+   * on the one path that can produce it, and a stale entry paid for two
+   * resolutions per button press.
+   *
+   * ★AND A FAILURE IS SAID OUT LOUD. With no `catch`, a 429 left the spinner
+   * stopping over byte-identical data and nothing else happening — on the one
+   * control that can actually trip an org-wide bucket.
+   */
   async function refresh() {
     setRefreshing(true);
     try {
-      await audienceLibraryApi.getResolution(set.id, platform, { refresh: true });
+      const fresh = await audienceLibraryApi.getResolution(set.id, platform, { refresh: true });
+      queryClient.setQueryData(queryKey, fresh);
+      if (fresh.available && fresh.refreshFailed) {
+        toast.warning(`We couldn't ask ${platformLabel(platform)} again.`, {
+          description: fresh.refreshFailed.message,
+        });
+      }
+    } catch (err) {
+      const code = err instanceof ApiError ? err.code : undefined;
+      toast.error(
+        code === "RATE_LIMITED"
+          ? "We're still working out the last one — give it a moment."
+          : `We couldn't ask ${platformLabel(platform)} again just now. Nothing was changed.`,
+      );
     } finally {
       setRefreshing(false);
-      void resolution.refetch();
     }
   }
 
@@ -80,24 +109,9 @@ export function ChannelCard({
               <Search className="mr-1.5 size-3.5" aria-hidden="true" />
               Check this channel
             </Button>
-          ) : data?.available ? (
-            (() => {
-              const { canRefresh, reason } = refreshability(data.resolution, {
-                rematerialisable: data.rematerialisable,
-              });
-              return canRefresh ? (
-                <Button size="sm" variant="ghost" onClick={() => void refresh()} disabled={refreshing}>
-                  <RefreshCw
-                    className={`mr-1.5 size-3.5 ${refreshing ? "animate-spin" : ""}`}
-                    aria-hidden="true"
-                  />
-                  {refreshing ? "Asking…" : "Ask again"}
-                </Button>
-              ) : (
-                <span className="text-xs text-muted-foreground">{reason}</span>
-              );
-            })()
-          ) : null}
+          ) : (
+            <RefreshControl data={data} platform={platform} onRefresh={refresh} busy={refreshing} />
+          )}
         </div>
 
         {/* ★NOBODY HAS ASKED IS ITS OWN ANSWER. Not "it doesn't work here", and
@@ -106,8 +120,9 @@ export function ChannelCard({
         {!asked ? (
           <p className="text-sm text-muted-foreground">
             We haven&apos;t worked out what this audience looks like on{" "}
-            {platformLabel(platform)}. Checking asks {platformLabel(platform)} directly — it
-            changes nothing and spends nothing.
+            {platformLabel(platform)}
+            {known?.stale ? " recently" : ""}. Checking asks {platformLabel(platform)} directly
+            — it puts nothing on a campaign and spends no budget.
           </p>
         ) : resolution.isPending ? (
           <div className="space-y-2">
@@ -131,6 +146,32 @@ export function ChannelCard({
           <div className="space-y-2">
             <p className="text-sm">{data.message}</p>
             <GapList gaps={data.gaps} platform={platform} />
+            {/* ★AND NOT EVERY REFUSAL IS ABOUT THE AUDIENCE. "Connect LinkedIn
+                Ads to see what this looks like there" is a refusal about the
+                CONNECTION, and rendering it as a bare sentence leaves a
+                first-run business — nothing connected, which is the default
+                state of this page — with no way forward from the screen that
+                told them. */}
+            {CONNECTION_CODES.has(data.code) && (
+              <div className="flex flex-wrap gap-2 pt-1">
+                <Button asChild size="sm" variant="outline">
+                  <Link href="/dashboard/integrations">Go to integrations</Link>
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => void resolution.refetch()}>
+                  I&apos;ve done that — check again
+                </Button>
+              </div>
+            )}
+            {RETRYABLE_CODES.has(data.code) && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="mt-1"
+                onClick={() => void resolution.refetch()}
+              >
+                Try again
+              </Button>
+            )}
           </div>
         ) : (
           <div className="space-y-3">
@@ -170,24 +211,66 @@ export function ChannelCard({
 
             <GapList gaps={data.gaps} platform={platform} />
 
-            {/* ★"WE COULDN'T RE-ASK" IS NOT "THIS IS CURRENT". Without saying
-                so, a failed refresh is indistinguishable from a cache hit —
-                which is why the api reports it separately from `stale`. */}
+            {/* ★TWO STATEMENTS, AND A FIRST CUT SHOWED ONLY ONE OF THEM AT A
+                TIME. `stale` is about the ENTRY — it cannot be shown to be
+                current — and `refreshFailed` is about the CALL. On the
+                combination that matters most (a stale entry we then failed to
+                refresh) suppressing the first told the customer the refresh
+                failed and left them believing what they were reading was
+                current. The api reports them separately for exactly this. */}
+            {data.stale && data.rematerialisable && (
+              <p className="text-xs text-muted-foreground">
+                This was worked out by an older version of us, so we can&apos;t promise it&apos;s
+                today&apos;s answer — ask again for a fresh one.
+              </p>
+            )}
             {data.refreshFailed && (
               <p className="text-xs text-muted-foreground">
                 We couldn&apos;t ask {platformLabel(platform)} again just now, so this is what we
                 had. {data.refreshFailed.message}
               </p>
             )}
-            {data.stale && !data.refreshFailed && data.rematerialisable && (
-              <p className="text-xs text-muted-foreground">
-                This was worked out by an older version of us — ask again for today&apos;s answer.
-              </p>
-            )}
           </div>
         )}
       </CardContent>
     </Card>
+  );
+}
+
+/** Refusals whose fix is a connection the customer owns. */
+const CONNECTION_CODES = new Set(["NOT_CONNECTED", "NEEDS_REAUTH"]);
+/** Refusals that are ours or the platform's, and may simply work next time. */
+const RETRYABLE_CODES = new Set(["PROVIDER_FAILED", "TIMED_OUT", "TOKEN_FAILED"]);
+
+/**
+ * The refresh control, or the sentence saying why there isn't one.
+ *
+ * ★A CHANNEL SHAPE NOBODY DERIVED CANNOT BE RE-DERIVED, and the two ways that
+ * happens need different sentences: a human built this one, or it was read off
+ * a campaign as it ran. Offering the button on either would be a dead control
+ * — the api refuses both, `force` included.
+ */
+function RefreshControl({
+  data,
+  platform,
+  onRefresh,
+  busy,
+}: {
+  data: AudienceResolutionResponse | undefined;
+  platform: string;
+  onRefresh: () => Promise<void>;
+  busy: boolean;
+}) {
+  if (!data?.available) return null;
+  const { canRefresh, reason } = refreshability(data.resolution, {
+    rematerialisable: data.rematerialisable,
+  });
+  if (!canRefresh) return <span className="text-xs text-muted-foreground">{reason}</span>;
+  return (
+    <Button size="sm" variant="ghost" onClick={() => void onRefresh()} disabled={busy}>
+      <RefreshCw className={`mr-1.5 size-3.5 ${busy ? "animate-spin" : ""}`} aria-hidden="true" />
+      {busy ? `Asking ${platformLabel(platform)}…` : "Ask again"}
+    </Button>
   );
 }
 
