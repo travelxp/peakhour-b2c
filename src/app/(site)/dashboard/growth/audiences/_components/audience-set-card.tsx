@@ -1,6 +1,7 @@
 "use client";
 
-import { Sparkles, History, PencilLine } from "lucide-react";
+import Link from "next/link";
+import { Sparkles, History, PencilLine, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import type { AudienceSet } from "@/lib/api/audiences";
@@ -57,7 +58,18 @@ export function AudienceSetCard({ set }: { set: AudienceSet }) {
       <CardContent className="space-y-3 p-4">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div className="min-w-0">
-            <h3 className="font-semibold break-words">{set.name}</h3>
+            {/* ★THE ROW IS THE WAY IN. G3's per-channel view is where "1 thing
+                X can't express" becomes WHICH thing and WHY, and a detail page
+                nothing links to is the same as no detail page. */}
+            <h3 className="font-semibold break-words">
+              <Link
+                href={`/dashboard/growth/audiences/${set.id}`}
+                className="hover:underline focus-visible:underline"
+              >
+                {set.name}
+                <ChevronRight className="ml-0.5 inline size-3.5 align-baseline" aria-hidden="true" />
+              </Link>
+            </h3>
             {set.description && (
               <p className="mt-0.5 text-sm text-muted-foreground break-words">{set.description}</p>
             )}

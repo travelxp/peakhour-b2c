@@ -309,6 +309,77 @@ export interface AudienceSetsResponse {
   offset: number;
 }
 
+/**
+ * One thing this audience asks for that a channel could not express.
+ *
+ * ★PER ATTRIBUTE AND BY NAME, NEVER A COUNT. "Two things couldn't be expressed"
+ * is not information a customer can act on; "X can't target seniority, and it
+ * matched 3 of your 5 job titles" is. `unsupported` separates the two kinds:
+ * the channel has no way to say this AT ALL, versus it tried and some values
+ * did not bind.
+ */
+export interface AudienceChannelGap {
+  attribute: string;
+  variant: string;
+  unsupported: boolean;
+  /** Why, when `unsupported`. In the customer's terms, naming the channel. */
+  reason?: string;
+  /** Values the channel's own search could not bind, each with its own reason.
+   *  Empty when `unsupported` — nothing was asked. */
+  values: Array<{ value: string; reason: string }>;
+}
+
+/** One channel's stored shape of an audience. The criteria themselves are the
+ *  platform's own and deliberately not rendered — `basis` is the readable half. */
+export interface AudienceResolution {
+  basis?: Array<{ attribute: string; values: string[] }>;
+  geoCodes?: string[];
+  unresolved?: Array<{ attribute: string; value: string; reason: string }>;
+  droppedAttributes?: string[];
+  reach?: { supported: boolean; value?: number; belowFloor?: boolean; fetchedAt?: string };
+  adapterVersion?: string;
+  resolvedAt: string;
+  /** A HUMAN built this channel shape. It is not a cache and nothing may
+   *  re-resolve it — there is nothing it could be out of date WITH. */
+  authored?: boolean;
+}
+
+/**
+ * What an audience looks like on one channel.
+ *
+ * ★A REFUSAL IS A 200 WITH A REASON, NOT AN ERROR. "This audience doesn't work
+ * on X, and here is which part X couldn't express" is the ANSWER to the
+ * question asked — a client that rendered it as a failed request would turn an
+ * honest, useful result into a broken screen.
+ */
+export type AudienceResolutionResponse =
+  | {
+      platform: string;
+      available: true;
+      /** `cache` — returned as stored. `resolved` — freshly asked. */
+      from: "cache" | "resolved";
+      /** The entry is real but cannot be shown to be current. */
+      stale: boolean;
+      rematerialisable: boolean;
+      /** Present when we TRIED to re-ask the channel and could not, and are
+       *  showing what we had instead. Without it a failed refresh is
+       *  indistinguishable from a cache hit. */
+      refreshFailed?: { code: string; message: string };
+      resolution: AudienceResolution;
+      gaps: AudienceChannelGap[];
+    }
+  | {
+      platform: string;
+      available: false;
+      code: string;
+      message: string;
+      gaps: AudienceChannelGap[];
+    };
+
+export interface AudienceSetResponse {
+  set: AudienceSet;
+}
+
 export const audienceLibraryApi = {
   /**
    * The library. Filters are SERVER-SIDE and the enums are the server's: a
@@ -323,4 +394,26 @@ export const audienceLibraryApi = {
     const qs = params.toString();
     return api.get<AudienceSetsResponse>(`/v1/audiences/sets${qs ? `?${qs}` : ""}`);
   },
+
+  /** One audience, with the channels it is already known to work on. */
+  getSet: (id: string) => api.get<AudienceSetResponse>(`/v1/audiences/sets/${id}`),
+
+  /**
+   * What this audience looks like on ONE channel.
+   *
+   * ★IT WRITES ON A GET, DELIBERATELY, AND THE API SAYS SO. The typeahead round
+   * and the reach call have already been paid by the time there is anything to
+   * return, so the answer is cached into the set — but that also means this is
+   * an ACTION rather than something to fire on mount for every channel. The
+   * list view renders what is already stored; this asks.
+   *
+   * `refresh` re-asks a channel we have already asked. It cannot touch an
+   * AUTHORED entry: a channel shape a human built has no producer to be out of
+   * date with, and "refreshing" it would replace their own entity ids with
+   * whatever our search ranks first today.
+   */
+  getResolution: (id: string, platform: string, opts: { refresh?: boolean } = {}) =>
+    api.get<AudienceResolutionResponse>(
+      `/v1/audiences/sets/${id}/resolutions/${platform}${opts.refresh ? "?refresh=true" : ""}`,
+    ),
 };

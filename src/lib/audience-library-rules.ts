@@ -1,5 +1,7 @@
 import type {
   AudienceChannel,
+  AudienceChannelGap,
+  AudienceResolution,
   AudienceHypothesisAttribute,
   AudienceSet,
   AudienceSource,
@@ -334,4 +336,153 @@ export function outcomeLine(outcome: AudienceSet["outcome"]): string | null {
     }
   }
   return parts.join(" · ");
+}
+
+/**
+ * Should this channel be asked the moment the page opens?
+ *
+ * ★"IT ASKS ONLY WHEN ASKED" WAS FALSE FOR EVERY STALE CHANNEL, and this
+ * function is the fix. `GET /sets/:id/resolutions/:platform` is only a cache
+ * read when the stored entry is CURRENT; on a stale one the api takes a
+ * rate-limit token and runs a full typeahead round, a reach call and a write.
+ * The pre-E1 `resolved` block is stale BY CONSTRUCTION — it records no adapter
+ * build — and every derived set in a business goes stale at once the day an
+ * adapter version moves. So opening a detail page could spend several metered
+ * resolutions before the customer touched anything, and two page opens could
+ * exhaust an ORG-WIDE bucket.
+ *
+ * A stale entry is still shown, from what the list already carries; asking for
+ * a fresh one is a button.
+ */
+export function shouldAskOnMount(
+  channel: Pick<AudienceChannel, "stale" | "rematerialisable"> | undefined,
+): boolean {
+  if (!channel) return false;
+  // A stale entry the api CANNOT re-resolve (an imported set) is returned
+  // straight from cache, so asking costs nothing and shows more.
+  return !channel.stale || !channel.rematerialisable;
+}
+
+/**
+ * Every channel worth a card on the detail page: the ones we know about, plus
+ * the ones a customer could ask about.
+ *
+ * ★A UNION, NOT A HARDCODED LIST. The page rendered `LIBRARY_CHANNELS` alone,
+ * so a set carrying a resolution for anything else — a legacy row born on a
+ * third platform, or the next adapter before this constant is edited — showed a
+ * reach line on the library ROW and then vanished from the page whose whole
+ * premise is that it knows more than the row.
+ */
+export function detailChannels(
+  set: Pick<AudienceSet, "channels">,
+  known: readonly string[] = LIBRARY_CHANNELS,
+): string[] {
+  // ★THE KNOWN CHANNELS LEAD, IN THEIR OWN ORDER. A plain `.sort()` put
+  // `google_ads` — the kind of row this union exists for, and one no adapter
+  // can answer for — at the TOP of the page, above the two channels a customer
+  // can actually act on.
+  const extras = set.channels
+    .map((c) => c.platform)
+    .filter((p) => !known.includes(p))
+    .sort();
+  return [...known, ...new Set(extras)];
+}
+
+/**
+ * What a gap MEANS, as a sentence.
+ *
+ * ★TWO KINDS, AND THEY ARE NOT THE SAME COMPLAINT. `unsupported` is the channel
+ * having no way to express the attribute at all — a fact about the channel.
+ * Values that did not bind are the channel trying and failing on specific ones
+ * — a fact about those values. Collapsing them tells a customer their channel
+ * cannot do something it does perfectly well, or the reverse.
+ */
+export function gapSentence(gap: AudienceChannelGap, platform: string): string {
+  if (gap.unsupported) {
+    return gap.reason ?? `${platformLabel(platform)} can't target ${attributeLabel(gap.attribute).toLowerCase()}.`;
+  }
+  const n = gap.values.length;
+  return (
+    `${platformLabel(platform)} couldn't match ${n} ${attributeLabel(gap.attribute).toLowerCase()} ` +
+    `value${n === 1 ? "" : "s"}.`
+  );
+}
+
+/**
+ * The reach line for a per-channel view, where we know whether the channel was
+ * ASKED.
+ *
+ * ★THIS IS THE ONE PLACE THE THREE READINGS ARE ALL DISTINGUISHABLE. The list
+ * gets a stored entry and cannot tell "the platform publishes no count" from
+ * "our call for it failed" — the api reports both as `supported: false` on
+ * purpose. Here we also know whether anybody asked at all, and "nobody has
+ * asked" is a different sentence from either.
+ */
+export function resolutionReach(
+  resolution: AudienceResolution,
+  platform: string,
+): { text: string; sourced: boolean } {
+  const reach = resolution.reach;
+  if (!reach) {
+    return { text: `We haven't asked ${platformLabel(platform)} for a size.`, sourced: false };
+  }
+  if (!reach.supported) {
+    return {
+      text: `${platformLabel(platform)} doesn't give us a size for this audience.`,
+      sourced: false,
+    };
+  }
+  if (reach.belowFloor || reach.value === 0) {
+    // ★A LITERAL ZERO IS THE FLOOR, NOT A COUNT — LinkedIn's masked `total: 0`
+    // means "fewer than 300", and the api maps it to `belowFloor` with no
+    // number. "0 people" is the sentence this whole file refuses.
+    return {
+      text: `Too small for ${platformLabel(platform)} to count — a campaign on it wouldn't deliver.`,
+      sourced: false,
+    };
+  }
+  if (typeof reach.value !== "number") {
+    return {
+      text: `${platformLabel(platform)} doesn't give us a size for this audience.`,
+      sourced: false,
+    };
+  }
+  return {
+    text: `About ${REACH_FORMAT.format(reach.value)} people on ${platformLabel(platform)}`,
+    sourced: true,
+  };
+}
+
+/**
+ * Whether a channel's stored shape may be refreshed, and what to say if not.
+ *
+ * ★THREE DIFFERENT QUESTIONS, AND COLLAPSING ANY TWO BREAKS SOMETHING REAL.
+ * `authored` — a human built this shape; there is no producer to be out of date
+ * with and re-resolving would overwrite their own choices with a search result.
+ * `rematerialisable` — there is a business-language hypothesis to re-express;
+ * false for an imported set, whose criteria are a record of what was RUN.
+ * `stale` — the entry cannot be shown to be current. Only the third is a reason
+ * to refresh, and only when the first two allow it.
+ */
+export function refreshability(
+  entry: { authored?: boolean },
+  opts: { rematerialisable: boolean },
+): { canRefresh: boolean; reason?: string } {
+  // ★`authored` OUTRANKS `rematerialisable`, and the order is the point. A
+  // captured set is BOTH — a human built the channel shape and it carries a
+  // hypothesis — and "you built this one by hand" is the true sentence;
+  // "read off a campaign as it ran" would be false about the same row.
+  if (entry.authored) {
+    return {
+      canRefresh: false,
+      reason: "You built this one by hand, so there's nothing for us to re-work out.",
+    };
+  }
+  if (!opts.rematerialisable) {
+    return {
+      canRefresh: false,
+      reason: "This was read off a campaign as it ran, so there's no description to rebuild from.",
+    };
+  }
+  return { canRefresh: true };
 }
