@@ -1,6 +1,7 @@
 "use client";
 
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/providers/auth-provider";
 import {
   audienceLibraryApi,
   type AudienceSetsQuery,
@@ -16,11 +17,17 @@ import {
  * API-only. "Built" means a caller can reach it.
  */
 export function useAudienceSets(query: AudienceSetsQuery = {}) {
+  const { business } = useAuth();
   return useQuery<AudienceSetsResponse>({
     // The filters are part of the key: a cache shared across filters would
     // show the previous filter's rows under the new filter's heading, which is
     // a list that lies about what it is showing.
-    queryKey: ["audience-sets", query],
+    // ★AND SO IS THE BUSINESS, which every other business-scoped hook in this
+    // directory pins. `switchBusiness` clears the whole cache today, so this is
+    // belt on top of braces — but the route is business-scoped server-side, and
+    // a key that does not say which business is one `clear()` away from
+    // rendering another one's audiences.
+    queryKey: ["audience-sets", business?._id ?? "none", query],
     queryFn: () => audienceLibraryApi.listSets(query),
     // ★THE PREVIOUS PAGE STAYS ON SCREEN WHILE THE NEXT LOADS. Without it
     // every filter keystroke and every page turn replaces the list with

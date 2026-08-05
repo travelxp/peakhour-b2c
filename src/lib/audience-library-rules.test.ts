@@ -1,22 +1,30 @@
 import { describe, it, expect } from "vitest";
 import type { AudienceChannel, AudienceSet, AudienceSource, AudienceSetStatus } from "@/lib/api/audiences";
 
-/** The api's own enums, restated so a change to either side is a failing test
- *  rather than a filter option nobody can reach. Kept as literal tuples: a
- *  `satisfies` against the union catches a value that leaves the api, and the
- *  comparisons below catch one that joins it. */
-const SOURCE_VALUES = [
-  "generated",
-  "fallback",
-  "imported",
-  "user_defined",
-] as const satisfies readonly AudienceSource[];
-const STATUS_VALUES = [
-  "proposed",
-  "applied",
-  "discarded",
-  "superseded",
-] as const satisfies readonly AudienceSetStatus[];
+/**
+ * The api's own enums, derived so that a change on EITHER side breaks.
+ *
+ * ★A TUPLE WITH `satisfies readonly AudienceSource[]` DOES NOT CATCH AN ADDED
+ * MEMBER, which is the direction that matters — assignability still holds when
+ * the union grows, so the parity test below would have compared one hand-written
+ * list against another and stayed green while a row became unreachable. That is
+ * the exact defect this test was written for, one level up.
+ *
+ * An exhaustive `Record` is a COMPILE error the day the api adds a source: the
+ * object literal no longer satisfies it, and `tsc --noEmit` covers this file.
+ */
+const SOURCE_VALUES = Object.keys({
+  generated: true,
+  fallback: true,
+  imported: true,
+  user_defined: true,
+} satisfies Record<AudienceSource, true>) as AudienceSource[];
+const STATUS_VALUES = Object.keys({
+  proposed: true,
+  applied: true,
+  discarded: true,
+  superseded: true,
+} satisfies Record<AudienceSetStatus, true>) as AudienceSetStatus[];
 import { SOURCES, STATUSES, SEARCH_MAX } from "@/app/(site)/dashboard/growth/audiences/filters";
 import {
   audienceShape,
@@ -284,9 +292,20 @@ describe("outcomeLine", () => {
     expect(outcomeLine(outcome({ spend: 4210 }))).not.toContain("4,210 spent");
   });
 
-  it("never rounds real spend down to zero", () => {
+  it("never rounds real spend down to zero, at any size", () => {
     // `Math.round(0.49)` is 0, and "INR 0 spent" beside a campaign that did
-    // spend is exactly the confident-wrong number this file refuses.
+    // spend is exactly the confident-wrong number this file refuses. A first
+    // fix used `toFixed(2)` below 1 — which prints "0.00" for four tenths of a
+    // cent, the same lie in more decimal places.
     expect(outcomeLine(outcome({ spend: 0.49, currency: "USD" }))).toContain("USD 0.49 spent");
+    expect(outcomeLine(outcome({ spend: 0.004, currency: "USD" }))).toContain("under USD 0.01");
+    expect(outcomeLine(outcome({ spend: 12_345.6, currency: "INR" }))).toContain("INR 12,346 spent");
+  });
+
+  it("shows no spend at all for a figure the schema forbids", () => {
+    // `spend` is `min(0)` server-side, so a negative is impossible — and
+    // `Math.round(-0.4)` is JavaScript's `-0`, which renders as "-0". A number
+    // we cannot explain is one we do not show.
+    expect(outcomeLine(outcome({ spend: -1, currency: "USD" }))).not.toContain("spent");
   });
 });

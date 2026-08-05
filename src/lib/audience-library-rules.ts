@@ -64,10 +64,20 @@ export function originIsOurs(source: AudienceSource): boolean {
   return source === "generated" || source === "fallback";
 }
 
-/** Business-language attribute names. An unknown attribute renders under its
- *  own id rather than vanishing — a silent omission makes a narrower audience
- *  look complete, which is the one thing this surface must not do. Same map as
- *  the campaign audience card, kept in step deliberately. */
+/**
+ * Business-language attribute names, from the collection's own
+ * `zTargetingAttribute` enum.
+ *
+ * An unknown attribute renders under its own id rather than vanishing — a
+ * silent omission makes a narrower audience look complete, which is the one
+ * thing this surface must not do.
+ *
+ * ★AND THE CAMPAIGN AUDIENCE CARD READS THIS ONE. It used to carry its own
+ * nine-key copy, and a comment here claimed the two were "kept in step" while
+ * this map grew to thirty-one — so the same attribute rendered "Purchase
+ * intent" in the library and the raw identifier `purchase_intent` on the ads
+ * page, in the same session. One map, or the claim is decoration.
+ */
 const ATTRIBUTE_LABEL: Record<string, string> = {
   // person / professional
   job_title: "Job title",
@@ -103,8 +113,12 @@ const ATTRIBUTE_LABEL: Record<string, string> = {
   lookalike_seed: "Lookalike seed",
   retargeting_audience: "Retargeting",
   // delivery
-  device: "Platform",
-  device_model: "Device",
+  // ★NOT "Platform", WHICH ON THIS SURFACE ALREADY MEANS THE AD CHANNEL. The
+  // schema's `device` is the operating system or form factor (iOS, Android,
+  // desktop); a chip row reading "Platform · iOS" beside "Not checked on X yet"
+  // uses one word for two things.
+  device: "Device type",
+  device_model: "Device model",
   placement: "Placement",
 };
 
@@ -301,15 +315,23 @@ export function outcomeLine(outcome: AudienceSet["outcome"]): string | null {
     // clicked" are different facts about an audience.
     parts.push("never served");
   }
-  if (typeof outcome.spend === "number" && outcome.currency) {
+  if (typeof outcome.spend === "number" && outcome.spend >= 0 && outcome.currency) {
     // ★ROUNDED TO WHOLE UNITS EXCEPT WHERE THAT WOULD PRINT A ZERO OVER REAL
-    // SPEND. `Math.round(0.49)` is 0, and "INR 0 spent" beside a campaign that
-    // did spend is the confident-wrong number this file exists to refuse.
-    const spend =
-      outcome.spend > 0 && outcome.spend < 1
-        ? outcome.spend.toFixed(2)
-        : REACH_FORMAT.format(Math.round(outcome.spend));
-    parts.push(`${outcome.currency} ${spend} spent`);
+    // SPEND, AT EITHER SCALE. `Math.round(0.49)` is 0; `(0.004).toFixed(2)` is
+    // "0.00", which is the same lie with more decimal places. Below a cent the
+    // only honest rendering is a bound.
+    // ★AND A NEGATIVE IS NOT RENDERED AT ALL. The schema forbids one (`min: 0`),
+    // and `Math.round(-0.4)` is JavaScript's `-0` — "USD -0 spent" is a
+    // sentence about money that nobody can act on.
+    if (outcome.spend > 0 && outcome.spend < 0.01) {
+      parts.push(`under ${outcome.currency} 0.01 spent`);
+    } else {
+      const spend =
+        outcome.spend > 0 && outcome.spend < 1
+          ? outcome.spend.toFixed(2)
+          : REACH_FORMAT.format(Math.round(outcome.spend));
+      parts.push(`${outcome.currency} ${spend} spent`);
+    }
   }
   return parts.join(" · ");
 }

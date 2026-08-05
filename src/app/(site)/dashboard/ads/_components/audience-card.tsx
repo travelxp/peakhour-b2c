@@ -5,6 +5,12 @@ import { toast } from "sonner";
 import { toastUnhandledApiError } from "@/lib/toast-errors";
 import { linkedInAdsApi, type ManagedCampaign } from "@/lib/api/linkedin-ads";
 import { audienceClaim, reachLine } from "@/lib/audience-card-rules";
+// ★THE LIBRARY'S MAP, NOT A NINE-KEY COPY. This card carried its own, and it
+// covered nine of the vocabulary's thirty-one attributes — so a campaign
+// targeting `purchase_intent` rendered the raw identifier here and "Purchase
+// intent" on /dashboard/growth/audiences, in the same session, for the same
+// audience.
+import { attributeLabel } from "@/lib/audience-library-rules";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Check, Sparkles } from "lucide-react";
@@ -33,21 +39,6 @@ import { Check, Sparkles } from "lucide-react";
  * `verified` comes from the api because it depends on a fingerprint comparison
  * the client cannot make.
  */
-
-/** Business-language attribute names. An unknown attribute renders under its
- *  own id rather than vanishing — a silent omission would make a narrower
- *  audience look complete, which is the one thing this card must not do. */
-const ATTRIBUTE_LABEL: Record<string, string> = {
-  geo: "Location",
-  company_industry: "Industry",
-  company_size: "Company size",
-  job_title: "Job title",
-  seniority: "Seniority",
-  job_function: "Job function",
-  member_interest: "Interests",
-  company_name: "Companies",
-  skill: "Skills",
-};
 
 export function AudienceCard({ campaign }: { campaign: ManagedCampaign }) {
   const queryClient = useQueryClient();
@@ -111,7 +102,7 @@ export function AudienceCard({ campaign }: { campaign: ManagedCampaign }) {
         {prov.basis.map((b) => (
           <li key={b.attribute} className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
             <span className="text-xs text-muted-foreground">
-              {ATTRIBUTE_LABEL[b.attribute] ?? b.attribute}
+              {attributeLabel(b.attribute)}
             </span>
             {/* Readable chips, never URNs — "Mumbai", not urn:li:geo:1. */}
             {b.values.map((v, i) => (

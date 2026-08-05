@@ -35,6 +35,40 @@ import { ALL, MAX_OFFSET, PAGE_SIZE, SEARCH_MAX, SOURCES, STATUSES } from "./fil
  * customer reads as "I have no audiences".
  */
 
+/**
+ * What to show when the list will not load, and whether a retry can possibly
+ * help.
+ *
+ * ★THE SERVER'S OWN SENTENCE IS NOT ALWAYS THE CUSTOMER'S. On this route a 400
+ * reads "Check the query parameters." — true, and addressed to whoever wrote
+ * the client. Only the codes whose message is written FOR a customer are
+ * passed through, and the two that a retry cannot fix do not get the button.
+ */
+function errorState(
+  error: unknown,
+  actions: { onClear: () => void; onRetry: () => void },
+): { title: string; description: string; action?: { label: string; onClick: () => void } } {
+  const code = error instanceof ApiError ? error.code : undefined;
+  if (code === "FORBIDDEN") {
+    return {
+      title: "Pick a business first",
+      description: "Audiences belong to one business at a time — choose one and they'll load.",
+    };
+  }
+  if (code === "VALIDATION_ERROR") {
+    return {
+      title: "We couldn't load your audiences",
+      description: "Something about those filters isn't right. Clearing them should fix it.",
+      action: { label: "Clear filters", onClick: actions.onClear },
+    };
+  }
+  return {
+    title: "We couldn't load your audiences",
+    description: "That's on us. Try again in a moment — nothing has been changed.",
+    action: { label: "Try again", onClick: actions.onRetry },
+  };
+}
+
 /** Debounce a value. Same shape as the targeting dialog's, kept local rather
  *  than shared until a third caller wants it. */
 function useDebounced<T>(value: T, ms: number): T {
@@ -82,10 +116,30 @@ export default function AudienceLibraryPage() {
   const rows = sets.data?.sets ?? [];
   const total = sets.data?.total ?? 0;
   const filtered = search !== "" || source !== ALL || status !== ALL || platform !== ALL;
+  /**
+   * ★THE ROWS ON SCREEN ARE THE PREVIOUS QUERY'S WHILE THE NEW ONE IS IN
+   * FLIGHT, and everything else on this page is current component state.
+   * `keepPreviousData` is what stops the library vanishing into skeletons on
+   * every keystroke — and, unguarded, it is what puts "45 audiences match this
+   * filter" above twenty rows that do not match it, or flips the range to
+   * "21–40" above page one's cards. `GET /sets` is a blocking-sort collection
+   * scan plus a countDocuments by the api's own admission, so that window is
+   * not a frame.
+   *
+   * The rows stay (they are still real audiences, and losing them is worse);
+   * every number and control that would DESCRIBE them is withheld until they
+   * are the ones being described.
+   */
+  const settling = sets.isPlaceholderData;
+  /** The debounce has not applied the typed search yet. Paging now would send
+   *  the OLD filter's offset with the NEW filter — landing past the end of a
+   *  result the customer has not seen, and blaming a discard for it. */
+  const searchPending = q.trim() !== search;
+  const stale = settling || searchPending;
   /** ★A PAGE PAST THE END IS A THIRD EMPTY STATE. A customer on page 3 whose
-   *  library shrinks — a discard, a business switch — would otherwise be told
-   *  "No audiences yet" with no way back, because the pagination lives in the
-   *  branch the empty state replaces. */
+   *  library shrinks would otherwise be told "No audiences yet" with no way
+   *  back, because the pagination lives in the branch the empty state
+   *  replaces. */
   const pastTheEnd = rows.length === 0 && offset > 0;
 
   function clearFilters() {
@@ -171,22 +225,15 @@ export default function AudienceLibraryPage() {
       ) : sets.isError ? (
         // ★NOT EVERY FAILURE IS OURS, AND A RETRY BUTTON ON THE ONES THAT ARE
         // NOT IS A LOOP. `GET /sets` answers 403 FORBIDDEN when no business is
-        // active — retrying never fixes that — and the api carries a sentence
-        // of its own on every error. A first cut showed "that's on us, try
-        // again" over both.
+        // active and 400 VALIDATION_ERROR on a query it will not take — and
+        // retrying either one refetches the same request forever. A first cut
+        // showed "that's on us, try again" over all three; the fix after that
+        // put the api's OWN sentence in front of the customer, which on this
+        // route is "Check the query parameters." — written for whoever built
+        // the client, and still under a Try again that cannot help.
         <EmptyState
           icon={Users}
-          title="We couldn't load your audiences"
-          description={
-            sets.error instanceof ApiError && sets.error.code === "FORBIDDEN"
-              ? "Pick a business first — audiences belong to one business at a time."
-              : sets.error instanceof ApiError && sets.error.message
-                ? sets.error.message
-                : "That's on us. Try again in a moment — nothing has been changed."
-          }
-          {...(sets.error instanceof ApiError && sets.error.code === "FORBIDDEN"
-            ? {}
-            : { action: { label: "Try again", onClick: () => void sets.refetch() } })}
+          {...errorState(sets.error, { onClear: clearFilters, onRetry: () => void sets.refetch() })}
         />
       ) : rows.length === 0 ? (
         // ★TWO DIFFERENT EMPTIES, AND THEY ARE NOT THE SAME SENTENCE. A filter
@@ -204,7 +251,7 @@ export default function AudienceLibraryPage() {
           }
           description={
             pastTheEnd
-              ? "There are fewer audiences than there were — something was discarded, or you switched business."
+              ? "This page is past the end of your library now."
               : filtered
                 ? "Try a different search, or clear the filters to see everything in your library."
                 : "When Peakhour suggests an audience for a campaign, or reads the ones you've already run, they'll be kept here so you can use them again."
@@ -219,9 +266,18 @@ export default function AudienceLibraryPage() {
         <>
           <p className="text-sm text-muted-foreground">
             {/* The api's own total, not the page length — a count that silently
-                equals the page size is a number we did not source. */}
-            {total} audience{total === 1 ? "" : "s"}
-            {filtered ? (total === 1 ? " matches this filter" : " match this filter") : ""}
+                equals the page size is a number we did not source. And not
+                shown at all while the rows below it belong to a different
+                query: a number describing something other than what is on
+                screen is worse than no number. */}
+            {stale ? (
+              "Updating…"
+            ) : (
+              <>
+                {total} audience{total === 1 ? "" : "s"}
+                {filtered ? (total === 1 ? " matches this filter" : " match this filter") : ""}
+              </>
+            )}
           </p>
           <div className="space-y-3">
             {rows.map((set) => (
@@ -233,13 +289,13 @@ export default function AudienceLibraryPage() {
               <Button
                 variant="outline"
                 size="sm"
-                disabled={offset === 0}
+                disabled={offset === 0 || stale}
                 onClick={() => setOffset((o) => Math.max(0, o - PAGE_SIZE))}
               >
                 Previous
               </Button>
               <span className="text-xs text-muted-foreground">
-                {offset + 1}–{Math.min(offset + PAGE_SIZE, total)} of {total}
+                {stale ? "…" : `${offset + 1}–${Math.min(offset + PAGE_SIZE, total)} of ${total}`}
               </span>
               <Button
                 variant="outline"
@@ -247,7 +303,11 @@ export default function AudienceLibraryPage() {
                 // The api caps `offset` at 1000 and 400s past it, so the last
                 // reachable page is the last one it will serve. Walking into
                 // that would be a dead end wearing an error message.
-                disabled={offset + PAGE_SIZE >= total || offset + PAGE_SIZE > MAX_OFFSET}
+                // ★AND NOT WHILE `stale`: `total` is then the PREVIOUS query's,
+                // so this guard would be comparing the new page against the old
+                // library — which is how a customer pages into an empty result
+                // and is told something was discarded.
+                disabled={stale || offset + PAGE_SIZE >= total || offset + PAGE_SIZE > MAX_OFFSET}
                 onClick={() => setOffset((o) => o + PAGE_SIZE)}
               >
                 Next
