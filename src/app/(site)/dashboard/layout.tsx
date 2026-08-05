@@ -147,6 +147,11 @@ const NAV_GROUPS: NavGroup[] = [
         label: "Growth",
         icon: TrendingUp,
         subItems: [
+          // Audiences leads because it is the durable object the rest reads:
+          // an audience is planned or imported once and put on campaigns for
+          // months afterwards, on any channel. Ads is where money is spent;
+          // this is what it is spent on.
+          { href: "/dashboard/growth/audiences", label: "Audiences" },
           { href: "/dashboard/ads", label: "Ads" },
           { href: "/dashboard/outcomes", label: "Outcomes" },
           { href: "/dashboard/optimizer", label: "Optimizer" },
