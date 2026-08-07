@@ -154,6 +154,14 @@ const NAV_GROUPS: NavGroup[] = [
           // what it goes on.
           { href: "/dashboard/growth/business", label: "Your Business" },
           { href: "/dashboard/growth/audiences", label: "Audiences" },
+          // ★SIGNALS SITS UNDER AUDIENCES BECAUSE IT IS WHAT MAKES ONE OF THEM
+          // POSSIBLE. A retargeting audience IS website visitors, and without a
+          // tag on the site there is nobody to retarget — so this is a
+          // prerequisite of the list above it, not a settings page. It is under
+          // Growth rather than Integrations deliberately: Integrations is where
+          // a CONNECTION to somebody else's account lives, and this is code on
+          // the customer's own site.
+          { href: "/dashboard/growth/signals", label: "Signals" },
           { href: "/dashboard/ads", label: "Ads" },
           { href: "/dashboard/outcomes", label: "Outcomes" },
           { href: "/dashboard/optimizer", label: "Optimizer" },
