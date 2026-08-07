@@ -48,7 +48,12 @@ export interface FlightEndRow {
 export type FlightEndState = "stop_failed" | "not_checked" | "no_failure_recorded";
 
 export function flightEndState(alarm: FlightEndRow["flightEndAlarm"]): FlightEndState {
-  if (alarm?.reason) return "stop_failed";
+  // ★TRIMMED IN THE PREDICATE, NOT ONLY IN THE RENDER. A first cut trimmed
+  // where the string is printed and tested raw truthiness here, so a
+  // whitespace-only reason counted as evidence of a failure and then rendered
+  // as an empty clause — the exact hole the trim was added to close, left open
+  // on the other side of it.
+  if (alarm?.reason?.trim()) return "stop_failed";
   return alarm?.checkedSinceEnd ? "no_failure_recorded" : "not_checked";
 }
 
@@ -63,7 +68,13 @@ export function elapsedSince(iso: string | undefined, now = Date.now()): string 
   const hours = Math.floor((now - t) / 3_600_000);
   if (hours < 1) return null;
   if (hours < 48) return `${hours} hour${hours === 1 ? "" : "s"}`;
-  const days = Math.floor(hours / 24);
+  // ★CALENDAR DAYS IN UTC, MATCHING THE DATE PRINTED BESIDE IT. Flooring
+  // elapsed hours while the date is a calendar day makes the two disagree:
+  // ended 2026-08-04T23:00Z read at 2026-08-07T00:30Z is 49 hours — "2 days" —
+  // next to "4 Aug 2026", which is three calendar days ago. Two numbers about
+  // one fact, contradicting each other, in an alert.
+  const utcDay = (ms: number) => Math.floor(ms / 86_400_000);
+  const days = utcDay(now) - utcDay(t);
   return `${days} day${days === 1 ? "" : "s"}`;
 }
 
@@ -85,8 +96,13 @@ export function flightEndDetail(
     : "past its end date";
   switch (flightEndState(alarm)) {
     case "stop_failed": {
+      // ★NO LEAD-IN OF OUR OWN. The api composes this string as "the platform
+      // stop failed: <cause>", so prefixing it with "We could not stop it:"
+      // produced two colons and said the same thing twice. The api owns the
+      // sentence; this side owns the date.
       const reason = alarm.reason!.trim();
-      return `${ended}. We could not stop it: ${reason}${reason.endsWith(".") ? "" : "."}`;
+      const cap = reason.charAt(0).toUpperCase() + reason.slice(1);
+      return `${ended}. ${cap}${cap.endsWith(".") ? "" : "."}`;
     }
     case "not_checked":
       // ★NO CLAIM ABOUT WHETHER IT IS SPENDING. Nothing has looked at it since
@@ -95,7 +111,13 @@ export function flightEndDetail(
       // saying we failed.
       return `${ended}. We have not checked it since, so we cannot tell whether it is still running.`;
     case "no_failure_recorded":
-      return `${ended}. We have not recorded stopping it, and no failure either — it may already be stopped on LinkedIn.`;
+      // ★AND NO REASSURANCE EITHER. "It may already be stopped" is reachable
+      // when it is false: `recordUnstoppableExpiry`'s own write has a catch, and
+      // a legacy row that fails the collection's validator produces a campaign
+      // that could NOT be stopped and has no entry saying so. Telling that
+      // customer it is probably fine is round 1's defect inverted — a claim
+      // stronger than the evidence, pointing the other way.
+      return `${ended}. We have no record of stopping it, and none of failing to — check Campaign Manager.`;
   }
 }
 
@@ -110,12 +132,26 @@ export function flightEndDetail(
  */
 export function flightEndBanner(
   rows: FlightEndRow[],
-  now = Date.now(),
-): { headline: string; body: string; hedgeApplies: boolean; count: number } | null {
-  const pastEnd = rows.filter((r) => r.flightEndAlarm?.pastEnd);
+  /**
+   * Can the reader actually use the per-row Pause button? False above the
+   * connection gate, where the banner is mounted and the campaigns table is
+   * not — and a revoked connection is the state most likely to PRODUCE these
+   * rows, so the disconnected reader is the likeliest one to be told to press
+   * a button that is not on their screen.
+   */
+  canUseRowControls = true,
+): {
+  headline: string;
+  body: string;
+  rows: FlightEndRow[];
+} | null {
+  const pastEnd = rows.filter((r) => r.flightEndAlarm?.pastEnd === true);
   if (pastEnd.length === 0) return null;
   const one = pastEnd.length === 1;
-  const allFailed = pastEnd.every((r) => flightEndState(r.flightEndAlarm) === "stop_failed");
+  const it = one ? "it" : "them";
+  const states = pastEnd.map((r) => flightEndState(r.flightEndAlarm));
+  const allFailed = states.every((st) => st === "stop_failed");
+  const anyFailed = states.some((st) => st === "stop_failed");
 
   const headline = allFailed
     ? one
@@ -125,19 +161,32 @@ export function flightEndBanner(
       ? "A campaign passed its end date and our record still shows it running"
       : `${pastEnd.length} campaigns passed their end date and our records still show them running`;
 
-  // ★THE HEDGE IS EARNED, NOT INHERITED. The spend banner says "the controls
-  // here use the same connection, so if that is what failed they will fail
-  // again" — which is true there, because that alarm implies a stop was
-  // attempted and failed. Here it usually was not, and in that case the row's
-  // own Pause button works in one click. Telling the customer it will not is
-  // steering them away from the fix.
-  const body = allFailed
-    ? `LinkedIn was not given an end date, so nothing else will stop ${one ? "it" : "them"}. ` +
-      `Stop ${one ? "it" : "them"} in LinkedIn Campaign Manager — the controls here use the same ` +
-      `connection, so if that is what failed they will fail again.`
-    : `LinkedIn is never given an end date for these campaigns, so our own stop is the only one ` +
-      `there is. Use Pause on the row below, or stop ${one ? "it" : "them"} in LinkedIn Campaign ` +
-      `Manager.`;
+  // ★THE REMEDY IS SCOPED TO WHAT IS TRUE OF EVERY ROW LISTED, WHICH IS WHY
+  // "any" AND "all" ARE BOTH NEEDED.
+  //
+  // The hedge — "the controls here use the same connection, so if that is what
+  // failed they will fail again" — is earned only where a stop actually failed.
+  // A first cut applied it to all rows (round 1); its fix dropped it unless ALL
+  // rows failed, which sent a reader with nine connection-refused campaigns and
+  // one merely unchecked campaign to a Pause button guaranteed to fail on nine
+  // of them. Anything failed => Campaign Manager, because that is the advice
+  // that is safe for every row in the list.
+  const noEnd =
+    `LinkedIn is never given an end date for these campaigns, so our own stop is the only one ` +
+    `there is.`;
+  let body: string;
+  if (anyFailed) {
+    body =
+      `${noEnd} Stop ${it} in LinkedIn Campaign Manager — the controls here use the same ` +
+      `connection, so if that is what failed they will fail again.`;
+  } else if (canUseRowControls) {
+    body = `${noEnd} Use Pause on the row below, or stop ${it} in LinkedIn Campaign Manager.`;
+  } else {
+    body = `${noEnd} Stop ${it} in LinkedIn Campaign Manager.`;
+  }
 
-  return { headline, body, hedgeApplies: allFailed, count: pastEnd.length };
+  // The rows come back rather than being re-filtered by the caller: two
+  // independent filters that must agree by convention is how a count and a list
+  // drift apart.
+  return { headline, body, rows: pastEnd };
 }

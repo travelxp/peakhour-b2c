@@ -136,7 +136,7 @@ export function LinkedInAdsPanel() {
           gate below renders an EmptyState — which used to hide this warning in
           the one case it matters most. */}
       <SpendAlarmBanner />
-      <FlightEndBanner />
+      <FlightEndBanner canUseRowControls={isConnected} />
       {/* Above the gate for the same reason, plus one of its own: the
           declaration governs every campaign create including the autonomous
           ones, and a business can make it before it connects. Not on
@@ -280,54 +280,61 @@ function SpendAlarmBanner() {
  * Hedged the same way, because for a rate limit or an undelivered request it
  * very likely succeeds on retry.
  */
-function FlightEndBanner() {
+function FlightEndBanner({ canUseRowControls }: { canUseRowControls: boolean }) {
   const campaigns = useQuery({
     queryKey: ["linkedin-managed-campaigns"],
     queryFn: () => linkedInAdsApi.managedCampaigns(),
     staleTime: 30_000,
     refetchOnWindowFocus: false,
   });
+  // ★MOUNTED WHETHER OR NOT THERE IS ANYTHING TO SAY, AND THAT IS THE POINT OF
+  // THE WRAPPER. A `role="status"` region that is inserted together with its
+  // content is announced by nobody: screen readers announce a polite live
+  // region when its CONTENTS change, not when the region itself appears. The
+  // fix for the double-announcement had removed the announcement.
   const rows = campaigns.data?.campaigns ?? [];
-  const copy = flightEndBanner(rows);
-  if (!copy) return null;
-  const pastEnd = rows.filter((r) => r.flightEndAlarm?.pastEnd);
+  // The banner cannot point at a row that is not on screen: it is mounted above
+  // the connection gate, and a revoked connection is the state most likely to
+  // produce these rows in the first place.
+  const copy = flightEndBanner(rows, canUseRowControls);
 
   return (
-    // ★role="status", NOT role="alert", AND THAT IS DELIBERATE. SpendAlarmBanner
-    // is assertive because money is going out past a cap the user set. This one
-    // is usually "our record disagrees with LinkedIn" — worth seeing, not worth
-    // interrupting a screen-reader user mid-sentence for — and two simultaneous
-    // assertive regions announce the same campaign name twice, in full, on every
-    // Pause/Archive/Sync invalidation. `aria-label` distinguishes them.
-    <Card
-      role="status"
-      aria-label="Campaigns past their end date"
-      className="border-destructive/40 bg-destructive/5"
-    >
-      <CardContent className="space-y-2 p-4 text-sm">
-        <div className="flex items-start gap-2">
-          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden="true" />
-          <div className="space-y-1">
-            <p className="font-medium text-destructive">{copy.headline}</p>
-            <p className="text-muted-foreground">{copy.body}</p>
-            <ul className="space-y-1 pt-1">
-              {pastEnd.map((r) => (
-                <li key={r._id} className="text-muted-foreground">
-                  <span className="font-medium text-foreground">{r.name}</span>
-                  {" — "}
-                  {/* ★REUSED, NOT REWRITTEN. `formatDeclaredAt` already renders
-                      a UTC instant as "30 Jul 2026" and already returns "" rather
-                      than the words "Invalid Date" — which inside an alert about
-                      somebody's money reads as a bug in the alarm. A second
-                      near-identical formatter is how the two drift. */}
-                  {flightEndDetail(r.flightEndAlarm!, formatDeclaredAt(r.flightEndAlarm!.endsAt))}
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+    <div role="status" aria-label="Campaigns past their end date">
+      {copy && (
+        <Card className="border-destructive/40 bg-destructive/5">
+          <CardContent className="space-y-2 p-4 text-sm">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden="true" />
+              <div className="space-y-1">
+                {/* "Warning:" carries the severity that colour alone conveys —
+                    the icon is aria-hidden and this region is polite. */}
+                <p className="font-medium text-destructive">
+                  <span className="sr-only">Warning: </span>
+                  {copy.headline}
+                </p>
+                <p className="text-muted-foreground">{copy.body}</p>
+                <ul className="space-y-1 pt-1">
+                  {copy.rows.map((r) => (
+                    <li key={r._id} className="text-muted-foreground">
+                      <span className="font-medium text-foreground">{r.name}</span>
+                      {" — "}
+                      {/* ★REUSED, NOT REWRITTEN. `formatDeclaredAt` already
+                          returns "" rather than the words "Invalid Date", which
+                          inside an alert about somebody's money reads as a bug
+                          in the alarm. A second formatter is how the two drift. */}
+                      {flightEndDetail(
+                        r.flightEndAlarm!,
+                        formatDeclaredAt(r.flightEndAlarm!.endsAt),
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
   );
 }
 

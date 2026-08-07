@@ -162,62 +162,78 @@ describe("summarizeCronBody", () => {
  */
 describe("ad-campaign-monitor summary", () => {
   const summarize = CRON_METADATA["ad-campaign-monitor"].summarize!;
+  const msg = (d: unknown) => {
+    const r = summarize(d);
+    return typeof r === "string" ? r : r?.message;
+  };
 
-  it("★leads with campaigns it could not stop, not with the count", () => {
-    const s = summarize({ ticked: 40, refreshed: 40, flightEndBlocked: 2, unmonitorable: 1 });
-    // ★THE FULL STRING. Asserting only /could NOT be stopped/ let the count be
-    // interpolated from the WRONG counter, and let the plural invert, unseen.
-    expect(s).toEqual({
-      message: "2 campaigns passed the end date and could NOT be stopped — check Campaign Manager.",
+  it("\u2605says EVERY problem, not just the worst one", () => {
+    // A first cut returned on the first branch that matched, so thirty-five
+    // errored rows went unmentioned beside one blocked flight end. Ordered
+    // worst-first; all of them said.
+    expect(summarize({ ticked: 5, refreshed: 5, failed: 35, flightEndBlocked: 1 })).toEqual({
+      message:
+        "1 passed the end date and could NOT be stopped \u2014 check Campaign Manager; 35 errored.",
       level: "warning",
     });
   });
 
-  it("★surfaces campaigns it could not check at all, on its own", () => {
-    // Asserted WITHOUT flightEndBlocked beside it: with both set the
-    // higher-priority branch answers, and deleting this one entirely would
-    // still pass. That is how a counter stops being surfaced silently.
-    const s = summarize({ ticked: 40, refreshed: 40, unmonitorable: 3 });
-    expect(s).toEqual({ message: "3 campaigns could not be checked at all.", level: "warning" });
+  it("\u2605leads with campaigns it could not stop", () => {
+    expect(summarize({ ticked: 40, refreshed: 40, flightEndBlocked: 2, unmonitorable: 1 })).toEqual({
+      message:
+        "2 passed the end date and could NOT be stopped \u2014 check Campaign Manager; 1 could not be checked at all.",
+      level: "warning",
+    });
   });
 
-  it("★does NOT warn just because nothing refreshed — that is the normal first state", () => {
-    // A first cut warned on `refreshed === 0`, framing it as a dead connection.
-    // It is equally the newly-onboarded happy path: `/boost` creates campaigns
-    // as drafts, a draft has nothing to refresh, and the sweep visits it anyway.
-    // Warning there trains the user to ignore the warning. The genuine faults
-    // are all counted separately and all outrank this line.
+  it("\u2605surfaces a tick where every row THREW, which read as a green success", () => {
+    // The handler increments neither `ticked` nor `unmonitorable` in its per-row
+    // catch, so forty errored rows returned {ticked: 0, failed: 40} and the
+    // first cut rendered "0 campaigns checked." as a success toast.
+    expect(summarize({ ticked: 0, refreshed: 0, failed: 40 })).toEqual({
+      message: "40 errored.",
+      level: "warning",
+    });
+  });
+
+  it("\u2605surfaces each remaining counter on its own, so none can be dropped unseen", () => {
+    // Asserted one at a time: with two set, the higher-priority branch answers
+    // and deleting the lower one entirely would still pass.
+    expect(msg({ ticked: 40, refreshed: 40, unmonitorable: 3 })).toBe("3 could not be checked at all.");
+    expect(msg({ ticked: 3, refreshed: 3, rowNotUpdated: 2 })).toBe(
+      "2 stopped on the platform but not updated here.",
+    );
+    expect(msg({ ticked: 5, refreshed: 5, unswept: 2 })).toBe("2 in a status nothing monitors.");
+    expect(msg({ ticked: 5, refreshed: 5, notFound: 1 })).toBe("1 could not be read.");
+    expect(msg({ ticked: 5, refreshed: 5, skippedUnreadable: 2 })).toBe("2 could not be read.");
+    expect(msg({ ticked: 5, refreshed: 5, notFound: 1, skippedUnreadable: 2 })).toBe(
+      "3 could not be read.",
+    );
+  });
+
+  it("\u2605keeps `More remain` on a capped tick that ALSO had problems", () => {
+    // `truncated` used to be reachable only when no warning fired, so a capped
+    // tick with blocked flight ends lost "run again" entirely — and the tail of
+    // that queue is exactly what was not enforced.
+    expect(msg({ ticked: 40, refreshed: 40, flightEndBlocked: 1, truncated: true })).toContain(
+      "More remain \u2014 run again.",
+    );
+  });
+
+  it("\u2605does NOT warn just because nothing refreshed — that is the normal first state", () => {
+    // `/boost` creates campaigns as drafts, a draft has nothing to refresh, and
+    // the sweep visits it anyway. Warning there trains the user to ignore the
+    // warning.
     expect(summarize({ ticked: 40, refreshed: 0 })).toBe("0 campaigns checked.");
   });
 
-  it("★surfaces a tick where every row THREW, which read as a green success", () => {
-    // The handler increments neither `ticked` nor `unmonitorable` in its per-row
-    // catch, so forty errored rows returned `{ticked: 0, failed: 40}` and the
-    // first cut rendered "0 campaigns checked." as a success toast.
-    const s = summarize({ ticked: 0, refreshed: 0, failed: 40 });
-    expect(s).toMatchObject({ level: "warning" });
-    expect((s as { message: string }).message).toMatch(/40 campaigns could not be checked/);
-  });
-
-  it("★surfaces the opposite failure: stopped on the platform, not recorded here", () => {
-    const s = summarize({ ticked: 3, refreshed: 3, rowNotUpdated: 2 });
-    expect(s).toMatchObject({ level: "warning" });
-    expect((s as { message: string }).message).toMatch(/could not be updated here/);
-  });
-
-  it("★surfaces campaigns in a status nothing sweeps, and rows that could not be read", () => {
-    expect(summarize({ ticked: 5, refreshed: 5, unswept: 2 })).toMatchObject({ level: "warning" });
-    expect(summarize({ ticked: 5, refreshed: 5, notFound: 1, skippedUnreadable: 2 })).toMatchObject({
-      level: "warning",
-    });
-    expect(
-      (summarize({ ticked: 5, refreshed: 5, notFound: 1, skippedUnreadable: 2 }) as { message: string })
-        .message,
-    ).toMatch(/3 campaign rows could not be read/);
-  });
-
-  it("distinguishes an empty batch from a batch that did nothing", () => {
-    expect(summarize({ ticked: 0, refreshed: 0 })).toBe("No campaigns needed checking.");
+  it("\u2605never says `0 campaigns checked, 12 finished` — a sentence that contradicts itself", () => {
+    // Reachable: a row the platform has never heard of ends WITHOUT ever
+    // refreshing (the monitor returns `ended` with no `refreshed`).
+    expect(summarize({ ticked: 12, refreshed: 0, ended: 12 })).toBe("12 finished.");
+    expect(summarize({ ticked: 12, refreshed: 0, autoPaused: 2, ended: 10 })).toBe(
+      "2 paused at their budget caps, 10 finished.",
+    );
   });
 
   it("reports a healthy tick with the number that means something", () => {
@@ -228,9 +244,24 @@ describe("ad-campaign-monitor summary", () => {
 
   it("says a capped tick is not finished", () => {
     expect(summarize({ ticked: 40, refreshed: 40, truncated: true })).toEqual({
-      message: "40 campaigns checked. More remain — run again.",
+      message: "40 campaigns checked. More remain \u2014 run again.",
       level: "warning",
     });
+  });
+
+  it("\u2605counts an all-X batch as work, not as an empty one", () => {
+    // `skippedOtherWriter` is one of the six mutually-exclusive per-row
+    // outcomes. Omitting it from the batch total made a tick of forty X
+    // campaigns report "No campaigns needed checking." — and swallowed
+    // `truncated` with it, because the empty answer returns first.
+    expect(summarize({ ticked: 0, refreshed: 0, skippedOtherWriter: 40, truncated: true })).toEqual({
+      message: "0 campaigns checked. More remain \u2014 run again.",
+      level: "warning",
+    });
+  });
+
+  it("distinguishes an empty batch from a batch that did nothing", () => {
+    expect(summarize({ ticked: 0, refreshed: 0 })).toBe("No campaigns needed checking.");
   });
 
   it("singularises everywhere, including the plural that read `3 paused at its budget cap`", () => {
@@ -241,9 +272,9 @@ describe("ad-campaign-monitor summary", () => {
     expect(summarize({ ticked: 1, refreshed: 1, autoPaused: 1 })).toBe(
       "1 campaign checked, 1 paused at its budget cap.",
     );
-    expect(summarize({ ticked: 1, refreshed: 1, flightEndBlocked: 1 })).toMatchObject({
-      message: "1 campaign passed the end date and could NOT be stopped — check Campaign Manager.",
-    });
+  });
+
+  it("defers to the generic toast on a shape it does not recognise", () => {
     expect(summarize({})).toBeNull();
     expect(summarize(null)).toBeNull();
     expect(summarize("nonsense")).toBeNull();
