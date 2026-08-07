@@ -159,6 +159,41 @@ export interface ManagedCampaign {
    * number under the cap next to an alarm saying it was over.
    */
   spendAlarm?: { overCap: true; spend: number; cap: number; reason?: string };
+  /**
+   * Past the end date its owner set, and still `active`.
+   *
+   * ★A DIFFERENT ABSENCE FROM `spendAlarm`, WHICH IS WHY IT IS A DIFFERENT
+   * FIELD. LinkedIn never carries an `end` on the campaign's `runSchedule` —
+   * the flight cap lives only on our row — so the monitor has to stop the
+   * campaign on the platform itself, and it leaves the row `active` when it
+   * cannot. `spendAlarm` does not cover that: it requires the campaign to be
+   * over its budget cap, and this population is exactly the campaigns that
+   * UNDER-spend. A campaign can be in one, the other, or both.
+   *
+   * `reason` absent is meaningful and must not be filled in here — it means no
+   * tick has yet recorded WHY the campaign is still running, which is what a
+   * monitor that has not run since it expired looks like. "We cannot tell" is
+   * its own answer.
+   */
+  flightEndAlarm?: {
+    pastEnd: true;
+    endsAt: string;
+    /**
+     * Has any monitor tick looked at this row since it expired? False means
+     * nobody has asked yet — the ordinary gap before the hourly sweep reaches
+     * it, and permanent on dev where crons do not run. A surface that reads
+     * that as "we tried and failed" is inventing a failure.
+     */
+    checkedSinceEnd: boolean;
+    /**
+     * Present ONLY when a stop was attempted and failed. This is the only
+     * evidence that "we could not stop it" is a true sentence. Its absence
+     * covers three different situations — not looked at yet, looked at and
+     * fine, and the one where the platform stop SUCCEEDED and only our local
+     * write failed — and none of them is a failure to stop.
+     */
+    reason?: string;
+  };
   createdAt: string;
   updatedAt?: string;
   /** Audit ids (hex) — present on rows created via the routes. */

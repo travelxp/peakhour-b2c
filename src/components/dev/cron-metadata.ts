@@ -47,6 +47,103 @@ export interface CronMetadata {
 }
 
 export const CRON_METADATA: Record<string, CronMetadata> = {
+  "ad-campaign-monitor": {
+    label: "Check ad campaigns",
+    frequency: "Runs hourly (at :15 past)",
+    description:
+      "Refreshes ad campaigns' spend from the platform, pauses one that has reached the total budget you set, and stops one that has passed its end date. Up to 40 campaigns per run; X campaigns are handled by their own sync.",
+    summarize: (data) => {
+      const d = data as
+        | {
+            ticked?: number;
+            refreshed?: number;
+            autoPaused?: number;
+            ended?: number;
+            unmonitorable?: number;
+            flightEndBlocked?: number;
+            rowNotUpdated?: number;
+            failed?: number;
+            notFound?: number;
+            unswept?: number;
+            skippedUnreadable?: number;
+            skippedOtherWriter?: number;
+            truncated?: boolean;
+          }
+        | null;
+      const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+      if (typeof d?.ticked !== "number") return null;
+
+      // ★ALL SIX MUTUALLY-EXCLUSIVE PER-ROW OUTCOMES. Reading the sweep's loop:
+      // exactly one of {skippedUnreadable, skippedOtherWriter}, one of
+      // {notFound, unmonitorable, ticked}, or `failed` increments per row. A
+      // first cut summed five and omitted `skippedOtherWriter`, so a batch of
+      // forty X campaigns reported "No campaigns needed checking." — and
+      // swallowed `truncated` with it, because the empty-batch answer returns
+      // before the truncation check.
+      const batch =
+        num(d.ticked) +
+        num(d.unmonitorable) +
+        num(d.failed) +
+        num(d.notFound) +
+        num(d.skippedUnreadable) +
+        num(d.skippedOtherWriter);
+      if (batch === 0) return "No campaigns needed checking.";
+
+      const plural = (n: number) => (n === 1 ? "" : "s");
+
+      // ★EVERY OUTCOME THAT MEANS "NOBODY IS WATCHING THIS CAMPAIGN" IS
+      // COLLECTED, NOT JUST THE WORST ONE. Each of them otherwise hides inside a
+      // green "40 campaigns checked." A first cut read two of the seven, so a
+      // tick where every single row threw reported {ticked: 0, failed: 40} as
+      // "0 campaigns checked." — a success toast over forty logged errors. A
+      // later cut read all of them but returned on the FIRST, so thirty-five
+      // errored rows went unmentioned beside one blocked flight end. Ordered
+      // worst-first; all of them said.
+      const problems: string[] = [];
+      if (num(d.flightEndBlocked) > 0) {
+        problems.push(
+          `${d.flightEndBlocked} passed the end date and could NOT be stopped — check Campaign Manager`,
+        );
+      }
+      if (num(d.failed) > 0) problems.push(`${d.failed} errored`);
+      if (num(d.unmonitorable) > 0) problems.push(`${d.unmonitorable} could not be checked at all`);
+      if (num(d.rowNotUpdated) > 0) {
+        // The OPPOSITE failure: spend has stopped, our record has not caught up.
+        problems.push(`${d.rowNotUpdated} stopped on the platform but not updated here`);
+      }
+      if (num(d.unswept) > 0) problems.push(`${d.unswept} in a status nothing monitors`);
+      const unreadable = num(d.notFound) + num(d.skippedUnreadable);
+      if (unreadable > 0) problems.push(`${unreadable} could not be read`);
+
+      // ★`refreshed`, NOT `ticked`, IS THE NUMBER THAT MEANS ANYTHING: a tick
+      // that returned early evaluated no budget at all. But zero refreshed is
+      // NOT a fault on its own — a business whose campaigns are all drafts is
+      // the normal newly-onboarded state, and `/boost` creates drafts. So it
+      // reports rather than warns, and it does not lead when there is nothing
+      // to report: "0 campaigns checked, 12 finished." is a sentence that
+      // contradicts itself, and it is reachable — the rows the platform has
+      // never heard of end without ever refreshing.
+      const refreshed = num(d.refreshed);
+      const done: string[] = [];
+      if (refreshed > 0 || (num(d.ended) === 0 && num(d.autoPaused) === 0)) {
+        done.push(`${refreshed} campaign${plural(refreshed)} checked`);
+      }
+      if (num(d.autoPaused) > 0) {
+        done.push(
+          `${d.autoPaused} paused at ${num(d.autoPaused) === 1 ? "its budget cap" : "their budget caps"}`,
+        );
+      }
+      if (num(d.ended) > 0) done.push(`${d.ended} finished`);
+
+      const tail = d.truncated ? " More remain — run again." : "";
+      if (problems.length > 0) {
+        return { message: `${problems.join("; ")}.${tail}`, level: "warning" as const };
+      }
+      const message = `${done.join(", ")}.${tail}`;
+      // A capped tick is not hourly enforcement for the tail of the queue.
+      return d.truncated ? { message, level: "warning" as const } : message;
+    },
+  },
   "media-cleanup-suggestions": {
     label: "Find cleanup suggestions",
     frequency: "Runs weekly (Sun 4:00 AM UTC)",

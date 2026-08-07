@@ -52,7 +52,7 @@ export const ADS_CHANNELS = [
     providerKey: "linkedin_ads",
     description:
       "Boost your proven LinkedIn posts into campaigns — created as non-spending drafts you activate when ready.",
-    crons: ["performance-sync", "growth-optimizer"],
+    crons: ["ad-campaign-monitor", "performance-sync", "growth-optimizer"],
     invalidateQueryKeys: [["linkedin-managed-campaigns"], ["content-hub-integrations"]],
     ownedParams: [],
   },

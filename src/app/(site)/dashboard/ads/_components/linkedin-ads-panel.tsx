@@ -44,6 +44,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { AdvertisingDeclarationCard } from "@/components/ads/advertising-declaration-card";
+import { formatDeclaredAt } from "@/lib/ads-copy";
+import { flightEndBanner, flightEndDetail } from "@/lib/flight-end-copy";
 import { EmptyState } from "@/components/molecules/empty-state";
 import {
   AlertTriangle,
@@ -134,6 +136,7 @@ export function LinkedInAdsPanel() {
           gate below renders an EmptyState — which used to hide this warning in
           the one case it matters most. */}
       <SpendAlarmBanner />
+      <FlightEndBanner canUseRowControls={isConnected} />
       {/* Above the gate for the same reason, plus one of its own: the
           declaration governs every campaign create including the autonomous
           ones, and a business can make it before it connects. Not on
@@ -193,10 +196,13 @@ export function LinkedInAdsPanel() {
  * Campaigns still SERVING past the budget cap the user set.
  *
  * The api derives `spendAlarm` (at/over cap AND still active), which covers
- * both an auto-pause that failed and one that never ran — including the case
- * that makes this the ONLY protection there is: campaigns created through the
- * Ads Manager get no monitor at all, because the monitoring workflow starts
- * only from the WhatsApp BOOST command.
+ * both an auto-pause that failed and one that never ran.
+ *
+ * (That last case used to be the common one: campaigns created through the Ads
+ * Manager got no monitor at all, because the monitoring workflow started only
+ * from the WhatsApp BOOST command. Closed by the hourly sweep — P1, api#1030 —
+ * so this banner is now the escalation of a failure rather than the only
+ * protection there is.)
  *
  * Own component, mounted above the connection gate, sharing CampaignsPanel's
  * queryKey (react-query dedupes, so no extra request).
@@ -248,6 +254,87 @@ function SpendAlarmBanner() {
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * Campaigns that should have STOPPED and have not.
+ *
+ * ★THE STATE THIS RENDERS ONLY EXISTS BECAUSE THE MONITOR NOW REFUSES TO LIE.
+ * LinkedIn carries no `end` on a campaign's `runSchedule` — the flight window
+ * lives only on our row — and the monitor used to write `status: "completed"`
+ * locally with no platform call at all, so a campaign that had not also
+ * tripped its budget cap carried on serving indefinitely while this screen
+ * reported it finished. It now stops the campaign on LinkedIn first, and
+ * leaves the row `active` when it cannot.
+ *
+ * ★AND A SEPARATE BANNER FROM SpendAlarmBanner, DELIBERATELY. "You are over
+ * the cap you set" and "this should have stopped four days ago" are different
+ * asks with different remedies, and the population here is exactly the
+ * campaigns that UNDER-spend — so folding it into the spend banner would make
+ * it unreadable in the case where it matters most. A campaign in both states
+ * appears in both, which is the truth.
+ *
+ * ★AND THE CTA IS CAMPAIGN MANAGER, FOR THE REASON THE SPEND BANNER GIVES:
+ * Peakhour's own Pause uses the connection whose failure is why this is here.
+ * Hedged the same way, because for a rate limit or an undelivered request it
+ * very likely succeeds on retry.
+ */
+function FlightEndBanner({ canUseRowControls }: { canUseRowControls: boolean }) {
+  const campaigns = useQuery({
+    queryKey: ["linkedin-managed-campaigns"],
+    queryFn: () => linkedInAdsApi.managedCampaigns(),
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+  });
+  // ★MOUNTED WHETHER OR NOT THERE IS ANYTHING TO SAY, AND THAT IS THE POINT OF
+  // THE WRAPPER. A `role="status"` region that is inserted together with its
+  // content is announced by nobody: screen readers announce a polite live
+  // region when its CONTENTS change, not when the region itself appears. The
+  // fix for the double-announcement had removed the announcement.
+  const rows = campaigns.data?.campaigns ?? [];
+  // The banner cannot point at a row that is not on screen: it is mounted above
+  // the connection gate, and a revoked connection is the state most likely to
+  // produce these rows in the first place.
+  const copy = flightEndBanner(rows, canUseRowControls);
+
+  return (
+    <div role="status" aria-label="Campaigns past their end date">
+      {copy && (
+        <Card className="border-destructive/40 bg-destructive/5">
+          <CardContent className="space-y-2 p-4 text-sm">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden="true" />
+              <div className="space-y-1">
+                {/* "Warning:" carries the severity that colour alone conveys —
+                    the icon is aria-hidden and this region is polite. */}
+                <p className="font-medium text-destructive">
+                  <span className="sr-only">Warning: </span>
+                  {copy.headline}
+                </p>
+                <p className="text-muted-foreground">{copy.body}</p>
+                <ul className="space-y-1 pt-1">
+                  {copy.rows.map((r) => (
+                    <li key={r._id} className="text-muted-foreground">
+                      <span className="font-medium text-foreground">{r.name}</span>
+                      {" — "}
+                      {/* ★REUSED, NOT REWRITTEN. `formatDeclaredAt` already
+                          returns "" rather than the words "Invalid Date", which
+                          inside an alert about somebody's money reads as a bug
+                          in the alarm. A second formatter is how the two drift. */}
+                      {flightEndDetail(
+                        r.flightEndAlarm!,
+                        formatDeclaredAt(r.flightEndAlarm!.endsAt),
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
   );
 }
 
@@ -369,10 +456,12 @@ function CampaignsPanel() {
         <p className="mt-3 border-t pt-2 text-[11px] text-muted-foreground">
           Campaigns are created in LinkedIn as drafts under a draft group —
           they cannot spend until you activate them. Set the audience with the
-          Audience button before activating. Campaigns are watched against
-          their total budget and flagged above if spend passes it — automatic
-          pausing currently runs only for campaigns started from WhatsApp, so
-          treat the flag as your signal to pause in LinkedIn Campaign Manager.
+          Audience button before activating. Every campaign is then checked
+          hourly and paused automatically when spend reaches the total budget
+          you set, or when it passes its end date — LinkedIn is not given an end
+          date of its own, so that stop is ours to make. If either one fails you
+          are told above; that is your signal to stop it in LinkedIn Campaign
+          Manager.
         </p>
       </CardContent>
     </Card>
