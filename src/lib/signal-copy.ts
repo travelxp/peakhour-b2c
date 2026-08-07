@@ -23,6 +23,28 @@ import type { Signal, SignalProvider, SignalRail } from "@/lib/api/signals";
  *     why every function here takes the rail.
  */
 
+/**
+ * ★HOW TO CONFIRM IT, SAID ACCURATELY — because the obvious instruction does
+ * not work.
+ *
+ * The snippet marks `sessionStorage` and beacons ONCE PER BROWSER SESSION, and
+ * the server then coalesces to one write per signal per 15 minutes. So a
+ * customer who already has the site open in that tab, or who re-checks within
+ * the window, produces no new beacon and no change on this screen — after being
+ * told that visiting the site is "the quickest way to find out". Two true
+ * sentences that combine into a false one.
+ */
+const CONFIRM_HINT =
+  "open your site in a NEW private window (the snippet only reports once per browser session) " +
+  "and press Check again a minute later.";
+
+/** " on www.example.com", or nothing when the beacon's origin was unreadable —
+ *  which is a real state and must not become an empty pair of quotes. */
+function hostClause(signal: Signal): string {
+  const host = signal.verification?.lastFiredHost;
+  return host ? ` on ${host}` : "";
+}
+
 export function providerLabel(provider: SignalProvider): string {
   switch (provider) {
     case "linkedin_insight":
@@ -70,7 +92,15 @@ export function evidenceChain(signal: Signal): EvidenceStep[] {
           ? "Not something we can see when you paste the snippet yourself — there's no step of ours in between."
           : served
             ? `Your WordPress plugin last picked it up ${formatWhen(served)}.`
-            : "Your WordPress plugin hasn't picked it up yet. It asks for this when it next syncs.",
+            : // ★NO PROMISE OF A SYNC, BECAUSE THERE ISN'T ONE. An earlier draft
+              // said "it asks for this when it next syncs" — telling the customer
+              // to wait for something that does not exist. Nothing writes
+              // `lastServedAt` today: there is no plugin-facing snippet endpoint
+              // and the plugin has no signals code, which is why `wordpress` is
+              // not offered as a choice. A stored row can still carry it (an
+              // older row, or a later api enabling the rail), so this branch
+              // stays — saying what is true.
+              "The plugin can't deliver this yet. Add the snippet to your site by hand for now.",
     },
     {
       label: "Seen working",
@@ -98,9 +128,16 @@ export function stateCopy(signal: Signal): { title: string; body: string; tone: 
     case "firing":
       return {
         title: "Working",
+        // ★"WE'VE SEEN IT LOAD ON <HOST>", NOT "IT'S INSTALLED". A beacon proves
+        // a browser SOMEWHERE ran the snippet — the site key is in the page
+        // source of every page carrying it — and the single-fire case is most
+        // often the customer testing on staging or localhost, which is exactly
+        // where "that's enough to know it's installed" would be wrong. The host
+        // we heard from is named, so the customer can judge it, and is the
+        // reason the api stores it at all.
         body: signal.verification?.seenOnceOnly
-          ? `We've seen your ${provider} load once. That's enough to know it's installed — it'll keep confirming itself as people visit.`
-          : `We've seen your ${provider} load on a real visit in the last ${signal.freshWindowDays} days.`,
+          ? `We've seen your ${provider} load once${hostClause(signal)}. That's one browser, in one session — worth checking the address above is the site you meant.`
+          : `We've seen your ${provider} load on a real visit${hostClause(signal)} in the last ${signal.freshWindowDays} days.`,
         tone: "ok",
       };
     case "never_fired":
@@ -108,8 +145,10 @@ export function stateCopy(signal: Signal): { title: string; body: string; tone: 
         title: "Not seen yet",
         body:
           signal.delivery.rail === "wordpress"
-            ? `Set up, but no browser has loaded it yet. That's normal until your plugin syncs and someone visits your site.`
-            : `Set up, but no browser has loaded it yet. Add the snippet to your site if you haven't — then visit a page yourself to confirm it.`,
+            ? // No promise of a sync — see `evidenceChain`. Nothing delivers this
+              // rail yet, so "wait" would be advice that can never come good.
+              `Set up, but nothing has put it on your site yet. Add the snippet by hand for now, then ${CONFIRM_HINT}`
+            : `Set up, but no browser has loaded it yet. Add the snippet to your site if you haven't — then ${CONFIRM_HINT}`,
         tone: "waiting",
       };
     case "not_seen_recently":
@@ -118,7 +157,7 @@ export function stateCopy(signal: Signal): { title: string; body: string; tone: 
         body:
           `We last saw your ${provider} load ${formatWhen(signal.verification?.lastFiredAt)}, and nothing since. ` +
           `That can mean the tag was removed, or simply that nobody has visited — we can't tell which from here. ` +
-          `Opening your site in a browser is the quickest way to find out.`,
+          `To check: ${CONFIRM_HINT}`,
         tone: "attention",
       };
     default:

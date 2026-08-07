@@ -5,7 +5,7 @@ import { Check, Minus, Radar, X } from "lucide-react";
 import { ApiError } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -16,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ConfirmDialog } from "@/components/molecules/confirm-dialog";
 import { EmptyState } from "@/components/molecules/empty-state";
 import {
   useCreateSignal,
@@ -60,7 +61,13 @@ import {
  * next to real ones. "Last seen" is a fact; "1,284 hits" would not be.
  */
 export default function SignalsPage() {
-  const { data, isPending, isError, refetch, isFetching } = useSignals();
+  const { data, isPending, error, refetch, isFetching } = useSignals();
+  // ★A REMOVAL MESSAGE THAT OUTLIVES THE CARD IT CAME FROM. Removing invalidates
+  // the list, the signal disappears, and the card unmounts — so a notice
+  // rendered inside it flashed for a few hundred milliseconds and vanished.
+  // The one thing worth saying about removing ("your page is still loading the
+  // tag") is exactly the thing that must survive.
+  const [removed, setRemoved] = useState<string | null>(null);
 
   return (
     <div className="space-y-6">
@@ -73,17 +80,25 @@ export default function SignalsPage() {
         </p>
       </div>
 
+      {removed && (
+        <p className="rounded-md border bg-muted/40 p-3 text-sm">
+          {providerLabel(removed as SignalProvider)} removed from Peakhour. If the snippet
+          is on your site it is still there and still loading — take it out of your pages
+          to actually stop it. Setting it up again issues a NEW site key, so you will need
+          to replace the snippet everywhere it appears.
+        </p>
+      )}
+
       {isPending ? (
         <div className="space-y-4">
           <Skeleton className="h-56 w-full" />
         </div>
-      ) : isError ? (
-        <EmptyState
-          icon={Radar}
-          title="We couldn&apos;t load your signals"
-          description="That&apos;s on us — nothing has been changed. Try again in a moment."
-          action={{ label: "Try again", onClick: () => void refetch() }}
-        />
+      ) : !data ? (
+        // ★`!data`, NOT `isError`. A failed BACKGROUND refetch — a tab-away and
+        // back on a flaky connection — sets `isError` while the loaded data is
+        // still there, and branching on it would throw the whole screen away
+        // over a transient blip.
+        <EmptyState {...listErrorState(error, () => void refetch())} icon={Radar} />
       ) : (
         <div className="space-y-4">
           {data.availableProviders.map((provider) => {
@@ -95,6 +110,7 @@ export default function SignalsPage() {
                 rails={data.availableRails}
                 onRecheck={() => void refetch()}
                 rechecking={isFetching}
+                onRemoved={() => setRemoved(provider)}
               />
             ) : (
               <SetUpCard key={provider} provider={provider} rails={data.availableRails} />
@@ -104,6 +120,65 @@ export default function SignalsPage() {
       )}
     </div>
   );
+}
+
+/**
+ * What to say when the list will not load, and whether a retry can help.
+ *
+ * ★"THAT'S ON US, TRY AGAIN" IS THE WRONG ANSWER TO TWO OF THESE. A caller with
+ * no active business gets a 403 that no amount of retrying will change, and the
+ * fix — pick a business — is one the customer can carry out. A remedy that
+ * cannot resolve the failure is worse than none.
+ */
+function listErrorState(error: unknown, onRetry: () => void) {
+  const code = error instanceof ApiError ? error.code : undefined;
+  if (code === "NO_ACTIVE_BUSINESS") {
+    return {
+      title: "Pick a business first",
+      description:
+        "Signals belong to one business at a time — choose one and they'll load.",
+    };
+  }
+  if (code === "FORBIDDEN") {
+    return {
+      title: "You don't have access to this",
+      description: "Ask an owner or admin on this business to open it for you.",
+    };
+  }
+  return {
+    title: "We couldn't load your signals",
+    description: "That's on us — nothing has been changed. Try again in a moment.",
+    action: { label: "Try again", onClick: onRetry },
+  };
+}
+
+/**
+ * The message for a failed write.
+ *
+ * ★EVERY CODE THE API CAN RETURN, AND NO `FORBIDDEN` ENDS IN "TRY AGAIN". These
+ * routes are `requireRole("admin")`, so an editor hits 403 on every write —
+ * being told to retry would be advice that can never come good. And
+ * `NOTHING_TO_UPDATE` is its own code precisely so that pressing Save with
+ * nothing changed does not produce a lecture about Partner ID characters.
+ */
+function writeErrorMessage(error: unknown): string {
+  const code = error instanceof ApiError ? error.code : undefined;
+  switch (code) {
+    case "SIGNAL_EXISTS":
+      return "This business already has one of these — reload the page to see it.";
+    case "FORBIDDEN":
+      return "You need an admin or owner role on this business to change a signal.";
+    case "NO_ACTIVE_BUSINESS":
+      return "Pick a business first — signals belong to one business at a time.";
+    case "NOTHING_TO_UPDATE":
+      return "Nothing was changed.";
+    case "VALIDATION_ERROR":
+      return "A Partner ID can only contain letters, numbers, hyphens and underscores.";
+    case "NOT_FOUND":
+      return "That signal isn't there any more — reload the page.";
+    default:
+      return "We couldn't save that. Nothing has been changed — try again in a moment.";
+  }
 }
 
 /** The three levels, drawn so that "not applicable" cannot read as "not done". */
@@ -155,11 +230,13 @@ function SignalCard({
   rails,
   onRecheck,
   rechecking,
+  onRemoved,
 }: {
   signal: Signal;
   rails: SignalRail[];
   onRecheck: () => void;
   rechecking: boolean;
+  onRemoved: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [partnerId, setPartnerId] = useState(signal.partnerId);
@@ -170,22 +247,44 @@ function SignalCard({
   const state = stateCopy(signal);
 
   const partnerIdChanged = partnerId.trim() !== signal.partnerId;
+  const railChanged = rail !== signal.delivery.rail;
+  const hasChanges = partnerIdChanged || railChanged;
+
+  /** Reset the form to whatever the server now says, and open or close it.
+   *  ★WITHOUT THIS, `useState(signal.partnerId)` keeps the value it was
+   *  initialised with: after a save the card re-renders with fresh props and
+   *  the form still shows what was typed, so cancelling and re-opening shows a
+   *  stale draft as if it were stored. */
+  const toggleEditing = (open: boolean) => {
+    if (open) {
+      setPartnerId(signal.partnerId);
+      setRail(signal.delivery.rail);
+      update.reset();
+    }
+    setEditing(open);
+  };
 
   return (
     <Card>
-      <CardHeader className="flex-row items-start justify-between gap-4 space-y-0">
+      <CardHeader>
         <div>
           <CardTitle className="text-base">{providerLabel(signal.provider)}</CardTitle>
           <p className="text-sm text-muted-foreground">
             Partner ID {signal.partnerId} · {railLabel(signal.delivery.rail)}
           </p>
         </div>
-        <Badge
-          variant={state.tone === "ok" ? "default" : "secondary"}
-          className={state.tone === "attention" ? "border-amber-500/40 text-amber-700" : undefined}
-        >
-          {state.title}
-        </Badge>
+        {/* ★CardAction, NOT A flex-row OVERRIDE. CardHeader is a GRID, and
+            tailwind-merge keeps both `grid` and `flex-row` because they are in
+            different groups — so the override did nothing and the badge stacked
+            underneath the title instead of sitting top-right. */}
+        <CardAction>
+          <Badge
+            variant={state.tone === "ok" ? "default" : "secondary"}
+            className={state.tone === "attention" ? "border-amber-500/40 text-amber-700" : undefined}
+          >
+            {state.title}
+          </Badge>
+        </CardAction>
       </CardHeader>
       <CardContent className="space-y-5">
         <p className="text-sm">{state.body}</p>
@@ -202,27 +301,43 @@ function SignalCard({
           <Button variant="outline" size="sm" onClick={() => setShowSnippet((v) => !v)}>
             {showSnippet ? "Hide snippet" : "Show snippet"}
           </Button>
-          <Button variant="outline" size="sm" onClick={() => setEditing((v) => !v)}>
+          <Button variant="outline" size="sm" onClick={() => toggleEditing(!editing)}>
             {editing ? "Cancel" : "Edit"}
           </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-destructive"
-            disabled={remove.isPending}
-            onClick={() => remove.mutate(signal.provider)}
-          >
-            Remove
-          </Button>
+          {/* ★CONFIRMED, BECAUSE IT IS NOT REVERSIBLE. Setting the signal up
+              again mints a NEW site key, so every page already carrying the old
+              snippet beacons to a key that no longer exists — silently, forever
+              — and the customer has to re-paste everywhere. That is the whole
+              reason this is a dialog and not a click. */}
+          <ConfirmDialog
+            trigger={
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-destructive"
+                disabled={remove.isPending}
+              >
+                Remove
+              </Button>
+            }
+            title={`Remove your ${providerLabel(signal.provider)}?`}
+            description={
+              "This removes our record and our proof that it works — not the code on your site. " +
+              "Setting it up again issues a NEW site key, so you would have to replace the snippet " +
+              "on every page that carries it."
+            }
+            variant="destructive"
+            confirmLabel="Remove"
+            onConfirm={() =>
+              remove.mutate(signal.provider, { onSuccess: () => onRemoved() })
+            }
+          />
         </div>
 
-        {/* ★REMOVING OUR RECORD IS NOT REMOVING THEIR TAG, and saying so
-            afterwards would be too late to be useful. */}
-        {remove.isSuccess && (
-          <p className="text-sm text-muted-foreground">
-            Removed from Peakhour. If you pasted the snippet into your site yourself, it
-            is still there and still loading — take it out of your pages to stop it.
-          </p>
+        {/* A failed remove used to produce nothing at all: the button re-enabled
+            and the card stayed, which reads as "it didn't register the click". */}
+        {remove.isError && (
+          <p className="text-sm text-destructive">{writeErrorMessage(remove.error)}</p>
         )}
 
         {showSnippet && <SnippetBlock provider={signal.provider} />}
@@ -230,9 +345,9 @@ function SignalCard({
         {editing && (
           <div className="space-y-3 rounded-md border p-4">
             <div className="space-y-1.5">
-              <Label htmlFor="partnerId">Partner ID</Label>
+              <Label htmlFor={`edit-partner-${signal.provider}`}>Partner ID</Label>
               <Input
-                id="partnerId"
+                id={`edit-partner-${signal.provider}`}
                 value={partnerId}
                 onChange={(e) => setPartnerId(e.target.value)}
                 placeholder="1234567"
@@ -249,22 +364,22 @@ function SignalCard({
               <p className="text-sm text-amber-700">{PARTNER_ID_CHANGE_WARNING}</p>
             )}
             {update.isError && (
-              <p className="text-sm text-destructive">
-                {update.error instanceof ApiError && update.error.code === "VALIDATION_ERROR"
-                  ? "A Partner ID can only contain letters, numbers, hyphens and underscores."
-                  : "We couldn't save that. Nothing has been changed — try again in a moment."}
-              </p>
+              <p className="text-sm text-destructive">{writeErrorMessage(update.error)}</p>
             )}
+            {/* ★DISABLED WHEN NOTHING CHANGED, rather than sending an empty
+                patch. The api answers a `{}` body with a 400, and mapping that
+                to a message means telling somebody who pressed Save without
+                editing anything that their Partner ID is malformed. */}
             <Button
               size="sm"
-              disabled={update.isPending}
+              disabled={update.isPending || !hasChanges}
               onClick={() =>
                 update.mutate(
                   {
                     provider: signal.provider,
                     patch: {
                       ...(partnerIdChanged ? { partnerId: partnerId.trim() } : {}),
-                      ...(rail !== signal.delivery.rail ? { rail } : {}),
+                      ...(railChanged ? { rail } : {}),
                     },
                   },
                   { onSuccess: () => setEditing(false) },
@@ -282,7 +397,12 @@ function SignalCard({
 
 function SnippetBlock({ provider }: { provider: SignalProvider }) {
   const { data, isPending, isError } = useSignalSnippet(provider);
-  const [copied, setCopied] = useState(false);
+  // ★KEYED ON THE SNIPPET ITSELF, NOT A BOOLEAN. A boolean never reset, so a
+  // customer who copied, changed their Partner ID and saved would be looking at
+  // a NEW snippet under a button still reading "Copied" — which is the precise
+  // failure the change warning exists to prevent, one component further down.
+  const [copiedText, setCopiedText] = useState<string | null>(null);
+  const [copyFailed, setCopyFailed] = useState(false);
 
   if (isPending) return <Skeleton className="h-40 w-full" />;
   if (isError || !data) {
@@ -308,11 +428,31 @@ function SnippetBlock({ provider }: { provider: SignalProvider }) {
         variant="outline"
         size="sm"
         onClick={() => {
-          void navigator.clipboard?.writeText(data.snippet).then(() => setCopied(true));
+          // ★A FAILURE HERE MUST NOT BE SILENT. On an insecure origin
+          // `navigator.clipboard` is undefined and the optional chain made the
+          // click a no-op — no copy, no error, button unchanged — so the
+          // customer walks away believing they have the snippet. A rejected
+          // `writeText` (permission denied, document not focused) did the same.
+          setCopyFailed(false);
+          const clipboard = navigator.clipboard;
+          if (!clipboard) {
+            setCopyFailed(true);
+            return;
+          }
+          clipboard.writeText(data.snippet).then(
+            () => setCopiedText(data.snippet),
+            () => setCopyFailed(true),
+          );
         }}
       >
-        {copied ? "Copied" : "Copy snippet"}
+        {copiedText === data.snippet ? "Copied" : "Copy snippet"}
       </Button>
+      {copyFailed && (
+        <p className="text-sm text-destructive">
+          Your browser wouldn&apos;t let us copy that. Select the snippet above and copy it
+          by hand.
+        </p>
+      )}
     </div>
   );
 }
@@ -377,15 +517,7 @@ function SetUpCard({ provider, rails }: { provider: SignalProvider; rails: Signa
           <RailSelect value={rail} rails={rails} onChange={setRail} />
         </div>
         {create.isError && (
-          <p className="text-sm text-destructive">
-            {create.error instanceof ApiError && create.error.code === "SIGNAL_EXISTS"
-              ? "This business already has one of these — reload the page to see it."
-              : create.error instanceof ApiError && create.error.code === "FORBIDDEN"
-                ? "You need an admin or owner role on this business to set up a signal."
-                : create.error instanceof ApiError && create.error.code === "VALIDATION_ERROR"
-                  ? "A Partner ID can only contain letters, numbers, hyphens and underscores."
-                  : "We couldn't save that. Nothing has been changed — try again in a moment."}
-          </p>
+          <p className="text-sm text-destructive">{writeErrorMessage(create.error)}</p>
         )}
         <Button
           size="sm"

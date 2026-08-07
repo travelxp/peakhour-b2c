@@ -27,6 +27,14 @@ export function useSignals() {
   return useQuery<SignalsResponse>({
     queryKey: key(business?._id),
     queryFn: () => signalsApi.list(),
+    // ★GATED, LIKE EVERY OTHER BUSINESS-SCOPED HOOK HERE. Without it the query
+    // fires once under the `"none"` key before auth resolves and again under
+    // the real one — and for a multi-business org with nothing pinned
+    // (`auth-provider` only auto-resolves when there is exactly one) the first
+    // call 403s and there IS no second, so the page sits on an error state
+    // forever. A key that says which business is undermined by a bucket that
+    // says "none".
+    enabled: !!business?._id,
     // ★NO `refetchInterval`. A signal that has never fired is waiting on a
     // human — installing a snippet, or a visitor arriving — and polling every
     // few seconds would spend the customer's battery to re-render an unchanged
@@ -49,7 +57,7 @@ export function useSignalSnippet(provider: SignalProvider | null) {
   return useQuery<SnippetResponse>({
     queryKey: [...key(business?._id), "snippet", provider],
     queryFn: () => signalsApi.snippet(provider as SignalProvider),
-    enabled: !!provider,
+    enabled: !!provider && !!business?._id,
   });
 }
 
