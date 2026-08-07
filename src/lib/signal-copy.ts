@@ -38,11 +38,12 @@ const CONFIRM_HINT =
   "open your site in a NEW private window (the snippet only reports once per browser session) " +
   "and press Check again a minute later.";
 
-/** " on www.example.com", or nothing when the beacon's origin was unreadable —
- *  which is a real state and must not become an empty pair of quotes. */
+/** " from www.example.com", or nothing when the beacon's origin was unreadable
+ *  — a real state (the api UNSETS the host rather than leaving a stale one), and
+ *  one that must never leave a dangling preposition behind. */
 function hostClause(signal: Signal): string {
   const host = signal.verification?.lastFiredHost;
-  return host ? ` on ${host}` : "";
+  return host ? ` from ${host}` : "";
 }
 
 export function providerLabel(provider: SignalProvider): string {
@@ -135,9 +136,17 @@ export function stateCopy(signal: Signal): { title: string; body: string; tone: 
         // where "that's enough to know it's installed" would be wrong. The host
         // we heard from is named, so the customer can judge it, and is the
         // reason the api stores it at all.
+        // ★NO "THE ADDRESS ABOVE". An earlier draft said so, and there is no
+        // address above: the host appears in this same sentence when we have
+        // one, in the evidence step BELOW when we do, and NOWHERE when the
+        // beacon's origin was unreadable — which is a real state the api
+        // deliberately produces by unsetting the host. A sentence that points
+        // at something that is not on the screen is worse than a vaguer one.
         body: signal.verification?.seenOnceOnly
-          ? `We've seen your ${provider} load once${hostClause(signal)}. That's one browser, in one session — worth checking the address above is the site you meant.`
-          : `We've seen your ${provider} load on a real visit${hostClause(signal)} in the last ${signal.freshWindowDays} days.`,
+          ? hostClause(signal)
+            ? `We've seen your ${provider} load once, from ${signal.verification.lastFiredHost}. That's one browser in one session — check that address is the site you meant.`
+            : `We've seen your ${provider} load once, though we couldn't tell which site from. That's one browser in one session.`
+          : `We've seen your ${provider} load on a real visit${hostClause(signal)} within the last ${signal.freshWindowDays} days.`,
         tone: "ok",
       };
     case "never_fired":

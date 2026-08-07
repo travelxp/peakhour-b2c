@@ -118,18 +118,43 @@ describe("state copy never says more than the data supports", () => {
     // 15 minutes, so "just visit your site" produces no change on this screen
     // for a customer who already has it open — after being told that is the
     // quickest way to find out.
-    for (const state of ["never_fired", "not_seen_recently"] as const) {
-      const body = stateCopy(base({ state })).body;
-      expect(body, state).toMatch(/private window|new window/i);
-      expect(body, state).toMatch(/once per browser session/i);
+    //
+    // ★AND ON THE `wordpress` BRANCH TOO. A first cut looped over `base({state})`
+    // only, and `base()` hardcodes `rail: "manual"` — so the branch round 1
+    // rewrote was uncovered by the test that names its rule, and restoring
+    // "then visit your site to confirm it" there left 11/11 green.
+    const cases: Array<[string, Signal]> = [
+      ["manual/never_fired", base({ state: "never_fired" })],
+      ["manual/not_seen_recently", base({ state: "not_seen_recently" })],
+      ["wordpress/never_fired", withRail("wordpress", { state: "never_fired" })],
+      ["wordpress/not_seen_recently", withRail("wordpress", { state: "not_seen_recently" })],
+    ];
+    for (const [name, signal] of cases) {
+      const body = stateCopy(signal).body;
+      expect(body, name).toMatch(/private window|new window/i);
+      expect(body, name).toMatch(/once per browser session/i);
     }
   });
 
-  it("carries no number that could be read as traffic", () => {
-    for (const state of ["firing", "never_fired", "not_seen_recently"] as const) {
-      const body = stateCopy(state === "firing" ? fired() : base({ state })).body;
-      // The freshness window is the only figure allowed, and it is the api's.
-      expect(body.replace(/\b7 days\b/g, ""), state).not.toMatch(/\d+[\d,]*\s*(visits?|hits?|views?|people)/i);
+  it("★carries no number that could be read as traffic — on EVERY branch", () => {
+    // ★THE FIRST CUT LOOPED OVER `fired()`, WHOSE FIXTURE HARDCODES
+    // `seenOnceOnly: true` — so the ONE string in the file that interpolates a
+    // figure was never rendered by any test, and injecting "1,284 real visits"
+    // left 11/11 green. The rule this file names first, guarded by a loop that
+    // could not reach it.
+    const bodies = [
+      stateCopy(fired()).body,
+      stateCopy(fired({ seenOnceOnly: false })).body,
+      stateCopy(base({ state: "never_fired" })).body,
+      stateCopy(withRail("wordpress", { state: "never_fired" })).body,
+      stateCopy(base({ state: "not_seen_recently" })).body,
+    ];
+    for (const body of bodies) {
+      // ★NO DIGIT AT ALL once the api's own freshness window is removed, rather
+      // than a list of unit words. A blocklist only catches the phrasings
+      // whoever wrote it imagined; "1,284 loads", "seen 12×" and "3 sessions"
+      // all slip past one.
+      expect(body.replace(/\b7 days\b/g, ""), body).not.toMatch(/\d/);
     }
   });
 });

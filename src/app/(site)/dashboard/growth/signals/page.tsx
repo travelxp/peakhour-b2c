@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useAuth } from "@/providers/auth-provider";
 import { Check, Minus, Radar, X } from "lucide-react";
 import { ApiError } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
@@ -61,6 +62,7 @@ import {
  * next to real ones. "Last seen" is a fact; "1,284 hits" would not be.
  */
 export default function SignalsPage() {
+  const { business } = useAuth();
   const { data, isPending, error, refetch, isFetching } = useSignals();
   // ★A REMOVAL MESSAGE THAT OUTLIVES THE CARD IT CAME FROM. Removing invalidates
   // the list, the signal disappears, and the card unmounts — so a notice
@@ -68,6 +70,13 @@ export default function SignalsPage() {
   // The one thing worth saying about removing ("your page is still loading the
   // tag") is exactly the thing that must survive.
   const [removed, setRemoved] = useState<string | null>(null);
+  // ★AND IT STOPS THE MOMENT THAT PROVIDER IS CONFIGURED AGAIN. Nothing cleared
+  // it, so after removing and re-adding, a present-tense "removed from
+  // Peakhour … you will need to replace the snippet" sat above a working card,
+  // advising something the customer had already done. DERIVED rather than
+  // reset: a second piece of state that has to be cleared correctly is how the
+  // first one got it wrong.
+  const showRemoved = removed && !data?.signals.some((s) => s.provider === removed) ? removed : null;
 
   return (
     <div className="space-y-6">
@@ -80,16 +89,30 @@ export default function SignalsPage() {
         </p>
       </div>
 
-      {removed && (
+      {showRemoved && (
         <p className="rounded-md border bg-muted/40 p-3 text-sm">
-          {providerLabel(removed as SignalProvider)} removed from Peakhour. If the snippet
+          {providerLabel(showRemoved as SignalProvider)} removed from Peakhour. If the snippet
           is on your site it is still there and still loading — take it out of your pages
           to actually stop it. Setting it up again issues a NEW site key, so you will need
           to replace the snippet everywhere it appears.
         </p>
       )}
 
-      {isPending ? (
+      {/* ★NO BUSINESS IS ITS OWN STATE, NOT A LOADING ONE — and round 1 made
+          this worse rather than better. Adding `enabled: !!business` to the
+          hook stopped the query firing, and a disabled TanStack query with no
+          cached data reports `isPending` FOREVER: the fix replaced a correct
+          "Pick a business first" message with a permanent skeleton, and made
+          its own `NO_ACTIVE_BUSINESS` branch unreachable in the same commit.
+          The pattern the rest of this app uses (`dashboard/pages`) checks the
+          business before the query state, which is what this does now. */}
+      {!business ? (
+        <EmptyState
+          icon={Radar}
+          title="Pick a business first"
+          description="Signals belong to one business at a time — choose one and they'll load."
+        />
+      ) : isPending ? (
         <div className="space-y-4">
           <Skeleton className="h-56 w-full" />
         </div>
@@ -139,10 +162,24 @@ function listErrorState(error: unknown, onRetry: () => void) {
         "Signals belong to one business at a time — choose one and they'll load.",
     };
   }
-  if (code === "FORBIDDEN") {
+  // ★THE TWO CODES THAT ACTUALLY REACH A CUSTOMER HERE, and neither was mapped.
+  // A first cut listed `FORBIDDEN` — which this route does not emit, since it
+  // carries no `requireRole` — while `NO_ORG` (from `requireOrg`) and
+  // `UNAUTHORIZED` (an expired session whose refresh failed) both fell through
+  // to "that's on us, try again", with a retry button that can never resolve
+  // either. Mapping codes the route cannot produce and missing the ones it can
+  // is worse than mapping none: it reads as coverage.
+  if (code === "NO_ORG") {
     return {
-      title: "You don't have access to this",
-      description: "Ask an owner or admin on this business to open it for you.",
+      title: "This account isn't set up yet",
+      description:
+        "Signals belong to an organisation, and yours isn't finished. Finish onboarding and they'll load.",
+    };
+  }
+  if (code === "UNAUTHORIZED") {
+    return {
+      title: "Your session has expired",
+      description: "Sign in again and this will come straight back.",
     };
   }
   return {
@@ -155,15 +192,26 @@ function listErrorState(error: unknown, onRetry: () => void) {
 /**
  * The message for a failed write.
  *
- * ★EVERY CODE THE API CAN RETURN, AND NO `FORBIDDEN` ENDS IN "TRY AGAIN". These
- * routes are `requireRole("admin")`, so an editor hits 403 on every write —
- * being told to retry would be advice that can never come good. And
- * `NOTHING_TO_UPDATE` is its own code precisely so that pressing Save with
- * nothing changed does not produce a lecture about Partner ID characters.
+ * ★NO `FORBIDDEN` ENDS IN "TRY AGAIN". These routes are `requireRole("admin")`,
+ * so an editor hits 403 on every write — being told to retry would be advice
+ * that can never come good. And `NOTHING_TO_UPDATE` is its own code precisely
+ * so that pressing Save with nothing changed does not produce a lecture about
+ * Partner ID characters.
+ *
+ * ★AN EARLIER DRAFT CLAIMED "EVERY CODE THE API CAN RETURN" AND MISSED TWO —
+ * `NO_ORG` and `UNAUTHORIZED`, both from middleware ABOVE the route, which is
+ * exactly where a list built by reading one handler stops looking. The claim is
+ * dropped rather than re-made: the default branch is the honest one, and every
+ * code below is there because it was traced to a `fail(...)` that can reach a
+ * customer.
  */
 function writeErrorMessage(error: unknown): string {
   const code = error instanceof ApiError ? error.code : undefined;
   switch (code) {
+    case "NO_ORG":
+      return "This account isn't finished being set up — finish onboarding and try again.";
+    case "UNAUTHORIZED":
+      return "Your session has expired. Sign in again and nothing will be lost.";
     case "SIGNAL_EXISTS":
       return "This business already has one of these — reload the page to see it.";
     case "FORBIDDEN":
@@ -402,7 +450,10 @@ function SnippetBlock({ provider }: { provider: SignalProvider }) {
   // a NEW snippet under a button still reading "Copied" — which is the precise
   // failure the change warning exists to prevent, one component further down.
   const [copiedText, setCopiedText] = useState<string | null>(null);
-  const [copyFailed, setCopyFailed] = useState(false);
+  // ★KEYED ON THE SNIPPET TOO, for the reason  is. A boolean stayed
+  // true across a refetch, so a stale "we could not copy that" sat under a NEW
+  // snippet — the same bug as the stale "Copied", one state variable along.
+  const [copyFailedFor, setCopyFailedFor] = useState<string | null>(null);
 
   if (isPending) return <Skeleton className="h-40 w-full" />;
   if (isError || !data) {
@@ -433,21 +484,21 @@ function SnippetBlock({ provider }: { provider: SignalProvider }) {
           // click a no-op — no copy, no error, button unchanged — so the
           // customer walks away believing they have the snippet. A rejected
           // `writeText` (permission denied, document not focused) did the same.
-          setCopyFailed(false);
+          setCopyFailedFor(null);
           const clipboard = navigator.clipboard;
           if (!clipboard) {
-            setCopyFailed(true);
+            setCopyFailedFor(data.snippet);
             return;
           }
           clipboard.writeText(data.snippet).then(
             () => setCopiedText(data.snippet),
-            () => setCopyFailed(true),
+            () => setCopyFailedFor(data.snippet),
           );
         }}
       >
         {copiedText === data.snippet ? "Copied" : "Copy snippet"}
       </Button>
-      {copyFailed && (
+      {copyFailedFor === data.snippet && (
         <p className="text-sm text-destructive">
           Your browser wouldn&apos;t let us copy that. Select the snippet above and copy it
           by hand.
@@ -466,6 +517,33 @@ function RailSelect({
   rails: SignalRail[];
   onChange: (r: SignalRail) => void;
 }) {
+  // ★A STORED RAIL THE SERVER NO LONGER OFFERS RENDERS AS TEXT, NOT AS A BLANK
+  // SELECT. Radix suppresses the placeholder when `value` is set and portals
+  // nothing when no item matches — so a `wordpress` row (which this PR
+  // deliberately keeps alive) opened an edit form with an empty control under
+  // the label "How it reaches your site", and Save disabled because nothing had
+  // changed. The field looked broken on exactly the row the feature spends its
+  // largest fix defending.
+  if (!rails.includes(value)) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        {railLabel(value)} — this option isn&apos;t available any more.{" "}
+        {rails.length === 1
+          ? `Saving will move it to “${railLabel(rails[0])}”.`
+          : "Pick another below."}
+        {rails.length === 1 && (
+          <Button
+            variant="link"
+            size="sm"
+            className="h-auto p-0 pl-1"
+            onClick={() => onChange(rails[0])}
+          >
+            Switch now
+          </Button>
+        )}
+      </p>
+    );
+  }
   return (
     <Select value={value} onValueChange={(v) => onChange(v as SignalRail)}>
       <SelectTrigger>
