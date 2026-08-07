@@ -45,6 +45,7 @@ import {
 } from "@/components/ui/table";
 import { AdvertisingDeclarationCard } from "@/components/ads/advertising-declaration-card";
 import { formatDeclaredAt } from "@/lib/ads-copy";
+import { flightEndBanner, flightEndDetail } from "@/lib/flight-end-copy";
 import { EmptyState } from "@/components/molecules/empty-state";
 import {
   AlertTriangle,
@@ -286,52 +287,42 @@ function FlightEndBanner() {
     staleTime: 30_000,
     refetchOnWindowFocus: false,
   });
-  const pastEnd = (campaigns.data?.campaigns ?? []).filter((r) => r.flightEndAlarm?.pastEnd);
-  if (pastEnd.length === 0) return null;
+  const rows = campaigns.data?.campaigns ?? [];
+  const copy = flightEndBanner(rows);
+  if (!copy) return null;
+  const pastEnd = rows.filter((r) => r.flightEndAlarm?.pastEnd);
 
   return (
-    <Card role="alert" className="border-destructive/40 bg-destructive/5">
+    // ★role="status", NOT role="alert", AND THAT IS DELIBERATE. SpendAlarmBanner
+    // is assertive because money is going out past a cap the user set. This one
+    // is usually "our record disagrees with LinkedIn" — worth seeing, not worth
+    // interrupting a screen-reader user mid-sentence for — and two simultaneous
+    // assertive regions announce the same campaign name twice, in full, on every
+    // Pause/Archive/Sync invalidation. `aria-label` distinguishes them.
+    <Card
+      role="status"
+      aria-label="Campaigns past their end date"
+      className="border-destructive/40 bg-destructive/5"
+    >
       <CardContent className="space-y-2 p-4 text-sm">
         <div className="flex items-start gap-2">
           <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden="true" />
           <div className="space-y-1">
-            <p className="font-medium text-destructive">
-              {pastEnd.length === 1
-                ? "A campaign has passed its end date and is still running"
-                : `${pastEnd.length} campaigns have passed their end date and are still running`}
-            </p>
-            <p className="text-muted-foreground">
-              We could not stop {pastEnd.length === 1 ? "it" : "them"} on LinkedIn, so{" "}
-              {pastEnd.length === 1 ? "it may still be" : "they may still be"} spending.{" "}
-              <strong className="font-medium text-foreground">
-                Stop {pastEnd.length === 1 ? "it" : "them"} in LinkedIn Campaign Manager
-              </strong>{" "}
-              — the controls here use the same connection, so if that is what
-              failed they will fail again.
-            </p>
+            <p className="font-medium text-destructive">{copy.headline}</p>
+            <p className="text-muted-foreground">{copy.body}</p>
             <ul className="space-y-1 pt-1">
-              {pastEnd.map((r) => {
-                // ★REUSED, NOT REWRITTEN. `formatDeclaredAt` already renders a
-                // UTC instant as "30 Jul 2026" and already returns "" rather
-                // than the words "Invalid Date" — which inside an alert about
-                // somebody's money reads as a bug in the alarm and costs it the
-                // credibility it needs at the moment it is being read. A second
-                // near-identical formatter is how the two drift.
-                const ended = formatDeclaredAt(r.flightEndAlarm?.endsAt ?? "");
-                return (
-                  <li key={r._id} className="text-muted-foreground">
-                    <span className="font-medium text-foreground">{r.name}</span>
-                    {ended ? ` — ended ${ended}` : " — past its end date"}
-                    {/* ★NO INVENTED CAUSE. An absent reason means no tick has yet
-                        recorded why this campaign is still here — which is what a
-                        monitor that has not run since it expired looks like. "We
-                        cannot tell" must never render as an explanation. */}
-                    {r.flightEndAlarm?.reason
-                      ? `. ${r.flightEndAlarm.reason}.`
-                      : ". We have not yet recorded why it could not be stopped."}
-                  </li>
-                );
-              })}
+              {pastEnd.map((r) => (
+                <li key={r._id} className="text-muted-foreground">
+                  <span className="font-medium text-foreground">{r.name}</span>
+                  {" — "}
+                  {/* ★REUSED, NOT REWRITTEN. `formatDeclaredAt` already renders
+                      a UTC instant as "30 Jul 2026" and already returns "" rather
+                      than the words "Invalid Date" — which inside an alert about
+                      somebody's money reads as a bug in the alarm. A second
+                      near-identical formatter is how the two drift. */}
+                  {flightEndDetail(r.flightEndAlarm!, formatDeclaredAt(r.flightEndAlarm!.endsAt))}
+                </li>
+              ))}
             </ul>
           </div>
         </div>
@@ -458,10 +449,12 @@ function CampaignsPanel() {
         <p className="mt-3 border-t pt-2 text-[11px] text-muted-foreground">
           Campaigns are created in LinkedIn as drafts under a draft group —
           they cannot spend until you activate them. Set the audience with the
-          Audience button before activating. Campaigns are watched against
-          their total budget and flagged above if spend passes it — automatic
-          pausing currently runs only for campaigns started from WhatsApp, so
-          treat the flag as your signal to pause in LinkedIn Campaign Manager.
+          Audience button before activating. Every campaign is then checked
+          hourly and paused automatically when spend reaches the total budget
+          you set, or when it passes its end date — LinkedIn is not given an end
+          date of its own, so that stop is ours to make. If either one fails you
+          are told above; that is your signal to stop it in LinkedIn Campaign
+          Manager.
         </p>
       </CardContent>
     </Card>

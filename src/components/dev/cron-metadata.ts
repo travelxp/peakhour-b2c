@@ -49,9 +49,9 @@ export interface CronMetadata {
 export const CRON_METADATA: Record<string, CronMetadata> = {
   "ad-campaign-monitor": {
     label: "Check ad campaigns",
-    frequency: "Runs every hour",
+    frequency: "Runs hourly (at :15 past)",
     description:
-      "Refreshes each live ad campaign's spend from the platform, pauses one that has reached the total budget you set, and stops one that has passed its end date.",
+      "Refreshes ad campaigns' spend from the platform, pauses one that has reached the total budget you set, and stops one that has passed its end date. Up to 40 campaigns per run; X campaigns are handled by their own sync.",
     summarize: (data) => {
       const d = data as
         | {
@@ -61,46 +61,71 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
             ended?: number;
             unmonitorable?: number;
             flightEndBlocked?: number;
+            rowNotUpdated?: number;
+            failed?: number;
+            notFound?: number;
+            unswept?: number;
+            skippedUnreadable?: number;
             truncated?: boolean;
           }
         | null;
+      const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
       if (typeof d?.ticked !== "number") return null;
 
-      // ★THE TWO BAD OUTCOMES OUTRANK THE COUNT, because both mean a campaign
-      // may still be spending with nothing able to stop it — and both otherwise
-      // hide inside a green "40 campaigns checked."
-      if (typeof d.flightEndBlocked === "number" && d.flightEndBlocked > 0) {
-        return {
-          message: `${d.flightEndBlocked} campaign${d.flightEndBlocked === 1 ? "" : "s"} passed the end date and could NOT be stopped — check Campaign Manager.`,
-          level: "warning",
-        };
+      const batch =
+        num(d.ticked) +
+        num(d.unmonitorable) +
+        num(d.failed) +
+        num(d.notFound) +
+        num(d.skippedUnreadable);
+      if (batch === 0) return "No campaigns needed checking.";
+
+      // ★EVERY OUTCOME THAT MEANS "NOBODY IS WATCHING THIS CAMPAIGN" OUTRANKS
+      // THE COUNT, because each of them otherwise hides inside a green
+      // "40 campaigns checked." A first cut read only two of the six, so a tick
+      // where every single row threw reported `{ticked: 0, failed: 40}` as
+      // "0 campaigns checked." — a success toast over forty logged errors.
+      const warn = (message: string) => ({ message, level: "warning" as const });
+      const plural = (n: number) => (n === 1 ? "" : "s");
+      if (num(d.flightEndBlocked) > 0) {
+        return warn(
+          `${d.flightEndBlocked} campaign${plural(num(d.flightEndBlocked))} passed the end date and could NOT be stopped — check Campaign Manager.`,
+        );
       }
-      if (typeof d.unmonitorable === "number" && d.unmonitorable > 0) {
-        return {
-          message: `${d.unmonitorable} campaign${d.unmonitorable === 1 ? "" : "s"} could not be checked at all.`,
-          level: "warning",
-        };
+      if (num(d.failed) > 0) {
+        return warn(`${d.failed} campaign${plural(num(d.failed))} could not be checked — the run errored on ${num(d.failed) === 1 ? "it" : "them"}.`);
+      }
+      if (num(d.unmonitorable) > 0) {
+        return warn(`${d.unmonitorable} campaign${plural(num(d.unmonitorable))} could not be checked at all.`);
+      }
+      if (num(d.rowNotUpdated) > 0) {
+        // The OPPOSITE failure: spend has stopped, our record has not caught up.
+        return warn(
+          `${d.rowNotUpdated} campaign${plural(num(d.rowNotUpdated))} stopped on the platform but could not be updated here.`,
+        );
+      }
+      if (num(d.unswept) > 0) {
+        return warn(`${d.unswept} campaign${plural(num(d.unswept))} in a status nothing is monitoring.`);
+      }
+      if (num(d.notFound) > 0 || num(d.skippedUnreadable) > 0) {
+        const n = num(d.notFound) + num(d.skippedUnreadable);
+        return warn(`${n} campaign row${plural(n)} could not be read.`);
       }
 
-      // ★`refreshed`, NOT `ticked`, IS THE NUMBER THAT MEANS ANYTHING. A tick
-      // that returned early on a draft or a dead connection evaluated no
-      // budget at all, so "40 checked" beside 0 refreshed is the reassuring
-      // silence this cron exists to end.
-      const refreshed = typeof d.refreshed === "number" ? d.refreshed : 0;
-      if (d.ticked > 0 && refreshed === 0) {
-        return {
-          message: `${d.ticked} campaign${d.ticked === 1 ? "" : "s"} visited, but none had live figures to check.`,
-          level: "warning",
-        };
+      // ★`refreshed`, NOT `ticked`, IS THE NUMBER THAT MEANS ANYTHING: a tick
+      // that returned early evaluated no budget at all. But zero refreshed is
+      // NOT a fault on its own — a business whose campaigns are all drafts is
+      // the normal newly-onboarded state, and `/boost` creates drafts. The
+      // fault cases are all handled above, so this reports rather than warns.
+      const refreshed = num(d.refreshed);
+      const parts = [`${refreshed} campaign${plural(refreshed)} checked`];
+      if (num(d.autoPaused) > 0) {
+        parts.push(`${d.autoPaused} paused at ${num(d.autoPaused) === 1 ? "its budget cap" : "their budget caps"}`);
       }
-      const parts = [`${refreshed} campaign${refreshed === 1 ? "" : "s"} checked`];
-      if (d.autoPaused) parts.push(`${d.autoPaused} paused at its budget cap`);
-      if (d.ended) parts.push(`${d.ended} finished`);
+      if (num(d.ended) > 0) parts.push(`${d.ended} finished`);
       const message = `${parts.join(", ")}.`;
       // A capped tick is not hourly enforcement for the tail of the queue.
-      return d.truncated
-        ? { message: `${message} More remain — run again.`, level: "warning" }
-        : message;
+      return d.truncated ? warn(`${message} More remain — run again.`) : message;
     },
   },
   "media-cleanup-suggestions": {

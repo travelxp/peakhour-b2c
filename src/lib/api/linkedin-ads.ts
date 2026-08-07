@@ -175,7 +175,25 @@ export interface ManagedCampaign {
    * monitor that has not run since it expired looks like. "We cannot tell" is
    * its own answer.
    */
-  flightEndAlarm?: { pastEnd: true; endsAt: string; reason?: string };
+  flightEndAlarm?: {
+    pastEnd: true;
+    endsAt: string;
+    /**
+     * Has any monitor tick looked at this row since it expired? False means
+     * nobody has asked yet — the ordinary gap before the hourly sweep reaches
+     * it, and permanent on dev where crons do not run. A surface that reads
+     * that as "we tried and failed" is inventing a failure.
+     */
+    checkedSinceEnd: boolean;
+    /**
+     * Present ONLY when a stop was attempted and failed. This is the only
+     * evidence that "we could not stop it" is a true sentence. Its absence
+     * covers three different situations — not looked at yet, looked at and
+     * fine, and the one where the platform stop SUCCEEDED and only our local
+     * write failed — and none of them is a failure to stop.
+     */
+    reason?: string;
+  };
   createdAt: string;
   updatedAt?: string;
   /** Audit ids (hex) — present on rows created via the routes. */
