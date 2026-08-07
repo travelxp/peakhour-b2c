@@ -159,6 +159,23 @@ export interface ManagedCampaign {
    * number under the cap next to an alarm saying it was over.
    */
   spendAlarm?: { overCap: true; spend: number; cap: number; reason?: string };
+  /**
+   * Past the end date its owner set, and still `active`.
+   *
+   * ★A DIFFERENT ABSENCE FROM `spendAlarm`, WHICH IS WHY IT IS A DIFFERENT
+   * FIELD. LinkedIn never carries an `end` on the campaign's `runSchedule` —
+   * the flight cap lives only on our row — so the monitor has to stop the
+   * campaign on the platform itself, and it leaves the row `active` when it
+   * cannot. `spendAlarm` does not cover that: it requires the campaign to be
+   * over its budget cap, and this population is exactly the campaigns that
+   * UNDER-spend. A campaign can be in one, the other, or both.
+   *
+   * `reason` absent is meaningful and must not be filled in here — it means no
+   * tick has yet recorded WHY the campaign is still running, which is what a
+   * monitor that has not run since it expired looks like. "We cannot tell" is
+   * its own answer.
+   */
+  flightEndAlarm?: { pastEnd: true; endsAt: string; reason?: string };
   createdAt: string;
   updatedAt?: string;
   /** Audit ids (hex) — present on rows created via the routes. */

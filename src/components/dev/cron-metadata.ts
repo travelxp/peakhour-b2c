@@ -47,6 +47,62 @@ export interface CronMetadata {
 }
 
 export const CRON_METADATA: Record<string, CronMetadata> = {
+  "ad-campaign-monitor": {
+    label: "Check ad campaigns",
+    frequency: "Runs every hour",
+    description:
+      "Refreshes each live ad campaign's spend from the platform, pauses one that has reached the total budget you set, and stops one that has passed its end date.",
+    summarize: (data) => {
+      const d = data as
+        | {
+            ticked?: number;
+            refreshed?: number;
+            autoPaused?: number;
+            ended?: number;
+            unmonitorable?: number;
+            flightEndBlocked?: number;
+            truncated?: boolean;
+          }
+        | null;
+      if (typeof d?.ticked !== "number") return null;
+
+      // ★THE TWO BAD OUTCOMES OUTRANK THE COUNT, because both mean a campaign
+      // may still be spending with nothing able to stop it — and both otherwise
+      // hide inside a green "40 campaigns checked."
+      if (typeof d.flightEndBlocked === "number" && d.flightEndBlocked > 0) {
+        return {
+          message: `${d.flightEndBlocked} campaign${d.flightEndBlocked === 1 ? "" : "s"} passed the end date and could NOT be stopped — check Campaign Manager.`,
+          level: "warning",
+        };
+      }
+      if (typeof d.unmonitorable === "number" && d.unmonitorable > 0) {
+        return {
+          message: `${d.unmonitorable} campaign${d.unmonitorable === 1 ? "" : "s"} could not be checked at all.`,
+          level: "warning",
+        };
+      }
+
+      // ★`refreshed`, NOT `ticked`, IS THE NUMBER THAT MEANS ANYTHING. A tick
+      // that returned early on a draft or a dead connection evaluated no
+      // budget at all, so "40 checked" beside 0 refreshed is the reassuring
+      // silence this cron exists to end.
+      const refreshed = typeof d.refreshed === "number" ? d.refreshed : 0;
+      if (d.ticked > 0 && refreshed === 0) {
+        return {
+          message: `${d.ticked} campaign${d.ticked === 1 ? "" : "s"} visited, but none had live figures to check.`,
+          level: "warning",
+        };
+      }
+      const parts = [`${refreshed} campaign${refreshed === 1 ? "" : "s"} checked`];
+      if (d.autoPaused) parts.push(`${d.autoPaused} paused at its budget cap`);
+      if (d.ended) parts.push(`${d.ended} finished`);
+      const message = `${parts.join(", ")}.`;
+      // A capped tick is not hourly enforcement for the tail of the queue.
+      return d.truncated
+        ? { message: `${message} More remain — run again.`, level: "warning" }
+        : message;
+    },
+  },
   "media-cleanup-suggestions": {
     label: "Find cleanup suggestions",
     frequency: "Runs weekly (Sun 4:00 AM UTC)",

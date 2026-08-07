@@ -149,3 +149,60 @@ describe("summarizeCronBody", () => {
     expect(summarizeCronBody(withoutSummarizer!, JSON.stringify({ ok: true }))).toBeNull();
   });
 });
+
+/**
+ * ★THE AD MONITOR'S SUMMARY IS THE ONE THAT CAN SAY SOMETHING FALSE ABOUT
+ * SOMEBODY'S MONEY.
+ *
+ * Its payload carries two counters whose whole purpose is that a broken tick
+ * must not read like a healthy one — `flightEndBlocked` (campaigns past their
+ * end date that could not be stopped, and LinkedIn carries no `runSchedule.end`
+ * so nothing else will stop them) and `unmonitorable`. Both otherwise hide
+ * inside a green "40 campaigns checked."
+ */
+describe("ad-campaign-monitor summary", () => {
+  const summarize = CRON_METADATA["ad-campaign-monitor"].summarize!;
+
+  it("★leads with campaigns it could not stop, not with the count", () => {
+    const s = summarize({ ticked: 40, refreshed: 40, flightEndBlocked: 2, unmonitorable: 1 });
+    expect(s).toMatchObject({ level: "warning" });
+    expect((s as { message: string }).message).toMatch(/could NOT be stopped/);
+  });
+
+  it("★surfaces campaigns it could not check at all, on its own", () => {
+    // Asserted WITHOUT flightEndBlocked beside it: with both set the
+    // higher-priority branch answers, and deleting this one entirely would
+    // still pass. That is how a counter stops being surfaced silently.
+    const s = summarize({ ticked: 40, refreshed: 40, unmonitorable: 3 });
+    expect(s).toMatchObject({ level: "warning" });
+    expect((s as { message: string }).message).toMatch(/could not be checked at all/);
+  });
+
+  it("★warns on a tick that visited campaigns but refreshed none", () => {
+    // `ticked` counts rows visited; a tick that returned early on a draft or a
+    // dead connection evaluated no budget at all. "40 checked" beside 0
+    // refreshed is the reassuring silence the cron exists to end.
+    const s = summarize({ ticked: 40, refreshed: 0 });
+    expect(s).toMatchObject({ level: "warning" });
+    expect((s as { message: string }).message).toMatch(/none had live figures/);
+  });
+
+  it("reports a healthy tick with the number that means something", () => {
+    expect(summarize({ ticked: 12, refreshed: 9, autoPaused: 1, ended: 2 })).toBe(
+      "9 campaigns checked, 1 paused at its budget cap, 2 finished.",
+    );
+  });
+
+  it("says a capped tick is not finished", () => {
+    expect(summarize({ ticked: 40, refreshed: 40, truncated: true })).toMatchObject({
+      level: "warning",
+    });
+  });
+
+  it("singularises, and defers to the generic toast on a shape it does not recognise", () => {
+    expect(summarize({ ticked: 1, refreshed: 1 })).toBe("1 campaign checked.");
+    expect(summarize({})).toBeNull();
+    expect(summarize(null)).toBeNull();
+    expect(summarize("nonsense")).toBeNull();
+  });
+});

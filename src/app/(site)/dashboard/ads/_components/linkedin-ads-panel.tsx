@@ -44,6 +44,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { AdvertisingDeclarationCard } from "@/components/ads/advertising-declaration-card";
+import { formatDeclaredAt } from "@/lib/ads-copy";
 import { EmptyState } from "@/components/molecules/empty-state";
 import {
   AlertTriangle,
@@ -134,6 +135,7 @@ export function LinkedInAdsPanel() {
           gate below renders an EmptyState — which used to hide this warning in
           the one case it matters most. */}
       <SpendAlarmBanner />
+      <FlightEndBanner />
       {/* Above the gate for the same reason, plus one of its own: the
           declaration governs every campaign create including the autonomous
           ones, and a business can make it before it connects. Not on
@@ -193,10 +195,13 @@ export function LinkedInAdsPanel() {
  * Campaigns still SERVING past the budget cap the user set.
  *
  * The api derives `spendAlarm` (at/over cap AND still active), which covers
- * both an auto-pause that failed and one that never ran — including the case
- * that makes this the ONLY protection there is: campaigns created through the
- * Ads Manager get no monitor at all, because the monitoring workflow starts
- * only from the WhatsApp BOOST command.
+ * both an auto-pause that failed and one that never ran.
+ *
+ * (That last case used to be the common one: campaigns created through the Ads
+ * Manager got no monitor at all, because the monitoring workflow started only
+ * from the WhatsApp BOOST command. Closed by the hourly sweep — P1, api#1030 —
+ * so this banner is now the escalation of a failure rather than the only
+ * protection there is.)
  *
  * Own component, mounted above the connection gate, sharing CampaignsPanel's
  * queryKey (react-query dedupes, so no extra request).
@@ -243,6 +248,90 @@ function SpendAlarmBanner() {
                   {r.spendAlarm?.reason ? `. ${r.spendAlarm.reason}.` : "."}
                 </li>
               ))}
+            </ul>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Campaigns that should have STOPPED and have not.
+ *
+ * ★THE STATE THIS RENDERS ONLY EXISTS BECAUSE THE MONITOR NOW REFUSES TO LIE.
+ * LinkedIn carries no `end` on a campaign's `runSchedule` — the flight window
+ * lives only on our row — and the monitor used to write `status: "completed"`
+ * locally with no platform call at all, so a campaign that had not also
+ * tripped its budget cap carried on serving indefinitely while this screen
+ * reported it finished. It now stops the campaign on LinkedIn first, and
+ * leaves the row `active` when it cannot.
+ *
+ * ★AND A SEPARATE BANNER FROM SpendAlarmBanner, DELIBERATELY. "You are over
+ * the cap you set" and "this should have stopped four days ago" are different
+ * asks with different remedies, and the population here is exactly the
+ * campaigns that UNDER-spend — so folding it into the spend banner would make
+ * it unreadable in the case where it matters most. A campaign in both states
+ * appears in both, which is the truth.
+ *
+ * ★AND THE CTA IS CAMPAIGN MANAGER, FOR THE REASON THE SPEND BANNER GIVES:
+ * Peakhour's own Pause uses the connection whose failure is why this is here.
+ * Hedged the same way, because for a rate limit or an undelivered request it
+ * very likely succeeds on retry.
+ */
+function FlightEndBanner() {
+  const campaigns = useQuery({
+    queryKey: ["linkedin-managed-campaigns"],
+    queryFn: () => linkedInAdsApi.managedCampaigns(),
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+  });
+  const pastEnd = (campaigns.data?.campaigns ?? []).filter((r) => r.flightEndAlarm?.pastEnd);
+  if (pastEnd.length === 0) return null;
+
+  return (
+    <Card role="alert" className="border-destructive/40 bg-destructive/5">
+      <CardContent className="space-y-2 p-4 text-sm">
+        <div className="flex items-start gap-2">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden="true" />
+          <div className="space-y-1">
+            <p className="font-medium text-destructive">
+              {pastEnd.length === 1
+                ? "A campaign has passed its end date and is still running"
+                : `${pastEnd.length} campaigns have passed their end date and are still running`}
+            </p>
+            <p className="text-muted-foreground">
+              We could not stop {pastEnd.length === 1 ? "it" : "them"} on LinkedIn, so{" "}
+              {pastEnd.length === 1 ? "it may still be" : "they may still be"} spending.{" "}
+              <strong className="font-medium text-foreground">
+                Stop {pastEnd.length === 1 ? "it" : "them"} in LinkedIn Campaign Manager
+              </strong>{" "}
+              — the controls here use the same connection, so if that is what
+              failed they will fail again.
+            </p>
+            <ul className="space-y-1 pt-1">
+              {pastEnd.map((r) => {
+                // ★REUSED, NOT REWRITTEN. `formatDeclaredAt` already renders a
+                // UTC instant as "30 Jul 2026" and already returns "" rather
+                // than the words "Invalid Date" — which inside an alert about
+                // somebody's money reads as a bug in the alarm and costs it the
+                // credibility it needs at the moment it is being read. A second
+                // near-identical formatter is how the two drift.
+                const ended = formatDeclaredAt(r.flightEndAlarm?.endsAt ?? "");
+                return (
+                  <li key={r._id} className="text-muted-foreground">
+                    <span className="font-medium text-foreground">{r.name}</span>
+                    {ended ? ` — ended ${ended}` : " — past its end date"}
+                    {/* ★NO INVENTED CAUSE. An absent reason means no tick has yet
+                        recorded why this campaign is still here — which is what a
+                        monitor that has not run since it expired looks like. "We
+                        cannot tell" must never render as an explanation. */}
+                    {r.flightEndAlarm?.reason
+                      ? `. ${r.flightEndAlarm.reason}.`
+                      : ". We have not yet recorded why it could not be stopped."}
+                  </li>
+                );
+              })}
             </ul>
           </div>
         </div>
