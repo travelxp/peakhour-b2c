@@ -619,9 +619,9 @@ export default function PrivacyPolicyPage() {
               name and phone number, so that repeat orders are recognised as the same person and
               so you can still reach a customer about an order placed months ago. That record is
               kept for as long as your store stays connected, and is erased when the shopper asks
-              you to delete their data, when you uninstall the app, or when you close your
-              {" "}{SITE.name} account. It is not on a 90-day timer, and we would rather say so
-              than let the sentence above imply it.
+              you to delete their data, when the store is redacted after you uninstall the app,
+              or when you close your {SITE.name} account — whichever happens first. It is not on
+              a 90-day timer.
             </p>
             <p className="mt-2">
               <strong>Deletion requests.</strong> We support Shopify&apos;s mandatory privacy
