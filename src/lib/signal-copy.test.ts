@@ -35,20 +35,43 @@ describe("the evidence chain keeps three levels apart", () => {
     expect(sent.detail).not.toMatch(/hasn't|not yet|can't deliver/i);
   });
 
-  it("★a `wordpress` rail with no serve does NOT promise a sync that does not exist", () => {
-    // THE ASSERTION THAT WOULD HAVE MADE THE ORIGINAL BUG UNSHIPPABLE. Nothing
-    // writes `lastServedAt` — there is no plugin-facing snippet endpoint — so
-    // copy saying "it asks for this when it next syncs" told the customer to
-    // wait for something that can never happen. Writing this test forces the
-    // question "what sets lastServedAt?", which is how the defect surfaces.
-    const [, sent] = evidenceChain(withRail("wordpress"));
-    expect(sent.reached).toBe(false);
-    expect(sent.detail).not.toMatch(/sync/i);
-    expect(sent.detail).toMatch(/by hand/i);
+  it("★★a `wordpress` rail NEVER tells the customer to paste the snippet", () => {
+    // ★THE RULE CHANGED WITH THE FEATURE, AND THIS IS THE STRONGER VERSION.
+    // While no rail could deliver, the honest copy was "add it by hand"; now
+    // that the plugin prints the tag, that same sentence installs it TWICE —
+    // two Insight Tags, two beacons. The api refuses to serve a `manual` row
+    // over this rail for exactly that reason, and copy is the other half of it.
+    //
+    // Asserted across every state a wordpress-rail signal can be in, because
+    // the instruction is wrong in all of them and the previous test covered one.
+    const states = ["never_fired", "not_seen_recently", "firing"] as const;
+    for (const state of states) {
+      for (const served of [null, "2026-08-08T10:00:00.000Z"]) {
+        const signal = withRail("wordpress", {
+          state,
+          delivery: { rail: "wordpress", chosenAt: "2026-08-01T00:00:00.000Z", lastServedAt: served },
+          verification:
+            state === "never_fired"
+              ? null
+              : {
+                  firstFiredAt: "2026-08-01T00:00:00.000Z",
+                  lastFiredAt: "2026-08-01T00:00:00.000Z",
+                  lastFiredHost: "www.example.com",
+                  seenOnceOnly: false,
+                },
+        });
+        const where = `${state}/${served ? "served" : "unserved"}`;
+        const [, sent] = evidenceChain(signal);
+        expect(sent.detail, where).not.toMatch(/by hand|paste/i);
+        expect(stateCopy(signal).body, where).not.toMatch(/by hand|paste/i);
+      }
+    }
 
-    // And the state copy must not tell them to wait either.
-    const body = stateCopy(withRail("wordpress")).body;
-    expect(body).not.toMatch(/that's normal until|wait/i);
+    // And it still must not promise a sync in words that read as a deadline, or
+    // tell them to wait for something that has already happened.
+    const unserved = evidenceChain(withRail("wordpress"))[1];
+    expect(unserved.reached).toBe(false);
+    expect(unserved.detail).toMatch(/hourly/i);
   });
 
   it("a served wordpress signal reports the serve as a fact with a time", () => {
@@ -123,10 +146,25 @@ describe("state copy never says more than the data supports", () => {
     // only, and `base()` hardcodes `rail: "manual"` — so the branch round 1
     // rewrote was uncovered by the test that names its rule, and restoring
     // "then visit your site to confirm it" there left 11/11 green.
+    // ★THE HINT BELONGS WHERE A CHECK IS ACTIONABLE, AND NOWHERE ELSE. A
+    // wordpress-rail signal the plugin has not fetched yet is waiting on US,
+    // not on the customer — telling them to open a private window there is
+    // busywork that cannot change the state, which is its own kind of false
+    // advice. So the served/unserved distinction is part of the rule, not an
+    // exception to it.
+    const served = (over: Partial<Signal> = {}) =>
+      withRail("wordpress", {
+        delivery: {
+          rail: "wordpress",
+          chosenAt: "2026-08-01T00:00:00.000Z",
+          lastServedAt: "2026-08-08T10:00:00.000Z",
+        },
+        ...over,
+      });
     const cases: Array<[string, Signal]> = [
       ["manual/never_fired", base({ state: "never_fired" })],
       ["manual/not_seen_recently", base({ state: "not_seen_recently" })],
-      ["wordpress/never_fired", withRail("wordpress", { state: "never_fired" })],
+      ["wordpress/served/never_fired", served({ state: "never_fired" })],
       ["wordpress/not_seen_recently", withRail("wordpress", { state: "not_seen_recently" })],
     ];
     for (const [name, signal] of cases) {

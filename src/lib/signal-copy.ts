@@ -93,15 +93,15 @@ export function evidenceChain(signal: Signal): EvidenceStep[] {
           ? "Not something we can see when you paste the snippet yourself — there's no step of ours in between."
           : served
             ? `Your WordPress plugin last picked it up ${formatWhen(served)}.`
-            : // ★NO PROMISE OF A SYNC, BECAUSE THERE ISN'T ONE. An earlier draft
-              // said "it asks for this when it next syncs" — telling the customer
-              // to wait for something that does not exist. Nothing writes
-              // `lastServedAt` today: there is no plugin-facing snippet endpoint
-              // and the plugin has no signals code, which is why `wordpress` is
-              // not offered as a choice. A stored row can still carry it (an
-              // older row, or a later api enabling the rail), so this branch
-              // stays — saying what is true.
-              "The plugin can't deliver this yet. Add the snippet to your site by hand for now.",
+            : // ★A WAIT WITH AN END, AND NO INSTRUCTION TO PASTE ANYTHING. The
+              // plugin fetches hourly, so this state is normal and temporary —
+              // and the previous copy ("add the snippet by hand for now") was
+              // written when nothing could deliver this rail. Once the plugin
+              // CAN, following that instruction leaves the customer with the
+              // plugin-printed tag AND a pasted one: two Insight Tags, two
+              // beacons. The api refuses to serve a `manual` row over this rail
+              // for exactly that reason; the copy must not undo it.
+              "Your WordPress plugin checks in hourly and hasn't picked this up yet. Nothing to do — it will.",
     },
     {
       label: "Seen working",
@@ -154,9 +154,14 @@ export function stateCopy(signal: Signal): { title: string; body: string; tone: 
         title: "Not seen yet",
         body:
           signal.delivery.rail === "wordpress"
-            ? // No promise of a sync — see `evidenceChain`. Nothing delivers this
-              // rail yet, so "wait" would be advice that can never come good.
-              `Set up, but nothing has put it on your site yet. Add the snippet by hand for now, then ${CONFIRM_HINT}`
+            ? // ★NO PASTE INSTRUCTION ON THIS RAIL. The plugin is putting the tag
+              // on the page; telling the customer to add it by hand as well would
+              // install it twice. Which of the two waits they are in — the plugin
+              // fetching, or a visitor arriving — is exactly what the evidence
+              // chain above distinguishes, so this sentence does not guess.
+              signal.delivery.lastServedAt
+              ? `Your plugin has it, but no browser has loaded it yet. To check now, ${CONFIRM_HINT}`
+              : "Set up. Your WordPress plugin checks in hourly and will put it on your site — nothing to do."
             : `Set up, but no browser has loaded it yet. Add the snippet to your site if you haven't — then ${CONFIRM_HINT}`,
         tone: "waiting",
       };

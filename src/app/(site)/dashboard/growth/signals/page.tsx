@@ -153,7 +153,7 @@ export default function SignalsPage() {
  * fix — pick a business — is one the customer can carry out. A remedy that
  * cannot resolve the failure is worse than none.
  */
-function listErrorState(error: unknown, onRetry: () => void) {
+export function listErrorState(error: unknown, onRetry: () => void) {
   const code = error instanceof ApiError ? error.code : undefined;
   if (code === "NO_ACTIVE_BUSINESS") {
     return {
@@ -205,7 +205,7 @@ function listErrorState(error: unknown, onRetry: () => void) {
  * code below is there because it was traced to a `fail(...)` that can reach a
  * customer.
  */
-function writeErrorMessage(error: unknown): string {
+export function writeErrorMessage(error: unknown): string {
   const code = error instanceof ApiError ? error.code : undefined;
   switch (code) {
     case "NO_ORG":
@@ -224,6 +224,13 @@ function writeErrorMessage(error: unknown): string {
       return "A Partner ID can only contain letters, numbers, hyphens and underscores.";
     case "NOT_FOUND":
       return "That signal isn't there any more — reload the page.";
+    // ★NOT "TRY AGAIN IN A MOMENT". The rail is offered only to a business whose
+    // WordPress site has checked in recently, and a site that has gone quiet
+    // will not come back because the customer pressed Save again. Reachable
+    // from the edit form, which deliberately keeps an unavailable stored rail
+    // on screen, and from a second tab.
+    case "RAIL_UNAVAILABLE":
+      return "We haven't heard from a WordPress site on this business recently. If you've just updated the plugin it checks in within the hour — or choose to paste the snippet in yourself.";
     default:
       return "We couldn't save that. Nothing has been changed — try again in a moment.";
   }
