@@ -304,13 +304,19 @@ export default function PrivacyPolicyPage() {
                   </li>
                   <li><strong>ZeptoMail (Zoho)</strong> — transactional email delivery</li>
                   <li>
+                    <strong>Meta (WhatsApp Business Platform)</strong> — delivering and
+                    receiving WhatsApp messages where you enable that channel
+                  </li>
+                  <li><strong>Upstash</strong> — managed Redis for caching and rate limiting</li>
+                  <li>
                     <strong>Stripe</strong>, <strong>Razorpay</strong> and{" "}
                     <strong>PayU</strong> — payment processing. Where you buy through the
                     Shopify App Store, Shopify processes the payment instead.
                   </li>
                 </ul>
-                The AI model providers reached through the gateway may change as we tune the
-                Service; write to{" "}
+                This list changes as the Service does — the AI model providers reached through
+                the gateway in particular, because which model serves a given task is tuned
+                continuously. Write to{" "}
                 <a href={`mailto:${SITE.contactPrivacy}`} className="text-foreground underline">
                   {SITE.contactPrivacy}
                 </a>{" "}
@@ -556,10 +562,11 @@ export default function PrivacyPolicyPage() {
               and the Shopify Protected Customer Data requirements.
             </p>
             <p className="mt-2">
-              <strong>What we access.</strong> Your store profile, product catalog, inventory
-              and locations. Where you enable order-based features and grant the corresponding
-              permission, we also receive your <strong>order records</strong> — line items,
-              quantities, totals, currency, dates, and whether the order is cash-on-delivery.
+              <strong>What we access.</strong> Your store profile, product catalog, inventory,
+              locations, and published storefront content such as pages and blog posts. Where
+              you enable order-based features and grant the corresponding permission, we also
+              receive your <strong>order records</strong> — line items, quantities, totals,
+              currency, dates, and whether the order is cash-on-delivery.
             </p>
             <p className="mt-2">
               <strong>Your customers&apos; data, and our role.</strong> An order record can
@@ -577,17 +584,31 @@ export default function PrivacyPolicyPage() {
               addresses. We ask for the narrowest permissions the features need.
             </p>
             <p className="mt-2">
-              <strong>How long we keep it.</strong> Shopper <strong>name and phone number are
-              erased 90 days</strong> after we receive the order — the purpose they serve is
-              measured in days, not years. The rest of the order record is retained as your
+              <strong>How long we keep it.</strong> The copy of a shopper&apos;s name and phone
+              number that sits <strong>on each order</strong> is <strong>erased after 90
+              days</strong> — the purpose it serves, such as confirming that order, is measured
+              in days rather than years. The rest of the order record is retained as your
               business data, because it is what makes inventory, seasonality and merchandising
               analysis work; it carries no shopper contact details once that window has passed.
             </p>
             <p className="mt-2">
+              Separately, we keep one <strong>customer record per shopper</strong> holding their
+              name and phone number, so that repeat orders are recognised as the same person and
+              so you can still reach a customer about an order placed months ago. That record is
+              kept for as long as your store stays connected, and is erased when the shopper asks
+              you to delete their data, when you uninstall the app, or when you close your
+              {" "}{SITE.name} account. It is not on a 90-day timer, and we would rather say so
+              than let the sentence above imply it.
+            </p>
+            <p className="mt-2">
               <strong>Deletion requests.</strong> We support Shopify&apos;s mandatory privacy
-              webhooks. When a shopper asks you to delete their data, or you uninstall the app,
-              Shopify notifies us and we erase the corresponding records. You can also reach us
-              directly at{" "}
+              webhooks. When a shopper asks you to delete their data, Shopify notifies us and we
+              erase the personal details we received from Shopify about them — the name and phone
+              on their orders, and the customer record described above. When you uninstall the
+              app, Shopify notifies us and we erase the store data we hold for it. Data that
+              reached us through a different channel — for example, a shopper who messaged your
+              business on WhatsApp — belongs to that channel&apos;s record and is erased through
+              it, not by a Shopify notification. You can ask us to erase anything we hold at{" "}
               <a href={`mailto:${SITE.contactPrivacy}`} className="text-foreground underline">
                 {SITE.contactPrivacy}
               </a>
