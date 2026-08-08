@@ -224,6 +224,13 @@ export function writeErrorMessage(error: unknown): string {
       return "A Partner ID can only contain letters, numbers, hyphens and underscores.";
     case "NOT_FOUND":
       return "That signal isn't there any more — reload the page.";
+    // ★FROM , MOUNTED APP-LEVEL ABOVE EVERY ROUTE — the layer a list
+    // built by reading handlers AND their routers still stops one short of. The
+    // client retries once, so these only surface when the retry fails too, and
+    // the remedy is a reload rather than a wait.
+    case "CSRF_MISSING":
+    case "CSRF_INVALID":
+      return "Your session got out of step — reload the page and try that again.";
     // ★NOT "TRY AGAIN IN A MOMENT". The rail is offered only to a business whose
     // WordPress site has checked in recently, and a site that has gone quiet
     // will not come back because the customer pressed Save again. Reachable
@@ -237,10 +244,10 @@ export function writeErrorMessage(error: unknown): string {
 }
 
 /** The three levels, drawn so that "not applicable" cannot read as "not done". */
-function EvidenceChain({ signal }: { signal: Signal }) {
+function EvidenceChain({ signal, railOffered }: { signal: Signal; railOffered: boolean }) {
   return (
     <ol className="space-y-3">
-      {evidenceChain(signal).map((step) => (
+      {evidenceChain(signal, railOffered).map((step) => (
         <li key={step.label} className="flex gap-3">
           <span
             aria-hidden
@@ -299,7 +306,12 @@ function SignalCard({
   const [showSnippet, setShowSnippet] = useState(false);
   const update = useUpdateSignal();
   const remove = useRemoveSignal();
-  const state = stateCopy(signal);
+  // ★THE COPY NEEDS TO KNOW WHETHER THE API STILL OFFERS THIS RAIL. It is the
+  // only evidence that the plugin is alive — the api withdraws the rail when a
+  // site stops checking in — and without it the card promises a delivery the
+  // api has already given up on.
+  const railOffered = rails.includes(signal.delivery.rail);
+  const state = stateCopy(signal, railOffered);
 
   const partnerIdChanged = partnerId.trim() !== signal.partnerId;
   const railChanged = rail !== signal.delivery.rail;
@@ -344,7 +356,7 @@ function SignalCard({
       <CardContent className="space-y-5">
         <p className="text-sm">{state.body}</p>
 
-        <EvidenceChain signal={signal} />
+        <EvidenceChain signal={signal} railOffered={railOffered} />
 
         <div className="flex flex-wrap gap-2">
           {/* ★"CHECK AGAIN", NOT A LIVE POLL. We are not watching the customer's
@@ -536,7 +548,7 @@ function RailSelect({
       <p className="text-sm text-muted-foreground">
         {railLabel(value)} — this option isn&apos;t available any more.{" "}
         {rails.length === 1
-          ? `Saving will move it to “${railLabel(rails[0])}”.`
+          ? `Switch now to move it to “${railLabel(rails[0])}”.`
           : "Pick another below."}
         {rails.length === 1 && (
           <Button

@@ -32,13 +32,32 @@ const WRITE_CODES = [
   "RAIL_UNAVAILABLE",
   "NO_ORG",
   "UNAUTHORIZED",
+  // ★AND THE APP-LEVEL GUARD, which is a THIRD layer: `csrfGuard` is mounted in
+  // `src/index.ts` above the v1 router, so a list traced from the handlers and
+  // their own middleware still stops one short. The commit that added this file
+  // claimed to have traced "the middleware above them" and had not.
+  "CSRF_MISSING",
+  "CSRF_INVALID",
 ];
 
 describe("signals error copy", () => {
   it("★maps every write code, and none of them is the generic fallback", () => {
+    // ★DISTINCT FROM THE FALLBACK *AND* FROM EACH OTHER. "≠ fallback" alone is
+    // satisfied by mapping every code to the same one-word string.
     const fallback = writeErrorMessage(err("SOMETHING_NOBODY_HAS_SEEN"));
+    const seen = new Map<string, string>();
     for (const code of WRITE_CODES) {
-      expect(writeErrorMessage(err(code)), code).not.toBe(fallback);
+      const msg = writeErrorMessage(err(code));
+      expect(msg, code).not.toBe(fallback);
+      // (No length floor. A first cut used one and failed on "Nothing was
+      // changed." — a correct message that is short because the situation is.
+      // Length is a proxy; distinctness is the property.)
+      const clash = seen.get(msg);
+      // Two codes MAY share a message when they are genuinely the same
+      // situation (the two CSRF ones are), so this records rather than forbids —
+      // what it refuses is a mapping that has collapsed wholesale.
+      if (clash) expect([clash, code].sort().join("|")).toBe("CSRF_INVALID|CSRF_MISSING");
+      seen.set(msg, code);
     }
   });
 
@@ -57,7 +76,10 @@ describe("signals error copy", () => {
       "NOTHING_TO_UPDATE",
       "RAIL_UNAVAILABLE",
     ]) {
-      expect(writeErrorMessage(err(code)), code).not.toMatch(/try again in a moment/i);
+      // Any bare retry, not one literal phrasing: "try again later" and
+      // "please retry" are the same actionless advice.
+      const msg = writeErrorMessage(err(code));
+      expect(msg, code).not.toMatch(/try again (in a moment|later|shortly)|please retry/i);
     }
   });
 

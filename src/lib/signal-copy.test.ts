@@ -47,6 +47,8 @@ describe("the evidence chain keeps three levels apart", () => {
     const states = ["never_fired", "not_seen_recently", "firing"] as const;
     for (const state of states) {
       for (const served of [null, "2026-08-08T10:00:00.000Z"]) {
+       for (const onceOnly of [true, false]) {
+        for (const railOffered of [true, false]) {
         const signal = withRail("wordpress", {
           state,
           delivery: { rail: "wordpress", chosenAt: "2026-08-01T00:00:00.000Z", lastServedAt: served },
@@ -54,16 +56,31 @@ describe("the evidence chain keeps three levels apart", () => {
             state === "never_fired"
               ? null
               : {
+                  // ★`seenOnceOnly` IS DERIVED FROM THE TWO TIMESTAMPS BEING
+                  // EQUAL (the api derives it exactly so), and a first cut set
+                  // equal timestamps with `seenOnceOnly: false` — a combination
+                  // the api cannot produce, which quietly meant the loop never
+                  // rendered the single-fire branch at all.
                   firstFiredAt: "2026-08-01T00:00:00.000Z",
-                  lastFiredAt: "2026-08-01T00:00:00.000Z",
+                  lastFiredAt: onceOnly ? "2026-08-01T00:00:00.000Z" : "2026-08-02T00:00:00.000Z",
                   lastFiredHost: "www.example.com",
-                  seenOnceOnly: false,
+                  seenOnceOnly: onceOnly,
                 },
         });
-        const where = `${state}/${served ? "served" : "unserved"}`;
-        const [, sent] = evidenceChain(signal);
-        expect(sent.detail, where).not.toMatch(/by hand|paste/i);
-        expect(stateCopy(signal).body, where).not.toMatch(/by hand|paste/i);
+        const where = `${state}/${served ? "served" : "unserved"}/once=${onceOnly}/offered=${railOffered}`;
+        const [, sent] = evidenceChain(signal, railOffered);
+        const body = stateCopy(signal, railOffered).body;
+        // ★NEVER "add it by hand" — that is the double-install. "switch … to
+        // pasting" IS allowed and is the honest remedy when the rail is gone,
+        // because switching REPLACES the delivery rather than adding to it.
+        expect(sent.detail, where).not.toMatch(/by hand|paste the snippet in|add the snippet/i);
+        expect(body, where).not.toMatch(/by hand|add the snippet/i);
+        // ★AND THE CHECK HINT ONLY WHERE A CHECK CAN CHANGE ANYTHING — i.e. once
+        // the plugin has actually fetched. A first cut applied this to
+        // `never_fired` and not `not_seen_recently`, and the mutation survived.
+        if (!served) expect(body, where).not.toMatch(/private window/i);
+       }
+      }
       }
     }
 
@@ -165,7 +182,10 @@ describe("state copy never says more than the data supports", () => {
       ["manual/never_fired", base({ state: "never_fired" })],
       ["manual/not_seen_recently", base({ state: "not_seen_recently" })],
       ["wordpress/served/never_fired", served({ state: "never_fired" })],
-      ["wordpress/not_seen_recently", withRail("wordpress", { state: "not_seen_recently" })],
+      // ★SERVED, because on this rail the hint is only shown once the plugin
+      // HAS the snippet — before that, opening a private window cannot change
+      // anything, and the companion test above asserts the hint is absent there.
+      ["wordpress/served/not_seen_recently", served({ state: "not_seen_recently" })],
     ];
     for (const [name, signal] of cases) {
       const body = stateCopy(signal).body;
