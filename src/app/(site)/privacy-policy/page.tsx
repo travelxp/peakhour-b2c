@@ -292,12 +292,29 @@ export default function PrivacyPolicyPage() {
                 and transactional email delivery. These providers act on our
                 instructions under written contracts (including data-processing terms and,
                 where applicable, Standard Contractual Clauses) that require them to protect
-                your data and use it only to provide their service to us. A current list of
-                material sub-processors is available on request from{" "}
+                your data and use it only to provide their service to us. Our material
+                sub-processors are:
+                <ul className="mt-2 list-disc space-y-1 pl-6">
+                  <li><strong>Vercel</strong> — application hosting and serverless compute</li>
+                  <li><strong>MongoDB Atlas</strong> — database hosting and search</li>
+                  <li><strong>Cloudflare R2</strong> — object storage for uploaded media</li>
+                  <li>
+                    <strong>Vercel AI Gateway</strong> — routing to AI model providers,
+                    currently <strong>Anthropic</strong> and <strong>Google</strong>
+                  </li>
+                  <li><strong>ZeptoMail (Zoho)</strong> — transactional email delivery</li>
+                  <li>
+                    <strong>Stripe</strong>, <strong>Razorpay</strong> and{" "}
+                    <strong>PayU</strong> — payment processing. Where you buy through the
+                    Shopify App Store, Shopify processes the payment instead.
+                  </li>
+                </ul>
+                The AI model providers reached through the gateway may change as we tune the
+                Service; write to{" "}
                 <a href={`mailto:${SITE.contactPrivacy}`} className="text-foreground underline">
                   {SITE.contactPrivacy}
-                </a>
-                .
+                </a>{" "}
+                for the current list at any time.
               </li>
               <li>
                 <strong>Affiliated group companies:</strong> we share personal data with
@@ -528,14 +545,63 @@ export default function PrivacyPolicyPage() {
               limited to the authorized purposes for which you connected your LinkedIn account.
             </p>
 
-            <h3 className="mt-4 font-medium text-foreground">12.5 Microsoft and other providers</h3>
+            <h3 className="mt-4 font-medium text-foreground">12.5 Shopify</h3>
+            <p className="mt-2">
+              If you install our Shopify app, we access data from your Shopify store through
+              the Shopify Admin API under the permissions you grant at install, and our use of
+              it complies with the{" "}
+              <a href="https://www.shopify.com/legal/api-terms" className="text-foreground underline" target="_blank" rel="noopener noreferrer">
+                Shopify API Terms of Service
+              </a>{" "}
+              and the Shopify Protected Customer Data requirements.
+            </p>
+            <p className="mt-2">
+              <strong>What we access.</strong> Your store profile, product catalog, inventory
+              and locations. Where you enable order-based features and grant the corresponding
+              permission, we also receive your <strong>order records</strong> — line items,
+              quantities, totals, currency, dates, and whether the order is cash-on-delivery.
+            </p>
+            <p className="mt-2">
+              <strong>Your customers&apos; data, and our role.</strong> An order record can
+              include your customer&apos;s <strong>name and phone number</strong>. We process
+              those <strong>on your behalf and on your instructions</strong>: for your
+              shoppers&apos; personal data you are the controller / Data Fiduciary and we act
+              as your processor. We use it only to deliver the features you switched on — for
+              example, sending a cash-on-delivery confirmation about that order. We do not sell
+              it, we do not use it for our own advertising, we do not build independent
+              profiles of your shoppers, and we do not use it to train AI models.
+            </p>
+            <p className="mt-2">
+              <strong>What we deliberately do not take.</strong> We do not request or store
+              shopper <strong>email addresses</strong>, and we do not request shipping
+              addresses. We ask for the narrowest permissions the features need.
+            </p>
+            <p className="mt-2">
+              <strong>How long we keep it.</strong> Shopper <strong>name and phone number are
+              erased 90 days</strong> after we receive the order — the purpose they serve is
+              measured in days, not years. The rest of the order record is retained as your
+              business data, because it is what makes inventory, seasonality and merchandising
+              analysis work; it carries no shopper contact details once that window has passed.
+            </p>
+            <p className="mt-2">
+              <strong>Deletion requests.</strong> We support Shopify&apos;s mandatory privacy
+              webhooks. When a shopper asks you to delete their data, or you uninstall the app,
+              Shopify notifies us and we erase the corresponding records. You can also reach us
+              directly at{" "}
+              <a href={`mailto:${SITE.contactPrivacy}`} className="text-foreground underline">
+                {SITE.contactPrivacy}
+              </a>
+              .
+            </p>
+
+            <h3 className="mt-4 font-medium text-foreground">12.6 Microsoft and other providers</h3>
             <p className="mt-2">
               Where you connect Microsoft or other third-party services, we comply with the
               applicable provider&apos;s API terms and use the data only to deliver the features
               you have enabled.
             </p>
 
-            <h3 className="mt-4 font-medium text-foreground">12.6 Revoking access</h3>
+            <h3 className="mt-4 font-medium text-foreground">12.7 Revoking access</h3>
             <p className="mt-2">
               You can disconnect any integration at any time from your account settings or
               from the relevant platform&apos;s app/connected-apps settings. On disconnection we
