@@ -113,6 +113,14 @@ export default function PrivacyPolicyPage() {
                 including its Limited Use requirements.
               </li>
               <li>
+                <strong>Shopify and other commerce platforms:</strong> where you connect a
+                store, its profile, product catalog, inventory and published storefront
+                content. If you additionally enable order-based features and grant the
+                permission they need, we also receive order records, which can include your
+                shopper&apos;s name and phone number — processed on your behalf and described
+                in Section 12.5.
+              </li>
+              <li>
                 <strong>Beehiiv and other publishing tools:</strong> newsletter content,
                 subscriber metrics, and publication details via API integration.
               </li>
@@ -309,9 +317,13 @@ export default function PrivacyPolicyPage() {
                   </li>
                   <li><strong>Upstash</strong> — managed Redis for caching and rate limiting</li>
                   <li>
-                    <strong>Stripe</strong>, <strong>Razorpay</strong> and{" "}
-                    <strong>PayU</strong> — payment processing. Where you buy through the
-                    Shopify App Store, Shopify processes the payment instead.
+                    <strong>Tavily</strong> — web search and page extraction used by research
+                    and onboarding features
+                  </li>
+                  <li>
+                    <strong>Stripe</strong> and <strong>Razorpay</strong> — payment
+                    processing. Where you buy through the Shopify App Store, Shopify
+                    processes the payment instead.
                   </li>
                 </ul>
                 This list changes as the Service does — the AI model providers reached through
@@ -562,11 +574,19 @@ export default function PrivacyPolicyPage() {
               and the Shopify Protected Customer Data requirements.
             </p>
             <p className="mt-2">
-              <strong>What we access.</strong> Your store profile, product catalog, inventory,
-              locations, and published storefront content such as pages and blog posts. Where
-              you enable order-based features and grant the corresponding permission, we also
-              receive your <strong>order records</strong> — line items, quantities, totals,
-              currency, dates, and whether the order is cash-on-delivery.
+              <strong>What we access today.</strong> Your store profile, product catalog,
+              inventory, and published storefront content such as pages and blog posts. The app
+              currently requests <strong>catalog permissions only</strong>. It does{" "}
+              <strong>not</strong> request access to your orders or to your customer list, so
+              today we hold no personal data about your shoppers from Shopify at all.
+            </p>
+            <p className="mt-2">
+              <strong>What changes if you enable order-based features.</strong> Features such as
+              cash-on-delivery confirmation need your <strong>order records</strong> — line
+              items, quantities, totals, currency, dates, and whether the order is
+              cash-on-delivery. Those features require you to grant order access, and Shopify
+              asks you to approve that separately. Everything in the rest of this section
+              describes what happens once you do; until then it does not apply to your store.
             </p>
             <p className="mt-2">
               <strong>Your customers&apos; data, and our role.</strong> An order record can
@@ -576,7 +596,10 @@ export default function PrivacyPolicyPage() {
               as your processor. We use it only to deliver the features you switched on — for
               example, sending a cash-on-delivery confirmation about that order. We do not sell
               it, we do not use it for our own advertising, we do not build independent
-              profiles of your shoppers, and we do not use it to train AI models.
+              profiles of your shoppers, and we do not use it to train AI models. In particular,
+              your shoppers&apos; personal details are never part of the aggregate training data
+              described in Section 4 — that contribution is anonymised usage patterns, never
+              customer contact details.
             </p>
             <p className="mt-2">
               <strong>What we deliberately do not take.</strong> We do not request or store
@@ -604,8 +627,11 @@ export default function PrivacyPolicyPage() {
               <strong>Deletion requests.</strong> We support Shopify&apos;s mandatory privacy
               webhooks. When a shopper asks you to delete their data, Shopify notifies us and we
               erase the personal details we received from Shopify about them — the name and phone
-              on their orders, and the customer record described above. When you uninstall the
-              app, Shopify notifies us and we erase the store data we hold for it. Data that
+              on their orders, and the customer record described above. If you uninstall the app,
+              Shopify sends us a shop-redaction notice about <strong>48 hours later</strong>, and
+              that is when we erase the store data we hold; the delay is Shopify&apos;s, and it
+              exists so that reinstalling within that window does not cost you your history. Data
+              that
               reached us through a different channel — for example, a shopper who messaged your
               business on WhatsApp — belongs to that channel&apos;s record and is erased through
               it, not by a Shopify notification. You can ask us to erase anything we hold at{" "}
