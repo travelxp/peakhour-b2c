@@ -38,6 +38,17 @@ const CONFIRM_HINT =
   "open your site in a NEW private window (the snippet only reports once per browser session) " +
   "and press Check again a minute later.";
 
+/** The only place this surface says "nothing to do", so the conditions under
+ *  which it is sayable are in one place. See `stateCopy`. */
+const NOTHING_TO_DO = "nothing to do.";
+
+/** Whole hours since an ISO timestamp; `Infinity` when it cannot be read, so an
+ *  unreadable date can never be what keeps a promise alive. */
+function hoursSince(iso: string | undefined): number {
+  const t = iso ? Date.parse(iso) : NaN;
+  return Number.isNaN(t) ? Infinity : (Date.now() - t) / 3_600_000;
+}
+
 /** " from www.example.com", or nothing when the beacon's origin was unreadable
  *  — a real state (the api UNSETS the host rather than leaving a stale one), and
  *  one that must never leave a dangling preposition behind. */
@@ -77,7 +88,7 @@ export type EvidenceStep = {
  * about the rail, not a failure, and a tick-list that showed it unchecked would
  * be telling every copy-paste customer that something is wrong.
  */
-export function evidenceChain(signal: Signal, railOffered = true): EvidenceStep[] {
+export function evidenceChain(signal: Signal, railOffered: boolean): EvidenceStep[] {
   const served = signal.delivery.lastServedAt;
   return [
     {
@@ -92,7 +103,13 @@ export function evidenceChain(signal: Signal, railOffered = true): EvidenceStep[
         signal.delivery.rail !== "wordpress"
           ? "Not something we can see when you paste the snippet yourself — there's no step of ours in between."
           : served
-            ? `Your WordPress plugin last picked it up ${formatWhen(served)}.`
+            ? railOffered
+              ? `Your WordPress plugin last fetched it ${formatWhen(served)}.`
+              : // ★THE SERVE IS STILL A FACT, AND SO IS HAVING LOST TRACK SINCE.
+                // Rendering only the first left a green tick reading "last
+                // fetched it 7 days ago" directly above a body saying we no
+                // longer know what that site is doing.
+                `Your WordPress plugin last fetched it ${formatWhen(served)}, and we have not heard from that site since.`
             : // ★NO PROMISE IN THIS STEP — the step states a FACT, and the promise
               // lives in `stateCopy`, where it can be made conditional. A first
               // cut ended this line "Nothing to do — it will", which contradicted
@@ -102,8 +119,8 @@ export function evidenceChain(signal: Signal, railOffered = true): EvidenceStep[
               // promising a delivery the api had formally given up on, with the
               // paste escape hatch removed.
               railOffered
-              ? "Your WordPress plugin hasn't picked this up yet — it checks in hourly."
-              : "We haven't heard from your WordPress plugin recently.",
+              ? "Your WordPress plugin hasn't fetched it yet — it asks about once an hour while your site is being visited."
+              : "We've lost track of the WordPress site meant to deliver this.",
     },
     {
       label: "Seen working",
@@ -127,23 +144,29 @@ export function evidenceChain(signal: Signal, railOffered = true): EvidenceStep[
  */
 export function stateCopy(
   signal: Signal,
-  railOffered = true,
+  railOffered: boolean,
 ): { title: string; body: string; tone: "ok" | "waiting" | "attention" } {
   const provider = providerLabel(signal.provider);
-  // ★"NOTHING TO DO — IT WILL" IS ONLY SAYABLE WHILE THE API STILL OFFERS THIS
-  // RAIL, and that is what makes it a sourced claim rather than a hope. The api
-  // withdraws `wordpress` from `availableRails` once the site stops checking in,
-  // so `railOffered` IS the evidence that the plugin is alive and will fetch.
-  // Without it the promise never expired: a site whose plugin was deactivated
-  // got "nothing to do" forever, with the paste escape hatch removed, while the
-  // api had already concluded the delivery would never happen.
-  const wpDelivering = signal.delivery.rail === "wordpress" && railOffered;
-  const wpAbandoned = signal.delivery.rail === "wordpress" && !railOffered;
-  // The one remedy that is always available and never double-installs: switch
-  // the rail. Never "paste it as well" — that is the double-install this whole
-  // change exists to prevent.
-  const SWITCH_HINT =
-    "Reactivate or update the plugin, or switch this signal to pasting the snippet in yourself.";
+  const wp = signal.delivery.rail === "wordpress";
+  // ★`railOffered` IS ONE OF THREE ANDed CONDITIONS, NOT "THE PLUGIN IS ALIVE".
+  // The api withdraws this rail when the connection is inactive, when the site
+  // is bound to another business, OR when it has not asked for 14 days — so
+  // "we haven't heard from your plugin recently" is wrong for the first two,
+  // and up to a fortnight late for the third. A first cut asserted it meant the
+  // first thing only, and paid for it twice below.
+  const wpHeardFrom = wp && railOffered;
+  const wpSilent = wp && !railOffered;
+  // ★AND THE PROMISE EXPIRES ON ITS OWN, because `railOffered` alone does not
+  // bound it. The api stamps the ask BEFORE its own early returns — including
+  // the one its comment calls "the state a customer cannot get out of by
+  // themselves" — so a signal can sit `railOffered` and unfetched forever. After
+  // a day, an unfetched signal is evidence AGAINST the promise, not for it.
+  const staleUnfetched =
+    !signal.delivery.lastServedAt && hoursSince(signal.delivery.chosenAt) > 24;
+  // ★THE REMEDY NAMES ALL THREE CAUSES, because "reactivate the plugin" is the
+  // wrong instruction for a site that was disconnected or re-bound.
+  const FIX_HINT =
+    "Check the plugin is active and this site is still connected under Integrations — or switch this signal to pasting the snippet in yourself.";
   switch (signal.state) {
     case "firing":
       return {
@@ -173,47 +196,62 @@ export function stateCopy(
       // the tag on the page; telling the customer to add it by hand as well
       // installs it twice — two Insight Tags, two beacons. The api refuses to
       // serve a `manual` row over this rail for the same reason.
-      if (wpAbandoned) {
+      if (wpSilent) {
+        // ★NOT "NOTHING IS PUTTING THE TAG ON YOUR SITE" — which was false. The
+        // plugin CACHES the snippet and prints from the cache; its own rule is
+        // that a failed fetch keeps the previous answer. A plugin that has
+        // stopped checking in may well still be printing the tag, and the card
+        // said otherwise directly above a green "last picked it up" tick.
         return {
           title: "Not seen yet",
-          body: `Set up, but we haven't heard from your WordPress plugin recently, so nothing is putting the tag on your site. ${SWITCH_HINT}`,
+          body: `Set up, but we've lost track of the WordPress site meant to deliver this, so we can't tell you whether it still is. ${FIX_HINT}`,
+          tone: "attention",
+        };
+      }
+      if (wpHeardFrom && staleUnfetched) {
+        return {
+          title: "Not seen yet",
+          body: `Set up, but your WordPress plugin still hasn't fetched it. That should happen within an hour of your site being visited, so something is in the way. ${FIX_HINT}`,
           tone: "attention",
         };
       }
       return {
         title: "Not seen yet",
-        body: wpDelivering
+        body: wpHeardFrom
           ? // Which of the two waits they are in — the plugin fetching, or a
             // visitor arriving — is what the evidence chain distinguishes, and
             // the check hint belongs only in the second: before the plugin has
             // it, opening a private window cannot change anything.
             signal.delivery.lastServedAt
-            ? `Your plugin has it, but no browser has loaded it yet. To check now, ${CONFIRM_HINT}`
-            : "Set up. Your WordPress plugin checks in hourly and will put it on your site — nothing to do."
+            ? `Your plugin has fetched it, but no browser has loaded it yet. To check now, ${CONFIRM_HINT}`
+            : `Set up. Your WordPress plugin fetches it about once an hour while your site is being visited — ${NOTHING_TO_DO}`
           : `Set up, but no browser has loaded it yet. Add the snippet to your site if you haven't — then ${CONFIRM_HINT}`,
         tone: "waiting",
       };
     case "not_seen_recently": {
       const since = `We last saw your ${provider} load ${formatWhen(signal.verification?.lastFiredAt)}, and nothing since. `;
-      if (wpAbandoned) {
+      if (wpSilent) {
         return {
           title: "Quiet",
-          body: `${since}We haven't heard from your WordPress plugin recently either, so it may have stopped putting the tag on your site. ${SWITCH_HINT}`,
+          body: `${since}We've also lost track of the WordPress site meant to deliver it. ${FIX_HINT}`,
           tone: "attention",
         };
       }
       // ★THE SAME RULE AS `never_fired`, WHICH A FIRST CUT APPLIED TO ONE STATE
-      // AND NOT THE OTHER. On this rail we are not reduced to "we can't tell":
-      // when the plugin has fetched, we KNOW the tag is being delivered, so the
-      // unknown is narrower and the sentence should say the narrower thing. And
-      // when it has not fetched, the check hint is busywork that cannot change
-      // the state — exactly what the other branch was fixed for.
-      if (wpDelivering) {
+      // AND NOT THE OTHER: the check hint only where a check can change
+      // something. What that cut ALSO did was overclaim — "your plugin is still
+      // putting it on your site, so it is being delivered". `lastServedAt`
+      // records that the plugin FETCHED, never that it PRINTED, and the plugin's
+      // own header states the rule: printing is not evidence. Deactivate it, or
+      // use a theme without `wp_head`, and printing stops while the fetch stamp
+      // stays fresh for a fortnight — so that sentence asserted delivery for two
+      // weeks in the likeliest cause of this exact state.
+      if (wpHeardFrom) {
         return {
           title: "Quiet",
           body: signal.delivery.lastServedAt
-            ? `${since}Your plugin is still putting it on your site, so it is being delivered — we just haven't seen a browser load it. That can mean nobody has visited, or something on the page is blocking it. To check: ${CONFIRM_HINT}`
-            : `${since}Your plugin hasn't picked up the current snippet yet either — it checks in hourly.`,
+            ? `${since}Your plugin fetched it ${formatWhen(signal.delivery.lastServedAt)}, so it is still asking us for the tag — but we can't tell from here whether it is reaching your pages, or whether nobody has visited. To check: ${CONFIRM_HINT}`
+            : `${since}Your plugin hasn't fetched the current snippet either. ${FIX_HINT}`,
           tone: "attention",
         };
       }

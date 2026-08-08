@@ -224,20 +224,20 @@ export function writeErrorMessage(error: unknown): string {
       return "A Partner ID can only contain letters, numbers, hyphens and underscores.";
     case "NOT_FOUND":
       return "That signal isn't there any more — reload the page.";
-    // ★FROM , MOUNTED APP-LEVEL ABOVE EVERY ROUTE — the layer a list
+    // ★FROM `csrfGuard`, MOUNTED APP-LEVEL ABOVE EVERY ROUTE — the layer a list
     // built by reading handlers AND their routers still stops one short of. The
     // client retries once, so these only surface when the retry fails too, and
     // the remedy is a reload rather than a wait.
     case "CSRF_MISSING":
     case "CSRF_INVALID":
-      return "Your session got out of step — reload the page and try that again.";
+      return "Your sign-in got out of step. Sign in again and nothing will be lost.";
     // ★NOT "TRY AGAIN IN A MOMENT". The rail is offered only to a business whose
     // WordPress site has checked in recently, and a site that has gone quiet
     // will not come back because the customer pressed Save again. Reachable
     // from the edit form, which deliberately keeps an unavailable stored rail
     // on screen, and from a second tab.
     case "RAIL_UNAVAILABLE":
-      return "We haven't heard from a WordPress site on this business recently. If you've just updated the plugin it checks in within the hour — or choose to paste the snippet in yourself.";
+      return "We haven't heard from a WordPress site on this business recently. If you've just updated the plugin it usually checks in within an hour of your site being visited — or choose to paste the snippet in yourself.";
     default:
       return "We couldn't save that. Nothing has been changed — try again in a moment.";
   }
@@ -548,7 +548,7 @@ function RailSelect({
       <p className="text-sm text-muted-foreground">
         {railLabel(value)} — this option isn&apos;t available any more.{" "}
         {rails.length === 1
-          ? `Switch now to move it to “${railLabel(rails[0])}”.`
+          ? `Switch now, then Save, to move it to “${railLabel(rails[0])}”.`
           : "Pick another below."}
         {rails.length === 1 && (
           <Button
