@@ -113,6 +113,14 @@ export default function PrivacyPolicyPage() {
                 including its Limited Use requirements.
               </li>
               <li>
+                <strong>Shopify and other commerce platforms:</strong> where you connect a
+                store, its profile, product catalog, inventory and published storefront
+                content. If you additionally enable order-based features and grant the
+                permission they need, we also receive order records, which can include your
+                shopper&apos;s name and phone number — processed on your behalf and described
+                in Section 12.5.
+              </li>
+              <li>
                 <strong>Beehiiv and other publishing tools:</strong> newsletter content,
                 subscriber metrics, and publication details via API integration.
               </li>
@@ -292,12 +300,39 @@ export default function PrivacyPolicyPage() {
                 and transactional email delivery. These providers act on our
                 instructions under written contracts (including data-processing terms and,
                 where applicable, Standard Contractual Clauses) that require them to protect
-                your data and use it only to provide their service to us. A current list of
-                material sub-processors is available on request from{" "}
+                your data and use it only to provide their service to us. Our material
+                sub-processors are:
+                <ul className="mt-2 list-disc space-y-1 pl-6">
+                  <li><strong>Vercel</strong> — application hosting and serverless compute</li>
+                  <li><strong>MongoDB Atlas</strong> — database hosting and search</li>
+                  <li><strong>Cloudflare R2</strong> — object storage for uploaded media</li>
+                  <li>
+                    <strong>Vercel AI Gateway</strong> — routing to AI model providers,
+                    currently <strong>Anthropic</strong> and <strong>Google</strong>
+                  </li>
+                  <li><strong>ZeptoMail (Zoho)</strong> — transactional email delivery</li>
+                  <li>
+                    <strong>Meta (WhatsApp Business Platform)</strong> — delivering and
+                    receiving WhatsApp messages where you enable that channel
+                  </li>
+                  <li><strong>Upstash</strong> — managed Redis for caching and rate limiting</li>
+                  <li>
+                    <strong>Tavily</strong> — web search and page extraction used by research
+                    and onboarding features
+                  </li>
+                  <li>
+                    <strong>Stripe</strong> and <strong>Razorpay</strong> — payment
+                    processing. Where you buy through the Shopify App Store, Shopify
+                    processes the payment instead.
+                  </li>
+                </ul>
+                This list changes as the Service does — the AI model providers reached through
+                the gateway in particular, because which model serves a given task is tuned
+                continuously. Write to{" "}
                 <a href={`mailto:${SITE.contactPrivacy}`} className="text-foreground underline">
                   {SITE.contactPrivacy}
-                </a>
-                .
+                </a>{" "}
+                for the current list at any time.
               </li>
               <li>
                 <strong>Affiliated group companies:</strong> we share personal data with
@@ -528,14 +563,92 @@ export default function PrivacyPolicyPage() {
               limited to the authorized purposes for which you connected your LinkedIn account.
             </p>
 
-            <h3 className="mt-4 font-medium text-foreground">12.5 Microsoft and other providers</h3>
+            <h3 className="mt-4 font-medium text-foreground">12.5 Shopify</h3>
+            <p className="mt-2">
+              If you install our Shopify app, we access data from your Shopify store through
+              the Shopify Admin API under the permissions you grant at install, and our use of
+              it complies with the{" "}
+              <a href="https://www.shopify.com/legal/api-terms" className="text-foreground underline" target="_blank" rel="noopener noreferrer">
+                Shopify API Terms of Service
+              </a>{" "}
+              and the Shopify Protected Customer Data requirements.
+            </p>
+            <p className="mt-2">
+              <strong>What we access today.</strong> Your store profile, product catalog,
+              inventory, and published storefront content such as pages and blog posts. The app
+              currently requests <strong>catalog permissions only</strong>. It does{" "}
+              <strong>not</strong> request access to your orders or to your customer list, so
+              today we hold no personal data about your shoppers from Shopify at all.
+            </p>
+            <p className="mt-2">
+              <strong>What changes if you enable order-based features.</strong> Features such as
+              cash-on-delivery confirmation need your <strong>order records</strong> — line
+              items, quantities, totals, currency, dates, and whether the order is
+              cash-on-delivery. Those features require you to grant order access, and Shopify
+              asks you to approve that separately. Everything in the rest of this section
+              describes what happens once you do; until then it does not apply to your store.
+            </p>
+            <p className="mt-2">
+              <strong>Your customers&apos; data, and our role.</strong> An order record can
+              include your customer&apos;s <strong>name and phone number</strong>. We process
+              those <strong>on your behalf and on your instructions</strong>: for your
+              shoppers&apos; personal data you are the controller / Data Fiduciary and we act
+              as your processor. We use it only to deliver the features you switched on — for
+              example, sending a cash-on-delivery confirmation about that order. We do not sell
+              it, we do not use it for our own advertising, we do not build independent
+              profiles of your shoppers, and we do not use it to train AI models. In particular,
+              your shoppers&apos; personal details are never part of the aggregate training data
+              described in Section 4 — that contribution is anonymised usage patterns, never
+              customer contact details.
+            </p>
+            <p className="mt-2">
+              <strong>What we deliberately do not take.</strong> We do not request or store
+              shopper <strong>email addresses</strong>, and we do not request shipping
+              addresses. We ask for the narrowest permissions the features need.
+            </p>
+            <p className="mt-2">
+              <strong>How long we keep it.</strong> The copy of a shopper&apos;s name and phone
+              number that sits <strong>on each order</strong> is <strong>erased after 90
+              days</strong> — the purpose it serves, such as confirming that order, is measured
+              in days rather than years. The rest of the order record is retained as your
+              business data, because it is what makes inventory, seasonality and merchandising
+              analysis work; it carries no shopper contact details once that window has passed.
+            </p>
+            <p className="mt-2">
+              Separately, we keep one <strong>customer record per shopper</strong> holding their
+              name and phone number, so that repeat orders are recognised as the same person and
+              so you can still reach a customer about an order placed months ago. That record is
+              kept for as long as your store stays connected, and is erased when the shopper asks
+              you to delete their data, when the store is redacted after you uninstall the app,
+              or when you close your {SITE.name} account — whichever happens first. It is not on
+              a 90-day timer.
+            </p>
+            <p className="mt-2">
+              <strong>Deletion requests.</strong> We support Shopify&apos;s mandatory privacy
+              webhooks. When a shopper asks you to delete their data, Shopify notifies us and we
+              erase the personal details we received from Shopify about them — the name and phone
+              on their orders, and the customer record described above. If you uninstall the app,
+              Shopify sends us a shop-redaction notice about <strong>48 hours later</strong>, and
+              that is when we erase the store data we hold; the delay is Shopify&apos;s, and it
+              exists so that reinstalling within that window does not cost you your history. Data
+              that
+              reached us through a different channel — for example, a shopper who messaged your
+              business on WhatsApp — belongs to that channel&apos;s record and is erased through
+              it, not by a Shopify notification. You can ask us to erase anything we hold at{" "}
+              <a href={`mailto:${SITE.contactPrivacy}`} className="text-foreground underline">
+                {SITE.contactPrivacy}
+              </a>
+              .
+            </p>
+
+            <h3 className="mt-4 font-medium text-foreground">12.6 Microsoft and other providers</h3>
             <p className="mt-2">
               Where you connect Microsoft or other third-party services, we comply with the
               applicable provider&apos;s API terms and use the data only to deliver the features
               you have enabled.
             </p>
 
-            <h3 className="mt-4 font-medium text-foreground">12.6 Revoking access</h3>
+            <h3 className="mt-4 font-medium text-foreground">12.7 Revoking access</h3>
             <p className="mt-2">
               You can disconnect any integration at any time from your account settings or
               from the relevant platform&apos;s app/connected-apps settings. On disconnection we
