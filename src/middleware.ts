@@ -134,6 +134,25 @@ export function middleware(req: NextRequest) {
   // This is a plain allowlist entry on the already-running middleware — it
   // adds NO new edge function (the middleware runs on every request for the
   // CSP nonce regardless).
+  // (5) /shopify/connect, /claim and /reconnect — the pages a merchant is SENT to
+  // from inside another platform, with no Peakhour session, mid-flow. /shopify/connect
+  // is where peakhour-api lands a failed install or reconnect; /claim/{shopify,
+  // wordpress} is where the embedded app's BLOCKING claim gate sends a
+  // cold-installed store to be adopted, carrying a one-shot token in the URL.
+  // With the gate on and neither exempt, a cold App Store install dead-ends on
+  // the teaser holding a token it can no longer spend, and the store stays stuck
+  // — while /shopify/connect cheerfully advises the merchant to go and do exactly
+  // that. b2c#384 removed the first exemption along with the embedded app; the
+  // second was never added. /reconnect/wordpress is the same shape from the other
+  // platform: the WP plugin renders it as its "Approve on Peakhour.ai" button
+  // (wp-bridge.ts returns it as `reconnect_url`), and the gate would leave a
+  // reinstalled site permanently unable to approve its pairing code — sessionBypass
+  // does not help, since it is scoped to /dashboard, /onboarding and /cms.
+  //
+  // That is the whole set: enumerating every B2C_URL/DASHBOARD_URL the API hands
+  // out gives /auth, /claim/*, /reconnect/wordpress, /shopify/connect and
+  // /dashboard/*. These are the pages whose entire job is to work for someone who
+  // has never heard of us.
   const PUBLIC_PATHS = [
     "/privacy-policy",
     "/terms",
@@ -142,6 +161,9 @@ export function middleware(req: NextRequest) {
     "/launch-partner",
     "/auth",
     "/pricing",
+    "/shopify/connect",
+    "/claim",
+    "/reconnect",
   ];
   const isPublicPath = PUBLIC_PATHS.some(
     (p) => pathname === p || pathname.startsWith(`${p}/`),
