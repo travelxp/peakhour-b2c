@@ -25,6 +25,15 @@ import { SITE } from "@/lib/utils";
  * `integrations/routes.ts`, not imagined. `misconfigured` and `hmac_invalid` are
  * OUR faults, and the copy says so rather than implying the merchant did
  * something wrong.
+ *
+ * ★ONE API EXIT IS NOT COVERED, AND CANNOT BE. The callback's catch-all for a
+ * fresh install (`routes.ts:1286`) redirects with a whole SENTENCE in `?error=`
+ * rather than a code — its own user-safe message. This page cannot repeat it,
+ * because it cannot tell a sentence the API wrote from one a stranger put in a
+ * link, and a public page that repeats its own URL is a phishing surface. So
+ * that exit falls to UNKNOWN_ERROR and a real message is lost. The fix belongs
+ * on the API side — send a code, keep the prose here — and is a follow-up, not
+ * something this page can do for itself.
  */
 const ERRORS = new Map<string, { title: string; body: string }>([
   [
@@ -118,7 +127,12 @@ export function ShopifyConnectStatus() {
               <Store className="h-5 w-5 text-muted-foreground" aria-hidden />
             )}
           </div>
-          <CardTitle>{heading}</CardTitle>
+          {/* asChild, so a standalone page reached by redirect actually has a
+              heading element — CardTitle renders a div otherwise, and this page
+              has no other h1 to anchor a screen reader to. */}
+          <CardTitle asChild>
+            <h1>{heading}</h1>
+          </CardTitle>
           <CardDescription>{shop || "Peakhour for Shopify"}</CardDescription>
         </CardHeader>
 
