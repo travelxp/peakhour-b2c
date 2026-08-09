@@ -1,5 +1,12 @@
 import { Suspense } from "react";
+import type { Metadata } from "next";
 import { ShopifyConnectStatus } from "./_components/shopify-connect-status";
+
+/** A transactional dead-end reached only by redirect, and one whose URL takes
+ *  parameters. Nothing here belongs in an index. */
+export const metadata: Metadata = {
+  robots: { index: false, follow: false },
+};
 
 /**
  * /shopify/connect?error=<code>&shop=<domain>&token=<linkToken>
