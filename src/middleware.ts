@@ -134,6 +134,13 @@ export function middleware(req: NextRequest) {
   // This is a plain allowlist entry on the already-running middleware — it
   // adds NO new edge function (the middleware runs on every request for the
   // CSP nonce regardless).
+  // (5) /shopify/connect — where peakhour-api sends a merchant when a Shopify
+  // install fails or a reconnect falls back. They arrive mid-install, from
+  // Shopify, with no Peakhour session and no idea what "coming soon" would mean;
+  // the teaser would replace the only page telling them what went wrong and what
+  // to do. b2c#384 removed this exemption along with the embedded app, but the
+  // API kept redirecting here — so the gate could turn a bad install into a
+  // baffling one.
   const PUBLIC_PATHS = [
     "/privacy-policy",
     "/terms",
@@ -142,6 +149,7 @@ export function middleware(req: NextRequest) {
     "/launch-partner",
     "/auth",
     "/pricing",
+    "/shopify/connect",
   ];
   const isPublicPath = PUBLIC_PATHS.some(
     (p) => pathname === p || pathname.startsWith(`${p}/`),
