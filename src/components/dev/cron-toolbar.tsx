@@ -43,7 +43,12 @@ import {
 } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import { api, ApiError } from "@/lib/api";
-import { CRON_METADATA, getCronMetadata, summarizeCronBody } from "./cron-metadata";
+import {
+  CRON_METADATA,
+  getCronMetadata,
+  hasSummarizer,
+  summarizeCronBody,
+} from "./cron-metadata";
 
 interface DevCronResult {
   cron: string;
@@ -69,6 +74,20 @@ interface Props {
    * fire by accident — the api refuses and the toast says exactly why.
    */
   requiresConfirmation?: readonly string[];
+  /**
+   * Crons a non-staff user cannot fire at all - the api answers `INTERNAL_ONLY`.
+   *
+   * ★SENT FOR THE SAME REASON AS `requiresConfirmation`, AND IGNORED UNTIL NOW.
+   * Without it the toolbar renders a button whose only possible outcome is a
+   * 403: a preview user confirms an irreversible-erasure prompt and is then
+   * told "Please try again in a moment", which can never succeed.
+   *
+   * ★AND IT IS ALSO WHAT MAKES THE WARNING TRUE. The one fixed sentence this
+   * chrome showed for every guarded cron - "effects outside Peakhour" - is
+   * exactly backwards for `org-deletion-executor`, whose danger is INSIDE our
+   * own database. The api's two sets are the only signal that tells them apart.
+   */
+  requiresInternalUser?: readonly string[];
   /** Optional callback fired ONLY when the cron handler responded 2xx
    *  (result.ok === true). Host pages typically use this to invalidate
    *  the React Query keys whose data the cron just mutated; invalidating
@@ -105,20 +124,49 @@ const inFlightCrons = new Set<string>();
  * consequence line is always appended; it is the only part guaranteed to be
  * true and useful for a cron we have never heard of.
  */
-function confirmText(cron: string, meta: { label: string; description: string }): string {
+function confirmText(
+  cron: string,
+  meta: { label: string; description: string },
+  internalOnly: boolean,
+): string {
   const known = cron in CRON_METADATA;
   return [
     meta.label,
     "",
     known ? meta.description : `The "${cron}" cron.`,
     "",
-    "This one has effects outside Peakhour — it can reach real customers or an external provider.",
+    dangerSentence(internalOnly),
     "",
     "Run it now?",
   ].join("\n");
 }
 
-export function CronToolbar({ crons, requiresConfirmation, onTriggered }: Props) {
+/**
+ * What the warning actually means for THIS cron.
+ *
+ * ★ONE FIXED SENTENCE WAS WRONG FOR THE MOST DANGEROUS CRON WE HAVE. Every
+ * guarded cron said "effects outside Peakhour - real customers or an external
+ * provider", which is true of the billing and e-invoice ones and precisely
+ * backwards for `org-deletion-executor`: its danger is inside our own database,
+ * it erases every tenant past its closure date on this environment - other
+ * people's dev orgs included - and nothing undoes it. Making that button
+ * legible without making its warning true would have been the worse half of
+ * the change that named it.
+ *
+ * Derived from the api's own two sets, so there is no third list to drift.
+ */
+export function dangerSentence(internalOnly: boolean): string {
+  return internalOnly
+    ? "This one erases data INSIDE Peakhour and cannot be undone. It acts on every tenant on this environment whose deletion date has passed, including other people's."
+    : "This one has effects outside Peakhour - it can reach real customers or an external provider.";
+}
+
+export function CronToolbar({
+  crons,
+  requiresConfirmation,
+  requiresInternalUser,
+  onTriggered,
+}: Props) {
   // Hooks must run unconditionally; the production gate decides what to
   // render below, not whether to mount.
   //
@@ -159,8 +207,22 @@ export function CronToolbar({ crons, requiresConfirmation, onTriggered }: Props)
       // none is configured) so a no-op stops reading as a green success. The
       // raw body + timing still go to the dev console for debugging.
       const summary = summarizeCronBody(cron, res.body);
+      // ★A TRUNCATED BODY IS NOT A SUCCESS FOR A CRON THAT HAS A SUMMARIZER,
+      // and it fails hardest on exactly the runs that matter. The api caps the
+      // body at 4000 chars, so `org-deletion-executor` blows past it precisely
+      // when several closures FAILED (each carries a long reason string) —
+      // JSON.parse throws, the summary comes back null, and the toast reads
+      // "Close accounts that asked to be closed complete" over customers still
+      // waiting past their promised date. When we expected a summary and could
+      // not have one, say that rather than assuming the best.
+      const truncatedSummary =
+        res.truncated && !summary && hasSummarizer(cron)
+          ? `${label} ran, but the result was too long to read back — check the console before assuming it finished cleanly.`
+          : null;
       if (summary?.level === "warning") {
         toast.warning(summary.message);
+      } else if (truncatedSummary) {
+        toast.warning(truncatedSummary);
       } else {
         toast.success(summary?.message ?? `${label} complete`);
       }
@@ -194,7 +256,8 @@ export function CronToolbar({ crons, requiresConfirmation, onTriggered }: Props)
     // separate tenant but has real stores on it, and these send real email /
     // hit a real tax portal — a one-click toolbar is the wrong shape for that.
     const needsConfirm = requiresConfirmation?.includes(cron) ?? false;
-    if (needsConfirm && !window.confirm(confirmText(cron, meta))) {
+    const internalOnly = requiresInternalUser?.includes(cron) ?? false;
+    if (needsConfirm && !window.confirm(confirmText(cron, meta, internalOnly))) {
       return;
     }
     inFlightCrons.add(cron);
@@ -220,7 +283,7 @@ export function CronToolbar({ crons, requiresConfirmation, onTriggered }: Props)
         // that could never help: /cms/crons is the only surface that passes
         // `requiresConfirmation`, so it is exactly where they already are.
         // Ask properly and retry once instead.
-        if (window.confirm(confirmText(cron, meta))) {
+        if (window.confirm(confirmText(cron, meta, requiresInternalUser?.includes(cron) ?? false))) {
           try {
             const retry = await api.post<DevCronResult>(`/v1/dev/cron/${cron}`, { confirm: cron });
             handleResult(cron, meta.label, retry);
@@ -231,6 +294,14 @@ export function CronToolbar({ crons, requiresConfirmation, onTriggered }: Props)
             });
           }
         }
+      } else if (code === "INTERNAL_ONLY") {
+        // ★THE ONE REFUSAL A RETRY CANNOT FIX, and it arrives AFTER the user
+        // has clicked through an irreversible-erasure confirmation. "Please try
+        // again in a moment" is the worst possible thing to say there: it is
+        // false, and it invites the click again.
+        toast.error(`${meta.label} is staff-only`, {
+          description: "Your account can't fire this cron. Nothing ran.",
+        });
       } else if (code === "DEV_ONLY") {
         toast.error("Cron triggers are disabled here", {
           description: "This environment is treated as production.",
@@ -274,6 +345,10 @@ export function CronToolbar({ crons, requiresConfirmation, onTriggered }: Props)
             // whole change exists to remove: the api would add a sixth
             // dangerous cron and b2c would render it unmarked.
             const guarded = requiresConfirmation?.includes(cron) ?? false;
+            // ★THE API SAYS WHICH DANGER, and the two are opposite: outside our
+            // database, or irreversibly inside it. One fixed sentence for both
+            // was pointing the wrong way at the only cron that erases tenants.
+            const internalOnly = requiresInternalUser?.includes(cron) ?? false;
             return (
               <Tooltip key={cron}>
                 <TooltipTrigger asChild>
@@ -286,7 +361,11 @@ export function CronToolbar({ crons, requiresConfirmation, onTriggered }: Props)
                     disabled={disabled}
                     aria-busy={running}
                   >
-                    {running ? "Running…" : guarded ? `⚠️ ${meta.label}` : meta.label}
+                    {running
+                      ? "Running…"
+                      : guarded || internalOnly
+                        ? `⚠️ ${meta.label}`
+                        : meta.label}
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent className="max-w-xs">
@@ -297,9 +376,16 @@ export function CronToolbar({ crons, requiresConfirmation, onTriggered }: Props)
                   <p className="text-xs mt-1">{meta.description}</p>
                   {/* Says what the ⚠️ MEANS. An unexplained emoji on a button
                       is a warning nobody can act on. */}
-                  {guarded ? (
+                  {/* ★`guarded || internalOnly`, NOT `guarded` ALONE. The api's two
+                      sets are independent; a cron listed only in
+                      `requiresInternalUser` rendered completely unmarked, which
+                      is the drift the "derived from the api's own sets" claim
+                      says cannot happen. */}
+                  {guarded || internalOnly ? (
                     <p className="text-xs mt-1 font-medium">
-                      ⚠️ Reaches outside Peakhour — asks before running.
+                      {internalOnly
+                        ? "⚠️ Erases data inside Peakhour, irreversibly, across every tenant on this environment. Staff only."
+                        : "⚠️ Reaches outside Peakhour — asks before running."}
                     </p>
                   ) : null}
                   <p className="text-[10px] text-muted-foreground mt-1 font-mono">

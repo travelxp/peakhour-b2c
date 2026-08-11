@@ -36,6 +36,9 @@ interface DevCronList {
    *  this page and the api deploy separately; absent simply means no cron is
    *  pre-confirmed here and the api's own refusal is the backstop. */
   requiresConfirmation?: string[];
+  /** Crons only staff may fire. ★Also what tells the two DANGERS apart:
+   *  outside our database, or irreversibly inside it. */
+  requiresInternalUser?: string[];
 }
 
 export default function CmsCronsPage() {
@@ -112,7 +115,11 @@ export default function CmsCronsPage() {
               `requiresConfirmation` comes straight from the api so the
               dangerous ones ask before firing rather than 400-ing into a
               "try again" that can never succeed. */}
-          <CronToolbar crons={data.crons} requiresConfirmation={data.requiresConfirmation} />
+          <CronToolbar
+            crons={data.crons}
+            requiresConfirmation={data.requiresConfirmation}
+            requiresInternalUser={data.requiresInternalUser}
+          />
           <Card>
             <CardContent className="pt-6">
               <div className="grid gap-2">
@@ -122,6 +129,7 @@ export default function CmsCronsPage() {
                   // identical cron reads as dangerous above and ordinary in the
                   // list right below, which teaches people to ignore the ⚠️.
                   const guarded = data.requiresConfirmation?.includes(name) ?? false;
+                  const internalOnly = data.requiresInternalUser?.includes(name) ?? false;
                   return (
                     <div
                       key={name}
@@ -129,11 +137,22 @@ export default function CmsCronsPage() {
                     >
                       <div className="flex flex-col">
                         <span className="font-medium text-sm">
-                          {guarded ? `⚠️ ${meta.label}` : meta.label}
+                          {guarded || internalOnly ? `⚠️ ${meta.label}` : meta.label}
                         </span>
-                        {guarded ? (
-                          <span className="text-xs font-medium text-amber-600 dark:text-amber-500">
-                            Reaches outside Peakhour — asks before running
+                        {/* ★`guarded || internalOnly` — the api's two sets are
+                            independent, and a cron listed only in
+                            `requiresInternalUser` rendered unmarked. */}
+                        {guarded || internalOnly ? (
+                          <span
+                            className={
+                              internalOnly
+                                ? "text-xs font-medium text-red-600 dark:text-red-500"
+                                : "text-xs font-medium text-amber-600 dark:text-amber-500"
+                            }
+                          >
+                            {internalOnly
+                              ? "Erases data inside Peakhour, irreversibly, across every tenant on this environment — staff only"
+                              : "Reaches outside Peakhour — asks before running"}
                           </span>
                         ) : null}
                         <span className="text-xs text-muted-foreground">

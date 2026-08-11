@@ -690,6 +690,69 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
     description:
       "Refreshes long-lived Meta tokens for connections nothing has touched recently, so a dormant account doesn't quietly expire and need reconnecting.",
   },
+  "commerce-order-pii-sweep": {
+    label: "Erase expired shopper details",
+    frequency: "Runs daily at 3:40am UTC",
+    description:
+      "Removes the shopper's phone and name from orders older than the retention window — they exist so a delivery can be confirmed, which is a purpose measured in days. The order itself stays: line items, totals and dates are the merchant's own records.",
+    /**
+     * ★`exhausted: false` IS NOT A SUCCESS, and without this it toasted as one.
+     * It means the sweep hit its time budget with rows still due — shopper phone
+     * numbers retained past the window we publish. The api logs a warning nobody
+     * watching this button would see; a green "complete" over it is the worst
+     * available answer.
+     */
+    summarize: (data) => {
+      const d = data as { erased?: number; scanned?: number; exhausted?: boolean } | null;
+      if (!d || typeof d.erased !== "number") return null;
+      const erased = `${d.erased} order${d.erased === 1 ? "" : "s"} cleared`;
+      // ★level: "warning", NOT A BARE STRING. A summarizer that returns a
+      // string renders a GREEN toast whatever it says, so "PII is still
+      // retained" would arrive dressed as a success.
+      return d.exhausted === false
+        ? {
+            message: `${erased}, but the sweep ran out of time with more still due — run it again.`,
+            level: "warning" as const,
+          }
+        : `${erased}. Nothing is left past the retention window.`;
+    },
+  },
+  "org-deletion-executor": {
+    label: "Close accounts that asked to be closed",
+    frequency: "Runs daily at 3:50am UTC",
+    description:
+      "Carries out account and workspace closures whose promised date has arrived, erasing the tenant's data. It never brings a date forward — a request made under a 30-day promise keeps its 30 days.",
+    /**
+     * ★A TICK IS NOT THE SAME AS "EVERYONE WAS CLOSED". The handler answers 200
+     * with counts, and `failed`, `refused` or an undrained backlog all mean a
+     * customer has been promised an erasure that has not happened. That is the
+     * one outcome this button must never render as a plain success.
+     */
+    summarize: (data) => {
+      const d = data as
+        | { completed?: number; failed?: number; refused?: number; deferred?: number; drained?: boolean }
+        | null;
+      if (!d || typeof d.completed !== "number") return null;
+      const done = `${d.completed} closure${d.completed === 1 ? "" : "s"} carried out`;
+      const stuck = [
+        d.failed ? `${d.failed} failed` : "",
+        d.refused ? `${d.refused} refused` : "",
+        d.deferred ? `${d.deferred} deferred` : "",
+      ].filter(Boolean);
+      if (stuck.length) {
+        return {
+          message: `${done}, but ${stuck.join(", ")} — those customers are past their promised date.`,
+          level: "warning" as const,
+        };
+      }
+      return d.drained === false
+        ? {
+            message: `${done}, and more are still due — run it again.`,
+            level: "warning" as const,
+          }
+        : `${done}. Nothing is past its promised date.`;
+    },
+  },
   "shopify-voice-card-learn": {
     label: "Learn store voice",
     frequency: "Runs daily at 3:45am UTC",
@@ -745,6 +808,16 @@ function plural(count: number, noun: string): string {
  * generic "<label> complete") whenever there's no summarizer, the body
  * isn't parseable, or the summarizer opts out. Never throws.
  */
+/** Whether this cron has a summarizer at all.
+ *
+ *  ★"NO SUMMARY" AND "THE SUMMARY WAS LOST" ARE DIFFERENT, and the toast needs
+ *  to tell them apart: most crons legitimately have no summarizer and a generic
+ *  "complete" is right for them, while a cron that HAS one and returned an
+ *  unreadable (truncated) body has hidden whatever it was going to say. */
+export function hasSummarizer(cron: string): boolean {
+  return typeof CRON_METADATA[cron]?.summarize === "function";
+}
+
 export function summarizeCronBody(
   cron: string,
   body: string,
