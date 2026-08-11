@@ -21,10 +21,12 @@ import { FeatureGate } from "@/components/upgrade/feature-gate";
 import { useLocale } from "@/hooks/use-locale";
 import { minorToMajor } from "@/lib/money";
 import { PageShell } from "@/components/dashboard/page-shell";
+import { emptyPlanCopy, partialPlanCopy } from "@/lib/pricing-empty-copy";
 import {
   usePricer,
   usePricerBrief,
   useProposePricing,
+  type PricingPlan,
   type PricingProposal,
 } from "@/hooks/use-commerce-pricer";
 import {
@@ -107,19 +109,25 @@ function PricingBody() {
           <ShieldCheck className="size-3.5" /> Guardrails:
         </span>
         <Badge variant="outline" className="font-normal">
-          Discount ceiling {guardrails.maxDiscountPct ?? "—"}%
+          Discount ceiling {guardrails.maxDiscountPct != null ? `${guardrails.maxDiscountPct}%` : "not set"}
         </Badge>
         <Badge variant="outline" className="font-normal">
           Margin floor {guardrails.marginFloorPct != null ? `${guardrails.marginFloorPct}%` : "not set"}
         </Badge>
-        <span className="text-muted-foreground">
-          Every markdown stays within these — the engine never proposes past them.
-        </span>
+        {/* ★THE CLAIM IS CONDITIONAL ON THERE BEING A CEILING TO STAY WITHIN.
+            "Every markdown stays within these" was unconditional, so it was
+            printed with no ceiling set (nothing to stay within) and with a
+            ceiling of 0 (no markdowns to stay within anything). */}
+        {guardrails.maxDiscountPct != null && guardrails.maxDiscountPct > 0 ? (
+          <span className="text-muted-foreground">
+            Every markdown stays within these — the engine never proposes past them.
+          </span>
+        ) : null}
       </div>
 
       <PricingBrief hasProposals={data.proposals.length > 0} />
 
-      <PriceGrid proposals={data.proposals} scanned={data.scanned} money={money} />
+      <PriceGrid plan={data} money={money} />
 
       <Promotions formatMajor={formatNumber} />
     </PageShell>
@@ -176,15 +184,19 @@ function PricingBrief({ hasProposals }: { hasProposals: boolean }) {
   );
 }
 
+/** ★TAKES THE PLAN, NOT THE PLAN AND ITS OWN PROPOSALS. Passing both meant
+ *  emptiness was read from one prop and its explanation from another, which is
+ *  one refactor away from a grid that renders rows under an empty-state
+ *  sentence. */
 function PriceGrid({
-  proposals,
-  scanned,
+  plan,
   money,
 }: {
-  proposals: PricingProposal[];
-  scanned: boolean;
+  plan: PricingPlan;
   money: (minor: number | null, currency: string | null) => string;
 }) {
+  const proposals = plan.proposals;
+  const partial = partialPlanCopy(plan);
   const propose = useProposePricing();
   const [proposed, setProposed] = useState<Set<string>>(new Set());
 
@@ -212,12 +224,21 @@ function PriceGrid({
       <CardContent className="p-0">
         {proposals.length === 0 ? (
           <p className="px-4 py-10 text-center text-sm text-muted-foreground">
-            {scanned
-              ? "No slow stock to mark down right now — nothing is sitting with tied-up capital."
-              : "No products have synced yet. Your markdown plan appears once your catalog and recent orders sync."}
+            {emptyPlanCopy(plan)}
           </p>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+            {/* ★A NON-EMPTY PLAN CAN BE PARTIAL TOO, and that is the quieter
+                failure: it looks complete. ★OUTSIDE the horizontal scroller —
+                inside it, the caveat scrolled out of view exactly when the
+                merchant scrolled right to read the incomplete numbers it was
+                qualifying. */}
+            {partial ? (
+              <p className="border-b bg-muted/40 px-4 py-2 text-xs text-muted-foreground">
+                {partial}
+              </p>
+            ) : null}
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b text-left text-xs text-muted-foreground">
@@ -269,7 +290,8 @@ function PriceGrid({
                 })}
               </tbody>
             </table>
-          </div>
+            </div>
+          </>
         )}
       </CardContent>
     </Card>
