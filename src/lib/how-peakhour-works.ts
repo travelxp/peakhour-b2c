@@ -160,6 +160,11 @@ export const NEXT_ACTIONS = [
  * attention. Names only — this list exists to be recognised, and the section
  * that renders it deliberately makes no claim about which are connected today
  * (the homepage integrations grid is catalog-driven and does that honestly).
+ *
+ * ⚠️ SIX entries, and the count is load-bearing: the section heading above it
+ * reads "six dashboards" and the caption beneath it reads "Six tabs". Adding a
+ * seventh name here silently makes both lines wrong. Change the list and the
+ * copy together, or don't change either.
  */
 export const SCATTERED_TOOLS = [
   "Store",
@@ -168,8 +173,6 @@ export const SCATTERED_TOOLS = [
   "Ads manager",
   "Google",
   "Reviews",
-  "Analytics",
-  "Inbox",
 ] as const;
 
 /**

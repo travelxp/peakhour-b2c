@@ -65,8 +65,10 @@ export function LaunchPartnerForm({
     }
     setSubmitting(true);
     try {
-      // Trimmed and capped client-side so a paste of an essay fails here with
-      // a visible counter rather than as a 400 from the API's 2048 limit.
+      // The textarea's maxLength already stops typing past the limit, but it
+      // does NOT bound a programmatic paste in every browser — and trimming
+      // whitespace can only shorten. Belt and braces so an over-long value
+      // becomes a truncated application rather than a 400 from the API.
       const trimmedContext = context.trim().slice(0, CONTEXT_MAX);
       const body: Record<string, unknown> = {
         email,

@@ -18,7 +18,8 @@ import {
 } from "lucide-react";
 import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
-import { Reveal, RevealNoScript } from "@/components/marketing/reveal";
+import { Reveal } from "@/components/marketing/reveal";
+import { RevealNoScript } from "@/components/marketing/reveal-noscript";
 import { pageMetadata } from "@/lib/seo";
 import { getPublicCatalog, signupCta } from "@/lib/catalog";
 import { HOW_IT_WORKS_STEPS } from "@/lib/how-it-works";
@@ -34,8 +35,10 @@ import {
 
 export const metadata = pageMetadata({
   title: "See how Peakhour works — one intelligence layer for your whole business",
+  // Kept under ~160 characters: past that, search engines truncate it and the
+  // last clause — which is the actual promise — is what gets cut.
   description:
-    "Peakhour connects to the tools you already use, understands your business automatically, and connects signals across sales, content, marketing, support and presence — so the next action comes to you instead of you hunting for it.",
+    "Peakhour connects to the tools you already use, learns how your business runs, and links what happens across it — so the next action comes to you.",
   path: "/how-it-works",
 });
 
@@ -215,9 +218,10 @@ export default async function HowItWorks() {
               </h2>
             </Reveal>
 
-            <ol className="relative mt-12 flex flex-col gap-8 sm:gap-10">
-              {/* The spine. Sits behind the numbered nodes, stopping level with
-                  the last one so it doesn't trail past the final card. */}
+            {/* The spine lives on this wrapper, NOT inside the <ol> — an
+                ordered list may only contain <li> (plus <script>/<template>),
+                so a decorative <span> in there is invalid markup. */}
+            <div className="relative mt-12">
               <span
                 aria-hidden
                 className="pointer-events-none absolute bottom-10 left-6 top-6 w-px overflow-hidden bg-linear-to-b from-brand/70 via-brand/40 to-transparent sm:left-7"
@@ -225,38 +229,51 @@ export default async function HowItWorks() {
                 <span className="flow-spine-pulse absolute inset-x-0 -top-16 h-16 animate-[flow-spine-pulse_5s_linear_infinite] bg-linear-to-b from-transparent via-brand to-transparent" />
               </span>
 
-              {PLATFORM_FLOW.map((s, i) => {
-                const Icon = FLOW_ICONS[s.id];
-                return (
-                  <Reveal
-                    as="li"
-                    key={s.id}
-                    // Small stagger only — six items at 80ms each still land
-                    // inside half a second of the section coming into view.
-                    delay={Math.min(i, 3) * 80}
-                    className="relative grid grid-cols-[3rem_1fr] items-start gap-4 sm:grid-cols-[3.5rem_1fr] sm:gap-6"
-                  >
-                    <div className="flex size-12 items-center justify-center rounded-2xl bg-brand-gradient shadow-lg shadow-brand/20 sm:size-14">
-                      <Icon className="size-5 text-brand-contrast sm:size-6" strokeWidth={2} aria-hidden />
-                    </div>
-                    <div className="pt-1">
-                      <p
-                        className="text-xs font-bold uppercase tracking-[0.2em] text-brand-label"
-                        aria-hidden
-                      >
-                        {s.step}
-                      </p>
-                      <h3 className="mt-1.5 text-xl font-bold tracking-tight sm:text-2xl">
-                        {s.title}
-                      </h3>
-                      <p className="mt-2 max-w-xl text-muted-foreground">
-                        {s.description}
-                      </p>
-                    </div>
-                  </Reveal>
-                );
-              })}
-            </ol>
+              <ol className="flex flex-col gap-8 sm:gap-10">
+                {PLATFORM_FLOW.map((s, i) => {
+                  const Icon = FLOW_ICONS[s.id];
+                  return (
+                    <Reveal
+                      as="li"
+                      key={s.id}
+                      // Small stagger only — six items at 80ms each still land
+                      // inside half a second of the section coming into view.
+                      delay={Math.min(i, 3) * 80}
+                      // `relative` so the li and its gold icon tile paint ABOVE
+                      // the absolutely-positioned spine behind them (positioned
+                      // element, later in tree order) — otherwise the line runs
+                      // straight through every node.
+                      className="relative grid grid-cols-[3rem_1fr] items-start gap-4 sm:grid-cols-[3.5rem_1fr] sm:gap-6"
+                    >
+                      <div className="flex size-12 items-center justify-center rounded-2xl bg-brand-gradient shadow-lg shadow-brand/20 sm:size-14">
+                        <Icon
+                          className="size-5 text-brand-contrast sm:size-6"
+                          strokeWidth={2}
+                          aria-hidden
+                        />
+                      </div>
+                      <div className="pt-1">
+                        {/* aria-hidden: the <ol> already numbers these for a
+                            screen reader, and "01" read aloud before "1." is
+                            just the same fact twice. */}
+                        <p
+                          className="text-xs font-bold uppercase tracking-[0.2em] text-brand-label"
+                          aria-hidden
+                        >
+                          {s.step}
+                        </p>
+                        <h3 className="mt-1.5 text-xl font-bold tracking-tight sm:text-2xl">
+                          {s.title}
+                        </h3>
+                        <p className="mt-2 max-w-xl text-muted-foreground">
+                          {s.description}
+                        </p>
+                      </div>
+                    </Reveal>
+                  );
+                })}
+              </ol>
+            </div>
           </div>
         </section>
 
@@ -403,8 +420,10 @@ export default async function HowItWorks() {
                     </li>
                   ))}
                 </ul>
+                {/* "Six" here and in the heading above both track the length of
+                    SCATTERED_TOOLS — see the warning on that constant. */}
                 <p className="mt-5 text-muted-foreground">
-                  Eight tabs, eight partial answers, and a nagging sense that the
+                  Six tabs, six partial answers, and a nagging sense that the
                   thing that actually matters is in the one you didn&rsquo;t
                   open.
                 </p>

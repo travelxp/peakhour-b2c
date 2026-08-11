@@ -93,23 +93,3 @@ export function Reveal({
     </Tag>
   );
 }
-
-/**
- * The `<noscript>` escape hatch for pages that use <Reveal>. Without it a
- * visitor with JS disabled gets a page of invisible sections — the reveal
- * never runs, and `.reveal` stays at opacity 0 forever.
- *
- * Rendered from the page (not the root layout) so the rule only ships where
- * something is actually hidden.
- */
-export function RevealNoScript() {
-  return (
-    <noscript>
-      <style
-        dangerouslySetInnerHTML={{
-          __html: ".reveal{opacity:1!important;transform:none!important}",
-        }}
-      />
-    </noscript>
-  );
-}
