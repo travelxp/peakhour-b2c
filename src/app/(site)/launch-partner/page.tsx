@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { ArrowLeft } from "lucide-react";
 import { SITE } from "@/lib/utils";
 import { LaunchPartnerForm } from "./launch-partner-form";
@@ -26,13 +27,31 @@ function normalizeSource(raw?: string): "shopify" | "wordpress" | "direct" {
   return raw === "shopify" || raw === "wordpress" ? raw : "direct";
 }
 
+/**
+ * ISO-3166 alpha-2 from Vercel's edge geo header, or undefined when it's
+ * absent (local dev, a non-Vercel edge) or malformed.
+ *
+ * Deliberately NOT the `countryFrom` shape the /pricing pages use: that one
+ * falls back to the literal "DEFAULT", which is a pricing-resolver sentinel.
+ * The waitlist endpoint validates `country` as /^[A-Z]{2}$/, so "DEFAULT"
+ * would fail the whole signup — an omitted field is the only safe fallback.
+ *
+ * Read here rather than asked on the form: geography is one of the two things
+ * we genuinely want from an early applicant, and it's the one we can get for
+ * free. A country dropdown would cost a field and buy nothing extra.
+ */
+function geoCountry(header: string | null): string | undefined {
+  return header && /^[A-Za-z]{2}$/.test(header) ? header.toUpperCase() : undefined;
+}
+
 export default async function LaunchPartnerPage({
   searchParams,
 }: {
   searchParams: Promise<{ source?: string }>;
 }) {
-  const { source } = await searchParams;
+  const [{ source }, h] = await Promise.all([searchParams, headers()]);
   const signupSource = normalizeSource(source);
+  const country = geoCountry(h.get("x-vercel-ip-country"));
   return (
     <main className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-6 py-16 text-center">
       <div
@@ -56,7 +75,7 @@ export default async function LaunchPartnerPage({
           hands-on setup.
         </p>
 
-        <LaunchPartnerForm source={signupSource} />
+        <LaunchPartnerForm source={signupSource} country={country} />
 
         <a
           href="/coming-soon"

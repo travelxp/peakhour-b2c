@@ -7,18 +7,28 @@ import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
 /**
  * Launch-partner apply form. Applying lands a waitlist_signups row
  * (POST /v1/waitlist/signup). Ops approves in the CMS, which unlocks
  * magic-link sign-in.
  *
- * Deliberately email-only: we don't ask the applicant to pick Commerce vs
- * Marketing or fill in business details. When they arrive from a Shopify /
- * WordPress link the `source` is already known (passed as a prop from the
- * server page's ?source param) and the API derives the product cohort from
- * it — Shopify → Commerce, WordPress → Marketing — so the choice is never
- * put to the user.
+ * ONE required field (email) and ONE optional one — the free-text "what would
+ * you love Peakhour to take off your plate?", which lands in the existing
+ * `businessContext` column. Everything else we want about an early applicant
+ * is derived, never asked:
+ *
+ *   • Product cohort — from `source`. A Shopify link means Commerce, a
+ *     WordPress link means Marketing; the API derives it, so the applicant is
+ *     never made to choose.
+ *   • Country — from the Vercel edge geo header, resolved on the server page
+ *     and passed in as a prop.
+ *   • Business domain — already sitting in the work email for most applicants.
+ *
+ * That is the whole rule for this form: a field earns its place only if the
+ * answer can't be derived AND it changes what we build. Adding a business/
+ * website input or a country dropdown fails both halves.
  */
 type SignupSource = "shopify" | "wordpress" | "direct";
 
@@ -28,8 +38,19 @@ const SOURCE_PRODUCT: Partial<Record<SignupSource, string>> = {
   wordpress: "Peakhour Marketing",
 };
 
-export function LaunchPartnerForm({ source = "direct" }: { source?: SignupSource }) {
+/** Mirrors waitlist_signups.businessContext (max 2048) — the API rejects more. */
+const CONTEXT_MAX = 2048;
+
+export function LaunchPartnerForm({
+  source = "direct",
+  /** ISO-3166 alpha-2 resolved from the edge geo header by the server page. */
+  country,
+}: {
+  source?: SignupSource;
+  country?: string;
+}) {
   const [email, setEmail] = useState("");
+  const [context, setContext] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState<{
     referralCode: string;
@@ -44,6 +65,11 @@ export function LaunchPartnerForm({ source = "direct" }: { source?: SignupSource
     }
     setSubmitting(true);
     try {
+      // The textarea's maxLength already stops typing past the limit, but it
+      // does NOT bound a programmatic paste in every browser — and trimming
+      // whitespace can only shorten. Belt and braces so an over-long value
+      // becomes a truncated application rather than a 400 from the API.
+      const trimmedContext = context.trim().slice(0, CONTEXT_MAX);
       const body: Record<string, unknown> = {
         email,
         intent: "general",
@@ -52,6 +78,11 @@ export function LaunchPartnerForm({ source = "direct" }: { source?: SignupSource
         // Entry surface — the API derives the product cohort from it, so the
         // applicant is never asked to choose Commerce vs Marketing.
         signupSource: source,
+        // Optional; omitted entirely when blank so an untouched field doesn't
+        // write an empty string into the qualitative dataset.
+        ...(trimmedContext ? { businessContext: trimmedContext } : {}),
+        // Derived, never asked. Absent in local dev and on any non-Vercel edge.
+        ...(country ? { country } : {}),
       };
 
       const r = await api.post<{
@@ -182,6 +213,26 @@ export function LaunchPartnerForm({ source = "direct" }: { source?: SignupSource
           onChange={(e) => setEmail(e.target.value)}
           required
           className="h-11"
+        />
+      </div>
+
+      {/* The one optional field. Labelled as optional in the label itself (not
+          only in a placeholder, which vanishes on focus and is invisible to a
+          screen reader), and the submit button never depends on it — a blank
+          answer costs the applicant nothing. */}
+      <div className="space-y-2">
+        <Label htmlFor="lp-context" className="flex flex-wrap items-baseline gap-x-2">
+          What would you love Peakhour to take off your plate?
+          <span className="text-xs font-normal text-muted-foreground">Optional</span>
+        </Label>
+        <Textarea
+          id="lp-context"
+          rows={3}
+          maxLength={CONTEXT_MAX}
+          placeholder="One line is plenty — e.g. answering the same WhatsApp questions all day."
+          value={context}
+          onChange={(e) => setContext(e.target.value)}
+          className="resize-none"
         />
       </div>
 

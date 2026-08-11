@@ -237,3 +237,65 @@
     --ring-angle: 360deg;
   }
 }
+
+/*
+ * Scroll-reveal for the marketing story pages — see <Reveal> in
+ * components/marketing/reveal.tsx, which owns the data-shown flip.
+ *
+ * The hidden state lives in CSS rather than in the component's className so
+ * the reduced-motion override below can neutralise it with NO JavaScript at
+ * all: a visitor who prefers reduced motion sees the full page from the first
+ * paint, not after hydration. (The no-JS case is covered separately by
+ * <RevealNoScript>.)
+ */
+@layer components {
+  .reveal {
+    opacity: 0;
+    transform: translateY(1.25rem);
+    /* Long, decelerating ease — the content settles rather than snapping. */
+    transition:
+      opacity 700ms cubic-bezier(0.16, 1, 0.3, 1),
+      transform 700ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .reveal[data-shown="true"] {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/*
+ * Gold pulse that travels down the flow spine on /how-it-works — the one piece
+ * of ambient motion on the page, standing in for "signal moving through the
+ * platform". Purely decorative; the spine reads fine without it.
+ */
+@keyframes flow-spine-pulse {
+  /* `top` rather than translateY: the spine's height depends on how many
+     steps the page renders, and a percentage translate resolves against the
+     PULSE's own height (4rem), not the spine's — so a transform could never
+     reach the bottom of a spine whose length isn't known here. */
+  0% {
+    top: -4rem;
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  88% {
+    opacity: 1;
+  }
+  100% {
+    top: 100%;
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .flow-spine-pulse {
+    display: none;
+  }
+}
