@@ -43,7 +43,12 @@ import {
 } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import { api, ApiError } from "@/lib/api";
-import { CRON_METADATA, getCronMetadata, summarizeCronBody } from "./cron-metadata";
+import {
+  CRON_METADATA,
+  getCronMetadata,
+  hasSummarizer,
+  summarizeCronBody,
+} from "./cron-metadata";
 
 interface DevCronResult {
   cron: string;
@@ -202,8 +207,22 @@ export function CronToolbar({
       // none is configured) so a no-op stops reading as a green success. The
       // raw body + timing still go to the dev console for debugging.
       const summary = summarizeCronBody(cron, res.body);
+      // ★A TRUNCATED BODY IS NOT A SUCCESS FOR A CRON THAT HAS A SUMMARIZER,
+      // and it fails hardest on exactly the runs that matter. The api caps the
+      // body at 4000 chars, so `org-deletion-executor` blows past it precisely
+      // when several closures FAILED (each carries a long reason string) —
+      // JSON.parse throws, the summary comes back null, and the toast reads
+      // "Close accounts that asked to be closed complete" over customers still
+      // waiting past their promised date. When we expected a summary and could
+      // not have one, say that rather than assuming the best.
+      const truncatedSummary =
+        res.truncated && !summary && hasSummarizer(cron)
+          ? `${label} ran, but the result was too long to read back — check the console before assuming it finished cleanly.`
+          : null;
       if (summary?.level === "warning") {
         toast.warning(summary.message);
+      } else if (truncatedSummary) {
+        toast.warning(truncatedSummary);
       } else {
         toast.success(summary?.message ?? `${label} complete`);
       }
@@ -275,6 +294,14 @@ export function CronToolbar({
             });
           }
         }
+      } else if (code === "INTERNAL_ONLY") {
+        // ★THE ONE REFUSAL A RETRY CANNOT FIX, and it arrives AFTER the user
+        // has clicked through an irreversible-erasure confirmation. "Please try
+        // again in a moment" is the worst possible thing to say there: it is
+        // false, and it invites the click again.
+        toast.error(`${meta.label} is staff-only`, {
+          description: "Your account can't fire this cron. Nothing ran.",
+        });
       } else if (code === "DEV_ONLY") {
         toast.error("Cron triggers are disabled here", {
           description: "This environment is treated as production.",
@@ -334,7 +361,11 @@ export function CronToolbar({
                     disabled={disabled}
                     aria-busy={running}
                   >
-                    {running ? "Running…" : guarded ? `⚠️ ${meta.label}` : meta.label}
+                    {running
+                      ? "Running…"
+                      : guarded || internalOnly
+                        ? `⚠️ ${meta.label}`
+                        : meta.label}
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent className="max-w-xs">
@@ -345,7 +376,12 @@ export function CronToolbar({
                   <p className="text-xs mt-1">{meta.description}</p>
                   {/* Says what the ⚠️ MEANS. An unexplained emoji on a button
                       is a warning nobody can act on. */}
-                  {guarded ? (
+                  {/* ★`guarded || internalOnly`, NOT `guarded` ALONE. The api's two
+                      sets are independent; a cron listed only in
+                      `requiresInternalUser` rendered completely unmarked, which
+                      is the drift the "derived from the api's own sets" claim
+                      says cannot happen. */}
+                  {guarded || internalOnly ? (
                     <p className="text-xs mt-1 font-medium">
                       {internalOnly
                         ? "⚠️ Erases data inside Peakhour, irreversibly, across every tenant on this environment. Staff only."

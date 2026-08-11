@@ -808,6 +808,16 @@ function plural(count: number, noun: string): string {
  * generic "<label> complete") whenever there's no summarizer, the body
  * isn't parseable, or the summarizer opts out. Never throws.
  */
+/** Whether this cron has a summarizer at all.
+ *
+ *  ★"NO SUMMARY" AND "THE SUMMARY WAS LOST" ARE DIFFERENT, and the toast needs
+ *  to tell them apart: most crons legitimately have no summarizer and a generic
+ *  "complete" is right for them, while a cron that HAS one and returned an
+ *  unreadable (truncated) body has hidden whatever it was going to say. */
+export function hasSummarizer(cron: string): boolean {
+  return typeof CRON_METADATA[cron]?.summarize === "function";
+}
+
 export function summarizeCronBody(
   cron: string,
   body: string,

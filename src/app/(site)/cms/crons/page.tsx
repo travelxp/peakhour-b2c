@@ -137,9 +137,12 @@ export default function CmsCronsPage() {
                     >
                       <div className="flex flex-col">
                         <span className="font-medium text-sm">
-                          {guarded ? `⚠️ ${meta.label}` : meta.label}
+                          {guarded || internalOnly ? `⚠️ ${meta.label}` : meta.label}
                         </span>
-                        {guarded ? (
+                        {/* ★`guarded || internalOnly` — the api's two sets are
+                            independent, and a cron listed only in
+                            `requiresInternalUser` rendered unmarked. */}
+                        {guarded || internalOnly ? (
                           <span
                             className={
                               internalOnly
