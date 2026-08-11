@@ -37,10 +37,37 @@ export interface PricingProposal {
   reason: string;
 }
 
+/**
+ * Why a markdown plan came back with no proposals — decided by the api
+ * (`services/commerce/pricer.ts`), rendered here.
+ *
+ * ★THE ORDERING IS NOT THIS PANEL'S TO REDERIVE, and re-deriving it is exactly
+ * how this panel came to tell merchants "nothing is sitting with tied-up
+ * capital" for four different situations, only one of which was good news. The
+ * api decides which cause the merchant can act on; each surface chooses its own
+ * words for it.
+ *
+ * ★OPTIONAL, because the SPA and the api deploy separately. An api that predates
+ * the field sends nothing, and the panel falls back to the `scanned` flag it has
+ * always had rather than rendering an empty string.
+ */
+export type PricingEmptyReason =
+  | "none"
+  | "not_scanned"
+  | "markdowns_off"
+  | "candidates_truncated"
+  | "scan_truncated"
+  | "clear";
+
 export interface PricingPlan {
   windowDays: number;
   scanned: boolean;
+  /** The catalog scan hit its cap — the plan covers part of the store. */
   truncated: boolean;
+  /** Slow stock may have been crowded out of the candidate set (the scan
+   *  returns at-risk products first and stops at 200). */
+  truncatedCandidates?: boolean;
+  emptyReason?: PricingEmptyReason;
   guardrails: PricerGuardrails;
   proposals: PricingProposal[];
   totalRecoveredCapitalMinor: number;
