@@ -291,20 +291,34 @@ export default async function Home({
               scroll on phones. */}
           <div className="mx-auto grid max-w-6xl items-center gap-10 px-4 sm:gap-14 sm:px-6 lg:grid-cols-[1.1fr_0.9fr]">
             <div className="min-w-0">
+              {/* The eyebrow now carries the old H1 ("Five AI pillars. One
+                  platform. Free to start.") — it is the positioning badge, and
+                  the H1 above it is the visitor's problem stated back to them.
+                  Keep the three sentences: they are the shortest complete
+                  statement of what Peakhour is and what it costs to try. */}
               <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand-label">
                 <span className="h-0.5 w-7 bg-brand-gradient" aria-hidden />
-                The AI business platform for growing brands
+                Five AI pillars. One platform. Free to start.
               </span>
               <h1 className="mt-5 text-4xl font-extrabold leading-[1.03] tracking-tight text-pretty sm:text-5xl lg:text-6xl">
-                Five AI pillars. One platform.{" "}
+                Still running one business across{" "}
                 <span className="font-serif italic font-normal text-brand-gradient">
-                  Free to start.
+                  10 different tools?
                 </span>
               </h1>
-              <p className="mt-5 max-w-xl text-lg text-muted-foreground">
-                Peakhour runs the work a growing business can&rsquo;t hire for yet —
-                selling, publishing, advertising, answering, and being found — with
-                AI that learns your brand and reports back in plain language.
+              {/* Two ranks, deliberately: the first line is the value
+                  proposition and sits at foreground weight so it reads as the
+                  answer to the question above; the second line names the five
+                  pillars in plain words and stays muted so it supports rather
+                  than competes. Neither is a second headline — no display
+                  sizing, no serif accent, both well under the H1. */}
+              <p className="mt-5 max-w-xl text-lg font-medium text-foreground">
+                Peakhour runs the work your growing business can&rsquo;t hire a
+                team for yet.
+              </p>
+              <p className="mt-2.5 max-w-xl text-lg text-muted-foreground">
+                One unified AI platform for sales, content, marketing, customer
+                support and online presence.
               </p>
               <div className="mt-8 flex flex-wrap items-center gap-4">
                 {cta.disabled ? (
@@ -321,11 +335,17 @@ export default async function Home({
                     <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
                   </Link>
                 )}
+                {/* Secondary CTA points at the story page, not at /peaks. A
+                    visitor who has just read "10 different tools?" is asking
+                    how this works, not how the AI currency is metered — and
+                    /how-it-works is the page that answers it. Peaks are still
+                    one click away from there, from /pricing and from the
+                    footer. */}
                 <Link
-                  href="/peaks"
+                  href="/how-it-works"
                   className="inline-flex items-center gap-2 rounded-xl border-2 px-6 py-3 text-sm font-bold transition-colors hover:border-brand hover:text-brand"
                 >
-                  See how Peaks work
+                  See how Peakhour works
                 </Link>
               </div>
               {/* Shared with /auth — the pitch must not change at the point
@@ -573,6 +593,44 @@ export default async function Home({
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Who's behind it — a quiet credibility beat between "here's the
+            product" and the ask. Deliberately small: one panel, no photo, no
+            logo wall, no press strip. A pre-launch product can't show customer
+            proof honestly, and the founder's track record is the one piece of
+            proof that is true today.
+
+            Text-only by design — there's no founder portrait in /public, and a
+            stock headshot on a credibility section would undercut the exact
+            thing the section exists to establish. */}
+        <section className="border-t bg-muted/30 py-12 sm:py-16">
+          <div className="mx-auto max-w-6xl px-4 sm:px-6">
+            <div className="mx-auto flex max-w-3xl flex-col gap-6 rounded-3xl border bg-background p-7 sm:flex-row sm:items-start sm:gap-7 sm:p-9">
+              {/* Monogram rather than an avatar — same gold tile the pillar
+                  cards use, so it reads as part of the brand system. */}
+              <div
+                className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-brand-gradient text-lg font-extrabold tracking-tight text-brand-contrast shadow-inner"
+                aria-hidden
+              >
+                PC
+              </div>
+              <div className="min-w-0">
+                <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand-label">
+                  <span className="h-0.5 w-7 bg-brand-gradient" aria-hidden />
+                  Who&rsquo;s behind it
+                </span>
+                <h2 className="mt-3 text-xl font-bold tracking-tight text-pretty sm:text-2xl">
+                  Built by someone who knows what it takes to run a business.
+                </h2>
+                <p className="mt-3 text-muted-foreground">
+                  Peakhour comes from Prashant Chothani, CEO &amp; Managing
+                  Director of Travelxp and Media Worldwide — with decades spent
+                  building, scaling and innovating across global businesses.
+                </p>
+              </div>
             </div>
           </div>
         </section>
