@@ -32,17 +32,34 @@ const MARKDOWNS_OFF =
 const SCAN_TRUNCATED =
   "Nothing to mark down among the products Peakhour could scan — but your catalog is larger than one pass covers, so this isn't the whole shelf.";
 /**
- * ★NAMING AT-RISK STOCK IS SOUND HERE, AND ONLY HERE. The api's flag is
- * `slow.length < counts.slow`, which on its own does not say what crowded the
- * slow items out. But this branch is reached only when the plan is EMPTY —
- * meaning ZERO slow items came back while some were counted — and
- * `scoreInventory` sorts at-risk first, slow second. Zero slow returned
- * therefore means the 200 slots were consumed by at-risk products before the
- * sort ever reached slow. Clearing them really is the action that lets a plan
- * build. The NON-EMPTY caveat below cannot make that claim and does not.
+ * ★IT DOES NOT NAME AT-RISK STOCK, AND AN EARLIER VERSION DID — with a comment
+ * arguing that an empty plan meant zero slow items came back, so the 200 slots
+ * must have been consumed by at-risk products. That argument is false. The api
+ * computes this reason BEFORE the proposal loop, and a plan also ends up empty
+ * when slow items WERE examined and every one was filtered out for being out of
+ * stock, unpriced, or clamped to nothing (`pricer.ts`). Worse, `scoreInventory`
+ * sorts out-of-stock items first inside the slow bucket, so those are the slow
+ * items most likely to survive the cap — a store with 150 at-risk and 300 slow
+ * whose surviving 50 are all zero-stock would have been told its slow stock was
+ * never looked at, and given advice that cannot build a plan.
+ *
+ * What the flag does establish is that some slow products were not examined.
+ * That is what this says.
  */
 const CANDIDATES_TRUNCATED =
-  "Peakhour checked the products needing the most urgent attention first and ran out of room before reaching your slow-moving stock — so this isn't a clean bill of health. Clearing your at-risk products will let a plan build.";
+  "Peakhour checks the most urgent products first and ran out of room, so some of your slow-moving stock wasn't examined — this isn't a clean bill of health.";
+
+/**
+ * ★AN `emptyReason` THIS BUILD DOES NOT KNOW. The api's own switch omits a
+ * `default` so a new reason is a compile error there; this mirror cannot have
+ * that, because the api can ship a sixth reason to an SPA that has not
+ * redeployed. Falling back to the flag-based derivation would then answer with
+ * the reassuring sentence for a cause it has never heard of — reinstating
+ * exactly the false all-clear this whole change removes. Saying less is the
+ * only safe answer.
+ */
+const UNKNOWN_REASON =
+  "No markdowns to show right now. If you were expecting some, contact support — Peakhour reported a reason this page doesn't recognise yet.";
 
 /**
  * The ordering, re-derived — for an api that predates `emptyReason` ONLY.
@@ -68,6 +85,14 @@ function legacyEmptyCopy(plan: PricingPlan): string {
 }
 
 export function emptyPlanCopy(plan: PricingPlan): string {
+  // ★"THE API IS OLD" AND "THE API SAID SOMETHING NEW" ARE OPPOSITE SITUATIONS,
+  // and one `default` arm was treating them as the same. An absent field means
+  // an api that predates it, where the legacy flags genuinely can explain three
+  // of the five causes and CLEAR is a correct answer. An unrecognised VALUE
+  // means the api knows something this build does not — and answering that with
+  // the reassuring sentence is the bug this file exists to remove.
+  if (plan.emptyReason === undefined) return legacyEmptyCopy(plan);
+
   switch (plan.emptyReason) {
     case "not_scanned":
       return NOT_SCANNED;
@@ -80,12 +105,11 @@ export function emptyPlanCopy(plan: PricingPlan): string {
     case "clear":
       return CLEAR;
     // ★`none` MEANS THE PLAN IS NOT EMPTY, so reaching it here is impossible by
-    // construction — and mapping an impossible state onto the single most
-    // reassuring sentence is the worst available default. It falls through to
-    // the legacy derivation, which reasons from the flags rather than assuming.
+    // construction — which makes it a bug, and the worst possible response to a
+    // bug is the most comforting sentence available.
     case "none":
     default:
-      return legacyEmptyCopy(plan);
+      return UNKNOWN_REASON;
   }
 }
 

@@ -42,6 +42,11 @@ describe("emptyPlanCopy", () => {
     const copy = emptyPlanCopy({ ...base, emptyReason: "candidates_truncated" });
     expect(copy).toContain("ran out of room");
     expect(copy).not.toContain(CLEAN_SHELF);
+    // ★AND DOES NOT PRESCRIBE CLEARING AT-RISK STOCK. The api computes this
+    // reason before the proposal loop, so a plan is also empty when slow items
+    // WERE examined and every one was filtered out (zero stock, unpriced,
+    // clamped). Advice about at-risk products would then not build a plan.
+    expect(copy).not.toContain("at-risk");
   });
 
   it("★never claims a clean shelf on a partial scan", () => {
@@ -53,8 +58,25 @@ describe("emptyPlanCopy", () => {
   it("★`none` is unreachable, so it must not map to the reassuring sentence", () => {
     // It means the plan is NOT empty. Reaching it here is a bug somewhere, and
     // the worst possible response to a bug is the most comforting sentence.
-    const copy = emptyPlanCopy({ ...base, emptyReason: "none", truncated: true });
-    expect(copy).toContain("isn't the whole shelf");
+    // ★Pinned with CLEAN flags too — with `truncated: true` the old code passed
+    // this by accident, via a fallback that happened to say something cautious.
+    for (const over of [{ truncated: true }, {}]) {
+      const copy = emptyPlanCopy({ ...base, emptyReason: "none", ...over });
+      expect(copy).not.toContain(CLEAN_SHELF);
+      expect(copy).toContain("doesn't recognise");
+    }
+  });
+
+  it("★an UNKNOWN reason is not a clean shelf — the api may ship a sixth", () => {
+    // The api omits a `default` so a new reason is a compile error there. This
+    // mirror cannot: a newer api can answer an SPA that has not redeployed, and
+    // routing that into the flag derivation would reinstate the false all-clear.
+    const copy = emptyPlanCopy({
+      ...base,
+      emptyReason: "some_future_reason" as PricingPlan["emptyReason"],
+    });
+    expect(copy).not.toContain(CLEAN_SHELF);
+    expect(copy).toContain("contact support");
   });
 });
 
@@ -101,7 +123,7 @@ describe("partialPlanCopy", () => {
     expect(partialPlanCopy(base)).toBeNull();
   });
 
-  it("★does NOT blame at-risk stock, unlike the empty case", () => {
+  it("★does NOT blame at-risk stock — neither caveat may", () => {
     // With proposals present, slow items DID make the set — so the cap was hit
     // partway through them, which happens with 300 slow products and no at-risk
     // ones at all. Advice about clearing at-risk stock would be about products
