@@ -131,8 +131,15 @@ export default async function HowItWorks() {
 
             {/* Before / after — the single most important picture on the page.
                 Left: five products that each only know their own corner.
-                Right: the same five wired into one layer. */}
-            <Reveal className="mt-14 grid gap-4 lg:mt-16 lg:grid-cols-2 lg:gap-6">
+                Right: the same five wired into one layer.
+
+                Deliberately NOT wrapped in <Reveal>. On a desktop viewport this
+                sits in the first screenful and is a candidate for the LCP
+                element; hiding it at opacity 0 until an observer fires would
+                delay that metric to buy a fade nobody scrolled to earn. Reveals
+                start at the section below, where there is actually a scroll to
+                respond to. */}
+            <div className="mt-14 grid gap-4 lg:mt-16 lg:grid-cols-2 lg:gap-6">
               {/* Today */}
               <div className="rounded-3xl border border-dashed bg-muted/30 p-6 sm:p-8">
                 <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">
@@ -145,11 +152,15 @@ export default async function HowItWorks() {
                   {PILLAR_MARKS.map((p) => {
                     const Icon = p.icon;
                     return (
-                      <div key={p.name} className="flex flex-col items-center gap-2">
+                      // min-w-0 + break-words: `grid-cols-5` tracks are
+                      // minmax(0,1fr), so at ~320px each cell is ~43px while
+                      // "Commerce" needs ~45px — without these the label
+                      // spills out of its cell instead of wrapping.
+                      <div key={p.name} className="flex min-w-0 flex-col items-center gap-2">
                         <div className="flex aspect-square w-full items-center justify-center rounded-xl border border-dashed bg-background text-muted-foreground">
                           <Icon className="size-4 sm:size-5" strokeWidth={1.75} aria-hidden />
                         </div>
-                        <span className="text-center text-[0.6rem] font-semibold leading-tight text-muted-foreground sm:text-xs">
+                        <span className="break-words text-center text-[0.6rem] font-semibold leading-tight text-muted-foreground sm:text-xs">
                           {p.name}
                         </span>
                         {/* A stub that goes nowhere — the visual point of this
@@ -177,11 +188,15 @@ export default async function HowItWorks() {
                   {PILLAR_MARKS.map((p) => {
                     const Icon = p.icon;
                     return (
-                      <div key={p.name} className="flex flex-col items-center gap-2">
+                      // min-w-0 + break-words: `grid-cols-5` tracks are
+                      // minmax(0,1fr), so at ~320px each cell is ~43px while
+                      // "Commerce" needs ~45px — without these the label
+                      // spills out of its cell instead of wrapping.
+                      <div key={p.name} className="flex min-w-0 flex-col items-center gap-2">
                         <div className="flex aspect-square w-full items-center justify-center rounded-xl border border-brand/40 bg-brand/10 text-brand">
                           <Icon className="size-4 sm:size-5" strokeWidth={1.75} aria-hidden />
                         </div>
-                        <span className="text-center text-[0.6rem] font-semibold leading-tight text-zinc-300 sm:text-xs">
+                        <span className="break-words text-center text-[0.6rem] font-semibold leading-tight text-zinc-300 sm:text-xs">
                           {p.name}
                         </span>
                         {/* Gold lead-in — every pillar runs into the bar below. */}
@@ -200,7 +215,7 @@ export default async function HowItWorks() {
                   between them.
                 </p>
               </div>
-            </Reveal>
+            </div>
           </div>
         </section>
 
@@ -429,18 +444,22 @@ export default async function HowItWorks() {
                 </p>
               </Reveal>
 
-              {/* After: the panel. Illustrative, so it is one picture to a
-                  screen reader — the "buttons" are styled spans with no
-                  behaviour, exactly like the landing hero's pillar console. */}
+              {/* After: the panel.
+
+                  NOT role="img" — the landing hero's pillar console uses that
+                  because its rows are pure decoration (invented statuses), but
+                  these four rows ARE the argument: they're the concrete
+                  examples of what Peakhour brings you instead of a dashboard.
+                  Collapsing them into one alt string would hand a screen-reader
+                  user a summary of the page's best content instead of the
+                  content. So it's a real list, and the styled action chips —
+                  which are inert spans, not buttons — get an sr-only prefix so
+                  "Create content" doesn't read as a dangling fragment. */}
               <Reveal delay={120}>
                 <p className="text-sm font-bold uppercase tracking-[0.18em] text-brand-label">
                   With Peakhour
                 </p>
-                <div
-                  className="mt-5 overflow-hidden rounded-2xl border border-white/10 bg-zinc-900 p-4 shadow-2xl sm:p-5"
-                  role="img"
-                  aria-label="Peakhour bringing four suggested next actions to the founder, each drawn from a different part of the business"
-                >
+                <div className="mt-5 overflow-hidden rounded-2xl border border-white/10 bg-zinc-900 p-4 shadow-2xl sm:p-5">
                   <div className="flex items-center justify-between px-1 pb-3 text-[0.7rem] font-bold uppercase tracking-[0.18em] text-zinc-400">
                     <span>Worth your attention</span>
                     <span className="flex items-center gap-1.5 text-emerald-400">
@@ -448,27 +467,32 @@ export default async function HowItWorks() {
                       live
                     </span>
                   </div>
-                  <div className="flex flex-col gap-2.5">
+                  <ul className="flex flex-col gap-2.5">
                     {NEXT_ACTIONS.map((row) => {
                       const Icon = PILLAR_ICON[row.pillar];
                       return (
-                        <div
+                        <li
                           key={row.observation}
                           className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-white/10 bg-white/4 px-3.5 py-3 text-sm"
                         >
                           <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-brand/15 text-brand">
                             {Icon && <Icon className="size-3.5" strokeWidth={2} aria-hidden />}
+                            {/* The pillar is conveyed by icon alone visually —
+                                without this the row loses which part of the
+                                business it came from. */}
+                            <span className="sr-only">{row.pillar}:</span>
                           </span>
                           <span className="min-w-0 flex-1 text-zinc-200">
                             &ldquo;{row.observation}&rdquo;
                           </span>
                           <span className="shrink-0 rounded-lg bg-brand-gradient px-3 py-1.5 text-xs font-bold text-brand-contrast">
+                            <span className="sr-only">Suggested action: </span>
                             {row.action}
                           </span>
-                        </div>
+                        </li>
                       );
                     })}
-                  </div>
+                  </ul>
                   <p className="px-1 pt-4 text-xs text-zinc-400">
                     Illustrative — your list is built from your own business.
                   </p>
@@ -560,7 +584,11 @@ export default async function HowItWorks() {
                   delay={i * 90}
                   className="rounded-2xl border bg-background p-7 transition-[transform,border-color,box-shadow] duration-300 ease-out hover:-translate-y-1 hover:border-brand/50 hover:shadow-lg hover:shadow-brand/15 motion-reduce:transition-none motion-reduce:hover:translate-y-0"
                 >
-                  <div className="font-serif text-4xl font-normal italic text-brand-gradient" aria-hidden>
+                  {/* NOT aria-hidden (unlike the flow spine's "01", where the
+                      <ol> already numbers each item): these three are plain
+                      divs, so the digit is the only thing carrying their
+                      order. */}
+                  <div className="font-serif text-4xl font-normal italic text-brand-gradient">
                     {s.step}
                   </div>
                   <h3 className="mt-3 text-lg font-bold tracking-tight">{s.title}</h3>
