@@ -21,6 +21,7 @@ import { FeatureGate } from "@/components/upgrade/feature-gate";
 import { useLocale } from "@/hooks/use-locale";
 import { minorToMajor } from "@/lib/money";
 import { PageShell } from "@/components/dashboard/page-shell";
+import { emptyPlanCopy, partialPlanCopy } from "@/lib/pricing-empty-copy";
 import {
   usePricer,
   usePricerBrief,
@@ -126,7 +127,7 @@ function PricingBody() {
 
       <PricingBrief hasProposals={data.proposals.length > 0} />
 
-      <PriceGrid proposals={data.proposals} plan={data} money={money} />
+      <PriceGrid plan={data} money={money} />
 
       <Promotions formatMajor={formatNumber} />
     </PageShell>
@@ -183,53 +184,19 @@ function PricingBrief({ hasProposals }: { hasProposals: boolean }) {
   );
 }
 
-/**
- * What to say when the markdown plan is empty.
- *
- * ★AN EMPTY PLAN HAS FIVE CAUSES AND ONLY ONE OF THEM IS GOOD NEWS. This panel
- * used to render the reassuring one — "nothing is sitting with tied-up capital"
- * — for all of them, keyed off `scanned` alone. So a store whose catalog scan
- * hit its cap, or whose slow stock was crowded out of the candidate set by
- * at-risk products, or that had switched markdowns off entirely, was told its
- * shelf was clear. The api now decides WHICH cause (`emptyReason`,
- * `services/commerce/pricer.ts`); this only chooses the words.
- *
- * ★AND IT FALLS BACK, because the SPA and the api deploy separately. Against an
- * api that predates the field the panel keeps its old two-state behaviour rather
- * than rendering nothing.
- */
-function emptyPlanCopy(plan: PricingPlan): string {
-  switch (plan.emptyReason) {
-    case "not_scanned":
-      return "No products have synced yet. Your markdown plan appears once your catalog and recent orders sync.";
-    case "markdowns_off":
-      // ★DOES NOT PROMISE CANDIDATES EXIST — the plan carries no slow count, so
-      // "raise it to see your candidates" would assert something unknowable.
-      return "Markdowns are switched off — your clearance ceiling is 0%, so nothing is being proposed. Raise it to see whether anything qualifies.";
-    case "candidates_truncated":
-      return "Peakhour checked the products needing the most urgent attention first and ran out of room before reaching your slow-moving stock — so this isn't a clean bill of health. Clearing your at-risk products will let a plan build.";
-    case "scan_truncated":
-      return "Nothing to mark down among the products Peakhour could scan — but your catalog is larger than one pass covers, so this isn't the whole shelf.";
-    case "clear":
-    case "none":
-      return "No slow stock to mark down right now — nothing is sitting with tied-up capital.";
-    default:
-      // An api that predates `emptyReason`. The old two-state behaviour.
-      return plan.scanned
-        ? "No slow stock to mark down right now — nothing is sitting with tied-up capital."
-        : "No products have synced yet. Your markdown plan appears once your catalog and recent orders sync.";
-  }
-}
-
+/** ★TAKES THE PLAN, NOT THE PLAN AND ITS OWN PROPOSALS. Passing both meant
+ *  emptiness was read from one prop and its explanation from another, which is
+ *  one refactor away from a grid that renders rows under an empty-state
+ *  sentence. */
 function PriceGrid({
-  proposals,
   plan,
   money,
 }: {
-  proposals: PricingProposal[];
   plan: PricingPlan;
   money: (minor: number | null, currency: string | null) => string;
 }) {
+  const proposals = plan.proposals;
+  const partial = partialPlanCopy(plan);
   const propose = useProposePricing();
   const [proposed, setProposed] = useState<Set<string>>(new Set());
 
@@ -260,19 +227,18 @@ function PriceGrid({
             {emptyPlanCopy(plan)}
           </p>
         ) : (
-          <div className="overflow-x-auto">
+          <>
             {/* ★A NON-EMPTY PLAN CAN BE PARTIAL TOO, and that is the quieter
-                failure: it looks complete. Either the catalog scan hit its cap
-                or slow stock was crowded out of the candidate set by at-risk
-                products, and neither is visible from a table that renders
-                whatever it was given. */}
-            {plan.truncated || plan.truncatedCandidates ? (
+                failure: it looks complete. ★OUTSIDE the horizontal scroller —
+                inside it, the caveat scrolled out of view exactly when the
+                merchant scrolled right to read the incomplete numbers it was
+                qualifying. */}
+            {partial ? (
               <p className="border-b bg-muted/40 px-4 py-2 text-xs text-muted-foreground">
-                {plan.truncatedCandidates
-                  ? "Peakhour checks the most urgent products first and ran out of room, so there may be slow-moving stock this plan hasn't reached."
-                  : "Your catalog is larger than one pass covers, so this plan is built from the products that were scanned."}
+                {partial}
               </p>
             ) : null}
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b text-left text-xs text-muted-foreground">
@@ -324,7 +290,8 @@ function PriceGrid({
                 })}
               </tbody>
             </table>
-          </div>
+            </div>
+          </>
         )}
       </CardContent>
     </Card>
