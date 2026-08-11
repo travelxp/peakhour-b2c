@@ -690,6 +690,18 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
     description:
       "Refreshes long-lived Meta tokens for connections nothing has touched recently, so a dormant account doesn't quietly expire and need reconnecting.",
   },
+  "commerce-order-pii-sweep": {
+    label: "Erase expired shopper details",
+    frequency: "Runs daily at 3:40am UTC",
+    description:
+      "Removes the shopper's phone and name from orders older than the retention window — they exist so a delivery can be confirmed, which is a purpose measured in days. The order itself stays: line items, totals and dates are the merchant's own records.",
+  },
+  "org-deletion-executor": {
+    label: "Close accounts that asked to be closed",
+    frequency: "Runs daily at 3:50am UTC",
+    description:
+      "Carries out account and workspace closures whose promised date has arrived, erasing the tenant's data. It never brings a date forward — a request made under a 30-day promise keeps its 30 days.",
+  },
   "shopify-voice-card-learn": {
     label: "Learn store voice",
     frequency: "Runs daily at 3:45am UTC",
