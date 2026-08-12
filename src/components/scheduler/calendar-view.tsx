@@ -28,7 +28,7 @@ import {
   RotateCw,
   XCircle,
 } from "lucide-react";
-import { ChannelIconCompact } from "@/components/ui/channel-icon";
+import { ChannelIconCompact } from "@/components/brand/channel-icon";
 import { cn } from "@/lib/utils";
 import {
   channelDisplayName,

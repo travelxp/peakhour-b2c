@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Plus, ChevronRight } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { ChannelIconCompact } from "@/components/ui/channel-icon";
+import { ChannelIconCompact } from "@/components/brand/channel-icon";
 import {
   Tooltip,
   TooltipContent,
@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { ChannelWidget } from "@/hooks/use-home-summary";
-import { Sparkline } from "@/components/ui/sparkline";
+import { Sparkline } from "@/components/viz/sparkline";
 
 /**
  * Per-channel widgets — one card per CONNECTED channel (the server only

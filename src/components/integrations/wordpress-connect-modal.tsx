@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { WordPressIcon } from "@/components/ui/brand-icons";
+import { WordPressIcon } from "@/components/brand/brand-icons";
 import { toast } from "sonner";
 import {
   Loader2,

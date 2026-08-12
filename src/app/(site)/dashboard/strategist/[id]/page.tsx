@@ -13,7 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { LibraryMediaPicker } from "@/components/media/library-media-picker";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { ChannelIcon } from "@/components/ui/channel-icon";
+import { ChannelIcon } from "@/components/brand/channel-icon";
 import { PipelineStatusBadge } from "../components/status-badge";
 import { PipelineStepper, STAGE_PANEL_MAP } from "../components/pipeline-stepper";
 import { IdeaCardActions } from "../components/idea-card-actions";

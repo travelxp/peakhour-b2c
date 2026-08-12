@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { ChannelIconCompact } from "@/components/ui/channel-icon";
+import { ChannelIconCompact } from "@/components/brand/channel-icon";
 import { cn } from "@/lib/utils";
 import {
   channelDisplayName,

@@ -66,7 +66,7 @@ import {
   DiscordIcon,
   TelegramIcon,
   TeamsIcon,
-} from "@/components/ui/brand-icons";
+} from "@/components/brand/brand-icons";
 
 interface Integration {
   provider: string;

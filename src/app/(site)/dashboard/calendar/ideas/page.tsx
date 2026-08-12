@@ -25,7 +25,7 @@ interface CalendarIdea {
   createdAt: string;
 }
 
-import { ChannelIconCompact } from "@/components/ui/channel-icon";
+import { ChannelIconCompact } from "@/components/brand/channel-icon";
 
 const STATUS_COLORS: Record<string, string> = {
   brainstorm: "bg-slate-100 border-slate-200",

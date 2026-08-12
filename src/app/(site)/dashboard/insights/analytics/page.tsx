@@ -28,7 +28,7 @@ import {
 import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { useSetAskEntityIds } from "@/providers/ask-context-provider";
 import { ASK_ENABLED } from "@/lib/flags";
-import { TrendChart } from "@/components/ui/trend-chart";
+import { TrendChart } from "@/components/viz/trend-chart";
 import { ExplainCard } from "@/components/dashboard/explain-card";
 import {
   useAnalyticsInsights,

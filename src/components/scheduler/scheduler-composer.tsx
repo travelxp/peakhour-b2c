@@ -46,7 +46,7 @@ import { StaggerStrategyChooser } from "./stagger-strategy-chooser";
 import { ScheduleConfirmCard } from "./schedule-confirm-card";
 import { ScheduleConflictWarning } from "./schedule-conflict-warning";
 import { TimezoneBanner } from "./timezone-banner";
-import { ChannelIconCompact } from "@/components/ui/channel-icon";
+import { ChannelIconCompact } from "@/components/brand/channel-icon";
 import { useSchedulePreview } from "./use-schedule-preview";
 import { useSchedulerEntitlements } from "./use-scheduler-entitlements";
 import { UpgradeCallout } from "./upgrade-callout";

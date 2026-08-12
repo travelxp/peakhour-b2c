@@ -11,7 +11,7 @@
  */
 
 import { CheckCircle2, AlertCircle, Loader2, Sparkles } from "lucide-react";
-import { ChannelIconCompact } from "@/components/ui/channel-icon";
+import { ChannelIconCompact } from "@/components/brand/channel-icon";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { channelDisplayName, formatScheduleLabel } from "@/lib/scheduler/format";

@@ -35,7 +35,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
-import { TrendChart } from "@/components/ui/trend-chart";
+import { TrendChart } from "@/components/viz/trend-chart";
 import { ExplainCard } from "@/components/dashboard/explain-card";
 import { useSetAskEntityIds } from "@/providers/ask-context-provider";
 import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
