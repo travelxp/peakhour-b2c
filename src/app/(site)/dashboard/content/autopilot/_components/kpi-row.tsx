@@ -54,7 +54,7 @@ export function KpiRow({ kpis }: { kpis: HomeSummary["kpis"] }) {
             key={k.key}
             className={cn(
               "gap-0 p-4 transition-colors",
-              active && "border-amber-300 bg-amber-50/60 dark:border-amber-900/60 dark:bg-amber-950/30",
+              active && "border-warning/30 bg-warning/8",
             )}
           >
             <div className="flex items-center justify-between">
@@ -64,14 +64,14 @@ export function KpiRow({ kpis }: { kpis: HomeSummary["kpis"] }) {
               <Icon
                 className={cn(
                   "size-4 text-muted-foreground/60",
-                  active && "text-amber-600 dark:text-amber-500",
+                  active && "text-warning-on-tint",
                 )}
               />
             </div>
             <div
               className={cn(
                 "mt-1 text-3xl font-semibold tabular-nums tracking-tight",
-                active && "text-amber-700 dark:text-amber-400",
+                active && "text-warning-on-tint",
               )}
             >
               {value}

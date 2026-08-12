@@ -144,7 +144,7 @@ export function LaunchPartnerForm({
                 : "Position will update on your next visit"}
             </p>
             {success.foundingMember ? (
-              <p className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-amber-700 dark:text-amber-400">
+              <p className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-warning-on-tint">
                 <Sparkles className="size-3" />
                 Founding Member — early-access perks locked in
               </p>

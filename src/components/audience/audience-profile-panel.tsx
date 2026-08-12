@@ -77,7 +77,7 @@ const TIER_LABEL: Record<EvidenceTier, string> = {
 const TIER_CLASS: Record<EvidenceTier, string> = {
   stated: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
   observed: "border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300",
-  inferred: "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300",
+  inferred: "border-warning/40 bg-warning/10 text-warning-on-tint",
 };
 
 /** Human labels for the server's field ids. Anything the server sends that is
@@ -464,9 +464,9 @@ export function AudienceProfilePanel({ defaultOpen = false }: { defaultOpen?: bo
               {conflicts.map((conflict) => (
                 <div
                   key={conflict.field}
-                  className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 p-2.5 text-sm"
+                  className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/5 p-2.5 text-sm"
                 >
-                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning-on-tint" />
                   <div>
                     <span className="font-medium">
                       {FIELD_LABEL[conflict.field] ?? conflict.field}

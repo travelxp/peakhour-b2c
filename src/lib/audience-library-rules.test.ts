@@ -513,14 +513,20 @@ describe("critiqueTone", () => {
 
   it("★the words and the colour point the same way", () => {
     // The regression this guards: `warn` once carried the MILDER lead ("Worth
-    // knowing") while `info` carried "One caveat" — so the amber line about
-    // wasting budget read as the gentlest sentence on the card while the colour
-    // shouted. A skimming reader believes the wording.
+    // knowing") while `info` carried "One caveat" — so the cautioning line
+    // about wasting budget read as the gentlest sentence on the card while the
+    // colour shouted. A skimming reader believes the wording.
+    //
+    // Asserted against the semantic token rather than a hue: this used to pin
+    // the literal string "amber", which made the test fail the moment the
+    // colour moved to `--warning` even though nothing it cares about changed.
+    // What it is actually guarding is that `warn` is painted as a caution and
+    // `info` is not.
     const warn = critiqueTone("warn");
     const info = critiqueTone("info");
     expect(warn.lead).not.toBe(info.lead);
-    expect(warn.className).toContain("amber");
-    expect(info.className).not.toContain("amber");
+    expect(warn.className).toContain("warning");
+    expect(info.className).not.toContain("warning");
     // "Careful" outranks "Worth knowing"; pin the direction rather than the
     // exact copy, so a reword cannot silently re-invert it.
     expect(warn.lead).toBe("Careful:");

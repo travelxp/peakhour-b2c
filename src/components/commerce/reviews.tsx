@@ -113,7 +113,7 @@ function ReviewsBody() {
       {/* Stat row + analyse */}
       <div className="mb-6 flex flex-wrap items-center gap-4">
         <div className="flex items-center gap-1.5">
-          <Star className="size-5 fill-amber-400 text-amber-400" />
+          <Star className="size-5 fill-brand text-brand" />
           <span className="text-2xl font-semibold tabular-nums">
             {data.averageRating ?? "—"}
           </span>
@@ -279,7 +279,7 @@ function ReviewCard({
             <div className="flex items-center gap-2">
               {review.rating != null && (
                 <span className="inline-flex items-center gap-0.5 text-sm tabular-nums">
-                  <Star className="size-3.5 fill-amber-400 text-amber-400" />
+                  <Star className="size-3.5 fill-brand text-brand" />
                   {review.rating}
                 </span>
               )}

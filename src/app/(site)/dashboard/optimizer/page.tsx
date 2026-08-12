@@ -127,17 +127,21 @@ function OptimizerWaitlistCard() {
   return (
     <div className="space-y-4">
       <OptimizerPreview />
-      <Card className="border-amber-200 bg-linear-to-br from-amber-50/60 to-white dark:border-amber-900/40 dark:from-amber-950/30 dark:to-transparent">
+      {/* Brand gold, not warning: nothing here is going wrong, this is the
+          "founding member" pitch. The rest of the amber on this page was a
+          genuine warning and converted to --warning; this card is the one
+          place on it where gold is the brand speaking. */}
+      <Card className="border-brand/30 bg-linear-to-br from-brand/8 to-card">
         <CardContent className="flex flex-col items-start justify-between gap-6 p-6 lg:flex-row lg:items-center">
           <div className="flex flex-col gap-1.5">
-            <h3 className="text-base font-semibold tracking-tight text-amber-950 dark:text-amber-100">
+            <h3 className="text-base font-semibold tracking-tight">
               Reserve early access to Optimizer
             </h3>
-            {/* amber-on-amber so contrast holds at the gradient's
-                amber end (where `text-muted-foreground` is the
-                weakest). The white end + the dark theme are both
-                comfortably safe with this token pair. */}
-            <p className="max-w-xl text-sm text-amber-900/80 dark:text-amber-200/80">
+            {/* Gold-on-gold so contrast holds at the gradient's tinted end,
+                where `text-muted-foreground` is weakest. --brand-label is the
+                theme-aware step (deep amber on light, bright gold on dark),
+                so this needs no dark: twin. */}
+            <p className="max-w-xl text-sm text-brand-label">
               Optimizer rolls out to founding members first. Join the waitlist to lock in access + early-bird pricing.
             </p>
           </div>

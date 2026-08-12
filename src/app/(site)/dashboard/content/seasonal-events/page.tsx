@@ -632,7 +632,7 @@ function EventRow({
               className={
                 event.status === "tentative"
                   ? "shrink-0 text-[10px] text-muted-foreground"
-                  : "shrink-0 text-[10px] border-amber-500/40 text-amber-700 dark:text-amber-300"
+                  : "shrink-0 text-[10px] border-warning/40 text-warning-on-tint"
               }
               title={
                 event.status === "tentative"
@@ -666,7 +666,7 @@ function EventRow({
             // editor.
             <Badge
               variant="outline"
-              className="shrink-0 text-[10px] border-amber-500/40 text-amber-700 dark:text-amber-300"
+              className="shrink-0 text-[10px] border-warning/40 text-warning-on-tint"
               title="The current-year date has passed and no next-year date is mapped. Click Edit on this row and add a per-year date for the upcoming year."
             >
               approximate · add next year

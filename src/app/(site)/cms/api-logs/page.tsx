@@ -60,7 +60,7 @@ interface LogsResponse {
 function statusBadge(code?: number) {
   if (!code) return null;
   if (code >= 500) return <Badge className="bg-red-100 text-red-800 hover:bg-red-100">{code}</Badge>;
-  if (code >= 400) return <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">{code}</Badge>;
+  if (code >= 400) return <Badge className="bg-warning/15 text-warning-on-tint hover:bg-warning/25">{code}</Badge>;
   if (code >= 300) return <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">{code}</Badge>;
   return <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">{code}</Badge>;
 }

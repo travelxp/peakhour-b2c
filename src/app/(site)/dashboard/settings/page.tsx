@@ -257,7 +257,7 @@ function SettingsContent() {
       )}
 
       {selectPagePrompt && (
-        <div className="flex flex-col gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-800 dark:text-amber-300">
+        <div className="flex flex-col gap-2 rounded-lg border border-warning/40 bg-warning/10 p-4 text-sm text-warning-on-tint">
           <p className="font-medium">Which Company Page belongs to this business?</p>
           <p>
             Your LinkedIn account manages several Company Pages. Posts publish

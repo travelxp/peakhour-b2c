@@ -86,7 +86,7 @@ function outcomeBadge(o?: string) {
     case "success":
       return <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">success</Badge>;
     case "partial_failure":
-      return <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">partial</Badge>;
+      return <Badge className="bg-warning/15 text-warning-on-tint hover:bg-warning/25">partial</Badge>;
     case "error":
       return <Badge className="bg-red-100 text-red-800 hover:bg-red-100">error</Badge>;
     case "noop":

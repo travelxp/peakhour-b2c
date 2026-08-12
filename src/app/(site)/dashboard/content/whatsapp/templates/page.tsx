@@ -67,7 +67,7 @@ const EMPTY_EDITOR: Editor = {
 
 const STATUS_VARIANT: Record<TemplateStatus, { label: string; className: string }> = {
   draft: { label: "Draft", className: "bg-muted text-muted-foreground" },
-  submitted: { label: "In review", className: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300" },
+  submitted: { label: "In review", className: "bg-warning/15 text-warning-on-tint" },
   approved: { label: "Approved", className: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300" },
   rejected: { label: "Rejected", className: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300" },
   paused: { label: "Paused", className: "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300" },
@@ -277,7 +277,7 @@ export default function WhatsAppTemplatesPage() {
                   <p className="text-sm text-emerald-600 dark:text-emerald-400">No policy issues found.</p>
                 ) : (
                   issues.map((it, i) => (
-                    <p key={i} className={`text-sm ${it.severity === "error" ? "text-red-600 dark:text-red-400" : "text-amber-600 dark:text-amber-400"}`}>
+                    <p key={i} className={`text-sm ${it.severity === "error" ? "text-red-600 dark:text-red-400" : "text-warning-on-tint"}`}>
                       <span className="font-medium capitalize">{it.severity}</span> · {it.field}: {it.message}
                     </p>
                   ))

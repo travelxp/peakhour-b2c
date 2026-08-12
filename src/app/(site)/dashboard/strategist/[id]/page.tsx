@@ -545,7 +545,7 @@ function OverviewTab({ idea }: { idea: IdeaDetail }) {
                           key={i}
                           className={`h-3.5 w-3.5 ${
                             i < idea.priority!
-                              ? "fill-amber-400 text-amber-400"
+                              ? "fill-brand text-brand"
                               : "text-muted-foreground/25"
                           }`}
                         />
@@ -693,7 +693,7 @@ function BriefTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: strin
             const isObj = typeof p !== "string";
             const claim = isObj ? p.claim : p;
             const confidence = isObj ? p.confidence : undefined;
-            const dotColor = confidence === "verified" ? "bg-emerald-500" : confidence === "inferred" ? "bg-amber-500" : confidence === "ai_estimated" ? "bg-red-400" : "bg-primary";
+            const dotColor = confidence === "verified" ? "bg-emerald-500" : confidence === "inferred" ? "bg-warning" : confidence === "ai_estimated" ? "bg-red-400" : "bg-primary";
             return (
               <li key={i} className="text-sm">
                 <div className="flex items-start gap-2">
@@ -823,7 +823,7 @@ function BriefFormatMetaPanel({
           <CardDescription className="text-xs">
             {m.disclosureCopy
               ? "Sponsor + disclosure + CTA"
-              : <span className="text-amber-600 font-medium">No disclosure copy — Suggest Disclosure helper required before publish</span>}
+              : <span className="text-warning-on-tint font-medium">No disclosure copy — Suggest Disclosure helper required before publish</span>}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -839,7 +839,7 @@ function BriefFormatMetaPanel({
           {m.disclosureCopy && (
             <div>
               <p className="text-xs text-muted-foreground mb-1">Disclosure (FTC)</p>
-              <p className="text-sm bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-md p-3">{m.disclosureCopy}</p>
+              <p className="text-sm bg-warning/10 border border-warning/30 rounded-md p-3">{m.disclosureCopy}</p>
             </div>
           )}
         </CardContent>
@@ -1162,7 +1162,7 @@ function WriteTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: strin
   }, [ideaId, scoring]);
   const scoreTone = (s: number) =>
     s >= 9 ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400"
-      : s >= 7 ? "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400"
+      : s >= 7 ? "bg-warning/15 text-warning-on-tint"
         : "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400";
 
   // ── Shared composer chrome (parity with LinkedIn/X) ─────────────
@@ -1673,7 +1673,7 @@ function DataCitationsPanel({ citations }: { citations: NonNullable<IdeaDetail["
       <CardContent>
         <ul className="space-y-3">
           {citations.map((c, i) => {
-            const borderColor = c.confidence === "verified" ? "border-emerald-500" : c.confidence === "inferred" ? "border-amber-500" : "border-red-400";
+            const borderColor = c.confidence === "verified" ? "border-emerald-500" : c.confidence === "inferred" ? "border-warning/40" : "border-red-400";
             return (
               <li key={i} className={`border-l-2 pl-3 text-sm ${borderColor}`}>
                 <p>{c.claim}</p>
@@ -1898,7 +1898,7 @@ function VersionsTab({ ideaId }: { ideaId: string }) {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
               {[
                 { key: "kept", label: "Kept", color: "bg-emerald-500" },
-                { key: "lightly_edited", label: "Tweaked", color: "bg-amber-500" },
+                { key: "lightly_edited", label: "Tweaked", color: "bg-warning" },
                 { key: "rewritten", label: "Rewritten", color: "bg-red-500" },
                 { key: "added", label: "Added by you", color: "bg-blue-500" },
               ].map((b) => (
@@ -1933,7 +1933,7 @@ function VersionsTab({ ideaId }: { ideaId: string }) {
         <VersionColumn
           label="You Edited"
           sublabel="Latest state in our editor or Beehiiv"
-          tone="bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900"
+          tone="bg-warning/10 border-warning/30"
           html={data.versions.userEdited?.html ?? data.inEditor.html}
           wordCount={data.versions.userEdited?.wordCount ?? data.inEditor.wordCount ?? undefined}
           timestamp={data.versions.userEdited?.capturedAt ?? data.inEditor.lastEditedAt ?? undefined}

@@ -244,7 +244,7 @@ export default function MediaManagerPage() {
                   <span className="text-muted-foreground">{formatBytes(m.sizeBytes)}</span>
                 </div>
                 {m.suggestedAction && (
-                  <span className="absolute right-1 top-1 rounded bg-amber-500/90 px-1 py-0.5 text-[10px] font-medium text-white">
+                  <span className="absolute right-1 top-1 rounded bg-warning/90 px-1 py-0.5 text-[10px] font-medium text-white">
                     {SUGGESTION_LABELS[m.suggestedAction.kind] ?? "Cleanup"}
                   </span>
                 )}
@@ -335,7 +335,7 @@ export default function MediaManagerPage() {
                   )}
                 </div>
                 {selected.usedInCount > 0 && !selected.deletedAt && (
-                  <p className="flex items-center gap-1 text-xs text-amber-600">
+                  <p className="flex items-center gap-1 text-xs text-warning-on-tint">
                     <AlertTriangle className="size-3" />
                     Used in {selected.usedInCount} idea{selected.usedInCount === 1 ? "" : "s"} — deleting may break them.
                   </p>

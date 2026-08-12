@@ -200,7 +200,7 @@ export function ReplyDrawer({
                 tooLong
                   ? "text-sm font-medium text-destructive"
                   : remaining <= 20
-                    ? "text-sm font-medium text-amber-600"
+                    ? "text-sm font-medium text-warning-on-tint"
                     : "text-sm text-muted-foreground"
               }
               aria-live="polite"

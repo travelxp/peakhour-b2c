@@ -72,7 +72,7 @@ const TOTAL_STEPS = 5;
 function getPriorityLabel(score?: number): { label: string; className: string } | null {
   if (score == null) return null;
   if (score >= 8) return { label: "High", className: "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400" };
-  if (score >= 6) return { label: "Medium", className: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400" };
+  if (score >= 6) return { label: "Medium", className: "bg-warning/15 text-warning-on-tint" };
   return { label: "Low", className: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400" };
 }
 
@@ -112,7 +112,7 @@ function KanbanCardBody({ idea, onChanged }: { idea: PipelineIdea; onChanged?: (
           {idea.title}
         </h4>
         {idea.source === "ai_suggested" && (
-          <Sparkles className="size-3 shrink-0 text-amber-500 mt-0.5" />
+          <Sparkles className="size-3 shrink-0 text-warning mt-0.5" />
         )}
         {/* Star/Delete — always visible when starred (shows the pin), else
             revealed on hover like the drag handle. */}

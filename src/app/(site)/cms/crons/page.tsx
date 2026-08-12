@@ -76,7 +76,7 @@ export default function CmsCronsPage() {
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-start gap-2 text-sm">
-              <AlertTriangle className="size-4 text-amber-500 mt-0.5 shrink-0" />
+              <AlertTriangle className="size-4 text-warning mt-0.5 shrink-0" />
               <div>
                 <p className="font-medium">Cron hub unavailable</p>
                 <p className="text-muted-foreground mt-1">
@@ -147,7 +147,7 @@ export default function CmsCronsPage() {
                             className={
                               internalOnly
                                 ? "text-xs font-medium text-red-600 dark:text-red-500"
-                                : "text-xs font-medium text-amber-600 dark:text-amber-500"
+                                : "text-xs font-medium text-warning-on-tint"
                             }
                           >
                             {internalOnly

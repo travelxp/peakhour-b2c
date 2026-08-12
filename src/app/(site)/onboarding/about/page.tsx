@@ -272,7 +272,7 @@ export default function AboutPage() {
           )}
 
           {lowConfidence && (
-            <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200">
+            <div className="flex items-start gap-2 rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning-on-tint">
               <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
               <div>
                 We&apos;re not 100% sure — your {urlKindLabel(urlKind)} didn&apos;t

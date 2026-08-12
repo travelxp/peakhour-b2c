@@ -74,7 +74,7 @@ function ToneBadge({
         tone === "info" &&
           "bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300",
         tone === "warn" &&
-          "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300",
+          "bg-warning/15 text-warning-on-tint",
         tone === "error" &&
           "bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300",
         tone === "neutral" && "bg-muted text-muted-foreground",
@@ -125,7 +125,7 @@ export function CalendarItemDrawer({
 
       {/* Stale / needs_action banner */}
       {(item.payloadStale || item.status === "needs_action") && (
-        <div className="flex items-start gap-2 rounded-md border border-amber-300/60 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-700/40 dark:bg-amber-950/30 dark:text-amber-200">
+        <div className="flex items-start gap-2 rounded-md border border-warning/30 bg-warning/10 p-3 text-xs text-warning-on-tint">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           <div className="flex-1">
             {item.payloadStale ? (
@@ -242,7 +242,7 @@ export function CalendarItemDrawer({
                   a.outcome === "transient_error" &&
                     "border-sky-200 bg-sky-50/50",
                   a.outcome === "rate_limited" &&
-                    "border-amber-200 bg-amber-50/50",
+                    "border-warning/30 bg-warning/5",
                   a.outcome === "permanent_error" &&
                     "border-rose-200 bg-rose-50/50",
                 )}

@@ -144,8 +144,8 @@ export function SmartDelete() {
 
   return (
     <>
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm dark:border-amber-900/40 dark:bg-amber-950/20">
-        <span className="flex items-center gap-2 text-amber-800 dark:text-amber-300">
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-warning/30 bg-warning/10 px-4 py-2.5 text-sm">
+        <span className="flex items-center gap-2 text-warning-on-tint">
           <Sparkles className="size-4" />
           Smart Delete found {totalSuggested} item{totalSuggested === 1 ? "" : "s"} you may not need.
         </span>

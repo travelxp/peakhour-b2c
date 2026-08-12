@@ -231,7 +231,7 @@ export function UpgradeDrawer(props: UpgradeDrawerProps) {
           <SheetTitle className="flex items-center gap-2">
             {mode === "waitlist" ? (
               <>
-                <Sparkles className="size-5 text-amber-500" />
+                <Sparkles className="size-5 text-brand-label" />
                 Pro is opening soon
               </>
             ) : (
@@ -332,7 +332,7 @@ export function UpgradeDrawer(props: UpgradeDrawerProps) {
                       : "Position will update on your next visit"}
                   </p>
                   {success.foundingMember ? (
-                    <p className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-amber-700 dark:text-amber-400">
+                    <p className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-brand-label">
                       <Sparkles className="size-3" />
                       Founding Member — early-access perks locked in
                     </p>

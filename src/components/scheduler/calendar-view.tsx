@@ -143,9 +143,9 @@ function ItemChip({ item, onClick, draggable, onDragStart }: ItemChipProps) {
       className={cn(
         "group relative flex w-full items-center gap-1.5 rounded-md border bg-card px-2 py-1.5 text-left text-xs transition",
         "hover:border-primary/40 hover:shadow-sm",
-        item.payloadStale && "border-amber-400 bg-amber-50 dark:bg-amber-950/40",
+        item.payloadStale && "border-warning/30 bg-warning/10",
         tone === "warn" && !item.payloadStale &&
-          "border-amber-300 bg-amber-50 dark:bg-amber-950/30",
+          "border-warning/30 bg-warning/10",
         tone === "error" && "border-rose-300 bg-rose-50 dark:bg-rose-950/30",
         tone === "success" && "bg-emerald-50 dark:bg-emerald-950/20",
         draggable && "cursor-grab active:cursor-grabbing",
@@ -169,7 +169,7 @@ function ItemChip({ item, onClick, draggable, onDragStart }: ItemChipProps) {
           "h-3 w-3 shrink-0",
           tone === "success" && "text-emerald-600",
           tone === "info" && "text-sky-600",
-          tone === "warn" && "text-amber-600",
+          tone === "warn" && "text-warning-on-tint",
           tone === "error" && "text-rose-600",
         )}
       />

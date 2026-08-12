@@ -130,10 +130,10 @@ export default function AiEvaluatorPage() {
                     <TableCell className="font-mono text-xs">{r.useCase}</TableCell>
                     <TableCell className="font-mono text-xs">{r.currentModelId}</TableCell>
                     <TableCell className="font-mono text-xs">{r.candidateModelId}</TableCell>
-                    <TableCell className={r.costDeltaPct != null && r.costDeltaPct < 0 ? "text-emerald-700" : "text-amber-700"}>
+                    <TableCell className={r.costDeltaPct != null && r.costDeltaPct < 0 ? "text-emerald-700" : "text-warning-on-tint"}>
                       {r.costDeltaPct != null ? `${r.costDeltaPct.toFixed(1)}%` : "—"}
                     </TableCell>
-                    <TableCell className={r.latencyDeltaPct != null && r.latencyDeltaPct < 0 ? "text-emerald-700" : "text-amber-700"}>
+                    <TableCell className={r.latencyDeltaPct != null && r.latencyDeltaPct < 0 ? "text-emerald-700" : "text-warning-on-tint"}>
                       {r.latencyDeltaPct != null ? `${r.latencyDeltaPct.toFixed(1)}%` : "—"}
                     </TableCell>
                     <TableCell className="text-xs">{r.rationale}</TableCell>

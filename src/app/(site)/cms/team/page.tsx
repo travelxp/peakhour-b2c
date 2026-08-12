@@ -68,7 +68,7 @@ const CMS_ROLES = [
 const ROLE_COLORS: Record<string, string> = {
   superadmin: "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400",
   ops: "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-400",
-  support: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400",
+  support: "bg-warning/15 text-warning-on-tint",
   viewer: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
 };
 

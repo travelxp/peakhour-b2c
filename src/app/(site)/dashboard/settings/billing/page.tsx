@@ -55,7 +55,7 @@ const PLAN_STYLES: Record<string, string> = {
   agency:
     "bg-violet-100 text-violet-700 dark:bg-violet-950/60 dark:text-violet-300",
   enterprise:
-    "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300",
+    "bg-warning/15 text-warning-on-tint",
 };
 
 export default function BillingPage() {
@@ -351,12 +351,12 @@ export default function BillingPage() {
           {/* India (RBI): a bigger COMBINED debit changes what the buyer has to do
               each cycle. Say so before the charge, not after it fails. */}
           {summary?.collectionTier === "afa" ? (
-            <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+            <p className="mt-2 text-xs text-warning-on-tint">
               Your bank will ask you to approve each renewal, because the combined
               amount is above the limit for automatic payments in India.
             </p>
           ) : summary?.collectionTier === "invoice" ? (
-            <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+            <p className="mt-2 text-xs text-warning-on-tint">
               This total is above the limit for automatic payments in India, so
               we&rsquo;ll email you an invoice to pay each cycle.
             </p>
@@ -410,7 +410,7 @@ export default function BillingPage() {
                       p.state === "active"
                         ? "border-emerald-500/40 text-emerald-600 dark:text-emerald-400"
                         : p.state === "trial"
-                          ? "border-amber-500/40 text-amber-600 dark:text-amber-400"
+                          ? "border-warning/40 text-warning-on-tint"
                           : "text-muted-foreground",
                     )}
                   >
@@ -487,7 +487,7 @@ export default function BillingPage() {
             </p>
             {plan === "free" && (
               <div className="relative mt-2 h-1 w-full rounded-full bg-muted">
-                <span className="absolute top-0 left-0 h-full w-1/2 rounded-full bg-amber-500" />
+                <span className="absolute top-0 left-0 h-full w-1/2 rounded-full bg-warning" />
               </div>
             )}
           </div>

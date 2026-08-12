@@ -277,10 +277,10 @@ export function WhatsAppEmbeddedSignup({
 
   // ── Shop flow: resolve which business this store binds to. Runs BEFORE
   //    (and instead of) the session-scoped status check, because a store
-  //    launched from Shopify may belong to a different workspace than the one
-  //    this dashboard tab has active — the session status would reflect the
-  //    wrong business. On success the connect binds server-side to this
-  //    businessId regardless of the active session business. ──
+  // launched from Shopify may belong to a different workspace than the one
+  // this dashboard tab has active — the session status would reflect the
+  // wrong business. On success the connect binds server-side to this
+  // businessId regardless of the active session business. ──
   useEffect(() => {
     if (!shop) return;
     let cancelled = false;
@@ -320,9 +320,9 @@ export function WhatsAppEmbeddedSignup({
   }, [shop]);
 
   // ── Status on mount: reflect an existing connection instead of always
-  //    showing "Connect" (and surface needs-reauth as a repair prompt).
-  //    Skipped in the shop flow (session-scoped; would read the wrong
-  //    business) — the resolver above drives the phase there. ──
+  // showing "Connect" (and surface needs-reauth as a repair prompt).
+  // Skipped in the shop flow (session-scoped; would read the wrong
+  // business) — the resolver above drives the phase there. ──
   useEffect(() => {
     if (shop) return;
     let cancelled = false;
@@ -718,7 +718,7 @@ export function WhatsAppEmbeddedSignup({
             needs an approved message template.
           </p>
           {connection && !connection.phoneRegistered && (
-            <p className="text-amber-600">
+            <p className="text-warning-on-tint">
               We’re finishing your number setup in the background — if sending
               isn’t available yet, give it a minute.
             </p>
@@ -745,8 +745,8 @@ export function WhatsAppEmbeddedSignup({
   }
 
   // ── Shop flow blocked: can't safely connect until the store resolves to a
-  //    workspace the signed-in user owns. Rendered instead of the connect card
-  //    so a wrong-workspace bind is impossible. ──
+  // workspace the signed-in user owns. Rendered instead of the connect card
+  // so a wrong-workspace bind is impossible. ──
   if (
     shop &&
     (target.phase === "not_linked" ||
@@ -769,11 +769,11 @@ export function WhatsAppEmbeddedSignup({
               body: `We couldn’t confirm which workspace ${shop} belongs to. Please try again in a moment.`,
             };
     return (
-      <Card className="border-amber-500/40 bg-amber-500/5">
+      <Card className="border-warning/40 bg-warning/5">
         <CardHeader>
           <div className="flex items-center gap-3">
-            <span className="flex size-10 items-center justify-center rounded-full bg-amber-500/15">
-              <AlertCircle className="size-5 text-amber-600" />
+            <span className="flex size-10 items-center justify-center rounded-full bg-warning/15">
+              <AlertCircle className="size-5 text-warning-on-tint" />
             </span>
             <div>
               <CardTitle className="text-base">{blocked.title}</CardTitle>
@@ -822,7 +822,7 @@ export function WhatsAppEmbeddedSignup({
           <div
             className={`rounded-md border p-3 text-sm ${
               target.matchesActive === false
-                ? "border-amber-500/40 bg-amber-500/5 text-amber-700"
+                ? "border-warning/40 bg-warning/5 text-warning-on-tint"
                 : "border-border bg-muted/40 text-muted-foreground"
             }`}
           >
@@ -849,7 +849,7 @@ export function WhatsAppEmbeddedSignup({
         )}
 
         {needsReauth && (
-          <p role="alert" className="flex items-start gap-2 text-sm text-amber-600">
+          <p role="alert" className="flex items-start gap-2 text-sm text-warning-on-tint">
             <AlertCircle className="mt-0.5 size-4 shrink-0" />
             Your WhatsApp connection needs to be refreshed. Reconnect below to
             keep messaging.

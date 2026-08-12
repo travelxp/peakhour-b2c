@@ -219,7 +219,7 @@ function HealthChip({ label, value, bad }: { label: string; value: number; bad: 
       variant="outline"
       className={cn(
         "gap-1.5 tabular-nums",
-        bad && "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300",
+        bad && "border-warning/40 bg-warning/10 text-warning-on-tint",
       )}
     >
       {bad && <AlertTriangle className="size-3" />}

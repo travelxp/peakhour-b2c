@@ -32,7 +32,7 @@ const STATUS_STYLES: Record<string, string> = {
 const CATEGORY_STYLES: Record<string, string> = {
   bug: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
   feature: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400",
-  improvement: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400",
+  improvement: "bg-warning/15 text-warning-on-tint",
   question: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-400",
 };
 

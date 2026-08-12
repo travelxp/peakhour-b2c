@@ -79,7 +79,7 @@ export function AttentionBell() {
                   className={`mt-1 h-2 w-2 shrink-0 rounded-full ${
                     alert.severity === "red"
                       ? "bg-destructive"
-                      : "bg-amber-500"
+                      : "bg-warning"
                   }`}
                 />
                 <div className="min-w-0 flex-1">

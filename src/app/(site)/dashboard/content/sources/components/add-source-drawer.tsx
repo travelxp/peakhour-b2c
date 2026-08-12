@@ -692,7 +692,7 @@ function ConfidencePill({ confidence }: { confidence: number }) {
     confidence >= 0.7
       ? { label: "High", classes: "border-emerald-500/50 text-emerald-700 dark:text-emerald-400" }
       : confidence >= 0.55
-        ? { label: "Medium", classes: "border-amber-500/50 text-amber-700 dark:text-amber-400" }
+        ? { label: "Medium", classes: "border-warning/40 text-warning-on-tint" }
         : { label: "Low", classes: "border-muted-foreground/30 text-muted-foreground" };
   const pct = (confidence * 100).toFixed(0);
   return (

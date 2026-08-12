@@ -85,7 +85,7 @@ export function PlatformCharCounter({
     tone === "danger"
       ? "stroke-destructive"
       : tone === "warn"
-      ? "stroke-amber-500"
+      ? "stroke-warning"
       : "stroke-emerald-500";
 
   return (
@@ -139,7 +139,7 @@ export function PlatformCharCounter({
             tone === "danger"
               ? "text-destructive font-semibold"
               : tone === "warn"
-              ? "text-amber-700 dark:text-amber-400"
+              ? "text-warning-on-tint"
               : "text-muted-foreground",
           )}
         >

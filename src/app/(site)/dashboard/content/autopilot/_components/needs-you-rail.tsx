@@ -44,8 +44,8 @@ const TYPE_META: Record<
   approve: {
     icon: CheckSquare,
     verb: "Review",
-    tone: "border-l-amber-500",
-    iconColor: "text-amber-500",
+    tone: "border-l-warning",
+    iconColor: "text-warning",
   },
 };
 
@@ -61,7 +61,7 @@ export function NeedsYouRail({
       <CardHeader className="flex flex-row items-center justify-between gap-2 border-b bg-muted/30 px-4 py-3 [.border-b]:pb-3">
         <CardTitle className="text-base">Needs you</CardTitle>
         {totalCount > 0 && (
-          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold tabular-nums text-amber-700 dark:bg-amber-950/60 dark:text-amber-400">
+          <span className="rounded-full bg-warning/15 px-2 py-0.5 text-xs font-semibold tabular-nums text-warning-on-tint">
             {totalCount}
           </span>
         )}

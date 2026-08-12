@@ -122,7 +122,7 @@ export function XAdsPanel({ channelKey }: { channelKey: AdsChannelKey }) {
   return (
     <PanelShell>
       {needsReauth ? (
-        <Card className="border-amber-200 bg-amber-50/50 dark:border-amber-900 dark:bg-amber-950/30">
+        <Card className="border-warning/30 bg-warning/5">
           <CardContent className="flex items-center justify-between gap-4 p-4 text-sm">
             <span>
               Your X Ads connection is <span className="font-medium">stale</span>.
@@ -132,7 +132,7 @@ export function XAdsPanel({ channelKey }: { channelKey: AdsChannelKey }) {
             </span>
             <Link
               href="/dashboard/integrations"
-              className="font-medium text-amber-900 underline underline-offset-4 dark:text-amber-200"
+              className="font-medium text-warning-on-tint underline underline-offset-4"
             >
               Reconnect
             </Link>

@@ -415,9 +415,9 @@ function TrustedSourcesLockedFallback() {
           What your AI reads, watches, and cites.
         </p>
       </header>
-      <Card className="border-amber-200 bg-linear-to-br from-amber-50/60 to-white dark:border-amber-900/40 dark:from-amber-950/30 dark:to-transparent">
+      <Card className="border-warning/30 bg-linear-to-br from-warning/8 to-white dark:to-transparent">
         <CardContent className="space-y-3 p-8 text-center">
-          <Sparkles aria-hidden="true" className="mx-auto size-8 text-amber-600 dark:text-amber-400" />
+          <Sparkles aria-hidden="true" className="mx-auto size-8 text-warning-on-tint" />
           <h3 className="text-lg font-semibold tracking-tight">Trusted Sources is rolling out</h3>
           <p className="mx-auto max-w-md text-sm text-muted-foreground">
             {FEATURE_TAGLINE}

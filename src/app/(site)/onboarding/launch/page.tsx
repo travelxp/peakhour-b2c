@@ -156,10 +156,10 @@ export default function LaunchPage() {
   // refreshUser returns, and switchBusiness in turn calls
   // queryClient.clear() to wipe stale cache. If we fire generate before
   // business?._id has stabilised, we hit two races:
-  //   1. The api 403s with FORBIDDEN ("Active business required")
-  //   2. Even on success, the in-flight setQueryData lands BEFORE the
-  //      auto-resolve's queryClient.clear(), which then wipes the cache
-  //      and the LinkedIn dashboard sees nothing.
+  // 1. The api 403s with FORBIDDEN ("Active business required")
+  // 2. Even on success, the in-flight setQueryData lands BEFORE the
+  // auto-resolve's queryClient.clear(), which then wipes the cache
+  // and the LinkedIn dashboard sees nothing.
   // Gating on business?._id ensures the auto-resolve has completed
   // before we fire — both races avoided.
   //
@@ -243,7 +243,7 @@ export default function LaunchPage() {
             );
           })}
           {pollError && (
-            <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
+            <p className="text-xs text-warning-on-tint mt-2">
               {pollError} (retrying)
             </p>
           )}

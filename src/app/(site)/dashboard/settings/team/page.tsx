@@ -62,7 +62,7 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 const ROLE_COLORS: Record<string, string> = {
-  owner: "bg-amber-100 text-amber-800",
+  owner: "bg-warning/15 text-warning-on-tint",
   admin: "bg-blue-100 text-blue-800",
   editor: "bg-green-100 text-green-800",
   viewer: "bg-gray-100 text-gray-700",
@@ -308,7 +308,7 @@ export default function TeamPage() {
                         {m.name || m.email}
                       </span>
                       {m.isOwner && (
-                        <Crown className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                        <Crown className="h-3.5 w-3.5 text-warning shrink-0" />
                       )}
                     </div>
                     <div className="text-xs text-muted-foreground truncate">
@@ -389,8 +389,8 @@ export default function TeamPage() {
                   key={inv.email}
                   className="flex items-center gap-4 px-6 py-3.5"
                 >
-                  <div className="h-9 w-9 rounded-full bg-amber-50 flex items-center justify-center shrink-0">
-                    <Mail className="h-4 w-4 text-amber-500" />
+                  <div className="h-9 w-9 rounded-full bg-warning/10 flex items-center justify-center shrink-0">
+                    <Mail className="h-4 w-4 text-warning" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-medium truncate">
@@ -441,7 +441,7 @@ export default function TeamPage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs text-muted-foreground">
             <div>
               <div className="font-medium text-foreground mb-1 flex items-center gap-1">
-                <Crown className="h-3 w-3 text-amber-500" /> Owner
+                <Crown className="h-3 w-3 text-warning" /> Owner
               </div>
               Full access, billing, team management, delete org
             </div>

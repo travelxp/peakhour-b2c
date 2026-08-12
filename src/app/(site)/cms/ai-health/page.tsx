@@ -437,7 +437,7 @@ function IngestHealthPanel() {
                         <td className="px-3 py-2 text-right tabular-nums">
                           <span className="text-emerald-600">{conn.last24h.success}</span>
                           {" / "}
-                          <span className="text-amber-600">{conn.last24h.partialFailure}</span>
+                          <span className="text-warning-on-tint">{conn.last24h.partialFailure}</span>
                           {" / "}
                           <span className="text-destructive">{conn.last24h.error}</span>
                         </td>

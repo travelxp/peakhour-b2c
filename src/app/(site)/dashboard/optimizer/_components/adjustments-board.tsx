@@ -60,7 +60,7 @@ const CONSUMER_SURFACE: Partial<Record<OptimizerProposal["type"], string>> = {
 };
 
 const STATUS_BADGE: Record<ProposalStatus, string> = {
-  proposed: "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200",
+  proposed: "bg-warning/15 text-warning-on-tint",
   approved: "bg-sky-100 text-sky-900 dark:bg-sky-950 dark:text-sky-200",
   applied: "bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200",
   dismissed: "bg-muted/60 text-muted-foreground",

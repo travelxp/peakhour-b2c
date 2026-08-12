@@ -326,7 +326,7 @@ function GeneratePagesDialogBody({
         </p>
       )}
       {!error && !typedButUnusable && droppedCount > 0 && (
-        <p className="text-sm text-amber-700 dark:text-amber-400" role="alert">
+        <p className="text-sm text-warning-on-tint" role="alert">
           {droppedCount === 1 ? "1 topic is missing" : `${droppedCount} topics are missing`} an audience in
           “Who are these pages for?” and will be skipped.
         </p>

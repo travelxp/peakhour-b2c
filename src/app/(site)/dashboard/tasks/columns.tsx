@@ -109,10 +109,10 @@ export function getTaskColumns(ctx: TaskColumnsCtx): ColumnDef<Job, unknown>[] {
           <div className="flex flex-col gap-1">
             <StatusBadge status={statusForBadge(job)} dot={active} />
             {job.cancelRequested && active && (
-              <span className="text-xs text-amber-600">Cancelling…</span>
+              <span className="text-xs text-warning-on-tint">Cancelling…</span>
             )}
             {job.status === "failed" && (
-              <span className="text-xs text-amber-700 dark:text-amber-400">
+              <span className="text-xs text-warning-on-tint">
                 Hit a snag — retry
               </span>
             )}

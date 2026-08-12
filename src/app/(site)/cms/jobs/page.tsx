@@ -224,7 +224,7 @@ export default function CmsJobsPage() {
                     </TableCell>
                     <TableCell className="max-w-55 truncate text-xs" title={row.displayName}>{row.displayName || "—"}</TableCell>
                     <TableCell className="max-w-70 truncate text-xs text-red-700" title={row.lastError}>
-                      {row.lastError || (row.cancelRequested ? <span className="text-amber-700">cancel requested</span> : "")}
+                      {row.lastError || (row.cancelRequested ? <span className="text-warning-on-tint">cancel requested</span> : "")}
                     </TableCell>
                   </TableRow>
                 ))
@@ -303,7 +303,7 @@ function JobDrilldown({ id }: { id: string }) {
           <StatusBadge status={data.status} dot={data.status === "running" || data.status === "pending"} />
           <Badge variant="outline" className="text-xs">priority {data.priority}</Badge>
           <Badge variant="outline" className="text-xs">attempt {data.attempts}/{data.maxAttempts}</Badge>
-          {data.cancelRequested && <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">cancel requested</Badge>}
+          {data.cancelRequested && <Badge className="bg-warning/15 text-warning-on-tint hover:bg-warning/25">cancel requested</Badge>}
           {data.parentJobId && <Badge variant="outline" className="text-xs">child of {data.parentJobId.slice(-8)}</Badge>}
         </div>
 

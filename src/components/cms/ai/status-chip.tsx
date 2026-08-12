@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 const VARIANT: Record<string, string> = {
   success: "bg-emerald-100 text-emerald-800 hover:bg-emerald-100",
   error: "bg-red-100 text-red-800 hover:bg-red-100",
-  rate_limited: "bg-amber-100 text-amber-800 hover:bg-amber-100",
+  rate_limited: "bg-warning/15 text-warning-on-tint hover:bg-warning/25",
   fallback_used: "bg-violet-100 text-violet-800 hover:bg-violet-100",
 };
 
