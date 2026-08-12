@@ -103,5 +103,5 @@ export function IntegrationBrandIcon({
 export function integrationBrandColor(groupKey?: string, integrationKey?: string): string {
   const brand =
     (integrationKey ? BRANDS[integrationKey] : undefined) || (groupKey ? BRANDS[groupKey] : undefined);
-  return brand?.color ?? "bg-zinc-700 text-white";
+  return brand?.color ?? "bg-ink-2 text-white";
 }

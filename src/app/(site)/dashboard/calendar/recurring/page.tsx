@@ -40,8 +40,8 @@ const WEEKDAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const STATUS_STYLE: Record<RecurringRuleStatus, { label: string; chip: string }> = {
   active: { label: "Active", chip: "border-success/40 bg-success/10 text-success-on-tint" },
   paused: { label: "Paused", chip: "border-warning/40 bg-warning/10 text-warning-on-tint" },
-  completed: { label: "Completed", chip: "border-slate-400/40 bg-slate-400/10 text-slate-600 dark:text-slate-400" },
-  expired: { label: "Expired", chip: "border-slate-400/40 bg-slate-400/10 text-slate-600 dark:text-slate-400" },
+  completed: { label: "Completed", chip: "border-border bg-muted text-muted-foreground" },
+  expired: { label: "Expired", chip: "border-border bg-muted text-muted-foreground" },
 };
 
 function cadenceSummary(r: RecurringRuleDto): string {

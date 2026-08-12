@@ -112,7 +112,7 @@ export default async function PricingPage() {
             </div>
 
             {/* Value ladder — the five pillars, cheapest first, in a dark panel */}
-            <div className="overflow-hidden rounded-2xl border border-white/10 bg-zinc-900 p-3 text-zinc-100 shadow-2xl">
+            <div className="overflow-hidden rounded-2xl border border-ink-line bg-ink p-3 text-on-ink shadow-2xl">
               <ul className="flex flex-col gap-1.5">
                 {PRICING_PILLAR_ORDER.map((slug) => {
                   const pillar = pricingPillar(slug);
@@ -157,7 +157,7 @@ export default async function PricingPage() {
                             className={`block truncate text-xs ${
                               slug === "presence"
                                 ? "text-brand-contrast/70"
-                                : "text-zinc-400"
+                                : "text-on-ink-dim"
                             }`}
                           >
                             {pillar.promise}

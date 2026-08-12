@@ -8,7 +8,7 @@ import { ArrowRight } from "lucide-react";
  */
 export function TeamsCtaBand({ pillarName }: { pillarName?: string }) {
   return (
-    <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-zinc-900 px-6 py-10 text-zinc-100 shadow-2xl sm:px-10">
+    <div className="relative overflow-hidden rounded-3xl border border-ink-line bg-ink px-6 py-10 text-on-ink shadow-2xl sm:px-10">
       <div
         aria-hidden
         className="pointer-events-none absolute -right-16 -top-24 size-72 rounded-full bg-brand-gradient opacity-25 blur-3xl"
@@ -21,7 +21,7 @@ export function TeamsCtaBand({ pillarName }: { pillarName?: string }) {
           <h2 className="mt-3 text-2xl font-extrabold tracking-tight text-pretty">
             Looking for an Agency or Enterprise plan?
           </h2>
-          <p className="mt-2 text-sm text-zinc-400">
+          <p className="mt-2 text-sm text-on-ink-dim">
             Get {pillarName ? `${pillarName} and every other pillar` : "every pillar"}{" "}
             across many businesses, with volume Peaks, one unit per client and
             central billing.

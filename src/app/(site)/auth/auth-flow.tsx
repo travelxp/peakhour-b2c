@@ -541,7 +541,7 @@ export function AuthFlow({
           Hidden below lg; the promise still reaches small screens through
           the tick row in the form column.
          --------------------------------------------------------------- */}
-      <section className="relative hidden flex-col justify-between gap-8 overflow-hidden bg-zinc-900 p-10 text-zinc-100 lg:flex lg:w-1/2 xl:w-[55%] xl:p-14">
+      <section className="relative hidden flex-col justify-between gap-8 overflow-hidden bg-ink p-10 text-on-ink lg:flex lg:w-1/2 xl:w-[55%] xl:p-14">
         {/* Single warm bloom — the only decoration on the panel. */}
         <div
           aria-hidden
@@ -564,7 +564,7 @@ export function AuthFlow({
               Free to start.
             </span>
           </p>
-          <p className="mt-4 max-w-md text-zinc-400">
+          <p className="mt-4 max-w-md text-on-ink-dim">
             Commerce, Content, Growth, Support and Presence — five pillars on
             one account, each with a free plan.
           </p>
@@ -576,7 +576,7 @@ export function AuthFlow({
           role="img"
           aria-label={PILLAR_CONSOLE_LABEL}
         >
-          <div className="flex items-center justify-between px-1 pb-2 text-[0.7rem] font-bold uppercase tracking-[0.18em] text-zinc-400">
+          <div className="flex items-center justify-between px-1 pb-2 text-[0.7rem] font-bold uppercase tracking-[0.18em] text-on-ink-dim">
             <span>Your business, at a glance</span>
             <span className="flex items-center gap-1.5 text-success">
               <span className="size-1.5 rounded-full bg-success" aria-hidden />
@@ -590,8 +590,8 @@ export function AuthFlow({
                 className={PILLAR_CONSOLE_ROW_CLASS}
               >
                 <span className="size-2 shrink-0 rounded-full bg-success" aria-hidden />
-                <span className="w-20 shrink-0 font-bold text-zinc-100">{row.name}</span>
-                <span className="min-w-0 flex-1 truncate text-zinc-400">{row.status}</span>
+                <span className="w-20 shrink-0 font-bold text-on-ink">{row.name}</span>
+                <span className="min-w-0 flex-1 truncate text-on-ink-dim">{row.status}</span>
                 <span className="shrink-0 rounded-full bg-success/15 px-2.5 py-0.5 text-[0.65rem] font-bold uppercase tracking-wide text-success">
                   Free
                 </span>
@@ -599,14 +599,14 @@ export function AuthFlow({
             ))}
           </div>
           {/* Peaks is always the coin glyph, never a generic bolt. */}
-          <p className="flex items-center gap-1.5 px-1 pt-3 text-xs text-zinc-400">
+          <p className="flex items-center gap-1.5 px-1 pt-3 text-xs text-on-ink-dim">
             Metered in
             <PeaksGlyph size={16} />
             <span className="font-bold text-brand-gradient">Peaks</span>
           </p>
         </div>
 
-        <div className="relative z-10 flex gap-8 border-t border-white/10 pt-6">
+        <div className="relative z-10 flex gap-8 border-t border-ink-line pt-6">
           {signupStats(freePeaks).map((stat) => (
             <div key={stat.label}>
               <div
@@ -615,7 +615,7 @@ export function AuthFlow({
               >
                 {stat.value}
               </div>
-              <div className="mt-1.5 max-w-[15ch] text-xs leading-snug text-zinc-400">
+              <div className="mt-1.5 max-w-[15ch] text-xs leading-snug text-on-ink-dim">
                 {stat.label}
               </div>
             </div>

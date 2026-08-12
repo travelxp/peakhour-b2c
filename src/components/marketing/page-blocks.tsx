@@ -140,21 +140,21 @@ function LearnsWithYou({ b }: { b: LearnsWithYouBlock }) {
   return (
     <section className="py-20">
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
-        <div className="overflow-hidden rounded-3xl border border-white/10 bg-zinc-900 p-8 text-zinc-100 shadow-2xl lg:p-12">
+        <div className="overflow-hidden rounded-3xl border border-ink-line bg-ink p-8 text-on-ink shadow-2xl lg:p-12">
           <h2 className="max-w-2xl text-3xl font-extrabold tracking-tight text-pretty lg:text-4xl">
             {b.heading}
           </h2>
-          {b.body && <p className="mt-4 max-w-2xl text-zinc-400">{b.body}</p>}
+          {b.body && <p className="mt-4 max-w-2xl text-on-ink-dim">{b.body}</p>}
           <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
             {b.timeline.map((t, i) => (
               <div key={`${t.when}-${i}`} className="border-l-2 border-brand/40 pl-4">
                 <div className="font-serif text-lg italic text-brand">{t.when}</div>
-                <div className="mt-2 text-sm text-zinc-400">{t.what}</div>
+                <div className="mt-2 text-sm text-on-ink-dim">{t.what}</div>
               </div>
             ))}
           </div>
           {b.footnote && (
-            <p className="mt-8 border-t border-white/10 pt-6 text-sm text-zinc-400">{b.footnote}</p>
+            <p className="mt-8 border-t border-ink-line pt-6 text-sm text-on-ink-dim">{b.footnote}</p>
           )}
         </div>
       </div>
@@ -189,7 +189,7 @@ function Cta({ b }: { b: CtaBlock }) {
   return (
     <section className="py-20">
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
-        <div className="overflow-hidden rounded-3xl border border-white/10 bg-zinc-900 px-6 py-16 text-center text-zinc-100 shadow-2xl">
+        <div className="overflow-hidden rounded-3xl border border-ink-line bg-ink px-6 py-16 text-center text-on-ink shadow-2xl">
           <h2 className="mx-auto max-w-2xl text-3xl font-extrabold tracking-tight text-pretty sm:text-4xl">
             {b.headline}
             {b.accent && (
@@ -199,7 +199,7 @@ function Cta({ b }: { b: CtaBlock }) {
               </>
             )}
           </h2>
-          {b.body && <p className="mx-auto mt-4 max-w-xl text-zinc-400">{b.body}</p>}
+          {b.body && <p className="mx-auto mt-4 max-w-xl text-on-ink-dim">{b.body}</p>}
           {b.ctaLabel && safeHref(b.ctaHref) && (
             <Link href={safeHref(b.ctaHref)!} className={`${ctaClass} mt-8 focus-visible:ring-offset-zinc-900`}>
               {b.ctaLabel}

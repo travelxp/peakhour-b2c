@@ -217,8 +217,8 @@ export const BAND_STYLES: Record<PlatformFitBand, { dot: string; chip: string; l
     label: "Worth a try",
   },
   grey: {
-    dot: "bg-slate-400",
-    chip: "border-slate-400/40 bg-slate-400/10 text-slate-600 dark:text-slate-400",
+    dot: "bg-muted-foreground",
+    chip: "border-border bg-muted text-muted-foreground",
     label: "Not a fit",
   },
 };

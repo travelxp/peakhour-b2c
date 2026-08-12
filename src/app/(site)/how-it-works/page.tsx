@@ -177,7 +177,7 @@ export default async function HowItWorks() {
               </div>
 
               {/* With Peakhour */}
-              <div className="overflow-hidden rounded-3xl border border-white/10 bg-zinc-900 p-6 text-zinc-100 shadow-2xl sm:p-8">
+              <div className="overflow-hidden rounded-3xl border border-ink-line bg-ink p-6 text-on-ink shadow-2xl sm:p-8">
                 <p className="text-xs font-bold uppercase tracking-[0.18em] text-brand">
                   With Peakhour
                 </p>
@@ -196,7 +196,7 @@ export default async function HowItWorks() {
                         <div className="flex aspect-square w-full items-center justify-center rounded-xl border border-brand/40 bg-brand/10 text-brand">
                           <Icon className="size-4 sm:size-5" strokeWidth={1.75} aria-hidden />
                         </div>
-                        <span className="break-words text-center text-[0.6rem] font-semibold leading-tight text-zinc-300 sm:text-xs">
+                        <span className="break-words text-center text-[0.6rem] font-semibold leading-tight text-on-ink-dim sm:text-xs">
                           {p.name}
                         </span>
                         {/* Gold lead-in — every pillar runs into the bar below. */}
@@ -209,7 +209,7 @@ export default async function HowItWorks() {
                   <Waypoints className="size-4 shrink-0" strokeWidth={2.25} aria-hidden />
                   One Peakhour intelligence layer
                 </div>
-                <p className="mt-4 text-sm text-zinc-400">
+                <p className="mt-4 text-sm text-on-ink-dim">
                   Because they share it, each part of your business can inform
                   the others — automatically, without you carrying the context
                   between them.
@@ -297,7 +297,7 @@ export default async function HowItWorks() {
             to explain to a new hire. */}
         <section className="py-14 sm:py-20">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
-            <Reveal className="overflow-hidden rounded-3xl border border-white/10 bg-zinc-900 p-8 text-zinc-100 shadow-2xl sm:p-12">
+            <Reveal className="overflow-hidden rounded-3xl border border-ink-line bg-ink p-8 text-on-ink shadow-2xl sm:p-12">
               <div className="max-w-2xl">
                 <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand">
                   <span className="h-0.5 w-7 bg-brand-gradient" aria-hidden />
@@ -309,7 +309,7 @@ export default async function HowItWorks() {
                     It reads the business.
                   </span>
                 </h2>
-                <p className="mt-4 text-zinc-400">
+                <p className="mt-4 text-on-ink-dim">
                   No onboarding questionnaire, no brand deck, no spreadsheet of
                   products to upload. Within minutes of connecting, Peakhour has
                   picked up:
@@ -321,14 +321,14 @@ export default async function HowItWorks() {
                     as="li"
                     key={item}
                     delay={Math.min(i, 5) * 60}
-                    className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/4 px-4 py-3 text-sm font-medium transition-colors hover:border-brand/50"
+                    className="flex items-center gap-3 rounded-xl border border-ink-line bg-white/4 px-4 py-3 text-sm font-medium transition-colors hover:border-brand/50"
                   >
                     <Check className="size-4 shrink-0 text-brand" strokeWidth={2.5} aria-hidden />
                     {item}
                   </Reveal>
                 ))}
               </ul>
-              <p className="mt-7 border-t border-white/10 pt-6 text-sm text-zinc-400">
+              <p className="mt-7 border-t border-ink-line pt-6 text-sm text-on-ink-dim">
                 All of it read from what you already have — not guessed from your
                 business name.
               </p>
@@ -459,8 +459,8 @@ export default async function HowItWorks() {
                 <p className="text-sm font-bold uppercase tracking-[0.18em] text-brand-label">
                   With Peakhour
                 </p>
-                <div className="mt-5 overflow-hidden rounded-2xl border border-white/10 bg-zinc-900 p-4 shadow-2xl sm:p-5">
-                  <div className="flex items-center justify-between px-1 pb-3 text-[0.7rem] font-bold uppercase tracking-[0.18em] text-zinc-400">
+                <div className="mt-5 overflow-hidden rounded-2xl border border-ink-line bg-ink p-4 shadow-2xl sm:p-5">
+                  <div className="flex items-center justify-between px-1 pb-3 text-[0.7rem] font-bold uppercase tracking-[0.18em] text-on-ink-dim">
                     <span>Worth your attention</span>
                     <span className="flex items-center gap-1.5 text-success">
                       <span className="size-1.5 rounded-full bg-success" aria-hidden />
@@ -473,7 +473,7 @@ export default async function HowItWorks() {
                       return (
                         <li
                           key={row.observation}
-                          className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-white/10 bg-white/4 px-3.5 py-3 text-sm"
+                          className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-ink-line bg-white/4 px-3.5 py-3 text-sm"
                         >
                           <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-brand/15 text-brand">
                             {Icon && <Icon className="size-3.5" strokeWidth={2} aria-hidden />}
@@ -482,7 +482,7 @@ export default async function HowItWorks() {
                                 business it came from. */}
                             <span className="sr-only">{row.pillar}:</span>
                           </span>
-                          <span className="min-w-0 flex-1 text-zinc-200">
+                          <span className="min-w-0 flex-1 text-on-ink">
                             &ldquo;{row.observation}&rdquo;
                           </span>
                           <span className="shrink-0 rounded-lg bg-brand-gradient px-3 py-1.5 text-xs font-bold text-brand-contrast">
@@ -493,7 +493,7 @@ export default async function HowItWorks() {
                       );
                     })}
                   </ul>
-                  <p className="px-1 pt-4 text-xs text-zinc-400">
+                  <p className="px-1 pt-4 text-xs text-on-ink-dim">
                     Illustrative — your list is built from your own business.
                   </p>
                 </div>
@@ -609,7 +609,7 @@ export default async function HowItWorks() {
             feature list. */}
         <section className="pb-16 sm:pb-24">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
-            <Reveal className="overflow-hidden rounded-3xl border border-white/10 bg-zinc-900 px-6 py-16 text-center text-zinc-100 shadow-2xl sm:py-20">
+            <Reveal className="overflow-hidden rounded-3xl border border-ink-line bg-ink px-6 py-16 text-center text-on-ink shadow-2xl sm:py-20">
               <ul className="mx-auto flex max-w-md flex-col gap-2 text-2xl font-extrabold tracking-tight sm:text-3xl">
                 {RELIEF_LINES.map((line, i) => (
                   <Reveal as="li" key={line} delay={i * 140}>
@@ -620,7 +620,7 @@ export default async function HowItWorks() {
               <p className="mx-auto mt-7 max-w-xl font-serif text-3xl font-normal italic text-brand-gradient sm:text-4xl">
                 More time to actually build the business.
               </p>
-              <p className="mx-auto mt-8 max-w-md border-t border-white/10 pt-8 text-zinc-400">
+              <p className="mx-auto mt-8 max-w-md border-t border-ink-line pt-8 text-on-ink-dim">
                 Your business already has the signals. Peakhour connects them.
               </p>
               {!cta.disabled && (
@@ -635,7 +635,7 @@ export default async function HowItWorks() {
                   />
                 </Link>
               )}
-              <p className="mt-5 text-sm text-zinc-400">
+              <p className="mt-5 text-sm text-on-ink-dim">
                 A free plan on every pillar. No credit card.
               </p>
             </Reveal>

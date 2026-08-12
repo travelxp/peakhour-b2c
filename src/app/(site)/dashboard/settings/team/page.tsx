@@ -65,7 +65,7 @@ const ROLE_COLORS: Record<string, string> = {
   owner: "bg-warning/15 text-warning-on-tint",
   admin: "bg-blue-100 text-blue-800",
   editor: "bg-success/15 text-success-on-tint",
-  viewer: "bg-gray-100 text-gray-700",
+  viewer: "bg-muted text-foreground",
 };
 
 const ROLE_ICONS: Record<string, typeof Crown> = {
@@ -459,7 +459,7 @@ export default function TeamPage() {
             </div>
             <div>
               <div className="font-medium text-foreground mb-1 flex items-center gap-1">
-                <Eye className="h-3 w-3 text-gray-500" /> Viewer
+                <Eye className="h-3 w-3 text-muted-foreground" /> Viewer
               </div>
               View dashboards, content, and reports only
             </div>

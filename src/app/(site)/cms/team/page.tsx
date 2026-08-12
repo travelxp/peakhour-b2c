@@ -69,7 +69,7 @@ const ROLE_COLORS: Record<string, string> = {
   superadmin: "bg-destructive/15 text-destructive-on-tint",
   ops: "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-400",
   support: "bg-warning/15 text-warning-on-tint",
-  viewer: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
+  viewer: "bg-muted text-muted-foreground",
 };
 
 export default function CmsTeamPage() {

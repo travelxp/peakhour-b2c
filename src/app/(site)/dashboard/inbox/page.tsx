@@ -45,8 +45,8 @@ function Bubble({ role, content }: { role: string; content: string }) {
       <div
         className={`max-w-[80%] rounded-lg p-2.5 text-sm ${
           mine
-            ? "rounded-tr-none bg-[#dcf8c6] text-neutral-900 dark:text-neutral-100"
-            : "rounded-tl-none bg-white text-neutral-900 shadow-sm dark:bg-neutral-700 dark:text-neutral-100"
+            ? "rounded-tr-none bg-[#dcf8c6] text-foreground"
+            : "rounded-tl-none bg-white text-foreground shadow-sm"
         }`}
       >
         {role === "merchant" && <p className="mb-0.5 text-[11px] font-medium opacity-70">You (from your phone)</p>}
@@ -342,7 +342,7 @@ export default function InboxPage() {
                       </Button>
                     )}
                   </div>
-                  <div className="flex-1 space-y-2 overflow-y-auto bg-[#e5ddd5] p-3 dark:bg-neutral-800">
+                  <div className="flex-1 space-y-2 overflow-y-auto bg-[#e5ddd5] p-3">
                     {threadLoading && <Skeleton className="h-20 w-full" />}
                     {thread?.messages.map((m, i) => <Bubble key={i} role={m.role} content={m.content} />)}
                     {thread && thread.messages.length === 0 && (
