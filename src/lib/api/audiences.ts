@@ -175,6 +175,80 @@ export interface ProposalResponse {
   } | null;
 }
 
+/**
+ * What a planning session may be run FOR. The api's own enum
+ * (`PlanBody.objective`), and it is short on purpose: D13 settled v1's input as
+ * "objective + confirmed geography", one screen, no facet-picking. Anything
+ * this list does not contain is a 400, so it is never widened here first.
+ */
+export const AUDIENCE_OBJECTIVES = [
+  "lead_generation",
+  "brand_awareness",
+  "website_traffic",
+  "engagement",
+] as const;
+
+export type AudienceObjective = (typeof AUDIENCE_OBJECTIVES)[number];
+
+/**
+ * ONE audience out of a planning session, as `POST /plan` returns it.
+ *
+ * ★`id` IS NULLABLE AND THAT IS THE WHOLE POINT OF READING IT. The api builds
+ * the portfolio, then persists it — and a persistence failure degrades the
+ * answer instead of destroying it, because the sets cost a strong-model call
+ * and four rounds of platform typeaheads. A set with an id is in the library
+ * and can be put on a campaign; a set WITHOUT one can only be read. Rendering
+ * the two identically is exactly the failure the api's `persisted` flag exists
+ * to make visible.
+ */
+export interface PlannedAudience {
+  id: string | null;
+  label: string;
+  description?: string;
+  rationale?: string;
+  archetype?: string;
+  /** §15's prose — who this audience is, in the customer's own terms. It may
+   *  not restate a reach or a score; the writer refuses prose that does. */
+  explanation?: string;
+  /** The engine arguing AGAINST its own suggestion — too narrow, too broad,
+   *  overlapping, evidence-free. Nothing is filtered or reordered because of
+   *  it: showing the customer the objection beats letting an unreviewable
+   *  model call quietly drop an audience. */
+  critique?: string[];
+  /** Platform-sourced only. `belowFloor` carries NO number, deliberately. */
+  reach?: { supported: boolean; value?: number; belowFloor?: boolean; fetchedAt?: string };
+  /** What we wanted to express and the channel could not. Surfaced, never
+   *  dropped — a lost include makes the audience BROADER, not narrower. */
+  unresolved?: Array<{ attribute: string; value: string; reason: string }>;
+  basis?: Array<{ attribute: string; values: string[] }>;
+  scores?: Record<string, number>;
+}
+
+/**
+ * A planning session.
+ *
+ * ★A REFUSAL IS A 200 WITH A REASON, like `/propose`. "We don't know where you
+ * operate" is a question for the customer, not a failed request, and a client
+ * that renders it as an error hides the one thing they could fix.
+ *
+ * ★AND `strategist` IS NOT DEBUG OUTPUT. `rejected` + `dropped` are the ideas
+ * that did not survive — a five-hypothesis plan that loses four would otherwise
+ * render as a one-audience portfolio reading "this is all there was".
+ */
+export interface AudiencePlanResponse {
+  planId: string | null;
+  sets: PlannedAudience[];
+  /** True only when EVERY set landed in the library. A partial write still
+   *  returns ids for the ones that did. */
+  persisted?: boolean;
+  refusal: { reason: string; message: string } | null;
+  strategist?: {
+    generated: boolean;
+    rejected?: Array<{ label?: string; reason: string }>;
+    dropped?: Array<{ label?: string; reason: string }>;
+  };
+}
+
 export const audiencesApi = {
   /** What we understand about this business. `profile: null` is a first-class
    *  answer — nobody has asked for audiences yet — not an error. */
@@ -198,6 +272,37 @@ export const audiencesApi = {
    */
   propose: (body: { geo?: string[] } = {}) =>
     api.post<ProposalResponse>("/v1/audiences/propose", body),
+
+  /**
+   * Discover a PORTFOLIO of audiences from what we already understand about
+   * this business (§8).
+   *
+   * ★THE HERO FEATURE, AND UNTIL THIS METHOD NOTHING HAD EVER CALLED IT. The
+   * api has shipped the whole chain since B2 — strategist hypotheses in
+   * business language, deterministic resolution against the platform's own
+   * typeahead, real reach counts, deterministic scoring, an adversarial
+   * critique, overlap exclusions and plain-English prose — and `grep -rn
+   * "/v1/audiences/plan" src` returned nothing, so `biz_audience_plans` had
+   * zero rows in every environment. The Audiences page therefore showed only
+   * what a customer had typed in themselves, which reads as a filing cabinet
+   * rather than a strategist.
+   *
+   * ★IT NEEDS NO CAMPAIGN HISTORY. The inputs are the business profile (built
+   * from the site, the business record and published content) plus an
+   * objective; a business that has never advertised gets a full portfolio.
+   *
+   * ★IT WRITES, AND IT SPENDS NOTHING. Each audience is persisted as a named,
+   * reusable library row — that is what makes it appliable to a campaign
+   * later — but no campaign is touched and no budget moves. Applying is a
+   * separate act and activating is a further one.
+   *
+   * Expensive by construction (a strong-model call plus up to four rounds of
+   * platform typeaheads and reach calls), which is why the api rate-limits it
+   * per org and why this is an explicit action rather than something a page
+   * fires on mount.
+   */
+  plan: (body: { objective: AudienceObjective; platform?: string; geo?: string[] }) =>
+    api.post<AudiencePlanResponse>("/v1/audiences/plan", body),
 
   correctProfile: (corrections: CorrectionInput[]) =>
     api.patch<{ profile: AudienceProfile }>("/v1/audiences/profile", { corrections }),
@@ -264,6 +369,20 @@ export interface AudienceSet {
   description?: string;
   source: AudienceSource;
   status: AudienceSetStatus;
+  /**
+   * What the planning session that produced this audience was FOR.
+   *
+   * ★THE ONE FIELD THAT MAKES "RECOMMENDED FOR THIS CAMPAIGN" SAYABLE.
+   * `ad_campaigns.objective` and `PlanBody.objective` are the same four-value
+   * enum, so a campaign and an audience can be matched on it directly with no
+   * mapping table in between — and an audience planned to get enquiries is a
+   * genuinely different suggestion from one planned to get reach.
+   *
+   * Absent on an audience nobody planned: one built by hand, or read off a
+   * campaign that ran. That absence is why they belong under "Saved" rather
+   * than under a recommendation heading.
+   */
+  objective?: AudienceObjective;
   archetype?: string;
   hypothesis?: {
     attributes: AudienceHypothesisAttribute[];
@@ -271,6 +390,26 @@ export interface AudienceSet {
     cites?: string[];
   };
   channels: AudienceChannel[];
+  /**
+   * §15's prose — who this audience is, in the customer's own terms.
+   *
+   * ★WRITTEN BY THE ENGINE ON EVERY PLANNED SET SINCE B2, STORED ON THE ROW,
+   * RETURNED BY `GET /sets`, AND NEVER DECLARED HERE — so the library rendered
+   * chips of attribute values where a sentence explaining the idea already
+   * existed. The three fields below are the same shape of omission: the api
+   * passes the whole document through `serializeSet`, and a field this type
+   * does not name is a field no card can draw.
+   */
+  explanation?: string;
+  /** Why the engine thinks this audience is worth running, one line. */
+  rationale?: string;
+  /** The engine's own objections to its suggestion. Never used to filter or
+   *  reorder — an objection is shown, not acted on. */
+  critique?: string[];
+  /** Deterministic quality scoring (§9). Same profile, objective and registry →
+   *  same numbers; absent when the config collection was unreadable, and its
+   *  absence is the honest answer rather than a zero. */
+  scores?: Record<string, number>;
   /** Every hand-correction to this audience's targeting. The count is the
    *  interesting figure on a list: an audience corrected four times is one we
    *  keep getting wrong. */

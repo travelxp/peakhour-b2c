@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Check, Library } from "lucide-react";
+import { Check, PencilLine, Sparkles, Target } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,18 +24,40 @@ import {
 } from "@/lib/toast-errors";
 import { classifyApplyError } from "@/lib/audience-apply-errors";
 import { SEARCH_MAX } from "@/app/(site)/dashboard/growth/audiences/filters";
-import { audienceLibraryApi, type AudienceSet } from "@/lib/api/audiences";
+import {
+  audienceLibraryApi,
+  AUDIENCE_OBJECTIVES,
+  type AudienceObjective,
+  type AudienceSet,
+} from "@/lib/api/audiences";
 import { useAudienceSets } from "@/hooks/use-audience-library";
+import { useAudiencePlan, planRefusalCopy } from "@/hooks/use-audience-plan";
 import {
   audienceShape,
   channelNotes,
+  objectiveLabel,
+  originIsOurs,
   originLabel,
   platformLabel,
   reachReading,
 } from "@/lib/audience-library-rules";
+import { DiscoverAudiencesDialog } from "./discover-audiences-dialog";
 
 /**
- * Put an audience you already have on this campaign (G4).
+ * Set this campaign's audience (G4).
+ *
+ * ★WHAT PEAKHOUR SUGGESTS COMES FIRST, AND THAT ORDER IS THE PRODUCT. This
+ * surface used to be the SECOND of two buttons — "Set audience" opened a blank
+ * facet picker and "Saved" opened this list — so the default path through a
+ * campaign was a customer hand-picking LinkedIn URNs while an engine that had
+ * already worked out who to target sat one button to the right. The two are now
+ * one dialog in the order the engine actually works: our recommendations, then
+ * the audiences they own, then the hand-built escape hatch.
+ *
+ * ★AND AN EMPTY RECOMMENDATIONS LIST IS AN ACTION, NOT A BLANK. A business
+ * nobody has run a planning session for has no suggestions to show, and the fix
+ * — ask for some — is one call away and belongs here rather than on another
+ * page.
  *
  * ★THE LIBRARY'S WHOLE POINT, AND UNTIL NOW IT HAD NO WAY IN. `biz_audience_sets`
  * exists so an audience built once can be reused on a campaign created months
@@ -74,18 +96,81 @@ export function UseSavedAudienceDialog({
   campaignId,
   campaignName,
   platform,
+  objective,
   onApplied,
+  onBuildByHand,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   campaignId: string;
   campaignName: string;
   platform: string;
+  /**
+   * What THIS campaign is for. `ad_campaigns.objective` and the planner's
+   * `objective` are the same four-value enum, so no mapping sits between them —
+   * a campaign built to get enquiries is matched against audiences planned to
+   * get enquiries.
+   *
+   * Optional because a legacy row may carry none, and a recommendation section
+   * that silently matched everything would be worse than one that says it
+   * cannot tell.
+   */
+  objective?: string;
   onApplied?: () => void;
+  /** Hand off to the facet editor. Kept as a callback rather than rendering the
+   *  editor here: the two dialogs are owned by the campaign row, which is the
+   *  only thing that knows the campaign's full shape, and nesting one modal
+   *  inside another is how a Cancel closes the wrong one. */
+  onBuildByHand?: () => void;
 }) {
   const queryClient = useQueryClient();
   const [q, setQ] = useState("");
   const [chosen, setChosen] = useState<AudienceSet | null>(null);
+  const [discoverOpen, setDiscoverOpen] = useState(false);
+
+  /**
+   * The campaign's objective, but only if the planner would take it.
+   *
+   * ★`ManagedCampaign.objective` IS `BoostObjective | (string & {})` — a legacy
+   * row, or one created by a path that widened its own vocabulary, can carry
+   * anything. `PlanBody.objective` is a strict `z.enum`, so casting and posting
+   * it produced a 400 and a generic "couldn't build an audience plan" toast for
+   * a campaign whose only fault was being old. Narrowing here means an
+   * unrecognised objective degrades to "no objective" — the section falls back
+   * to "What Peakhour suggests" and the fresh-run button is not offered, which
+   * is honest rather than broken.
+   */
+  const planObjective = AUDIENCE_OBJECTIVES.includes(objective as AudienceObjective)
+    ? (objective as AudienceObjective)
+    : undefined;
+
+  /**
+   * Work out recommendations for THIS campaign, right here.
+   *
+   * ★THE OBJECTIVE IS NOT ASKED FOR, BECAUSE THE CAMPAIGN ALREADY ANSWERS IT.
+   * The Audiences page has to ask — it is planning cold. Here the campaign
+   * carries `objective` in the very enum the planner takes, so asking again
+   * would be the surface making the customer re-type something it is holding.
+   *
+   * ★AND IT DOES NOT FIRE ON OPEN. One run is a strong-model call plus up to
+   * four rounds of platform typeaheads and reach counts — the better part of a
+   * minute, and metered. Opening a dialog is not consent to spend that, and a
+   * modal that hangs for forty seconds before showing anything reads as broken.
+   * Stored recommendations render instantly; a fresh run is a button.
+   */
+  const plan = useAudiencePlan({
+    onPlanned: (res) => {
+      if (res.refusal) {
+        const copy = planRefusalCopy(res.refusal.reason, res.refusal.message);
+        toast.warning(copy.title, { description: copy.body });
+        return;
+      }
+      toast.success(
+        `${res.sets.length} audience${res.sets.length === 1 ? "" : "s"} worked out for this campaign.`,
+        { description: "Nothing is running — pick one and it still won't start spending." },
+      );
+    },
+  });
   // ★DEBOUNCED, LIKE THE LIBRARY PAGE. `GET /sets` runs a regex `find` AND a
   // `countDocuments` per request, over a query the api itself documents as a
   // blocking-sort collection scan — so an undebounced picker double-scans a
@@ -198,6 +283,52 @@ export function UseSavedAudienceDialog({
    */
   const selected = chosen && rows.some((r) => r.id === chosen.id) ? chosen : null;
 
+  /**
+   * ★THREE GROUPS, AND THE MIDDLE ONE EXISTS SO NOTHING DISAPPEARS.
+   *
+   * "Recommended for this campaign" is ours AND planned for this campaign's
+   * objective — the only group that can honestly carry that heading, because an
+   * audience worked out to get reach is a different suggestion from one worked
+   * out to get enquiries and presenting the first as a recommendation for the
+   * second is the collapse this engine exists not to make.
+   *
+   * "Other suggestions" catches everything else we proposed. Dropping those
+   * rows would be tidier and would quietly hide audiences a customer paid a
+   * model call for.
+   *
+   * "Saved" is what the customer chose to keep — one they built by hand, or one
+   * read off a campaign they actually ran. Neither has an objective, because
+   * nobody planned them.
+   *
+   * The api takes ONE `source` value and no objective filter, so this partitions
+   * the page rather than issuing three queries. Honest limit: past `PAGE` rows
+   * the groups describe this page, not the library — which is what the count
+   * line above says, and why the "we have never suggested any" prompt below is
+   * gated on having seen everything.
+   */
+  const ours = rows.filter((r) => originIsOurs(r.source));
+  const recommended = planObjective ? ours.filter((r) => r.objective === planObjective) : [];
+  const otherSuggestions = ours.filter((r) => !recommended.includes(r));
+  const theirs = rows.filter((r) => !originIsOurs(r.source));
+  /**
+   * ★"NOTHING HAS BEEN WORKED OUT FOR THIS CAMPAIGN" IS ONLY SAYABLE WHEN THIS
+   * PAGE IS THE WHOLE LIBRARY. Past `PAGE` rows an empty top section might just
+   * mean the customer's own audiences filled the page, and offering to spend a
+   * model call on that basis would be a claim we cannot source — the same
+   * accepted-then-ignored-filter failure one layer up.
+   */
+  //
+  // ★AND `ours` HAS TO BE EMPTY TOO WHEN THERE IS NO OBJECTIVE TO MATCH ON. A
+  // legacy campaign carrying no objective makes `recommended` empty by
+  // construction — so this offered "we haven't worked out any audiences for
+  // this business yet", plus a button that spends a model call, directly above
+  // an "Other suggestions" list of those very audiences.
+  const canOfferPlan =
+    recommended.length === 0 &&
+    (planObjective ? true : ours.length === 0) &&
+    !search &&
+    total <= PAGE;
+
   return (
     <Dialog
       open={open}
@@ -209,13 +340,13 @@ export function UseSavedAudienceDialog({
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Library className="size-4" aria-hidden="true" />
-            Use a saved audience
+            <Target className="size-4" aria-hidden="true" />
+            Set the audience
           </DialogTitle>
           <DialogDescription>
-            Put one of your existing audiences on &ldquo;{campaignName}&rdquo;. This replaces
-            the campaign&apos;s whole audience and starts no spending — activate it when
-            you&apos;re ready.
+            Who should see &ldquo;{campaignName}&rdquo;? Pick one of ours or one of yours —
+            it replaces the campaign&apos;s whole audience and starts no spending, so you
+            activate when you&apos;re ready.
           </DialogDescription>
         </DialogHeader>
 
@@ -223,8 +354,8 @@ export function UseSavedAudienceDialog({
           value={q}
           onChange={(e) => setQ(e.target.value.slice(0, SEARCH_MAX))}
           maxLength={SEARCH_MAX}
-          placeholder="Search your audiences…"
-          aria-label="Search your audiences"
+          placeholder="Search audiences…"
+          aria-label="Search audiences"
         />
 
         {total > PAGE && (
@@ -245,75 +376,268 @@ export function UseSavedAudienceDialog({
             <p className="text-sm text-muted-foreground">
               We couldn&apos;t load your audiences just now.
             </p>
-          ) : rows.length === 0 ? (
-            // ★TWO EMPTIES AGAIN, AND THEY ARE NOT THE SAME SENTENCE. "Nothing
-            // matches that search" is not "you have no audiences that work
-            // here", and the second is not "you have no audiences".
+          ) : rows.length === 0 && search ? (
             <p className="text-sm text-muted-foreground">
-              {search
-                ? "Nothing in your library matches that."
-                : `None of your saved audiences has been worked out for ${platformLabel(platform)} yet — open one from Audiences and check this channel first.`}
+              Nothing in your library matches that.
             </p>
           ) : (
-            rows.map((set) => {
-              const channel = set.channels.find((c) => c.platform === platform);
-              const shape = audienceShape(set);
-              const picked = chosen?.id === set.id;
-              return (
-                <button
-                  key={set.id}
-                  type="button"
-                  onClick={() => setChosen(set)}
-                  className={`w-full rounded-md border p-3 text-left transition-colors hover:bg-muted/50 ${
-                    picked ? "border-primary bg-muted/40" : ""
-                  }`}
-                  aria-pressed={picked}
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="text-sm font-medium">{set.name}</span>
-                    <span className="flex items-center gap-1.5">
-                      {picked && <Check className="size-3.5 text-primary" aria-hidden="true" />}
-                      <Badge variant="outline" className="text-[10px] font-normal">
-                        {originLabel(set.source)}
-                      </Badge>
-                    </span>
-                  </div>
-                  {shape.length > 0 && (
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {shape.map((r) => `${r.label}: ${r.values.join(", ")}`).join(" · ")}
-                    </p>
-                  )}
-                  {/* The reach on THIS channel, and what it could not express —
-                      both of which are what the customer is choosing between. */}
-                  {channel && (
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {[reachReading(channel).text, ...channelNotes(channel)].join(" · ")}
-                    </p>
-                  )}
-                </button>
-              );
-            })
+            <>
+              {/* ★PEAKHOUR'S RECOMMENDATIONS FOR *THIS* CAMPAIGN LEAD. This is
+                  the whole reordering: the engine's answer to "who should see
+                  this?" is the default, and the customer's own filing is the
+                  alternative to it rather than the other way round. */}
+              <Section
+                title={ planObjective
+                    ? `Recommended for ${objectiveLabel(planObjective)}`
+                    : "What Peakhour suggests"
+                }
+                icon={Sparkles}
+                action={
+                  // Only offered once we HAVE some — a "get fresh ones" button
+                  // above an empty section is the same click as the panel
+                  // below it, twice.
+                  recommended.length > 0 && planObjective ? (
+                    <button
+                      type="button"
+                      disabled={plan.isPending}
+                      onClick={() => plan.mutate({ objective: planObjective, platform })}
+                      className="text-xs font-medium text-primary hover:underline disabled:opacity-60"
+                    >
+                      {plan.isPending ? "Working…" : "Work out fresh ones"}
+                    </button>
+                  ) : null
+                }
+                empty={
+                  canOfferPlan ? (
+                    <div className="space-y-2 rounded-md border border-dashed p-3">
+                      {/* ★"NONE FOR THIS CHANNEL" IS NOT "NONE AT ALL", AND THE
+                          DELETED BRANCH SAID SO. `GET /sets` filters on
+                          `resolutions.<platform>`, so a customer with a full
+                          library and nothing resolved for THIS channel got
+                          `total: 0` — and the first cut of this panel told them
+                          we had never worked out any audiences for their
+                          business, over a button that spends a strong-model
+                          call on that false premise. Running a plan is still
+                          the right offer; the sentence above it has to be
+                          true. */}
+                      <p className="text-xs text-muted-foreground">
+                        {total === 0 && rows.length === 0
+                          ? `None of your audiences has been worked out for ${platformLabel(platform)} yet. We can work some out now from what we already know about your business — no past campaigns needed.`
+                          : planObjective
+                            ? `We haven't worked out who to target for ${objectiveLabel(planObjective)} yet. We can do it now from what we already know about your business — no past campaigns needed.`
+                            : "We haven't worked out any audiences for this business yet. We can do it from what we already know about you — no past campaigns needed."}
+                      </p>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={plan.isPending}
+                        onClick={() =>
+                          planObjective
+                            ? plan.mutate({
+                                objective: planObjective,
+                                platform,
+                              })
+                            : setDiscoverOpen(true)
+                        }
+                      >
+                        <Sparkles className="mr-1.5 size-3.5" aria-hidden="true" />
+                        {/* ★NAMED, NOT A SPINNER. This is a strong-model call
+                            plus up to four rounds of platform lookups — the
+                            better part of a minute — and a control that says
+                            nothing for that long reads as broken. */}
+                        {plan.isPending ? "Working out who to target…" : "Get recommendations"}
+                      </Button>
+                    </div>
+                  ) : null
+                }
+              >
+                {recommended.map((set) => (
+                  <AudienceOption
+                    key={set.id}
+                    set={set}
+                    platform={platform}
+                    picked={chosen?.id === set.id}
+                    onPick={() => setChosen(set)}
+                  />
+                ))}
+              </Section>
+
+              {/* ★NOT DROPPED, BECAUSE THEY ARE STILL AUDIENCES WE PROPOSED.
+                  An audience planned for a different objective may not wear the
+                  recommendation heading — but hiding it would quietly bin work
+                  a customer already paid a model call for. */}
+              <Section title="Other suggestions" icon={Sparkles} empty={null}>
+                {otherSuggestions.map((set) => (
+                  <AudienceOption
+                    key={set.id}
+                    set={set}
+                    platform={platform}
+                    picked={chosen?.id === set.id}
+                    onPick={() => setChosen(set)}
+                  />
+                ))}
+              </Section>
+
+              {/* ★ONLY WHAT THE CUSTOMER CHOSE TO KEEP. One they built by hand,
+                  or one read off a campaign they actually ran — the badge on
+                  each row says which. Nothing we proposed appears here. */}
+              <Section title="Saved" icon={PencilLine} empty={null}>
+                {theirs.map((set) => (
+                  <AudienceOption
+                    key={set.id}
+                    set={set}
+                    platform={platform}
+                    picked={chosen?.id === set.id}
+                    onPick={() => setChosen(set)}
+                  />
+                ))}
+              </Section>
+            </>
           )}
         </div>
 
-        <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={apply.isPending}
-          >
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            disabled={!selected || apply.isPending}
-            onClick={() => selected && apply.mutate(selected.id)}
-          >
-            {apply.isPending ? "Applying…" : "Use this audience"}
-          </Button>
+        {discoverOpen && (
+          <DiscoverAudiencesDialog
+            open={discoverOpen}
+            onOpenChange={setDiscoverOpen}
+            platform={platform}
+          />
+        )}
+
+        <DialogFooter className="sm:justify-between">
+          {/* ★THE HAND-BUILT PATH STAYS, AND IT STAYS SUBORDINATE. It is the
+              right answer for a customer who knows exactly which twelve job
+              titles they want, and the wrong DEFAULT for everyone else — which
+              is what it was when it had the primary button and its own tab
+              stop ahead of every suggestion we had already made. */}
+          {onBuildByHand ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={apply.isPending}
+              onClick={() => {
+                onOpenChange(false);
+                onBuildByHand();
+              }}
+            >
+              <PencilLine className="mr-1.5 size-3.5" aria-hidden="true" />
+              Build one by hand
+            </Button>
+          ) : (
+            <span />
+          )}
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={apply.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={!selected || apply.isPending}
+              onClick={() => selected && apply.mutate(selected.id)}
+            >
+              {apply.isPending ? "Applying…" : "Use this audience"}
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * A titled group of options, or the caller's own sentence when it has none.
+ *
+ * ★AN EMPTY GROUP DISAPPEARS RATHER THAN RENDERING AN EMPTY HEADING, unless the
+ * caller supplied something to say in its place — a heading over nothing reads
+ * as a list that failed to load.
+ */
+function Section({
+  title,
+  icon: Icon,
+  empty,
+  action,
+  children,
+}: {
+  title: string;
+  icon: typeof Sparkles;
+  empty: React.ReactNode;
+  action?: React.ReactNode;
+  children: React.ReactNode[];
+}) {
+  if (children.length === 0 && empty === null) return null;
+  return (
+    <section className="space-y-2">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+          <Icon className="size-3.5" aria-hidden="true" />
+          {title}
+        </h3>
+        {action}
+      </div>
+      {children.length > 0 ? children : empty}
+    </section>
+  );
+}
+
+/** One audience, as something to choose. */
+function AudienceOption({
+  set,
+  platform,
+  picked,
+  onPick,
+}: {
+  set: AudienceSet;
+  platform: string;
+  picked: boolean;
+  onPick: () => void;
+}) {
+  const channel = set.channels.find((c) => c.platform === platform);
+  const shape = audienceShape(set);
+  return (
+    <button
+      type="button"
+      onClick={onPick}
+      className={`w-full rounded-md border p-3 text-left transition-colors hover:bg-muted/50 ${
+        picked ? "border-primary bg-muted/40" : ""
+      }`}
+      aria-pressed={picked}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="text-sm font-medium">{set.name}</span>
+        <span className="flex items-center gap-1.5">
+          {picked && <Check className="size-3.5 text-primary" aria-hidden="true" />}
+          <Badge variant="outline" className="text-[10px] font-normal">
+            {originLabel(set.source)}
+          </Badge>
+        </span>
+      </div>
+      {/* ★THE ENGINE'S SENTENCE ABOUT WHO THESE PEOPLE ARE, WHERE THE CHOICE IS
+          ACTUALLY MADE. `explanation` has been written on every planned set
+          since B2 and returned by `GET /sets` all along; this picker showed a
+          row of raw attribute values instead, which is the targeting rather
+          than the idea. */}
+      {set.explanation && (
+        <p className="mt-1 text-xs text-muted-foreground">{set.explanation}</p>
+      )}
+      {shape.length > 0 && (
+        <p className="mt-1 text-xs text-muted-foreground">
+          {shape.map((r) => `${r.label}: ${r.values.join(", ")}`).join(" · ")}
+        </p>
+      )}
+      {/* The reach on THIS channel, and what it could not express — both of
+          which are what the customer is choosing between. */}
+      {channel && (
+        <p className="mt-1 text-xs text-muted-foreground">
+          {[reachReading(channel).text, ...channelNotes(channel)].join(" · ")}
+        </p>
+      )}
+    </button>
   );
 }

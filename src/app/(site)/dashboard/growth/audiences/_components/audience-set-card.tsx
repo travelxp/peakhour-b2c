@@ -70,8 +70,16 @@ export function AudienceSetCard({ set }: { set: AudienceSet }) {
                 <ChevronRight className="ml-0.5 inline size-3.5 align-baseline" aria-hidden="true" />
               </Link>
             </h3>
-            {set.description && (
-              <p className="mt-0.5 text-sm text-muted-foreground break-words">{set.description}</p>
+            {/* ★THE ENGINE'S OWN SENTENCE ABOUT WHO THESE PEOPLE ARE, WHICH IT
+                HAS WRITTEN ON EVERY PLANNED SET SINCE B2 AND NOTHING HAS EVER
+                DRAWN. `explanation` is §15's prose — the half a customer can
+                actually judge — and `description` is the one-line label under
+                it. Preferring the prose is the difference between a card that
+                argues for an audience and one that files it. */}
+            {(set.explanation ?? set.description) && (
+              <p className="mt-0.5 text-sm text-muted-foreground break-words">
+                {set.explanation ?? set.description}
+              </p>
             )}
           </div>
           {/* ★THE ORIGIN BADGE IS THE BRIEF'S OWN DISTINCTION AND IT LEADS.

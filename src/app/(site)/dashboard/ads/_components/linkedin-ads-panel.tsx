@@ -50,7 +50,6 @@ import { EmptyState } from "@/components/molecules/empty-state";
 import {
   AlertTriangle,
   Archive,
-  Library,
   Megaphone,
   Pause,
   Play,
@@ -652,6 +651,16 @@ function CampaignRow({
               <RefreshCw className={`size-3 ${sync.isPending ? "animate-spin" : ""}`} />
             </Button>
           ) : null}
+          {/* ★ONE DOOR, AND IT OPENS ON WHAT WE SUGGEST. This used to be two
+              buttons — "Set audience" straight into a blank LinkedIn facet
+              picker, and "Saved" into the library beside it — which made
+              hand-picking URNs the default route and the engine's own
+              recommendations the thing you had to know to look for. The picker
+              now leads with our suggestions, offers the customer's own
+              audiences under them, and keeps the facet editor as the escape
+              hatch it should always have been.
+
+              Applying spends nothing either way — a draft stays a draft. */}
           {canTarget ? (
             <Button
               type="button"
@@ -659,30 +668,15 @@ function CampaignRow({
               variant="outline"
               className="h-7 px-2 text-xs"
               disabled={busy}
-              title={hasAudience ? "Edit audience targeting" : "Set audience targeting (required before the campaign can serve)"}
-              onClick={() => setTargetingOpen(true)}
+              title={
+                hasAudience
+                  ? "Change who sees this campaign"
+                  : "Set the audience (required before the campaign can serve)"
+              }
+              onClick={() => setLibraryOpen(true)}
             >
               <Target className="mr-1 size-3" />
               {hasAudience ? "Audience" : "Set audience"}
-            </Button>
-          ) : null}
-          {/* ★AND THE OTHER WAY TO GET AN AUDIENCE, WHICH THE LIBRARY EXISTS
-              FOR (G4). Every boosted campaign has taken whatever the engine
-              proposed at the moment it was created; the rows a customer had
-              already built, imported or corrected could not be put on anything.
-              Applying spends nothing — a draft stays a draft. */}
-          {canTarget ? (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="h-7 px-2 text-xs"
-              disabled={busy}
-              title="Use an audience you already have"
-              onClick={() => setLibraryOpen(true)}
-            >
-              <Library className="mr-1 size-3" />
-              Saved
             </Button>
           ) : null}
           {canActivate ? (
@@ -748,6 +742,15 @@ function CampaignRow({
             // so this changes nothing today; it is what stops the picker being
             // wrong the day a campaign list carries a second channel.
             platform={campaign.platform}
+            // ★WHAT THIS CAMPAIGN IS FOR, so the picker can lead with the
+            // audiences worked out for that and not merely with everything we
+            // have ever suggested. `ad_campaigns.objective` is the same
+            // four-value enum the planner takes, so nothing maps between them.
+            objective={campaign.objective}
+            // The facet editor, handed the campaign this picker was opened
+            // for. Ownership stays here: nesting one modal inside another is
+            // how a Cancel closes the wrong dialog.
+            onBuildByHand={() => setTargetingOpen(true)}
           />
         ) : null}
 

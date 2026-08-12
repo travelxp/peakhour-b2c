@@ -219,18 +219,177 @@ export function AdjustmentsBoard() {
       </p>
 
       {rows.length === 0 ? (
-        <EmptyState
-          icon={Sparkles}
-          title="No reviews yet"
-          description={
-            optimizerEnabled
-              ? "Run this week's review now, or wait for Monday. It needs some published posts or campaigns to analyse."
-              : "Turn the optimizer on above to get a review every Monday — at most three small proposals, and you decide every one."
-          }
-        />
+        <SampleRun optimizerEnabled={optimizerEnabled} />
       ) : (
         rows.map((run) => <RunCard key={run._id} run={run} onChanged={invalidate} />)
       )}
+    </div>
+  );
+}
+
+/**
+ * What a review looks like, before this business has had one.
+ *
+ * ★A BARE "NO REVIEWS YET" WAS TRUE AND USELESS. On a test account with no
+ * spend and nothing published, the optimizer's honest answer is "a quiet week"
+ * — every week — so the empty state was the ONLY thing anyone could see, and it
+ * described the feature without showing it. Whether this is worth turning on is
+ * a judgement about the proposals, and nobody could form one.
+ *
+ * ★IT IS MARKED AS AN EXAMPLE IN THREE PLACES AND ITS CONTROLS DO NOTHING. A
+ * worked example that a customer could mistake for a real finding about their
+ * own account is far worse than no example: they would go looking in Campaign
+ * Manager for a budget split that does not exist. The card is labelled, the
+ * copy says so, and Approve/Dismiss are disabled with a reason on hover.
+ */
+const SAMPLE_PROPOSALS: Array<{
+  type: OptimizerProposal["type"];
+  summary: string;
+  evidence: string[];
+  expectedEffect: string;
+  rollbackCondition: string;
+}> = [
+  {
+    type: "budget_resplit",
+    summary:
+      "Move ₹40/day from “Turnaround Horizon” to “Aviation Ops Leaders” — it is getting three times the clicks for the same spend.",
+    evidence: [
+      "“Aviation Ops Leaders”: 1,240 impressions, 38 clicks (3.1% CTR) at ₹60/day",
+      "“Turnaround Horizon”: 1,190 impressions, 11 clicks (0.9% CTR) at ₹60/day",
+    ],
+    expectedEffect: "Roughly 20 more clicks a week at the same total spend.",
+    rollbackCondition: "Put it back if the winner's CTR drops below 2% for a full week.",
+  },
+  {
+    type: "posting_cadence",
+    summary:
+      "Publish on Tuesday and Thursday mornings instead of Friday afternoons — your Friday posts reach about a third as many people.",
+    evidence: [
+      "Tue/Thu 9–11am: 6 posts, 214 average impressions",
+      "Fri after 3pm: 5 posts, 71 average impressions",
+    ],
+    expectedEffect: "Same number of posts, materially more people seeing them.",
+    rollbackCondition: "Revert if two weeks of Tue/Thu posts under-perform the Friday average.",
+  },
+];
+
+function SampleRun({ optimizerEnabled }: { optimizerEnabled: boolean }) {
+  return (
+    <div className="space-y-3">
+      <div className="rounded-md border border-dashed bg-muted/20 p-4">
+        <p className="text-sm font-medium">No reviews yet — here&apos;s what one looks like</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {optimizerEnabled
+            ? "Run this week's review whenever you like. Until there are published posts or campaigns with real delivery to compare, the honest answer will be “a quiet week” — the optimizer needs at least two independent signals before it will propose anything, on purpose. One good post is not a trend."
+            : "Turn the optimizer on above and it reviews this business every Monday. It needs at least two independent signals before it will propose anything, on purpose — one good post is not a trend."}
+        </p>
+      </div>
+
+      <Card className="border-dashed">
+        <CardHeader className="pb-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-base font-semibold leading-none text-muted-foreground">
+              Example review
+            </h3>
+            <span className="text-[11px] text-muted-foreground">
+              Made-up numbers · nothing here is about your account
+            </span>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3 pt-0">
+          {SAMPLE_PROPOSALS.map((p) => (
+            <SampleProposalRow key={p.type} proposal={p} />
+          ))}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+/** The real row's structure with no mutation behind it. Kept as its own
+ *  component rather than a `sample` flag on `ProposalRow`: a live card that can
+ *  be put into a mode where its Approve does nothing is one prop away from
+ *  doing nothing on a real proposal. */
+function SampleProposalRow({
+  proposal,
+}: {
+  proposal: (typeof SAMPLE_PROPOSALS)[number];
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const detailId = `sample-detail-${proposal.type}`;
+  return (
+    <div className="rounded-md border border-dashed p-3">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0 flex-1 space-y-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex rounded-sm bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+              example
+            </span>
+            <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
+              {TYPE_LABEL[proposal.type] ?? proposal.type}
+            </Badge>
+          </div>
+          <p className="text-sm font-medium">{proposal.summary}</p>
+          <button
+            type="button"
+            className="inline-flex items-center gap-1 text-xs text-muted-foreground underline-offset-2 hover:underline"
+            aria-expanded={expanded}
+            aria-controls={detailId}
+            onClick={() => setExpanded((v) => !v)}
+          >
+            {expanded ? (
+              <ChevronUp aria-hidden="true" className="size-3" />
+            ) : (
+              <ChevronDown aria-hidden="true" className="size-3" />
+            )}
+            {expanded ? "Hide the numbers" : "See the numbers behind it"}
+          </button>
+          {expanded ? (
+            <div id={detailId} className="space-y-1.5 rounded-md bg-muted/30 p-2 text-xs">
+              <div>
+                <p className="font-medium">Evidence</p>
+                <ul className="list-disc pl-4 text-muted-foreground">
+                  {proposal.evidence.map((e, i) => (
+                    <li key={i}>{e}</li>
+                  ))}
+                </ul>
+              </div>
+              <p>
+                <span className="font-medium">Expected effect:</span>{" "}
+                <span className="text-muted-foreground">{proposal.expectedEffect}</span>
+              </p>
+              <p>
+                <span className="font-medium">Rollback if:</span>{" "}
+                <span className="text-muted-foreground">{proposal.rollbackCondition}</span>
+              </p>
+            </div>
+          ) : null}
+        </div>
+        <div className="flex shrink-0 gap-1">
+          <Button
+            type="button"
+            size="sm"
+            variant="default"
+            className="h-7 px-2 text-xs"
+            disabled
+            title="This is an example — there is nothing to approve"
+          >
+            <Check aria-hidden="true" className="mr-1 size-3" />
+            Approve
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-7 px-2 text-xs"
+            disabled
+            title="This is an example — there is nothing to dismiss"
+          >
+            <X aria-hidden="true" className="mr-1 size-3" />
+            Dismiss
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

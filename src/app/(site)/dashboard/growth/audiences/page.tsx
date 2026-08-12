@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Users } from "lucide-react";
+import { Sparkles, Users } from "lucide-react";
 import { ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { EmptyState } from "@/components/molecules/empty-state";
+import { DiscoverAudiencesDialog } from "@/components/audience/discover-audiences-dialog";
 import { useAudienceSets } from "@/hooks/use-audience-library";
 import { platformLabel, LIBRARY_CHANNELS } from "@/lib/audience-library-rules";
 import type { AudienceSetsQuery } from "@/lib/api/audiences";
@@ -86,6 +87,7 @@ export default function AudienceLibraryPage() {
   const [status, setStatus] = useState<string>(ALL);
   const [platform, setPlatform] = useState<string>(ALL);
   const [offset, setOffset] = useState(0);
+  const [discoverOpen, setDiscoverOpen] = useState(false);
 
   // ★DEBOUNCED, BECAUSE EVERY KEYSTROKE IS A COLLECTION SCAN. `GET /sets`
   // cannot use an index for `createdAt` ordering once a channel filter exists
@@ -152,13 +154,28 @@ export default function AudienceLibraryPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight">Audiences</h2>
-        <p className="text-muted-foreground">
-          Every audience we&apos;ve suggested, read off your past campaigns, or you&apos;ve
-          built by hand — reusable on any campaign, on any channel.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">Audiences</h2>
+          <p className="text-muted-foreground">
+            Every audience we&apos;ve suggested, read off your past campaigns, or you&apos;ve
+            built by hand — reusable on any campaign, on any channel.
+          </p>
+        </div>
+        {/* ★THE PRIMARY ACTION ON THIS PAGE IS NOT "ADD ONE". A library a
+            customer has to fill themselves is a filing cabinet; the engine's
+            whole claim is that it can tell them who to target from what it
+            already knows about the business, with no campaign history at all.
+            That call existed and nothing on any screen made it. */}
+        <Button className="shrink-0" onClick={() => setDiscoverOpen(true)}>
+          <Sparkles className="mr-1.5 size-4" aria-hidden="true" />
+          Find audiences
+        </Button>
       </div>
+
+      {discoverOpen && (
+        <DiscoverAudiencesDialog open={discoverOpen} onOpenChange={setDiscoverOpen} />
+      )}
 
       <div className="flex flex-wrap gap-2">
         <Input
@@ -254,13 +271,18 @@ export default function AudienceLibraryPage() {
               ? "This page is past the end of your library now."
               : filtered
                 ? "Try a different search, or clear the filters to see everything in your library."
-                : "When Peakhour suggests an audience for a campaign, or reads the ones you've already run, they'll be kept here so you can use them again."
+                : // ★NOT "THEY'LL TURN UP", WHICH WAS THE OLD COPY AND WAS NOT
+                  // TRUE. It told a customer to wait for suggestions that
+                  // nothing on any screen had ever asked for, so an empty
+                  // library stayed empty and read as an engine with no ideas.
+                  // The empty state is where the action belongs.
+                  "We can work out who you should be targeting from what we already know about your business — no past campaigns needed."
           }
           {...(pastTheEnd
             ? { action: { label: "Back to the start", onClick: () => setOffset(0) } }
             : filtered
               ? { action: { label: "Clear filters", onClick: clearFilters } }
-              : {})}
+              : { action: { label: "Find audiences", onClick: () => setDiscoverOpen(true) } })}
         />
       ) : (
         <>

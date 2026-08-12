@@ -26,7 +26,97 @@ export type ProposalStatus = "proposed" | "approved" | "dismissed" | "applied" |
  *  `proposed` — fix the cause (reconnect / envelope) and decide again. */
 export type DecisionStatus = "approved" | "dismissed" | "applied" | "failed" | "retryable";
 
+/**
+ * Outcomes (v1).
+ *
+ * ★THE ABSENCES ARE TYPED, WHICH IS THE WHOLE POINT OF THIS SHAPE. `paid: null`
+ * is "this business has no paid channel", not "zero"; `conversions.configured:
+ * false` carries a REASON and no count, so no client can render a business
+ * nobody has ever counted a win for as one that had none. Those are different
+ * facts and only one of them is a verdict on the customer's marketing.
+ */
+export interface OutcomesResponse {
+  period: { days: number; since: string; until: string };
+  reach: {
+    organic: {
+      impressions: number;
+      posts: number;
+      byPlatform: Array<{ platform: string; impressions: number; posts: number }>;
+    };
+    paid: { impressions: number; campaigns: number; spend: number; currency?: string } | null;
+    site: {
+      sessions: number;
+      users: number;
+      /** Null on a first period AND on stale data — a comparison computed
+       *  across a sync that stopped is the most confident wrong number a
+       *  dashboard can produce. */
+      sessionsDeltaPct: number | null;
+      dataThrough: string | null;
+      stale: boolean;
+    } | null;
+  };
+  attention: {
+    organic: { engagements: number; clicks: number; ratePct: number | null };
+    paid: { clicks: number; ctrPct: number | null } | null;
+  };
+  conversions:
+    | {
+        configured: true;
+        count: number;
+        source: "analytics" | "inbox";
+        /** What the customer calls it. Present only once they've chosen — the
+         *  page says "wins" until then, because naming it for them is how a
+         *  headline ends up reading "23 generate_lead this week". */
+        label?: string;
+        costPer: number | null;
+        currency?: string;
+      }
+    | { configured: false; reason: "not_connected" | "no_key_event"; message: string };
+  headline: string;
+  movements: Array<{ direction: "up" | "down" | "flat"; text: string }>;
+  nextActions: Array<{
+    id: string;
+    severity: "critical" | "attention" | "opportunity";
+    title: string;
+    detail: string;
+    href?: string;
+    cta?: string;
+  }>;
+}
+
+/** What a business counts as a win. Absent until they've chosen — and absence
+ *  is never rendered as a zero. */
+export interface WinDefinition {
+  source: "analytics_key_event" | "inbox_lead";
+  eventName?: string;
+  label: string;
+  setAt?: string;
+}
+
+/**
+ * The choices on offer, and only ones we can genuinely count.
+ *
+ * ★`keyEvents.available: false` IS NOT AN EMPTY LIST. "We asked your property
+ * and it has none" and "we couldn't ask" are different sentences, and the
+ * `reason` says which — a screen that collapsed them would tell somebody to go
+ * and create a key event they may already have.
+ */
+export interface WinOptionsResponse {
+  current: WinDefinition | null;
+  keyEvents: {
+    available: boolean;
+    reason?: "not_connected" | "no_property" | "lookup_failed";
+    events: Array<{ eventName: string; custom: boolean }>;
+  };
+  inbox: { available: boolean };
+}
+
 export interface GrowthSettings {
+  /** What this business counts as a win, if anything. Read from here rather
+   *  than from `winOptions()` wherever a surface only needs to know WHETHER one
+   *  is set — this comes off a Mongo projection, while `winOptions()` refreshes
+   *  an OAuth token and calls Google's Admin API. */
+  winDefinition?: WinDefinition;
   optimizerEnabled?: boolean;
   autonomyLevel?: number;
   weeklyBudgetEnvelope?: number;
@@ -114,6 +204,23 @@ export const growthApi = {
       `/v1/growth/adjustments/${runId}/proposals/${proposalId}/${decision}`,
     ),
 
+  /**
+   * What happened, what it means, and what to do next (Outcomes v1).
+   *
+   * ★DETERMINISTIC AND FREE. Every figure is read off rows the platform already
+   * holds — no model call in the path, so no per-view cost and no chance of a
+   * sentence that disagrees with the number beside it.
+   *
+   * ★AND IT SPEAKS BEFORE ANY MONEY IS SPENT. `reach.paid` is null rather than
+   * a block of zeros until a campaign has actually served; organic reach and
+   * site traffic carry the page until then, which is the state a business is in
+   * for its first months.
+   */
+  outcomes: (days = 28) => api.get<OutcomesResponse>(`/v1/growth/outcomes?days=${days}`),
+
+  /** What this business could count as a win, and what it currently does. */
+  winOptions: () => api.get<WinOptionsResponse>("/v1/growth/win-options"),
+
   /** Per-business growth settings (the optimizer opt-in and the advertising
    *  declaration live here), plus the notice version in force. */
   settings: () => api.get<GrowthSettingsResponse>("/v1/growth/settings"),
@@ -132,5 +239,12 @@ export const growthApi = {
     optimizerEnabled?: boolean;
     weeklyBudgetEnvelope?: number | null;
     notPolitical?: boolean;
+    /** `null` clears it — and clearing is an unset server-side, so "nobody has
+     *  chosen" stays the single reading of absence. */
+    winDefinition?: {
+      source: WinDefinition["source"];
+      eventName?: string;
+      label: string;
+    } | null;
   }) => api.patch<GrowthSettingsResponse>("/v1/growth/settings", patch),
 };
