@@ -4,6 +4,7 @@ import {
   CHANNEL_CONCENTRATION,
   LOW_ENGAGEMENT_PCT,
   NOTABLE_DROP_PCT,
+  PAGE_CONCENTRATION,
 } from "./analytics-actions";
 
 /**
@@ -125,6 +126,11 @@ describe("analyticsActions", () => {
     );
     const hit = actions.find((a) => a.id === "page-concentration");
     expect(hit?.title).toContain("/guides/turnaround");
+    // ★AND THE HEADLINE'S CLAIM IS TRUE. It says "most of the work", so the
+    // threshold has to be a majority — a card whose title says "most" over a
+    // detail line reading "31%" disagrees with itself in two lines.
+    expect(hit?.title).toContain("most of the work");
+    expect(PAGE_CONCENTRATION).toBeGreaterThan(0.5 - Number.EPSILON);
   });
 
   it("★says nothing about page concentration when the page list is truncated", () => {

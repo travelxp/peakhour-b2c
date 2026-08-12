@@ -410,10 +410,22 @@ export function UseSavedAudienceDialog({
                 empty={
                   canOfferPlan ? (
                     <div className="space-y-2 rounded-md border border-dashed p-3">
+                      {/* ★"NONE FOR THIS CHANNEL" IS NOT "NONE AT ALL", AND THE
+                          DELETED BRANCH SAID SO. `GET /sets` filters on
+                          `resolutions.<platform>`, so a customer with a full
+                          library and nothing resolved for THIS channel got
+                          `total: 0` — and the first cut of this panel told them
+                          we had never worked out any audiences for their
+                          business, over a button that spends a strong-model
+                          call on that false premise. Running a plan is still
+                          the right offer; the sentence above it has to be
+                          true. */}
                       <p className="text-xs text-muted-foreground">
-                        {planObjective
-                          ? `We haven't worked out who to target for ${objectiveLabel(planObjective)} yet. We can do it now from what we already know about your business — no past campaigns needed.`
-                          : "We haven't worked out any audiences for this business yet. We can do it from what we already know about you — no past campaigns needed."}
+                        {total === 0 && rows.length === 0
+                          ? `None of your audiences has been worked out for ${platformLabel(platform)} yet. We can work some out now from what we already know about your business — no past campaigns needed.`
+                          : planObjective
+                            ? `We haven't worked out who to target for ${objectiveLabel(planObjective)} yet. We can do it now from what we already know about your business — no past campaigns needed.`
+                            : "We haven't worked out any audiences for this business yet. We can do it from what we already know about you — no past campaigns needed."}
                       </p>
                       <Button
                         type="button"

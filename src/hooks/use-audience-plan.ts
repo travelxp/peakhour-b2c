@@ -5,9 +5,11 @@ import { toast } from "sonner";
 import { ApiError } from "@/lib/api";
 import {
   reconnectHref,
+  adsProviderFor,
   ADS_LINKEDIN_PATH,
   LINKEDIN_ADS_PROVIDER,
 } from "@/lib/integrations-connect";
+import { platformLabel } from "@/lib/audience-library-rules";
 import { toastUnhandledApiError } from "@/lib/toast-errors";
 import {
   audiencesApi,
@@ -43,8 +45,24 @@ export function useAudiencePlan(opts?: { onPlanned?: (res: AudiencePlanResponse)
       void queryClient.invalidateQueries({ queryKey: ["audience-sets"] });
       opts?.onPlanned?.(res);
     },
-    onError: (err) => {
+    onError: (err, variables) => {
       const code = err instanceof ApiError ? err.code : undefined;
+      /**
+       * ★THE CHANNEL THE REQUEST WAS FOR, NOT A CONSTANT.
+       *
+       * The hook threads `platform` all the way into the request and then said
+       * "LinkedIn" in every error — so the day an X campaign uses this, a
+       * customer whose X Ads connection is stale is told to reconnect LinkedIn,
+       * and the Connect button takes them to the LinkedIn ads page. The api and
+       * the X audience adapter both support it today; this is the same
+       * storage-key-in-a-headline defect the sibling apply path passes
+       * `platformLabel(platform)` to avoid.
+       *
+       * Latent right now — every campaign in the ads panel is LinkedIn — which
+       * is exactly why it would have shipped.
+       */
+      const platform = variables.platform ?? "linkedin";
+      const channel = platformLabel(platform);
       if (code === "NOT_CONNECTED" || code === "NEEDS_REAUTH") {
         // ★A REAL PRODUCT CONSTRAINT, SAID PLAINLY. The engine reasons about
         // the business on its own, but it will not hand over an audience it
@@ -52,13 +70,19 @@ export function useAudiencePlan(opts?: { onPlanned?: (res: AudiencePlanResponse)
         // made-up reach is the number a customer divides their budget by. So
         // an ads connection is a prerequisite, and this is the one error on
         // this path with a fix the customer can perform.
-        toast.error("Connect your ads account first.", {
+        toast.error(`Connect your ${channel} ads account first.`, {
           description:
             "We size every audience against the real platform rather than estimating it, so we need the connection before we can suggest any.",
           action: {
             label: "Connect",
             onClick: () => {
-              window.location.href = reconnectHref(ADS_LINKEDIN_PATH, LINKEDIN_ADS_PROVIDER);
+              // The ads hub is one surface with a `?channel=` parameter, so the
+              // return path follows the platform too.
+              const returnTo = `/dashboard/ads?channel=${encodeURIComponent(platform)}`;
+              window.location.href = reconnectHref(
+                platform === "linkedin" ? ADS_LINKEDIN_PATH : returnTo,
+                adsProviderFor(platform) ?? LINKEDIN_ADS_PROVIDER,
+              );
             },
           },
         });
@@ -67,7 +91,7 @@ export function useAudiencePlan(opts?: { onPlanned?: (res: AudiencePlanResponse)
       } else if (code === "PLATFORM_UNSUPPORTED") {
         toast.error((err as ApiError).message || "We can't plan audiences for that channel yet.");
       } else {
-        toastUnhandledApiError(err, "build an audience plan", "LinkedIn");
+        toastUnhandledApiError(err, "build an audience plan", channel);
       }
     },
   });

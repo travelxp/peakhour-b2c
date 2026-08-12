@@ -40,9 +40,18 @@ export interface AnalyticsAction {
  */
 export const CHANNEL_CONCENTRATION = 0.66;
 
-/** Share of page views on ONE page above which that page IS the site, as far as
- *  visitors are concerned. */
-export const PAGE_CONCENTRATION = 0.3;
+/**
+ * Share of page views on ONE page above which that page IS the site, as far as
+ * visitors are concerned.
+ *
+ * ★A MAJORITY, BECAUSE THE HEADLINE SAYS "MOST OF THE WORK". At 0.3 a four-page
+ * site with a 31% top page was told one page was doing most of the work while
+ * the detail line underneath quoted 31% — the card disagreeing with itself in
+ * two lines. Either the number or the word had to move, and "most" is the part
+ * worth keeping: a page carrying a third of a site is not a finding anybody can
+ * act on differently from one carrying a quarter.
+ */
+export const PAGE_CONCENTRATION = 0.5;
 
 /**
  * Engagement rate below which most visits are bounces.

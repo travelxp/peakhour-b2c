@@ -39,7 +39,7 @@ import {
 import { OAuthConnectResult } from "@/components/integrations/oauth-connect-result";
 import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
 import { WhatCountsAsAWinDialog } from "@/components/growth/what-counts-as-a-win-dialog";
-import { growthApi } from "@/lib/api/growth";
+import { growthApi, type WinDefinition } from "@/lib/api/growth";
 import { analyticsActions, type AnalyticsAction } from "@/lib/analytics-actions";
 
 interface ConnectionStatus {
@@ -161,11 +161,7 @@ export default function AnalyticsInsightsPage() {
   // alternative flashes "nothing is counting your outcomes" at a business that
   // has counted them for months, which is a worse lie than a briefly missing
   // prompt.
-  const winConfigured = winQ.data ? winDefinition !== undefined : true;
-  // ★AND THE GA4 FIGURE IS ONLY THE ANSWER WHEN GA4 IS WHAT THEY CHOSE. A
-  // business counting inbox leads has a number on Outcomes that this tile would
-  // contradict — same word, two figures, from the one product.
-  const showGa4Conversions = winDefinition?.source === "analytics_key_event";
+  const winKnown = winQ.data !== undefined;
 
   // Single toolbar instance survives the loading→loaded transition so
   // the dev trigger is reachable during the very query its data refreshes,
@@ -241,11 +237,7 @@ export default function AnalyticsInsightsPage() {
               account id, Sync now, a "Use this" button per property — sitting
               above everything a customer actually came to read. It is a
               once-a-year job and it is now at the bottom, collapsed. */}
-          <AnalyticsData
-            query={insightsQ}
-            winConfigured={winConfigured}
-            showGa4Conversions={showGa4Conversions}
-          />
+          <AnalyticsData query={insightsQ} winDefinition={winDefinition} winKnown={winKnown} />
 
           {ASK_ENABLED && (
             <Card>
@@ -489,14 +481,13 @@ const MOVEMENT_DOT: Record<Ga4Digest["movements"][number]["kind"], string> = {
 
 function AnalyticsData({
   query,
-  winConfigured,
-  showGa4Conversions,
+  winDefinition,
+  winKnown,
 }: {
   query: { data?: AnalyticsInsightsResponse; isLoading: boolean; isError: boolean };
-  winConfigured: boolean;
-  /** GA4's own conversion count is only THIS business's answer when a GA4 key
-   *  event is what they chose to count. */
-  showGa4Conversions: boolean;
+  winDefinition: WinDefinition | undefined;
+  /** False while the settings read is in flight or has failed. */
+  winKnown: boolean;
 }) {
   const { data, isLoading, isError } = query;
   const [winOpen, setWinOpen] = useState(false);
@@ -545,6 +536,29 @@ function AnalyticsData({
   const trend = data.trend ?? [];
   const funnelWindow = data.period ?? "last 30 days";
   const windowLabel = data.trendWindowDays ? `last ${data.trendWindowDays} days` : "recent";
+
+  /**
+   * ★THE SAME RULE THE OUTCOMES API APPLIES, BECAUSE THE TWO SURFACES MUST NOT
+   * DISAGREE ABOUT THE SAME BUSINESS. `classifyConversions` treats a property
+   * that has EVER converted as configured even with no explicit definition —
+   * so keying this page purely on the definition put "23 wins" on Outcomes and
+   * "nothing here is counting outcomes" here, in the same session, about the
+   * same account. A conversion we can see is something counting, whether or not
+   * anybody named it.
+   */
+  const somethingCounts = winDefinition !== undefined || (funnel?.conversions ?? 0) > 0;
+  const winConfigured = winKnown ? somethingCounts : true;
+  /**
+   * ★AND GA4's OWN FIGURE IS ONLY THE ANSWER WHEN GA4 IS WHAT THEY CHOSE. A
+   * business counting inbox leads has a number on Outcomes that this tile would
+   * contradict — same word, two figures, from one product. With no explicit
+   * choice, a GA4 conversion count IS what Outcomes falls back to, so showing
+   * it agrees.
+   */
+  const showGa4Conversions =
+    winDefinition === undefined
+      ? (funnel?.conversions ?? 0) > 0
+      : winDefinition.source === "analytics_key_event";
 
   // What to do about all this — deterministic, from the data already here.
   const actions = analyticsActions(data, { winConfigured });
