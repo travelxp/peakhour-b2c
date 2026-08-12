@@ -49,7 +49,7 @@ export function ScheduleConflictWarning({
   return (
     <div
       className={cn(
-        "rounded-md border border-amber-300/60 bg-amber-50 text-xs text-amber-900 dark:border-amber-700/40 dark:bg-amber-950/30 dark:text-amber-200",
+        "rounded-md border border-warning/30 bg-warning/10 text-xs text-warning-on-tint",
         className,
       )}
     >
@@ -76,7 +76,7 @@ export function ScheduleConflictWarning({
         />
       </button>
       {open && (
-        <div className="space-y-2 border-t border-amber-300/60 px-3 py-2 dark:border-amber-700/40">
+        <div className="space-y-2 border-t border-warning/30 px-3 py-2">
           {rowsWithNotes.map((r) => (
             <div key={r.channel}>
               <div className="font-medium">{channelDisplayName(r.channel)}</div>
@@ -90,7 +90,7 @@ export function ScheduleConflictWarning({
           <Button
             size="sm"
             variant="ghost"
-            className="h-6 px-1 text-[11px] text-amber-900 hover:bg-amber-100 dark:text-amber-200 dark:hover:bg-amber-900/30"
+            className="h-6 px-1 text-[11px] text-warning-on-tint hover:bg-warning/15"
             onClick={() => setOpen(false)}
           >
             Got it

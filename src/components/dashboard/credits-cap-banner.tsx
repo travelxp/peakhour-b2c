@@ -58,7 +58,7 @@ export function CreditCapBanner() {
   // soft cap
   return (
     <div
-      className="flex flex-col gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900 sm:flex-row sm:items-center sm:gap-3 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200"
+      className="flex flex-col gap-2 rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 text-warning-on-tint sm:flex-row sm:items-center sm:gap-3"
       role="status"
       aria-live="polite"
     >
@@ -68,7 +68,7 @@ export function CreditCapBanner() {
         AI features will pause when the limit is reached. Resets on {resetDate}.
       </div>
       <div className="flex items-center gap-2">
-        <Button size="sm" variant="outline" asChild className="border-amber-300 dark:border-amber-700">
+        <Button size="sm" variant="outline" asChild className="border-warning/30">
           <Link href="/dashboard/settings/billing">Upgrade</Link>
         </Button>
         <Button

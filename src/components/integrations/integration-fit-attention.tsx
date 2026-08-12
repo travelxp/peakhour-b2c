@@ -82,10 +82,10 @@ export function IntegrationFitAttention() {
   }
 
   return (
-    <Card className="border-amber-500/30 bg-amber-500/5">
+    <Card className="border-warning/40 bg-warning/5">
       <CardHeader>
         <div className="flex items-center gap-2">
-          <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-500" />
+          <AlertTriangle className="h-5 w-5 text-warning-on-tint" />
           <CardTitle>Needs attention</CardTitle>
         </div>
         <CardDescription>
@@ -98,7 +98,7 @@ export function IntegrationFitAttention() {
         {flags.map((f) => (
           <div
             key={f.connectionId}
-            className="flex flex-col gap-2 rounded-lg border border-amber-500/20 bg-background/60 p-3 sm:flex-row sm:items-center sm:justify-between"
+            className="flex flex-col gap-2 rounded-lg border border-warning/40 bg-background/60 p-3 sm:flex-row sm:items-center sm:justify-between"
           >
             <div className="text-sm">
               <span className="font-medium">{formatProvider(f.provider)}</span>

@@ -21,7 +21,7 @@ const HEALTH_META: Record<
   },
   slow: {
     label: "Slow / dead",
-    chip: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
+    chip: "bg-warning/15 text-warning-on-tint",
     icon: PackageX,
   },
   watchlist: {

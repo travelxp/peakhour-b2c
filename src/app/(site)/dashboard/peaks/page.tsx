@@ -449,7 +449,7 @@ export default function PeaksPage() {
       ? pct >= 100
         ? "bg-red-500"
         : pct >= 80
-          ? "bg-amber-500"
+          ? "bg-warning"
           : "bg-primary"
       : "bg-primary";
 

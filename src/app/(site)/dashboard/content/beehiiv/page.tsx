@@ -685,7 +685,7 @@ export default function ContentPage() {
           <TabsContent value="intelligence" className="mt-4 space-y-6">
             {/* Recommendations */}
             {gaps?.recommendations && gaps.recommendations.length > 0 && (
-              <Card className="border-amber-200 bg-amber-50/50">
+              <Card className="border-warning/30 bg-warning/5">
                 <CardHeader className="pb-3">
                   <CardTitle className="text-lg">Recommendations</CardTitle>
                   <CardDescription>
@@ -699,7 +699,7 @@ export default function ContentPage() {
                         key={i}
                         className="flex items-start gap-2 text-sm"
                       >
-                        <span className="mt-0.5 h-5 w-5 rounded-full bg-amber-200 text-amber-800 flex items-center justify-center text-xs font-bold shrink-0">
+                        <span className="mt-0.5 h-5 w-5 rounded-full bg-warning/15 text-warning-on-tint flex items-center justify-center text-xs font-bold shrink-0">
                           {i + 1}
                         </span>
                         <span>{r}</span>
@@ -953,7 +953,7 @@ function ArticleCard({
               draft.repurposeFit?.topBand === "green"
                 ? "text-green-700 hover:text-green-700 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-950/40"
                 : draft.repurposeFit?.topBand === "amber"
-                  ? "text-amber-700 hover:text-amber-700 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950/40"
+                  ? "text-warning-on-tint hover:bg-warning/10"
                   : ""
             }`}
             onClick={(e) => {
@@ -1006,7 +1006,7 @@ function AdScoreBar({
               onPointerDown={(e) => e.stopPropagation()}
             >
               Can&apos;t score
-              <Info className="size-3 text-amber-500" aria-label="Why not scored?" />
+              <Info className="size-3 text-warning" aria-label="Why not scored?" />
             </span>
           </TooltipTrigger>
           <TooltipContent className="max-w-xs">
@@ -1024,7 +1024,7 @@ function AdScoreBar({
     score >= 8
       ? "bg-green-500"
       : score >= 6
-        ? "bg-amber-500"
+        ? "bg-warning"
         : score >= 4
           ? "bg-orange-400"
           : "bg-red-400";
@@ -1140,7 +1140,7 @@ function SectorHeatmap({
             : intensity > 0.6
               ? "bg-green-100 border-green-300"
               : intensity > 0.3
-                ? "bg-amber-50 border-amber-200"
+                ? "bg-warning/10 border-warning/30"
                 : "bg-orange-50 border-orange-200";
 
         return (
@@ -1231,7 +1231,7 @@ function AudienceBars({
             : pct > 60
               ? "bg-green-500"
               : pct > 30
-                ? "bg-amber-500"
+                ? "bg-warning"
                 : "bg-orange-400";
 
         return (

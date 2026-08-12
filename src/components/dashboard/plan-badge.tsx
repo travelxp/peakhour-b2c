@@ -23,7 +23,7 @@ const PLAN_STYLES: Record<string, string> = {
   agency:
     "bg-violet-100 text-violet-700 dark:bg-violet-950/60 dark:text-violet-300",
   enterprise:
-    "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300",
+    "bg-warning/15 text-warning-on-tint",
 };
 
 function planLabel(key: string): string {

@@ -58,7 +58,7 @@ const SEVERITY: Record<
   { dot: string; icon: typeof AlertTriangle; label: string }
 > = {
   critical: { dot: "bg-red-500", icon: AlertTriangle, label: "Needs you now" },
-  attention: { dot: "bg-amber-500", icon: AlertTriangle, label: "Worth a look" },
+  attention: { dot: "bg-warning", icon: AlertTriangle, label: "Worth a look" },
   opportunity: { dot: "bg-emerald-500", icon: Lightbulb, label: "Opportunity" },
 };
 

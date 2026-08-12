@@ -45,7 +45,7 @@ export function PresenceHome() {
               <div>
                 <div className="flex items-center gap-2">
                   <h2 className="font-semibold">Google Business Profile</h2>
-                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                  <span className="rounded-full bg-warning/15 px-2 py-0.5 text-xs font-medium text-warning-on-tint">
                     Coming soon
                   </span>
                 </div>

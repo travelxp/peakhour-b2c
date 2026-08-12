@@ -25,9 +25,9 @@ const STYLES: Record<
   waiting: {
     label: "Waiting on you",
     icon: Clock,
-    dot: "bg-amber-500",
-    ring: "border-amber-200 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/40",
-    text: "text-amber-700 dark:text-amber-400",
+    dot: "bg-warning",
+    ring: "border-warning/30 bg-warning/10",
+    text: "text-warning-on-tint",
   },
   stalled: {
     label: "Needs attention",

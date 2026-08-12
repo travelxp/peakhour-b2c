@@ -41,7 +41,7 @@ export function LockedNavItem({
       >
         <Icon />
         <span>{label}</span>
-        <Sparkles className="ml-auto size-3.5 text-amber-500 dark:text-amber-400" />
+        <Sparkles className="ml-auto size-3.5 text-brand-label" />
       </SidebarMenuButton>
       <UpgradeDrawer
         open={open}

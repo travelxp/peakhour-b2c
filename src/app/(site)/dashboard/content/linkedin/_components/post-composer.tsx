@@ -1170,7 +1170,7 @@ const POLICY_MIN_CHARS = 24;
  * Returns:
  *   - `null`      while text is too short to check
  *   - `undefined` while a debounce/request window is open (pending)
- *   - advisory    otherwise. A 429 (rate-limited) or any error resolves
+ *   - advisory otherwise. A 429 (rate-limited) or any error resolves
  *     to a `checked:false` advisory so the chip renders a neutral
  *     "couldn't check" — never a scary error or a false "OK".
  */
@@ -1272,7 +1272,7 @@ function PolicyChip({ state }: { state: ComposerPolicyAdvisory | null | undefine
   const tone =
     state.overall === "block"
       ? "text-destructive"
-      : "text-amber-700 dark:text-amber-400";
+      : "text-warning-on-tint";
   return (
     <HoverCard openDelay={150} closeDelay={100}>
       <HoverCardTrigger asChild>
@@ -1305,7 +1305,7 @@ function PolicyChip({ state }: { state: ComposerPolicyAdvisory | null | undefine
                   "mr-1.5 rounded-sm px-1 py-0.5 text-[10px] font-medium uppercase tracking-wide",
                   f.verdict === "block"
                     ? "bg-destructive/10 text-destructive"
-                    : "bg-amber-500/10 text-amber-700 dark:text-amber-400",
+                    : "bg-warning/10 text-warning-on-tint",
                 )}
               >
                 {f.category.replace(/_/g, " ")}
@@ -1388,7 +1388,7 @@ function bandForScore(score: number): HookScoreBand {
     return {
       label: "Weak hook",
       className:
-        "border-amber-200 bg-amber-50/60 text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300",
+        "border-warning/30 bg-warning/8 text-warning-on-tint",
     };
   return {
     label: "Rework the hook",
@@ -1726,7 +1726,7 @@ function VoiceCardPanel() {
                   {avoidTopics.map((t) => (
                     <span
                       key={t}
-                      className="rounded-sm border border-amber-200 bg-amber-50/60 px-1.5 py-0.5 text-[11px] text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300"
+                      className="rounded-sm border border-warning/30 bg-warning/8 px-1.5 py-0.5 text-[11px] text-warning-on-tint"
                     >
                       {t}
                     </span>

@@ -26,7 +26,7 @@ function fmt(n: number): string {
 
 const CAP_CLASSES: Record<"none" | "soft" | "hard", string> = {
   none: "text-muted-foreground hover:text-foreground",
-  soft: "text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300",
+  soft: "text-warning-on-tint hover:text-warning",
   hard: "text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300",
 };
 

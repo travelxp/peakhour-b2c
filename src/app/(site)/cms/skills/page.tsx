@@ -45,7 +45,7 @@ const AGENT_COLORS: Record<string, string> = {
 const EXECUTION_BADGES: Record<string, string> = {
   ai: "bg-violet-100 text-violet-800 dark:bg-violet-900 dark:text-violet-300",
   code: "bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-300",
-  hybrid: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300",
+  hybrid: "bg-warning/15 text-warning-on-tint",
 };
 
 export default function SkillsPage() {

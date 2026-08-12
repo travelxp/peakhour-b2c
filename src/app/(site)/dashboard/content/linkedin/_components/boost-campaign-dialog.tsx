@@ -157,11 +157,11 @@ export function BoostCampaignDialog({
   const stampableNotice = noticeTextFor(settings.data?.currentNoticeVersion);
   // Latched on a failure a resubmit cannot improve on — the button stays
   // disabled for this dialog instance, and the reason picks its label:
-  //   "persisted"      PERSIST_FAILED — the draft EXISTS on LinkedIn, so
-  //                    a resubmit would duplicate it.
-  //   "not_authorized" AD_ACCOUNT_NOT_AUTHORIZED — LinkedIn refuses this
-  //                    ad account for our app; nothing was created and
-  //                    nothing will be until that access is granted.
+  // "persisted"      PERSIST_FAILED — the draft EXISTS on LinkedIn, so
+  // a resubmit would duplicate it.
+  // "not_authorized" AD_ACCOUNT_NOT_AUTHORIZED — LinkedIn refuses this
+  // ad account for our app; nothing was created and
+  // nothing will be until that access is granted.
   const [blocked, setBlocked] = useState<"persisted" | "not_authorized" | null>(null);
 
   // Round ONCE up front so validation, the displayed cap, and the
@@ -471,7 +471,7 @@ export function BoostCampaignDialog({
                 Learn more
               </a>
               {!notPolitical ? (
-                <span className="mt-1 block text-amber-700 dark:text-amber-400">
+                <span className="mt-1 block text-warning-on-tint">
                   Left unticked, the campaign is created without a declaration
                   — LinkedIn may hold delivery to EU audiences until you make
                   one in Campaign Manager.

@@ -347,7 +347,7 @@ function SignalCard({
         <CardAction>
           <Badge
             variant={state.tone === "ok" ? "default" : "secondary"}
-            className={state.tone === "attention" ? "border-amber-500/40 text-amber-700" : undefined}
+            className={state.tone === "attention" ? "border-warning/40 text-warning-on-tint" : undefined}
           >
             {state.title}
           </Badge>
@@ -428,7 +428,7 @@ function SignalCard({
                 clears the verification, so the card drops back to "Not seen yet"
                 — which reads as a regression to anybody who was not told why. */}
             {partnerIdChanged && (
-              <p className="text-sm text-amber-700">{PARTNER_ID_CHANGE_WARNING}</p>
+              <p className="text-sm text-warning-on-tint">{PARTNER_ID_CHANGE_WARNING}</p>
             )}
             {update.isError && (
               <p className="text-sm text-destructive">{writeErrorMessage(update.error)}</p>
@@ -469,7 +469,7 @@ function SnippetBlock({ provider }: { provider: SignalProvider }) {
   // a NEW snippet under a button still reading "Copied" — which is the precise
   // failure the change warning exists to prevent, one component further down.
   const [copiedText, setCopiedText] = useState<string | null>(null);
-  // ★KEYED ON THE SNIPPET TOO, for the reason  is. A boolean stayed
+  // ★KEYED ON THE SNIPPET TOO, for the reason is. A boolean stayed
   // true across a refetch, so a stale "we could not copy that" sat under a NEW
   // snippet — the same bug as the stale "Copied", one state variable along.
   const [copyFailedFor, setCopyFailedFor] = useState<string | null>(null);

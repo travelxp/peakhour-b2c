@@ -271,10 +271,10 @@ function safeReturnTo(raw: string | null | undefined): string {
   // lands on /dashboard/settings — the exact behaviour this whole feature
   // exists to remove, with no diagnostic anywhere. Two rules matter here:
   //   • printable ASCII only — a non-Latin-1 code point makes the api's
-  //     Location header an invalid ByteString, which throws AFTER the
-  //     connection is written and reports a success as an error;
+  // Location header an invalid ByteString, which throws AFTER the
+  // connection is written and reports a success as an error;
   //   • no dot segments — "/dashboard/../x" passes a prefix check and then
-  //     resolves out of /dashboard/ in the browser.
+  // resolves out of /dashboard/ in the browser.
   for (let i = 0; i < value.length; i++) {
     const code = value.charCodeAt(i);
     if (code < 0x21 || code > 0x7e) return DEFAULT_RETURN_TO;
@@ -1273,7 +1273,7 @@ function WebhookHealthChip({
     health.band === "red"
       ? "bg-destructive/15 text-destructive border-destructive/30"
       : health.band === "yellow"
-        ? "bg-amber-500/15 text-amber-700 border-amber-500/30 dark:text-amber-400"
+        ? "bg-warning/15 text-warning-on-tint border-warning/40"
         : "bg-muted text-muted-foreground border-border";
 
   const longExplanation = (() => {
@@ -1374,7 +1374,7 @@ function BeehiivSyncControls({
       {backfillResult && (
         <div className={`rounded-md border px-2.5 py-1.5 text-[10px] flex items-center gap-1.5 ${
           backfillResult.hasErrors
-            ? "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400"
+            ? "border-warning/40 bg-warning/10 text-warning-on-tint"
             : "border-green-500/30 bg-green-500/10 text-green-700 dark:text-green-400"
         }`}>
           {backfillResult.hasErrors ? (
@@ -1467,11 +1467,11 @@ function LinkedInContentPages({
   // The OAuth callback skips per-Page name hydration to redirect fast
   // (peakhour-api PR #247). Names land within ~1 min via a background
   // job. Detect the "pages exist but all unnamed" state and:
-  //   1. Show a "Fetching Page names from LinkedIn…" indicator so the
-  //      user sees it's an in-progress operation, not a bug
-  //   2. Auto-poll /refresh every 10 sec until names arrive (capped at
+  // 1. Show a "Fetching Page names from LinkedIn…" indicator so the
+  // user sees it's an in-progress operation, not a bug
+  // 2. Auto-poll /refresh every 10 sec until names arrive (capped at
   //      ~80 sec to avoid hammering the API if the background job
-  //      stalls — user can still click Refresh manually after that)
+  // stalls — user can still click Refresh manually after that)
   const namesPending =
     pages.length > 0 &&
     pages.every(
@@ -1646,7 +1646,7 @@ function LinkedInAdsStatus({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex w-full items-center gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-[10px] text-amber-700 dark:text-amber-400 transition-colors hover:bg-amber-500/20"
+        className="flex w-full items-center gap-1.5 rounded-md border border-warning/40 bg-warning/10 px-2.5 py-1.5 text-[10px] text-warning-on-tint transition-colors hover:bg-warning/20"
       >
         <AlertCircle className="h-3 w-3 shrink-0" />
         <span className="flex-1 text-left font-medium">
@@ -1692,18 +1692,18 @@ function LinkedInAdsStatus({
             {issues.map((issue, i) => (
               <div
                 key={i}
-                className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2.5 text-sm space-y-2"
+                className="rounded-lg border border-warning/40 bg-warning/5 px-3 py-2.5 text-sm space-y-2"
               >
                 <div className="flex items-center justify-between">
                   <span className="font-medium truncate">{issue.accountName}</span>
                   <Badge
                     variant="outline"
-                    className="text-[10px] text-amber-600 border-amber-400 px-1.5 py-0 shrink-0"
+                    className="text-[10px] text-warning-on-tint border-warning/30 px-1.5 py-0 shrink-0"
                   >
                     Action needed
                   </Badge>
                 </div>
-                <div className="text-xs text-amber-700 dark:text-amber-400 space-y-1">
+                <div className="text-xs text-warning-on-tint space-y-1">
                   <p className="font-medium">{issue.alert.title}</p>
                   <p className="leading-relaxed text-muted-foreground">
                     {issue.alert.message}
@@ -1943,7 +1943,7 @@ function ManagePagesDialog({
         </DialogHeader>
 
         {overCap && (
-          <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-700 dark:text-amber-400">
+          <div className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-[11px] text-warning-on-tint">
             You have more pages enabled than your plan allows. They keep
             posting for now, but new toggles are blocked until you disable a
             page or upgrade.

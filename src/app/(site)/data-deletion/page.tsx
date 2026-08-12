@@ -72,7 +72,7 @@ function StatusBlock({
         "We couldn’t finish your deletion request automatically. Our team has been notified and will complete it. If you’d like an update, contact us with your reference code below.";
     } else {
       // received | processing
-      tone = "border-amber-500/40 bg-amber-500/5";
+      tone = "border-warning/40 bg-warning/5";
       heading = "Your request is being processed";
       body =
         "We’ve received your data-deletion request and are processing it. You can revisit this page with your reference code to check progress.";

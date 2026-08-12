@@ -115,7 +115,7 @@ export function CarouselPreviewDialog({
         </DialogHeader>
 
         {imagesMissing && (
-          <p className="flex items-center gap-1.5 rounded-md border border-amber-200 bg-amber-50/60 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300">
+          <p className="flex items-center gap-1.5 rounded-md border border-warning/30 bg-warning/8 px-3 py-2 text-xs text-warning-on-tint">
             <ImageOff className="size-3.5 shrink-0" />
             Slide images couldn&apos;t be generated — this carousel is text-only. You can publish it
             as-is, or cancel and try again.

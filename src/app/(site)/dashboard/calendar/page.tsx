@@ -518,7 +518,7 @@ export default function CalendarPage() {
         </div>
         {attentionCount > 0 && (
           <div className="text-xs">
-            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+            <span className="rounded-full bg-warning/15 px-2 py-0.5 text-warning-on-tint">
               {attentionCount}{" "}
               {attentionCount === 1 ? "item needs" : "items need"} your
               attention

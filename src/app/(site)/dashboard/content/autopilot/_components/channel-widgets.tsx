@@ -46,7 +46,7 @@ function Chip({
   if (count <= 0) return null;
   const tones = {
     amber:
-      "bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400",
+      "bg-warning/15 text-warning-on-tint",
     rose: "bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400",
     muted: "bg-muted text-muted-foreground",
   } as const;

@@ -18,7 +18,7 @@ const EXPLAIN_USE_CASE = "metrics_translate_dashboard";
 const ACCENT: Record<ExplainNarration["sentiment"], string> = {
   positive: "border-l-emerald-500",
   neutral: "border-l-muted-foreground/40",
-  concern: "border-l-amber-500",
+  concern: "border-l-warning",
 };
 
 /**
@@ -99,7 +99,7 @@ export function ExplainCard({ surface, resource }: { surface: ExplainSurface; re
           )}
         </div>
         {narration && data.stale && (
-          <p className="text-xs text-amber-600 dark:text-amber-400">
+          <p className="text-xs text-warning-on-tint">
             Your numbers have changed since this was written.
           </p>
         )}
@@ -108,8 +108,8 @@ export function ExplainCard({ surface, resource }: { surface: ExplainSurface; re
       <CardContent className="space-y-3">
         {/* Additive banners — never replace the narration/button below. */}
         {hardCapped && (
-          <div className="flex items-center justify-between gap-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-900 dark:bg-amber-950/40">
-            <span className="text-amber-900 dark:text-amber-200">
+          <div className="flex items-center justify-between gap-3 rounded-md border border-warning/30 bg-warning/10 p-3 text-sm">
+            <span className="text-warning-on-tint">
               You&apos;re out of Peaks for now — top up to generate more explanations.
             </span>
             <Button asChild size="sm" variant="outline">

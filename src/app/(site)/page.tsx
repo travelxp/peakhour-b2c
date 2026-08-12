@@ -249,7 +249,7 @@ export default async function Home({
           className={
             "flex items-center justify-center gap-2 border-b px-4 py-2 text-center text-sm " +
             (platform.banner.tone === "warn"
-              ? "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200"
+              ? "bg-warning/15 text-warning-on-tint"
               : platform.banner.tone === "success"
                 ? "bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200"
                 : "bg-blue-100 text-blue-900 dark:bg-blue-950 dark:text-blue-200")

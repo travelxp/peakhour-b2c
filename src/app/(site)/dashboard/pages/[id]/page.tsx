@@ -87,7 +87,7 @@ export default function WebPageReview({ params }: { params: Promise<{ id: string
       {!verified && claims.length > 0 && (
         <div className="rounded-lg border bg-muted/40 p-4">
           <div className="flex items-center gap-2 text-sm font-medium">
-            <AlertTriangle className="size-4 text-amber-600 dark:text-amber-400" aria-hidden="true" />
+            <AlertTriangle className="size-4 text-warning-on-tint" aria-hidden="true" />
             A few things to double-check before publishing
           </div>
           <ul className="mt-2 list-disc space-y-1 pl-6 text-sm text-muted-foreground">

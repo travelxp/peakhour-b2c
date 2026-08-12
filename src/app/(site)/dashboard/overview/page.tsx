@@ -576,7 +576,7 @@ function IntegrationRow({
         )}
       </div>
       {warning && (
-        <div className="rounded-lg bg-amber-500/10 px-3 py-1.5 text-[11px] text-amber-700 dark:text-amber-400 flex items-center gap-1.5 ml-11">
+        <div className="rounded-lg bg-warning/10 px-3 py-1.5 text-[11px] text-warning-on-tint flex items-center gap-1.5 ml-11">
           <AlertCircle className="h-3 w-3 shrink-0" />
           {warning}
         </div>

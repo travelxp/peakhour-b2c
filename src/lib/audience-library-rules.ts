@@ -178,7 +178,7 @@ export function critiqueTone(severity: "info" | "warn" | undefined): {
   // the typography and the wording disagree, a skimming reader believes the
   // wording.
   return severity === "warn"
-    ? { lead: "Careful:", className: "text-xs text-amber-700 dark:text-amber-300" }
+    ? { lead: "Careful:", className: "text-xs text-warning-on-tint" }
     : { lead: "Worth knowing:", className: "text-xs text-muted-foreground" };
 }
 

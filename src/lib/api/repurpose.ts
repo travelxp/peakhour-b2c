@@ -212,8 +212,8 @@ export const BAND_STYLES: Record<PlatformFitBand, { dot: string; chip: string; l
     label: "Recommended",
   },
   amber: {
-    dot: "bg-amber-500",
-    chip: "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300",
+    dot: "bg-warning",
+    chip: "border-warning/40 bg-warning/10 text-warning-on-tint",
     label: "Worth a try",
   },
   grey: {

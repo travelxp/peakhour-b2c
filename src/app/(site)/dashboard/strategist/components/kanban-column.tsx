@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 const COLUMN_COLORS: Record<string, string> = {
   ideate: "bg-blue-500",
   brief: "bg-indigo-500",
-  write: "bg-amber-500",
+  write: "bg-warning",
   review: "bg-purple-500",
   publish: "bg-emerald-500",
 };

@@ -127,7 +127,7 @@ export function AdvertisingDeclarationCard() {
           // not support, so this must not offer the tick-box that would
           // overwrite a legal statement in one click.
           <div className="flex items-start gap-2">
-            <ShieldAlert className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-500" />
+            <ShieldAlert className="mt-0.5 size-4 shrink-0 text-warning-on-tint" />
             <div className="min-w-0 flex-1 space-y-1">
               <p className="text-sm">
                 This business is recorded as running{" "}
@@ -213,7 +213,7 @@ export function AdvertisingDeclarationCard() {
               {state.kind === "unknown" ? (
                 <ShieldQuestion className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
               ) : (
-                <ShieldAlert className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-500" />
+                <ShieldAlert className="mt-0.5 size-4 shrink-0 text-warning-on-tint" />
               )}
               <div className="min-w-0 flex-1 space-y-1">
                 <p className="text-sm font-medium">

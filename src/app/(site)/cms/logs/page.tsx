@@ -64,7 +64,7 @@ interface ComponentsResponse {
 
 function severityBadge(s?: string) {
   if (s === "error") return <Badge className="bg-red-100 text-red-800 hover:bg-red-100">error</Badge>;
-  if (s === "warn") return <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">warn</Badge>;
+  if (s === "warn") return <Badge className="bg-warning/15 text-warning-on-tint hover:bg-warning/25">warn</Badge>;
   if (s === "info") return <Badge className="bg-sky-100 text-sky-800 hover:bg-sky-100">info</Badge>;
   return <Badge variant="outline">{s || "—"}</Badge>;
 }
@@ -268,7 +268,7 @@ function LogsPageInner() {
                 )}
                 {selected.causeMessage && (
                   <Field label="Cause">
-                    <pre className="text-xs whitespace-pre-wrap rounded bg-amber-50 text-amber-900 p-3">{selected.causeMessage}</pre>
+                    <pre className="text-xs whitespace-pre-wrap rounded bg-warning/10 text-warning-on-tint p-3">{selected.causeMessage}</pre>
                   </Field>
                 )}
                 {selected.stack && (

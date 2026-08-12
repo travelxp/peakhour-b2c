@@ -153,7 +153,7 @@ export function DiscoveryProgressStrip({ jobId }: ProgressStripProps) {
       className={cn(
         "flex items-center gap-3 rounded-xl border-2 px-4 py-3",
         isFailed
-          ? "border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950"
+          ? "border-warning/30 bg-warning/10"
           : "border-primary/30 bg-primary/5",
       )}
     >

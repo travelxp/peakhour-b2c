@@ -685,7 +685,7 @@ function RecommendationList({
               {/* Grey but not hard-blocked = selectable with a warning
                   (plan §4.1: grey is "repurpose anyway?", not fix-first). */}
               {!isHardBlocked && r.band === "grey" && (
-                <p className="text-[10px] text-amber-600 dark:text-amber-400">
+                <p className="text-[10px] text-warning-on-tint">
                   Usually doesn&apos;t land well here — repurpose anyway?
                 </p>
               )}
@@ -765,7 +765,7 @@ function DoneState({ response }: { response: RepurposeResponse }) {
         // Visible cue (in addition to the sonner toast) so a user who
         // dismisses the toast still sees these are prior variants,
         // not fresh ones.
-        <div className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+        <div className="rounded-md border border-warning/40 bg-warning/5 px-3 py-2 text-xs text-warning-on-tint">
           Showing your previous repurpose for this content (no new variants generated).
         </div>
       )}

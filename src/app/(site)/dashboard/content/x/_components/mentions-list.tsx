@@ -364,7 +364,7 @@ function UrgencyBadge({
     tier === "high"
       ? "bg-destructive/10 text-destructive border-destructive/40"
       : tier === "medium"
-        ? "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/40"
+        ? "bg-warning/10 text-warning-on-tint border-warning/40"
         : "bg-muted text-muted-foreground border-muted";
   // TooltipProvider is mounted at the app root (dashboard layout) —
   // a per-badge wrapper would add redundant context nodes. Keep the

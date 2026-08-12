@@ -338,7 +338,7 @@ function ConnectionPanel({
             </CardHeader>
             <CardContent>
               {status.lastError && (
-                <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+                <div className="rounded-md border border-warning/30 bg-warning/10 p-3 text-sm text-warning-on-tint">
                   <strong>Last sync error:</strong> {status.lastError}
                 </div>
               )}
@@ -468,7 +468,7 @@ function FunnelTile({
 
 const ACTION_DOT: Record<AnalyticsAction["severity"], string> = {
   critical: "bg-red-500",
-  attention: "bg-amber-500",
+  attention: "bg-warning",
   opportunity: "bg-emerald-500",
 };
 

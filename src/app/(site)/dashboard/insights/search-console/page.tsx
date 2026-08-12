@@ -144,7 +144,7 @@ const ACTION_LABEL: Record<ActionType, string> = {
 
 const IMPACT_STYLE: Record<SearchAction["impact"], string> = {
   high: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300",
-  medium: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300",
+  medium: "bg-warning/15 text-warning-on-tint",
   low: "bg-muted text-muted-foreground",
 };
 
@@ -153,7 +153,7 @@ const MOVEMENT_STYLE: Record<MovementKind, { dot: string; label: string }> = {
   rising: { dot: "bg-emerald-500", label: "Rising" },
   slipped: { dot: "bg-red-500", label: "Slipped" },
   dropped: { dot: "bg-red-500", label: "Dropped" },
-  falling: { dot: "bg-amber-500", label: "Falling" },
+  falling: { dot: "bg-warning", label: "Falling" },
 };
 
 const HEALTH_ISSUE_LABEL: Record<HealthIssueKind, string> = {
@@ -324,7 +324,7 @@ export default function SearchConsoleInsightsPage() {
       ) : (
         <>
           {status?.lastError && (
-            <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+            <div className="rounded-md border border-warning/30 bg-warning/10 p-3 text-sm text-warning-on-tint">
               <strong>Last sync note:</strong> {status.lastError}
             </div>
           )}

@@ -144,7 +144,7 @@ function ActionRow({
 
       {/* Honest capability note on an approved action that will only stage. */}
       {willStage && item.capability && (
-        <p className="mt-1.5 flex items-start gap-1 text-xs text-amber-600 dark:text-amber-400">
+        <p className="mt-1.5 flex items-start gap-1 text-xs text-warning-on-tint">
           <FileClock aria-hidden="true" className="mt-0.5 size-3 shrink-0" />
           {item.capability.reason}
         </p>

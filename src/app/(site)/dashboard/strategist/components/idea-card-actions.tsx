@@ -99,12 +99,12 @@ export function IdeaCardActions({
               disabled={busyStar}
               aria-pressed={optimisticStarred}
               aria-label={optimisticStarred ? "Unstar" : "Star"}
-              className="rounded p-1 text-muted-foreground/50 transition-colors hover:bg-accent hover:text-amber-500"
+              className="rounded p-1 text-muted-foreground/50 transition-colors hover:bg-accent hover:text-warning"
             >
               {busyStar ? (
                 <Loader2 className={cn(iconCls, "animate-spin")} />
               ) : (
-                <Star className={cn(iconCls, optimisticStarred && "fill-amber-400 text-amber-500")} />
+                <Star className={cn(iconCls, optimisticStarred && "fill-brand text-brand")} />
               )}
             </button>
           </TooltipTrigger>

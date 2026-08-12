@@ -79,7 +79,7 @@ function statusVariant(status: string): { label: string; className: string } {
     case "beta":
       return { label: "Beta", className: "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-400" };
     case "coming_soon":
-      return { label: "Coming soon", className: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400" };
+      return { label: "Coming soon", className: "bg-warning/15 text-warning-on-tint" };
     case "hidden":
     case "in_development":
       return { label: status === "hidden" ? "Hidden" : "In development", className: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400" };
@@ -161,7 +161,7 @@ export default function CmsCatalogPage() {
       </div>
 
       {!canEdit && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300">
+        <div className="rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning-on-tint">
           You have read-only access. Ask an Operations admin to change product copy.
         </div>
       )}

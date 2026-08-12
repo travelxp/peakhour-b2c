@@ -39,7 +39,7 @@ const WEEKDAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 const STATUS_STYLE: Record<RecurringRuleStatus, { label: string; chip: string }> = {
   active: { label: "Active", chip: "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" },
-  paused: { label: "Paused", chip: "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300" },
+  paused: { label: "Paused", chip: "border-warning/40 bg-warning/10 text-warning-on-tint" },
   completed: { label: "Completed", chip: "border-slate-400/40 bg-slate-400/10 text-slate-600 dark:text-slate-400" },
   expired: { label: "Expired", chip: "border-slate-400/40 bg-slate-400/10 text-slate-600 dark:text-slate-400" },
 };
@@ -231,7 +231,7 @@ function RuleCard({
           </div>
 
           {rule.status === "paused" && rule.pauseReason && (
-            <p className="text-xs text-amber-700 dark:text-amber-400">
+            <p className="text-xs text-warning-on-tint">
               Paused: {rule.pauseReason}
             </p>
           )}

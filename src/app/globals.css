@@ -225,7 +225,11 @@
   --success-on-tint: var(--success);
   --warning: oklch(0.8 0.14 72);
   --warning-foreground: oklch(0.2 0.012 68);
-  --warning-on-tint: var(--warning);
+  /* A real step, not `var(--warning)`. Aliasing the two made every hover
+     between them a no-op in dark (`text-warning-on-tint hover:text-warning`
+     resolved to the same colour), and this lighter step reads better on a
+     tint anyway — 11.8:1 on --card, 10.2:1 on a 10% warning wash. */
+  --warning-on-tint: oklch(0.86 0.115 78);
 
   /* Same five hues, re-stepped for a dark ground and validated against it
      independently — see the note in :root. Series identity is stable across

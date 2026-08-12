@@ -377,7 +377,7 @@ export function getContentColumns(
       //   - contentType is the unclassified sentinel
       //   - contentTypeDerived flag is on (synthetic origin)
       //   - rationale is missing (the case the old text-only tooltip
-      //     "re-run analyse to capture" used to flag with no action)
+      // "re-run analyse to capture" used to flag with no action)
       // Closes the user-reported gap: "On hover shows reanalyse, but
       // where to click?" — there is now a click target on every row
       // where re-analysis would actually help.
@@ -395,12 +395,12 @@ export function getContentColumns(
       }
       // Truncation budget (round-1 review F3 on api#406):
       //   - max-w-60 (= 240px) fits the canonical longest entry in
-      //     quests.travel taxonomy ("Daily intelligence digest
+      // quests.travel taxonomy ("Daily intelligence digest
       //     (newsletter)" ≈ 228px at text-xs) without truncation
       //   - on lg screens, expand to max-w-80 (= 320px) so longer
-      //     taxonomies (some orgs run 12+ entries) get more room
+      // taxonomies (some orgs run 12+ entries) get more room
       //   - the badge keeps `truncate` as a defensive overflow guard
-      //     for the rare malformed AI emission the sanitiser misses
+      // for the rare malformed AI emission the sanitiser misses
       const labelText = label(undefined, ct);
       const badge = (
         <Badge
@@ -413,14 +413,14 @@ export function getContentColumns(
             * the AI confidently chose this. Same UX pattern as the
             * sectors-derived badge below. */}
           {derived ? (
-            <span className="ml-1 text-[10px] uppercase tracking-wide text-amber-700">auto</span>
+            <span className="ml-1 text-[10px] uppercase tracking-wide text-warning-on-tint">auto</span>
           ) : null}
         </Badge>
       );
       // Tooltip preference: if the badge is visually truncated, the
       // full contentType MUST be reachable somehow. Compose:
-      //   line 1 = full contentType (always — recovers truncated text)
-      //   line 2 = derivation explainer OR AI rationale
+      // line 1 = full contentType (always — recovers truncated text)
+      // line 2 = derivation explainer OR AI rationale
       // This is what the round-1 review called the "tooltip should
       // expose full truncated contentType" gap.
       const explainer = derived
@@ -475,7 +475,7 @@ export function getContentColumns(
                   * fallback fired (api#402) — avoids polluting every row with
                   * a chip-level marker but still flags the synthetic origin. */}
                 {derived && i === 0 ? (
-                  <span className="ml-1 text-[10px] uppercase tracking-wide text-amber-700">auto</span>
+                  <span className="ml-1 text-[10px] uppercase tracking-wide text-warning-on-tint">auto</span>
                 ) : null}
               </Badge>
             </RationaleTooltip>
@@ -558,7 +558,7 @@ export function getContentColumns(
                   onPointerDown={(e) => e.stopPropagation()}
                 >
                   Can&apos;t score
-                  <Info className="size-3 text-amber-500" aria-label="Why not scored?" />
+                  <Info className="size-3 text-warning" aria-label="Why not scored?" />
                 </span>
               </TooltipTrigger>
               <TooltipContent className="max-w-xs">
@@ -573,7 +573,7 @@ export function getContentColumns(
         score >= 8
           ? "bg-green-500"
           : score >= 6
-            ? "bg-amber-500"
+            ? "bg-warning"
             : score >= 4
               ? "bg-orange-400"
               : "bg-red-400";
@@ -713,7 +713,7 @@ function RepurposeActionCell({
     fit?.topBand === "green"
       ? "text-green-700 hover:text-green-700 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-950/40"
       : fit?.topBand === "amber"
-        ? "text-amber-700 hover:text-amber-700 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950/40"
+        ? "text-warning-on-tint hover:bg-warning/10"
         : "";
 
   const trigger = (
