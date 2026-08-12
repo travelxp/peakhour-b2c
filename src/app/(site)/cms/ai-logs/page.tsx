@@ -246,7 +246,7 @@ export default function AiLogsPage() {
                     {selected.requestId && (
                       <Link
                         href={`/cms/logs?requestId=${encodeURIComponent(selected.requestId)}`}
-                        className="text-xs text-blue-600 hover:underline mt-2 inline-block"
+                        className="text-xs text-state-info-on-tint hover:underline mt-2 inline-block"
                       >
                         View full stack + cause in /cms/logs →
                       </Link>

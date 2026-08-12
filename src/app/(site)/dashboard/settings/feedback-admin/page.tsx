@@ -20,18 +20,18 @@ import {
 import { ArrowLeft, ExternalLink, Inbox } from "lucide-react";
 
 const STATUS_STYLES: Record<string, string> = {
-  pending: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
-  acknowledged: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
-  in_progress: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400",
+  pending: "bg-warning/15 text-warning-on-tint",
+  acknowledged: "bg-state-info/15 text-state-info-on-tint",
+  in_progress: "bg-state-progress/15 text-state-progress-on-tint",
   resolved: "bg-success/15 text-success-on-tint",
   closed: "bg-muted text-foreground",
 };
 
 const SEVERITY_STYLES: Record<string, string> = {
   critical: "bg-destructive/15 text-destructive-on-tint",
-  high: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400",
-  medium: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
-  low: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
+  high: "bg-warning/25 text-warning-on-tint",
+  medium: "bg-warning/12 text-warning-on-tint",
+  low: "bg-muted text-muted-foreground",
   informational: "bg-muted text-muted-foreground",
 };
 

@@ -160,7 +160,7 @@ export function PublishBundleSummary({
                     tone === "success" &&
                       "bg-success/15 text-success-on-tint",
                     tone === "info" &&
-                      "bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300",
+                      "bg-state-info/15 text-state-info-on-tint",
                     tone === "warn" &&
                       "bg-warning/15 text-warning-on-tint",
                     tone === "error" &&
@@ -205,7 +205,7 @@ export function NextActionScheduleSlot({
         className={cn(
           "inline-flex h-9 w-9 items-center justify-center rounded-full",
           tone === "success" && "bg-success/15 text-success-on-tint",
-          tone === "info" && "bg-sky-100 text-sky-700",
+          tone === "info" && "bg-state-info/15 text-state-info-on-tint",
           tone === "warn" && "bg-warning/15 text-warning-on-tint",
           tone === "error" && "bg-destructive/15 text-destructive-on-tint",
           tone === "neutral" && "bg-muted text-muted-foreground",

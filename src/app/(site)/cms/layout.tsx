@@ -172,7 +172,7 @@ function CmsShell({ children }: { children: React.ReactNode }) {
             <SidebarMenuItem>
               <SidebarMenuButton size="lg" asChild>
                 <Link href="/cms/overview">
-                  <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-orange-600 text-white">
+                  <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-warning text-white">
                     <span className="text-sm font-bold">C</span>
                   </div>
                   <div className="grid flex-1 text-left leading-tight">
@@ -319,7 +319,7 @@ function CmsShell({ children }: { children: React.ReactNode }) {
         <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
           <SidebarTrigger className="-ml-1" />
           <div className="ml-auto flex items-center gap-2">
-            <span className="rounded-md bg-orange-600/10 px-2 py-0.5 text-xs font-medium text-orange-600">
+            <span className="rounded-md bg-warning/10 px-2 py-0.5 text-xs font-medium text-warning-on-tint">
               CMS
             </span>
           </div>

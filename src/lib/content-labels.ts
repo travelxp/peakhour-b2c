@@ -31,7 +31,7 @@ export const SENTIMENT_CONFIG: Record<string, { label: string; color: string; bg
   bearish: { label: "Bearish", color: "text-destructive-on-tint", bg: "bg-destructive/15" },
   cautious: { label: "Cautious", color: "text-warning-on-tint", bg: "bg-warning/15" },
   neutral: { label: "Neutral", color: "text-foreground", bg: "bg-muted" },
-  mixed: { label: "Mixed", color: "text-purple-700", bg: "bg-purple-100" },
+  mixed: { label: "Mixed", color: "text-state-progress-on-tint", bg: "bg-state-progress/15" },
 };
 
 /** Shelf life labels (universal) */

@@ -18,7 +18,7 @@ const STATUS_STYLES: Record<StatusVariant, string> = {
     "bg-warning/10 text-warning-on-tint border-warning/30",
   error:
     "bg-destructive/10 text-destructive-on-tint border-destructive/30",
-  info: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-400 dark:border-blue-800",
+  info: "bg-state-info/10 text-state-info-on-tint border-state-info/30",
   muted:
     "bg-muted text-muted-foreground border-border",
 };
@@ -99,7 +99,7 @@ export function StatusBadge({
             "bg-success": resolvedVariant === "success",
             "bg-warning": resolvedVariant === "warning",
             "bg-destructive": resolvedVariant === "error",
-            "bg-blue-500": resolvedVariant === "info",
+            "bg-state-info": resolvedVariant === "info",
             "bg-muted-foreground": resolvedVariant === "muted",
           })}
         />

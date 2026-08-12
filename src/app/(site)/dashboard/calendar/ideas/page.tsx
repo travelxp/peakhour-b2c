@@ -29,7 +29,7 @@ import { ChannelIconCompact } from "@/components/brand/channel-icon";
 
 const STATUS_COLORS: Record<string, string> = {
   brainstorm: "bg-muted border-border",
-  planned: "bg-blue-50 border-blue-200",
+  planned: "bg-state-info/10 border-state-info/30",
   in_progress: "bg-warning/10 border-warning/30",
   published: "bg-success/10 border-success/30",
   archived: "bg-destructive/10 border-destructive/30 opacity-50",

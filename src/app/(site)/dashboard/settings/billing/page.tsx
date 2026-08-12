@@ -49,11 +49,11 @@ function money(amount: number, currency: string | null): string {
 const PLAN_STYLES: Record<string, string> = {
   free: "bg-muted text-muted-foreground",
   starter:
-    "bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300",
+    "bg-state-info/15 text-state-info-on-tint",
   growth:
     "bg-success/15 text-success-on-tint",
   agency:
-    "bg-violet-100 text-violet-700 dark:bg-violet-950/60 dark:text-violet-300",
+    "bg-state-progress/15 text-state-progress-on-tint",
   enterprise:
     "bg-warning/15 text-warning-on-tint",
 };

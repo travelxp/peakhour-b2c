@@ -26,7 +26,7 @@ const HEALTH_META: Record<
   },
   watchlist: {
     label: "Watchlist",
-    chip: "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300",
+    chip: "bg-state-info/15 text-state-info-on-tint",
     icon: Eye,
   },
   healthy: {

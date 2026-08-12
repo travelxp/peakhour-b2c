@@ -168,7 +168,7 @@ function ItemChip({ item, onClick, draggable, onDragStart }: ItemChipProps) {
         className={cn(
           "h-3 w-3 shrink-0",
           tone === "success" && "text-success-on-tint",
-          tone === "info" && "text-sky-600",
+          tone === "info" && "text-state-info-on-tint",
           tone === "warn" && "text-warning-on-tint",
           tone === "error" && "text-destructive-on-tint",
         )}

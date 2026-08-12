@@ -1382,7 +1382,7 @@ function bandForScore(score: number): HookScoreBand {
     return {
       label: "Decent hook",
       className:
-        "border-blue-200 bg-blue-50/60 text-blue-800 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-300",
+        "border-state-info/30 bg-state-info/10 text-state-info-on-tint",
     };
   if (score >= 30)
     return {

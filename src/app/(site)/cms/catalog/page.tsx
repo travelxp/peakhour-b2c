@@ -77,7 +77,7 @@ function statusVariant(status: string): { label: string; className: string } {
     case "live":
       return { label: "Live", className: "bg-success/15 text-success-on-tint" };
     case "beta":
-      return { label: "Beta", className: "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-400" };
+      return { label: "Beta", className: "bg-state-info/15 text-state-info-on-tint" };
     case "coming_soon":
       return { label: "Coming soon", className: "bg-warning/15 text-warning-on-tint" };
     case "hidden":

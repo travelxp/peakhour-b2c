@@ -1900,7 +1900,7 @@ function VersionsTab({ ideaId }: { ideaId: string }) {
                 { key: "kept", label: "Kept", color: "bg-success" },
                 { key: "lightly_edited", label: "Tweaked", color: "bg-warning" },
                 { key: "rewritten", label: "Rewritten", color: "bg-destructive" },
-                { key: "added", label: "Added by you", color: "bg-blue-500" },
+                { key: "added", label: "Added by you", color: "bg-state-info" },
               ].map((b) => (
                 <div key={b.key} className="rounded-md border bg-muted/20 p-3">
                   <div className="flex items-center justify-center gap-1.5 mb-1">
@@ -1943,7 +1943,7 @@ function VersionsTab({ ideaId }: { ideaId: string }) {
           <VersionColumn
             label="Actually Sent"
             sublabel="What subscribers received"
-            tone="bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-900"
+            tone="bg-state-info/10 border-state-info/30"
             html={data.versions.sent?.html ?? null}
             wordCount={data.versions.sent?.wordCount}
             timestamp={data.versions.sent?.sentAt}

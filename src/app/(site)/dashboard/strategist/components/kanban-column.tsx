@@ -7,10 +7,10 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 const COLUMN_COLORS: Record<string, string> = {
-  ideate: "bg-blue-500",
-  brief: "bg-indigo-500",
+  ideate: "bg-state-info",
+  brief: "bg-state-info",
   write: "bg-warning",
-  review: "bg-purple-500",
+  review: "bg-state-progress",
   publish: "bg-success",
 };
 

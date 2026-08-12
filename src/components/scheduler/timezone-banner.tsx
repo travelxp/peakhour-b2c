@@ -57,7 +57,7 @@ export function TimezoneBanner({
   return (
     <div
       className={cn(
-        "flex items-center gap-2 rounded-md border border-sky-300/60 bg-sky-50 px-3 py-2 text-xs text-sky-900 dark:border-sky-700/40 dark:bg-sky-950/30 dark:text-sky-200",
+        "flex items-center gap-2 rounded-md border border-state-info/30 bg-state-info/10 px-3 py-2 text-xs text-state-info-on-tint",
         className,
       )}
     >
@@ -79,7 +79,7 @@ export function TimezoneBanner({
           }
         }}
         aria-label="Dismiss timezone banner"
-        className="rounded p-0.5 hover:bg-sky-200/50 dark:hover:bg-sky-800/40"
+        className="rounded p-0.5 hover:bg-state-info/20"
       >
         <X className="h-3.5 w-3.5" />
       </button>
