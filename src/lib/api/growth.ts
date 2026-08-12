@@ -26,6 +26,54 @@ export type ProposalStatus = "proposed" | "approved" | "dismissed" | "applied" |
  *  `proposed` — fix the cause (reconnect / envelope) and decide again. */
 export type DecisionStatus = "approved" | "dismissed" | "applied" | "failed" | "retryable";
 
+/**
+ * Outcomes (v1).
+ *
+ * ★THE ABSENCES ARE TYPED, WHICH IS THE WHOLE POINT OF THIS SHAPE. `paid: null`
+ * is "this business has no paid channel", not "zero"; `conversions.configured:
+ * false` carries a REASON and no count, so no client can render a business
+ * nobody has ever counted a win for as one that had none. Those are different
+ * facts and only one of them is a verdict on the customer's marketing.
+ */
+export interface OutcomesResponse {
+  period: { days: number; since: string; until: string };
+  reach: {
+    organic: {
+      impressions: number;
+      posts: number;
+      byPlatform: Array<{ platform: string; impressions: number; posts: number }>;
+    };
+    paid: { impressions: number; campaigns: number; spend: number; currency?: string } | null;
+    site: {
+      sessions: number;
+      users: number;
+      /** Null on a first period AND on stale data — a comparison computed
+       *  across a sync that stopped is the most confident wrong number a
+       *  dashboard can produce. */
+      sessionsDeltaPct: number | null;
+      dataThrough: string | null;
+      stale: boolean;
+    } | null;
+  };
+  attention: {
+    organic: { engagements: number; clicks: number; ratePct: number | null };
+    paid: { clicks: number; ctrPct: number | null } | null;
+  };
+  conversions:
+    | { configured: true; count: number; source: "analytics"; costPer: number | null; currency?: string }
+    | { configured: false; reason: "not_connected" | "no_key_event"; message: string };
+  headline: string;
+  movements: Array<{ direction: "up" | "down" | "flat"; text: string }>;
+  nextActions: Array<{
+    id: string;
+    severity: "critical" | "attention" | "opportunity";
+    title: string;
+    detail: string;
+    href?: string;
+    cta?: string;
+  }>;
+}
+
 export interface GrowthSettings {
   optimizerEnabled?: boolean;
   autonomyLevel?: number;
@@ -113,6 +161,20 @@ export const growthApi = {
     }>(
       `/v1/growth/adjustments/${runId}/proposals/${proposalId}/${decision}`,
     ),
+
+  /**
+   * What happened, what it means, and what to do next (Outcomes v1).
+   *
+   * ★DETERMINISTIC AND FREE. Every figure is read off rows the platform already
+   * holds — no model call in the path, so no per-view cost and no chance of a
+   * sentence that disagrees with the number beside it.
+   *
+   * ★AND IT SPEAKS BEFORE ANY MONEY IS SPENT. `reach.paid` is null rather than
+   * a block of zeros until a campaign has actually served; organic reach and
+   * site traffic carry the page until then, which is the state a business is in
+   * for its first months.
+   */
+  outcomes: (days = 28) => api.get<OutcomesResponse>(`/v1/growth/outcomes?days=${days}`),
 
   /** Per-business growth settings (the optimizer opt-in and the advertising
    *  declaration live here), plus the notice version in force. */
