@@ -26,6 +26,7 @@ import { classifyApplyError } from "@/lib/audience-apply-errors";
 import { SEARCH_MAX } from "@/app/(site)/dashboard/growth/audiences/filters";
 import {
   audienceLibraryApi,
+  AUDIENCE_OBJECTIVES,
   type AudienceObjective,
   type AudienceSet,
 } from "@/lib/api/audiences";
@@ -126,6 +127,22 @@ export function UseSavedAudienceDialog({
   const [q, setQ] = useState("");
   const [chosen, setChosen] = useState<AudienceSet | null>(null);
   const [discoverOpen, setDiscoverOpen] = useState(false);
+
+  /**
+   * The campaign's objective, but only if the planner would take it.
+   *
+   * ★`ManagedCampaign.objective` IS `BoostObjective | (string & {})` — a legacy
+   * row, or one created by a path that widened its own vocabulary, can carry
+   * anything. `PlanBody.objective` is a strict `z.enum`, so casting and posting
+   * it produced a 400 and a generic "couldn't build an audience plan" toast for
+   * a campaign whose only fault was being old. Narrowing here means an
+   * unrecognised objective degrades to "no objective" — the section falls back
+   * to "What Peakhour suggests" and the fresh-run button is not offered, which
+   * is honest rather than broken.
+   */
+  const planObjective = AUDIENCE_OBJECTIVES.includes(objective as AudienceObjective)
+    ? (objective as AudienceObjective)
+    : undefined;
 
   /**
    * Work out recommendations for THIS campaign, right here.
@@ -290,7 +307,7 @@ export function UseSavedAudienceDialog({
    * gated on having seen everything.
    */
   const ours = rows.filter((r) => originIsOurs(r.source));
-  const recommended = objective ? ours.filter((r) => r.objective === objective) : [];
+  const recommended = planObjective ? ours.filter((r) => r.objective === planObjective) : [];
   const otherSuggestions = ours.filter((r) => !recommended.includes(r));
   const theirs = rows.filter((r) => !originIsOurs(r.source));
   /**
@@ -300,7 +317,17 @@ export function UseSavedAudienceDialog({
    * model call on that basis would be a claim we cannot source — the same
    * accepted-then-ignored-filter failure one layer up.
    */
-  const canOfferPlan = recommended.length === 0 && !search && total <= PAGE;
+  //
+  // ★AND `ours` HAS TO BE EMPTY TOO WHEN THERE IS NO OBJECTIVE TO MATCH ON. A
+  // legacy campaign carrying no objective makes `recommended` empty by
+  // construction — so this offered "we haven't worked out any audiences for
+  // this business yet", plus a button that spends a model call, directly above
+  // an "Other suggestions" list of those very audiences.
+  const canOfferPlan =
+    recommended.length === 0 &&
+    (planObjective ? true : ours.length === 0) &&
+    !search &&
+    total <= PAGE;
 
   return (
     <Dialog
@@ -360,9 +387,8 @@ export function UseSavedAudienceDialog({
                   this?" is the default, and the customer's own filing is the
                   alternative to it rather than the other way round. */}
               <Section
-                title={
-                  objective
-                    ? `Recommended for ${objectiveLabel(objective)}`
+                title={ planObjective
+                    ? `Recommended for ${objectiveLabel(planObjective)}`
                     : "What Peakhour suggests"
                 }
                 icon={Sparkles}
@@ -370,11 +396,11 @@ export function UseSavedAudienceDialog({
                   // Only offered once we HAVE some — a "get fresh ones" button
                   // above an empty section is the same click as the panel
                   // below it, twice.
-                  recommended.length > 0 && objective ? (
+                  recommended.length > 0 && planObjective ? (
                     <button
                       type="button"
                       disabled={plan.isPending}
-                      onClick={() => plan.mutate({ objective: objective as AudienceObjective, platform })}
+                      onClick={() => plan.mutate({ objective: planObjective, platform })}
                       className="text-xs font-medium text-primary hover:underline disabled:opacity-60"
                     >
                       {plan.isPending ? "Working…" : "Work out fresh ones"}
@@ -385,8 +411,8 @@ export function UseSavedAudienceDialog({
                   canOfferPlan ? (
                     <div className="space-y-2 rounded-md border border-dashed p-3">
                       <p className="text-xs text-muted-foreground">
-                        {objective
-                          ? `We haven't worked out who to target for ${objectiveLabel(objective)} yet. We can do it now from what we already know about your business — no past campaigns needed.`
+                        {planObjective
+                          ? `We haven't worked out who to target for ${objectiveLabel(planObjective)} yet. We can do it now from what we already know about your business — no past campaigns needed.`
                           : "We haven't worked out any audiences for this business yet. We can do it from what we already know about you — no past campaigns needed."}
                       </p>
                       <Button
@@ -395,9 +421,9 @@ export function UseSavedAudienceDialog({
                         variant="outline"
                         disabled={plan.isPending}
                         onClick={() =>
-                          objective
+                          planObjective
                             ? plan.mutate({
-                                objective: objective as AudienceObjective,
+                                objective: planObjective,
                                 platform,
                               })
                             : setDiscoverOpen(true)

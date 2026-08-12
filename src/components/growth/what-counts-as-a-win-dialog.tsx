@@ -122,28 +122,39 @@ export function WhatCountsAsAWinDialog({
     if (!labelTouched) setLabel(defaultLabel(next, event ?? eventName));
   }
 
+  /**
+   * ★THE DEFINITION IS A MUTATION VARIABLE, NOT A CLOSURE OVER STATE, and that
+   * is a bug fix rather than a style choice. "Stop counting" used to call
+   * `setChoice(null)` and then `save.mutate()` in the same handler — but state
+   * updates are not applied before the handler finishes, so `mutationFn` still
+   * closed over the OLD choice and re-saved the very definition it was meant to
+   * clear. Counting never stopped, and the toast cheerfully said "we'll count
+   * enquiries from now on" about the button that turns that off.
+   */
   const save = useMutation({
-    mutationFn: () =>
-      growthApi.updateSettings({
-        winDefinition:
-          choice === null
-            ? null
-            : {
-                source: choice,
-                ...(choice === "analytics_key_event" ? { eventName } : {}),
-                label: label.trim(),
-              },
-      }),
+    mutationFn: (definition: Parameters<typeof growthApi.updateSettings>[0]["winDefinition"]) =>
+      growthApi.updateSettings({ winDefinition: definition }),
     onSuccess: () => {
       // Outcomes reads this on every render, and the analytics page decides
       // whether to show a conversions figure from it.
       void queryClient.invalidateQueries({ queryKey: ["growth-outcomes"] });
       void queryClient.invalidateQueries({ queryKey: ["growth-win-options"] });
       void queryClient.invalidateQueries({ queryKey: ["growth-settings"] });
-      toast.success(`We'll count ${label.trim() || "wins"} from now on.`, {
-        description:
-          "Outcomes will start reporting them — historical periods count them too, wherever the data goes back.",
-      });
+      // ★THE TOAST READS THE VARIABLE THAT WAS SENT, not the form state. Same
+      // reason as the mutationFn above: after a "Stop counting" the form still
+      // holds the label that was just cleared, and congratulating somebody on
+      // counting the thing they have switched off is the same bug wearing
+      // different words.
+      if (save.variables === null || save.variables === undefined) {
+        toast.success("We've stopped counting outcomes.", {
+          description: "Outcomes will say nothing is being counted until you pick something.",
+        });
+      } else {
+        toast.success(`We'll count ${save.variables.label} from now on.`, {
+          description:
+            "Outcomes will start reporting them — historical periods count them too, wherever the data goes back.",
+        });
+      }
       onOpenChange(false);
     },
     onError: (err) => toastUnhandledApiError(err, "save what counts as a win"),
@@ -258,10 +269,7 @@ export function WhatCountsAsAWinDialog({
               variant="ghost"
               size="sm"
               disabled={save.isPending}
-              onClick={() => {
-                setChoice(null);
-                save.mutate();
-              }}
+              onClick={() => save.mutate(null)}
             >
               Stop counting
             </Button>
@@ -280,7 +288,14 @@ export function WhatCountsAsAWinDialog({
             <Button
               type="button"
               disabled={!valid || save.isPending}
-              onClick={() => save.mutate()}
+              onClick={() =>
+                choice &&
+                save.mutate({
+                  source: choice,
+                  ...(choice === "analytics_key_event" ? { eventName } : {}),
+                  label: label.trim(),
+                })
+              }
             >
               {save.isPending ? "Saving…" : "Count this"}
             </Button>

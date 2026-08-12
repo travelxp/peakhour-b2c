@@ -59,7 +59,10 @@ export const LOW_ENGAGEMENT_PCT = 40;
 export const NOTABLE_DROP_PCT = -25;
 
 export function analyticsActions(
-  data: Pick<AnalyticsInsightsResponse, "funnel" | "channels" | "pages" | "digest">,
+  data: Pick<
+    AnalyticsInsightsResponse,
+    "funnel" | "channels" | "pages" | "digest" | "lockedPages"
+  >,
   opts: { winConfigured: boolean },
 ): AnalyticsAction[] {
   const actions: AnalyticsAction[] = [];
@@ -104,9 +107,17 @@ export function analyticsActions(
   }
 
   // ── One page IS the site ────────────────────────────────────────────────
+  //
+  // ★ONLY WHEN WE HAVE THE WHOLE LIST. `pages` is TRUNCATED on the Free plan —
+  // the api sends the top three and puts the rest behind `lockedPages` — so the
+  // denominator here would be three pages rather than the site. Every Free
+  // business with more than one page would be told a single page is "56% of
+  // everything read on your site", computed against a list we chose. A share is
+  // only sayable when nothing is missing from underneath it.
   const totalViews = pages.reduce((sum, p) => sum + p.views, 0);
   const topPage = [...pages].sort((a, b) => b.views - a.views)[0];
-  if (topPage && totalViews > 0) {
+  const haveEveryPage = (data.lockedPages ?? 0) === 0;
+  if (topPage && totalViews > 0 && haveEveryPage) {
     const share = topPage.views / totalViews;
     // ★AND ONLY WHEN THERE IS SOMETHING TO BE CONCENTRATED AGAINST. A single
     // page is 100% of one page, which is arithmetic rather than a finding.

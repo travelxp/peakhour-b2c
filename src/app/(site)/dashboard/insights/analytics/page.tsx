@@ -143,17 +143,29 @@ export default function AnalyticsInsightsPage() {
   // real traffic reads as a verdict on the customer's marketing when it is our
   // own missing setup step — the same rule Outcomes follows, reading the same
   // field so the two surfaces cannot disagree.
+  //
+  // ★READ FROM `/growth/settings`, NOT `/growth/win-options`. They answer the
+  // same question here, but win-options refreshes an OAuth token and calls
+  // Google's Admin API to LIST key events — work this page has no use for and
+  // would have paid for on every single view. That listing is what the dialog's
+  // `enabled: open` gate exists to defer; calling it from the page defeated the
+  // gate entirely. Settings is a Mongo projection.
   const winQ = useQuery({
-    queryKey: ["growth-win-options", "analytics"],
-    queryFn: () => growthApi.winOptions(),
+    queryKey: ["growth-settings"],
+    queryFn: () => growthApi.settings(),
     staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
   });
+  const winDefinition = winQ.data?.settings.winDefinition;
   // ★UNKNOWN COUNTS AS CONFIGURED WHILE THE READ IS IN FLIGHT OR FAILED. The
   // alternative flashes "nothing is counting your outcomes" at a business that
   // has counted them for months, which is a worse lie than a briefly missing
   // prompt.
-  const winConfigured = winQ.data ? winQ.data.current !== null : true;
+  const winConfigured = winQ.data ? winDefinition !== undefined : true;
+  // ★AND THE GA4 FIGURE IS ONLY THE ANSWER WHEN GA4 IS WHAT THEY CHOSE. A
+  // business counting inbox leads has a number on Outcomes that this tile would
+  // contradict — same word, two figures, from the one product.
+  const showGa4Conversions = winDefinition?.source === "analytics_key_event";
 
   // Single toolbar instance survives the loading→loaded transition so
   // the dev trigger is reachable during the very query its data refreshes,
@@ -229,7 +241,11 @@ export default function AnalyticsInsightsPage() {
               account id, Sync now, a "Use this" button per property — sitting
               above everything a customer actually came to read. It is a
               once-a-year job and it is now at the bottom, collapsed. */}
-          <AnalyticsData query={insightsQ} winConfigured={winConfigured} />
+          <AnalyticsData
+            query={insightsQ}
+            winConfigured={winConfigured}
+            showGa4Conversions={showGa4Conversions}
+          />
 
           {ASK_ENABLED && (
             <Card>
@@ -474,9 +490,13 @@ const MOVEMENT_DOT: Record<Ga4Digest["movements"][number]["kind"], string> = {
 function AnalyticsData({
   query,
   winConfigured,
+  showGa4Conversions,
 }: {
   query: { data?: AnalyticsInsightsResponse; isLoading: boolean; isError: boolean };
   winConfigured: boolean;
+  /** GA4's own conversion count is only THIS business's answer when a GA4 key
+   *  event is what they chose to count. */
+  showGa4Conversions: boolean;
 }) {
   const { data, isLoading, isError } = query;
   const [winOpen, setWinOpen] = useState(false);
@@ -621,7 +641,7 @@ function AnalyticsData({
               value={funnel.engagementRatePct}
               suffix="%"
             />
-            {winConfigured && funnel.conversions > 0 && (
+            {showGa4Conversions && funnel.conversions > 0 && (
               <FunnelTile
                 icon={<Target className="h-4 w-4" />}
                 label="Outcomes"

@@ -27,7 +27,7 @@ const CONFIGURED = { winConfigured: true };
 
 describe("analyticsActions", () => {
   it("★leads with the missing win definition, because every other number depends on it", () => {
-    const actions = analyticsActions({ funnel: funnel(), channels: [], pages: [] }, {
+    const actions = analyticsActions({ funnel: funnel(), channels: [], pages: [], lockedPages: 0 }, {
       winConfigured: false,
     });
     expect(actions.map((a) => a.id)).toContain("no-win-defined");
@@ -37,7 +37,7 @@ describe("analyticsActions", () => {
   });
 
   it("says nothing about wins once one is configured", () => {
-    const actions = analyticsActions({ funnel: funnel(), channels: [], pages: [] }, CONFIGURED);
+    const actions = analyticsActions({ funnel: funnel(), channels: [], pages: [], lockedPages: 0 }, CONFIGURED);
     expect(actions.map((a) => a.id)).not.toContain("no-win-defined");
   });
 
@@ -53,6 +53,7 @@ describe("analyticsActions", () => {
           { channel: "Organic Search", sessions: 45, conversions: 0 },
         ],
         pages: [],
+        lockedPages: 0,
       },
       CONFIGURED,
     );
@@ -68,6 +69,7 @@ describe("analyticsActions", () => {
           { channel: "Direct", sessions: 20, conversions: 0 },
         ],
         pages: [],
+        lockedPages: 0,
       },
       CONFIGURED,
     );
@@ -86,6 +88,7 @@ describe("analyticsActions", () => {
           { channel: "Referral", sessions: 100 - top, conversions: 0 },
         ],
         pages: [],
+        lockedPages: 0,
       },
       CONFIGURED,
     );
@@ -100,6 +103,7 @@ describe("analyticsActions", () => {
         funnel: funnel(),
         channels: [],
         pages: [{ pagePath: "/", views: 500, engagementRatePct: 70, conversions: 0 }],
+        lockedPages: 0,
       },
       CONFIGURED,
     );
@@ -115,6 +119,7 @@ describe("analyticsActions", () => {
           { pagePath: "/guides/turnaround", views: 500, engagementRatePct: 70, conversions: 0 },
           { pagePath: "/about", views: 100, engagementRatePct: 40, conversions: 0 },
         ],
+        lockedPages: 0,
       },
       CONFIGURED,
     );
@@ -122,15 +127,47 @@ describe("analyticsActions", () => {
     expect(hit?.title).toContain("/guides/turnaround");
   });
 
+  it("★says nothing about page concentration when the page list is truncated", () => {
+    // The regression this guards, and it would have hit nearly every Free
+    // business: the api sends the top THREE pages and puts the rest behind
+    // `lockedPages`. Computing a share against that list would announce "83% of
+    // everything read on your site is this one page" about a denominator we
+    // chose — a confident, checkable, wrong number, on the plan most customers
+    // are on.
+    const actions = analyticsActions(
+      {
+        funnel: funnel(),
+        channels: [],
+        pages: [
+          { pagePath: "/guides/turnaround", views: 500, engagementRatePct: 70, conversions: 0 },
+          { pagePath: "/about", views: 100, engagementRatePct: 40, conversions: 0 },
+        ],
+        lockedPages: 41,
+      },
+      CONFIGURED,
+    );
+    expect(actions.map((a) => a.id)).not.toContain("page-concentration");
+  });
+
   it("flags low engagement, and stays quiet on healthy engagement", () => {
     const low = analyticsActions(
-      { funnel: funnel({ engagementRatePct: LOW_ENGAGEMENT_PCT - 1 }), channels: [], pages: [] },
+      {
+        funnel: funnel({ engagementRatePct: LOW_ENGAGEMENT_PCT - 1 }),
+        channels: [],
+        pages: [],
+        lockedPages: 0,
+      },
       CONFIGURED,
     );
     expect(low.map((a) => a.id)).toContain("low-engagement");
 
     const fine = analyticsActions(
-      { funnel: funnel({ engagementRatePct: LOW_ENGAGEMENT_PCT }), channels: [], pages: [] },
+      {
+        funnel: funnel({ engagementRatePct: LOW_ENGAGEMENT_PCT }),
+        channels: [],
+        pages: [],
+        lockedPages: 0,
+      },
       CONFIGURED,
     );
     expect(fine.map((a) => a.id)).not.toContain("low-engagement");
@@ -141,7 +178,12 @@ describe("analyticsActions", () => {
     // "100% of visits end without engagement" about nobody is the sort of
     // confident nonsense that makes a customer stop trusting the whole page.
     const actions = analyticsActions(
-      { funnel: funnel({ sessions: 0, engagementRatePct: 0 }), channels: [], pages: [] },
+      {
+        funnel: funnel({ sessions: 0, engagementRatePct: 0 }),
+        channels: [],
+        pages: [],
+        lockedPages: 0,
+      },
       CONFIGURED,
     );
     expect(actions.map((a) => a.id)).not.toContain("low-engagement");
@@ -156,6 +198,7 @@ describe("analyticsActions", () => {
         funnel: funnel(),
         channels: [],
         pages: [],
+        lockedPages: 0,
         digest: {
           hasComparison: false,
           headline: "",
@@ -179,6 +222,7 @@ describe("analyticsActions", () => {
         funnel: funnel({ engagementRatePct: 20 }),
         channels: [{ channel: "Direct", sessions: 100, conversions: 0 }],
         pages: [],
+        lockedPages: 0,
         digest: {
           hasComparison: true,
           headline: "",

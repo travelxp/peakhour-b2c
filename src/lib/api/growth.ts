@@ -112,6 +112,11 @@ export interface WinOptionsResponse {
 }
 
 export interface GrowthSettings {
+  /** What this business counts as a win, if anything. Read from here rather
+   *  than from `winOptions()` wherever a surface only needs to know WHETHER one
+   *  is set — this comes off a Mongo projection, while `winOptions()` refreshes
+   *  an OAuth token and calls Google's Admin API. */
+  winDefinition?: WinDefinition;
   optimizerEnabled?: boolean;
   autonomyLevel?: number;
   weeklyBudgetEnvelope?: number;
