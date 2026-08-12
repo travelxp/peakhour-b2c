@@ -571,12 +571,12 @@ export function getContentColumns(
       }
       const color =
         score >= 8
-          ? "bg-green-500"
+          ? "bg-success"
           : score >= 6
             ? "bg-warning"
             : score >= 4
               ? "bg-orange-400"
-              : "bg-red-400";
+              : "bg-destructive";
       return (
         <Tooltip>
           <TooltipTrigger asChild>
@@ -711,7 +711,7 @@ function RepurposeActionCell({
   // grey fit (they're functionally the same: nothing recommended).
   const bandClass =
     fit?.topBand === "green"
-      ? "text-green-700 hover:text-green-700 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-950/40"
+      ? "text-success-on-tint hover:bg-success/10"
       : fit?.topBand === "amber"
         ? "text-warning-on-tint hover:bg-warning/10"
         : "";

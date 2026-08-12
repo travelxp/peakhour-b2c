@@ -16,7 +16,7 @@ const HEALTH_META: Record<
 > = {
   at_risk: {
     label: "At risk",
-    chip: "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300",
+    chip: "bg-destructive/15 text-destructive-on-tint",
     icon: AlertTriangle,
   },
   slow: {
@@ -31,7 +31,7 @@ const HEALTH_META: Record<
   },
   healthy: {
     label: "Healthy",
-    chip: "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300",
+    chip: "bg-success/15 text-success-on-tint",
     icon: CheckCircle2,
   },
 };

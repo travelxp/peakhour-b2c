@@ -26,9 +26,9 @@ import type { BusinessSkillsResponse } from "@/types/skills";
 import { humanize } from "@/types/skills";
 
 function getEffectivenessColor(score: number): string {
-  if (score >= 0.8) return "[&>div]:bg-green-500";
+  if (score >= 0.8) return "[&>div]:bg-success";
   if (score >= 0.6) return "[&>div]:bg-yellow-500";
-  return "[&>div]:bg-red-500";
+  return "[&>div]:bg-destructive";
 }
 
 export default function BusinessSkillsPage() {
@@ -132,7 +132,7 @@ export default function BusinessSkillsPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
-              <CheckCircle className="h-4 w-4 text-green-500" />
+              <CheckCircle className="h-4 w-4 text-success" />
               Working well
             </CardTitle>
           </CardHeader>
@@ -146,7 +146,7 @@ export default function BusinessSkillsPage() {
                       {s.effectiveness.totalUses} uses
                     </div>
                   </div>
-                  <Badge variant="outline" className="bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300">
+                  <Badge variant="outline" className="bg-success/10 text-success-on-tint">
                     {Math.round(s.effectiveness.score * 100)}%
                   </Badge>
                 </div>
@@ -179,7 +179,7 @@ export default function BusinessSkillsPage() {
                     className={
                       s.effectiveness.score >= 0.6
                         ? "bg-yellow-50 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-300"
-                        : "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300"
+                        : "bg-destructive/10 text-destructive-on-tint"
                     }
                   >
                     {Math.round(s.effectiveness.score * 100)}%
@@ -205,7 +205,7 @@ export default function BusinessSkillsPage() {
               .slice(0, 5)
               .map((l, i) => (
                 <div key={i} className="flex items-start gap-2">
-                  <span className="text-green-500 mt-0.5">+</span>
+                  <span className="text-success mt-0.5">+</span>
                   <span>{l.text}</span>
                 </div>
               ))}
@@ -214,7 +214,7 @@ export default function BusinessSkillsPage() {
               .slice(0, 3)
               .map((l, i) => (
                 <div key={i} className="flex items-start gap-2">
-                  <span className="text-red-500 mt-0.5">-</span>
+                  <span className="text-destructive mt-0.5">-</span>
                   <span>{l.text}</span>
                 </div>
               ))}

@@ -103,7 +103,7 @@ function AcceptInviteContent() {
 
           {status === "joined" && (
             <>
-              <CheckCircle className="h-12 w-12 text-green-500 mx-auto" />
+              <CheckCircle className="h-12 w-12 text-success mx-auto" />
               <h2 className="text-xl font-semibold">Welcome to the team!</h2>
               <p className="text-muted-foreground">{message}</p>
               <p className="text-sm text-muted-foreground">
@@ -130,7 +130,7 @@ function AcceptInviteContent() {
 
           {status === "signup" && magicLinkSent && (
             <>
-              <CheckCircle className="h-12 w-12 text-green-500 mx-auto" />
+              <CheckCircle className="h-12 w-12 text-success mx-auto" />
               <h2 className="text-xl font-semibold">Check your email</h2>
               <p className="text-muted-foreground">
                 We sent a sign-in link to <strong>{email}</strong>. Click the
@@ -141,7 +141,7 @@ function AcceptInviteContent() {
 
           {status === "error" && (
             <>
-              <XCircle className="h-12 w-12 text-red-500 mx-auto" />
+              <XCircle className="h-12 w-12 text-destructive mx-auto" />
               <h2 className="text-xl font-semibold">Invitation expired</h2>
               <p className="text-muted-foreground">{message}</p>
               <Button

@@ -346,10 +346,10 @@ export default function SkillEditorPage() {
                       value={inst.effectiveness.score * 100}
                       className={
                         inst.effectiveness.score > 0.8
-                          ? "[&>div]:bg-green-500"
+                          ? "[&>div]:bg-success"
                           : inst.effectiveness.score > 0.6
                             ? "[&>div]:bg-yellow-500"
-                            : "[&>div]:bg-red-500"
+                            : "[&>div]:bg-destructive"
                       }
                     />
                   </div>

@@ -357,7 +357,7 @@ function ComponentBadge({
   const ratio = max > 0 ? value / max : 0;
   const heat =
     ratio >= 0.75
-      ? "bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200"
+      ? "bg-success/15 text-success-on-tint"
       : ratio >= 0.4
         ? "bg-muted text-foreground"
         : "bg-muted/40 text-muted-foreground";

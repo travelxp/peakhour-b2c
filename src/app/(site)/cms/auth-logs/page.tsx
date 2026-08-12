@@ -97,7 +97,7 @@ export default function AuthLogsPage() {
       </div>
 
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+        <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive-on-tint">
           Failed to load logs: {(error as Error).message}
         </div>
       )}
@@ -185,9 +185,9 @@ export default function AuthLogsPage() {
                     <TableCell className="font-mono text-xs">{row.event}</TableCell>
                     <TableCell>
                       {row.success ? (
-                        <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">success</Badge>
+                        <Badge className="bg-success/15 text-success-on-tint hover:bg-success/30">success</Badge>
                       ) : (
-                        <Badge className="bg-red-100 text-red-800 hover:bg-red-100">failure</Badge>
+                        <Badge className="bg-destructive/15 text-destructive-on-tint hover:bg-destructive/30">failure</Badge>
                       )}
                     </TableCell>
                     <TableCell className="text-xs">{row.channel || "—"}</TableCell>
@@ -223,9 +223,9 @@ export default function AuthLogsPage() {
               <div className="mt-6 space-y-3 text-sm">
                 <div className="flex items-center gap-2">
                   {selected.success ? (
-                    <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">success</Badge>
+                    <Badge className="bg-success/15 text-success-on-tint hover:bg-success/30">success</Badge>
                   ) : (
-                    <Badge className="bg-red-100 text-red-800 hover:bg-red-100">failure</Badge>
+                    <Badge className="bg-destructive/15 text-destructive-on-tint hover:bg-destructive/30">failure</Badge>
                   )}
                   {selected.channel && <Badge variant="outline">{selected.channel}</Badge>}
                   {selected.platform && <Badge variant="outline">{selected.platform}</Badge>}
@@ -235,7 +235,7 @@ export default function AuthLogsPage() {
                 {selected.reason && (
                   <div>
                     <p className="text-xs text-muted-foreground mb-1">Reason</p>
-                    <pre className="text-xs whitespace-pre-wrap rounded bg-red-50 text-red-900 p-3">{selected.reason}</pre>
+                    <pre className="text-xs whitespace-pre-wrap rounded bg-destructive/10 text-destructive-on-tint p-3">{selected.reason}</pre>
                   </div>
                 )}
                 <div>

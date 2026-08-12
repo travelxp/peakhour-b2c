@@ -147,8 +147,8 @@ export default async function PillarPricingPage({
               </div>
             ) : slug === "presence" ? (
               <div className="rounded-3xl border border-brand/30 bg-brand-soft/40 p-10 text-center dark:bg-brand/5">
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
-                  <span className="size-1.5 rounded-full bg-emerald-500" aria-hidden />
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-success/30 bg-success/10 px-3 py-1 text-xs font-semibold text-success-on-tint">
+                  <span className="size-1.5 rounded-full bg-success" aria-hidden />
                   Always free
                 </span>
                 <h2 className="mt-4 text-2xl font-extrabold tracking-tight">

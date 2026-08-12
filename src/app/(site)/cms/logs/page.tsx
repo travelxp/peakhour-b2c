@@ -63,7 +63,7 @@ interface ComponentsResponse {
 }
 
 function severityBadge(s?: string) {
-  if (s === "error") return <Badge className="bg-red-100 text-red-800 hover:bg-red-100">error</Badge>;
+  if (s === "error") return <Badge className="bg-destructive/15 text-destructive-on-tint hover:bg-destructive/30">error</Badge>;
   if (s === "warn") return <Badge className="bg-warning/15 text-warning-on-tint hover:bg-warning/25">warn</Badge>;
   if (s === "info") return <Badge className="bg-sky-100 text-sky-800 hover:bg-sky-100">info</Badge>;
   return <Badge variant="outline">{s || "—"}</Badge>;
@@ -135,7 +135,7 @@ function LogsPageInner() {
       </div>
 
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+        <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive-on-tint">
           Failed to load logs: {(error as Error).message}
         </div>
       )}
@@ -263,7 +263,7 @@ function LogsPageInner() {
                 <KV k="User" v={selected.userId || "—"} mono />
                 {selected.message && (
                   <Field label="Message">
-                    <pre className="text-xs whitespace-pre-wrap rounded bg-red-50 text-red-900 p-3">{selected.message}</pre>
+                    <pre className="text-xs whitespace-pre-wrap rounded bg-destructive/10 text-destructive-on-tint p-3">{selected.message}</pre>
                   </Field>
                 )}
                 {selected.causeMessage && (

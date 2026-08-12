@@ -18,9 +18,9 @@ const STYLES: Record<
   working: {
     label: "Autopilot is working",
     icon: CheckCircle2,
-    dot: "bg-emerald-500",
-    ring: "border-emerald-200 bg-emerald-50 dark:border-emerald-900/50 dark:bg-emerald-950/40",
-    text: "text-emerald-700 dark:text-emerald-400",
+    dot: "bg-success",
+    ring: "border-success/30 bg-success/10",
+    text: "text-success-on-tint",
   },
   waiting: {
     label: "Waiting on you",
@@ -32,9 +32,9 @@ const STYLES: Record<
   stalled: {
     label: "Needs attention",
     icon: AlertTriangle,
-    dot: "bg-rose-500",
-    ring: "border-rose-200 bg-rose-50 dark:border-rose-900/50 dark:bg-rose-950/40",
-    text: "text-rose-700 dark:text-rose-400",
+    dot: "bg-destructive",
+    ring: "border-destructive/30 bg-destructive/10",
+    text: "text-destructive-on-tint",
   },
 };
 

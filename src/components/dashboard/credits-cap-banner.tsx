@@ -39,7 +39,7 @@ export function CreditCapBanner() {
   if (capStatus === "hard") {
     return (
       <div
-        className="flex flex-col gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-900 sm:flex-row sm:items-center sm:gap-3 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200"
+        className="flex flex-col gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-destructive-on-tint sm:flex-row sm:items-center sm:gap-3"
         role="alert"
         aria-live="assertive"
       >

@@ -690,7 +690,7 @@ function CompetitorRecommendationsPreview({ rows }: { rows: RecommendedSource[] 
 function ConfidencePill({ confidence }: { confidence: number }) {
   const { label, classes } =
     confidence >= 0.7
-      ? { label: "High", classes: "border-emerald-500/50 text-emerald-700 dark:text-emerald-400" }
+      ? { label: "High", classes: "border-success/40 text-success-on-tint" }
       : confidence >= 0.55
         ? { label: "Medium", classes: "border-warning/40 text-warning-on-tint" }
         : { label: "Low", classes: "border-muted-foreground/30 text-muted-foreground" };

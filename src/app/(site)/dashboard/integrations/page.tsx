@@ -637,7 +637,7 @@ export default function IntegrationsPage() {
             </TabsTrigger>
             <TabsTrigger value="connected">
               Connected
-              <Badge variant="secondary" className="ml-1.5 text-[10px] px-1.5 py-0 bg-green-500/15 text-green-700 dark:text-green-400">
+              <Badge variant="secondary" className="ml-1.5 text-[10px] px-1.5 py-0 bg-success/15 text-success-on-tint">
                 {connectedCount}
               </Badge>
             </TabsTrigger>
@@ -1026,10 +1026,10 @@ function IntegrationCard({
   return (
     <Card className={`group relative overflow-hidden transition-all hover:shadow-md ${
       isComingSoon ? "opacity-50" : ""
-    } ${integration.connected ? "ring-1 ring-green-500/20" : ""}`}>
+    } ${integration.connected ? "ring-1 ring-success/20" : ""}`}>
       {/* Connected indicator stripe */}
       {integration.connected && (
-        <div className="absolute inset-x-0 top-0 h-0.5 bg-green-500" />
+        <div className="absolute inset-x-0 top-0 h-0.5 bg-success" />
       )}
 
       <CardHeader className="flex flex-row items-start gap-3 space-y-0 pb-2">
@@ -1049,7 +1049,7 @@ function IntegrationCard({
               {integration.name}
             </CardTitle>
             {integration.connected && (
-              <Badge className="bg-green-600/90 gap-0.5 text-[10px] px-1.5 py-0 shrink-0">
+              <Badge className="bg-success/90 gap-0.5 text-[10px] px-1.5 py-0 shrink-0">
                 <CheckCircle className="h-2.5 w-2.5" />
                 Live
               </Badge>
@@ -1087,10 +1087,10 @@ function IntegrationCard({
                   <img
                     src={integration.account.avatarUrl}
                     alt=""
-                    className="h-7 w-7 rounded-full ring-1 ring-green-500/30 shrink-0"
+                    className="h-7 w-7 rounded-full ring-1 ring-success/30 shrink-0"
                   />
                 ) : (
-                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 ring-1 ring-green-500/30 shrink-0">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 ring-1 ring-success/30 shrink-0">
                     <span className="text-[10px] font-medium text-primary">
                       {integration.account.name?.[0]?.toUpperCase() || "?"}
                     </span>
@@ -1375,7 +1375,7 @@ function BeehiivSyncControls({
         <div className={`rounded-md border px-2.5 py-1.5 text-[10px] flex items-center gap-1.5 ${
           backfillResult.hasErrors
             ? "border-warning/40 bg-warning/10 text-warning-on-tint"
-            : "border-green-500/30 bg-green-500/10 text-green-700 dark:text-green-400"
+            : "border-success/30 bg-success/10 text-success-on-tint"
         }`}>
           {backfillResult.hasErrors ? (
             <AlertCircle className="h-3 w-3 shrink-0" />
@@ -1633,7 +1633,7 @@ function LinkedInAdsStatus({
   // All good — compact green summary
   if (issues.length === 0) {
     return (
-      <div className="flex items-center gap-1.5 text-[10px] text-green-700 dark:text-green-400">
+      <div className="flex items-center gap-1.5 text-[10px] text-success-on-tint">
         <CheckCircle className="h-3 w-3 shrink-0" />
         <span>{adAccounts.length} ad account{adAccounts.length !== 1 ? "s" : ""} ready</span>
       </div>
@@ -1653,7 +1653,7 @@ function LinkedInAdsStatus({
           {issues.length} issue{issues.length !== 1 ? "s" : ""} pending action
         </span>
         {readyCount > 0 && (
-          <Badge className="bg-green-600/90 text-[9px] px-1 py-0 shrink-0">
+          <Badge className="bg-success/90 text-[9px] px-1 py-0 shrink-0">
             {readyCount} ready
           </Badge>
         )}

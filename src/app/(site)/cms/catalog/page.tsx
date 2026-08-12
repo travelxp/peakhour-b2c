@@ -75,7 +75,7 @@ const STATUS_OPTIONS = [
 function statusVariant(status: string): { label: string; className: string } {
   switch (status) {
     case "live":
-      return { label: "Live", className: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400" };
+      return { label: "Live", className: "bg-success/15 text-success-on-tint" };
     case "beta":
       return { label: "Beta", className: "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-400" };
     case "coming_soon":

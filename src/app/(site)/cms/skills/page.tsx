@@ -34,9 +34,9 @@ import { humanize } from "@/types/skills";
 
 const AGENT_COLORS: Record<string, string> = {
   strategist: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300",
-  repurposer: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
+  repurposer: "bg-success/15 text-success-on-tint",
   publisher: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300",
-  ad_engine: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300",
+  ad_engine: "bg-destructive/15 text-destructive-on-tint",
   optimizer: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300",
   control: "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300",
   feedback: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300",
@@ -44,7 +44,7 @@ const AGENT_COLORS: Record<string, string> = {
 
 const EXECUTION_BADGES: Record<string, string> = {
   ai: "bg-violet-100 text-violet-800 dark:bg-violet-900 dark:text-violet-300",
-  code: "bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-300",
+  code: "bg-success/15 text-success-on-tint",
   hybrid: "bg-warning/15 text-warning-on-tint",
 };
 

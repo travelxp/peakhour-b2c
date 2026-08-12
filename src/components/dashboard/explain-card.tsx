@@ -16,7 +16,7 @@ const EXPLAIN_USE_CASE = "metrics_translate_dashboard";
 
 /** Sentiment → left-accent colour for the narration card. */
 const ACCENT: Record<ExplainNarration["sentiment"], string> = {
-  positive: "border-l-emerald-500",
+  positive: "border-l-success/40",
   neutral: "border-l-muted-foreground/40",
   concern: "border-l-warning",
 };
@@ -121,7 +121,7 @@ export function ExplainCard({ surface, resource }: { surface: ExplainSurface; re
           </div>
         )}
         {errorMsg && (
-          <p className="rounded-md border border-red-300 bg-red-50 p-2.5 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+          <p className="rounded-md border border-destructive/30 bg-destructive/10 p-2.5 text-sm text-destructive-on-tint">
             {errorMsg}
           </p>
         )}

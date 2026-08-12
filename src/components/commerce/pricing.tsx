@@ -276,7 +276,7 @@ function PriceGrid({
                       </td>
                       <td className="px-4 py-3 text-right">
                         {isDone ? (
-                          <span className="inline-flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
+                          <span className="inline-flex items-center gap-1 text-xs text-success-on-tint">
                             <Check className="size-3" /> Proposed
                           </span>
                         ) : (

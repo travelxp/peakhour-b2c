@@ -86,7 +86,7 @@ export function PlatformCharCounter({
       ? "stroke-destructive"
       : tone === "warn"
       ? "stroke-warning"
-      : "stroke-emerald-500";
+      : "stroke-success";
 
   return (
     <div

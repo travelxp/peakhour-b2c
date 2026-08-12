@@ -86,15 +86,15 @@ export default function AiModelsPage() {
       </div>
 
       {sync.isSuccess && sync.data && (
-        <Card className="border-emerald-200 bg-emerald-50">
-          <CardContent className="py-3 text-sm text-emerald-900">
+        <Card className="border-success/30 bg-success/10">
+          <CardContent className="py-3 text-sm text-success-on-tint">
             Synced {sync.data.synced} of {sync.data.totalReceived} models from Vercel.
           </CardContent>
         </Card>
       )}
       {sync.isError && (
-        <Card className="border-red-200 bg-red-50">
-          <CardContent className="py-3 text-sm text-red-900">
+        <Card className="border-destructive/30 bg-destructive/10">
+          <CardContent className="py-3 text-sm text-destructive-on-tint">
             Sync failed: {(sync.error as Error).message}
           </CardContent>
         </Card>

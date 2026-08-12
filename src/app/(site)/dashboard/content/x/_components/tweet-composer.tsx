@@ -572,7 +572,7 @@ export function TweetComposer() {
             className={
               feedback.kind === "error"
                 ? "rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
-                : "rounded-md border border-green-200 bg-green-50/60 px-3 py-2 text-sm text-green-800 dark:border-green-900 dark:bg-green-950/40 dark:text-green-300"
+                : "rounded-md border border-success/30 bg-success/10 px-3 py-2 text-sm text-success-on-tint"
             }
           >
             {feedback.message}

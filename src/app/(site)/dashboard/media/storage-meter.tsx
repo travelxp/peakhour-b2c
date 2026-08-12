@@ -26,7 +26,7 @@ export function StorageMeter({
   const tone = pct >= 90 ? "red" : pct >= 75 ? "amber" : "normal";
 
   const barColor =
-    tone === "red" ? "bg-red-500" : tone === "amber" ? "bg-warning" : "bg-primary";
+    tone === "red" ? "bg-destructive" : tone === "amber" ? "bg-warning" : "bg-primary";
 
   return (
     <div className={cn("w-full", className)}>

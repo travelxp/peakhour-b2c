@@ -93,7 +93,7 @@ export function PublishBundleSummary({
             <Button
               variant="ghost"
               size="sm"
-              className="h-7 px-2 text-xs text-destructive hover:text-destructive"
+              className="h-7 px-2 text-xs text-destructive"
               onClick={onCancel}
             >
               Cancel
@@ -158,13 +158,13 @@ export function PublishBundleSummary({
                   className={cn(
                     "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium",
                     tone === "success" &&
-                      "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300",
+                      "bg-success/15 text-success-on-tint",
                     tone === "info" &&
                       "bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300",
                     tone === "warn" &&
                       "bg-warning/15 text-warning-on-tint",
                     tone === "error" &&
-                      "bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300",
+                      "bg-destructive/15 text-destructive-on-tint",
                     tone === "neutral" && "bg-muted text-muted-foreground",
                   )}
                 >
@@ -204,10 +204,10 @@ export function NextActionScheduleSlot({
       <div
         className={cn(
           "inline-flex h-9 w-9 items-center justify-center rounded-full",
-          tone === "success" && "bg-emerald-100 text-emerald-700",
+          tone === "success" && "bg-success/15 text-success-on-tint",
           tone === "info" && "bg-sky-100 text-sky-700",
           tone === "warn" && "bg-warning/15 text-warning-on-tint",
-          tone === "error" && "bg-rose-100 text-rose-700",
+          tone === "error" && "bg-destructive/15 text-destructive-on-tint",
           tone === "neutral" && "bg-muted text-muted-foreground",
         )}
       >

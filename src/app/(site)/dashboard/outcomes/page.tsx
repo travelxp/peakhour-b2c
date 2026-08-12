@@ -57,9 +57,9 @@ const SEVERITY: Record<
   OutcomesResponse["nextActions"][number]["severity"],
   { dot: string; icon: typeof AlertTriangle; label: string }
 > = {
-  critical: { dot: "bg-red-500", icon: AlertTriangle, label: "Needs you now" },
+  critical: { dot: "bg-destructive", icon: AlertTriangle, label: "Needs you now" },
   attention: { dot: "bg-warning", icon: AlertTriangle, label: "Worth a look" },
-  opportunity: { dot: "bg-emerald-500", icon: Lightbulb, label: "Opportunity" },
+  opportunity: { dot: "bg-success", icon: Lightbulb, label: "Opportunity" },
 };
 
 const DIRECTION_ICON = {
@@ -164,9 +164,9 @@ function OutcomesBody({ data }: { data: OutcomesResponse }) {
                     <Icon
                       className={`mt-0.5 size-4 shrink-0 ${
                         m.direction === "up"
-                          ? "text-emerald-600 dark:text-emerald-400"
+                          ? "text-success-on-tint"
                           : m.direction === "down"
-                            ? "text-red-600 dark:text-red-400"
+                            ? "text-destructive-on-tint"
                             : "text-muted-foreground"
                       }`}
                       aria-hidden="true"

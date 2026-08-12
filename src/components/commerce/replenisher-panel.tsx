@@ -189,7 +189,7 @@ export function ReplenisherPanel() {
                         <td className="px-4 py-3 text-right tabular-nums">{stockLabel}</td>
                         <td className="px-4 py-3 text-right tabular-nums">
                           {c.daysOfCover === null ? (
-                            <span className="inline-flex items-center gap-1 text-red-600 dark:text-red-400">
+                            <span className="inline-flex items-center gap-1 text-destructive-on-tint">
                               <TriangleAlert className="size-3" /> OOS
                             </span>
                           ) : (
@@ -202,7 +202,7 @@ export function ReplenisherPanel() {
                         <td className="px-4 py-3 text-right tabular-nums">{risk ?? "—"}</td>
                         <td className="px-4 py-3 text-right">
                           {isDone ? (
-                            <span className="inline-flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
+                            <span className="inline-flex items-center gap-1 text-xs text-success-on-tint">
                               <Check className="size-3" /> Proposed
                             </span>
                           ) : (

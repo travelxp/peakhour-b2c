@@ -103,7 +103,7 @@ export default function AiLogsPage() {
       </div>
 
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+        <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive-on-tint">
           Failed to load logs: {(error as Error).message}
         </div>
       )}
@@ -242,7 +242,7 @@ export default function AiLogsPage() {
                 )}
                 {selected.errorMessage && (
                   <Field label="Error">
-                    <pre className="text-xs whitespace-pre-wrap rounded bg-red-50 text-red-900 p-3">{selected.errorMessage}</pre>
+                    <pre className="text-xs whitespace-pre-wrap rounded bg-destructive/10 text-destructive-on-tint p-3">{selected.errorMessage}</pre>
                     {selected.requestId && (
                       <Link
                         href={`/cms/logs?requestId=${encodeURIComponent(selected.requestId)}`}

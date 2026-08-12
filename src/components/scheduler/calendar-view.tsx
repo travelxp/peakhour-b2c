@@ -146,8 +146,8 @@ function ItemChip({ item, onClick, draggable, onDragStart }: ItemChipProps) {
         item.payloadStale && "border-warning/30 bg-warning/10",
         tone === "warn" && !item.payloadStale &&
           "border-warning/30 bg-warning/10",
-        tone === "error" && "border-rose-300 bg-rose-50 dark:bg-rose-950/30",
-        tone === "success" && "bg-emerald-50 dark:bg-emerald-950/20",
+        tone === "error" && "border-destructive/30 bg-destructive/10",
+        tone === "success" && "bg-success/10",
         draggable && "cursor-grab active:cursor-grabbing",
       )}
       title={
@@ -167,10 +167,10 @@ function ItemChip({ item, onClick, draggable, onDragStart }: ItemChipProps) {
       <Icon
         className={cn(
           "h-3 w-3 shrink-0",
-          tone === "success" && "text-emerald-600",
+          tone === "success" && "text-success-on-tint",
           tone === "info" && "text-sky-600",
           tone === "warn" && "text-warning-on-tint",
-          tone === "error" && "text-rose-600",
+          tone === "error" && "text-destructive-on-tint",
         )}
       />
     </button>

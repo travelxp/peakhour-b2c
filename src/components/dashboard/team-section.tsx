@@ -242,7 +242,7 @@ export function TeamSection() {
                         trigger={
                           <DropdownMenuItem
                             onSelect={(e) => e.preventDefault()}
-                            className="text-red-600"
+                            className="text-destructive-on-tint"
                           >
                             <Trash2 className="size-3.5 mr-2" />
                             Remove from team
@@ -289,7 +289,7 @@ export function TeamSection() {
                   </span>
                   <ConfirmDialog
                     trigger={
-                      <Button variant="ghost" size="icon-xs" className="text-muted-foreground hover:text-red-600">
+                      <Button variant="ghost" size="icon-xs" className="text-muted-foreground hover:text-destructive-on-tint">
                         <Trash2 className="size-3.5" />
                       </Button>
                     }

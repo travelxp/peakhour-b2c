@@ -61,12 +61,12 @@ function StatusBlock({
 
   if (status) {
     if (status.status === "completed") {
-      tone = "border-green-500/40 bg-green-500/5";
+      tone = "border-success/40 bg-success/5";
       heading = "Your data has been deleted";
       body =
         "We’ve removed the personal data associated with your Meta connection (profile details and access tokens we held). No further action is needed.";
     } else if (status.status === "failed") {
-      tone = "border-red-500/40 bg-red-500/5";
+      tone = "border-destructive/40 bg-destructive/5";
       heading = "We hit a problem";
       body =
         "We couldn’t finish your deletion request automatically. Our team has been notified and will complete it. If you’d like an update, contact us with your reference code below.";

@@ -108,7 +108,7 @@ function D2CTab() {
       <CardHeader className="flex flex-row items-center justify-between gap-2">
         <CardTitle className="text-base">{label}</CardTitle>
         <Badge variant="secondary" className="gap-1.5">
-          <span className="size-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
+          <span className="size-1.5 rounded-full bg-success" aria-hidden="true" />
           Connected
         </Badge>
       </CardHeader>

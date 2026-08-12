@@ -69,10 +69,10 @@ export default function CmsOverviewPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Resolved</CardTitle>
-            <CheckCircle2 className="size-4 text-green-500" />
+            <CheckCircle2 className="size-4 text-success" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">
+            <div className="text-2xl font-bold text-success-on-tint">
               {resolvedTickets?.length ?? "..."}
             </div>
           </CardContent>

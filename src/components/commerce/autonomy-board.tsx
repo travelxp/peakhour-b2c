@@ -60,11 +60,11 @@ export function AutonomyBoard() {
         {data && (
           <div
             className={`mt-3 flex items-center justify-between gap-3 rounded-lg border p-3 ${
-              data.killSwitch ? "border-red-300 bg-red-50 dark:border-red-900 dark:bg-red-950/40" : ""
+              data.killSwitch ? "border-destructive/30 bg-destructive/10" : ""
             }`}
           >
             <div className="flex items-start gap-2">
-              <ShieldAlert className={`mt-0.5 size-4 ${data.killSwitch ? "text-red-600 dark:text-red-400" : "text-muted-foreground"}`} />
+              <ShieldAlert className={`mt-0.5 size-4 ${data.killSwitch ? "text-destructive-on-tint" : "text-muted-foreground"}`} />
               <div>
                 <p className="text-sm font-medium">Kill switch</p>
                 <p className="text-xs text-muted-foreground">
@@ -165,9 +165,9 @@ function AgentRow({
 
       {/* Earned graduation invite — the merchant opts in, never auto-raised. */}
       {entry.graduation && (
-        <div className="mt-3 flex flex-col gap-2 rounded-lg border border-emerald-300 bg-emerald-50 p-3 dark:border-emerald-900 dark:bg-emerald-950/40 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-3 flex flex-col gap-2 rounded-lg border border-success/30 bg-success/10 p-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-2">
-            <ArrowUpCircle className="mt-0.5 size-4 text-emerald-600 dark:text-emerald-400" />
+            <ArrowUpCircle className="mt-0.5 size-4 text-success-on-tint" />
             <p className="text-xs">
               <span className="font-medium">{meta.name} has earned more autonomy.</span>{" "}
               It&apos;s been reliable — raise it to{" "}

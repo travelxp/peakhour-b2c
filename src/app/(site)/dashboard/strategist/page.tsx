@@ -339,7 +339,7 @@ export default function StrategistPage() {
           ) : genResult ? (
             <div className="space-y-3">
               <div className="flex items-center gap-3">
-                <CheckCircle className="h-5 w-5 text-emerald-500 shrink-0" />
+                <CheckCircle className="h-5 w-5 text-success shrink-0" />
                 <p className="font-medium">{genResult.count} ideas generated</p>
                 <Button variant="ghost" size="sm" className="ml-auto text-xs" onClick={() => setGenResult(null)}>Dismiss</Button>
               </div>

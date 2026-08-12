@@ -62,7 +62,7 @@ export function PillarPriceCard({
         )}
         <span
           className={`text-2xl font-extrabold tracking-tight ${
-            priceLabel === "Free" ? "text-emerald-600 dark:text-emerald-400" : ""
+            priceLabel === "Free" ? "text-success-on-tint" : ""
           }`}
           style={{ fontFamily: "var(--font-space-grotesk)" }}
         >

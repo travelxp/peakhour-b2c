@@ -168,7 +168,7 @@ export default async function PricingPage() {
                             slug === "presence"
                               ? ""
                               : isFree
-                                ? "text-emerald-400"
+                                ? "text-success"
                                 : "text-brand"
                           }`}
                           style={{ fontFamily: "var(--font-space-grotesk)" }}
@@ -203,8 +203,8 @@ export default async function PricingPage() {
                     <span className="inline-flex items-center rounded-full bg-brand-gradient px-3 py-1 text-xs font-bold text-brand-contrast">
                       Start here
                     </span>
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
-                      <span className="size-1.5 rounded-full bg-emerald-500" aria-hidden />
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-success/30 bg-success/10 px-2.5 py-0.5 text-[11px] font-semibold text-success-on-tint">
+                      <span className="size-1.5 rounded-full bg-success" aria-hidden />
                       Free forever
                     </span>
                   </div>

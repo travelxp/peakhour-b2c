@@ -223,7 +223,7 @@ function FixIntents({ themes }: { themes: ThemeStat[] }) {
                   </p>
                 </div>
                 {isDone ? (
-                  <span className="inline-flex shrink-0 items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
+                  <span className="inline-flex shrink-0 items-center gap-1 text-xs text-success-on-tint">
                     <Check className="size-3" /> Proposed
                   </span>
                 ) : (

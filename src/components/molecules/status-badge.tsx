@@ -13,11 +13,11 @@ const STATUS_STYLES: Record<StatusVariant, string> = {
   default:
     "bg-primary/10 text-primary border-primary/20 dark:bg-primary/20 dark:text-primary dark:border-primary/30",
   success:
-    "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800",
+    "bg-success/10 text-success-on-tint border-success/30",
   warning:
     "bg-warning/10 text-warning-on-tint border-warning/30",
   error:
-    "bg-red-50 text-red-700 border-red-200 dark:bg-red-950 dark:text-red-400 dark:border-red-800",
+    "bg-destructive/10 text-destructive-on-tint border-destructive/30",
   info: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-400 dark:border-blue-800",
   muted:
     "bg-muted text-muted-foreground border-border",
@@ -96,9 +96,9 @@ export function StatusBadge({
         <span
           className={cn("mr-1.5 inline-block size-1.5 rounded-full", {
             "bg-primary": resolvedVariant === "default",
-            "bg-emerald-500": resolvedVariant === "success",
+            "bg-success": resolvedVariant === "success",
             "bg-warning": resolvedVariant === "warning",
-            "bg-red-500": resolvedVariant === "error",
+            "bg-destructive": resolvedVariant === "error",
             "bg-blue-500": resolvedVariant === "info",
             "bg-muted-foreground": resolvedVariant === "muted",
           })}

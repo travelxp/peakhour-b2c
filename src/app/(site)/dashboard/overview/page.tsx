@@ -565,7 +565,7 @@ function IntegrationRow({
         {loading ? (
           <span className="inline-block h-5 w-16 animate-pulse rounded-full bg-muted" />
         ) : connected ? (
-          <Badge className="bg-emerald-600/90 text-[10px] gap-1 shrink-0 font-medium">
+          <Badge className="bg-success/90 text-[10px] gap-1 shrink-0 font-medium">
             <CheckCircle className="h-2.5 w-2.5" />
             {connectedLabel || "Live"}
           </Badge>
@@ -601,7 +601,7 @@ function EngineStep({
       {loading ? (
         <span className="inline-block h-5 w-5 animate-pulse rounded-full bg-muted shrink-0" />
       ) : done ? (
-        <CheckCircle className="h-5 w-5 text-emerald-500 shrink-0" />
+        <CheckCircle className="h-5 w-5 text-success shrink-0" />
       ) : (
         <div className="h-5 w-5 rounded-full border-2 border-muted shrink-0" />
       )}

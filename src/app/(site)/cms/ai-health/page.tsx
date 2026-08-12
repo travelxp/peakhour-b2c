@@ -102,7 +102,7 @@ export default function AiHealthPage() {
     return (
       <div className="space-y-6">
         {cronToolbar}
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-800">
+        <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-destructive-on-tint">
           Failed to load health: {(error as Error).message}
         </div>
       </div>
@@ -147,7 +147,7 @@ export default function AiHealthPage() {
                 return (
                   <div key={key} className="flex items-center gap-2 text-sm">
                     {ok ? (
-                      <CheckCircle2 className="size-4 text-emerald-600" />
+                      <CheckCircle2 className="size-4 text-success-on-tint" />
                     ) : (
                       <XCircle className="size-4 text-muted-foreground" />
                     )}
@@ -435,7 +435,7 @@ function IngestHealthPanel() {
                           {conn.lastSuccessAt ? formatDateTime(conn.lastSuccessAt) : "—"}
                         </td>
                         <td className="px-3 py-2 text-right tabular-nums">
-                          <span className="text-emerald-600">{conn.last24h.success}</span>
+                          <span className="text-success-on-tint">{conn.last24h.success}</span>
                           {" / "}
                           <span className="text-warning-on-tint">{conn.last24h.partialFailure}</span>
                           {" / "}

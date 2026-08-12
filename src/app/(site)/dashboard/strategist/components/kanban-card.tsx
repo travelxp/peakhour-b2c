@@ -71,7 +71,7 @@ const TOTAL_STEPS = 5;
 
 function getPriorityLabel(score?: number): { label: string; className: string } | null {
   if (score == null) return null;
-  if (score >= 8) return { label: "High", className: "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400" };
+  if (score >= 8) return { label: "High", className: "bg-destructive/15 text-destructive-on-tint" };
   if (score >= 6) return { label: "Medium", className: "bg-warning/15 text-warning-on-tint" };
   return { label: "Low", className: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400" };
 }
@@ -183,7 +183,7 @@ function KanbanCardBody({ idea, onChanged }: { idea: PipelineIdea; onChanged?: (
             )}
             {host && total > 1 && <span>+{total - 1} more</span>}
             {breaking && (
-              <Badge variant="secondary" className="h-4 px-1 text-[9px] font-medium border-0 bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-400">
+              <Badge variant="secondary" className="h-4 px-1 text-[9px] font-medium border-0 bg-destructive/15 text-destructive-on-tint">
                 Breaking
               </Badge>
             )}

@@ -65,7 +65,7 @@ export function PendingExecutions() {
           </div>
         ) : items.length === 0 ? (
           <div className="flex flex-col items-center gap-1.5 px-4 py-10 text-center">
-            <PackageCheck className="size-7 text-emerald-500" />
+            <PackageCheck className="size-7 text-success" />
             <p className="text-sm font-medium">Nothing waiting to ship</p>
             <p className="text-xs text-muted-foreground">
               Approved actions and agent proposals show up here for you to ship or undo.
@@ -133,7 +133,7 @@ function ActionRow({
           <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
             <span>{agentLabel(item.agent)}</span>
             {projected && (
-              <span className="font-medium text-emerald-600 dark:text-emerald-400">{projected}</span>
+              <span className="font-medium text-success-on-tint">{projected}</span>
             )}
           </div>
         </div>
