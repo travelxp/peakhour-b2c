@@ -61,7 +61,7 @@ function statusBadge(code?: number) {
   if (!code) return null;
   if (code >= 500) return <Badge className="bg-destructive/15 text-destructive-on-tint hover:bg-destructive/30">{code}</Badge>;
   if (code >= 400) return <Badge className="bg-warning/15 text-warning-on-tint hover:bg-warning/25">{code}</Badge>;
-  if (code >= 300) return <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">{code}</Badge>;
+  if (code >= 300) return <Badge className="bg-state-info/15 text-state-info-on-tint hover:bg-state-info/30">{code}</Badge>;
   return <Badge className="bg-success/15 text-success-on-tint hover:bg-success/30">{code}</Badge>;
 }
 

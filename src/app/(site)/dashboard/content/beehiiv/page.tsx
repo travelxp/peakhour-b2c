@@ -1026,7 +1026,7 @@ function AdScoreBar({
       : score >= 6
         ? "bg-warning"
         : score >= 4
-          ? "bg-orange-400"
+          ? "bg-warning"
           : "bg-destructive";
 
   return (
@@ -1141,7 +1141,7 @@ function SectorHeatmap({
               ? "bg-success/15 border-success/30"
               : intensity > 0.3
                 ? "bg-warning/10 border-warning/30"
-                : "bg-orange-50 border-orange-200";
+                : "bg-warning/10 border-warning/30";
 
         return (
           <Tooltip key={sector}>
@@ -1232,7 +1232,7 @@ function AudienceBars({
               ? "bg-success"
               : pct > 30
                 ? "bg-warning"
-                : "bg-orange-400";
+                : "bg-warning";
 
         return (
           <div key={segment} className="space-y-1">

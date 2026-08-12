@@ -36,6 +36,11 @@
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
   --color-warning-on-tint: var(--warning-on-tint);
+  /* Workflow state: `bg-state-info/12`, `text-state-progress-on-tint`, … */
+  --color-state-info: var(--state-info);
+  --color-state-info-on-tint: var(--state-info-on-tint);
+  --color-state-progress: var(--state-progress);
+  --color-state-progress-on-tint: var(--state-progress-on-tint);
   /* Always-dark instrument surfaces: `bg-ink`, `text-on-ink-dim`, … */
   --color-ink: var(--ink);
   --color-ink-2: var(--ink-2);
@@ -136,6 +141,25 @@
   --warning: oklch(0.72 0.155 68);
   --warning-foreground: oklch(0.22 0.014 68);
   --warning-on-tint: oklch(0.5 0.115 62);
+
+  /* Workflow state. Distinct from BOTH the status palette and the chart
+     series, because it answers a different question: --success/--warning/
+     --destructive say how something went, --chart-* says which pillar owns
+     it, and these say where it is in a queue (acknowledged, in progress).
+
+     Deliberately NOT --chart-*: a feedback ticket sitting "in progress" is
+     not the Content pillar, and painting it Content's violet would break the
+     rule that colour follows the entity. They are also stepped darker than
+     the neighbouring chart tokens (#0056a4 vs chart-4 #2563c9, #6938a7 vs
+     chart-2 #7c5cd6) so a state chip never reads as a series swatch.
+
+     Priority scales (high/medium/low) are NOT here — those are ordered by
+     severity, so they ride the status palette: --destructive, --warning,
+     --muted-foreground. */
+  --state-info: oklch(0.55 0.16 250);
+  --state-info-on-tint: oklch(0.45 0.15 250);
+  --state-progress: oklch(0.56 0.19 300);
+  --state-progress-on-tint: oklch(0.46 0.17 300);
 
   /* Chart series = the five pillars, in fixed order:
        1 Commerce · 2 Content · 3 Growth · 4 Support · 5 Presence
@@ -252,6 +276,12 @@
      resolved to the same colour), and this lighter step reads better on a
      tint anyway — 11.8:1 on --card, 10.2:1 on a 10% warning wash. */
   --warning-on-tint: oklch(0.86 0.115 78);
+
+  /* Own steps for a dark ground, same reasoning as the light block. */
+  --state-info: oklch(0.7 0.14 250);
+  --state-info-on-tint: oklch(0.8 0.11 250);
+  --state-progress: oklch(0.72 0.16 300);
+  --state-progress-on-tint: oklch(0.82 0.12 300);
 
   /* Same five hues, re-stepped for a dark ground and validated against it
      independently — see the note in :root. Series identity is stable across

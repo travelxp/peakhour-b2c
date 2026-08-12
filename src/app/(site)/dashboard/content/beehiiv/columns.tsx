@@ -575,7 +575,7 @@ export function getContentColumns(
           : score >= 6
             ? "bg-warning"
             : score >= 4
-              ? "bg-orange-400"
+              ? "bg-warning"
               : "bg-destructive";
       return (
         <Tooltip>

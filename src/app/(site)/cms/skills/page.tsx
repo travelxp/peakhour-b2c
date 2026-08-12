@@ -33,17 +33,17 @@ import type { SkillTemplate } from "@/types/skills";
 import { humanize } from "@/types/skills";
 
 const AGENT_COLORS: Record<string, string> = {
-  strategist: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300",
+  strategist: "bg-state-info/15 text-state-info-on-tint",
   repurposer: "bg-success/15 text-success-on-tint",
-  publisher: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300",
+  publisher: "bg-state-progress/15 text-state-progress-on-tint",
   ad_engine: "bg-destructive/15 text-destructive-on-tint",
-  optimizer: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300",
+  optimizer: "bg-warning/15 text-warning-on-tint",
   control: "bg-muted text-foreground",
-  feedback: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300",
+  feedback: "bg-warning/15 text-warning-on-tint",
 };
 
 const EXECUTION_BADGES: Record<string, string> = {
-  ai: "bg-violet-100 text-violet-800 dark:bg-violet-900 dark:text-violet-300",
+  ai: "bg-state-progress/15 text-state-progress-on-tint",
   code: "bg-success/15 text-success-on-tint",
   hybrid: "bg-warning/15 text-warning-on-tint",
 };

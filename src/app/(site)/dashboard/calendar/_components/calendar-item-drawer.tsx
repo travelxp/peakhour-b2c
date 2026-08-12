@@ -72,7 +72,7 @@ function ToneBadge({
         tone === "success" &&
           "bg-success/15 text-success-on-tint",
         tone === "info" &&
-          "bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300",
+          "bg-state-info/15 text-state-info-on-tint",
         tone === "warn" &&
           "bg-warning/15 text-warning-on-tint",
         tone === "error" &&
@@ -240,7 +240,7 @@ export function CalendarItemDrawer({
                   "rounded-md border p-2 text-xs",
                   a.outcome === "success" && "border-success/30 bg-success/10",
                   a.outcome === "transient_error" &&
-                    "border-sky-200 bg-sky-50/50",
+                    "border-state-info/30 bg-state-info/10",
                   a.outcome === "rate_limited" &&
                     "border-warning/30 bg-warning/5",
                   a.outcome === "permanent_error" &&

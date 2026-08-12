@@ -3,13 +3,13 @@ import { Badge } from "@/components/ui/badge";
 
 export const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secondary" | "outline" | "destructive"; className?: string }> = {
   brainstorm: { label: "Brainstorm", variant: "secondary" },
-  planned: { label: "Planned", variant: "outline", className: "border-blue-500/30 text-blue-500" },
-  brief_ready: { label: "Brief Ready", variant: "outline", className: "border-indigo-500/30 text-indigo-500" },
+  planned: { label: "Planned", variant: "outline", className: "border-state-info/30 text-state-info" },
+  brief_ready: { label: "Brief Ready", variant: "outline", className: "border-state-info/30 text-state-info" },
   writing: { label: "Writing", variant: "outline", className: "border-warning/40 text-warning" },
   in_progress: { label: "Writing", variant: "outline", className: "border-warning/40 text-warning" },
-  review: { label: "Review", variant: "outline", className: "border-purple-500/30 text-purple-500" },
+  review: { label: "Review", variant: "outline", className: "border-state-progress/30 text-state-progress" },
   approved: { label: "Approved", variant: "outline", className: "border-success/30 text-success" },
-  scheduled: { label: "Scheduled", variant: "outline", className: "border-cyan-500/30 text-cyan-500" },
+  scheduled: { label: "Scheduled", variant: "outline", className: "border-state-info/30 text-state-info" },
   published: { label: "Published", variant: "outline", className: "border-success/30 text-success" },
   archived: { label: "Archived", variant: "secondary", className: "opacity-60" },
 };

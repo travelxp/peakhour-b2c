@@ -348,7 +348,7 @@ export default function SkillEditorPage() {
                         inst.effectiveness.score > 0.8
                           ? "[&>div]:bg-success"
                           : inst.effectiveness.score > 0.6
-                            ? "[&>div]:bg-yellow-500"
+                            ? "[&>div]:bg-warning"
                             : "[&>div]:bg-destructive"
                       }
                     />

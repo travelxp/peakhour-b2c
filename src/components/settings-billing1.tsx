@@ -234,7 +234,7 @@ const SettingsBilling1 = ({
           className={cn(
             value === "Paid"
               ? "bg-success/15 text-success-on-tint"
-              : "bg-yellow-100 text-yellow-700",
+              : "bg-warning/15 text-warning-on-tint",
           )}
         >
           {value}

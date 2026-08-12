@@ -45,10 +45,10 @@ export default function CmsOverviewPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Pending</CardTitle>
-            <AlertCircle className="size-4 text-yellow-500" />
+            <AlertCircle className="size-4 text-warning" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">
+            <div className="text-2xl font-bold text-warning-on-tint">
               {pendingTickets?.length ?? "..."}
             </div>
           </CardContent>
@@ -57,10 +57,10 @@ export default function CmsOverviewPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">In Progress</CardTitle>
-            <Clock className="size-4 text-purple-500" />
+            <Clock className="size-4 text-state-progress" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-purple-600">
+            <div className="text-2xl font-bold text-state-progress-on-tint">
               {inProgressTickets?.length ?? "..."}
             </div>
           </CardContent>

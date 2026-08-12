@@ -22,18 +22,18 @@ import { ArrowLeft, MessageSquare } from "lucide-react";
 import Link from "next/link";
 
 const STATUS_STYLES: Record<string, string> = {
-  pending: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
-  acknowledged: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
-  in_progress: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400",
+  pending: "bg-warning/15 text-warning-on-tint",
+  acknowledged: "bg-state-info/15 text-state-info-on-tint",
+  in_progress: "bg-state-progress/15 text-state-progress-on-tint",
   resolved: "bg-success/15 text-success-on-tint",
   closed: "bg-muted text-foreground",
 };
 
 const CATEGORY_STYLES: Record<string, string> = {
   bug: "bg-destructive/15 text-destructive-on-tint",
-  feature: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400",
+  feature: "bg-state-info/15 text-state-info-on-tint",
   improvement: "bg-warning/15 text-warning-on-tint",
-  question: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-400",
+  question: "bg-state-info/15 text-state-info-on-tint",
 };
 
 function StatusBadge({ status }: { status: string }) {

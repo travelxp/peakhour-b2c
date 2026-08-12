@@ -27,7 +27,7 @@ import { humanize } from "@/types/skills";
 
 function getEffectivenessColor(score: number): string {
   if (score >= 0.8) return "[&>div]:bg-success";
-  if (score >= 0.6) return "[&>div]:bg-yellow-500";
+  if (score >= 0.6) return "[&>div]:bg-warning";
   return "[&>div]:bg-destructive";
 }
 
@@ -116,7 +116,7 @@ export default function BusinessSkillsPage() {
             <div className="flex-1">
               <Progress
                 value={autonomyScore}
-                className="h-4 [&>div]:bg-blue-500"
+                className="h-4 [&>div]:bg-state-info"
               />
             </div>
             <span className="text-3xl font-bold">{autonomyScore}%</span>
@@ -160,7 +160,7 @@ export default function BusinessSkillsPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
-              <TrendingUp className="h-4 w-4 text-yellow-500" />
+              <TrendingUp className="h-4 w-4 text-warning" />
               Still learning
             </CardTitle>
           </CardHeader>
@@ -178,7 +178,7 @@ export default function BusinessSkillsPage() {
                     variant="outline"
                     className={
                       s.effectiveness.score >= 0.6
-                        ? "bg-yellow-50 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-300"
+                        ? "bg-warning/10 text-warning-on-tint"
                         : "bg-destructive/10 text-destructive-on-tint"
                     }
                   >

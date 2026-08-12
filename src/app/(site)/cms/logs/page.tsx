@@ -65,7 +65,7 @@ interface ComponentsResponse {
 function severityBadge(s?: string) {
   if (s === "error") return <Badge className="bg-destructive/15 text-destructive-on-tint hover:bg-destructive/30">error</Badge>;
   if (s === "warn") return <Badge className="bg-warning/15 text-warning-on-tint hover:bg-warning/25">warn</Badge>;
-  if (s === "info") return <Badge className="bg-sky-100 text-sky-800 hover:bg-sky-100">info</Badge>;
+  if (s === "info") return <Badge className="bg-state-info/15 text-state-info-on-tint hover:bg-state-info/30">info</Badge>;
   return <Badge variant="outline">{s || "—"}</Badge>;
 }
 

@@ -114,7 +114,7 @@ function AcceptInviteContent() {
 
           {status === "signup" && !magicLinkSent && (
             <>
-              <Mail className="h-12 w-12 text-blue-500 mx-auto" />
+              <Mail className="h-12 w-12 text-state-info mx-auto" />
               <h2 className="text-xl font-semibold">
                 You&apos;re invited to {orgName}
               </h2>

@@ -70,7 +70,7 @@ const STATUS_VARIANT: Record<TemplateStatus, { label: string; className: string 
   submitted: { label: "In review", className: "bg-warning/15 text-warning-on-tint" },
   approved: { label: "Approved", className: "bg-success/15 text-success-on-tint" },
   rejected: { label: "Rejected", className: "bg-destructive/15 text-destructive-on-tint" },
-  paused: { label: "Paused", className: "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300" },
+  paused: { label: "Paused", className: "bg-warning/15 text-warning-on-tint" },
   disabled: { label: "Disabled", className: "bg-muted text-muted-foreground" },
 };
 
@@ -92,7 +92,7 @@ function WhatsAppPreview({ components }: { components: Components }) {
       {!!buttons?.length && (
         <div className="mt-2 space-y-1">
           {buttons.map((b, i) => (
-            <div key={i} className="rounded-lg bg-white/90 py-2 text-center text-sm font-medium text-[#00a5f4] shadow-sm dark:text-sky-300">
+            <div key={i} className="rounded-lg bg-white/90 py-2 text-center text-sm font-medium text-[#00a5f4] shadow-sm">
               {b.text || "Button"}
             </div>
           ))}

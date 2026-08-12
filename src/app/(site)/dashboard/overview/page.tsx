@@ -461,7 +461,7 @@ function SetupBanner({ stats }: { stats: DashboardStats }) {
  * order: 1 Commerce · 2 Content · 3 Growth · 4 Support · 5 Presence.
  *
  * Replaces the free-form `iconBg` class string these cards used to take
- * (`"bg-blue-500/10 text-blue-600 dark:text-blue-400"` and friends). Raw
+ * (`"bg-state-info/10 text-state-info-on-tint"` and friends). Raw
  * Tailwind hues meant a metric's colour was decided per call site, drifted
  * between surfaces, and had nothing to do with the colour the same metric
  * gets when it's plotted. Going through --chart-* makes the tile and the

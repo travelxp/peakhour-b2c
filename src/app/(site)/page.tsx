@@ -252,7 +252,7 @@ export default async function Home({
               ? "bg-warning/15 text-warning-on-tint"
               : platform.banner.tone === "success"
                 ? "bg-success/15 text-success-on-tint"
-                : "bg-blue-100 text-blue-900 dark:bg-blue-950 dark:text-blue-200")
+                : "bg-state-info/15 text-state-info-on-tint")
           }
         >
           {/* Leading icon so the tone isn't conveyed by color alone (a11y). */}

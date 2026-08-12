@@ -63,7 +63,7 @@ const ROLE_LABELS: Record<string, string> = {
 
 const ROLE_COLORS: Record<string, string> = {
   owner: "bg-warning/15 text-warning-on-tint",
-  admin: "bg-blue-100 text-blue-800",
+  admin: "bg-state-info/15 text-state-info-on-tint",
   editor: "bg-success/15 text-success-on-tint",
   viewer: "bg-muted text-foreground",
 };
@@ -447,7 +447,7 @@ export default function TeamPage() {
             </div>
             <div>
               <div className="font-medium text-foreground mb-1 flex items-center gap-1">
-                <ShieldCheck className="h-3 w-3 text-blue-500" /> Admin
+                <ShieldCheck className="h-3 w-3 text-state-info" /> Admin
               </div>
               Settings, integrations, all content operations
             </div>

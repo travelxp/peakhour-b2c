@@ -61,7 +61,7 @@ function Bubble({ role, content }: { role: string; content: string }) {
 const PRIORITY_BADGE: Record<InboxPriority, string> = {
   urgent: "bg-destructive/15 text-destructive-on-tint",
   high: "bg-warning/15 text-warning-on-tint",
-  normal: "bg-sky-100 text-sky-900 dark:bg-sky-950 dark:text-sky-200",
+  normal: "bg-state-info/15 text-state-info-on-tint",
   low: "bg-muted/60 text-muted-foreground",
 };
 
