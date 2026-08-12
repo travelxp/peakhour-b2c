@@ -321,8 +321,8 @@ export function UpgradeDrawer(props: UpgradeDrawerProps) {
           {success ? (
             <div className="space-y-4">
               <div className="rounded-lg border bg-card p-4 flex items-start gap-3">
-                <div className="rounded-full bg-green-100 dark:bg-green-950 p-2 mt-0.5">
-                  <Check className="size-4 text-green-700 dark:text-green-400" />
+                <div className="rounded-full bg-success/15 p-2 mt-0.5">
+                  <Check className="size-4 text-success-on-tint" />
                 </div>
                 <div className="flex-1">
                   <p className="text-sm font-medium">You&apos;re in line</p>

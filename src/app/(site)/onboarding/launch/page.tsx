@@ -292,7 +292,7 @@ function PhaseRow({
       <div
         className={cn(
           "flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition-colors",
-          state === "done" && "bg-emerald-500 text-white",
+          state === "done" && "bg-success text-white",
           state === "running" && "border-2 border-primary text-primary",
           state === "pending" && "border border-muted-foreground/30 text-muted-foreground",
         )}

@@ -133,8 +133,8 @@ export function LaunchPartnerForm({
     return (
       <div className="w-full space-y-4 text-left">
         <div className="flex items-start gap-3 rounded-lg border bg-card p-4">
-          <div className="mt-0.5 rounded-full bg-green-100 p-2 dark:bg-green-950">
-            <Check className="size-4 text-green-700 dark:text-green-400" />
+          <div className="mt-0.5 rounded-full bg-success/15 p-2">
+            <Check className="size-4 text-success-on-tint" />
           </div>
           <div className="flex-1">
             <p className="text-sm font-medium">You&apos;re on the launch list</p>

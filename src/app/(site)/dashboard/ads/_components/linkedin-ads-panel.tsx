@@ -88,7 +88,7 @@ const RECONNECT_HREF = reconnectHref(ADS_LINKEDIN_PATH, LINKEDIN_ADS_PROVIDER);
 const STATUS_BADGE: Record<ManagedCampaignStatus, string> = {
   draft: "bg-muted text-muted-foreground",
   review: "bg-warning/15 text-warning-on-tint",
-  active: "bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200",
+  active: "bg-success/15 text-success-on-tint",
   paused: "bg-orange-100 text-orange-900 dark:bg-orange-950 dark:text-orange-200",
   completed: "bg-sky-100 text-sky-900 dark:bg-sky-950 dark:text-sky-200",
   archived: "bg-muted/60 text-muted-foreground",

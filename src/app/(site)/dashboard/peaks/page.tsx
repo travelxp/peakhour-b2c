@@ -447,7 +447,7 @@ export default function PeaksPage() {
   const capColor =
     balance && !balance.unlimited
       ? pct >= 100
-        ? "bg-red-500"
+        ? "bg-destructive"
         : pct >= 80
           ? "bg-warning"
           : "bg-primary"

@@ -59,10 +59,10 @@ interface LogsResponse {
 
 function statusBadge(code?: number) {
   if (!code) return null;
-  if (code >= 500) return <Badge className="bg-red-100 text-red-800 hover:bg-red-100">{code}</Badge>;
+  if (code >= 500) return <Badge className="bg-destructive/15 text-destructive-on-tint hover:bg-destructive/30">{code}</Badge>;
   if (code >= 400) return <Badge className="bg-warning/15 text-warning-on-tint hover:bg-warning/25">{code}</Badge>;
   if (code >= 300) return <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">{code}</Badge>;
-  return <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">{code}</Badge>;
+  return <Badge className="bg-success/15 text-success-on-tint hover:bg-success/30">{code}</Badge>;
 }
 
 export default function ApiLogsPage() {
@@ -106,7 +106,7 @@ export default function ApiLogsPage() {
       </div>
 
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+        <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive-on-tint">
           Failed to load logs: {(error as Error).message}
         </div>
       )}
@@ -231,7 +231,7 @@ export default function ApiLogsPage() {
                 {selected.error && (
                   <div>
                     <p className="text-xs text-muted-foreground">Error</p>
-                    <pre className="text-xs whitespace-pre-wrap rounded bg-red-50 text-red-900 p-3">{selected.error}</pre>
+                    <pre className="text-xs whitespace-pre-wrap rounded bg-destructive/10 text-destructive-on-tint p-3">{selected.error}</pre>
                   </div>
                 )}
                 {selected.request && (

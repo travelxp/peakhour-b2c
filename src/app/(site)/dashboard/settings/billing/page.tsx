@@ -51,7 +51,7 @@ const PLAN_STYLES: Record<string, string> = {
   starter:
     "bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300",
   growth:
-    "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300",
+    "bg-success/15 text-success-on-tint",
   agency:
     "bg-violet-100 text-violet-700 dark:bg-violet-950/60 dark:text-violet-300",
   enterprise:
@@ -254,7 +254,7 @@ export default function BillingPage() {
               {hasProducts ? (
                 <Badge
                   variant="secondary"
-                  className="font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300"
+                  className="font-medium bg-success/15 text-success-on-tint"
                 >
                   {paidCount > 0
                     ? `${paidCount} paid ${paidCount === 1 ? "product" : "products"}`
@@ -408,7 +408,7 @@ export default function BillingPage() {
                     className={cn(
                       "font-medium capitalize",
                       p.state === "active"
-                        ? "border-emerald-500/40 text-emerald-600 dark:text-emerald-400"
+                        ? "border-success/40 text-success-on-tint"
                         : p.state === "trial"
                           ? "border-warning/40 text-warning-on-tint"
                           : "text-muted-foreground",

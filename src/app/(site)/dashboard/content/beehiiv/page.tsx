@@ -951,7 +951,7 @@ function ArticleCard({
             variant="ghost"
             className={`h-7 text-xs ${
               draft.repurposeFit?.topBand === "green"
-                ? "text-green-700 hover:text-green-700 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-950/40"
+                ? "text-success-on-tint hover:bg-success/10"
                 : draft.repurposeFit?.topBand === "amber"
                   ? "text-warning-on-tint hover:bg-warning/10"
                   : ""
@@ -1022,12 +1022,12 @@ function AdScoreBar({
 
   const color =
     score >= 8
-      ? "bg-green-500"
+      ? "bg-success"
       : score >= 6
         ? "bg-warning"
         : score >= 4
           ? "bg-orange-400"
-          : "bg-red-400";
+          : "bg-destructive";
 
   return (
     <Tooltip>
@@ -1136,9 +1136,9 @@ function SectorHeatmap({
         const intensity = count > 0 ? Math.max(0.1, count / maxCount) : 0;
         const bg =
           count === 0
-            ? "bg-red-50 border-red-200"
+            ? "bg-destructive/10 border-destructive/30"
             : intensity > 0.6
-              ? "bg-green-100 border-green-300"
+              ? "bg-success/15 border-success/30"
               : intensity > 0.3
                 ? "bg-warning/10 border-warning/30"
                 : "bg-orange-50 border-orange-200";
@@ -1227,9 +1227,9 @@ function AudienceBars({
         const pct = maxCount > 0 ? (count / maxCount) * 100 : 0;
         const color =
           count === 0
-            ? "bg-red-400"
+            ? "bg-destructive"
             : pct > 60
-              ? "bg-green-500"
+              ? "bg-success"
               : pct > 30
                 ? "bg-warning"
                 : "bg-orange-400";

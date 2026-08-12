@@ -143,16 +143,16 @@ const ACTION_LABEL: Record<ActionType, string> = {
 };
 
 const IMPACT_STYLE: Record<SearchAction["impact"], string> = {
-  high: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300",
+  high: "bg-success/15 text-success-on-tint",
   medium: "bg-warning/15 text-warning-on-tint",
   low: "bg-muted text-muted-foreground",
 };
 
 const MOVEMENT_STYLE: Record<MovementKind, { dot: string; label: string }> = {
-  new_winner: { dot: "bg-emerald-500", label: "New winner" },
-  rising: { dot: "bg-emerald-500", label: "Rising" },
-  slipped: { dot: "bg-red-500", label: "Slipped" },
-  dropped: { dot: "bg-red-500", label: "Dropped" },
+  new_winner: { dot: "bg-success", label: "New winner" },
+  rising: { dot: "bg-success", label: "Rising" },
+  slipped: { dot: "bg-destructive", label: "Slipped" },
+  dropped: { dot: "bg-destructive", label: "Dropped" },
   falling: { dot: "bg-warning", label: "Falling" },
 };
 
@@ -463,7 +463,7 @@ export default function SearchConsoleInsightsPage() {
                         <span className="font-medium text-foreground">{data.health.indexed}</span> indexed
                       </span>
                       {data.health.notIndexed > 0 && (
-                        <span className="text-red-600 dark:text-red-400">
+                        <span className="text-destructive-on-tint">
                           <span className="font-medium">{data.health.notIndexed}</span> not indexed
                         </span>
                       )}
@@ -654,7 +654,7 @@ function TrendTile({
         {deltaPct !== null && (
           <span
             className={`flex items-center gap-0.5 text-xs font-medium ${
-              up ? "text-emerald-600 dark:text-emerald-400" : down ? "text-red-600 dark:text-red-400" : "text-muted-foreground"
+              up ? "text-success-on-tint" : down ? "text-destructive-on-tint" : "text-muted-foreground"
             }`}
           >
             {up ? <ArrowUpRight className="h-3 w-3" /> : down ? <ArrowDownRight className="h-3 w-3" /> : <Minus className="h-3 w-3" />}
@@ -681,7 +681,7 @@ function PositionTile({ now, delta }: { now: number; delta: number | null }) {
         {delta !== null && delta !== 0 && (
           <span
             className={`flex items-center gap-0.5 text-xs font-medium ${
-              improved ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
+              improved ? "text-success-on-tint" : "text-destructive-on-tint"
             }`}
           >
             {improved ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}

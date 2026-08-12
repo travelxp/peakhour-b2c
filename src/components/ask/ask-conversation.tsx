@@ -49,7 +49,7 @@ function ToolChip({ label, done }: { label: string; done: boolean }) {
   return (
     <div className="inline-flex items-center gap-1.5 rounded-full border bg-muted/50 px-2.5 py-1 text-xs text-muted-foreground">
       {done ? (
-        <Check className="size-3 text-emerald-500" />
+        <Check className="size-3 text-success" />
       ) : (
         <Loader2 className="size-3 animate-spin" />
       )}

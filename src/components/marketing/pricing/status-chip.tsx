@@ -12,8 +12,8 @@ export function StatusChip({ status }: { status?: string }) {
     >
       {meta.pulse && (
         <span className="relative flex size-1.5" aria-hidden>
-          <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-500 opacity-60" />
-          <span className="relative inline-flex size-1.5 rounded-full bg-emerald-500" />
+          <span className="absolute inline-flex size-full animate-ping rounded-full bg-success opacity-60" />
+          <span className="relative inline-flex size-1.5 rounded-full bg-success" />
         </span>
       )}
       {meta.label}
@@ -29,7 +29,7 @@ function chipFor(status?: string):
       return {
         label: "Live",
         className:
-          "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
+          "border-success/30 bg-success/10 text-success-on-tint",
         pulse: true,
       };
     case "beta_orgs_only":

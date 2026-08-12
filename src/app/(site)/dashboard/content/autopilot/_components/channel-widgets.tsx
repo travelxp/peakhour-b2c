@@ -23,8 +23,8 @@ import { Sparkline } from "@/components/viz/sparkline";
  */
 
 const HEALTH_DOT: Record<ChannelWidget["health"], string> = {
-  healthy: "bg-emerald-500",
-  attention: "bg-rose-500",
+  healthy: "bg-success",
+  attention: "bg-destructive",
   disconnected: "bg-muted-foreground/40",
 };
 
@@ -47,7 +47,7 @@ function Chip({
   const tones = {
     amber:
       "bg-warning/15 text-warning-on-tint",
-    rose: "bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400",
+    rose: "bg-destructive/15 text-destructive-on-tint",
     muted: "bg-muted text-muted-foreground",
   } as const;
   return (

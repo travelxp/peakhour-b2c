@@ -70,13 +70,13 @@ function ToneBadge({
       className={cn(
         "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium capitalize",
         tone === "success" &&
-          "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300",
+          "bg-success/15 text-success-on-tint",
         tone === "info" &&
           "bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300",
         tone === "warn" &&
           "bg-warning/15 text-warning-on-tint",
         tone === "error" &&
-          "bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300",
+          "bg-destructive/15 text-destructive-on-tint",
         tone === "neutral" && "bg-muted text-muted-foreground",
       )}
     >
@@ -238,13 +238,13 @@ export function CalendarItemDrawer({
                 key={`${a.startedAt}-${idx}`}
                 className={cn(
                   "rounded-md border p-2 text-xs",
-                  a.outcome === "success" && "border-emerald-200 bg-emerald-50/50",
+                  a.outcome === "success" && "border-success/30 bg-success/10",
                   a.outcome === "transient_error" &&
                     "border-sky-200 bg-sky-50/50",
                   a.outcome === "rate_limited" &&
                     "border-warning/30 bg-warning/5",
                   a.outcome === "permanent_error" &&
-                    "border-rose-200 bg-rose-50/50",
+                    "border-destructive/30 bg-destructive/10",
                 )}
               >
                 <div className="flex items-baseline justify-between gap-2">
@@ -314,7 +314,7 @@ export function CalendarItemDrawer({
               <Button
                 size="sm"
                 variant="outline"
-                className="text-destructive hover:text-destructive"
+                className="text-destructive"
                 onClick={() => setConfirmCancel(true)}
               >
                 Cancel publish

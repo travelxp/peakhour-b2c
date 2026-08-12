@@ -90,7 +90,7 @@ export default function AiEvaluatorPage() {
       </div>
 
       {(run.isError || apply.isError) && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+        <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive-on-tint">
           {((run.error || apply.error) as Error)?.message ||
             "Operation failed. You may not have the required CMS role."}
         </div>
@@ -130,16 +130,16 @@ export default function AiEvaluatorPage() {
                     <TableCell className="font-mono text-xs">{r.useCase}</TableCell>
                     <TableCell className="font-mono text-xs">{r.currentModelId}</TableCell>
                     <TableCell className="font-mono text-xs">{r.candidateModelId}</TableCell>
-                    <TableCell className={r.costDeltaPct != null && r.costDeltaPct < 0 ? "text-emerald-700" : "text-warning-on-tint"}>
+                    <TableCell className={r.costDeltaPct != null && r.costDeltaPct < 0 ? "text-success-on-tint" : "text-warning-on-tint"}>
                       {r.costDeltaPct != null ? `${r.costDeltaPct.toFixed(1)}%` : "—"}
                     </TableCell>
-                    <TableCell className={r.latencyDeltaPct != null && r.latencyDeltaPct < 0 ? "text-emerald-700" : "text-warning-on-tint"}>
+                    <TableCell className={r.latencyDeltaPct != null && r.latencyDeltaPct < 0 ? "text-success-on-tint" : "text-warning-on-tint"}>
                       {r.latencyDeltaPct != null ? `${r.latencyDeltaPct.toFixed(1)}%` : "—"}
                     </TableCell>
                     <TableCell className="text-xs">{r.rationale}</TableCell>
                     <TableCell className="text-right">
                       {r.applied ? (
-                        <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">Applied</Badge>
+                        <Badge className="bg-success/15 text-success-on-tint hover:bg-success/30">Applied</Badge>
                       ) : canApply ? (
                         <Button
                           variant="outline"

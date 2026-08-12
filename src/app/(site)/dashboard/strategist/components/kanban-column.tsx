@@ -11,7 +11,7 @@ const COLUMN_COLORS: Record<string, string> = {
   brief: "bg-indigo-500",
   write: "bg-warning",
   review: "bg-purple-500",
-  publish: "bg-emerald-500",
+  publish: "bg-success",
 };
 
 export function KanbanColumn({

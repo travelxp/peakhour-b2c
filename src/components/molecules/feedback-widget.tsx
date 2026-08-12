@@ -101,8 +101,8 @@ export function FeedbackWidget() {
 
         {submitted ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-4 px-4 text-center">
-            <div className="flex size-16 items-center justify-center rounded-full bg-green-500/10">
-              <CheckCircle2 className="size-8 text-green-500" />
+            <div className="flex size-16 items-center justify-center rounded-full bg-success/10">
+              <CheckCircle2 className="size-8 text-success" />
             </div>
             <div className="space-y-1.5">
               <p className="text-lg font-semibold">Thanks for your feedback!</p>

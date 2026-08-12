@@ -224,7 +224,7 @@ export function DraftSaver({
       label = "Saving…";
       break;
     case "saved":
-      icon = <Check className="size-3 text-emerald-600 dark:text-emerald-400" />;
+      icon = <Check className="size-3 text-success-on-tint" />;
       label = `Saved ${ago}`;
       break;
     case "error":
@@ -261,7 +261,7 @@ export function DraftSaver({
           type="button"
           size="sm"
           variant="ghost"
-          className="h-6 px-2 text-xs text-destructive hover:text-destructive"
+          className="h-6 px-2 text-xs text-destructive"
           onClick={onRetry}
           title={lastError?.message}
         >

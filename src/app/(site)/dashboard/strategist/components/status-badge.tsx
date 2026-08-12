@@ -8,9 +8,9 @@ export const STATUS_CONFIG: Record<string, { label: string; variant: "default" |
   writing: { label: "Writing", variant: "outline", className: "border-warning/40 text-warning" },
   in_progress: { label: "Writing", variant: "outline", className: "border-warning/40 text-warning" },
   review: { label: "Review", variant: "outline", className: "border-purple-500/30 text-purple-500" },
-  approved: { label: "Approved", variant: "outline", className: "border-emerald-500/30 text-emerald-500" },
+  approved: { label: "Approved", variant: "outline", className: "border-success/30 text-success" },
   scheduled: { label: "Scheduled", variant: "outline", className: "border-cyan-500/30 text-cyan-500" },
-  published: { label: "Published", variant: "outline", className: "border-green-500/30 text-green-500" },
+  published: { label: "Published", variant: "outline", className: "border-success/30 text-success" },
   archived: { label: "Archived", variant: "secondary", className: "opacity-60" },
 };
 

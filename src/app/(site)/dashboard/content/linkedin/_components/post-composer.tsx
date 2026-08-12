@@ -895,7 +895,7 @@ export function PostComposer({ identity, seedText }: Props) {
             className={
               feedback.kind === "error"
                 ? "rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
-                : "rounded-md border border-green-200 bg-green-50/60 px-3 py-2 text-sm text-green-800 dark:border-green-900 dark:bg-green-950/40 dark:text-green-300"
+                : "rounded-md border border-success/30 bg-success/10 px-3 py-2 text-sm text-success-on-tint"
             }
           >
             {feedback.message}
@@ -1261,7 +1261,7 @@ function PolicyChip({ state }: { state: ComposerPolicyAdvisory | null | undefine
 
   if (state.overall === "ok") {
     return (
-      <span role="status" aria-live="polite" className="inline-flex items-center gap-1.5 text-xs text-emerald-700 dark:text-emerald-400">
+      <span role="status" aria-live="polite" className="inline-flex items-center gap-1.5 text-xs text-success-on-tint">
         <ShieldCheck className="size-3.5" />
         Policy: OK
       </span>
@@ -1376,7 +1376,7 @@ function bandForScore(score: number): HookScoreBand {
     return {
       label: "Strong hook",
       className:
-        "border-emerald-200 bg-emerald-50/60 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300",
+        "border-success/30 bg-success/10 text-success-on-tint",
     };
   if (score >= 55)
     return {
@@ -1393,7 +1393,7 @@ function bandForScore(score: number): HookScoreBand {
   return {
     label: "Rework the hook",
     className:
-      "border-red-200 bg-red-50/60 text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300",
+      "border-destructive/30 bg-destructive/10 text-destructive-on-tint",
   };
 }
 

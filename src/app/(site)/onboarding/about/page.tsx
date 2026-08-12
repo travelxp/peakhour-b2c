@@ -213,7 +213,7 @@ export default function AboutPage() {
                 {!lowConfidence && (
                   <>
                     <span>·</span>
-                    <span className="inline-flex items-center gap-1 text-emerald-600">
+                    <span className="inline-flex items-center gap-1 text-success-on-tint">
                       <Sparkles className="h-3 w-3" />
                       {confidencePct}% confident
                     </span>

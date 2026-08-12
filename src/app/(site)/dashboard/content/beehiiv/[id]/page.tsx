@@ -314,9 +314,9 @@ export default function ArticleDetailPage() {
                             <span
                               className={
                                 m.direction === "up"
-                                  ? "text-green-600"
+                                  ? "text-success-on-tint"
                                   : m.direction === "down"
-                                    ? "text-red-600"
+                                    ? "text-destructive-on-tint"
                                     : "text-muted-foreground"
                               }
                             >
@@ -471,7 +471,7 @@ export default function ArticleDetailPage() {
                   {/* Why good/bad */}
                   {t.adPotential?.whyGoodAd && (
                     <div>
-                      <p className="text-xs font-medium text-green-700 uppercase">
+                      <p className="text-xs font-medium text-success-on-tint uppercase">
                         Why it works
                       </p>
                       <p className="text-sm mt-0.5">
@@ -481,7 +481,7 @@ export default function ArticleDetailPage() {
                   )}
                   {t.adPotential?.whyBadAd && (
                     <div>
-                      <p className="text-xs font-medium text-red-700 uppercase">
+                      <p className="text-xs font-medium text-destructive-on-tint uppercase">
                         Potential weakness
                       </p>
                       <p className="text-sm mt-0.5">
@@ -572,8 +572,8 @@ function MetaRow({
 
 function SentimentDot({ value }: { value: string }) {
   const colors: Record<string, string> = {
-    positive: "bg-green-500",
-    negative: "bg-red-500",
+    positive: "bg-success",
+    negative: "bg-destructive",
     neutral: "bg-slate-400",
   };
   return (

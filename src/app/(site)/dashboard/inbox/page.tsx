@@ -28,7 +28,7 @@ import { PageShell } from "@/components/dashboard/page-shell";
  */
 
 const STATUS_LABEL: Record<string, { label: string; className: string }> = {
-  active: { label: "Active", className: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300" },
+  active: { label: "Active", className: "bg-success/15 text-success-on-tint" },
   resolved: { label: "Resolved", className: "bg-muted text-muted-foreground" },
   escalated: { label: "With a human", className: "bg-warning/15 text-warning-on-tint" },
 };
@@ -45,7 +45,7 @@ function Bubble({ role, content }: { role: string; content: string }) {
       <div
         className={`max-w-[80%] rounded-lg p-2.5 text-sm ${
           mine
-            ? "rounded-tr-none bg-[#dcf8c6] text-neutral-900 dark:bg-emerald-900/60 dark:text-neutral-100"
+            ? "rounded-tr-none bg-[#dcf8c6] text-neutral-900 dark:text-neutral-100"
             : "rounded-tl-none bg-white text-neutral-900 shadow-sm dark:bg-neutral-700 dark:text-neutral-100"
         }`}
       >
@@ -59,7 +59,7 @@ function Bubble({ role, content }: { role: string; content: string }) {
 // ── Leads lane (sup_inbox, kind: lead) ────────────────────────────────
 
 const PRIORITY_BADGE: Record<InboxPriority, string> = {
-  urgent: "bg-red-100 text-red-900 dark:bg-red-950 dark:text-red-200",
+  urgent: "bg-destructive/15 text-destructive-on-tint",
   high: "bg-warning/15 text-warning-on-tint",
   normal: "bg-sky-100 text-sky-900 dark:bg-sky-950 dark:text-sky-200",
   low: "bg-muted/60 text-muted-foreground",

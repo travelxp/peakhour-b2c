@@ -207,8 +207,8 @@ export function getChannelDisplay(channel: string): ChannelDisplay {
 // Band copy follows plan §4.5 — qualitative, SME-friendly, never a raw %.
 export const BAND_STYLES: Record<PlatformFitBand, { dot: string; chip: string; label: string }> = {
   green: {
-    dot: "bg-emerald-500",
-    chip: "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+    dot: "bg-success",
+    chip: "border-success/40 bg-success/10 text-success-on-tint",
     label: "Recommended",
   },
   amber: {

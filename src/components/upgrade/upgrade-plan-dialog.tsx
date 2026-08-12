@@ -100,13 +100,13 @@ export function UpgradePlanDialog({
 
   // Checkout has four outcomes:
   //   • a gateway payment surface — first product on this gateway. A trial does
-  //     NOT skip this step: the card is collected here and the first charge is
-  //     deferred to trial end (product decision 2026-07-28, no no-card trials).
+  // NOT skip this step: the card is collected here and the first charge is
+  // deferred to trial end (product decision 2026-07-28, no no-card trials).
   //   • "trial_started" — the org already has a live subscription, so the card is
-  //     already on file. Nothing is collected or charged; the product attaches to
-  //     that subscription when the trial ends.
+  // already on file. Nothing is collected or charged; the product attaches to
+  // that subscription when the trial ends.
   //   • "added" — same, but with no trial left on this product, so the prorated
-  //     top-up was charged off-session against the saved mandate.
+  // top-up was charged off-session against the saved mandate.
   //   • "invoice_required" — India RBI, total above the auto-mandate cap.
   const checkoutMut = useMutation({
     mutationFn: (tier: string) =>
@@ -317,7 +317,7 @@ export function UpgradePlanDialog({
                                 )}
                               </div>
                               {!p.contactSales && p.trialDays > 0 && p.trialApplies && (
-                                <div className="text-xs text-emerald-600 dark:text-emerald-400">
+                                <div className="text-xs text-success-on-tint">
                                   {p.trialDays}-day free trial · card required
                                 </div>
                               )}

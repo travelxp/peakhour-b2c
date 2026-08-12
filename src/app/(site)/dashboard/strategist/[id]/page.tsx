@@ -693,7 +693,7 @@ function BriefTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: strin
             const isObj = typeof p !== "string";
             const claim = isObj ? p.claim : p;
             const confidence = isObj ? p.confidence : undefined;
-            const dotColor = confidence === "verified" ? "bg-emerald-500" : confidence === "inferred" ? "bg-warning" : confidence === "ai_estimated" ? "bg-red-400" : "bg-primary";
+            const dotColor = confidence === "verified" ? "bg-success" : confidence === "inferred" ? "bg-warning" : confidence === "ai_estimated" ? "bg-destructive" : "bg-primary";
             return (
               <li key={i} className="text-sm">
                 <div className="flex items-start gap-2">
@@ -767,7 +767,7 @@ function BriefFormatMetaPanel({
           <CardTitle className="text-sm">Press-release metadata</CardTitle>
           <CardDescription className="text-xs">
             {blockingQuotes.length > 0
-              ? <span className="text-red-600 font-medium">{blockingQuotes.length} quote(s) need confirmation before publish</span>
+              ? <span className="text-destructive-on-tint font-medium">{blockingQuotes.length} quote(s) need confirmation before publish</span>
               : "Dateline + quotes + contact for the wire"}
           </CardDescription>
         </CardHeader>
@@ -967,7 +967,7 @@ function PlaceholderCard({
   }
 
   return (
-    <li className={`rounded-md border p-3 text-sm flex items-start justify-between gap-2 ${resolved ? "bg-emerald-50/40 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900" : "bg-muted/20"}`}>
+    <li className={`rounded-md border p-3 text-sm flex items-start justify-between gap-2 ${resolved ? "bg-success/10 border-success/30" : "bg-muted/20"}`}>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5 mb-1 flex-wrap">
           <Badge variant="outline" className="text-[10px]">{p.position}</Badge>
@@ -1161,9 +1161,9 @@ function WriteTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: strin
     }
   }, [ideaId, scoring]);
   const scoreTone = (s: number) =>
-    s >= 9 ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400"
+    s >= 9 ? "bg-success/15 text-success-on-tint"
       : s >= 7 ? "bg-warning/15 text-warning-on-tint"
-        : "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400";
+        : "bg-destructive/15 text-destructive-on-tint";
 
   // ── Shared composer chrome (parity with LinkedIn/X) ─────────────
   // The HTML body textarea + a caret tracked on every selection change
@@ -1620,7 +1620,7 @@ function ReviewTab({ idea, loading, onSubmitReview, onApprove, onReject }: { ide
               <div className="rounded-md border-destructive/20 bg-destructive/5 p-3 text-sm"><p className="text-xs text-muted-foreground mb-1">Previous revision notes</p>{idea.review.notes}</div>
             )}
             <div className="flex gap-2">
-              <Button onClick={onApprove} disabled={loading === "approve"} className="bg-emerald-600 hover:bg-emerald-500">
+              <Button onClick={onApprove} disabled={loading === "approve"} className="bg-success hover:bg-success/25">
                 {loading === "approve" ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-1.5 h-4 w-4" />}Approve
               </Button>
               <Button variant="outline" onClick={() => setRejectOpen(true)} disabled={loading === "reject-review"} className="text-destructive border-destructive/30">
@@ -1649,7 +1649,7 @@ function ReviewTab({ idea, loading, onSubmitReview, onApprove, onReject }: { ide
     );
   }
 
-  return <Card><CardContent className="py-8"><div className="flex items-center gap-2"><CheckCircle className="h-5 w-5 text-emerald-500" /><span className="font-medium">{idea.review?.verdict === "approved" ? "Approved" : "Reviewed"}</span></div>{idea.review?.notes && <p className="mt-2 text-sm text-muted-foreground">{idea.review.notes}</p>}</CardContent></Card>;
+  return <Card><CardContent className="py-8"><div className="flex items-center gap-2"><CheckCircle className="h-5 w-5 text-success" /><span className="font-medium">{idea.review?.verdict === "approved" ? "Approved" : "Reviewed"}</span></div>{idea.review?.notes && <p className="mt-2 text-sm text-muted-foreground">{idea.review.notes}</p>}</CardContent></Card>;
 }
 
 function DataCitationsPanel({ citations }: { citations: NonNullable<IdeaDetail["content"]>["dataCitations"] }) {
@@ -1673,7 +1673,7 @@ function DataCitationsPanel({ citations }: { citations: NonNullable<IdeaDetail["
       <CardContent>
         <ul className="space-y-3">
           {citations.map((c, i) => {
-            const borderColor = c.confidence === "verified" ? "border-emerald-500" : c.confidence === "inferred" ? "border-warning/40" : "border-red-400";
+            const borderColor = c.confidence === "verified" ? "border-success/40" : c.confidence === "inferred" ? "border-warning/40" : "border-destructive/30";
             return (
               <li key={i} className={`border-l-2 pl-3 text-sm ${borderColor}`}>
                 <p>{c.claim}</p>
@@ -1701,7 +1701,7 @@ function PublishTab({ idea, loading, onPublish, onScheduled }: { idea: IdeaDetai
     return (
       <Card>
         <CardContent className="py-8">
-          <div className="flex items-center gap-2"><CheckCircle className="h-5 w-5 text-green-500" /><span className="font-medium">Published to Beehiiv</span></div>
+          <div className="flex items-center gap-2"><CheckCircle className="h-5 w-5 text-success" /><span className="font-medium">Published to Beehiiv</span></div>
           {idea.publishing.publishedAt && <p className="mt-1 text-sm text-muted-foreground">Published {formatDateTime(idea.publishing.publishedAt)}</p>}
           {idea.publishing.beehiivUrl && <a href={idea.publishing.beehiivUrl} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex items-center gap-1.5 text-sm text-primary hover:underline"><ExternalLink className="h-3.5 w-3.5" />View on Beehiiv</a>}
         </CardContent>
@@ -1897,9 +1897,9 @@ function VersionsTab({ ideaId }: { ideaId: string }) {
           <CardContent>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
               {[
-                { key: "kept", label: "Kept", color: "bg-emerald-500" },
+                { key: "kept", label: "Kept", color: "bg-success" },
                 { key: "lightly_edited", label: "Tweaked", color: "bg-warning" },
-                { key: "rewritten", label: "Rewritten", color: "bg-red-500" },
+                { key: "rewritten", label: "Rewritten", color: "bg-destructive" },
                 { key: "added", label: "Added by you", color: "bg-blue-500" },
               ].map((b) => (
                 <div key={b.key} className="rounded-md border bg-muted/20 p-3">
@@ -1924,7 +1924,7 @@ function VersionsTab({ ideaId }: { ideaId: string }) {
         <VersionColumn
           label="AI Original"
           sublabel={data.versions.aiOriginal?.writerSkill ? `via ${data.versions.aiOriginal.writerSkill}` : "What we generated"}
-          tone="bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-900"
+          tone="bg-success/10 border-success/30"
           html={data.versions.aiOriginal?.html ?? null}
           wordCount={data.versions.aiOriginal?.wordCount}
           timestamp={data.versions.aiOriginal?.generatedAt}

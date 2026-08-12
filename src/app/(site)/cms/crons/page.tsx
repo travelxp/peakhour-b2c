@@ -146,7 +146,7 @@ export default function CmsCronsPage() {
                           <span
                             className={
                               internalOnly
-                                ? "text-xs font-medium text-red-600 dark:text-red-500"
+                                ? "text-xs font-medium text-destructive-on-tint"
                                 : "text-xs font-medium text-warning-on-tint"
                             }
                           >

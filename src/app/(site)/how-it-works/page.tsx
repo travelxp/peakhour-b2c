@@ -462,8 +462,8 @@ export default async function HowItWorks() {
                 <div className="mt-5 overflow-hidden rounded-2xl border border-white/10 bg-zinc-900 p-4 shadow-2xl sm:p-5">
                   <div className="flex items-center justify-between px-1 pb-3 text-[0.7rem] font-bold uppercase tracking-[0.18em] text-zinc-400">
                     <span>Worth your attention</span>
-                    <span className="flex items-center gap-1.5 text-emerald-400">
-                      <span className="size-1.5 rounded-full bg-emerald-400" aria-hidden />
+                    <span className="flex items-center gap-1.5 text-success">
+                      <span className="size-1.5 rounded-full bg-success" aria-hidden />
                       live
                     </span>
                   </div>

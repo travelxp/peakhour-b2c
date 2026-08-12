@@ -53,7 +53,7 @@ export function CommerceNeedsYou() {
           </div>
         ) : items.length === 0 ? (
           <div className="flex flex-col items-center gap-1.5 px-4 py-10 text-center">
-            <CheckCircle2 className="size-7 text-emerald-500" />
+            <CheckCircle2 className="size-7 text-success" />
             <p className="text-sm font-medium">You&apos;re all caught up</p>
             <p className="text-xs text-muted-foreground">
               No proposals waiting. Peakhour will surface new ones here as it finds
@@ -103,7 +103,7 @@ function RecommendationRow({
       <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{rec.reasonSummary}</p>
       <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
         {range && (
-          <span className="inline-flex items-center gap-1 font-medium text-emerald-600 dark:text-emerald-400">
+          <span className="inline-flex items-center gap-1 font-medium text-success-on-tint">
             <TrendingUp aria-hidden="true" className="size-3" />
             {money(range.min, range.currency)}–{money(range.max, range.currency)}
           </span>

@@ -253,7 +253,7 @@ function EvidenceChain({ signal, railOffered }: { signal: Signal; railOffered: b
             aria-hidden
             className={
               step.reached === true
-                ? "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600"
+                ? "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-success/15 text-success-on-tint"
                 : step.reached === false
                   ? "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border border-dashed text-muted-foreground"
                   : "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground"

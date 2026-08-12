@@ -111,7 +111,7 @@ export function VoiceCardPreview({
               {voiceCard.signaturePhrases.slice(0, 6).map((p) => (
                 <li
                   key={p}
-                  className="rounded-sm bg-emerald-500/10 px-2 py-1 text-emerald-800 dark:text-emerald-300"
+                  className="rounded-sm bg-success/10 px-2 py-1 text-success-on-tint"
                 >
                   {/* SR-only prefix so screen readers announce intent
                       — visual users get the colour cue, SR users get

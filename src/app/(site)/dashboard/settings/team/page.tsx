@@ -64,7 +64,7 @@ const ROLE_LABELS: Record<string, string> = {
 const ROLE_COLORS: Record<string, string> = {
   owner: "bg-warning/15 text-warning-on-tint",
   admin: "bg-blue-100 text-blue-800",
-  editor: "bg-green-100 text-green-800",
+  editor: "bg-success/15 text-success-on-tint",
   viewer: "bg-gray-100 text-gray-700",
 };
 
@@ -262,19 +262,19 @@ export default function TeamPage() {
 
       {/* Notifications */}
       {error && (
-        <div className="flex items-center gap-2 p-3 rounded-lg bg-red-50 text-red-700 text-sm">
+        <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 text-destructive-on-tint text-sm">
           <X className="h-4 w-4 shrink-0" />
           {error}
           <button
             onClick={() => setError(null)}
-            className="ml-auto text-red-500 hover:text-red-700"
+            className="ml-auto text-destructive hover:text-destructive-on-tint"
           >
             <X className="h-3.5 w-3.5" />
           </button>
         </div>
       )}
       {success && (
-        <div className="p-3 rounded-lg bg-green-50 text-green-700 text-sm">
+        <div className="p-3 rounded-lg bg-success/10 text-success-on-tint text-sm">
           {success}
         </div>
       )}
@@ -351,7 +351,7 @@ export default function TeamPage() {
                           trigger={
                             <DropdownMenuItem
                               onSelect={(e) => e.preventDefault()}
-                              className="text-red-600"
+                              className="text-destructive-on-tint"
                             >
                               <Trash2 className="h-3.5 w-3.5 mr-2" />
                               Remove
@@ -414,7 +414,7 @@ export default function TeamPage() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 text-muted-foreground hover:text-red-600"
+                        className="h-8 w-8 text-muted-foreground hover:text-destructive-on-tint"
                       >
                         <X className="h-4 w-4" />
                       </Button>
@@ -453,7 +453,7 @@ export default function TeamPage() {
             </div>
             <div>
               <div className="font-medium text-foreground mb-1 flex items-center gap-1">
-                <Pencil className="h-3 w-3 text-green-500" /> Editor
+                <Pencil className="h-3 w-3 text-success" /> Editor
               </div>
               Create, edit, publish content and campaigns
             </div>

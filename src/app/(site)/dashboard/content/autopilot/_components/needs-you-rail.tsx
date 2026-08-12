@@ -32,14 +32,14 @@ const TYPE_META: Record<
   reconnect: {
     icon: PlugZap,
     verb: "Reconnect",
-    tone: "border-l-rose-500",
-    iconColor: "text-rose-500",
+    tone: "border-l-destructive/40",
+    iconColor: "text-destructive",
   },
   failed: {
     icon: AlertCircle,
     verb: "Fix",
-    tone: "border-l-rose-500",
-    iconColor: "text-rose-500",
+    tone: "border-l-destructive/40",
+    iconColor: "text-destructive",
   },
   approve: {
     icon: CheckSquare,
@@ -69,7 +69,7 @@ export function NeedsYouRail({
       <CardContent className="p-0">
         {items.length === 0 ? (
           <div className="flex flex-col items-center gap-1.5 px-4 py-10 text-center">
-            <CheckCircle2 className="size-7 text-emerald-500" />
+            <CheckCircle2 className="size-7 text-success" />
             <p className="text-sm font-medium">You&apos;re all caught up</p>
             <p className="text-xs text-muted-foreground">
               Nothing needs your attention. The autopilot will surface work here

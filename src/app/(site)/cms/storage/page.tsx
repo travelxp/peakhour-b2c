@@ -280,7 +280,7 @@ function Kpi({
         </div>
         <div
           className={`mt-1.5 text-2xl font-semibold tabular-nums ${
-            tone === "negative" ? "text-red-600 dark:text-red-400" : tone === "positive" ? "text-emerald-600 dark:text-emerald-400" : ""
+            tone === "negative" ? "text-destructive-on-tint" : tone === "positive" ? "text-success-on-tint" : ""
           }`}
         >
           {value}

@@ -697,11 +697,11 @@ export function WhatsAppEmbeddedSignup({
   if (phase === "connected" || phase === "disconnecting") {
     const disconnecting = phase === "disconnecting";
     return (
-      <Card className="border-green-500/40 bg-green-500/5">
+      <Card className="border-success/40 bg-success/5">
         <CardHeader>
           <div className="flex items-center gap-3">
-            <span className="flex size-10 items-center justify-center rounded-full bg-green-500/15">
-              <CheckCircle2 className="size-5 text-green-600" />
+            <span className="flex size-10 items-center justify-center rounded-full bg-success/15">
+              <CheckCircle2 className="size-5 text-success-on-tint" />
             </span>
             <div>
               <CardTitle className="text-base">WhatsApp connected</CardTitle>
@@ -734,7 +734,7 @@ export function WhatsAppEmbeddedSignup({
             {disconnecting ? "Disconnecting…" : "Disconnect WhatsApp"}
           </Button>
           {error && (
-            <p role="alert" className="flex items-start gap-2 text-red-600">
+            <p role="alert" className="flex items-start gap-2 text-destructive-on-tint">
               <AlertCircle className="mt-0.5 size-4 shrink-0" />
               {error}
             </p>
@@ -946,7 +946,7 @@ export function WhatsAppEmbeddedSignup({
           <p className="text-sm text-muted-foreground">Loading WhatsApp…</p>
         )}
         {configured && sdkState === "error" && (
-          <p role="alert" className="flex items-center gap-2 text-sm text-red-600">
+          <p role="alert" className="flex items-center gap-2 text-sm text-destructive-on-tint">
             <AlertCircle className="size-4" />
             Couldn’t load the WhatsApp connector. Check your connection and
             refresh.
@@ -954,7 +954,7 @@ export function WhatsAppEmbeddedSignup({
         )}
 
         {error && (
-          <p role="alert" className="flex items-start gap-2 text-sm text-red-600">
+          <p role="alert" className="flex items-start gap-2 text-sm text-destructive-on-tint">
             <AlertCircle className="mt-0.5 size-4 shrink-0" />
             {error}
           </p>

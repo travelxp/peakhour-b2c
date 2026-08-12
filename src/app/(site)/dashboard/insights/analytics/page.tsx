@@ -424,9 +424,9 @@ function DeltaChip({ deltaPct }: { deltaPct: number | null | undefined }) {
     <span
       className={`flex items-center gap-0.5 text-xs font-medium ${
         up
-          ? "text-emerald-600 dark:text-emerald-400"
+          ? "text-success-on-tint"
           : down
-            ? "text-red-600 dark:text-red-400"
+            ? "text-destructive-on-tint"
             : "text-muted-foreground"
       }`}
     >
@@ -467,16 +467,16 @@ function FunnelTile({
 }
 
 const ACTION_DOT: Record<AnalyticsAction["severity"], string> = {
-  critical: "bg-red-500",
+  critical: "bg-destructive",
   attention: "bg-warning",
-  opportunity: "bg-emerald-500",
+  opportunity: "bg-success",
 };
 
 const MOVEMENT_DOT: Record<Ga4Digest["movements"][number]["kind"], string> = {
-  surging: "bg-emerald-500",
-  new: "bg-emerald-500",
-  dropping: "bg-red-500",
-  lost: "bg-red-500",
+  surging: "bg-success",
+  new: "bg-success",
+  dropping: "bg-destructive",
+  lost: "bg-destructive",
 };
 
 function AnalyticsData({

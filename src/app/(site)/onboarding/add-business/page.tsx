@@ -227,7 +227,7 @@ function AddBusinessContent() {
               />
               {classified && (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <span className="inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                  <span className="inline-flex h-2 w-2 rounded-full bg-success" />
                   Looks like a{vowelStart(KIND_LABEL[classified.kind]) ? "n" : ""}{" "}
                   <span className="font-medium text-foreground">
                     {KIND_LABEL[classified.kind] ?? "link"}

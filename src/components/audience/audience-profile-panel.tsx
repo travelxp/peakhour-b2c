@@ -75,7 +75,7 @@ const TIER_LABEL: Record<EvidenceTier, string> = {
 };
 
 const TIER_CLASS: Record<EvidenceTier, string> = {
-  stated: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+  stated: "border-success/30 bg-success/10 text-success-on-tint",
   observed: "border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300",
   inferred: "border-warning/40 bg-warning/10 text-warning-on-tint",
 };

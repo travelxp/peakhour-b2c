@@ -157,7 +157,7 @@ export default function AiConfigPage() {
                     <TableCell><Badge variant="outline">{row.modelType || "chat"}</Badge></TableCell>
                     <TableCell>
                       {row.active ? (
-                        <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">Active</Badge>
+                        <Badge className="bg-success/15 text-success-on-tint hover:bg-success/30">Active</Badge>
                       ) : (
                         <Badge variant="secondary">Disabled</Badge>
                       )}
@@ -298,7 +298,7 @@ export default function AiConfigPage() {
           </Tabs>
 
           {upsert.isError && (
-            <p className="mt-4 text-sm text-red-600">
+            <p className="mt-4 text-sm text-destructive-on-tint">
               {(upsert.error as Error)?.message ||
                 "Operation failed. You may not have the required CMS role."}
             </p>

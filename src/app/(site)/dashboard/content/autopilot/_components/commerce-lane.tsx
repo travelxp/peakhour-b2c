@@ -24,22 +24,22 @@ import type { CommerceLane as CommerceLaneData } from "@/hooks/use-home-summary"
 function MoneyLoopCard({ data }: { data: CommerceLaneData }) {
   const live = data.moneyLoop && typeof data.moneyLoop.revenueAttributed === "number";
   return (
-    <Card className="gap-0 overflow-hidden border-emerald-200 bg-linear-to-br from-emerald-50 to-background p-5 dark:border-emerald-900/50 dark:from-emerald-950/40">
+    <Card className="gap-0 overflow-hidden border-success/30 bg-linear-to-br from-emerald-50 to-background p-5 dark:from-emerald-950/40">
       <div className="flex items-center gap-2">
-        <span className="inline-flex size-7 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-400">
+        <span className="inline-flex size-7 items-center justify-center rounded-full bg-success/15 text-success-on-tint">
           <IndianRupee className="size-4" />
         </span>
-        <h2 className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">
+        <h2 className="text-sm font-semibold text-success-on-tint">
           Content → Sales
         </h2>
-        <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-emerald-100/70 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400">
+        <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-success/15 px-2 py-0.5 text-[11px] font-medium text-success-on-tint">
           <Store className="size-3" /> Store connected
         </span>
       </div>
 
       {live ? (
         <div className="mt-3">
-          <div className="text-3xl font-semibold tabular-nums tracking-tight text-emerald-800 dark:text-emerald-300">
+          <div className="text-3xl font-semibold tabular-nums tracking-tight text-success-on-tint">
             {data.moneyLoop!.currency ?? "₹"}
             {data.moneyLoop!.revenueAttributed!.toLocaleString()}
           </div>
@@ -53,10 +53,10 @@ function MoneyLoopCard({ data }: { data: CommerceLaneData }) {
       ) : (
         <div className="mt-3">
           <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-semibold tracking-tight text-emerald-800/40 dark:text-emerald-300/40">
+            <span className="text-3xl font-semibold tracking-tight text-success-on-tint/40">
               —
             </span>
-            <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 dark:text-emerald-400">
+            <span className="inline-flex items-center gap-1 text-xs font-medium text-success-on-tint">
               <Sparkles className="size-3.5" /> Switching on
             </span>
           </div>

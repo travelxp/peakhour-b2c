@@ -62,9 +62,9 @@ const CONSUMER_SURFACE: Partial<Record<OptimizerProposal["type"], string>> = {
 const STATUS_BADGE: Record<ProposalStatus, string> = {
   proposed: "bg-warning/15 text-warning-on-tint",
   approved: "bg-sky-100 text-sky-900 dark:bg-sky-950 dark:text-sky-200",
-  applied: "bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200",
+  applied: "bg-success/15 text-success-on-tint",
   dismissed: "bg-muted/60 text-muted-foreground",
-  failed: "bg-red-100 text-red-900 dark:bg-red-950 dark:text-red-200",
+  failed: "bg-destructive/15 text-destructive-on-tint",
 };
 
 function weekLabel(iso: string): string {
@@ -617,7 +617,7 @@ function ProposalRow({
           </div>
           <p className="text-sm font-medium">{proposal.summary}</p>
           {proposal.failReason && (proposal.status === "failed" || proposal.status === "proposed") ? (
-            <p className="text-xs text-red-700 dark:text-red-300">
+            <p className="text-xs text-destructive-on-tint">
               {proposal.status === "proposed" ? "Last attempt: " : ""}
               {proposal.failReason}
             </p>

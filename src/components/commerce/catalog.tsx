@@ -260,7 +260,7 @@ function ListingDrawer({
                   Listing health — {Math.round(item.health.qualityScore * 100)}%
                 </p>
                 {item.health.issues.length === 0 ? (
-                  <p className="mt-1 text-sm text-emerald-600 dark:text-emerald-400">
+                  <p className="mt-1 text-sm text-success-on-tint">
                     This listing looks great.
                   </p>
                 ) : (

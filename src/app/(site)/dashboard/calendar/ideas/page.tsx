@@ -31,8 +31,8 @@ const STATUS_COLORS: Record<string, string> = {
   brainstorm: "bg-slate-100 border-slate-200",
   planned: "bg-blue-50 border-blue-200",
   in_progress: "bg-warning/10 border-warning/30",
-  published: "bg-green-50 border-green-200",
-  archived: "bg-red-50 border-red-200 opacity-50",
+  published: "bg-success/10 border-success/30",
+  archived: "bg-destructive/10 border-destructive/30 opacity-50",
 };
 
 export default function IdeasCalendarPage() {
@@ -203,7 +203,7 @@ function CalendarCard({ idea, compact }: { idea: CalendarIdea; compact?: boolean
         ))}
         {idea.aiScore && (
           <span className={`text-xs font-bold ml-auto ${
-            idea.aiScore >= 8 ? "text-green-600" : idea.aiScore >= 6 ? "text-warning-on-tint" : "text-muted-foreground"
+            idea.aiScore >= 8 ? "text-success-on-tint" : idea.aiScore >= 6 ? "text-warning-on-tint" : "text-muted-foreground"
           }`}>
             {idea.aiScore}
           </span>

@@ -774,7 +774,7 @@ function DoneState({ response }: { response: RepurposeResponse }) {
         return (
           <div key={platform} className="rounded-md border bg-card">
             <div className="flex items-center gap-2 border-b px-3 py-2">
-              <CheckCircle2 className="size-4 text-emerald-500" />
+              <CheckCircle2 className="size-4 text-success" />
               <span className="text-sm font-medium">{display.label}</span>
               <Badge variant="outline" className="text-[10px]">
                 {variants.length} variant{variants.length === 1 ? "" : "s"}

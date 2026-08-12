@@ -251,7 +251,7 @@ export default async function Home({
             (platform.banner.tone === "warn"
               ? "bg-warning/15 text-warning-on-tint"
               : platform.banner.tone === "success"
-                ? "bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200"
+                ? "bg-success/15 text-success-on-tint"
                 : "bg-blue-100 text-blue-900 dark:bg-blue-950 dark:text-blue-200")
           }
         >
@@ -376,8 +376,8 @@ export default async function Home({
             >
               <div className="flex items-center justify-between px-1 pb-2 text-[0.7rem] font-bold uppercase tracking-[0.18em] text-zinc-400">
                 <span>Your business, at a glance</span>
-                <span className="flex items-center gap-1.5 text-emerald-400">
-                  <span className="size-1.5 rounded-full bg-emerald-400" aria-hidden />
+                <span className="flex items-center gap-1.5 text-success">
+                  <span className="size-1.5 rounded-full bg-success" aria-hidden />
                   live
                 </span>
               </div>
@@ -387,10 +387,10 @@ export default async function Home({
                     key={row.name}
                     className={PILLAR_CONSOLE_ROW_CLASS}
                   >
-                    <span className="size-2 shrink-0 rounded-full bg-emerald-400" aria-hidden />
+                    <span className="size-2 shrink-0 rounded-full bg-success" aria-hidden />
                     <span className="w-20 shrink-0 font-bold text-zinc-100">{row.name}</span>
                     <span className="min-w-0 flex-1 truncate text-zinc-400">{row.status}</span>
-                    <span className="shrink-0 rounded-full bg-emerald-400/15 px-2.5 py-0.5 text-[0.65rem] font-bold uppercase tracking-wide text-emerald-400">
+                    <span className="shrink-0 rounded-full bg-success/15 px-2.5 py-0.5 text-[0.65rem] font-bold uppercase tracking-wide text-success">
                       Free
                     </span>
                   </div>

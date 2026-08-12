@@ -84,11 +84,11 @@ const TRIGGERS = ["cron", "manual", "backfill", "webhook"];
 function outcomeBadge(o?: string) {
   switch (o) {
     case "success":
-      return <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">success</Badge>;
+      return <Badge className="bg-success/15 text-success-on-tint hover:bg-success/30">success</Badge>;
     case "partial_failure":
       return <Badge className="bg-warning/15 text-warning-on-tint hover:bg-warning/25">partial</Badge>;
     case "error":
-      return <Badge className="bg-red-100 text-red-800 hover:bg-red-100">error</Badge>;
+      return <Badge className="bg-destructive/15 text-destructive-on-tint hover:bg-destructive/30">error</Badge>;
     case "noop":
       return <Badge className="bg-slate-100 text-slate-700 hover:bg-slate-100">noop</Badge>;
     case "skipped":
@@ -170,7 +170,7 @@ function IntegrationEventsInner() {
       </div>
 
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+        <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive-on-tint">
           Failed to load events: {(error as Error).message}
         </div>
       )}
@@ -332,7 +332,7 @@ function IntegrationEventsInner() {
                 {selected.errorMessage && (
                   <div>
                     <p className="text-xs text-muted-foreground mb-1">Error message</p>
-                    <pre className="text-xs whitespace-pre-wrap rounded bg-red-50 text-red-900 p-3">{selected.errorMessage}</pre>
+                    <pre className="text-xs whitespace-pre-wrap rounded bg-destructive/10 text-destructive-on-tint p-3">{selected.errorMessage}</pre>
                   </div>
                 )}
                 {selected.notes && (

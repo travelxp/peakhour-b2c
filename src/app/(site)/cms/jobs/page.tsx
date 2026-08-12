@@ -109,7 +109,7 @@ export default function CmsJobsPage() {
       </div>
 
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+        <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive-on-tint">
           Failed to load jobs: {(error as Error).message}
         </div>
       )}
@@ -223,7 +223,7 @@ export default function CmsJobsPage() {
                       <div className="truncate max-w-45 text-muted-foreground" title={row.businessId}>{row.businessId?.slice(-8) || "—"}</div>
                     </TableCell>
                     <TableCell className="max-w-55 truncate text-xs" title={row.displayName}>{row.displayName || "—"}</TableCell>
-                    <TableCell className="max-w-70 truncate text-xs text-red-700" title={row.lastError}>
+                    <TableCell className="max-w-70 truncate text-xs text-destructive-on-tint" title={row.lastError}>
                       {row.lastError || (row.cancelRequested ? <span className="text-warning-on-tint">cancel requested</span> : "")}
                     </TableCell>
                   </TableRow>
@@ -278,7 +278,7 @@ function JobDrilldown({ id }: { id: string }) {
           <SheetTitle>Job unavailable</SheetTitle>
           <SheetDescription className="font-mono text-xs">{id}</SheetDescription>
         </SheetHeader>
-        <div className="mt-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+        <div className="mt-6 rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive-on-tint">
           {(error as Error).message.includes("404")
             ? "This job has been purged or rolled off (TTL: 90 days for finished jobs)."
             : `Failed to load job: ${(error as Error).message}`}
@@ -368,7 +368,7 @@ function JobDrilldown({ id }: { id: string }) {
                   key={i}
                   className={
                     p.ok === false
-                      ? "rounded border border-red-200 bg-red-50 p-2 text-xs"
+                      ? "rounded border border-destructive/30 bg-destructive/10 p-2 text-xs"
                       : "rounded border p-2 text-xs"
                   }
                 >
@@ -376,10 +376,10 @@ function JobDrilldown({ id }: { id: string }) {
                     <span className="flex items-center gap-2">
                       <span className="font-mono">{p.phase}</span>
                       {p.ok === false && (
-                        <Badge className="bg-red-100 text-red-800 hover:bg-red-100">failed</Badge>
+                        <Badge className="bg-destructive/15 text-destructive-on-tint hover:bg-destructive/30">failed</Badge>
                       )}
                       {p.ok === true && (
-                        <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">ok</Badge>
+                        <Badge className="bg-success/15 text-success-on-tint hover:bg-success/30">ok</Badge>
                       )}
                     </span>
                     <span className="tabular-nums text-muted-foreground">
@@ -388,7 +388,7 @@ function JobDrilldown({ id }: { id: string }) {
                     </span>
                   </div>
                   {p.error && (
-                    <pre className="mt-1 whitespace-pre-wrap text-xs text-red-900">{p.error}</pre>
+                    <pre className="mt-1 whitespace-pre-wrap text-xs text-destructive-on-tint">{p.error}</pre>
                   )}
                 </div>
               ))}
@@ -400,7 +400,7 @@ function JobDrilldown({ id }: { id: string }) {
         {data.lastError && (
           <div>
             <p className="mb-1 text-xs text-muted-foreground">Last error</p>
-            <pre className="max-h-72 overflow-auto whitespace-pre-wrap rounded bg-red-50 p-3 text-xs text-red-900">{data.lastError}</pre>
+            <pre className="max-h-72 overflow-auto whitespace-pre-wrap rounded bg-destructive/10 p-3 text-xs text-destructive-on-tint">{data.lastError}</pre>
           </div>
         )}
 

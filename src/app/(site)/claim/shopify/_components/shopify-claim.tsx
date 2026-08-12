@@ -318,7 +318,7 @@ export function ShopifyClaim() {
 
           {ready && fetchState === "done" && (
             <div className="space-y-3">
-              <div className="flex items-center gap-2 text-sm font-medium text-emerald-600 dark:text-emerald-400">
+              <div className="flex items-center gap-2 text-sm font-medium text-success-on-tint">
                 <CheckCircle2 className="size-5" aria-hidden />
                 Claimed!
               </div>

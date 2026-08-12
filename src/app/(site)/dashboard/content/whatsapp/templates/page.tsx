@@ -68,8 +68,8 @@ const EMPTY_EDITOR: Editor = {
 const STATUS_VARIANT: Record<TemplateStatus, { label: string; className: string }> = {
   draft: { label: "Draft", className: "bg-muted text-muted-foreground" },
   submitted: { label: "In review", className: "bg-warning/15 text-warning-on-tint" },
-  approved: { label: "Approved", className: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300" },
-  rejected: { label: "Rejected", className: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300" },
+  approved: { label: "Approved", className: "bg-success/15 text-success-on-tint" },
+  rejected: { label: "Rejected", className: "bg-destructive/15 text-destructive-on-tint" },
   paused: { label: "Paused", className: "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300" },
   disabled: { label: "Disabled", className: "bg-muted text-muted-foreground" },
 };
@@ -84,7 +84,7 @@ function WhatsAppPreview({ components }: { components: Components }) {
   const { header, body, footer, buttons } = components;
   return (
     <div className="rounded-xl bg-[#e5ddd5] p-4 dark:bg-neutral-800">
-      <div className="ml-auto max-w-[85%] rounded-lg rounded-tr-none bg-[#dcf8c6] p-3 text-sm text-neutral-900 shadow-sm dark:bg-emerald-900/60 dark:text-neutral-100">
+      <div className="ml-auto max-w-[85%] rounded-lg rounded-tr-none bg-[#dcf8c6] p-3 text-sm text-neutral-900 shadow-sm dark:text-neutral-100">
         {header?.text && <p className="mb-1 font-semibold">{header.text}</p>}
         <p className="whitespace-pre-wrap">{body.text || <span className="text-neutral-400">Your message body…</span>}</p>
         {footer?.text && <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">{footer.text}</p>}
@@ -274,10 +274,10 @@ export default function WhatsAppTemplatesPage() {
               <div className="space-y-1.5">
                 <Separator />
                 {issues.length === 0 ? (
-                  <p className="text-sm text-emerald-600 dark:text-emerald-400">No policy issues found.</p>
+                  <p className="text-sm text-success-on-tint">No policy issues found.</p>
                 ) : (
                   issues.map((it, i) => (
-                    <p key={i} className={`text-sm ${it.severity === "error" ? "text-red-600 dark:text-red-400" : "text-warning-on-tint"}`}>
+                    <p key={i} className={`text-sm ${it.severity === "error" ? "text-destructive-on-tint" : "text-warning-on-tint"}`}>
                       <span className="font-medium capitalize">{it.severity}</span> · {it.field}: {it.message}
                     </p>
                   ))
@@ -346,7 +346,7 @@ export default function WhatsAppTemplatesPage() {
                   </div>
                   {t.status === "rejected" && (
                     <div className="mt-1.5">
-                      {t.rejectionReason && <p className="text-xs text-red-600 dark:text-red-400">{t.rejectionReason}</p>}
+                      {t.rejectionReason && <p className="text-xs text-destructive-on-tint">{t.rejectionReason}</p>}
                       <Button size="sm" variant="outline" className="mt-1.5" onClick={() => repair.mutate(t._id)} disabled={repair.isPending}>
                         {repair.isPending ? "Fixing…" : "Suggest a fix"}
                       </Button>
