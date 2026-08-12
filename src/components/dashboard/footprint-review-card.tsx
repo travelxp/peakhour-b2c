@@ -28,7 +28,7 @@ import {
   InstagramIcon,
   YoutubeIcon,
   FacebookIcon,
-} from "@/components/ui/brand-icons";
+} from "@/components/brand/brand-icons";
 import { cn } from "@/lib/utils";
 
 interface PendingFootprint {

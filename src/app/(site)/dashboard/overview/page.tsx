@@ -29,7 +29,7 @@ import {
   Globe,
   Mail,
 } from "lucide-react";
-import { LinkedinIcon } from "@/components/ui/brand-icons";
+import { LinkedinIcon } from "@/components/brand/brand-icons";
 import { DiscoveryProgressStrip } from "@/components/dashboard/discovery-progress-strip";
 import { FootprintReviewCard } from "@/components/dashboard/footprint-review-card";
 import { RecommendationsCard } from "@/components/dashboard/recommendations-card";
@@ -214,7 +214,7 @@ export default function OverviewPage() {
           value={stats?.content.total}
           change={stats?.content.tagged ? `${stats.content.tagged} AI-tagged` : undefined}
           icon={FileText}
-          iconBg="bg-blue-500/10 text-blue-600 dark:text-blue-400"
+          series={4}
           loading={isLoading}
           href="/dashboard/content"
         />
@@ -223,7 +223,7 @@ export default function OverviewPage() {
           value={stats?.content.highPotential}
           change="Ad score 7+"
           icon={Star}
-          iconBg="bg-amber-500/10 text-amber-600 dark:text-amber-400"
+          series={1}
           loading={isLoading}
           href="/dashboard/content"
         />
@@ -236,7 +236,7 @@ export default function OverviewPage() {
               : "Not started yet"
           }
           icon={Megaphone}
-          iconBg="bg-violet-500/10 text-violet-600 dark:text-violet-400"
+          series={2}
           loading={isLoading}
           href="/dashboard/ads?channel=linkedin"
         />
@@ -245,7 +245,7 @@ export default function OverviewPage() {
           value="--"
           change="Connect ads to track"
           icon={Users}
-          iconBg="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+          series={3}
           loading={isLoading}
           href="/dashboard/outcomes"
         />
@@ -456,12 +456,38 @@ function SetupBanner({ stats }: { stats: DashboardStats }) {
 
 // ── KPI Card ───────────────────────────────────────────────
 
+/**
+ * Which chart series this figure belongs to, in the platform's fixed pillar
+ * order: 1 Commerce · 2 Content · 3 Growth · 4 Support · 5 Presence.
+ *
+ * Replaces the free-form `iconBg` class string these cards used to take
+ * (`"bg-blue-500/10 text-blue-600 dark:text-blue-400"` and friends). Raw
+ * Tailwind hues meant a metric's colour was decided per call site, drifted
+ * between surfaces, and had nothing to do with the colour the same metric
+ * gets when it's plotted. Going through --chart-* makes the tile and the
+ * chart agree by construction, and picks up the dark-mode step for free.
+ */
+type PillarSeries = 1 | 2 | 3 | 4 | 5;
+
+/**
+ * Icon on a tint of its own series colour. Verified ≥3:1 against that tint in
+ * both themes — the non-text threshold, which is the right one here because
+ * these are icons; the label and value beside them wear text tokens.
+ */
+const SERIES_TINT: Record<PillarSeries, string> = {
+  1: "bg-chart-1/12 text-chart-1 dark:bg-chart-1/18",
+  2: "bg-chart-2/12 text-chart-2 dark:bg-chart-2/18",
+  3: "bg-chart-3/12 text-chart-3 dark:bg-chart-3/18",
+  4: "bg-chart-4/12 text-chart-4 dark:bg-chart-4/18",
+  5: "bg-chart-5/12 text-chart-5 dark:bg-chart-5/18",
+};
+
 function KpiCard({
   label,
   value,
   change,
   icon: Icon,
-  iconBg,
+  series,
   loading,
   href,
 }: {
@@ -469,16 +495,21 @@ function KpiCard({
   value?: number | string;
   change?: string;
   icon: React.ElementType;
-  iconBg: string;
+  series: PillarSeries;
   loading: boolean;
   href: string;
 }) {
   return (
     <Link href={href} className="group">
-      <Card className="transition-all hover:shadow-md hover:border-primary/20 group-hover:scale-[1.01]">
+      {/* u-lift/u-rail are the shared motion primitives from globals.css,
+          applied through className so <Card> itself stays regenerable. Both
+          are pointer-guarded and inert under prefers-reduced-motion. */}
+      <Card className="u-lift u-rail relative h-full overflow-hidden">
         <CardContent className="pt-5 pb-4">
           <div className="flex items-center justify-between mb-3">
-            <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${iconBg}`}>
+            <div
+              className={`flex h-9 w-9 items-center justify-center rounded-xl transition-transform duration-300 ease-brand group-hover:-rotate-6 group-hover:scale-110 motion-reduce:transition-none motion-reduce:group-hover:rotate-0 motion-reduce:group-hover:scale-100 ${SERIES_TINT[series]}`}
+            >
               <Icon className="h-4.5 w-4.5" />
             </div>
             <ArrowUpRight className="h-4 w-4 text-muted-foreground/0 group-hover:text-muted-foreground transition-colors" />

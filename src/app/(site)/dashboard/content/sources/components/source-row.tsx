@@ -22,7 +22,7 @@ import {
   InstagramIcon,
   TwitterIcon,
   YoutubeIcon,
-} from "@/components/ui/brand-icons";
+} from "@/components/brand/brand-icons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {

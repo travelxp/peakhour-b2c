@@ -46,7 +46,7 @@ import {
   BeehiivIcon,
   TwitterIcon,
   WhatsAppIcon,
-} from "@/components/ui/brand-icons";
+} from "@/components/brand/brand-icons";
 
 export const metadata = pageMetadata({
   title: "Peakhour.ai — The AI business platform for growing brands",

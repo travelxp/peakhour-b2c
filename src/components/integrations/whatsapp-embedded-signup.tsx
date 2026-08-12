@@ -12,7 +12,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { WhatsAppIcon } from "@/components/ui/brand-icons";
+import { WhatsAppIcon } from "@/components/brand/brand-icons";
 import { CheckCircle2, AlertCircle, Loader2, Sparkles } from "lucide-react";
 
 const APP_ID = process.env.NEXT_PUBLIC_META_APP_ID;

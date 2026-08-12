@@ -42,7 +42,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { CalendarView, TimezoneBanner } from "@/components/scheduler";
 import type { ScheduledItemDto } from "@/lib/scheduler/types";
-import { ChannelIconCompact } from "@/components/ui/channel-icon";
+import { ChannelIconCompact } from "@/components/brand/channel-icon";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { scheduler } from "@/lib/scheduler/client";

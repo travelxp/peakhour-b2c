@@ -15,7 +15,7 @@ import {
   TwitterIcon,
   GhostIcon,
   SlackIcon,
-} from "@/components/ui/brand-icons";
+} from "@/components/brand/brand-icons";
 
 /**
  * Maps a catalog integration's key/groupKey to a brand glyph + accent color.

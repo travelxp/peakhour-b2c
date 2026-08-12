@@ -14,7 +14,7 @@ import {
   FileUploadItemProgress,
   FileUploadList,
   FileUploadTrigger,
-} from "@/components/ui/file-upload";
+} from "@/components/shared/file-upload";
 import { cn } from "@/lib/utils";
 import { ApiError } from "@/lib/api";
 import { uploadMedia, type MediaUploadResult } from "@/lib/api/media";

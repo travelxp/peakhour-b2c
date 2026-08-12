@@ -22,7 +22,7 @@ import {
   InstagramIcon,
   LinkedinIcon,
   YoutubeIcon,
-} from "@/components/ui/brand-icons";
+} from "@/components/brand/brand-icons";
 import { cn } from "@/lib/utils";
 
 interface ClassifyResponse {

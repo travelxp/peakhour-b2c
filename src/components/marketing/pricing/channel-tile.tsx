@@ -4,7 +4,7 @@ import {
   WordPressIcon,
   WooCommerceIcon,
   WhatsAppIcon,
-} from "@/components/ui/brand-icons";
+} from "@/components/brand/brand-icons";
 import { CHANNELS, type ChannelKey } from "@/lib/pricing-catalog";
 import { cn } from "@/lib/utils";
 

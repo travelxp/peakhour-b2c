@@ -28,6 +28,20 @@
   --color-border: var(--border);
   --color-destructive: var(--destructive);
   --color-destructive-on-tint: var(--destructive-on-tint);
+  /* Semantic status, so `bg-success` / `text-warning-on-tint` exist as real
+     utilities and nobody has to reach for `text-emerald-600` again. */
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-success-on-tint: var(--success-on-tint);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-warning-on-tint: var(--warning-on-tint);
+  /* `shadow-elev-1|2|3` and `ease-brand` / `ease-soft` as utilities. */
+  --shadow-elev-1: var(--elev-1);
+  --shadow-elev-2: var(--elev-2);
+  --shadow-elev-3: var(--elev-3);
+  --ease-brand: var(--motion-ease-brand);
+  --ease-soft: var(--motion-ease-soft);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
@@ -61,20 +75,31 @@
 
 :root {
   --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  /* Ground vs. surface. These were BOTH oklch(1 0 0), which left light mode
+     with no elevation at all — a card was the page colour with a 1px border
+     drawn on it, and every surface read as a flat box. The page now steps
+     down to a warm off-white and --card keeps pure white, so elevation is
+     expressed in the tokens themselves and no component has to opt in.
+     (Dark mode always had this step; only light was flat.) */
+  --background: oklch(0.985 0.005 85);
+  --foreground: oklch(0.17 0.012 70);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground: oklch(0.17 0.012 70);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.17 0.012 70);
+  --primary: oklch(0.22 0.014 68);
+  --primary-foreground: oklch(0.985 0.005 85);
+  --secondary: oklch(0.965 0.008 80);
+  --secondary-foreground: oklch(0.22 0.014 68);
+  --muted: oklch(0.965 0.008 80);
+  /* Neutrals carry a little of the brand's hue instead of chroma 0. A pure
+     grey beside a warm gold accent is what made the UI read as assembled
+     rather than designed. Verified 5.3:1 on --background and 5.6:1 on
+     --card, so this is a warmer neutral at BETTER contrast than the
+     oklch(0.556 0 0) it replaces (4.6:1). */
+  --muted-foreground: oklch(0.52 0.019 72);
+  --accent: oklch(0.965 0.008 80);
+  --accent-foreground: oklch(0.22 0.014 68);
   --destructive: oklch(0.577 0.245 27.325);
   /* Destructive text sitting ON a destructive tint (bg-destructive/10), not on
      the page ground. The base red is only ~4:1 there, under AA for normal
@@ -82,22 +107,73 @@
      for copy inside error panels — `--destructive` stays correct for solid
      buttons and icons on the plain background. */
   --destructive-on-tint: oklch(0.478 0.196 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --border: oklch(0.912 0.008 78);
+  --input: oklch(0.912 0.008 78);
+  /* Focus ring is brand gold, not neutral grey — the one place every
+     keyboard user meets the accent. */
+  --ring: oklch(0.7 0.11 67);
+
+  /* Semantic status. Previously every success/warning/error state in the app
+     was hand-rolled from raw Tailwind (`text-emerald-600`, `bg-red-50`, …),
+     which is why status colour drifted between surfaces and ignored the
+     theme. --destructive already existed and stays the critical step; these
+     complete the set. --*-on-tint follows the same rule --destructive-on-tint
+     established: the base step for solid fills and icons, the darker step for
+     text sitting on a 10% tint of itself. */
+  --success: oklch(0.62 0.145 158);
+  /* Dark ink, not white. A mid green bright enough to read as "good" on a
+     status dot is too light to carry white text — that pairing measures
+     3.3:1, under AA. Dark-on-green is 5.1:1 and keeps --success usable as a
+     fill. Same trade --warning makes below. */
+  --success-foreground: oklch(0.22 0.014 68);
+  --success-on-tint: oklch(0.5 0.13 158);
+  --warning: oklch(0.72 0.155 68);
+  --warning-foreground: oklch(0.22 0.014 68);
+  --warning-on-tint: oklch(0.5 0.115 62);
+
+  /* Chart series = the five pillars, in fixed order:
+       1 Commerce · 2 Content · 3 Growth · 4 Support · 5 Presence
+     Held in hex, not oklch, deliberately: these exact values were checked
+     with the dataviz palette validator (lightness band, chroma floor, CVD
+     separation, normal-vision floor, contrast vs surface — all pass in BOTH
+     modes) and a round-trip through oklch would drift them out of the
+     passing band.
+
+     The dark set below is its own validated set at the same hues, NOT an
+     automatic flip. The previous values were the stock shadcn defaults,
+     where --chart-1 was orange on light and blue-violet on dark: a series
+     changed hue when the user toggled the theme, so colour tracked the theme
+     instead of the entity it names. Series identity must be stable. */
+  --chart-1: #c2740a;
+  --chart-2: #7c5cd6;
+  --chart-3: #0e8f73;
+  --chart-4: #2563c9;
+  --chart-5: #c43d6e;
+
+  --sidebar: oklch(0.985 0.005 85);
+  --sidebar-foreground: oklch(0.17 0.012 70);
+  --sidebar-primary: oklch(0.22 0.014 68);
+  --sidebar-primary-foreground: oklch(0.985 0.005 85);
+  --sidebar-accent: oklch(0.965 0.008 80);
+  --sidebar-accent-foreground: oklch(0.22 0.014 68);
+  --sidebar-border: oklch(0.912 0.008 78);
+  --sidebar-ring: oklch(0.7 0.11 67);
+
+  /* Elevation. Warm-tinted rather than neutral-black, so a raised surface
+     reads as lit by the same gold the rest of the page is lit by. */
+  --elev-1: 0 1px 2px oklch(0.4 0.06 60 / 6%), 0 8px 22px -14px oklch(0.4 0.06 60 / 30%);
+  --elev-2: 0 2px 4px oklch(0.4 0.06 60 / 7%), 0 22px 48px -22px oklch(0.4 0.06 60 / 42%);
+  --elev-3: 0 3px 8px oklch(0.4 0.06 60 / 9%), 0 36px 66px -26px oklch(0.4 0.06 60 / 50%);
+
+  /* Motion. One curve family, three speeds, so a reviewer can name a value
+     instead of a feeling. --ease-brand is the house curve (a soft overshoot-
+     free decelerate); --ease-soft is for colour and opacity, where the
+     brand curve reads as sluggish. */
+  --motion-ease-brand: cubic-bezier(0.22, 0.72, 0.28, 1);
+  --motion-ease-soft: cubic-bezier(0.4, 0, 0.2, 1);
+  --dur-micro: 170ms; /* colour, border, opacity on hover/focus */
+  --dur-move: 300ms; /* lift, slide, rotate, scale */
+  --dur-enter: 620ms; /* first appearance on scroll or load */
 
   /* Canonical brand gold. oklch to match this file's convention; the four
      flat tones equal the inline fallbacks the Peaks surfaces already use
@@ -120,41 +196,59 @@
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  --background: oklch(0.15 0.008 70);
+  --foreground: oklch(0.97 0.008 85);
+  --card: oklch(0.2 0.012 68);
+  --card-foreground: oklch(0.97 0.008 85);
+  --popover: oklch(0.2 0.012 68);
+  --popover-foreground: oklch(0.97 0.008 85);
+  --primary: oklch(0.922 0.008 82);
+  --primary-foreground: oklch(0.2 0.012 68);
+  --secondary: oklch(0.27 0.012 70);
+  --secondary-foreground: oklch(0.97 0.008 85);
+  --muted: oklch(0.27 0.012 70);
+  /* 7.9:1 on --background, 7.3:1 on --card. */
+  --muted-foreground: oklch(0.72 0.02 75);
+  --accent: oklch(0.27 0.012 70);
+  --accent-foreground: oklch(0.97 0.008 85);
   --destructive: oklch(0.704 0.191 22.216);
   /* On dark grounds the base red already clears AA on the tint (~5.5:1), so
      the on-tint step is the same colour — declared rather than inherited so
      the token never falls back to the light value. */
   --destructive-on-tint: var(--destructive);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --border: oklch(0.85 0.05 80 / 14%);
+  --input: oklch(0.85 0.05 80 / 18%);
+  --ring: oklch(0.77 0.146 67);
+
+  --success: oklch(0.76 0.15 162);
+  --success-foreground: oklch(0.2 0.012 68);
+  --success-on-tint: var(--success);
+  --warning: oklch(0.8 0.14 72);
+  --warning-foreground: oklch(0.2 0.012 68);
+  --warning-on-tint: var(--warning);
+
+  /* Same five hues, re-stepped for a dark ground and validated against it
+     independently — see the note in :root. Series identity is stable across
+     themes: --chart-1 is Commerce in both. */
+  --chart-1: #c9820c;
+  --chart-2: #8e76e8;
+  --chart-3: #109c87;
+  --chart-4: #4a8fe0;
+  --chart-5: #e05a93;
+
+  --sidebar: oklch(0.2 0.012 68);
+  --sidebar-foreground: oklch(0.97 0.008 85);
+  --sidebar-primary: oklch(0.77 0.146 67);
+  --sidebar-primary-foreground: oklch(0.2 0.012 68);
+  --sidebar-accent: oklch(0.27 0.012 70);
+  --sidebar-accent-foreground: oklch(0.97 0.008 85);
+  --sidebar-border: oklch(0.85 0.05 80 / 14%);
+  --sidebar-ring: oklch(0.77 0.146 67);
+
+  /* Dark grounds need depth from black, not from the warm tint. */
+  --elev-1: 0 1px 2px oklch(0 0 0 / 50%), 0 10px 26px -14px oklch(0 0 0 / 80%);
+  --elev-2: 0 2px 6px oklch(0 0 0 / 55%), 0 26px 56px -24px oklch(0 0 0 / 90%);
+  --elev-3: 0 4px 10px oklch(0 0 0 / 60%), 0 40px 74px -26px oklch(0 0 0 / 95%);
 
   /* On dark grounds the bright brand gold is legible (~9:1), so eyebrows use
      it directly here. (Only theme-aware token; the flat brand tones stay
@@ -217,6 +311,95 @@
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
+  }
+}
+
+/*
+ * Motion primitives, shared by the marketing site and the dashboard.
+ *
+ * Deliberately CSS-only and applied through `className`, so they compose
+ * onto shadcn primitives without any component being forked. That matters:
+ * everything in components/ui is regenerable from the registry, and a
+ * `shadcn add card` must never be able to drop our motion on the floor.
+ *
+ * The house rule these encode: MOTION MEANS CHANGE. A figure animates
+ * because it moved; a static one stays still. Ambient movement with no
+ * meaning behind it is what makes an interface tiring by week two.
+ *
+ * Every one of them is inert under prefers-reduced-motion — the reduced
+ * path resolves to the finished state, never to a half-applied one.
+ */
+@layer components {
+  /* Entrance. Add `.u-rise` for the hidden state, then `.u-rise-in` when the
+     element should appear (on load, or from an IntersectionObserver).
+     Stagger with `style={{ '--rise-delay': '80ms' }}`. */
+  .u-rise {
+    opacity: 0;
+    transform: translateY(1.125rem);
+  }
+  .u-rise-in {
+    opacity: 1;
+    transform: none;
+    transition:
+      opacity var(--dur-enter) var(--motion-ease-brand) var(--rise-delay, 0ms),
+      transform var(--dur-enter) var(--motion-ease-brand) var(--rise-delay, 0ms);
+  }
+
+  /* Hover lift for cards. Pointer-guarded: `hover:` alone also matches the
+     sticky-hover state a touch device leaves behind after a tap, which is
+     how a "hover effect" ends up stuck on a phone. */
+  .u-lift {
+    transition:
+      transform var(--dur-move) var(--motion-ease-brand),
+      box-shadow var(--dur-move) var(--motion-ease-brand),
+      border-color var(--dur-micro) var(--motion-ease-soft);
+  }
+  @media (hover: hover) {
+    .u-lift:hover {
+      transform: translateY(-3px);
+      box-shadow: var(--elev-2);
+      border-color: color-mix(in oklab, var(--brand) 45%, transparent);
+    }
+  }
+  .u-lift:focus-within {
+    box-shadow: var(--elev-2);
+    border-color: color-mix(in oklab, var(--brand) 45%, transparent);
+  }
+
+  /* Gold hairline that wipes across the top edge of a raised surface. The
+     host needs `relative` and `overflow-hidden`. */
+  .u-rail::before {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    top: 0;
+    height: 2px;
+    background-image: var(--brand-gradient);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform var(--dur-move) var(--motion-ease-brand);
+  }
+  @media (hover: hover) {
+    .u-rail:hover::before {
+      transform: scaleX(1);
+    }
+  }
+  .u-rail:focus-within::before,
+  .u-rail[data-active="true"]::before {
+    transform: scaleX(1);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .u-rise,
+    .u-rise-in {
+      opacity: 1;
+      transform: none;
+      transition: none;
+    }
+    .u-lift,
+    .u-rail::before {
+      transition: none;
+    }
   }
 }
 
