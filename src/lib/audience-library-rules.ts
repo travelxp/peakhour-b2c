@@ -171,9 +171,15 @@ export function critiqueTone(severity: "info" | "warn" | undefined): {
   lead: string;
   className: string;
 } {
+  // ★THE WORDS AND THE COLOUR HAVE TO POINT THE SAME WAY. A first cut gave
+  // `warn` the milder lead ("Worth knowing") and `info` the stronger one ("One
+  // caveat") — so the amber line about wasting budget on irrelevant impressions
+  // read as the gentlest sentence on the card while the colour shouted. When
+  // the typography and the wording disagree, a skimming reader believes the
+  // wording.
   return severity === "warn"
-    ? { lead: "Worth knowing:", className: "text-xs text-amber-700 dark:text-amber-300" }
-    : { lead: "One caveat:", className: "text-xs text-muted-foreground" };
+    ? { lead: "Careful:", className: "text-xs text-amber-700 dark:text-amber-300" }
+    : { lead: "Worth knowing:", className: "text-xs text-muted-foreground" };
 }
 
 /** Channel display names. Unknown platforms render under their own key rather
