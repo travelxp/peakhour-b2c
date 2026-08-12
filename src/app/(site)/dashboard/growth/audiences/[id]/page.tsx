@@ -14,6 +14,7 @@ import { audienceLibraryApi } from "@/lib/api/audiences";
 import { useAuth } from "@/providers/auth-provider";
 import {
   audienceShape,
+  critiqueTone,
   detailChannels,
   historyLine,
   originIsOurs,
@@ -119,7 +120,31 @@ export default function AudienceDetailPage({ params }: { params: Promise<{ id: s
                 {originLabel(row.source)}
               </Badge>
             </div>
-            {row.description && <p className="text-muted-foreground">{row.description}</p>}
+            {/* ★THE DEEPER SURFACE MUST NOT SHOW LESS THAN THE CARD THAT LINKS
+                TO IT. This page rendered `description` — the one-line label —
+                while the list card rendered `explanation`, §15's prose about
+                who these people actually are. So clicking through to "find out
+                more" lost the most informative sentence we have. `GET /sets/:id`
+                has always returned both. */}
+            {(row.explanation ?? row.description) && (
+              <p className="text-muted-foreground">{row.explanation ?? row.description}</p>
+            )}
+            {/* ★AND THE ENGINE'S OBJECTIONS TO ITS OWN SUGGESTION, for the same
+                reason. This is the screen somebody opens before putting an
+                audience on a campaign, which makes it the last place an
+                argument against it is still useful. */}
+            {row.critique?.length ? (
+              <ul className="space-y-0.5">
+                {row.critique.map((c, i) => {
+                  const tone = critiqueTone(c.severity);
+                  return (
+                    <li key={`${c.code}-${i}`} className={tone.className}>
+                      <span className="font-medium">{tone.lead}</span> {c.note}
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : null}
             {(() => {
               const history = historyLine(row);
               const outcome = outcomeLine(row.outcome);

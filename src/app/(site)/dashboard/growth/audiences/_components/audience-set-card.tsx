@@ -8,6 +8,7 @@ import type { AudienceSet } from "@/lib/api/audiences";
 import {
   audienceShape,
   channelNotes,
+  critiqueTone,
   historyLine,
   originIsOurs,
   originLabel,
@@ -152,6 +153,25 @@ export function AudienceSetCard({ set }: { set: AudienceSet }) {
             </span>
           )}
         </div>
+
+        {/* ★THE ENGINE ARGUING AGAINST ITS OWN SUGGESTION, on the surface where
+            the customer decides whether to use it. `critique` was typed on this
+            model and read by nothing — a field with a type and no reader, which
+            is the same dead-code shape this whole engine kept producing. It is
+            shown, never acted on: no set is filtered, reordered or downweighted
+            because of it. */}
+        {set.critique?.length ? (
+          <ul className="space-y-0.5">
+            {set.critique.map((c, i) => {
+              const tone = critiqueTone(c.severity);
+              return (
+                <li key={`${c.code}-${i}`} className={tone.className}>
+                  <span className="font-medium">{tone.lead}</span> {c.note}
+                </li>
+              );
+            })}
+          </ul>
+        ) : null}
 
         {(history || outcome) && (
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t pt-2 text-xs text-muted-foreground">

@@ -153,6 +153,35 @@ export function objectiveLabel(objective: string): string {
   return OBJECTIVE_LABEL[objective] ?? objective.replace(/_/g, " ");
 }
 
+/**
+ * How to present one of the engine's objections to its own suggestion.
+ *
+ * ★AN OBJECTION HAS TO LOOK LIKE ONE. The critic's prompt reserves `warn` for
+ * money-or-misleading, so MOST findings are `info` — and rendered as plain
+ * muted text they sat in a stack of muted channel notes and status lines,
+ * indistinguishable from description. A customer skims the card and reads
+ * "targeting generic Software Development will waste budget on irrelevant
+ * impressions" as a feature summary. The lead-in is what makes it an argument.
+ *
+ * ★AND ABSENT SEVERITY IS TREATED AS `info`, NOT AS "NO OBJECTION". The server
+ * writes the field conditionally; a missing one still carries a note somebody
+ * wrote to be read.
+ */
+export function critiqueTone(severity: "info" | "warn" | undefined): {
+  lead: string;
+  className: string;
+} {
+  // ★THE WORDS AND THE COLOUR HAVE TO POINT THE SAME WAY. A first cut gave
+  // `warn` the milder lead ("Worth knowing") and `info` the stronger one ("One
+  // caveat") — so the amber line about wasting budget on irrelevant impressions
+  // read as the gentlest sentence on the card while the colour shouted. When
+  // the typography and the wording disagree, a skimming reader believes the
+  // wording.
+  return severity === "warn"
+    ? { lead: "Careful:", className: "text-xs text-amber-700 dark:text-amber-300" }
+    : { lead: "Worth knowing:", className: "text-xs text-muted-foreground" };
+}
+
 /** Channel display names. Unknown platforms render under their own key rather
  *  than being hidden — a channel we cannot name is still a channel this
  *  audience works on. */

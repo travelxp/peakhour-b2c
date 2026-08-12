@@ -35,6 +35,7 @@ import { SOURCES, STATUSES, SEARCH_MAX } from "@/app/(site)/dashboard/growth/aud
 import {
   audienceShape,
   channelNotes,
+  critiqueTone,
   detailChannels,
   gapSentence,
   historyLine,
@@ -496,5 +497,38 @@ describe("detailChannels", () => {
       "x",
     ]);
     expect(detailChannels({ channels: [] })).toEqual(["linkedin", "x"]);
+  });
+});
+
+describe("critiqueTone", () => {
+  it("★an absent severity is still an objection, not silence", () => {
+    // The api writes `severity` conditionally and `biz_audience_sets` requires
+    // only `code` and `note`. A missing one still carries a sentence somebody
+    // wrote to be read, so it must get a lead-in — treating it as "no severity,
+    // no framing" is how a real objection renders as description.
+    const tone = critiqueTone(undefined);
+    expect(tone.lead.length).toBeGreaterThan(0);
+    expect(tone).toEqual(critiqueTone("info"));
+  });
+
+  it("★the words and the colour point the same way", () => {
+    // The regression this guards: `warn` once carried the MILDER lead ("Worth
+    // knowing") while `info` carried "One caveat" — so the amber line about
+    // wasting budget read as the gentlest sentence on the card while the colour
+    // shouted. A skimming reader believes the wording.
+    const warn = critiqueTone("warn");
+    const info = critiqueTone("info");
+    expect(warn.lead).not.toBe(info.lead);
+    expect(warn.className).toContain("amber");
+    expect(info.className).not.toContain("amber");
+    // "Careful" outranks "Worth knowing"; pin the direction rather than the
+    // exact copy, so a reword cannot silently re-invert it.
+    expect(warn.lead).toBe("Careful:");
+  });
+
+  it("both severities get a visible lead-in", () => {
+    for (const s of ["info", "warn"] as const) {
+      expect(critiqueTone(s).lead.endsWith(":")).toBe(true);
+    }
   });
 });
