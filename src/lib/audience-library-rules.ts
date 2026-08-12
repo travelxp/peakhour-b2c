@@ -128,6 +128,31 @@ export function attributeLabel(attribute: string): string {
   return ATTRIBUTE_LABEL[attribute] ?? attribute.replace(/_/g, " ");
 }
 
+/**
+ * What a planning objective is called, in the customer's terms rather than the
+ * ad platform's.
+ *
+ * ★SHARED, BECAUSE TWO SURFACES NAME THE SAME FOUR THINGS. The discovery
+ * dialog offers them as a choice; the campaign picker uses one as a heading
+ * ("Recommended for getting enquiries"). Two copies drift, and the drift shows
+ * up as a customer picking "Get enquiries" and being shown a section headed
+ * "Lead generation".
+ *
+ * An objective we do not recognise renders under its own identifier rather than
+ * vanishing — the api's enum is the authority and a value it adds before this
+ * map does must still be nameable.
+ */
+const OBJECTIVE_LABEL: Record<string, string> = {
+  lead_generation: "getting enquiries",
+  website_traffic: "getting visitors",
+  brand_awareness: "getting known",
+  engagement: "getting engagement",
+};
+
+export function objectiveLabel(objective: string): string {
+  return OBJECTIVE_LABEL[objective] ?? objective.replace(/_/g, " ");
+}
+
 /** Channel display names. Unknown platforms render under their own key rather
  *  than being hidden — a channel we cannot name is still a channel this
  *  audience works on. */

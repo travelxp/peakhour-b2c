@@ -24,11 +24,17 @@ import {
 } from "@/lib/toast-errors";
 import { classifyApplyError } from "@/lib/audience-apply-errors";
 import { SEARCH_MAX } from "@/app/(site)/dashboard/growth/audiences/filters";
-import { audienceLibraryApi, type AudienceSet } from "@/lib/api/audiences";
+import {
+  audienceLibraryApi,
+  type AudienceObjective,
+  type AudienceSet,
+} from "@/lib/api/audiences";
 import { useAudienceSets } from "@/hooks/use-audience-library";
+import { useAudiencePlan, planRefusalCopy } from "@/hooks/use-audience-plan";
 import {
   audienceShape,
   channelNotes,
+  objectiveLabel,
   originIsOurs,
   originLabel,
   platformLabel,
@@ -89,6 +95,7 @@ export function UseSavedAudienceDialog({
   campaignId,
   campaignName,
   platform,
+  objective,
   onApplied,
   onBuildByHand,
 }: {
@@ -97,6 +104,17 @@ export function UseSavedAudienceDialog({
   campaignId: string;
   campaignName: string;
   platform: string;
+  /**
+   * What THIS campaign is for. `ad_campaigns.objective` and the planner's
+   * `objective` are the same four-value enum, so no mapping sits between them —
+   * a campaign built to get enquiries is matched against audiences planned to
+   * get enquiries.
+   *
+   * Optional because a legacy row may carry none, and a recommendation section
+   * that silently matched everything would be worse than one that says it
+   * cannot tell.
+   */
+  objective?: string;
   onApplied?: () => void;
   /** Hand off to the facet editor. Kept as a callback rather than rendering the
    *  editor here: the two dialogs are owned by the campaign row, which is the
@@ -108,6 +126,34 @@ export function UseSavedAudienceDialog({
   const [q, setQ] = useState("");
   const [chosen, setChosen] = useState<AudienceSet | null>(null);
   const [discoverOpen, setDiscoverOpen] = useState(false);
+
+  /**
+   * Work out recommendations for THIS campaign, right here.
+   *
+   * ★THE OBJECTIVE IS NOT ASKED FOR, BECAUSE THE CAMPAIGN ALREADY ANSWERS IT.
+   * The Audiences page has to ask — it is planning cold. Here the campaign
+   * carries `objective` in the very enum the planner takes, so asking again
+   * would be the surface making the customer re-type something it is holding.
+   *
+   * ★AND IT DOES NOT FIRE ON OPEN. One run is a strong-model call plus up to
+   * four rounds of platform typeaheads and reach counts — the better part of a
+   * minute, and metered. Opening a dialog is not consent to spend that, and a
+   * modal that hangs for forty seconds before showing anything reads as broken.
+   * Stored recommendations render instantly; a fresh run is a button.
+   */
+  const plan = useAudiencePlan({
+    onPlanned: (res) => {
+      if (res.refusal) {
+        const copy = planRefusalCopy(res.refusal.reason, res.refusal.message);
+        toast.warning(copy.title, { description: copy.body });
+        return;
+      }
+      toast.success(
+        `${res.sets.length} audience${res.sets.length === 1 ? "" : "s"} worked out for this campaign.`,
+        { description: "Nothing is running — pick one and it still won't start spending." },
+      );
+    },
+  });
   // ★DEBOUNCED, LIKE THE LIBRARY PAGE. `GET /sets` runs a regex `find` AND a
   // `countDocuments` per request, over a query the api itself documents as a
   // blocking-sort collection scan — so an undebounced picker double-scans a
@@ -221,22 +267,40 @@ export function UseSavedAudienceDialog({
   const selected = chosen && rows.some((r) => r.id === chosen.id) ? chosen : null;
 
   /**
-   * ★OURS FIRST, THEIRS SECOND, AND THE HEADINGS SAY WHICH IS WHICH. The api
-   * takes ONE `source` value, so two server-side queries would be needed to
-   * fetch the two groups separately — for a picker that already caps at twenty
-   * and searches to narrow, partitioning the page is the same answer for one
-   * request instead of two.
+   * ★THREE GROUPS, AND THE MIDDLE ONE EXISTS SO NOTHING DISAPPEARS.
+   *
+   * "Recommended for this campaign" is ours AND planned for this campaign's
+   * objective — the only group that can honestly carry that heading, because an
+   * audience worked out to get reach is a different suggestion from one worked
+   * out to get enquiries and presenting the first as a recommendation for the
+   * second is the collapse this engine exists not to make.
+   *
+   * "Other suggestions" catches everything else we proposed. Dropping those
+   * rows would be tidier and would quietly hide audiences a customer paid a
+   * model call for.
+   *
+   * "Saved" is what the customer chose to keep — one they built by hand, or one
+   * read off a campaign they actually ran. Neither has an objective, because
+   * nobody planned them.
+   *
+   * The api takes ONE `source` value and no objective filter, so this partitions
+   * the page rather than issuing three queries. Honest limit: past `PAGE` rows
+   * the groups describe this page, not the library — which is what the count
+   * line above says, and why the "we have never suggested any" prompt below is
+   * gated on having seen everything.
    */
-  const suggested = rows.filter((r) => originIsOurs(r.source));
+  const ours = rows.filter((r) => originIsOurs(r.source));
+  const recommended = objective ? ours.filter((r) => r.objective === objective) : [];
+  const otherSuggestions = ours.filter((r) => !recommended.includes(r));
   const theirs = rows.filter((r) => !originIsOurs(r.source));
   /**
-   * ★"WE HAVE NEVER SUGGESTED ANY" IS ONLY SAYABLE WHEN THIS PAGE IS THE WHOLE
-   * LIBRARY. Past twenty rows an empty top section might just mean the
-   * customer's own audiences filled the page, and offering to go and generate
-   * more on that basis would be a claim we cannot source — the same
+   * ★"NOTHING HAS BEEN WORKED OUT FOR THIS CAMPAIGN" IS ONLY SAYABLE WHEN THIS
+   * PAGE IS THE WHOLE LIBRARY. Past `PAGE` rows an empty top section might just
+   * mean the customer's own audiences filled the page, and offering to spend a
+   * model call on that basis would be a claim we cannot source — the same
    * accepted-then-ignored-filter failure one layer up.
    */
-  const noSuggestionsAnywhere = suggested.length === 0 && !search && total <= PAGE;
+  const canOfferPlan = recommended.length === 0 && !search && total <= PAGE;
 
   return (
     <Dialog
@@ -285,46 +349,72 @@ export function UseSavedAudienceDialog({
             <p className="text-sm text-muted-foreground">
               We couldn&apos;t load your audiences just now.
             </p>
-          ) : rows.length === 0 ? (
-            // ★TWO EMPTIES AGAIN, AND THEY ARE NOT THE SAME SENTENCE. "Nothing
-            // matches that search" is not "you have no audiences that work
-            // here", and the second is not "you have no audiences".
+          ) : rows.length === 0 && search ? (
             <p className="text-sm text-muted-foreground">
-              {search
-                ? "Nothing in your library matches that."
-                : `None of your saved audiences has been worked out for ${platformLabel(platform)} yet — open one from Audiences and check this channel first.`}
+              Nothing in your library matches that.
             </p>
           ) : (
             <>
-              {/* ★PEAKHOUR'S OWN SUGGESTIONS LEAD. This is the whole reordering:
-                  the engine's answer to "who should see this?" is the default,
-                  and the customer's own filing is the alternative to it rather
-                  than the other way round. */}
+              {/* ★PEAKHOUR'S RECOMMENDATIONS FOR *THIS* CAMPAIGN LEAD. This is
+                  the whole reordering: the engine's answer to "who should see
+                  this?" is the default, and the customer's own filing is the
+                  alternative to it rather than the other way round. */}
               <Section
-                title="What Peakhour suggests"
+                title={
+                  objective
+                    ? `Recommended for ${objectiveLabel(objective)}`
+                    : "What Peakhour suggests"
+                }
                 icon={Sparkles}
+                action={
+                  // Only offered once we HAVE some — a "get fresh ones" button
+                  // above an empty section is the same click as the panel
+                  // below it, twice.
+                  recommended.length > 0 && objective ? (
+                    <button
+                      type="button"
+                      disabled={plan.isPending}
+                      onClick={() => plan.mutate({ objective: objective as AudienceObjective, platform })}
+                      className="text-xs font-medium text-primary hover:underline disabled:opacity-60"
+                    >
+                      {plan.isPending ? "Working…" : "Work out fresh ones"}
+                    </button>
+                  ) : null
+                }
                 empty={
-                  noSuggestionsAnywhere ? (
+                  canOfferPlan ? (
                     <div className="space-y-2 rounded-md border border-dashed p-3">
                       <p className="text-xs text-muted-foreground">
-                        We haven&apos;t worked out any audiences for this business yet — we
-                        can do it from what we already know about you, with no past
-                        campaigns needed.
+                        {objective
+                          ? `We haven't worked out who to target for ${objectiveLabel(objective)} yet. We can do it now from what we already know about your business — no past campaigns needed.`
+                          : "We haven't worked out any audiences for this business yet. We can do it from what we already know about you — no past campaigns needed."}
                       </p>
                       <Button
                         type="button"
                         size="sm"
                         variant="outline"
-                        onClick={() => setDiscoverOpen(true)}
+                        disabled={plan.isPending}
+                        onClick={() =>
+                          objective
+                            ? plan.mutate({
+                                objective: objective as AudienceObjective,
+                                platform,
+                              })
+                            : setDiscoverOpen(true)
+                        }
                       >
                         <Sparkles className="mr-1.5 size-3.5" aria-hidden="true" />
-                        Find audiences
+                        {/* ★NAMED, NOT A SPINNER. This is a strong-model call
+                            plus up to four rounds of platform lookups — the
+                            better part of a minute — and a control that says
+                            nothing for that long reads as broken. */}
+                        {plan.isPending ? "Working out who to target…" : "Get recommendations"}
                       </Button>
                     </div>
                   ) : null
                 }
               >
-                {suggested.map((set) => (
+                {recommended.map((set) => (
                   <AudienceOption
                     key={set.id}
                     set={set}
@@ -335,7 +425,26 @@ export function UseSavedAudienceDialog({
                 ))}
               </Section>
 
-              <Section title="Yours" icon={PencilLine} empty={null}>
+              {/* ★NOT DROPPED, BECAUSE THEY ARE STILL AUDIENCES WE PROPOSED.
+                  An audience planned for a different objective may not wear the
+                  recommendation heading — but hiding it would quietly bin work
+                  a customer already paid a model call for. */}
+              <Section title="Other suggestions" icon={Sparkles} empty={null}>
+                {otherSuggestions.map((set) => (
+                  <AudienceOption
+                    key={set.id}
+                    set={set}
+                    platform={platform}
+                    picked={chosen?.id === set.id}
+                    onPick={() => setChosen(set)}
+                  />
+                ))}
+              </Section>
+
+              {/* ★ONLY WHAT THE CUSTOMER CHOSE TO KEEP. One they built by hand,
+                  or one read off a campaign they actually ran — the badge on
+                  each row says which. Nothing we proposed appears here. */}
+              <Section title="Saved" icon={PencilLine} empty={null}>
                 {theirs.map((set) => (
                   <AudienceOption
                     key={set.id}
@@ -415,20 +524,25 @@ function Section({
   title,
   icon: Icon,
   empty,
+  action,
   children,
 }: {
   title: string;
   icon: typeof Sparkles;
   empty: React.ReactNode;
+  action?: React.ReactNode;
   children: React.ReactNode[];
 }) {
   if (children.length === 0 && empty === null) return null;
   return (
     <section className="space-y-2">
-      <h3 className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-        <Icon className="size-3.5" aria-hidden="true" />
-        {title}
-      </h3>
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+          <Icon className="size-3.5" aria-hidden="true" />
+          {title}
+        </h3>
+        {action}
+      </div>
       {children.length > 0 ? children : empty}
     </section>
   );

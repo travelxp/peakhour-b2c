@@ -369,6 +369,20 @@ export interface AudienceSet {
   description?: string;
   source: AudienceSource;
   status: AudienceSetStatus;
+  /**
+   * What the planning session that produced this audience was FOR.
+   *
+   * ★THE ONE FIELD THAT MAKES "RECOMMENDED FOR THIS CAMPAIGN" SAYABLE.
+   * `ad_campaigns.objective` and `PlanBody.objective` are the same four-value
+   * enum, so a campaign and an audience can be matched on it directly with no
+   * mapping table in between — and an audience planned to get enquiries is a
+   * genuinely different suggestion from one planned to get reach.
+   *
+   * Absent on an audience nobody planned: one built by hand, or read off a
+   * campaign that ran. That absence is why they belong under "Saved" rather
+   * than under a recommendation heading.
+   */
+  objective?: AudienceObjective;
   archetype?: string;
   hypothesis?: {
     attributes: AudienceHypothesisAttribute[];

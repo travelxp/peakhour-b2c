@@ -742,6 +742,11 @@ function CampaignRow({
             // so this changes nothing today; it is what stops the picker being
             // wrong the day a campaign list carries a second channel.
             platform={campaign.platform}
+            // ★WHAT THIS CAMPAIGN IS FOR, so the picker can lead with the
+            // audiences worked out for that and not merely with everything we
+            // have ever suggested. `ad_campaigns.objective` is the same
+            // four-value enum the planner takes, so nothing maps between them.
+            objective={campaign.objective}
             // The facet editor, handed the campaign this picker was opened
             // for. Ownership stays here: nesting one modal inside another is
             // how a Cancel closes the wrong dialog.
