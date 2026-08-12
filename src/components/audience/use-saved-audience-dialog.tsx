@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Check, Library } from "lucide-react";
+import { Check, PencilLine, Sparkles, Target } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,13 +29,28 @@ import { useAudienceSets } from "@/hooks/use-audience-library";
 import {
   audienceShape,
   channelNotes,
+  originIsOurs,
   originLabel,
   platformLabel,
   reachReading,
 } from "@/lib/audience-library-rules";
+import { DiscoverAudiencesDialog } from "./discover-audiences-dialog";
 
 /**
- * Put an audience you already have on this campaign (G4).
+ * Set this campaign's audience (G4).
+ *
+ * ★WHAT PEAKHOUR SUGGESTS COMES FIRST, AND THAT ORDER IS THE PRODUCT. This
+ * surface used to be the SECOND of two buttons — "Set audience" opened a blank
+ * facet picker and "Saved" opened this list — so the default path through a
+ * campaign was a customer hand-picking LinkedIn URNs while an engine that had
+ * already worked out who to target sat one button to the right. The two are now
+ * one dialog in the order the engine actually works: our recommendations, then
+ * the audiences they own, then the hand-built escape hatch.
+ *
+ * ★AND AN EMPTY RECOMMENDATIONS LIST IS AN ACTION, NOT A BLANK. A business
+ * nobody has run a planning session for has no suggestions to show, and the fix
+ * — ask for some — is one call away and belongs here rather than on another
+ * page.
  *
  * ★THE LIBRARY'S WHOLE POINT, AND UNTIL NOW IT HAD NO WAY IN. `biz_audience_sets`
  * exists so an audience built once can be reused on a campaign created months
@@ -75,6 +90,7 @@ export function UseSavedAudienceDialog({
   campaignName,
   platform,
   onApplied,
+  onBuildByHand,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -82,10 +98,16 @@ export function UseSavedAudienceDialog({
   campaignName: string;
   platform: string;
   onApplied?: () => void;
+  /** Hand off to the facet editor. Kept as a callback rather than rendering the
+   *  editor here: the two dialogs are owned by the campaign row, which is the
+   *  only thing that knows the campaign's full shape, and nesting one modal
+   *  inside another is how a Cancel closes the wrong one. */
+  onBuildByHand?: () => void;
 }) {
   const queryClient = useQueryClient();
   const [q, setQ] = useState("");
   const [chosen, setChosen] = useState<AudienceSet | null>(null);
+  const [discoverOpen, setDiscoverOpen] = useState(false);
   // ★DEBOUNCED, LIKE THE LIBRARY PAGE. `GET /sets` runs a regex `find` AND a
   // `countDocuments` per request, over a query the api itself documents as a
   // blocking-sort collection scan — so an undebounced picker double-scans a
@@ -198,6 +220,24 @@ export function UseSavedAudienceDialog({
    */
   const selected = chosen && rows.some((r) => r.id === chosen.id) ? chosen : null;
 
+  /**
+   * ★OURS FIRST, THEIRS SECOND, AND THE HEADINGS SAY WHICH IS WHICH. The api
+   * takes ONE `source` value, so two server-side queries would be needed to
+   * fetch the two groups separately — for a picker that already caps at twenty
+   * and searches to narrow, partitioning the page is the same answer for one
+   * request instead of two.
+   */
+  const suggested = rows.filter((r) => originIsOurs(r.source));
+  const theirs = rows.filter((r) => !originIsOurs(r.source));
+  /**
+   * ★"WE HAVE NEVER SUGGESTED ANY" IS ONLY SAYABLE WHEN THIS PAGE IS THE WHOLE
+   * LIBRARY. Past twenty rows an empty top section might just mean the
+   * customer's own audiences filled the page, and offering to go and generate
+   * more on that basis would be a claim we cannot source — the same
+   * accepted-then-ignored-filter failure one layer up.
+   */
+  const noSuggestionsAnywhere = suggested.length === 0 && !search && total <= PAGE;
+
   return (
     <Dialog
       open={open}
@@ -209,13 +249,13 @@ export function UseSavedAudienceDialog({
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Library className="size-4" aria-hidden="true" />
-            Use a saved audience
+            <Target className="size-4" aria-hidden="true" />
+            Set the audience
           </DialogTitle>
           <DialogDescription>
-            Put one of your existing audiences on &ldquo;{campaignName}&rdquo;. This replaces
-            the campaign&apos;s whole audience and starts no spending — activate it when
-            you&apos;re ready.
+            Who should see &ldquo;{campaignName}&rdquo;? Pick one of ours or one of yours —
+            it replaces the campaign&apos;s whole audience and starts no spending, so you
+            activate when you&apos;re ready.
           </DialogDescription>
         </DialogHeader>
 
@@ -223,8 +263,8 @@ export function UseSavedAudienceDialog({
           value={q}
           onChange={(e) => setQ(e.target.value.slice(0, SEARCH_MAX))}
           maxLength={SEARCH_MAX}
-          placeholder="Search your audiences…"
-          aria-label="Search your audiences"
+          placeholder="Search audiences…"
+          aria-label="Search audiences"
         />
 
         {total > PAGE && (
@@ -255,65 +295,197 @@ export function UseSavedAudienceDialog({
                 : `None of your saved audiences has been worked out for ${platformLabel(platform)} yet — open one from Audiences and check this channel first.`}
             </p>
           ) : (
-            rows.map((set) => {
-              const channel = set.channels.find((c) => c.platform === platform);
-              const shape = audienceShape(set);
-              const picked = chosen?.id === set.id;
-              return (
-                <button
-                  key={set.id}
-                  type="button"
-                  onClick={() => setChosen(set)}
-                  className={`w-full rounded-md border p-3 text-left transition-colors hover:bg-muted/50 ${
-                    picked ? "border-primary bg-muted/40" : ""
-                  }`}
-                  aria-pressed={picked}
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="text-sm font-medium">{set.name}</span>
-                    <span className="flex items-center gap-1.5">
-                      {picked && <Check className="size-3.5 text-primary" aria-hidden="true" />}
-                      <Badge variant="outline" className="text-[10px] font-normal">
-                        {originLabel(set.source)}
-                      </Badge>
-                    </span>
-                  </div>
-                  {shape.length > 0 && (
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {shape.map((r) => `${r.label}: ${r.values.join(", ")}`).join(" · ")}
-                    </p>
-                  )}
-                  {/* The reach on THIS channel, and what it could not express —
-                      both of which are what the customer is choosing between. */}
-                  {channel && (
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {[reachReading(channel).text, ...channelNotes(channel)].join(" · ")}
-                    </p>
-                  )}
-                </button>
-              );
-            })
+            <>
+              {/* ★PEAKHOUR'S OWN SUGGESTIONS LEAD. This is the whole reordering:
+                  the engine's answer to "who should see this?" is the default,
+                  and the customer's own filing is the alternative to it rather
+                  than the other way round. */}
+              <Section
+                title="What Peakhour suggests"
+                icon={Sparkles}
+                empty={
+                  noSuggestionsAnywhere ? (
+                    <div className="space-y-2 rounded-md border border-dashed p-3">
+                      <p className="text-xs text-muted-foreground">
+                        We haven&apos;t worked out any audiences for this business yet — we
+                        can do it from what we already know about you, with no past
+                        campaigns needed.
+                      </p>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setDiscoverOpen(true)}
+                      >
+                        <Sparkles className="mr-1.5 size-3.5" aria-hidden="true" />
+                        Find audiences
+                      </Button>
+                    </div>
+                  ) : null
+                }
+              >
+                {suggested.map((set) => (
+                  <AudienceOption
+                    key={set.id}
+                    set={set}
+                    platform={platform}
+                    picked={chosen?.id === set.id}
+                    onPick={() => setChosen(set)}
+                  />
+                ))}
+              </Section>
+
+              <Section title="Yours" icon={PencilLine} empty={null}>
+                {theirs.map((set) => (
+                  <AudienceOption
+                    key={set.id}
+                    set={set}
+                    platform={platform}
+                    picked={chosen?.id === set.id}
+                    onPick={() => setChosen(set)}
+                  />
+                ))}
+              </Section>
+            </>
           )}
         </div>
 
-        <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={apply.isPending}
-          >
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            disabled={!selected || apply.isPending}
-            onClick={() => selected && apply.mutate(selected.id)}
-          >
-            {apply.isPending ? "Applying…" : "Use this audience"}
-          </Button>
+        {discoverOpen && (
+          <DiscoverAudiencesDialog
+            open={discoverOpen}
+            onOpenChange={setDiscoverOpen}
+            platform={platform}
+          />
+        )}
+
+        <DialogFooter className="sm:justify-between">
+          {/* ★THE HAND-BUILT PATH STAYS, AND IT STAYS SUBORDINATE. It is the
+              right answer for a customer who knows exactly which twelve job
+              titles they want, and the wrong DEFAULT for everyone else — which
+              is what it was when it had the primary button and its own tab
+              stop ahead of every suggestion we had already made. */}
+          {onBuildByHand ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={apply.isPending}
+              onClick={() => {
+                onOpenChange(false);
+                onBuildByHand();
+              }}
+            >
+              <PencilLine className="mr-1.5 size-3.5" aria-hidden="true" />
+              Build one by hand
+            </Button>
+          ) : (
+            <span />
+          )}
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={apply.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={!selected || apply.isPending}
+              onClick={() => selected && apply.mutate(selected.id)}
+            >
+              {apply.isPending ? "Applying…" : "Use this audience"}
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * A titled group of options, or the caller's own sentence when it has none.
+ *
+ * ★AN EMPTY GROUP DISAPPEARS RATHER THAN RENDERING AN EMPTY HEADING, unless the
+ * caller supplied something to say in its place — a heading over nothing reads
+ * as a list that failed to load.
+ */
+function Section({
+  title,
+  icon: Icon,
+  empty,
+  children,
+}: {
+  title: string;
+  icon: typeof Sparkles;
+  empty: React.ReactNode;
+  children: React.ReactNode[];
+}) {
+  if (children.length === 0 && empty === null) return null;
+  return (
+    <section className="space-y-2">
+      <h3 className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+        <Icon className="size-3.5" aria-hidden="true" />
+        {title}
+      </h3>
+      {children.length > 0 ? children : empty}
+    </section>
+  );
+}
+
+/** One audience, as something to choose. */
+function AudienceOption({
+  set,
+  platform,
+  picked,
+  onPick,
+}: {
+  set: AudienceSet;
+  platform: string;
+  picked: boolean;
+  onPick: () => void;
+}) {
+  const channel = set.channels.find((c) => c.platform === platform);
+  const shape = audienceShape(set);
+  return (
+    <button
+      type="button"
+      onClick={onPick}
+      className={`w-full rounded-md border p-3 text-left transition-colors hover:bg-muted/50 ${
+        picked ? "border-primary bg-muted/40" : ""
+      }`}
+      aria-pressed={picked}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="text-sm font-medium">{set.name}</span>
+        <span className="flex items-center gap-1.5">
+          {picked && <Check className="size-3.5 text-primary" aria-hidden="true" />}
+          <Badge variant="outline" className="text-[10px] font-normal">
+            {originLabel(set.source)}
+          </Badge>
+        </span>
+      </div>
+      {/* ★THE ENGINE'S SENTENCE ABOUT WHO THESE PEOPLE ARE, WHERE THE CHOICE IS
+          ACTUALLY MADE. `explanation` has been written on every planned set
+          since B2 and returned by `GET /sets` all along; this picker showed a
+          row of raw attribute values instead, which is the targeting rather
+          than the idea. */}
+      {set.explanation && (
+        <p className="mt-1 text-xs text-muted-foreground">{set.explanation}</p>
+      )}
+      {shape.length > 0 && (
+        <p className="mt-1 text-xs text-muted-foreground">
+          {shape.map((r) => `${r.label}: ${r.values.join(", ")}`).join(" · ")}
+        </p>
+      )}
+      {/* The reach on THIS channel, and what it could not express — both of
+          which are what the customer is choosing between. */}
+      {channel && (
+        <p className="mt-1 text-xs text-muted-foreground">
+          {[reachReading(channel).text, ...channelNotes(channel)].join(" · ")}
+        </p>
+      )}
+    </button>
   );
 }

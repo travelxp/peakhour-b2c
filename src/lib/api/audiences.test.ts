@@ -25,7 +25,7 @@ const h = vi.hoisted(() => ({
 
 vi.mock("@/lib/api", () => ({ api: { get: h.get, post: h.post, patch: h.patch } }));
 
-const { audiencesApi } = await import("./audiences");
+const { audiencesApi, AUDIENCE_OBJECTIVES } = await import("./audiences");
 
 beforeEach(() => vi.clearAllMocks());
 
@@ -76,5 +76,37 @@ describe("audiencesApi", () => {
     ]);
     const body = h.patch.mock.calls[0]![1] as { corrections: Array<{ field: string }> };
     expect(body.corrections.map((c) => c.field)).toEqual(["icp", "painPoints"]);
+  });
+
+  it("plans a portfolio on the platform-agnostic path", async () => {
+    h.post.mockResolvedValue({ planId: "p1", sets: [], refusal: null });
+    await audiencesApi.plan({ objective: "lead_generation" });
+    expect(h.post).toHaveBeenCalledWith("/v1/audiences/plan", {
+      objective: "lead_generation",
+    });
+  });
+
+  it("★does not send a `geo` key when the caller has none", async () => {
+    // The api treats an ABSENT `geo` as "use what the profile says" and an
+    // EMPTY array as the user saying none of these apply — the same
+    // distinction `/propose` makes. A client that helpfully defaulted the key
+    // to `[]` would turn "we inferred India" into "the user told us nowhere",
+    // and the plan would refuse with `no_geography`.
+    h.post.mockResolvedValue({ planId: null, sets: [], refusal: null });
+    await audiencesApi.plan({ objective: "engagement", platform: "linkedin" });
+    const body = h.post.mock.calls[0]![1] as Record<string, unknown>;
+    expect("geo" in body).toBe(false);
+  });
+
+  it("★offers exactly the objectives the api's enum accepts", async () => {
+    // A value the server does not recognise is a 400, which a customer reads
+    // as "the button is broken" — the same accepted-then-ignored failure the
+    // library's filters are built around. Mirrored from `PlanBody.objective`.
+    expect([...AUDIENCE_OBJECTIVES]).toEqual([
+      "lead_generation",
+      "brand_awareness",
+      "website_traffic",
+      "engagement",
+    ]);
   });
 });
