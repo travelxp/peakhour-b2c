@@ -181,6 +181,45 @@ export interface ProposalResponse {
  * "objective + confirmed geography", one screen, no facet-picking. Anything
  * this list does not contain is a 400, so it is never widened here first.
  */
+/**
+ * One argument the engine makes AGAINST its own suggestion.
+ *
+ * ★AN OBJECT, NOT A STRING, AND GETTING THAT WRONG PUT `[object Object]` ON A
+ * CUSTOMER-FACING CARD. `critiquePortfolio` has always emitted
+ * `{ code, note, severity }` — the b2c type declared `string[]` and the cards
+ * called `.join(" ")` on it, which is the exact shape of failure a type that
+ * describes what you *assumed* rather than what the server sends produces. It
+ * survived two review rounds and was caught by running the engine for a real
+ * business and reading the output.
+ *
+ * `severity` is the api's own two-value enum. `code` is a closed vocabulary
+ * (`geo_mismatch`, `too_narrow`, …) and is deliberately NOT rendered: `note` is
+ * the sentence written for a customer, and the code is for us.
+ */
+export interface AudienceCritique {
+  code: string;
+  note: string;
+  severity: "info" | "warn";
+}
+
+/**
+ * The deterministic quality scoring (§9).
+ *
+ * ★ALSO NOT `Record<string, number>`, which is what the first cut said. It
+ * carries a nested `components` map, a human-readable `basisNote` and the
+ * scorer's own version — and a type claiming every value is a number would
+ * make `scores.basisNote` a number to every reader of this file.
+ */
+export interface AudienceScores {
+  quality: number;
+  confidence: number;
+  components?: Record<string, number>;
+  /** Why this score is what it is, in the customer's terms. */
+  basisNote?: string;
+  scorerVersion?: string;
+  computedAt?: string;
+}
+
 export const AUDIENCE_OBJECTIVES = [
   "lead_generation",
   "brand_awareness",
@@ -214,14 +253,14 @@ export interface PlannedAudience {
    *  overlapping, evidence-free. Nothing is filtered or reordered because of
    *  it: showing the customer the objection beats letting an unreviewable
    *  model call quietly drop an audience. */
-  critique?: string[];
+  critique?: AudienceCritique[];
   /** Platform-sourced only. `belowFloor` carries NO number, deliberately. */
   reach?: { supported: boolean; value?: number; belowFloor?: boolean; fetchedAt?: string };
   /** What we wanted to express and the channel could not. Surfaced, never
    *  dropped — a lost include makes the audience BROADER, not narrower. */
   unresolved?: Array<{ attribute: string; value: string; reason: string }>;
   basis?: Array<{ attribute: string; values: string[] }>;
-  scores?: Record<string, number>;
+  scores?: AudienceScores;
 }
 
 /**
@@ -405,11 +444,11 @@ export interface AudienceSet {
   rationale?: string;
   /** The engine's own objections to its suggestion. Never used to filter or
    *  reorder — an objection is shown, not acted on. */
-  critique?: string[];
+  critique?: AudienceCritique[];
   /** Deterministic quality scoring (§9). Same profile, objective and registry →
    *  same numbers; absent when the config collection was unreadable, and its
    *  absence is the honest answer rather than a zero. */
-  scores?: Record<string, number>;
+  scores?: AudienceScores;
   /** Every hand-correction to this audience's targeting. The count is the
    *  interesting figure on a list: an audience corrected four times is one we
    *  keep getting wrong. */

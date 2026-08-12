@@ -153,6 +153,30 @@ export function AudienceSetCard({ set }: { set: AudienceSet }) {
           )}
         </div>
 
+        {/* ★THE ENGINE ARGUING AGAINST ITS OWN SUGGESTION, on the surface where
+            the customer decides whether to use it. `critique` was typed on this
+            model and read by nothing — a field with a type and no reader, which
+            is the same dead-code shape this whole engine kept producing. It is
+            shown, never acted on: no set is filtered, reordered or downweighted
+            because of it. */}
+        {set.critique?.length ? (
+          <ul className="space-y-0.5">
+            {set.critique.map((c, i) => (
+              <li
+                key={`${c.code}-${i}`}
+                className={
+                  c.severity === "warn"
+                    ? "text-xs text-amber-700 dark:text-amber-300"
+                    : "text-xs text-muted-foreground"
+                }
+              >
+                {c.severity === "warn" ? "Worth knowing: " : ""}
+                {c.note}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+
         {(history || outcome) && (
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t pt-2 text-xs text-muted-foreground">
             {history && <span>{history}</span>}

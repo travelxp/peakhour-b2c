@@ -216,11 +216,28 @@ function PlanSummary({ result }: { result: AudiencePlanResponse }) {
                 {s.explanation ?? s.description}
               </p>
             )}
-            {/* ★AND ITS OBJECTION TO ITSELF, shown rather than acted on. */}
+            {/* ★AND ITS OBJECTION TO ITSELF, shown rather than acted on.
+                ★`note`, NOT THE OBJECT. A first cut typed this as `string[]` and
+                called `.join(" ")` on it, which put `[object Object]` on the
+                card — the critic has always emitted `{code, note, severity}`.
+                The `code` stays unrendered: `note` is the sentence written for
+                a customer and the code is for us. */}
             {s.critique?.length ? (
-              <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
-                Worth knowing: {s.critique.join(" ")}
-              </p>
+              <ul className="mt-1 space-y-0.5">
+                {s.critique.map((c, ci) => (
+                  <li
+                    key={`${c.code}-${ci}`}
+                    className={
+                      c.severity === "warn"
+                        ? "text-xs text-amber-700 dark:text-amber-300"
+                        : "text-xs text-muted-foreground"
+                    }
+                  >
+                    {c.severity === "warn" ? "Worth knowing: " : ""}
+                    {c.note}
+                  </li>
+                ))}
+              </ul>
             ) : null}
             {/* ★A SET WITH NO ID DID NOT REACH THE LIBRARY. It is a real
                 audience and worth reading, but nothing can be applied to a
