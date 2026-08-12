@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { Check, Sparkles } from "lucide-react";
+import { critiqueTone } from "@/lib/audience-library-rules";
 import { useAudiencePlan, planRefusalCopy } from "@/hooks/use-audience-plan";
 import {
   AUDIENCE_OBJECTIVES,
@@ -224,19 +225,14 @@ function PlanSummary({ result }: { result: AudiencePlanResponse }) {
                 a customer and the code is for us. */}
             {s.critique?.length ? (
               <ul className="mt-1 space-y-0.5">
-                {s.critique.map((c, ci) => (
-                  <li
-                    key={`${c.code}-${ci}`}
-                    className={
-                      c.severity === "warn"
-                        ? "text-xs text-amber-700 dark:text-amber-300"
-                        : "text-xs text-muted-foreground"
-                    }
-                  >
-                    {c.severity === "warn" ? "Worth knowing: " : ""}
-                    {c.note}
-                  </li>
-                ))}
+                {s.critique.map((c, ci) => {
+                  const tone = critiqueTone(c.severity);
+                  return (
+                    <li key={`${c.code}-${ci}`} className={tone.className}>
+                      <span className="font-medium">{tone.lead}</span> {c.note}
+                    </li>
+                  );
+                })}
               </ul>
             ) : null}
             {/* ★A SET WITH NO ID DID NOT REACH THE LIBRARY. It is a real

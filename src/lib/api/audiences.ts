@@ -176,12 +176,6 @@ export interface ProposalResponse {
 }
 
 /**
- * What a planning session may be run FOR. The api's own enum
- * (`PlanBody.objective`), and it is short on purpose: D13 settled v1's input as
- * "objective + confirmed geography", one screen, no facet-picking. Anything
- * this list does not contain is a 400, so it is never widened here first.
- */
-/**
  * One argument the engine makes AGAINST its own suggestion.
  *
  * ★AN OBJECT, NOT A STRING, AND GETTING THAT WRONG PUT `[object Object]` ON A
@@ -192,14 +186,22 @@ export interface ProposalResponse {
  * survived two review rounds and was caught by running the engine for a real
  * business and reading the output.
  *
- * `severity` is the api's own two-value enum. `code` is a closed vocabulary
- * (`geo_mismatch`, `too_narrow`, …) and is deliberately NOT rendered: `note` is
- * the sentence written for a customer, and the code is for us.
+ * `code` is a closed vocabulary (`geo_mismatch`, `too_narrow`, …) and is
+ * deliberately NOT rendered: `note` is the sentence written for a customer, and
+ * the code is for us.
  */
 export interface AudienceCritique {
   code: string;
   note: string;
-  severity: "info" | "warn";
+  /**
+   * ★OPTIONAL, BECAUSE THE SERVER MAY NOT SEND IT. The critic writes it
+   * conditionally and `biz_audience_sets` requires only `code` and `note` — so
+   * a required field here would be the same class of mistake this whole commit
+   * is fixing: a type promising something the server does not guarantee. Both
+   * render sites already survive its absence; typing it as required is what
+   * would make the next `severity.toUpperCase()` compile and then break.
+   */
+  severity?: "info" | "warn";
 }
 
 /**
@@ -220,6 +222,12 @@ export interface AudienceScores {
   computedAt?: string;
 }
 
+/**
+ * What a planning session may be run FOR. The api's own enum
+ * (`PlanBody.objective`), and it is short on purpose: D13 settled v1's input as
+ * "objective + confirmed geography", one screen, no facet-picking. Anything
+ * this list does not contain is a 400, so it is never widened here first.
+ */
 export const AUDIENCE_OBJECTIVES = [
   "lead_generation",
   "brand_awareness",

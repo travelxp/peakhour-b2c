@@ -8,6 +8,7 @@ import type { AudienceSet } from "@/lib/api/audiences";
 import {
   audienceShape,
   channelNotes,
+  critiqueTone,
   historyLine,
   originIsOurs,
   originLabel,
@@ -161,19 +162,14 @@ export function AudienceSetCard({ set }: { set: AudienceSet }) {
             because of it. */}
         {set.critique?.length ? (
           <ul className="space-y-0.5">
-            {set.critique.map((c, i) => (
-              <li
-                key={`${c.code}-${i}`}
-                className={
-                  c.severity === "warn"
-                    ? "text-xs text-amber-700 dark:text-amber-300"
-                    : "text-xs text-muted-foreground"
-                }
-              >
-                {c.severity === "warn" ? "Worth knowing: " : ""}
-                {c.note}
-              </li>
-            ))}
+            {set.critique.map((c, i) => {
+              const tone = critiqueTone(c.severity);
+              return (
+                <li key={`${c.code}-${i}`} className={tone.className}>
+                  <span className="font-medium">{tone.lead}</span> {c.note}
+                </li>
+              );
+            })}
           </ul>
         ) : null}
 
