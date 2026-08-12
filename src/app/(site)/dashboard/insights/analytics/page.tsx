@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -37,6 +38,9 @@ import {
 } from "@/hooks/use-analytics-insights";
 import { OAuthConnectResult } from "@/components/integrations/oauth-connect-result";
 import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
+import { WhatCountsAsAWinDialog } from "@/components/growth/what-counts-as-a-win-dialog";
+import { growthApi } from "@/lib/api/growth";
+import { analyticsActions, type AnalyticsAction } from "@/lib/analytics-actions";
 
 interface ConnectionStatus {
   provider: string;
@@ -134,6 +138,23 @@ export default function AnalyticsInsightsPage() {
   // digest). Only fetched once the connection is working.
   const insightsQ = useAnalyticsInsights(selectedPropertyId, isWorking);
 
+  // ★HAS ANYONE SAID WHAT A GOOD RESULT LOOKS LIKE? It decides whether this
+  // page shows a conversions figure at all. A permanent "Conversions: 0" over
+  // real traffic reads as a verdict on the customer's marketing when it is our
+  // own missing setup step — the same rule Outcomes follows, reading the same
+  // field so the two surfaces cannot disagree.
+  const winQ = useQuery({
+    queryKey: ["growth-win-options", "analytics"],
+    queryFn: () => growthApi.winOptions(),
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
+  });
+  // ★UNKNOWN COUNTS AS CONFIGURED WHILE THE READ IS IN FLIGHT OR FAILED. The
+  // alternative flashes "nothing is counting your outcomes" at a business that
+  // has counted them for months, which is a worse lie than a briefly missing
+  // prompt.
+  const winConfigured = winQ.data ? winQ.data.current !== null : true;
+
   // Single toolbar instance survives the loading→loaded transition so
   // the dev trigger is reachable during the very query its data refreshes,
   // and so the toolbar's in-flight state isn't lost on remount.
@@ -203,6 +224,85 @@ export default function AnalyticsInsightsPage() {
         </Card>
       ) : (
         <>
+          {/* ★THE READING COMES FIRST AND THE PLUMBING COMES LAST. The property
+              picker used to be the first card on this page: a settings screen —
+              account id, Sync now, a "Use this" button per property — sitting
+              above everything a customer actually came to read. It is a
+              once-a-year job and it is now at the bottom, collapsed. */}
+          <AnalyticsData query={insightsQ} winConfigured={winConfigured} />
+
+          {ASK_ENABLED && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Sparkles className="size-4 text-primary" />
+                  Ask Peakhour about your analytics
+                </CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  Ask in plain language — answers are grounded in this property&apos;s real GA4 + Search Console
+                  data (no made-up numbers).
+                </p>
+              </CardHeader>
+              <CardContent className="flex flex-wrap gap-2">
+                {[
+                  "How's my website traffic and search doing?",
+                  "What should I do to get more search traffic?",
+                  "Which pages get the most visitors?",
+                ].map((q) => (
+                  <Button key={q} asChild variant="outline" size="sm">
+                    <Link href={`/dashboard/ask?q=${encodeURIComponent(q)}`}>{q}</Link>
+                  </Button>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
+          <details className="rounded-lg border">
+            <summary className="cursor-pointer list-none px-4 py-3 text-sm font-medium">
+              <span className="inline-flex items-center gap-2">
+                <LineChart className="size-4" aria-hidden="true" />
+                Connection &amp; property
+                <span className="font-normal text-muted-foreground">
+                  {status.account?.name ?? status.account?.externalId}
+                  {status.lastSyncAt
+                    ? ` · synced ${new Date(status.lastSyncAt).toLocaleDateString()}`
+                    : ""}
+                </span>
+              </span>
+            </summary>
+            <div className="border-t p-4">
+              <ConnectionPanel
+                status={status}
+                properties={properties}
+                selectedPropertyId={selectedPropertyId}
+                syncMut={syncMut}
+                setPropertyMut={setPropertyMut}
+              />
+            </div>
+          </details>
+        </>
+      )}
+    </PageShell>
+  );
+}
+
+/** The GA4 connection and property picker. Unchanged in behaviour — only in
+ *  where it sits, which is under a disclosure at the foot of the page. */
+function ConnectionPanel({
+  status,
+  properties,
+  selectedPropertyId,
+  syncMut,
+  setPropertyMut,
+}: {
+  status: ConnectionStatus;
+  properties: Array<{ propertyId: string; displayName: string; currencyCode?: string }>;
+  selectedPropertyId: string | undefined;
+  syncMut: { isPending: boolean; mutate: () => void };
+  setPropertyMut: { isPending: boolean; variables?: string; mutate: (id: string) => void };
+}) {
+  return (
+    <>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
@@ -297,37 +397,7 @@ export default function AnalyticsInsightsPage() {
               </div>
             </CardContent>
           </Card>
-
-          <AnalyticsData query={insightsQ} />
-
-          {ASK_ENABLED && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Sparkles className="size-4 text-primary" />
-                  Ask Peakhour about your analytics
-                </CardTitle>
-                <p className="text-xs text-muted-foreground">
-                  Ask in plain language — answers are grounded in this property&apos;s real GA4 + Search Console
-                  data (no made-up numbers).
-                </p>
-              </CardHeader>
-              <CardContent className="flex flex-wrap gap-2">
-                {[
-                  "How's my website traffic and search doing?",
-                  "What should I do to get more search traffic?",
-                  "Which pages get the most visitors?",
-                ].map((q) => (
-                  <Button key={q} asChild variant="outline" size="sm">
-                    <Link href={`/dashboard/ask?q=${encodeURIComponent(q)}`}>{q}</Link>
-                  </Button>
-                ))}
-              </CardContent>
-            </Card>
-          )}
-        </>
-      )}
-    </PageShell>
+    </>
   );
 }
 
@@ -388,6 +458,12 @@ function FunnelTile({
   );
 }
 
+const ACTION_DOT: Record<AnalyticsAction["severity"], string> = {
+  critical: "bg-red-500",
+  attention: "bg-amber-500",
+  opportunity: "bg-emerald-500",
+};
+
 const MOVEMENT_DOT: Record<Ga4Digest["movements"][number]["kind"], string> = {
   surging: "bg-emerald-500",
   new: "bg-emerald-500",
@@ -397,10 +473,13 @@ const MOVEMENT_DOT: Record<Ga4Digest["movements"][number]["kind"], string> = {
 
 function AnalyticsData({
   query,
+  winConfigured,
 }: {
   query: { data?: AnalyticsInsightsResponse; isLoading: boolean; isError: boolean };
+  winConfigured: boolean;
 }) {
   const { data, isLoading, isError } = query;
+  const [winOpen, setWinOpen] = useState(false);
 
   if (isLoading) {
     return (
@@ -414,7 +493,8 @@ function AnalyticsData({
     return (
       <Card>
         <CardContent className="py-6 text-sm text-muted-foreground">
-          Couldn&apos;t load your analytics right now — try a sync above.
+          Couldn&apos;t load your analytics right now — try a sync from Connection &amp;
+          property below.
         </CardContent>
       </Card>
     );
@@ -423,7 +503,8 @@ function AnalyticsData({
     return (
       <Card>
         <CardContent className="py-6 text-sm text-muted-foreground">
-          No GA4 property is selected yet. Pick one in the connection above to start seeing metrics.
+          No GA4 property is selected yet. Pick one under Connection &amp; property below to
+          start seeing your numbers.
         </CardContent>
       </Card>
     );
@@ -445,8 +526,13 @@ function AnalyticsData({
   const funnelWindow = data.period ?? "last 30 days";
   const windowLabel = data.trendWindowDays ? `last ${data.trendWindowDays} days` : "recent";
 
+  // What to do about all this — deterministic, from the data already here.
+  const actions = analyticsActions(data, { winConfigured });
+
   return (
     <div className="space-y-6">
+      {winOpen && <WhatCountsAsAWinDialog open={winOpen} onOpenChange={setWinOpen} />}
+
       {/* ── What's happening (week-over-week digest) ── */}
       {d && (
         <Card>
@@ -469,22 +555,79 @@ function AnalyticsData({
         </Card>
       )}
 
+      {/* ── What to do next ────────────────────────────────────────────
+          ★DETERMINISTIC AND FREE, ABOVE THE PAID GLOSS. The card below this is
+          model-written and Peaks-metered, so a customer only ever sees it if
+          they already suspected there was something worth reading. "What should
+          I do next" is the one thing on an analytics screen that must not sit
+          behind a spend, so it is computed from the numbers already on this
+          response and shown to everybody. */}
+      {actions.length > 0 && (
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold">What to do about it</h3>
+          {actions.map((a) => (
+            <Card key={a.id}>
+              <CardContent className="flex flex-col items-start gap-3 p-4 sm:flex-row sm:items-center">
+                <span
+                  className={`mt-1.5 size-2 shrink-0 rounded-full sm:mt-0 ${ACTION_DOT[a.severity]}`}
+                  aria-hidden="true"
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium">{a.title}</p>
+                  <p className="mt-0.5 text-sm text-muted-foreground">{a.detail}</p>
+                </div>
+                {a.opensWinDialog ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="shrink-0"
+                    onClick={() => setWinOpen(true)}
+                  >
+                    {a.cta}
+                  </Button>
+                ) : a.href && a.cta ? (
+                  <Button asChild size="sm" variant="outline" className="shrink-0">
+                    <Link href={a.href}>
+                      {a.cta}
+                      <ArrowRight className="ml-1.5 size-3.5" aria-hidden="true" />
+                    </Link>
+                  </Button>
+                ) : null}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
       {/* ── Tier-2 "Explain this" (user-triggered, Peaks-metered) ── */}
       <ExplainCard surface="ga4" resource={data.property} />
 
-      {/* ── Funnel top-line ── */}
-      {/* Totals over the funnel window (30d). We deliberately DON'T show a WoW
-          delta chip here: the digest is 7d-vs-7d, so pairing a 7d delta with a
-          30d magnitude would misread ("45,000 ↑12%" implies the 45k grew 12%).
-          The week-over-week story lives in the digest banner above. */}
+      {/* ── Two numbers, not four ──────────────────────────────────────
+          ★PEOPLE AND WHETHER THEY STAYED. Sessions-vs-users is a distinction
+          only an analyst cares about, and raw event count is a diagnostic —
+          both were tiles here and both are now behind the disclosure below.
+          ★CONVERSIONS IS GONE UNLESS SOMETHING IS COUNTING. Quests' tile read a
+          permanent 0 for ninety days because their property has no key event:
+          our missing setup step, rendered as a verdict on their marketing. The
+          action list above asks the question instead. */}
       {funnel && (
         <div className="space-y-2">
           <p className="text-xs text-muted-foreground">Totals · {funnelWindow}</p>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <FunnelTile icon={<Users className="h-4 w-4" />} label="Sessions" value={funnel.sessions} />
-            <FunnelTile icon={<Users className="h-4 w-4" />} label="Users" value={funnel.totalUsers} />
-            <FunnelTile icon={<Activity className="h-4 w-4" />} label="Engagement" value={funnel.engagementRatePct} suffix="%" />
-            <FunnelTile icon={<Target className="h-4 w-4" />} label="Conversions" value={funnel.conversions} />
+          <div className="grid grid-cols-2 gap-3">
+            <FunnelTile icon={<Users className="h-4 w-4" />} label="People" value={funnel.totalUsers} />
+            <FunnelTile
+              icon={<Activity className="h-4 w-4" />}
+              label="Stayed and read something"
+              value={funnel.engagementRatePct}
+              suffix="%"
+            />
+            {winConfigured && funnel.conversions > 0 && (
+              <FunnelTile
+                icon={<Target className="h-4 w-4" />}
+                label="Outcomes"
+                value={funnel.conversions}
+              />
+            )}
           </div>
         </div>
       )}

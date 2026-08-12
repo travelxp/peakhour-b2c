@@ -18,6 +18,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/molecules/empty-state";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
+import { WhatCountsAsAWinDialog } from "@/components/growth/what-counts-as-a-win-dialog";
 import { useAuth } from "@/providers/auth-provider";
 import { growthApi, type OutcomesResponse } from "@/lib/api/growth";
 import { platformLabel } from "@/lib/audience-library-rules";
@@ -129,13 +130,27 @@ export default function OutcomesPage() {
   );
 }
 
+/** Naive plural for a customer-supplied noun. Deliberately not a library: the
+ *  label is theirs and short ("enquiry", "demo request", "new lead"), and a
+ *  wrong "s" is a smaller cost than a dependency that would also get the
+ *  irregular cases wrong in a language we did not ask them to type in. */
+function plural(label: string, n: number): string {
+  if (n === 1) return label;
+  if (/(s|x|z|ch|sh)$/i.test(label)) return `${label}es`;
+  if (/[^aeiou]y$/i.test(label)) return `${label.slice(0, -1)}ies`;
+  return `${label}s`;
+}
+
 function OutcomesBody({ data }: { data: OutcomesResponse }) {
   const { reach, attention, conversions, nextActions, movements } = data;
+  const [winOpen, setWinOpen] = useState(false);
   const nothingHappened =
     reach.organic.posts === 0 && reach.paid === null && (reach.site?.sessions ?? 0) === 0;
 
   return (
     <div className="space-y-6">
+      {winOpen && <WhatCountsAsAWinDialog open={winOpen} onOpenChange={setWinOpen} />}
+
       {/* ── What happened ──────────────────────────────────────────────── */}
       <Card>
         <CardContent className="p-5">
@@ -213,16 +228,34 @@ function OutcomesBody({ data }: { data: OutcomesResponse }) {
         <Card>
           <CardContent className="p-5">
             {conversions.configured ? (
-              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                <span className="text-3xl font-semibold tabular-nums">
-                  {NUM.format(conversions.count)}
+              <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-2">
+                <span className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                  <span className="text-3xl font-semibold tabular-nums">
+                    {NUM.format(conversions.count)}
+                  </span>
+                  <span className="text-sm text-muted-foreground">
+                    {/* ★THEIR WORD FOR IT, NOT OURS. `label` is the whole reason
+                        that field is stored — without it this reads "23
+                        generate_lead", which is the machine's name for the
+                        thing. Plain "wins" only while nobody has chosen. */}
+                    {conversions.label
+                      ? plural(conversions.label, conversions.count)
+                      : conversions.count === 1
+                        ? "win"
+                        : "wins"}
+                    {conversions.costPer !== null && conversions.currency
+                      ? ` · ${conversions.currency} ${conversions.costPer.toFixed(2)} each in ad spend`
+                      : ""}
+                  </span>
                 </span>
-                <span className="text-sm text-muted-foreground">
-                  {conversions.count === 1 ? "win" : "wins"} counted
-                  {conversions.costPer !== null && conversions.currency
-                    ? ` · ${conversions.currency} ${conversions.costPer.toFixed(2)} each in ad spend`
-                    : ""}
-                </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setWinOpen(true)}
+                >
+                  Change what counts
+                </Button>
               </div>
             ) : (
               // ★NO NUMBER HERE, AND THAT IS THE FEATURE. A business whose
@@ -232,19 +265,15 @@ function OutcomesBody({ data }: { data: OutcomesResponse }) {
               // their marketing.
               <div className="space-y-3">
                 <p className="text-sm">{conversions.message}</p>
-                <Button asChild size="sm" variant="outline">
-                  <Link
-                    href={
-                      conversions.reason === "not_connected"
-                        ? "/dashboard/integrations"
-                        : "/dashboard/insights/analytics"
-                    }
-                  >
-                    {conversions.reason === "not_connected"
-                      ? "Connect analytics"
-                      : "Set up what counts as a win"}
-                    <ArrowRight className="ml-1.5 size-3.5" aria-hidden="true" />
-                  </Link>
+                {/* ★THE SAME BUTTON WHICHEVER REASON IT IS. Both roads end at
+                    the same decision, and the dialog is what knows whether the
+                    analytics half is reachable — sending "not connected" to
+                    Integrations instead would make the customer solve OUR
+                    plumbing before they can answer a question about their own
+                    business, when the inbox option needs no connection at all. */}
+                <Button size="sm" variant="outline" onClick={() => setWinOpen(true)}>
+                  Tell us what counts as a win
+                  <ArrowRight className="ml-1.5 size-3.5" aria-hidden="true" />
                 </Button>
               </div>
             )}

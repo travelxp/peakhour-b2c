@@ -60,7 +60,17 @@ export interface OutcomesResponse {
     paid: { clicks: number; ctrPct: number | null } | null;
   };
   conversions:
-    | { configured: true; count: number; source: "analytics"; costPer: number | null; currency?: string }
+    | {
+        configured: true;
+        count: number;
+        source: "analytics" | "inbox";
+        /** What the customer calls it. Present only once they've chosen — the
+         *  page says "wins" until then, because naming it for them is how a
+         *  headline ends up reading "23 generate_lead this week". */
+        label?: string;
+        costPer: number | null;
+        currency?: string;
+      }
     | { configured: false; reason: "not_connected" | "no_key_event"; message: string };
   headline: string;
   movements: Array<{ direction: "up" | "down" | "flat"; text: string }>;
@@ -72,6 +82,33 @@ export interface OutcomesResponse {
     href?: string;
     cta?: string;
   }>;
+}
+
+/** What a business counts as a win. Absent until they've chosen — and absence
+ *  is never rendered as a zero. */
+export interface WinDefinition {
+  source: "analytics_key_event" | "inbox_lead";
+  eventName?: string;
+  label: string;
+  setAt?: string;
+}
+
+/**
+ * The choices on offer, and only ones we can genuinely count.
+ *
+ * ★`keyEvents.available: false` IS NOT AN EMPTY LIST. "We asked your property
+ * and it has none" and "we couldn't ask" are different sentences, and the
+ * `reason` says which — a screen that collapsed them would tell somebody to go
+ * and create a key event they may already have.
+ */
+export interface WinOptionsResponse {
+  current: WinDefinition | null;
+  keyEvents: {
+    available: boolean;
+    reason?: "not_connected" | "no_property" | "lookup_failed";
+    events: Array<{ eventName: string; custom: boolean }>;
+  };
+  inbox: { available: boolean };
 }
 
 export interface GrowthSettings {
@@ -176,6 +213,9 @@ export const growthApi = {
    */
   outcomes: (days = 28) => api.get<OutcomesResponse>(`/v1/growth/outcomes?days=${days}`),
 
+  /** What this business could count as a win, and what it currently does. */
+  winOptions: () => api.get<WinOptionsResponse>("/v1/growth/win-options"),
+
   /** Per-business growth settings (the optimizer opt-in and the advertising
    *  declaration live here), plus the notice version in force. */
   settings: () => api.get<GrowthSettingsResponse>("/v1/growth/settings"),
@@ -194,5 +234,12 @@ export const growthApi = {
     optimizerEnabled?: boolean;
     weeklyBudgetEnvelope?: number | null;
     notPolitical?: boolean;
+    /** `null` clears it — and clearing is an unset server-side, so "nobody has
+     *  chosen" stays the single reading of absence. */
+    winDefinition?: {
+      source: WinDefinition["source"];
+      eventName?: string;
+      label: string;
+    } | null;
   }) => api.patch<GrowthSettingsResponse>("/v1/growth/settings", patch),
 };
