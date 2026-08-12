@@ -574,13 +574,13 @@ function SentimentDot({ value }: { value: string }) {
   const colors: Record<string, string> = {
     positive: "bg-success",
     negative: "bg-destructive",
-    neutral: "bg-slate-400",
+    neutral: "bg-muted-foreground",
   };
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <span
-          className={`inline-block h-2 w-2 rounded-full ${colors[value] || "bg-slate-400"}`}
+          className={`inline-block h-2 w-2 rounded-full ${colors[value] || "bg-muted-foreground"}`}
         />
       </TooltipTrigger>
       <TooltipContent>{value}</TooltipContent>

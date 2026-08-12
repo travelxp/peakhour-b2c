@@ -158,8 +158,8 @@ export default async function TeamsPricingPage() {
             </div>
 
             {/* Enterprise */}
-            <div className="flex flex-col rounded-3xl border border-white/10 bg-zinc-900 p-8 text-zinc-100 shadow-2xl">
-              <span className="inline-flex self-start items-center rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-bold text-zinc-200">
+            <div className="flex flex-col rounded-3xl border border-ink-line bg-ink p-8 text-on-ink shadow-2xl">
+              <span className="inline-flex self-start items-center rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-bold text-on-ink">
                 Custom
               </span>
               <h2 className="mt-4 text-2xl font-extrabold tracking-tight">Enterprise</h2>
@@ -170,9 +170,9 @@ export default async function TeamsPricingPage() {
                 >
                   Let&rsquo;s talk
                 </span>
-                <span className="text-sm text-zinc-400">custom terms</span>
+                <span className="text-sm text-on-ink-dim">custom terms</span>
               </div>
-              <p className="mt-3 text-sm text-zinc-400">
+              <p className="mt-3 text-sm text-on-ink-dim">
                 Everything in Agency, plus the security, scale and support a large
                 organization needs.
               </p>
@@ -185,7 +185,7 @@ export default async function TeamsPricingPage() {
                   </span>
                 </li>
                 {ENTERPRISE_FEATURES.map((f) => (
-                  <li key={f} className="flex items-start gap-2.5 text-sm text-zinc-300">
+                  <li key={f} className="flex items-start gap-2.5 text-sm text-on-ink-dim">
                     <Check className="mt-0.5 size-4 shrink-0 text-brand" strokeWidth={2.5} aria-hidden />
                     {f}
                   </li>

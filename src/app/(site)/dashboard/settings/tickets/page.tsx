@@ -26,7 +26,7 @@ const STATUS_STYLES: Record<string, string> = {
   acknowledged: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
   in_progress: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400",
   resolved: "bg-success/15 text-success-on-tint",
-  closed: "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400",
+  closed: "bg-muted text-foreground",
 };
 
 const CATEGORY_STYLES: Record<string, string> = {

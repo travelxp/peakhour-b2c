@@ -90,9 +90,9 @@ function outcomeBadge(o?: string) {
     case "error":
       return <Badge className="bg-destructive/15 text-destructive-on-tint hover:bg-destructive/30">error</Badge>;
     case "noop":
-      return <Badge className="bg-slate-100 text-slate-700 hover:bg-slate-100">noop</Badge>;
+      return <Badge className="bg-muted text-foreground hover:bg-muted">noop</Badge>;
     case "skipped":
-      return <Badge className="bg-slate-100 text-slate-700 hover:bg-slate-100">skipped</Badge>;
+      return <Badge className="bg-muted text-foreground hover:bg-muted">skipped</Badge>;
     default:
       return <Badge variant="outline">{o || "—"}</Badge>;
   }

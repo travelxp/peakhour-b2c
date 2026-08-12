@@ -38,7 +38,7 @@ const AGENT_COLORS: Record<string, string> = {
   publisher: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300",
   ad_engine: "bg-destructive/15 text-destructive-on-tint",
   optimizer: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300",
-  control: "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300",
+  control: "bg-muted text-foreground",
   feedback: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300",
 };
 

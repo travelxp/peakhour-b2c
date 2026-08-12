@@ -28,7 +28,7 @@ interface CalendarIdea {
 import { ChannelIconCompact } from "@/components/brand/channel-icon";
 
 const STATUS_COLORS: Record<string, string> = {
-  brainstorm: "bg-slate-100 border-slate-200",
+  brainstorm: "bg-muted border-border",
   planned: "bg-blue-50 border-blue-200",
   in_progress: "bg-warning/10 border-warning/30",
   published: "bg-success/10 border-success/30",
@@ -185,7 +185,7 @@ export default function IdeasCalendarPage() {
 }
 
 function CalendarCard({ idea, compact }: { idea: CalendarIdea; compact?: boolean }) {
-  const statusColor = STATUS_COLORS[idea.status] || "bg-slate-50 border-slate-200";
+  const statusColor = STATUS_COLORS[idea.status] || "bg-muted border-border";
 
   return (
     <div className={`rounded-md border p-2 ${statusColor} transition-colors hover:shadow-sm`}>

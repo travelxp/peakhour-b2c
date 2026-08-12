@@ -82,9 +82,9 @@ function statusVariant(status: string): { label: string; className: string } {
       return { label: "Coming soon", className: "bg-warning/15 text-warning-on-tint" };
     case "hidden":
     case "in_development":
-      return { label: status === "hidden" ? "Hidden" : "In development", className: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400" };
+      return { label: status === "hidden" ? "Hidden" : "In development", className: "bg-muted text-muted-foreground" };
     default:
-      return { label: status, className: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400" };
+      return { label: status, className: "bg-muted text-muted-foreground" };
   }
 }
 

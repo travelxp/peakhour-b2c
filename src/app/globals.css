@@ -36,6 +36,12 @@
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
   --color-warning-on-tint: var(--warning-on-tint);
+  /* Always-dark instrument surfaces: `bg-ink`, `text-on-ink-dim`, … */
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-on-ink: var(--on-ink);
+  --color-on-ink-dim: var(--on-ink-dim);
+  --color-ink-line: var(--ink-line);
   /* `shadow-elev-1|2|3` and `ease-brand` / `ease-soft` as utilities. */
   --shadow-elev-1: var(--elev-1);
   --shadow-elev-2: var(--elev-2);
@@ -158,6 +164,22 @@
   --sidebar-accent-foreground: oklch(0.22 0.014 68);
   --sidebar-border: oklch(0.912 0.008 78);
   --sidebar-ring: oklch(0.7 0.11 67);
+
+  /* Instrument surfaces — the always-dark panels: the pillar console in the
+     landing hero, the free-first economics block, the final CTA. These are
+     THEME-STABLE on purpose and have no .dark override: they are a picture of
+     the product, and the product console is dark on a light page too. That
+     intent used to be carried by raw `bg-zinc-900` / `text-zinc-400`, where
+     nothing said "this must not follow the theme" and a well-meaning pass at
+     tokenising the neutrals would have turned the hero panel white.
+
+     Warmer than zinc, to sit under the gold: the dim step reads 7.2:1 on
+     --ink, slightly better than the 6.9:1 zinc-400-on-zinc-900 it replaces. */
+  --ink: #100d08;
+  --ink-2: #191309;
+  --on-ink: #f6f1e7;
+  --on-ink-dim: #a79c8b;
+  --ink-line: oklch(0.85 0.05 80 / 16%);
 
   /* Elevation. Warm-tinted rather than neutral-black, so a raised surface
      reads as lit by the same gold the rest of the page is lit by. */

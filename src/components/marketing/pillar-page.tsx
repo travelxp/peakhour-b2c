@@ -85,13 +85,13 @@ export async function PillarPage({ slug }: { slug: PillarSlug }) {
             </div>
 
             {/* "What you get back" — outcomes in a dark panel */}
-            <div className="overflow-hidden rounded-2xl border border-white/10 bg-zinc-900 p-6 text-zinc-100 shadow-2xl">
+            <div className="overflow-hidden rounded-2xl border border-ink-line bg-ink p-6 text-on-ink shadow-2xl">
               <div className="flex items-center gap-3">
                 <span className="flex size-11 items-center justify-center rounded-xl bg-brand-gradient shadow-inner">
                   <Icon className="size-5 text-brand-contrast" strokeWidth={2} aria-hidden />
                 </span>
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-400">
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-on-ink-dim">
                     What you get back
                   </p>
                   <p className="text-lg font-bold">{pillar.name}</p>
@@ -99,7 +99,7 @@ export async function PillarPage({ slug }: { slug: PillarSlug }) {
               </div>
               <ul className="mt-5 flex flex-col gap-3">
                 {pillar.outcomes.map((outcome) => (
-                  <li key={outcome} className="flex gap-3 text-sm text-zinc-300">
+                  <li key={outcome} className="flex gap-3 text-sm text-on-ink-dim">
                     <Check className="mt-0.5 size-4 shrink-0 text-brand" strokeWidth={2.5} aria-hidden />
                     {outcome}
                   </li>
@@ -178,14 +178,14 @@ export async function PillarPage({ slug }: { slug: PillarSlug }) {
         {/* Final CTA */}
         <section className="pb-24">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
-            <div className="overflow-hidden rounded-3xl border border-white/10 bg-zinc-900 px-6 py-16 text-center text-zinc-100 shadow-2xl">
+            <div className="overflow-hidden rounded-3xl border border-ink-line bg-ink px-6 py-16 text-center text-on-ink shadow-2xl">
               <h2 className="mx-auto max-w-2xl text-3xl font-extrabold tracking-tight text-pretty sm:text-4xl">
                 Try {pillar.name}{" "}
                 <span className="font-serif font-normal italic text-brand-gradient">
                   free.
                 </span>
               </h2>
-              <p className="mx-auto mt-4 max-w-xl text-zinc-400">
+              <p className="mx-auto mt-4 max-w-xl text-on-ink-dim">
                 {pillar.freeLabel} — no credit card. Your first Peaks are on us.
               </p>
               {!cta.disabled && (

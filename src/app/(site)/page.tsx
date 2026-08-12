@@ -370,11 +370,11 @@ export default async function Home({
             {/* Pillar console — always-dark product panel (fixed tones so it
                 reads on both light and dark grounds). */}
             <div
-              className="min-w-0 rounded-2xl border border-white/10 bg-zinc-900 p-4 shadow-2xl sm:p-5"
+              className="min-w-0 rounded-2xl border border-ink-line bg-ink p-4 shadow-2xl sm:p-5"
               role="img"
               aria-label={PILLAR_CONSOLE_LABEL}
             >
-              <div className="flex items-center justify-between px-1 pb-2 text-[0.7rem] font-bold uppercase tracking-[0.18em] text-zinc-400">
+              <div className="flex items-center justify-between px-1 pb-2 text-[0.7rem] font-bold uppercase tracking-[0.18em] text-on-ink-dim">
                 <span>Your business, at a glance</span>
                 <span className="flex items-center gap-1.5 text-success">
                   <span className="size-1.5 rounded-full bg-success" aria-hidden />
@@ -388,8 +388,8 @@ export default async function Home({
                     className={PILLAR_CONSOLE_ROW_CLASS}
                   >
                     <span className="size-2 shrink-0 rounded-full bg-success" aria-hidden />
-                    <span className="w-20 shrink-0 font-bold text-zinc-100">{row.name}</span>
-                    <span className="min-w-0 flex-1 truncate text-zinc-400">{row.status}</span>
+                    <span className="w-20 shrink-0 font-bold text-on-ink">{row.name}</span>
+                    <span className="min-w-0 flex-1 truncate text-on-ink-dim">{row.status}</span>
                     <span className="shrink-0 rounded-full bg-success/15 px-2.5 py-0.5 text-[0.65rem] font-bold uppercase tracking-wide text-success">
                       Free
                     </span>
@@ -398,7 +398,7 @@ export default async function Home({
               </div>
               {/* flex-wrap: the two spans don't shrink, and they meet at ~280px
                   (Galaxy Fold cover screen). */}
-              <div className="flex flex-wrap items-center justify-between gap-y-1 px-1 pt-3 text-xs text-zinc-400">
+              <div className="flex flex-wrap items-center justify-between gap-y-1 px-1 pt-3 text-xs text-on-ink-dim">
                 {/* Peaks is always the coin glyph, never a generic bolt. */}
                 <span className="flex items-center gap-1.5">
                   Metered in{" "}
@@ -479,7 +479,7 @@ export default async function Home({
         {/* Free-first economics — always-dark panel */}
         <section className="py-12 sm:py-16">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
-            <div className="grid gap-12 overflow-hidden rounded-3xl border border-white/10 bg-zinc-900 p-8 text-zinc-100 shadow-2xl lg:grid-cols-[1.1fr_0.9fr] lg:p-12">
+            <div className="grid gap-12 overflow-hidden rounded-3xl border border-ink-line bg-ink p-8 text-on-ink shadow-2xl lg:grid-cols-[1.1fr_0.9fr] lg:p-12">
               <div>
                 <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand">
                   <span className="h-0.5 w-7 bg-brand-gradient" aria-hidden />
@@ -491,7 +491,7 @@ export default async function Home({
                     More power when your business grows.
                   </span>
                 </h2>
-                <p className="mt-4 max-w-lg text-zinc-400">
+                <p className="mt-4 max-w-lg text-on-ink-dim">
                   Start with the core Peakhour experience at no cost. Connect your
                   business, explore every product, and see real value before
                   upgrading. Move to Pro when you need more AI capacity, advanced
@@ -507,7 +507,7 @@ export default async function Home({
                     <Check className="mt-0.5 size-4 shrink-0 text-brand" strokeWidth={2.5} />
                     <div>
                       <p className="text-sm font-bold">{point.title}</p>
-                      <p className="text-xs text-zinc-400">{point.detail}</p>
+                      <p className="text-xs text-on-ink-dim">{point.detail}</p>
                     </div>
                   </div>
                 ))}
@@ -638,14 +638,14 @@ export default async function Home({
         {/* Final CTA — always-dark panel */}
         <section className="pt-12 pb-16 sm:pt-16 sm:pb-20">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
-            <div className="overflow-hidden rounded-3xl border border-white/10 bg-zinc-900 px-6 py-16 text-center text-zinc-100 shadow-2xl sm:py-20">
+            <div className="overflow-hidden rounded-3xl border border-ink-line bg-ink px-6 py-16 text-center text-on-ink shadow-2xl sm:py-20">
               <h2 className="mx-auto max-w-2xl text-3xl font-extrabold tracking-tight text-pretty sm:text-4xl">
                 Start with one pillar.{" "}
                 <span className="font-serif italic font-normal text-brand-gradient">
                   Keep all five.
                 </span>
               </h2>
-              <p className="mx-auto mt-4 max-w-xl text-zinc-400">
+              <p className="mx-auto mt-4 max-w-xl text-on-ink-dim">
                 Free plans on Commerce, Content, Growth, Support, and Presence. No
                 credit card. Your first Peaks are on us.
               </p>

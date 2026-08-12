@@ -73,7 +73,7 @@ function getPriorityLabel(score?: number): { label: string; className: string } 
   if (score == null) return null;
   if (score >= 8) return { label: "High", className: "bg-destructive/15 text-destructive-on-tint" };
   if (score >= 6) return { label: "Medium", className: "bg-warning/15 text-warning-on-tint" };
-  return { label: "Low", className: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400" };
+  return { label: "Low", className: "bg-muted text-muted-foreground" };
 }
 
 /**
