@@ -36,6 +36,9 @@ import { RecommendationsCard } from "@/components/dashboard/recommendations-card
 import { BrandMirrorCard } from "@/components/dashboard/brand-mirror-card";
 import { AskCard } from "@/components/dashboard/ask-card";
 import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
+import { OvernightRibbon } from "@/components/dashboard/overnight-ribbon";
+import { WaitingForYou } from "@/components/dashboard/waiting-for-you";
+import { useHomeSummary } from "@/hooks/use-home-summary";
 
 interface DashboardStats {
   content: {
@@ -106,6 +109,10 @@ export default function OverviewPage() {
     enabled: !!org && !!business,
   });
 
+  // The overnight ribbon and the cross-pillar queue both come from
+  // /v1/home/summary — one round trip, already polled on a 60s cadence.
+  const { data: home, isLoading: homeLoading } = useHomeSummary();
+
   const onboardingComplete = stats?.onboarding?.completed;
   const hasContent = (stats?.content.total ?? 0) > 0;
 
@@ -169,6 +176,10 @@ export default function OverviewPage() {
           ) : undefined
         }
       />
+
+      {/* What ran overnight. Sits directly under the header because it
+          answers the question the page is opened to ask. */}
+      <OvernightRibbon activity={home?.activity} />
 
       {/* Discovery progress strip — only visible while a bg job is alive */}
       {discovery?.activeJob && (
@@ -250,6 +261,15 @@ export default function OverviewPage() {
           href="/dashboard/outcomes"
         />
       </div>
+
+      {/* Every decision the platform is holding, in one list. Cross-pillar:
+          a failed post and an unread pricing recommendation ask the same
+          thing of the same person, so they belong in the same queue. */}
+      <WaitingForYou
+        items={home?.needsYou}
+        total={home?.kpis.needsYou}
+        isLoading={homeLoading}
+      />
 
       {/* Two-column layout */}
       <div className="grid gap-4 lg:grid-cols-5">
