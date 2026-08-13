@@ -21,6 +21,15 @@
  *      NEXT_PUBLIC_VERCEL_ENV === "production" — the api endpoint also
  *      server-side-blocks prod, so this is layered protection.
  *
+ * SINCE 2026-08: outside production it is additionally OPT-IN, via `?dev=1`
+ * (remembered per browser; `?dev=0` clears it). The requirement above is
+ * unchanged — every cron-fed page still mounts the toolbar and every
+ * engineer still gets it in one URL param. What changed is the default,
+ * because env-only gating meant the preview links the team reviews the
+ * product on always carried a row of buttons labelled `discovery-runner` /
+ * `jobs-runner` above the content, and "why does this look like it's still
+ * in development?" turned out to be largely that.
+ *
  * Layout: a separate visual band (border-dashed, subtle bg) above the
  * page action buttons. Keeps cron triggers out of the primary action
  * row (was the source of the "Re-analyse 53 incomplete" header
@@ -32,7 +41,7 @@
  *     onTriggered={() => queryClient.invalidateQueries(...)}
  *   />
  */
-import { useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -98,6 +107,68 @@ interface Props {
 
 function isProductionEnv(): boolean {
   return process.env.NEXT_PUBLIC_VERCEL_ENV === "production";
+}
+
+/**
+ * Explicit opt-in for the dev cron controls.
+ *
+ * Environment alone used to decide this, which meant every preview URL — the
+ * ones the team reviews the product on — rendered a row of buttons labelled
+ * `discovery-runner` / `jobs-runner` above the page content. Nothing else on
+ * screen said "unfinished software" half as loudly, and it said it about a
+ * build that was fine.
+ *
+ * The toolbar stays exactly as available to the people who need it (Vercel
+ * Cron only fires on production, so previews genuinely cannot exercise these
+ * paths without it) — it just has to be asked for now:
+ *
+ *   ?dev=1   turn on, and remember it for this browser
+ *   ?dev=0   turn off again
+ *
+ * Production is still blocked outright, and the api route server-side blocks
+ * prod as well, so this narrows the audience without weakening either layer.
+ */
+const DEV_TOOLS_KEY = "peakhour.dev-tools";
+const DEV_TOOLS_EVENT = "peakhour:dev-tools";
+
+/** Pure read — safe to call during render, writes nothing. */
+function readDevToolsFlag(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    if (new URLSearchParams(window.location.search).get("dev") === "1") return true;
+    return window.localStorage.getItem(DEV_TOOLS_KEY) === "1";
+  } catch {
+    // Storage can throw in locked-down browser modes. A dev affordance is
+    // never worth breaking the page over.
+    return false;
+  }
+}
+
+function subscribeDevToolsFlag(onChange: () => void) {
+  window.addEventListener("storage", onChange);
+  window.addEventListener(DEV_TOOLS_EVENT, onChange);
+  return () => {
+    window.removeEventListener("storage", onChange);
+    window.removeEventListener(DEV_TOOLS_EVENT, onChange);
+  };
+}
+
+function useDevToolsEnabled(): boolean {
+  // Persisting the switch is a write, never a setState — so this stays clear
+  // of the cascading-render rule the repo lints for.
+  useEffect(() => {
+    let param: string | null = null;
+    try {
+      param = new URLSearchParams(window.location.search).get("dev");
+      if (param === "1") window.localStorage.setItem(DEV_TOOLS_KEY, "1");
+      else if (param === "0") window.localStorage.removeItem(DEV_TOOLS_KEY);
+    } catch {
+      return;
+    }
+    if (param !== null) window.dispatchEvent(new Event(DEV_TOOLS_EVENT));
+  }, []);
+
+  return useSyncExternalStore(subscribeDevToolsFlag, readDevToolsFlag, () => false);
 }
 
 // Module-scoped re-entry guard. Per-instance refs would still race in
@@ -177,6 +248,9 @@ export function CronToolbar({
   // double-fire, so this was only ever confusing — but /cms/crons now renders
   // 56 buttons, which makes it easy to hit.
   const [runningCrons, setRunningCrons] = useState<ReadonlySet<string>>(new Set());
+  // Opt-in switch — see useDevToolsEnabled. Called unconditionally, like the
+  // state above, so the gate below decides rendering and never mounting.
+  const devToolsEnabled = useDevToolsEnabled();
   const startRunning = (cron: string) =>
     setRunningCrons((prev) => new Set(prev).add(cron));
   const stopRunning = (cron: string) =>
@@ -186,7 +260,7 @@ export function CronToolbar({
       return next;
     });
 
-  if (isProductionEnv() || crons.length === 0) return null;
+  if (isProductionEnv() || !devToolsEnabled || crons.length === 0) return null;
 
   /**
    * What to do with a dev-cron response, for EVERY path that gets one.
