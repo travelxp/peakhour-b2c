@@ -24,7 +24,7 @@ import type { CommerceLane as CommerceLaneData } from "@/hooks/use-home-summary"
 function MoneyLoopCard({ data }: { data: CommerceLaneData }) {
   const live = data.moneyLoop && typeof data.moneyLoop.revenueAttributed === "number";
   return (
-    <Card className="gap-0 overflow-hidden border-success/30 bg-linear-to-br from-emerald-50 to-background p-5 dark:from-emerald-950/40">
+    <Card className="gap-0 overflow-hidden border-success/30 bg-linear-to-br from-success/10 to-background p-5">
       <div className="flex items-center gap-2">
         <span className="inline-flex size-7 items-center justify-center rounded-full bg-success/15 text-success-on-tint">
           <IndianRupee className="size-4" />
