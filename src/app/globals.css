@@ -460,6 +460,102 @@
 }
 
 /*
+ * Dashboard navigation — the brand treatment, applied to the generated
+ * sidebar rather than baked into it.
+ *
+ * Keyed on the data attributes ui/sidebar.tsx already emits
+ * (`data-slot="sidebar-menu-button"` + `data-active`), so `shadcn add
+ * sidebar` can overwrite that file and this survives untouched. Nothing here
+ * changes the nav's structure, items, order or hierarchy — only how it looks.
+ *
+ * The active item gets the gold rail the marketing surface uses for the same
+ * job (see .u-rail): a 2px molten hairline, here vertical, plus a warm tint
+ * instead of the neutral --sidebar-accent. Hover slides 2px and lifts the
+ * icon, which is the same micro-interaction the pillar cards use, so the
+ * product and the site move alike.
+ */
+@layer components {
+  [data-slot="sidebar-menu-button"],
+  [data-slot="sidebar-menu-sub-button"] {
+    position: relative;
+    transition:
+      background-color var(--dur-micro) var(--motion-ease-soft),
+      color var(--dur-micro) var(--motion-ease-soft),
+      transform var(--dur-micro) var(--motion-ease-brand);
+  }
+
+  /* The rail. Scaled from 0 so it wipes in rather than snapping. */
+  [data-slot="sidebar-menu-button"]::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 50%;
+    height: 62%;
+    width: 2.5px;
+    border-radius: 0 3px 3px 0;
+    background-image: var(--brand-gradient);
+    transform: translateY(-50%) scaleY(0);
+    transform-origin: center;
+    transition: transform var(--dur-move) var(--motion-ease-brand);
+  }
+  [data-slot="sidebar-menu-button"][data-active="true"]::before {
+    transform: translateY(-50%) scaleY(1);
+  }
+
+  /* Warm tint in place of the neutral accent, and the icon picks up the
+     brand so the eye lands on the row without reading the label. */
+  [data-slot="sidebar-menu-button"][data-active="true"] {
+    background-color: color-mix(in oklab, var(--brand) 13%, transparent);
+    color: var(--sidebar-foreground);
+  }
+  [data-slot="sidebar-menu-button"][data-active="true"] svg {
+    color: var(--brand-label);
+  }
+  [data-slot="sidebar-menu-sub-button"][data-active="true"] {
+    background-color: color-mix(in oklab, var(--brand) 10%, transparent);
+    color: var(--sidebar-foreground);
+    font-weight: 600;
+  }
+
+  @media (hover: hover) {
+    [data-slot="sidebar-menu-button"]:hover:not([data-active="true"]),
+    [data-slot="sidebar-menu-sub-button"]:hover:not([data-active="true"]) {
+      background-color: color-mix(in oklab, var(--brand) 8%, transparent);
+      transform: translateX(2px);
+    }
+    [data-slot="sidebar-menu-button"]:hover svg {
+      transform: scale(1.1);
+    }
+  }
+  [data-slot="sidebar-menu-button"] svg {
+    transition: transform var(--dur-move) var(--motion-ease-brand);
+  }
+
+  /* Section labels read as instrument type, matching the console. */
+  [data-slot="sidebar-group-label"] {
+    font-family: var(--font-mono, ui-monospace, monospace);
+    font-size: 0.6rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    [data-slot="sidebar-menu-button"],
+    [data-slot="sidebar-menu-sub-button"],
+    [data-slot="sidebar-menu-button"]::before,
+    [data-slot="sidebar-menu-button"] svg {
+      transition: none;
+    }
+    @media (hover: hover) {
+      [data-slot="sidebar-menu-button"]:hover:not([data-active="true"]),
+      [data-slot="sidebar-menu-sub-button"]:hover:not([data-active="true"]) {
+        transform: none;
+      }
+    }
+  }
+}
+
+/*
  * Animated conic-gradient ring used by <UpgradeButton variant="pill" />.
  * @property is required so browsers can interpolate the custom angle
  * value at the requested 60fps; without it the conic-gradient would
