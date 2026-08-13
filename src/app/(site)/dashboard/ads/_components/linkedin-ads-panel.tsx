@@ -58,6 +58,7 @@ import {
   Target,
 } from "lucide-react";
 import { AudienceCard } from "./audience-card";
+import { LeadFormsPanel } from "./lead-forms-panel";
 import { TargetingDialog, editorTargeting } from "./targeting-dialog";
 import { UseSavedAudienceDialog } from "@/components/audience/use-saved-audience-dialog";
 
@@ -185,6 +186,10 @@ export function LinkedInAdsPanel() {
             </Card>
           ) : null}
           <CampaignsPanel />
+          {/* Below the campaigns, deliberately: a form is the thing a lead-gen
+              campaign needs BEFORE it can exist, but the campaign list is what
+              a returning customer came for. */}
+          <LeadFormsPanel />
         </>
       )}
     </div>

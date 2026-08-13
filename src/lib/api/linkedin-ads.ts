@@ -226,6 +226,16 @@ export interface BoostCampaignInput {
    * "not political": that is a legal declaration the customer makes, not us.
    */
   notPolitical?: boolean;
+  /**
+   * The lead form (`growth_asks`) this campaign captures with.
+   *
+   * ★REQUIRED WHEN `objective` IS `lead_generation`, and that is LinkedIn's
+   * rule, not ours: every creative under a lead-gen campaign needs a lead gen
+   * form URN, and the refusal arrives only AFTER the campaign group and
+   * campaign exist. The server refuses up front (`ASK_REQUIRED`) so a missing
+   * form costs a message rather than two orphans in Campaign Manager.
+   */
+  askId?: string;
 }
 
 export const linkedInAdsApi = {

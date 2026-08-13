@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api";
+import { LeadFormPicker } from "@/components/ads/lead-form-picker";
 import { growthApi } from "@/lib/api/growth";
 import {
   LATEST_POLITICAL_DECLARATION_NOTICE,
@@ -67,18 +68,21 @@ import { AudiencePreview, useAudienceProposal } from "./audience-preview";
 const RECONNECT_HREF = reconnectHref("/dashboard/content/linkedin", LINKEDIN_ADS_PROVIDER);
 
 /**
- * Objectives a BOOST can use. `lead_generation` is deliberately absent:
- * LinkedIn requires a lead gen form on every creative under a lead-gen
- * campaign, and sponsoring an existing organic post gives us nowhere to
- * attach one — the server rejects that combination
- * (VALIDATION_LEADGEN_FORM_REQUIRED). Offering it here only ever
- * produced a guaranteed failure. Lead-gen campaigns are built in
- * LinkedIn Campaign Manager; the objective stays valid on other paths.
+ * Objectives a BOOST can use.
+ *
+ * ★`lead_generation` IS BACK, AND ONLY BECAUSE THERE IS SOMETHING TO ATTACH.
+ * LinkedIn requires a lead gen form URN on every creative under a lead-gen
+ * campaign; until Lead forms existed nothing in the product could produce one,
+ * so this option was removed after it had spent a while guaranteeing a
+ * failure. It is now gated on a LIVE form rather than hidden — a business with
+ * no form is told what to make, which is a different thing from being told the
+ * objective does not exist.
  */
 const OBJECTIVES: Array<{ value: BoostObjective; label: string }> = [
   { value: "engagement", label: "Engagement (boost the post)" },
   { value: "brand_awareness", label: "Brand awareness" },
   { value: "website_traffic", label: "Website traffic" },
+  { value: "lead_generation", label: "Lead generation (collect enquiries)" },
 ];
 
 /** How long the boost will wait for the durable declaration write before
@@ -100,6 +104,7 @@ export function BoostCampaignDialog({
   const queryClient = useQueryClient();
   const [name, setName] = useState(defaultName);
   const [objective, setObjective] = useState<BoostObjective>("engagement");
+  const [askId, setAskId] = useState<string>("");
   /**
    * Decision D13's confirmed geography. `undefined` means "use what we inferred
    * from the business", which is the default and today's behaviour; an array —
@@ -180,7 +185,13 @@ export function BoostCampaignDialog({
     /^[A-Za-z]{3}$/.test(currencyCode.trim()) &&
     Number.isFinite(durationNumber) &&
     durationNumber >= 1 &&
-    durationNumber <= 366;
+    durationNumber <= 366 &&
+    // ★A LEAD-GEN BOOST WITHOUT A FORM CANNOT SUCCEED. LinkedIn refuses the
+    // creative, and it does so only AFTER the campaign group and campaign have
+    // been created — so letting the button through would leave two orphan
+    // artefacts in the customer's Campaign Manager for an error the dialog
+    // already knew about.
+    (objective !== "lead_generation" || askId.length > 0);
 
   const boost = useMutation({
     // The declaration answers travel as VARIABLES, not read from state in
@@ -196,6 +207,9 @@ export function BoostCampaignDialog({
         currencyCode: currencyCode.trim().toUpperCase(),
         durationDays: durationNumber,
         notPolitical: vars.notPolitical,
+        // Only meaningful for lead_generation, and the server refuses that
+        // objective without it — see the picker below.
+        ...(objective === "lead_generation" && askId ? { askId } : {}),
         // Sent so the campaign gets the audience the preview showed. Without
         // it the boost would resolve from the profile's own countries and the
         // preview would be a lie about its own effect.
@@ -318,13 +332,29 @@ export function BoostCampaignDialog({
         });
       } else if (code === "RATE_LIMITED") {
         toast.error("LinkedIn is rate-limiting us — give it a minute and try again.");
-      } else if (code === "VALIDATION_LEADGEN_FORM_REQUIRED") {
-        // Defensive only — the objective isn't in OBJECTIVES, so this
-        // dialog can't produce it today. Kept so re-adding the option
-        // fails legibly rather than through the generic branch.
-        toast.error(
-          "Lead-generation campaigns need a LinkedIn lead gen form — pick another objective.",
-        );
+      } else if (
+        code === "VALIDATION_LEADGEN_FORM_REQUIRED" ||
+        code === "ASK_REQUIRED" ||
+        code === "ASK_NOT_PUBLISHED" ||
+        code === "ASK_NOT_FOUND"
+      ) {
+        toast.error("This campaign needs a live lead form.", {
+          description: "Create or publish one under Ads → Lead forms, then boost.",
+          action: {
+            label: "Open Lead forms",
+            onClick: () => { window.location.href = ADS_LINKEDIN_PATH; },
+          },
+        });
+      } else if (code === "ASK_NOT_SERVING" || code === "ASK_WRONG_AD_ACCOUNT") {
+        // ★NOT A GENERIC FAILURE. A rejected form leaves a campaign looking
+        // perfectly healthy while nothing delivers, so the message has to name
+        // the form as the thing to go and look at.
+        toast.error(err instanceof ApiError ? err.message : "That lead form can't be used.", {
+          action: {
+            label: "Open Lead forms",
+            onClick: () => { window.location.href = ADS_LINKEDIN_PATH; },
+          },
+        });
       } else {
         // Everything else: friendly copy keyed on the code, with the
         // request id for support. NOT err.message — see toast-errors.ts
@@ -392,6 +422,10 @@ export function BoostCampaignDialog({
               </SelectContent>
             </Select>
           </div>
+
+          {objective === "lead_generation" ? (
+            <LeadFormPicker value={askId} onChange={setAskId} />
+          ) : null}
 
           {/* The audience this boost will get, BEFORE the money is committed —
               and the single inference the user is asked to confirm. */}
