@@ -38,6 +38,7 @@ import { AskCard } from "@/components/dashboard/ask-card";
 import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
 import { OvernightRibbon } from "@/components/dashboard/overnight-ribbon";
 import { WaitingForYou } from "@/components/dashboard/waiting-for-you";
+import { PeaksTrendCard } from "@/components/dashboard/peaks-trend-card";
 import { useHomeSummary } from "@/hooks/use-home-summary";
 
 interface DashboardStats {
@@ -265,11 +266,16 @@ export default function OverviewPage() {
       {/* Every decision the platform is holding, in one list. Cross-pillar:
           a failed post and an unread pricing recommendation ask the same
           thing of the same person, so they belong in the same queue. */}
-      <WaitingForYou
-        items={home?.needsYou}
-        total={home?.kpis.needsYou}
-        isLoading={homeLoading}
-      />
+      {/* The queue and the spend sit side by side: what needs a decision,
+          and what the decisions have been costing. */}
+      <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
+        <WaitingForYou
+          items={home?.needsYou}
+          total={home?.kpis.needsYou}
+          isLoading={homeLoading}
+        />
+        <PeaksTrendCard />
+      </div>
 
       {/* Two-column layout */}
       <div className="grid gap-4 lg:grid-cols-5">
