@@ -244,6 +244,18 @@ export interface Ask {
       reviewStatus?: string;
       rejectionReasons?: string[];
       checkedAt?: string;
+      /**
+       * ★WHETHER THE LEADS ARRIVE, which is a different fact from the form
+       * being live and used to exist only as a toast. `blocked` means the Lead
+       * Sync permission has not been granted: the form collects on LinkedIn
+       * and nothing reaches the Inbox. Absent means nobody has established it
+       * either way — a third state, not a green one.
+       */
+      leadDelivery?: {
+        status: "created" | "existing" | "blocked" | "unknown";
+        reason?: string;
+        checkedAt?: string;
+      };
     };
   };
   design?: { rationale?: string; editedByHuman?: boolean };
@@ -371,6 +383,25 @@ export const growthApi = {
     id: string,
     body: { whatsapp?: { phone: string; message: string }; ctaUrl?: string },
   ) => api.post<{ ask: Ask; leadDelivery: LeadDelivery }>(`/v1/growth/asks/${id}/publish`, body),
+
+  /**
+   * Edit the WORDING.
+   *
+   * ★THE QUESTIONS ARE NOT IN THIS PAYLOAD, and that is LinkedIn's rule rather
+   * than a missing field: a live form's field list is frozen, so changing what
+   * you ask means a new form. The server refuses it by name
+   * (`QUESTIONS_FROZEN`) if a client ever tries.
+   */
+  editAsk: (
+    id: string,
+    body: {
+      name?: string;
+      headline?: string;
+      description?: string;
+      thankYouMessage?: string;
+      legalDisclaimer?: string;
+    },
+  ) => api.patch<{ ask: Ask }>(`/v1/growth/asks/${id}`, body),
 
   /** Re-read the form from LinkedIn — the only way a rejection surfaces. */
   syncAsk: (id: string) => api.post<{ ask: Ask }>(`/v1/growth/asks/${id}/sync`),

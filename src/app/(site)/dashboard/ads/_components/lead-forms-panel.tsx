@@ -96,6 +96,7 @@ export function LeadFormsPanel() {
   const [designOpen, setDesignOpen] = useState(false);
   const [publishing, setPublishing] = useState<Ask | null>(null);
   const [archiving, setArchiving] = useState<Ask | null>(null);
+  const [editing, setEditing] = useState<Ask | null>(null);
 
   const asks = useQuery({
     queryKey: ["growth-asks"],
@@ -105,13 +106,32 @@ export function LeadFormsPanel() {
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["growth-asks"] });
 
+  /**
+   * ★WHICH ROWS ARE IN FLIGHT, not "is anything in flight".
+   *
+   * One shared mutation reports `isPending` in aggregate and `variables` for
+   * the MOST RECENT call only, so syncing a second row re-enabled the first
+   * one's button mid-request — and that disabled state is the double-fire
+   * guard, not decoration.
+   */
+  const [syncingIds, setSyncingIds] = useState<string[]>([]);
   const sync = useMutation({
     mutationFn: (id: string) => growthApi.syncAsk(id),
+    onMutate: (id: string) => {
+      setSyncingIds((ids) => [...ids, id]);
+    },
+    onSettled: (_data, _err, id) => {
+      setSyncingIds((ids) => ids.filter((x) => x !== id));
+    },
     onSuccess: (res) => {
       invalidate();
       const review = res.ask.channels?.linkedin?.reviewStatus;
       if (review && REVIEW_PROBLEM[review]) toast.warning(REVIEW_PROBLEM[review]);
-      else toast.success("Up to date with LinkedIn.");
+      else if (res.ask.serving === false) {
+        // A form that is not serving for a reason outside the review codes
+        // must not get a success toast beside an amber badge.
+        toast.warning("LinkedIn says this form isn't live. Open it to see where it stands.");
+      } else toast.success("Up to date with LinkedIn.");
     },
     onError: (err) => toastUnhandledApiError(err, "Couldn't check with LinkedIn"),
   });
@@ -143,7 +163,7 @@ export function LeadFormsPanel() {
             title="Couldn't load your lead forms"
             description="Refresh in a moment — nothing has changed on LinkedIn."
           />
-        ) : (asks.data?.asks.length ?? 0) === 0 ? (
+        ) : (asks.data?.asks?.length ?? 0) === 0 ? (
           <EmptyState
             icon={ClipboardList}
             title="No lead forms yet"
@@ -151,22 +171,50 @@ export function LeadFormsPanel() {
             action={{ label: "Design a form", onClick: () => setDesignOpen(true) }}
           />
         ) : (
-          asks.data!.asks.map((ask) => (
+          (asks.data?.asks ?? []).map((ask) => (
             <AskRow
               key={ask._id}
               ask={ask}
               onPublish={() => setPublishing(ask)}
               onArchive={() => setArchiving(ask)}
+              onEdit={() => setEditing(ask)}
               onSync={() => sync.mutate(ask._id)}
-              syncing={sync.isPending && sync.variables === ask._id}
+              syncing={syncingIds.includes(ask._id)}
             />
           ))
         )}
       </CardContent>
 
-      <DesignAskDialog open={designOpen} onOpenChange={setDesignOpen} onDone={invalidate} />
-      <PublishAskDialog ask={publishing} onOpenChange={() => setPublishing(null)} onDone={invalidate} />
-      <ArchiveAskDialog ask={archiving} onOpenChange={() => setArchiving(null)} onDone={invalidate} />
+      {/* ★MOUNTED PER ASK, and this is not tidiness. These dialogs hold the
+          answers a customer types; rendered once for the life of the panel they
+          keep that state across DIFFERENT forms, so publishing form A over
+          WhatsApp and then opening form B presents A's phone number, already
+          valid, one click from being written onto a form LinkedIn will then
+          freeze. `key` makes each open a fresh component — the same pattern
+          BoostCampaignDialog uses one directory over, which is why it has never
+          had this problem. */}
+      {designOpen ? (
+        <DesignAskDialog open onOpenChange={setDesignOpen} onDone={invalidate} />
+      ) : null}
+      {publishing ? (
+        <PublishAskDialog
+          key={publishing._id}
+          ask={publishing}
+          onOpenChange={() => setPublishing(null)}
+          onDone={invalidate}
+        />
+      ) : null}
+      {archiving ? (
+        <ArchiveAskDialog ask={archiving} onOpenChange={() => setArchiving(null)} onDone={invalidate} />
+      ) : null}
+      {editing ? (
+        <EditWordingDialog
+          key={editing._id}
+          ask={editing}
+          onOpenChange={() => setEditing(null)}
+          onDone={invalidate}
+        />
+      ) : null}
     </Card>
   );
 }
@@ -175,18 +223,29 @@ function AskRow({
   ask,
   onPublish,
   onArchive,
+  onEdit,
   onSync,
   syncing,
 }: {
   ask: Ask;
   onPublish: () => void;
   onArchive: () => void;
+  onEdit: () => void;
   onSync: () => void;
   syncing: boolean;
 }) {
   const channel = ask.channels?.linkedin;
   const review = channel?.reviewStatus;
-  const problem = review ? REVIEW_PROBLEM[review] : undefined;
+  const delivery = channel?.leadDelivery;
+  /**
+   * ★TWO DIFFERENT WAYS A LIVE FORM COLLECTS NOTHING, and both have to say so
+   * on the row rather than in a toast the person who published it saw once.
+   * A review rejection stops the ad delivering; a missing Lead Sync grant lets
+   * it deliver perfectly and drops every lead on the floor.
+   */
+  const problem =
+    (review ? REVIEW_PROBLEM[review] : undefined) ??
+    (delivery?.status === "blocked" ? delivery.reason : undefined);
 
   return (
     <div className="rounded-lg border p-4">
@@ -198,7 +257,7 @@ function AskRow({
               <Badge className="bg-muted text-muted-foreground">Draft</Badge>
             ) : ask.status === "archived" ? (
               <Badge className="bg-muted/60 text-muted-foreground">Archived</Badge>
-            ) : ask.serving ? (
+            ) : ask.serving && delivery?.status !== "blocked" ? (
               <Badge className="bg-success/15 text-success-on-tint">Live</Badge>
             ) : (
               <Badge className="bg-warning/15 text-warning-on-tint">Not delivering</Badge>
@@ -210,6 +269,11 @@ function AskRow({
           {ask.status === "draft" ? (
             <Button size="sm" onClick={onPublish}>
               Publish to LinkedIn
+            </Button>
+          ) : null}
+          {ask.status !== "archived" ? (
+            <Button size="sm" variant="outline" onClick={onEdit}>
+              Edit wording
             </Button>
           ) : null}
           {channel ? (
@@ -230,14 +294,19 @@ function AskRow({
       {/* ★THE FAILURE THAT LOOKS HEALTHY. Without this the campaign shows
           active, the budget shows committed, and nothing is delivered. */}
       {problem ? (
-        <div className="mt-3 flex gap-2 rounded-md border border-warning/30 bg-warning/5 p-3 text-sm">
+        <div
+          role="alert"
+          className="mt-3 flex gap-2 rounded-md border border-warning/30 bg-warning/5 p-3 text-sm"
+        >
           <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning-on-tint" />
           <div>
             <p>{problem}</p>
             {channel?.rejectionReasons?.length ? (
               <ul className="mt-1 list-disc pl-4 text-muted-foreground">
-                {channel.rejectionReasons.map((r) => (
-                  <li key={r}>{r}</li>
+                {channel.rejectionReasons.map((r, i) => (
+                  // Keyed by position: LinkedIn can repeat a reason, and a
+                  // duplicated string would collide as a key.
+                  <li key={`${i}-${r.slice(0, 32)}`}>{r}</li>
                 ))}
               </ul>
             ) : null}
@@ -272,6 +341,8 @@ function DesignAskDialog({
   onOpenChange,
   onDone,
 }: {
+  /** Always true — the parent mounts this only while it is open. Kept on the
+   *  signature so the Dialog's own open/close contract stays explicit. */
   open: boolean;
   onOpenChange: (v: boolean) => void;
   onDone: () => void;
@@ -377,7 +448,7 @@ function PublishAskDialog({
   onOpenChange,
   onDone,
 }: {
-  ask: Ask | null;
+  ask: Ask;
   onOpenChange: () => void;
   onDone: () => void;
 }) {
@@ -388,7 +459,7 @@ function PublishAskDialog({
 
   const publish = useMutation({
     mutationFn: () =>
-      growthApi.publishAsk(ask!._id, {
+      growthApi.publishAsk(ask._id, {
         ...(useWhatsapp ? { whatsapp: { phone: phone.trim(), message: message.trim() } } : {}),
         ...(!useWhatsapp && ctaUrl.trim() ? { ctaUrl: ctaUrl.trim() } : {}),
       }),
@@ -411,7 +482,7 @@ function PublishAskDialog({
   });
 
   return (
-    <Dialog open={!!ask} onOpenChange={() => onOpenChange()}>
+    <Dialog open onOpenChange={() => onOpenChange()}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Publish to LinkedIn</DialogTitle>
@@ -425,11 +496,17 @@ function PublishAskDialog({
 
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label>What happens after they submit?</Label>
-            <div className="flex gap-2">
+            {/* A visual-only "selected" state leaves a screen reader hearing two
+                plain buttons with no indication which is active — on the control
+                that decides where a lead is sent. */}
+            <span id="ask-destination-label" className="text-sm font-medium">
+              What happens after they submit?
+            </span>
+            <div className="flex gap-2" role="group" aria-labelledby="ask-destination-label">
               <Button
                 type="button"
                 size="sm"
+                aria-pressed={useWhatsapp}
                 variant={useWhatsapp ? "default" : "outline"}
                 onClick={() => setUseWhatsapp(true)}
               >
@@ -438,6 +515,7 @@ function PublishAskDialog({
               <Button
                 type="button"
                 size="sm"
+                aria-pressed={!useWhatsapp}
                 variant={!useWhatsapp ? "default" : "outline"}
                 onClick={() => setUseWhatsapp(false)}
               >
@@ -502,17 +580,126 @@ function PublishAskDialog({
   );
 }
 
+/**
+ * Edit the wording.
+ *
+ * ★IT DOES NOT OFFER THE QUESTIONS, AND THE COPY SAYS WHY. LinkedIn freezes a
+ * live form's field list, so a "change the questions" control would be a
+ * button that fails — the same mistake as offering the lead_generation
+ * objective before there was a form to attach. Once published, changing what
+ * you ask means a new form.
+ *
+ * State is keyed off `ask` and reset when a different one opens: a dialog that
+ * kept the previous form's headline would let a customer overwrite one form
+ * with another's copy without noticing.
+ */
+function EditWordingDialog({
+  ask,
+  onOpenChange,
+  onDone,
+}: {
+  ask: Ask;
+  onOpenChange: () => void;
+  onDone: () => void;
+}) {
+  // Initialised straight from props: the parent mounts this per Ask with a
+  // `key`, so there is no previous form's state to reset away from.
+  const [name, setName] = useState(ask.name);
+  const [headline, setHeadline] = useState(ask.content.headline);
+  const [thankYou, setThankYou] = useState(ask.content.thankYou.message);
+
+  const edit = useMutation({
+    mutationFn: () =>
+      growthApi.editAsk(ask._id, {
+        ...(name.trim() && name.trim() !== ask.name ? { name: name.trim() } : {}),
+        ...(headline.trim() && headline.trim() !== ask.content.headline
+          ? { headline: headline.trim() }
+          : {}),
+        ...(thankYou.trim() && thankYou.trim() !== ask.content.thankYou.message
+          ? { thankYouMessage: thankYou.trim() }
+          : {}),
+      }),
+    onSuccess: () => {
+      onDone();
+      onOpenChange();
+      toast.success("Updated.");
+    },
+    onError: (err) => {
+      if (err instanceof ApiError) toast.error(err.message);
+      else toastUnhandledApiError(err, "Couldn't save the change");
+    },
+  });
+
+  const unchanged =
+    name.trim() === ask.name &&
+    headline.trim() === ask.content.headline &&
+    thankYou.trim() === ask.content.thankYou.message;
+
+  return (
+    <Dialog open onOpenChange={() => onOpenChange()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Edit wording</DialogTitle>
+          <DialogDescription>
+            {ask.status === "published"
+              ? "This form is live, so LinkedIn only allows the wording to change. To change what you ask, create a new form — this one keeps collecting until you archive it."
+              : "Nothing is live yet, so this is just tidying up before you publish."}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="ask-edit-name">Name (only you see this)</Label>
+            <Input id="ask-edit-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={256} />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="ask-edit-headline">Headline</Label>
+            <Input
+              id="ask-edit-headline"
+              value={headline}
+              onChange={(e) => setHeadline(e.target.value)}
+              maxLength={60}
+            />
+            <p className="text-xs text-muted-foreground">
+              {headline.length}/60 — LinkedIn cuts it off after that.
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="ask-edit-thanks">Thank-you message</Label>
+            <Textarea
+              id="ask-edit-thanks"
+              rows={3}
+              value={thankYou}
+              onChange={(e) => setThankYou(e.target.value)}
+              maxLength={1000}
+            />
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => onOpenChange()} disabled={edit.isPending}>
+            Cancel
+          </Button>
+          <Button onClick={() => edit.mutate()} disabled={edit.isPending || unchanged}>
+            {edit.isPending ? "Saving…" : "Save"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function ArchiveAskDialog({
   ask,
   onOpenChange,
   onDone,
 }: {
-  ask: Ask | null;
+  ask: Ask;
   onOpenChange: () => void;
   onDone: () => void;
 }) {
   const archive = useMutation({
-    mutationFn: () => growthApi.archiveAsk(ask!._id),
+    mutationFn: () => growthApi.archiveAsk(ask._id),
     onSuccess: () => {
       onDone();
       onOpenChange();
@@ -528,7 +715,7 @@ function ArchiveAskDialog({
   });
 
   return (
-    <AlertDialog open={!!ask} onOpenChange={() => onOpenChange()}>
+    <AlertDialog open onOpenChange={() => onOpenChange()}>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Stop collecting with this form?</AlertDialogTitle>

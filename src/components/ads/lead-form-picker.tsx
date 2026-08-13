@@ -12,6 +12,7 @@
  */
 
 import Link from "next/link";
+import { useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { growthApi } from "@/lib/api/growth";
 import { Label } from "@/components/ui/label";
@@ -38,7 +39,31 @@ export function LeadFormPicker({
     staleTime: 30_000,
   });
 
-  const usable = (asks.data?.asks ?? []).filter((a) => a.status === "published" && a.serving);
+  const usable = useMemo(
+    () =>
+      (asks.data?.asks ?? []).filter(
+        (a) =>
+          a.status === "published" &&
+          a.serving &&
+          a.channels?.linkedin?.leadDelivery?.status !== "blocked",
+      ),
+    [asks.data],
+  );
+
+  /**
+   * ★A SELECTION THE PICKER NO LONGER OFFERS MUST BE CLEARED, or the parent's
+   * submit gate stays satisfied by an id nothing is showing. The list refetches
+   * on window focus, so the ordinary path is: pick a form, tab to LinkedIn to
+   * look at it, come back to find it rejected — at which point this component
+   * renders "none of your forms is live" with no `<Select>` at all, while Boost
+   * stays enabled on the dead form. The server refuses it, but this component's
+   * whole job is to be the hint BEFORE the server has to.
+   */
+  const loaded = !!asks.data;
+  useEffect(() => {
+    if (!loaded) return;
+    if (value && !usable.some((a) => a._id === value)) onChange("");
+  }, [loaded, usable, value, onChange]);
 
   if (asks.isLoading) {
     return (
@@ -49,7 +74,11 @@ export function LeadFormPicker({
     );
   }
 
-  if (asks.isError) {
+  // ★ONLY WHEN THERE IS NOTHING TO SHOW. react-query keeps `data` through a
+  // failed background refetch, and replacing a populated, valid selector with
+  // an error paragraph over one transient 500 would take the choice away while
+  // leaving the parent's submit gate satisfied.
+  if (asks.isError && !asks.data) {
     return (
       <div className="space-y-1.5">
         <Label>Lead form</Label>
