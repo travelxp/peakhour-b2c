@@ -18,12 +18,43 @@ export type AutopilotState = "working" | "waiting" | "stalled";
 export type ChannelHealth = "healthy" | "attention" | "disconnected";
 export type RailItemType = "reconnect" | "failed" | "approve";
 
+/** Which pillar a queued decision came from. Stamped by the api. */
+export type Pillar = "commerce" | "content" | "growth" | "support" | "presence";
+
 export interface RailItem {
   type: RailItemType;
   channel: string;
   refId: string;
   title: string;
   ctaHref: string;
+  pillar: Pillar;
+}
+
+/**
+ * What the platform did on its own overnight. The api sends counts and a
+ * stable `metric` key only — the wording lives here, in the component that
+ * renders it, so a sentence has one home.
+ */
+export type ActivityMetric =
+  | "actions_executed"
+  | "published"
+  | "drafted"
+  | "leads_captured"
+  | "conversations_resolved"
+  | "reviews_replied";
+
+export interface ActivityCount {
+  pillar: Pillar;
+  metric: ActivityMetric;
+  count: number;
+}
+
+export interface Activity {
+  /** ISO timestamp for the start of the window. */
+  since: string;
+  windowHours: number;
+  /** Every pillar, including the quiet ones at zero. */
+  pillars: ActivityCount[];
 }
 
 export interface ChannelWidget {
@@ -63,6 +94,7 @@ export interface HomeSummary {
     scheduledUpcoming: number;
   };
   autopilot: { state: AutopilotState; reason: string; lastRunAt: string | null };
+  activity: Activity;
   needsYou: RailItem[];
   channels: ChannelWidget[];
   commerce: CommerceLane | null;
