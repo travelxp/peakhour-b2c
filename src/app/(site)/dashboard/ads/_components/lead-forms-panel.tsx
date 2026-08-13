@@ -60,6 +60,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { EmptyState } from "@/components/molecules/empty-state";
+import { reconnectHref, ADS_LINKEDIN_PATH, LINKEDIN_ADS_PROVIDER } from "@/lib/integrations-connect";
 import { AlertTriangle, Archive, ClipboardList, RefreshCw, Sparkles } from "lucide-react";
 
 /** What the business is trying to start. Drives the starting question set and
@@ -85,6 +86,9 @@ const PURPOSE_LABEL: Record<AskQuestion["purpose"], string> = {
 /** Human sentence for LinkedIn's review verdicts. `PENDING` is deliberately
  *  absent — it is a normal state for a few hours after publishing, and naming
  *  it as a problem would cry wolf on every new form. */
+/** Reconnect CTAs come back HERE, to the surface whose work they unblock. */
+const RECONNECT_HREF = reconnectHref(ADS_LINKEDIN_PATH, LINKEDIN_ADS_PROVIDER);
+
 const REVIEW_PROBLEM: Record<string, string> = {
   REJECTED: "LinkedIn rejected this form, so campaigns using it will not deliver.",
   AUTO_REJECTED: "LinkedIn's automated review rejected this form, so campaigns using it will not deliver.",
@@ -476,6 +480,28 @@ function PublishAskDialog({
       }
     },
     onError: (err) => {
+      const code = err instanceof ApiError ? err.code : undefined;
+      if (code === "PUBLISH_PERSIST_FAILED") {
+        /**
+         * ★THE ONE MESSAGE THAT MUST NOT BE GENERIC, and it is a 502 so it
+         * would otherwise have been. The form EXISTS on LinkedIn and we lost
+         * the record of it; the message carries the id support needs and, more
+         * importantly, tells them not to press Publish again — which is what a
+         * generic "something went wrong, try again" would invite, and would
+         * mint a second form.
+         */
+        toast.error(err instanceof ApiError ? err.message : "", { duration: 30_000 });
+        return;
+      }
+      if (code === "NEEDS_REAUTH") {
+        toast.error("LinkedIn Ads needs reconnecting before this form can be published.", {
+          action: {
+            label: "Reconnect",
+            onClick: () => { window.location.href = RECONNECT_HREF; },
+          },
+        });
+        return;
+      }
       if (err instanceof ApiError && err.status >= 400 && err.status < 500) toast.error(err.message);
       else toastUnhandledApiError(err, "Couldn't publish the form");
     },
