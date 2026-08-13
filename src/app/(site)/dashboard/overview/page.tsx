@@ -36,6 +36,7 @@ import { RecommendationsCard } from "@/components/dashboard/recommendations-card
 import { BrandMirrorCard } from "@/components/dashboard/brand-mirror-card";
 import { AskCard } from "@/components/dashboard/ask-card";
 import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
+import { cn } from "@/lib/utils";
 import { OvernightRibbon } from "@/components/dashboard/overnight-ribbon";
 import { WaitingForYou } from "@/components/dashboard/waiting-for-you";
 import { PeaksTrendCard } from "@/components/dashboard/peaks-trend-card";
@@ -239,23 +240,30 @@ export default function OverviewPage() {
           loading={isLoading}
           href="/dashboard/content"
         />
+        {/* Zero campaigns is a real, correct number — so it shows as 0 with
+            the next step beside it, rather than the apologetic "Not started
+            yet" that made a working tile look like an unbuilt one. */}
         <KpiCard
           label="Active Campaigns"
           value={stats?.campaigns.active}
           change={
             stats?.campaigns.total
               ? `${stats.campaigns.total} total`
-              : "Not started yet"
+              : "Launch your first"
           }
           icon={Megaphone}
           series={2}
           loading={isLoading}
           href="/dashboard/ads?channel=linkedin"
         />
+        {/* Customers has no data source yet — outcomes attribution needs an
+            ads connection. It used to render a hardcoded "--" in the headline
+            slot, which is the single clearest way to tell someone software is
+            unfinished. `unavailable` renders the same tile as an invitation
+            instead: no fake figure, and the reason is the call to action. */}
         <KpiCard
           label="Customers"
-          value="--"
-          change="Connect ads to track"
+          unavailable="Connect ads to start tracking"
           icon={Users}
           series={3}
           loading={isLoading}
@@ -512,6 +520,7 @@ function KpiCard({
   label,
   value,
   change,
+  unavailable,
   icon: Icon,
   series,
   loading,
@@ -520,6 +529,13 @@ function KpiCard({
   label: string;
   value?: number | string;
   change?: string;
+  /**
+   * This metric has no data source yet — say what would switch it on rather
+   * than printing a placeholder figure. A dash or an em-dash in a headline
+   * slot reads as broken software; an invitation reads as a next step, and
+   * both are honest about there being no number.
+   */
+  unavailable?: string;
   icon: React.ElementType;
   series: PillarSeries;
   loading: boolean;
@@ -540,16 +556,35 @@ function KpiCard({
             </div>
             <ArrowUpRight className="h-4 w-4 text-muted-foreground/0 group-hover:text-muted-foreground transition-colors" />
           </div>
-          <div className="text-2xl font-bold tabular-nums tracking-tight">
-            {loading ? (
-              <span className="inline-block h-8 w-14 animate-pulse rounded-lg bg-muted" />
-            ) : (
-              (value ?? 0)
+          {/* An unavailable metric keeps the tile's shape but drops the
+              number entirely — the label leads, and the reason takes the
+              slot the figure would have held. */}
+          {!unavailable && (
+            <div className="text-2xl font-bold tabular-nums tracking-tight">
+              {loading ? (
+                <span className="inline-block h-8 w-14 animate-pulse rounded-lg bg-muted" />
+              ) : (
+                (value ?? 0)
+              )}
+            </div>
+          )}
+          <p
+            className={cn(
+              "text-xs font-medium text-muted-foreground",
+              unavailable ? "text-sm font-semibold text-foreground" : "mt-0.5",
             )}
-          </div>
-          <p className="text-xs font-medium text-muted-foreground mt-0.5">{label}</p>
-          {change && (
-            <p className="text-[11px] text-muted-foreground/70 mt-1">{change}</p>
+          >
+            {label}
+          </p>
+          {unavailable ? (
+            <p className="mt-1 inline-flex items-center gap-1 text-[11px] font-medium text-brand-label">
+              {unavailable}
+              <ArrowRight className="size-3" aria-hidden />
+            </p>
+          ) : (
+            change && (
+              <p className="text-[11px] text-muted-foreground/70 mt-1">{change}</p>
+            )
           )}
         </CardContent>
       </Card>
