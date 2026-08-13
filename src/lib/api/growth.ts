@@ -175,6 +175,114 @@ export type RunNowResult =
   | { created: false; reason: "already_ran" | "optimizer_disabled" | "no_data" }
   | { created: true; runId: string; proposalCount: number };
 
+
+// ── The Ask — lead capture, channel-neutral ───────────────────────────────
+
+/**
+ * ★NO LINKEDIN VOCABULARY IN THE DEFINITION HALF, deliberately. `identity`,
+ * `adButton` and `thankYou.ctaLabel` are ours; the api's adapter maps them to
+ * LinkedIn's own enums. The same Ask renders to WhatsApp and site forms later,
+ * and this type must not have to change when it does.
+ */
+export type AskIdentity =
+  | "first_name" | "last_name" | "email" | "work_email" | "phone" | "work_phone"
+  | "job_title" | "job_function" | "seniority" | "company_name" | "company_size"
+  | "industry" | "city" | "state" | "country" | "postal_code"
+  | "linkedin_profile" | "degree" | "field_of_study" | "school" | "gender" | "custom";
+
+/** Which downstream consumer justifies asking. A question that fits none of
+ *  these does not belong on the form — the discipline the whole surface is
+ *  built around. */
+export type AskQuestionPurpose = "contact" | "qualify" | "route" | "context";
+
+export type AskIntent =
+  | "demo_request" | "consultation" | "newsletter"
+  | "event_registration" | "recruitment" | "b2b_lead" | "custom";
+
+export interface AskQuestion {
+  key: string;
+  prompt: string;
+  hint?: string;
+  identity: AskIdentity;
+  kind: "text" | "choice";
+  options?: string[];
+  required: boolean;
+  purpose: AskQuestionPurpose;
+  /** One sentence the business owner would agree with. Shown beside the
+   *  question so the subtraction argument is visible, not merely claimed. */
+  whyAsked: string;
+  workEmailOnly?: boolean;
+}
+
+export interface Ask {
+  _id: string;
+  name: string;
+  intent: AskIntent;
+  status: "draft" | "published" | "archived";
+  locale: { country: string; language: string };
+  adButton: string;
+  content: {
+    headline: string;
+    description?: string;
+    questions: AskQuestion[];
+    consents?: Array<{ key: string; text: string; required: boolean }>;
+    privacyPolicyUrl?: string;
+    legalDisclaimer?: string;
+    thankYou: {
+      message: string;
+      ctaLabel: string;
+      ctaUrl?: string;
+      ctaKind?: "url" | "whatsapp";
+    };
+  };
+  channels?: {
+    linkedin?: {
+      formId: string;
+      formUrn: string;
+      adAccountId: string;
+      state: "DRAFT" | "PUBLISHED" | "ARCHIVED";
+      reviewStatus?: string;
+      rejectionReasons?: string[];
+      checkedAt?: string;
+      /**
+       * ★WHETHER THE LEADS ARRIVE, which is a different fact from the form
+       * being live and used to exist only as a toast. `blocked` means the Lead
+       * Sync permission has not been granted: the form collects on LinkedIn
+       * and nothing reaches the Inbox. Absent means nobody has established it
+       * either way — a third state, not a green one.
+       */
+      leadDelivery?: {
+        status: "created" | "existing" | "blocked" | "unknown";
+        reason?: string;
+        checkedAt?: string;
+      };
+    };
+  };
+  design?: { rationale?: string; editedByHuman?: boolean };
+  /**
+   * ★SERVED BY THE API, NOT DERIVED HERE. A rejected form leaves the campaign
+   * active and the budget intact while nothing delivers, so "is it actually
+   * working" has to read the same in every surface. Absent until the Ask has
+   * been published to a channel.
+   */
+  serving?: boolean;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+/**
+ * What happened to lead DELIVERY, which is a different question from whether
+ * the form exists.
+ *
+ * `blocked` means LinkedIn has not granted the Lead Sync permission: the form
+ * is live and will collect leads on LinkedIn, and none of them will reach the
+ * Inbox. Saying "published ✓" over that state is the thing this field exists
+ * to prevent.
+ */
+export type LeadDelivery =
+  | { status: "created" | "existing"; subscriptionId: string }
+  | { status: "blocked" | "unknown"; reason: string };
+
 export const growthApi = {
   /** Recent weekly optimizer runs (newest first, up to 12). */
   adjustments: () => api.get<{ runs: OptimizerRun[] }>("/v1/growth/adjustments"),
@@ -247,4 +355,57 @@ export const growthApi = {
       label: string;
     } | null;
   }) => api.patch<GrowthSettingsResponse>("/v1/growth/settings", patch),
+
+  // ── Asks ───────────────────────────────────────────────────────────────
+
+  listAsks: (includeArchived = false) =>
+    api.get<{ asks: Ask[] }>(
+      `/v1/growth/asks${includeArchived ? "?includeArchived=true" : ""}`,
+    ),
+
+  /** Design a new Ask. Runs the designer; NOTHING reaches LinkedIn. */
+  designAsk: (body: {
+    intent: AskIntent;
+    locale?: { country: string; language: string };
+    offer?: string;
+    followUp?: string;
+  }) => api.post<{ ask: Ask }>("/v1/growth/asks", body),
+
+  /**
+   * Create the form on LinkedIn.
+   *
+   * ★THE ONE IRREVERSIBLE STEP ON THIS SURFACE, and not because it spends
+   * anything — it cannot — but because LinkedIn freezes a published form's
+   * questions. Changing the field list afterwards means a new form and a new
+   * creative, so the UI asks before calling this.
+   */
+  publishAsk: (
+    id: string,
+    body: { whatsapp?: { phone: string; message: string }; ctaUrl?: string },
+  ) => api.post<{ ask: Ask; leadDelivery: LeadDelivery }>(`/v1/growth/asks/${id}/publish`, body),
+
+  /**
+   * Edit the WORDING.
+   *
+   * ★THE QUESTIONS ARE NOT IN THIS PAYLOAD, and that is LinkedIn's rule rather
+   * than a missing field: a live form's field list is frozen, so changing what
+   * you ask means a new form. The server refuses it by name
+   * (`QUESTIONS_FROZEN`) if a client ever tries.
+   */
+  editAsk: (
+    id: string,
+    body: {
+      name?: string;
+      headline?: string;
+      description?: string;
+      thankYouMessage?: string;
+      legalDisclaimer?: string;
+    },
+  ) => api.patch<{ ask: Ask }>(`/v1/growth/asks/${id}`, body),
+
+  /** Re-read the form from LinkedIn — the only way a rejection surfaces. */
+  syncAsk: (id: string) => api.post<{ ask: Ask }>(`/v1/growth/asks/${id}/sync`),
+
+  /** Stop the form collecting, on LinkedIn and here. */
+  archiveAsk: (id: string) => api.post<{ ask: Ask }>(`/v1/growth/asks/${id}/archive`),
 };
