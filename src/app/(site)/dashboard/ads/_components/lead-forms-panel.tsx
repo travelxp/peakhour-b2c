@@ -137,7 +137,13 @@ export function LeadFormsPanel() {
         toast.warning("LinkedIn says this form isn't live. Open it to see where it stands.");
       } else toast.success("Up to date with LinkedIn.");
     },
-    onError: (err) => toastUnhandledApiError(err, "Couldn't check with LinkedIn"),
+    onError: (err) => {
+      // The sync refusals (`NOT_PUBLISHED`, `NOT_CONNECTED`, `NEEDS_REAUTH`)
+      // each carry a sentence naming what to do; a generic "try again" throws
+      // all three away.
+      if (err instanceof ApiError && err.status >= 400 && err.status < 500) toast.error(err.message);
+      else toastUnhandledApiError(err, "Couldn't check with LinkedIn");
+    },
   });
 
   return (
@@ -189,14 +195,19 @@ export function LeadFormsPanel() {
         )}
       </CardContent>
 
-      {/* ★MOUNTED PER ASK, and this is not tidiness. These dialogs hold the
-          answers a customer types; rendered once for the life of the panel they
-          keep that state across DIFFERENT forms, so publishing form A over
-          WhatsApp and then opening form B presents A's phone number, already
-          valid, one click from being written onto a form LinkedIn will then
-          freeze. `key` makes each open a fresh component — the same pattern
-          BoostCampaignDialog uses one directory over, which is why it has never
-          had this problem. */}
+      {/* MOUNTED ONLY WHILE OPEN, AND KEYED BY ASK.
+
+          These dialogs hold what a customer types, so one instance shared
+          across forms carries A's WhatsApp number into B's publish — already
+          filled in, already passing the submit gate, one click from being
+          written onto a form LinkedIn then freezes.
+
+          The alternative — staying mounted and re-seeding in an effect — is
+          what this repo's lint forbids (`set-state-in-effect`), and
+          `BoostCampaignDialog` next door mounts conditionally for the same
+          reason. The cost is Radix's exit animation and its focus return, since
+          it never sees `data-state="closed"`; that is a trade the rest of the
+          app already makes, and the wrong-number bug is not. */}
       {designOpen ? (
         <DesignAskDialog open onOpenChange={setDesignOpen} onDone={invalidate} />
       ) : null}
@@ -209,7 +220,12 @@ export function LeadFormsPanel() {
         />
       ) : null}
       {archiving ? (
-        <ArchiveAskDialog ask={archiving} onOpenChange={() => setArchiving(null)} onDone={invalidate} />
+        <ArchiveAskDialog
+          key={archiving._id}
+          ask={archiving}
+          onOpenChange={() => setArchiving(null)}
+          onDone={invalidate}
+        />
       ) : null}
       {editing ? (
         <EditWordingDialog
@@ -247,9 +263,23 @@ function AskRow({
    * A review rejection stops the ad delivering; a missing Lead Sync grant lets
    * it deliver perfectly and drops every lead on the floor.
    */
+  /**
+   * ★"NOBODY HAS ESTABLISHED IT" IS NOT "IT WORKS". Only `created` and
+   * `existing` are a confirmed subscription; `blocked` is a known refusal,
+   * `unknown` is a check that failed, and ABSENT is a form published before we
+   * recorded the answer at all. Rendering the last two green is the same
+   * "published ✓ over a void" this panel's header refuses — the fact is
+   * three-valued and a boolean badge has to fall the safe way.
+   */
+  const deliveryConfirmed = delivery?.status === "created" || delivery?.status === "existing";
   const problem =
     (review ? REVIEW_PROBLEM[review] : undefined) ??
-    (delivery?.status === "blocked" ? delivery.reason : undefined);
+    (delivery?.status === "blocked"
+      ? delivery.reason
+      : ask.status === "published" && !deliveryConfirmed
+        ? delivery?.reason ??
+          "We haven't been able to confirm that LinkedIn will deliver this form's leads to your Inbox. Press Check."
+        : undefined);
 
   return (
     <div className="rounded-lg border p-4">
@@ -261,7 +291,7 @@ function AskRow({
               <Badge className="bg-muted text-muted-foreground">Draft</Badge>
             ) : ask.status === "archived" ? (
               <Badge className="bg-muted/60 text-muted-foreground">Archived</Badge>
-            ) : ask.serving && delivery?.status !== "blocked" ? (
+            ) : ask.serving && deliveryConfirmed ? (
               <Badge className="bg-success/15 text-success-on-tint">Live</Badge>
             ) : (
               <Badge className="bg-warning/15 text-warning-on-tint">Not delivering</Badge>
@@ -345,8 +375,6 @@ function DesignAskDialog({
   onOpenChange,
   onDone,
 }: {
-  /** Always true — the parent mounts this only while it is open. Kept on the
-   *  signature so the Dialog's own open/close contract stays explicit. */
   open: boolean;
   onOpenChange: (v: boolean) => void;
   onDone: () => void;
@@ -373,8 +401,13 @@ function DesignAskDialog({
       // The designer's own refusals carry a sentence worth showing verbatim —
       // NO_CONTACT_FIELD in particular tells the customer what to add to the
       // brief, which a generic message would throw away.
-      if (err instanceof ApiError && err.status === 422) toast.error(err.message);
-      else toastUnhandledApiError(err, "Couldn't design the form");
+      // 422 is the designer's own refusal (NO_CONTACT_FIELD names what to add
+      // to the brief); ASK_REJECTED is a 502 that means our types drifted from
+      // the schema, so it will fail identically forever and "try again" is the
+      // one thing that cannot help.
+      if (err instanceof ApiError && (err.status === 422 || err.code === "ASK_REJECTED")) {
+        toast.error(err.message);
+      } else toastUnhandledApiError(err, "Couldn't design the form");
     },
   });
 
@@ -447,6 +480,8 @@ function DesignAskDialog({
   );
 }
 
+const DEFAULT_WHATSAPP_MESSAGE = "Hi — I just filled in your form on LinkedIn.";
+
 function PublishAskDialog({
   ask,
   onOpenChange,
@@ -456,9 +491,11 @@ function PublishAskDialog({
   onOpenChange: () => void;
   onDone: () => void;
 }) {
+  // Fresh on every open: the parent keys this component by Ask, so mounting IS
+  // the reset. A number typed for one form cannot arrive on the next one's.
   const [useWhatsapp, setUseWhatsapp] = useState(false);
   const [phone, setPhone] = useState("");
-  const [message, setMessage] = useState("Hi — I just filled in your form on LinkedIn.");
+  const [message, setMessage] = useState(DEFAULT_WHATSAPP_MESSAGE);
   const [ctaUrl, setCtaUrl] = useState("");
 
   const publish = useMutation({
@@ -628,8 +665,8 @@ function EditWordingDialog({
   onOpenChange: () => void;
   onDone: () => void;
 }) {
-  // Initialised straight from props: the parent mounts this per Ask with a
-  // `key`, so there is no previous form's state to reset away from.
+  // Seeded from props at mount; the parent keys this component by Ask, so a
+  // different form always gets a fresh one.
   const [name, setName] = useState(ask.name);
   const [headline, setHeadline] = useState(ask.content.headline);
   const [thankYou, setThankYou] = useState(ask.content.thankYou.message);
@@ -656,6 +693,14 @@ function EditWordingDialog({
     },
   });
 
+  /**
+   * ★AN EMPTIED FIELD IS NOT A CHANGE THIS DIALOG CAN MAKE. There is no way to
+   * clear wording — LinkedIn's renderer skips a falsy value, so the platform
+   * would keep showing the old text while the row said otherwise. Without this
+   * the Save button lit up on an emptied field, sent `{}`, and came back with
+   * "Nothing to update" for someone who had just deleted something.
+   */
+  const incomplete = !name.trim() || !headline.trim() || !thankYou.trim();
   const unchanged =
     name.trim() === ask.name &&
     headline.trim() === ask.content.headline &&
@@ -706,7 +751,10 @@ function EditWordingDialog({
           <Button variant="ghost" onClick={() => onOpenChange()} disabled={edit.isPending}>
             Cancel
           </Button>
-          <Button onClick={() => edit.mutate()} disabled={edit.isPending || unchanged}>
+          <Button
+            onClick={() => edit.mutate()}
+            disabled={edit.isPending || unchanged || incomplete}
+          >
             {edit.isPending ? "Saving…" : "Save"}
           </Button>
         </DialogFooter>
