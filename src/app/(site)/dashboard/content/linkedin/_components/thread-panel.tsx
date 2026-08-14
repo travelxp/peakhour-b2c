@@ -38,6 +38,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ConfirmDialog } from "@/components/molecules";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   linkedInContentApi,
@@ -78,6 +80,7 @@ const COMMENT_MAX_LEN = 1250;
 export function ThreadPanel({
   postUrn,
   author,
+  ourActorUrn,
   open,
   onOpenChange,
 }: {
@@ -85,6 +88,14 @@ export function ThreadPanel({
   /** The post's own author — who we reply and react AS. Null when we
    *  cannot resolve one, in which case the panel reads but cannot write. */
   author: LinkedInAuthor | null;
+  /** The URN that published this post — i.e. us.
+   *
+   *  ★The ONLY sound test for "this is our comment". An earlier version
+   *  used `Boolean(comment.agent)`, which means "an ORGANIZATION authored
+   *  this" and is true of any other company's comment on the thread — so
+   *  another brand got a "You" badge and an Edit button whose save
+   *  LinkedIn would reject. */
+  ourActorUrn: string | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -109,7 +120,12 @@ export function ThreadPanel({
           </TabsList>
 
           <TabsContent value="comments" className="mt-3 min-h-0 flex-1 overflow-y-auto">
-            <CommentsTab postUrn={postUrn} author={author} open={open} />
+            <CommentsTab
+              postUrn={postUrn}
+              author={author}
+              ourActorUrn={ourActorUrn}
+              open={open}
+            />
           </TabsContent>
           <TabsContent value="reactions" className="mt-3 min-h-0 flex-1 overflow-y-auto">
             <ReactionsTab postUrn={postUrn} open={open} />
@@ -130,10 +146,12 @@ export function ThreadPanel({
 function CommentsTab({
   postUrn,
   author,
+  ourActorUrn,
   open,
 }: {
   postUrn: string;
   author: LinkedInAuthor | null;
+  ourActorUrn: string | null;
   open: boolean;
 }) {
   const query = useInfiniteQuery({
@@ -183,7 +201,12 @@ function CommentsTab({
       <ul className="space-y-3">
         {comments.map((comment) => (
           <li key={comment.commentUrn ?? comment.id}>
-            <CommentRow comment={comment} postUrn={postUrn} author={author} />
+            <CommentRow
+              comment={comment}
+              postUrn={postUrn}
+              author={author}
+              ourActorUrn={ourActorUrn}
+            />
           </li>
         ))}
       </ul>
@@ -212,12 +235,17 @@ function CommentRow({
   comment,
   postUrn,
   author,
+  ourActorUrn,
   nested = false,
+  parentCommentUrn,
 }: {
   comment: LinkedInCommentDetail;
   postUrn: string;
   author: LinkedInAuthor | null;
+  ourActorUrn: string | null;
   nested?: boolean;
+  /** Set on a reply, so a write can refresh the list it actually lives in. */
+  parentCommentUrn?: string;
 }) {
   const { formatRelativeTime } = useLocale();
   const qc = useQueryClient();
@@ -225,14 +253,32 @@ function CommentRow({
   const [editing, setEditing] = useState(false);
   const [showReplies, setShowReplies] = useState(false);
 
-  // An org `agent` means a member acted on a page's behalf — i.e. this is
-  // OUR comment. It is the only reliable "ours" signal on the payload, and
-  // it gates edit, which LinkedIn permits only on your own comment.
-  const isOurs = Boolean(comment.agent);
+  // ★Ours means the actor is the URN that published this post — not
+  // merely that SOME organization authored it. `comment.agent` is present
+  // on every org comment, including another brand's, so using it here put
+  // a "You" badge and an Edit button on comments we cannot edit.
+  const isOurs = Boolean(ourActorUrn) && comment.actor === ourActorUrn;
   // Actions that key on a comment need its composite URN. It is optional
   // because LinkedIn occasionally sends nothing to build one from — hide
   // the action rather than send a key that matches nothing.
   const canAct = Boolean(comment.commentUrn);
+
+  /**
+   * Refresh the list this comment is IN.
+   *
+   * ★A reply lives under `["linkedin-replies", parentCommentUrn]`, not
+   * under the thread key. Invalidating only the thread left a deleted
+   * reply on screen — and a row still on screen is a row that gets
+   * clicked again, re-sending a write LinkedIn has already applied.
+   */
+  function refreshOwnList() {
+    if (nested && parentCommentUrn) {
+      void qc.invalidateQueries({ queryKey: ["linkedin-replies", parentCommentUrn] });
+    }
+    // The thread is refreshed either way: a reply's deletion changes its
+    // parent's replyCount, which is rendered up there.
+    void qc.invalidateQueries({ queryKey: ["linkedin-thread", postUrn] });
+  }
 
   const react = useMutation({
     mutationFn: (type: LinkedInReactionType) =>
@@ -240,7 +286,12 @@ function CommentRow({
         reactionType: type,
         author: author as LinkedInAuthor,
       }),
-    onSuccess: () => toast.success("Reaction added"),
+    onSuccess: () => {
+      toast.success("Reaction added");
+      // Without this the like count we just changed never moves, which
+      // reads as "it didn't work" and invites a second reaction.
+      refreshOwnList();
+    },
     onError: (err) => toast.error(engageErrorMessage(err)),
   });
 
@@ -253,7 +304,7 @@ function CommentRow({
       ),
     onSuccess: () => {
       toast.success("Comment deleted");
-      void qc.invalidateQueries({ queryKey: ["linkedin-thread", postUrn] });
+      refreshOwnList();
     },
     onError: (err) => toast.error(engageErrorMessage(err)),
   });
@@ -291,9 +342,9 @@ function CommentRow({
           {editing && comment.commentUrn ? (
             <EditBox
               commentUrn={comment.commentUrn}
-              postUrn={postUrn}
               initial={comment.message}
               author={author}
+              onSaved={refreshOwnList}
               onClose={() => setEditing(false)}
             />
           ) : (
@@ -342,23 +393,40 @@ function CommentRow({
               </Button>
             )}
 
+{/* ★Behind a confirm. Deleting is irreversible on LinkedIn, it is
+                offered on OTHER people's comments (that is the moderation
+                feature, not a bug), and one stray click on a member's
+                comment is a public act we cannot undo. Every other
+                destructive action in this dashboard asks first. */}
             {canAct && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-7 gap-1.5 px-2 text-xs text-destructive hover:text-destructive"
-                disabled={remove.isPending}
-                aria-busy={remove.isPending}
-                onClick={() => remove.mutate()}
-              >
-                {remove.isPending ? (
-                  <Loader2 className="size-3.5 animate-spin motion-reduce:animate-none" />
-                ) : (
-                  <Trash2 className="size-3.5" />
-                )}
-                Delete
-              </Button>
+              <ConfirmDialog
+                variant="destructive"
+                title={isOurs ? "Delete your comment?" : "Delete this comment?"}
+                description={
+                  isOurs
+                    ? "This removes your comment from LinkedIn. It can't be undone."
+                    : "This removes someone else's comment from your post on LinkedIn. They aren't notified, and it can't be undone."
+                }
+                confirmLabel="Delete"
+                onConfirm={() => remove.mutate()}
+                trigger={
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 gap-1.5 px-2 text-xs text-destructive hover:text-destructive"
+                    disabled={remove.isPending}
+                    aria-busy={remove.isPending}
+                  >
+                    {remove.isPending ? (
+                      <Loader2 className="size-3.5 animate-spin motion-reduce:animate-none" />
+                    ) : (
+                      <Trash2 className="size-3.5" />
+                    )}
+                    Delete
+                  </Button>
+                }
+              />
             )}
 
             {comment.replyCount > 0 && !nested && (
@@ -389,6 +457,7 @@ function CommentRow({
               commentUrn={comment.commentUrn}
               postUrn={postUrn}
               author={author}
+              ourActorUrn={ourActorUrn}
             />
           )}
         </div>
@@ -403,10 +472,12 @@ function RepliesList({
   commentUrn,
   postUrn,
   author,
+  ourActorUrn,
 }: {
   commentUrn: string;
   postUrn: string;
   author: LinkedInAuthor | null;
+  ourActorUrn: string | null;
 }) {
   const query = useInfiniteQuery({
     queryKey: ["linkedin-replies", commentUrn],
@@ -419,10 +490,24 @@ function RepliesList({
     getNextPageParam: (last) => last.nextStart ?? undefined,
     staleTime: 60_000,
     refetchOnWindowFocus: false,
+    // Same 403 gate as the sibling queries. A 403 here is a permanent no —
+    // retrying spends two more of a ~500/day app-wide budget to be told
+    // the same thing.
+    retry: (count, err) => !(err instanceof ApiError && err.status === 403) && count < 2,
   });
 
   if (query.isLoading) {
     return <Skeleton className="mt-2 h-12 w-full" />;
+  }
+  // Rendering null on an error meant the user clicked "Show 3 replies" and
+  // watched nothing happen, with no way to tell a failure from an empty
+  // list. Say which it was.
+  if (query.isError) {
+    return (
+      <p className="mt-2 text-xs text-muted-foreground">
+        {engageErrorMessage(query.error)}
+      </p>
+    );
   }
   const replies = query.data?.pages.flatMap((p) => p.comments) ?? [];
   if (!replies.length) return null;
@@ -431,7 +516,14 @@ function RepliesList({
     <ul className="mt-2 space-y-3">
       {replies.map((reply) => (
         <li key={reply.commentUrn ?? reply.id}>
-          <CommentRow comment={reply} postUrn={postUrn} author={author} nested />
+          <CommentRow
+            comment={reply}
+            postUrn={postUrn}
+            author={author}
+            ourActorUrn={ourActorUrn}
+            nested
+            parentCommentUrn={commentUrn}
+          />
         </li>
       ))}
     </ul>
@@ -510,19 +602,22 @@ function ReplyBox({
 
 function EditBox({
   commentUrn,
-  postUrn,
   initial,
   author,
+  onSaved,
   onClose,
 }: {
   commentUrn: string;
-  postUrn: string;
   initial: string;
   author: LinkedInAuthor | null;
+  /** Refresh the list this comment lives in — the thread for a top-level
+   *  comment, the replies list for a reply. Edit is offered on both, and
+   *  invalidating only the thread showed a success toast beside the old
+   *  text still on screen. */
+  onSaved: () => void;
   onClose: () => void;
 }) {
   const [text, setText] = useState(initial);
-  const qc = useQueryClient();
   const save = useMutation({
     mutationFn: () =>
       linkedInContentApi.editComment(commentUrn, {
@@ -532,7 +627,7 @@ function EditBox({
     onSuccess: () => {
       toast.success("Comment updated");
       onClose();
-      void qc.invalidateQueries({ queryKey: ["linkedin-thread", postUrn] });
+      onSaved();
     },
     onError: (err) => toast.error(engageErrorMessage(err)),
   });
@@ -573,6 +668,12 @@ function EditBox({
   );
 }
 
+/** ★Radix Popover, not a hand-rolled absolute div. The hand-rolled one
+ *  had no outside-click or Escape handling, so it stayed floating over the
+ *  thread until you picked something — and opening a second one left two
+ *  on screen at once. Focus management and dismissal are exactly what the
+ *  primitive is for, and the repo already uses it for this same picker in
+ *  the Audience panel. */
 function ReactionPicker({
   pending,
   onPick,
@@ -582,44 +683,42 @@ function ReactionPicker({
 }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="relative">
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        className="h-7 gap-1.5 px-2 text-xs"
-        disabled={pending}
-        aria-busy={pending}
-        aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
-      >
-        {pending ? (
-          <Loader2 className="size-3.5 animate-spin motion-reduce:animate-none" />
-        ) : (
-          <Heart className="size-3.5" />
-        )}
-        React
-      </Button>
-      {open && (
-        <div className="absolute bottom-8 left-0 z-10 flex gap-0.5 rounded-md border bg-popover p-1 shadow-md">
-          {REACTIONS.map((r) => (
-            <button
-              key={r.type}
-              type="button"
-              title={r.label}
-              aria-label={r.label}
-              className="rounded px-1.5 py-0.5 text-base hover:bg-accent"
-              onClick={() => {
-                setOpen(false);
-                onPick(r.type);
-              }}
-            >
-              {r.emoji}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-7 gap-1.5 px-2 text-xs"
+          disabled={pending}
+          aria-busy={pending}
+        >
+          {pending ? (
+            <Loader2 className="size-3.5 animate-spin motion-reduce:animate-none" />
+          ) : (
+            <Heart className="size-3.5" />
+          )}
+          React
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="flex w-auto gap-0.5 p-1">
+        {REACTIONS.map((r) => (
+          <button
+            key={r.type}
+            type="button"
+            title={r.label}
+            aria-label={r.label}
+            className="rounded px-1.5 py-0.5 text-base hover:bg-accent"
+            onClick={() => {
+              setOpen(false);
+              onPick(r.type);
+            }}
+          >
+            {r.emoji}
+          </button>
+        ))}
+      </PopoverContent>
+    </Popover>
   );
 }
 

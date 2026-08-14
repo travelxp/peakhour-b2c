@@ -255,7 +255,7 @@ function FeedRow({ post }: { post: LinkedInFeedPost }) {
             )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground tabular-nums">
             <Metric icon={Heart} label="reactions" value={post.performance.likes} />
             <Metric icon={MessageSquare} label="comments" value={post.performance.comments} />
             <Metric icon={Share2} label="reposts" value={post.performance.shares} />
@@ -300,6 +300,9 @@ function FeedRow({ post }: { post: LinkedInFeedPost }) {
         <ThreadPanel
           postUrn={post.linkedInPostId as string}
           author={author}
+          // The URN that published this post IS us — the only sound test
+          // for "we wrote this comment", and available right here.
+          ourActorUrn={post.authorUrn}
           open={threadOpen}
           onOpenChange={setThreadOpen}
         />
