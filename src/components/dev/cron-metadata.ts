@@ -311,6 +311,46 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       return `LinkedIn data cleaned — ${total} ${plural(total, "row")} removed.`;
     },
   },
+  "linkedin-subscription-reconcile": {
+    label: "Reconnect LinkedIn comment alerts",
+    frequency: "Runs daily at 4:30 AM UTC",
+    description:
+      "Subscribes your Company Pages to LinkedIn's activity alerts, renews the ones that lapsed, and replays anything that failed to arrive. Nothing else notices when LinkedIn quietly stops sending — the symptom is a Feed that looks like a quiet week.",
+    summarize: (data) => {
+      const d = asRecord(data);
+      if (!d) return "LinkedIn alerts reconnected.";
+      const seed = asRecord(d.seed);
+      const armed = seed ? num(seed.subscribed) : 0;
+      const renewed = num(d.resubscribed);
+      const replayed = num(d.interactionsWritten);
+      // ★A run that touched nothing is reported as a warning, not a
+      // success. On dev this cron is the only way a subscription gets
+      // created at all, so "0 checked, 0 armed" is the state someone is
+      // trying to leave — and a green toast for it is how you conclude
+      // the pipeline works when nothing has been connected.
+      if (armed === 0 && renewed === 0 && num(d.checked) === 0) {
+        return {
+          level: "warning",
+          message:
+            "No LinkedIn Pages to reconnect — connect LinkedIn and enable a Page first.",
+        };
+      }
+      const parts: string[] = [];
+      if (armed > 0) parts.push(`${armed} ${plural(armed, "Page")} newly subscribed`);
+      if (renewed > 0) parts.push(`${renewed} renewed`);
+      if (num(d.revoked) > 0) parts.push(`${num(d.revoked)} need a reconnect`);
+      // Kept distinct from `revoked`: a member who is no longer a Page
+      // admin CANNOT fix this by reconnecting, and telling them to is a
+      // loop that ends where it started.
+      if (num(d.forbidden) > 0) {
+        parts.push(`${num(d.forbidden)} lost admin rights`);
+      }
+      if (replayed > 0) parts.push(`${replayed} missed ${plural(replayed, "event")} replayed`);
+      return parts.length
+        ? `LinkedIn alerts: ${parts.join(", ")}.`
+        : "LinkedIn alerts checked — everything already up to date.";
+    },
+  },
   "voice-card-refresh": {
     label: "Refresh brand voice",
     frequency: "Runs weekly (Sunday 5 AM UTC)",

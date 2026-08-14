@@ -295,8 +295,19 @@ function LinkedInPageShell({ children, loading }: { children?: React.ReactNode; 
           ENQUEUES a linkedin_post_sync job (it doesn't drain inline), so click
           linkedin-post-sync first, then jobs-runner to actually run it and
           populate posts + KPIs. */}
+      {/* ★`linkedin-subscription-reconcile` is the only way a LinkedIn
+          subscription gets CREATED on dev — its seed phase arms connections
+          that have none, and Vercel Cron fires only on production. Without
+          it the Feed tab is permanently empty here, and empty is exactly
+          what a quiet week looks like. */}
       <CronToolbar
-        crons={["linkedin-post-sync", "jobs-runner", "performance-sync", "linkedin-retention-cleanup"]}
+        crons={[
+          "linkedin-post-sync",
+          "jobs-runner",
+          "performance-sync",
+          "linkedin-subscription-reconcile",
+          "linkedin-retention-cleanup",
+        ]}
         onTriggered={() => {
           queryClient.invalidateQueries({ queryKey: ["content-hub-integrations"] });
           queryClient.invalidateQueries({ queryKey: ["linkedin-me"] });
@@ -310,6 +321,12 @@ function LinkedInPageShell({ children, loading }: { children?: React.ReactNode; 
           queryClient.invalidateQueries({ queryKey: ["linkedin-engagers"] });
           // post-sync writes the feed rows too — refresh the Feed tab.
           queryClient.invalidateQueries({ queryKey: ["linkedin-feed"] });
+          // The subscription cron's backfill writes soc_linkedin_interactions
+          // — the Feed tab's own rows, and the per-post Reposts dialog's.
+          // Without these the cron reports events replayed and both keep
+          // serving the empty result they cached.
+          queryClient.invalidateQueries({ queryKey: ["linkedin-interactions"] });
+          queryClient.invalidateQueries({ queryKey: ["linkedin-post-reposts"] });
         }}
       />
       <div>
