@@ -447,6 +447,41 @@ export const linkedInContentApi = {
     );
   },
 
+  /**
+   * The Community Feed — incoming comments, mentions and reposts.
+   *
+   * ★Reads Mongo on the server, never LinkedIn: every row arrived over
+   * the webhook. So this is cheap to poll and cheap to leave open, unlike
+   * the thread panel, which spends real API budget per call.
+   */
+  interactions: (params?: { filter?: string; cursor?: string; limit?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.filter) qs.set("filter", params.filter);
+    if (params?.cursor) qs.set("cursor", params.cursor);
+    if (typeof params?.limit === "number") qs.set("limit", String(params.limit));
+    const q = qs.toString();
+    return api.get<LinkedInFeedPage>(
+      `/v1/linkedin/content/interactions${q ? `?${q}` : ""}`,
+    );
+  },
+
+  /** Mark a screenful as seen. Batched, and deliberately does NOT change
+   *  reply status — reading a comment is not answering it. */
+  markInteractionsSeen: (interactionUrns: string[]) =>
+    api.post<{ marked: number }>("/v1/linkedin/content/interactions/seen", {
+      interactionUrns,
+    }),
+
+  /** Snooze, assign or dismiss one interaction. */
+  updateInteraction: (
+    interactionUrn: string,
+    body: { snoozedUntil?: string | null; assignedToId?: string | null; ignored?: boolean },
+  ) =>
+    api.patch<{ interactionUrn: string }>(
+      `/v1/linkedin/content/interactions/${encodeURIComponent(interactionUrn)}`,
+      body,
+    ),
+
   /** Per-reaction-type counts + comment summary for a post. The AUTHORITATIVE
    *  reaction breakdown — `reactions` above only returns the current page. */
   socialMetadata: (postUrn: string) =>
@@ -660,6 +695,48 @@ export interface LinkedInSocialMetadata {
   totalReactions: number;
   commentCount: number;
   topLevelCommentCount: number;
+}
+
+
+/** One row in the Community Feed. */
+export interface LinkedInInteraction {
+  id: string;
+  kind: "comment" | "reaction" | "repost" | "mention";
+  interactionUrn: string;
+  parentPostUrn: string;
+  parentCommentUrn?: string;
+  actorUrn?: string;
+  actorType?: "person" | "org";
+  /** Absent once the 48h sweep has taken it — see `redacted`. */
+  text?: string;
+  occurredAt?: string;
+  receivedAt: string;
+  status: "new" | "needs_reply" | "replied" | "ignored";
+  seenAt?: string;
+  repliedAt?: string;
+  replyCommentUrn?: string;
+  firstResponseMs?: number;
+  assignedToId?: string;
+  snoozedUntil?: string;
+  /** LinkedIn's 48-hour cap has passed and the member's words are gone.
+   *  The row remains, and still records what we did about it. */
+  redacted: boolean;
+}
+
+export interface LinkedInFeedCounts {
+  needsReply: number;
+  unseen: number;
+  mentions: number;
+  reposts: number;
+  /** How long the oldest unanswered comment has waited, ms. Null when
+   *  nothing is waiting. */
+  oldestUnansweredMs: number | null;
+}
+
+export interface LinkedInFeedPage {
+  rows: LinkedInInteraction[];
+  nextCursor: string | null;
+  counts: LinkedInFeedCounts;
 }
 
 /** One published post in the LinkedIn Feed tab (GET /feed). */
