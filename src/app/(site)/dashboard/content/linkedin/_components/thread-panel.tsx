@@ -52,6 +52,7 @@ import {
 import { ApiError } from "@/lib/api";
 import { useLocale } from "@/hooks/use-locale";
 import { RetentionFootnote } from "./retention-footnote";
+import { COMMENT_MAX_LEN, ReplyBox, engageErrorMessage } from "./engage-shared";
 
 /** Reaction types we may WRITE. `MAYBE` is deprecated by LinkedIn and 400s
  *  on create, so it is absent here even though a read can surface it. */
@@ -74,8 +75,6 @@ function reactionEmoji(type: string): string {
 function reactionLabel(type: string): string {
   return REACTIONS.find((r) => r.type === type)?.label ?? type;
 }
-
-const COMMENT_MAX_LEN = 1250;
 
 export function ThreadPanel({
   postUrn,
@@ -449,6 +448,7 @@ function CommentRow({
               parentCommentUrn={comment.commentUrn}
               author={author}
               onClose={() => setReplying(false)}
+              onReplied={refreshOwnList}
             />
           )}
 
@@ -527,76 +527,6 @@ function RepliesList({
         </li>
       ))}
     </ul>
-  );
-}
-
-function ReplyBox({
-  postUrn,
-  parentCommentUrn,
-  author,
-  onClose,
-}: {
-  postUrn: string;
-  parentCommentUrn: string;
-  author: LinkedInAuthor;
-  onClose: () => void;
-}) {
-  const [text, setText] = useState("");
-  const qc = useQueryClient();
-  const send = useMutation({
-    mutationFn: () =>
-      linkedInContentApi.createComment(postUrn, {
-        text: text.trim(),
-        author,
-        parentCommentUrn,
-      }),
-    onSuccess: () => {
-      toast.success("Reply posted");
-      setText("");
-      onClose();
-      void qc.invalidateQueries({ queryKey: ["linkedin-replies", parentCommentUrn] });
-      void qc.invalidateQueries({ queryKey: ["linkedin-thread", postUrn] });
-    },
-    onError: (err) => toast.error(engageErrorMessage(err)),
-  });
-
-  return (
-    <div className="mt-2 space-y-1.5">
-      <Textarea
-        value={text}
-        onChange={(e) => setText(e.target.value.slice(0, COMMENT_MAX_LEN))}
-        placeholder="Write a reply…"
-        rows={2}
-        className="text-sm"
-      />
-      <div className="flex items-center gap-2">
-        <Button
-          type="button"
-          size="sm"
-          className="h-7 px-2 text-xs"
-          disabled={!text.trim() || send.isPending}
-          aria-busy={send.isPending}
-          onClick={() => send.mutate()}
-        >
-          {send.isPending && (
-            <Loader2 className="mr-1.5 size-3.5 animate-spin motion-reduce:animate-none" />
-          )}
-          Reply
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="h-7 px-2 text-xs"
-          onClick={onClose}
-        >
-          Cancel
-        </Button>
-        <span className="ml-auto text-[10px] tabular-nums text-muted-foreground">
-          {text.length}/{COMMENT_MAX_LEN}
-        </span>
-      </div>
-    </div>
   );
 }
 
@@ -843,26 +773,6 @@ function ActorAvatar({ profile }: { profile?: LinkedInActorProfile }) {
       <AvatarFallback className="text-[10px]">{initials}</AvatarFallback>
     </Avatar>
   );
-}
-
-/** Map an engagement failure to something a person can act on. Never
- *  surfaces the raw provider string — it carries LinkedIn JSON and URNs.
- *
- *  ★A 403 does NOT promise a reconnect helps: an org post 403s on the
- *  pre-`_feed` grant, which reconnecting fixes, but a member-authored post
- *  403s on a permission LinkedIn grants to select developers only. The
- *  server already words this carefully; pass it through. */
-function engageErrorMessage(err: unknown): string {
-  if (err instanceof ApiError) {
-    if (err.code === "NOT_CONNECTED") return "Reconnect LinkedIn to continue.";
-    if (err.code === "CONFIRMATION_REQUIRED" || err.code === "VALIDATION_ERROR") {
-      return err.message;
-    }
-    if (err.status === 403 || err.status === 404 || err.status === 429) {
-      return err.message;
-    }
-  }
-  return "That didn't work. Please try again.";
 }
 
 function ErrorBody({ error }: { error: unknown }) {
