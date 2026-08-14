@@ -21,14 +21,29 @@
  *      NEXT_PUBLIC_VERCEL_ENV === "production" — the api endpoint also
  *      server-side-blocks prod, so this is layered protection.
  *
- * SINCE 2026-08: outside production it is additionally OPT-IN, via `?dev=1`
- * (remembered per browser; `?dev=0` clears it). The requirement above is
- * unchanged — every cron-fed page still mounts the toolbar and every
- * engineer still gets it in one URL param. What changed is the default,
- * because env-only gating meant the preview links the team reviews the
- * product on always carried a row of buttons labelled `discovery-runner` /
- * `jobs-runner` above the content, and "why does this look like it's still
- * in development?" turned out to be largely that.
+ * ── ★THE DEFAULT, AND WHY IT MOVED BACK ─────────────────────────────
+ * 2026-08-13 (#498) made the toolbar opt-in outside production via
+ * `?dev=1`, to stop the preview links the team reviews the product on
+ * carrying a row of buttons labelled `discovery-runner` / `jobs-runner`
+ * above the content. That problem is real and the fix for it is kept.
+ *
+ * But the default was the wrong half to change. Vercel Cron fires ONLY on
+ * production, so on every other environment this toolbar is not a
+ * developer nicety — it is the only way to make the page's own data
+ * appear at all. Hiding it by default meant the surfaces that need it
+ * most looked simply broken: crons that never ran, panels that stayed
+ * empty, and nothing on screen suggesting a control existed. The
+ * discoverability cost falls on the person trying to work; the tidiness
+ * benefit falls on someone glancing at a demo.
+ *
+ * So it is visible again on every non-production environment, and #498's
+ * escape hatch is kept and made persistent in the other direction:
+ *
+ *   ?dev=0   hide it, and remember that for this browser
+ *   ?dev=1   show it again
+ *
+ * That is strictly better than the state before #498, when there was no
+ * way to hide it for a demo at all.
  *
  * Layout: a separate visual band (border-dashed, subtle bg) above the
  * page action buttons. Keeps cron triggers out of the primary action
@@ -110,38 +125,61 @@ function isProductionEnv(): boolean {
 }
 
 /**
- * Explicit opt-in for the dev cron controls.
+ * The dev-cron controls: shown on every non-production environment, and
+ * hideable for a demo.
  *
- * Environment alone used to decide this, which meant every preview URL — the
- * ones the team reviews the product on — rendered a row of buttons labelled
- * `discovery-runner` / `jobs-runner` above the page content. Nothing else on
- * screen said "unfinished software" half as loudly, and it said it about a
- * build that was fine.
+ *   ?dev=0   hide, and remember that for this browser
+ *   ?dev=1   show again
  *
- * The toolbar stays exactly as available to the people who need it (Vercel
- * Cron only fires on production, so previews genuinely cannot exercise these
- * paths without it) — it just has to be asked for now:
- *
- *   ?dev=1   turn on, and remember it for this browser
- *   ?dev=0   turn off again
- *
- * Production is still blocked outright, and the api route server-side blocks
- * prod as well, so this narrows the audience without weakening either layer.
+ * See the file header for why the default sits here rather than at
+ * opt-in. Production is blocked outright below, and `/v1/dev/cron/:name`
+ * server-side blocks prod as well, so neither layer is weakened by this.
  */
 const DEV_TOOLS_KEY = "peakhour.dev-tools";
 const DEV_TOOLS_EVENT = "peakhour:dev-tools";
 
-/** Pure read — safe to call during render, writes nothing. */
+/**
+ * Pure read — safe to call during render, writes nothing.
+ *
+ * ★Defaults to SHOWN, and stays shown when storage is unreadable. The
+ * previous version returned false on a storage exception, which meant a
+ * locked-down browser silently got the production experience on a dev
+ * environment: no toolbar, no crons, no explanation.
+ *
+ * ★The SSR branch still returns false, because the server cannot read a
+ * per-browser preference and rendering the toolbar there would hydrate
+ * into a mismatch for anyone who has hidden it. It appears on hydration.
+ */
 function readDevToolsFlag(): boolean {
   if (typeof window === "undefined") return false;
   try {
-    if (new URLSearchParams(window.location.search).get("dev") === "1") return true;
-    return window.localStorage.getItem(DEV_TOOLS_KEY) === "1";
+    return devToolsVisible(
+      new URLSearchParams(window.location.search).get("dev"),
+      window.localStorage.getItem(DEV_TOOLS_KEY),
+    );
   } catch {
-    // Storage can throw in locked-down browser modes. A dev affordance is
-    // never worth breaking the page over.
-    return false;
+    // Storage can throw in locked-down browser modes. Fall back to the
+    // default rather than to "off" — a dev affordance is never worth
+    // breaking the page over, and neither is losing it silently.
+    return true;
   }
+}
+
+/**
+ * The whole rule, as a pure function: shown unless someone said hide.
+ *
+ * Extracted so it can be pinned by a test without a DOM. The URL wins over
+ * the stored preference in BOTH directions — `?dev=1` has to be able to
+ * undo a `?dev=0` from three weeks ago, or hiding it once would be
+ * permanent for anyone who forgot they did it.
+ */
+export function devToolsVisible(
+  param: string | null,
+  stored: string | null,
+): boolean {
+  if (param === "1") return true;
+  if (param === "0") return false;
+  return stored !== "0";
 }
 
 function subscribeDevToolsFlag(onChange: () => void) {
@@ -160,8 +198,12 @@ function useDevToolsEnabled(): boolean {
     let param: string | null = null;
     try {
       param = new URLSearchParams(window.location.search).get("dev");
-      if (param === "1") window.localStorage.setItem(DEV_TOOLS_KEY, "1");
-      else if (param === "0") window.localStorage.removeItem(DEV_TOOLS_KEY);
+      // ★Only the HIDE is persisted, because only it differs from the
+      // default. Storing "1" as well would leave two ways to express
+      // "shown" — an explicit one and an absent one — and the migration
+      // question of what an old "1" means when the default flips again.
+      if (param === "0") window.localStorage.setItem(DEV_TOOLS_KEY, "0");
+      else if (param === "1") window.localStorage.removeItem(DEV_TOOLS_KEY);
     } catch {
       return;
     }
