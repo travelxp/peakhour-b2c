@@ -1,24 +1,34 @@
 "use client";
 
 /**
- * The thread panel — the surface that makes a comment visible.
+ * The comment and reaction lists — the surface that makes engagement
+ * visible, and the actions that belong beside it.
  *
  * Until this shipped, LinkedIn Content could POST a comment it could not
  * SHOW you: the write path landed with the engager panel and the read path
- * never did. This is the read path, plus the actions that belong beside it.
+ * never did. This is the read path.
  *
- * ★Everything here is fetched only when a person opens the sheet.
- * Community Management Development tier allows ~500 requests/day for the
- * whole app across every customer, so a thread is loaded on demand and
- * never prefetched for a list of posts. `enabled: open` on both queries is
- * the mechanism; do not replace it with an eager fetch.
+ * ── ★NO LONGER A PANEL OF ITS OWN ────────────────────────────────────
+ * These were a two-tab sheet behind a "View engagement" button beside the
+ * counts, which made the counts decoration — you read "24 comments", found
+ * a separate control, then picked a tab to get back to what you had
+ * already pointed at. The counts are the controls now, and each opens the
+ * one list it names (`engagement-dialogs.tsx`). What survived is
+ * everything below: it is where reply, react, edit, delete, nested
+ * replies, the "is this ours" test and the 403 mapping live, and a second
+ * surface re-implementing any of it would drift.
+ *
+ * ★Everything here is fetched only when a dialog is OPEN. Community
+ * Management Development tier allows ~500 requests/day for the whole app
+ * across every customer, so a thread is loaded on demand and never
+ * prefetched for a list of posts. `enabled: open` on both queries is the
+ * mechanism; do not replace it with an eager fetch.
  */
 
 import { useState } from "react";
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Loader2,
-  MessageSquare,
   Heart,
   Trash2,
   CornerDownRight,
@@ -26,14 +36,6 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { toast } from "sonner";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
@@ -51,7 +53,6 @@ import {
 } from "@/lib/api/linkedin-content";
 import { ApiError } from "@/lib/api";
 import { useLocale } from "@/hooks/use-locale";
-import { RetentionFootnote } from "./retention-footnote";
 import { COMMENT_MAX_LEN, ReplyBox, engageErrorMessage } from "./engage-shared";
 
 /** Reaction types we may WRITE. `MAYBE` is deprecated by LinkedIn and 400s
@@ -76,73 +77,18 @@ function reactionLabel(type: string): string {
   return REACTIONS.find((r) => r.type === type)?.label ?? type;
 }
 
-export function ThreadPanel({
-  postUrn,
-  author,
-  ourActorUrn,
-  open,
-  onOpenChange,
-}: {
-  postUrn: string;
-  /** The post's own author — who we reply and react AS. Null when we
-   *  cannot resolve one, in which case the panel reads but cannot write. */
-  author: LinkedInAuthor | null;
-  /** The URN that published this post — i.e. us.
-   *
-   *  ★The ONLY sound test for "this is our comment". An earlier version
-   *  used `Boolean(comment.agent)`, which means "an ORGANIZATION authored
-   *  this" and is true of any other company's comment on the thread — so
-   *  another brand got a "You" badge and an Edit button whose save
-   *  LinkedIn would reject. */
-  ourActorUrn: string | null;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}) {
-  return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="flex w-full flex-col gap-0 sm:max-w-xl">
-        <SheetHeader>
-          <SheetTitle>Engagement</SheetTitle>
-          <SheetDescription>
-            Reply, react and moderate without leaving Peakhour.
-          </SheetDescription>
-        </SheetHeader>
-
-        <Tabs defaultValue="comments" className="mt-4 flex min-h-0 flex-1 flex-col">
-          <TabsList>
-            <TabsTrigger value="comments" className="gap-1.5">
-              <MessageSquare className="size-4" /> Comments
-            </TabsTrigger>
-            <TabsTrigger value="reactions" className="gap-1.5">
-              <Heart className="size-4" /> Reactions
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="comments" className="mt-3 min-h-0 flex-1 overflow-y-auto">
-            <CommentsTab
-              postUrn={postUrn}
-              author={author}
-              ourActorUrn={ourActorUrn}
-              open={open}
-            />
-          </TabsContent>
-          <TabsContent value="reactions" className="mt-3 min-h-0 flex-1 overflow-y-auto">
-            <ReactionsTab postUrn={postUrn} open={open} />
-          </TabsContent>
-        </Tabs>
-
-        <RetentionFootnote>
-          Comment text is held for 48 hours and commenter names for 24, per
-          LinkedIn&apos;s data rules.
-        </RetentionFootnote>
-      </SheetContent>
-    </Sheet>
-  );
-}
-
 // ── Comments ──────────────────────────────────────────────
 
-function CommentsTab({
+/**
+ * ★EXPORTED so the Library's Comments dialog is this list, not a copy of
+ * it. Everything that makes a comment actionable — the reply box, the
+ * six-way reaction picker, edit, delete, the one-level reply thread, the
+ * "is this ours" test and the 403 mapping — lives in `CommentRow` below.
+ * A second surface re-implementing even part of that would drift, and the
+ * half it dropped would be the half nobody notices until a customer
+ * cannot answer someone.
+ */
+export function CommentsTab({
   postUrn,
   author,
   ourActorUrn,
@@ -159,7 +105,7 @@ function CommentsTab({
     queryFn: ({ pageParam }) =>
       linkedInContentApi.comments(postUrn, { count: 25, start: pageParam as number }),
     getNextPageParam: (last) => last.nextStart ?? undefined,
-    // Loaded only while the sheet is open — see the file header on why.
+    // Loaded only while the dialog is open — see the file header on why.
     enabled: open,
     staleTime: 60_000,
     refetchOnWindowFocus: false,
@@ -654,7 +600,8 @@ function ReactionPicker({
 
 // ── Reactions ─────────────────────────────────────────────
 
-function ReactionsTab({ postUrn, open }: { postUrn: string; open: boolean }) {
+/** Exported for the Library's Reactions dialog — see `CommentsTab`. */
+export function ReactionsTab({ postUrn, open }: { postUrn: string; open: boolean }) {
   const query = useInfiniteQuery({
     queryKey: ["linkedin-reactions", postUrn],
     initialPageParam: 0,

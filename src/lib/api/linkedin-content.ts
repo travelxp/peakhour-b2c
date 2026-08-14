@@ -454,10 +454,18 @@ export const linkedInContentApi = {
    * the webhook. So this is cheap to poll and cheap to leave open, unlike
    * the thread panel, which spends real API budget per call.
    */
-  interactions: (params?: { filter?: string; cursor?: string; limit?: number }) => {
+  interactions: (params?: {
+    filter?: string;
+    cursor?: string;
+    limit?: number;
+    /** Narrow to one post — what the Library's per-card Reposts dialog asks.
+     *  The Feed tab omits it and gets the whole-brand queue. */
+    postUrn?: string;
+  }) => {
     const qs = new URLSearchParams();
     if (params?.filter) qs.set("filter", params.filter);
     if (params?.cursor) qs.set("cursor", params.cursor);
+    if (params?.postUrn) qs.set("postUrn", params.postUrn);
     if (typeof params?.limit === "number") qs.set("limit", String(params.limit));
     const q = qs.toString();
     return api.get<LinkedInFeedPage>(
@@ -721,6 +729,13 @@ export interface LinkedInInteraction {
   /** LinkedIn's 48-hour cap has passed and the member's words are gone.
    *  The row remains, and still records what we did about it. */
   redacted: boolean;
+  /** Who did it, when we still have them in the 24-hour cache.
+   *
+   *  ★Absent is the ORDINARY case, not an error — the cache is filled only
+   *  by comments reads, so a reposter (whose notification carries a URN
+   *  and nothing else) usually has no decoration at all. Render the
+   *  fallback, never an error state. */
+  actorProfile?: LinkedInActorProfile;
 }
 
 export interface LinkedInFeedCounts {
