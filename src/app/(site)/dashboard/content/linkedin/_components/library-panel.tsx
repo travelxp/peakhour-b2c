@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ThreadPanel } from "./thread-panel";
 import { useInfiniteQuery, useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api";
@@ -22,6 +23,9 @@ import {
   Share2,
   User,
   X,
+  MousePointerClick,
+  MessagesSquare,
+  TrendingUp,
 } from "lucide-react";
 import {
   linkedInContentApi,
@@ -55,7 +59,7 @@ const AUTHOR_FILTERS: { value: AuthorFilter; label: string }[] = [
   { value: "org", label: "Pages" },
 ];
 
-export function FeedPanel() {
+export function LibraryPanel() {
   const [authorFilter, setAuthorFilter] = useState<AuthorFilter>("all");
 
   const {
@@ -175,6 +179,25 @@ function FeedRow({ post }: { post: LinkedInFeedPost }) {
   // on a resolvable author AND a real post URN.
   const author = postAuthor(post);
   const canComment = author !== null && !!post.linkedInPostId && post.linkedInPostId.includes("urn:li:");
+  const [threadOpen, setThreadOpen] = useState(false);
+  // Reading a thread needs a real URN but NOT a resolvable author — you can
+  // look at engagement on a post you cannot currently comment as.
+  const canEngage = !!post.linkedInPostId && post.linkedInPostId.includes("urn:li:");
+  // Opening a thread costs a LinkedIn call against a ~500/day app-wide
+  // budget, so the entry point is hidden when the counters say there is
+  // nothing in there to read.
+  const hasEngagement =
+    post.performance.comments > 0 || post.performance.likes > 0;
+  // Engagement over reach. Null rather than 0 when there are no
+  // impressions: a post nobody saw has no rate, and rendering "0.0%"
+  // would read as failure rather than as absence.
+  const engagementRate =
+    post.performance.impressions > 0
+      ? ((post.performance.likes + post.performance.comments + post.performance.shares +
+          post.performance.clicks) /
+          post.performance.impressions) *
+        100
+      : null;
 
   return (
     <li>
@@ -209,11 +232,44 @@ function FeedRow({ post }: { post: LinkedInFeedPost }) {
             {post.content}
           </p>
 
+{/* ★Two lines, because they answer different questions. Reach is
+              what the post DID; engagement is what people did back, and it
+              is the half that can be acted on — so it carries the button.
+
+              `clicks` was already in the payload and simply never rendered.
+              The engagement RATE is the number worth leading on: a post
+              with 400 impressions and 20 comments is doing better than one
+              with 12,000 and 3, and the old strip made the second look
+              like the winner. */}
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground tabular-nums">
             <Metric icon={Eye} label="impressions" value={post.performance.impressions} />
-            <Metric icon={Heart} label="likes" value={post.performance.likes} />
+            <Metric icon={MousePointerClick} label="clicks" value={post.performance.clicks} />
+            {engagementRate !== null && (
+              <span
+                className="flex items-center gap-1"
+                title={`${engagementRate.toFixed(2)}% of people who saw this engaged with it`}
+              >
+                <TrendingUp className="size-3.5" aria-hidden />
+                {engagementRate.toFixed(1)}%
+              </span>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <Metric icon={Heart} label="reactions" value={post.performance.likes} />
             <Metric icon={MessageSquare} label="comments" value={post.performance.comments} />
-            <Metric icon={Share2} label="shares" value={post.performance.shares} />
+            <Metric icon={Share2} label="reposts" value={post.performance.shares} />
+            {canEngage && hasEngagement && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="ml-auto h-7 gap-1.5 px-2 text-xs"
+                onClick={() => setThreadOpen(true)}
+              >
+                <MessagesSquare className="size-3.5" /> View engagement
+              </Button>
+            )}
           </div>
 
           {canComment && (
@@ -239,6 +295,15 @@ function FeedRow({ post }: { post: LinkedInFeedPost }) {
           )}
         </CardContent>
       </Card>
+
+      {canEngage && (
+        <ThreadPanel
+          postUrn={post.linkedInPostId as string}
+          author={author}
+          open={threadOpen}
+          onOpenChange={setThreadOpen}
+        />
+      )}
     </li>
   );
 }

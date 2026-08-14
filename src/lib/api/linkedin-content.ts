@@ -400,6 +400,87 @@ export const linkedInContentApi = {
     ),
 
   /**
+   * Comments on a post — or, when `target` is a comment URN, that comment's
+   * replies. LinkedIn serves both from one resource and nests exactly one
+   * level, so there is no recursion to write in the UI.
+   *
+   * ★ON-DEMAND ONLY. Community Management Development tier allows ~500
+   * requests/day for the whole app across every customer, so this is called
+   * when a person opens a thread and never to pre-fill a list of posts.
+   */
+  comments: (target: string, params?: { count?: number; start?: number }) => {
+    const qs = new URLSearchParams();
+    if (typeof params?.count === "number") qs.set("count", String(params.count));
+    if (typeof params?.start === "number") qs.set("start", String(params.start));
+    const q = qs.toString();
+    return api.get<LinkedInCommentPage>(
+      `/v1/linkedin/content/posts/${encodeURIComponent(target)}/comments${q ? `?${q}` : ""}`,
+    );
+  },
+
+  /** Replies on one comment. */
+  commentReplies: (commentUrn: string, params?: { count?: number; start?: number }) => {
+    const qs = new URLSearchParams();
+    if (typeof params?.count === "number") qs.set("count", String(params.count));
+    if (typeof params?.start === "number") qs.set("start", String(params.start));
+    const q = qs.toString();
+    return api.get<LinkedInCommentPage>(
+      `/v1/linkedin/content/comments/${encodeURIComponent(commentUrn)}/replies${q ? `?${q}` : ""}`,
+    );
+  },
+
+  /**
+   * Who reacted to a post or comment, and with what.
+   *
+   * ★Reactor NAMES are best-effort. LinkedIn returns actor URNs here and
+   * exposes no profile lookup for other members — identity arrives only
+   * alongside a comments read — so a reactor is named only if they also
+   * commented recently. Render a nameless reactor as normal, not as a gap.
+   */
+  reactions: (entityUrn: string, params?: { count?: number; start?: number }) => {
+    const qs = new URLSearchParams();
+    if (typeof params?.count === "number") qs.set("count", String(params.count));
+    if (typeof params?.start === "number") qs.set("start", String(params.start));
+    const q = qs.toString();
+    return api.get<LinkedInReactionPage>(
+      `/v1/linkedin/content/posts/${encodeURIComponent(entityUrn)}/reactions${q ? `?${q}` : ""}`,
+    );
+  },
+
+  /** Per-reaction-type counts + comment summary for a post. The AUTHORITATIVE
+   *  reaction breakdown — `reactions` above only returns the current page. */
+  socialMetadata: (postUrn: string) =>
+    api.get<LinkedInSocialMetadata>(
+      `/v1/linkedin/content/posts/${encodeURIComponent(postUrn)}/social-metadata`,
+    ),
+
+  /** Edit a comment we authored. `author` picks the page to edit as; omit to
+   *  edit as the signed-in member. */
+  editComment: (commentUrn: string, body: { text: string; author?: LinkedInAuthor }) =>
+    api.patch<{ commentUrn: string }>(
+      `/v1/linkedin/content/comments/${encodeURIComponent(commentUrn)}`,
+      body,
+    ),
+
+  /** Delete a comment.
+   *
+   *  `commentRef` may be the bare numeric id OR the composite comment URN —
+   *  the server unpacks the thread from the URN when given one, which is
+   *  what the thread panel has to hand. The author is a QUERY pair
+   *  (`authorType`/`pageId`) rather than a body because DELETE carries none. */
+  deleteComment: (postUrn: string, commentRef: string, author?: LinkedInAuthor) => {
+    const qs = new URLSearchParams();
+    if (author?.type === "org") {
+      qs.set("authorType", "org");
+      qs.set("pageId", author.pageId);
+    }
+    const q = qs.toString();
+    return api.delete<{ deleted: boolean }>(
+      `/v1/linkedin/content/posts/${encodeURIComponent(postUrn)}/comments/${encodeURIComponent(commentRef)}${q ? `?${q}` : ""}`,
+    );
+  },
+
+  /**
    * React to a post OR a comment as the member or an org page. `entityUrn` is
    * the target's full URN — a post (`urn:li:share:*` / `urn:li:ugcPost:*`) or a
    * comment (`urn:li:comment:(...)`). Same `RECONNECT_REQUIRED` (403) contract
@@ -502,6 +583,83 @@ export interface CarouselResult {
   /** False when the document upload didn't confirm AVAILABLE before posting
    *  (best-effort path) — the post may still be processing on LinkedIn. */
   documentAvailable: boolean;
+}
+
+
+/** A commenter's public profile, when LinkedIn decorated it.
+ *
+ *  ★24-hour data on the server, and OPTIONAL here. It is absent whenever
+ *  identity is switched off or LinkedIn declined the decoration, so render
+ *  its absence as "A member" — never as an error state. */
+export interface LinkedInActorProfile {
+  actorUrn: string;
+  displayName?: string;
+  headline?: string;
+  pictureUrl?: string;
+  vanityName?: string;
+}
+
+/** One comment in a thread. */
+export interface LinkedInCommentDetail {
+  /** LinkedIn's numeric comment id — what the delete path wants. */
+  id: string;
+  /** The composite `urn:li:comment:(...)`. Absent only when LinkedIn sent
+   *  nothing to build it from; actions that key on a comment are hidden
+   *  in that case rather than sending a URN that matches nothing. */
+  commentUrn?: string;
+  actor: string;
+  /** Present when an org authored it — i.e. this is OUR page's comment. */
+  agent?: string;
+  /** May be empty for an image-only comment. */
+  message: string;
+  createdAt?: number;
+  lastModifiedAt?: number;
+  edited: boolean;
+  likeCount: number;
+  likedByUs: boolean;
+  replyCount: number;
+  parentCommentUrn?: string;
+  objectUrn?: string;
+  imageUrns: string[];
+  actorProfile?: LinkedInActorProfile;
+}
+
+export interface LinkedInCommentPage {
+  comments: LinkedInCommentDetail[];
+  total?: number;
+  /** Pass as `start` for the next page; absent = end of thread. */
+  nextStart?: number;
+  /** Whether names were actually fetched. False means "we are not showing
+   *  names", which is different from "nobody has one". */
+  identityEnabled: boolean;
+}
+
+export interface LinkedInReaction {
+  id: string;
+  actor: string;
+  reactionType: string;
+  createdAt?: number;
+  root?: string;
+  actorProfile?: LinkedInActorProfile;
+}
+
+export interface LinkedInReactionPage {
+  reactions: LinkedInReaction[];
+  total?: number;
+  nextStart?: number;
+  identityEnabled: boolean;
+  /** Always true — see `reactions` above on why most reactors are nameless. */
+  reactorNamesAreBestEffort?: boolean;
+}
+
+/** Authoritative per-type reaction counts for a post. */
+export interface LinkedInSocialMetadata {
+  entity: string;
+  commentsState?: string;
+  reactions: Record<string, number>;
+  totalReactions: number;
+  commentCount: number;
+  topLevelCommentCount: number;
 }
 
 /** One published post in the LinkedIn Feed tab (GET /feed). */

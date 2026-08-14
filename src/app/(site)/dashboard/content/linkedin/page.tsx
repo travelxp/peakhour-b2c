@@ -10,7 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EmptyState } from "@/components/molecules/empty-state";
-import { MessageSquare, Newspaper, RefreshCw, Rocket, Send, Users } from "lucide-react";
+import { MessageSquare, Newspaper, RefreshCw, Rocket, Users } from "lucide-react";
 import {
   PostComposer,
   PostComposerSkeleton,
@@ -18,7 +18,7 @@ import {
 } from "./_components/post-composer";
 import { AudiencePanel } from "./_components/audience-panel";
 import { BoostCandidatesPanel } from "./_components/boost-candidates-panel";
-import { FeedPanel } from "./_components/feed-panel";
+import { LibraryPanel } from "./_components/library-panel";
 import { SuggestedDraftsPanel } from "./_components/suggested-drafts-panel";
 
 /** Reconnect round trips come back to this hub, not to Settings. */
@@ -142,8 +142,12 @@ function LinkedInTabs({
   identity: ReturnType<typeof useLinkedInIdentity>;
   enabledIdentity: ReturnType<typeof useLinkedInIdentity> | null;
 }) {
-  const [tab, setTab] = useState<"compose" | "feed" | "audience" | "boost">("compose");
-  const [feedOpened, setFeedOpened] = useState(false);
+  // ★Library · Feed · Audience · Boost is the settled shape. Library holds
+  // drafting AND the published archive — you write the next post from how
+  // the last one did, and splitting those across tabs meant navigating in
+  // order to learn. The new Feed (incoming community activity) arrives
+  // with the webhook work, so this hub has three tabs today, not four.
+  const [tab, setTab] = useState<"library" | "audience" | "boost">("library");
   const [audienceOpened, setAudienceOpened] = useState(false);
   const [boostOpened, setBoostOpened] = useState(false);
   // Composer seed text — set when the user clicks "Use this draft" on
@@ -153,9 +157,12 @@ function LinkedInTabs({
   const [composerSeed, setComposerSeed] = useState<string | undefined>(undefined);
 
   function handleTabChange(value: string) {
-    if (value === "compose" || value === "feed" || value === "audience" || value === "boost") {
+    if (value === "library" || value === "audience" || value === "boost") {
       setTab(value);
-      if (value === "feed") setFeedOpened(true);
+      // Radix TabsContent mounts eagerly, so each non-default tab stays
+      // gated on having been opened once. A tab that skips this fires its
+      // query on every page load — which, against a ~500-requests/day
+      // app-wide LinkedIn budget, is not a style preference.
       if (value === "audience") setAudienceOpened(true);
       if (value === "boost") setBoostOpened(true);
     }
@@ -164,11 +171,8 @@ function LinkedInTabs({
   return (
     <Tabs value={tab} onValueChange={handleTabChange}>
       <TabsList>
-        <TabsTrigger value="compose" className="gap-1.5">
-          <Send className="size-4" /> Compose
-        </TabsTrigger>
-        <TabsTrigger value="feed" className="gap-1.5">
-          <Newspaper className="size-4" /> Feed
+        <TabsTrigger value="library" className="gap-1.5">
+          <Newspaper className="size-4" /> Library
         </TabsTrigger>
         <TabsTrigger value="audience" className="gap-1.5">
           <Users className="size-4" /> Audience
@@ -178,7 +182,7 @@ function LinkedInTabs({
         </TabsTrigger>
       </TabsList>
 
-      <TabsContent value="compose" className="mt-4 space-y-4">
+      <TabsContent value="library" className="mt-4 space-y-4">
         <SuggestedDraftsPanel onUseDraft={setComposerSeed} />
         <Card>
           <CardContent className="p-5">
@@ -195,10 +199,14 @@ function LinkedInTabs({
         <p className="text-xs text-muted-foreground">
           Compose with AI, schedule for later, publish now, or turn a longer write-up into a swipeable carousel. Image attachments are coming.
         </p>
-      </TabsContent>
 
-      <TabsContent value="feed" className="mt-4">
-        {feedOpened ? <FeedPanel /> : null}
+        {/* The published archive sits directly under the composer, because
+            what you write next is informed by how the last one landed and
+            that only works if both are on one screen. Mounted with the tab
+            rather than gated: it reads from Mongo (the post-sync cron's
+            output), so it costs no LinkedIn budget. The per-post threads
+            are the on-demand part. */}
+        <LibraryPanel />
       </TabsContent>
 
       <TabsContent value="audience" className="mt-4">
