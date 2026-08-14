@@ -1,7 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { ThreadPanel } from "./thread-panel";
+import {
+  ReactionsDialog,
+  CommentsDialog,
+  RepostsDialog,
+} from "./engagement-dialogs";
+import { MetricStrip } from "./metric-strip";
 import { useInfiniteQuery, useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api";
@@ -14,18 +19,11 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Building2,
   ExternalLink,
-  Eye,
-  Heart,
   Loader2,
-  MessageSquare,
   MessageSquarePlus,
   Send,
-  Share2,
   User,
   X,
-  MousePointerClick,
-  MessagesSquare,
-  TrendingUp,
 } from "lucide-react";
 import {
   linkedInContentApi,
@@ -179,25 +177,15 @@ function FeedRow({ post }: { post: LinkedInFeedPost }) {
   // on a resolvable author AND a real post URN.
   const author = postAuthor(post);
   const canComment = author !== null && !!post.linkedInPostId && post.linkedInPostId.includes("urn:li:");
-  const [threadOpen, setThreadOpen] = useState(false);
-  // Reading a thread needs a real URN but NOT a resolvable author — you can
-  // look at engagement on a post you cannot currently comment as.
+  // One piece of state per dialog rather than one "which tab" value: the
+  // metric you clicked decides what opens, and there is no tab strip left
+  // to re-ask the question.
+  const [reactionsOpen, setReactionsOpen] = useState(false);
+  const [commentsOpen, setCommentsOpen] = useState(false);
+  const [repostsOpen, setRepostsOpen] = useState(false);
+  // Reading engagement needs a real URN but NOT a resolvable author — you
+  // can look at a post you cannot currently comment as.
   const canEngage = !!post.linkedInPostId && post.linkedInPostId.includes("urn:li:");
-  // Opening a thread costs a LinkedIn call against a ~500/day app-wide
-  // budget, so the entry point is hidden when the counters say there is
-  // nothing in there to read.
-  const hasEngagement =
-    post.performance.comments > 0 || post.performance.likes > 0;
-  // Engagement over reach. Null rather than 0 when there are no
-  // impressions: a post nobody saw has no rate, and rendering "0.0%"
-  // would read as failure rather than as absence.
-  const engagementRate =
-    post.performance.impressions > 0
-      ? ((post.performance.likes + post.performance.comments + post.performance.shares +
-          post.performance.clicks) /
-          post.performance.impressions) *
-        100
-      : null;
 
   return (
     <li>
@@ -232,45 +220,22 @@ function FeedRow({ post }: { post: LinkedInFeedPost }) {
             {post.content}
           </p>
 
-{/* ★Two lines, because they answer different questions. Reach is
-              what the post DID; engagement is what people did back, and it
-              is the half that can be acted on — so it carries the button.
+{/* ★ONE ROW, AND THE COUNTS ARE THE CONTROLS. These six were split
+              across two lines under a reach/engagement taxonomy the viewer
+              had to learn before comparing anything — and the wrap moved
+              with the container, so the grouping was not even stable.
 
-              `clicks` was already in the payload and simply never rendered.
-              The engagement RATE is the number worth leading on: a post
-              with 400 impressions and 20 comments is doing better than one
-              with 12,000 and 3, and the old strip made the second look
-              like the winner. */}
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground tabular-nums">
-            <Metric icon={Eye} label="impressions" value={post.performance.impressions} />
-            <Metric icon={MousePointerClick} label="clicks" value={post.performance.clicks} />
-            {engagementRate !== null && (
-              <span
-                className="flex items-center gap-1"
-                title={`${engagementRate.toFixed(2)}% of people who saw this engaged with it`}
-              >
-                <TrendingUp className="size-3.5" aria-hidden />
-                {engagementRate.toFixed(1)}%
-              </span>
-            )}
-          </div>
-
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground tabular-nums">
-            <Metric icon={Heart} label="reactions" value={post.performance.likes} />
-            <Metric icon={MessageSquare} label="comments" value={post.performance.comments} />
-            <Metric icon={Share2} label="reposts" value={post.performance.shares} />
-            {canEngage && hasEngagement && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="ml-auto h-7 gap-1.5 px-2 text-xs"
-                onClick={() => setThreadOpen(true)}
-              >
-                <MessagesSquare className="size-3.5" /> View engagement
-              </Button>
-            )}
-          </div>
+              The "View engagement" button that used to sit here is gone:
+              it made the numbers decoration, sending you off to find a
+              separate control and then a tab to get back to the thing you
+              had already pointed at. See metric-strip.tsx. */}
+          <MetricStrip
+            values={post.performance}
+            canOpen={canEngage}
+            onOpenReactions={() => setReactionsOpen(true)}
+            onOpenComments={() => setCommentsOpen(true)}
+            onOpenReposts={() => setRepostsOpen(true)}
+          />
 
           {canComment && (
             <div className="border-t pt-2">
@@ -297,15 +262,27 @@ function FeedRow({ post }: { post: LinkedInFeedPost }) {
       </Card>
 
       {canEngage && (
-        <ThreadPanel
-          postUrn={post.linkedInPostId as string}
-          author={author}
-          // The URN that published this post IS us — the only sound test
-          // for "we wrote this comment", and available right here.
-          ourActorUrn={post.authorUrn}
-          open={threadOpen}
-          onOpenChange={setThreadOpen}
-        />
+        <>
+          <ReactionsDialog
+            postUrn={post.linkedInPostId as string}
+            open={reactionsOpen}
+            onOpenChange={setReactionsOpen}
+          />
+          <CommentsDialog
+            postUrn={post.linkedInPostId as string}
+            author={author}
+            // The URN that published this post IS us — the only sound test
+            // for "we wrote this comment", and available right here.
+            ourActorUrn={post.authorUrn}
+            open={commentsOpen}
+            onOpenChange={setCommentsOpen}
+          />
+          <RepostsDialog
+            postUrn={post.linkedInPostId as string}
+            open={repostsOpen}
+            onOpenChange={setRepostsOpen}
+          />
+        </>
       )}
     </li>
   );
@@ -426,27 +403,6 @@ function CommentBox({
   );
 }
 
-function Metric({
-  icon: Icon,
-  label,
-  value,
-}: {
-  icon: typeof Eye;
-  label: string;
-  value: number;
-}) {
-  return (
-    <span
-      className="flex items-center gap-1"
-      aria-label={`${value.toLocaleString()} ${label}`}
-      title={`${value.toLocaleString()} ${label}`}
-    >
-      <Icon className="size-3.5" aria-hidden />
-      {formatCount(value)}
-    </span>
-  );
-}
-
 // ── Helpers ───────────────────────────────────────────────
 
 /** Build a "View on LinkedIn" URL only when we have a real URN — a bare
@@ -460,12 +416,6 @@ function linkedInPostUrl(linkedInPostId: string | null): string | null {
   // linkedin.ts): encoding produces %3A%3A URLs some browser caches
   // mishandle.
   return `https://www.linkedin.com/feed/update/${linkedInPostId}`;
-}
-
-function formatCount(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
-  return String(n);
 }
 
 // ── Sub-components ────────────────────────────────────────
