@@ -15,7 +15,7 @@
  * left open. The thread panel is where on-demand API calls happen.
  */
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Loader2,
@@ -31,7 +31,6 @@ import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   linkedInContentApi,
@@ -42,6 +41,11 @@ import {
 import { ApiError } from "@/lib/api";
 import { useLocale } from "@/hooks/use-locale";
 import { RetentionFootnote } from "./retention-footnote";
+import {
+  ReplyBox,
+  engageErrorMessage,
+  linkedInPostUrl,
+} from "./engage-shared";
 
 const FILTERS = [
   { key: "needs_reply", label: "Needs reply" },
@@ -53,10 +57,62 @@ const FILTERS = [
 
 type FilterKey = (typeof FILTERS)[number]["key"];
 
-const COMMENT_MAX_LEN = 1250;
+/**
+ * Collects interactions a person has actually LOOKED at, and reports them
+ * in one call.
+ *
+ * ★Three problems this replaces. The old version fired on every rendered
+ * row — so opening the Feed cleared "New" for 25 rows nobody had scrolled
+ * to, and a background refetch marked things seen while the tab was not
+ * even on screen. It also sent one POST per row against an endpoint that
+ * accepts a hundred, and, because the cache is never updated with
+ * `seenAt`, re-sent all of them on the next remount.
+ *
+ * So: only rows that entered the viewport, only while the document is
+ * visible, flushed once on a short debounce, and remembered for the
+ * lifetime of the panel so a remount does not repeat them.
+ */
+function useMarkSeen() {
+  const pending = useRef(new Set<string>());
+  const sent = useRef(new Set<string>());
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const flush = useCallback(() => {
+    const urns = [...pending.current].filter((u) => !sent.current.has(u));
+    pending.current.clear();
+    if (!urns.length) return;
+    urns.forEach((u) => sent.current.add(u));
+    // A missed "seen" costs a badge, not data — and an error toast on a
+    // page somebody is only scrolling is worse than the badge.
+    linkedInContentApi.markInteractionsSeen(urns.slice(0, 100)).catch(() => {
+      urns.forEach((u) => sent.current.delete(u));
+    });
+  }, []);
+
+  const observe = useCallback(
+    (urn: string) => {
+      if (sent.current.has(urn) || pending.current.has(urn)) return;
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+      pending.current.add(urn);
+      if (timer.current) clearTimeout(timer.current);
+      timer.current = setTimeout(flush, 800);
+    },
+    [flush],
+  );
+
+  useEffect(() => {
+    const t = timer;
+    return () => {
+      if (t.current) clearTimeout(t.current);
+    };
+  }, []);
+
+  return observe;
+}
 
 export function CommunityFeedPanel({ author }: { author: LinkedInAuthor | null }) {
   const [filter, setFilter] = useState<FilterKey>("needs_reply");
+  const markSeen = useMarkSeen();
 
   const query = useInfiniteQuery({
     queryKey: ["linkedin-interactions", filter],
@@ -76,17 +132,59 @@ export function CommunityFeedPanel({ author }: { author: LinkedInAuthor | null }
   const rows = query.data?.pages.flatMap((p) => p.rows) ?? [];
   const counts = query.data?.pages[0]?.counts;
 
-  if (query.isLoading) return <FeedSkeleton />;
+  // ★The chips stay mounted through loading AND error. Unmounting them
+  // blanked the toolbar on every filter switch, and turned any error into
+  // a dead end with no way back to a filter that works — LibraryPanel
+  // renders its own filter row above these branches for the same reason.
+  const chips = (
+    <div className="flex flex-wrap gap-1.5">
+      {FILTERS.map((f) => (
+        <Button
+          key={f.key}
+          type="button"
+          size="sm"
+          variant={filter === f.key ? "default" : "outline"}
+          className="h-7 px-2.5 text-xs"
+          onClick={() => setFilter(f.key)}
+        >
+          {f.label}
+          {countFor(f.key, counts) !== null && (
+            <span className="ml-1.5 tabular-nums opacity-70">
+              {countFor(f.key, counts)}
+            </span>
+          )}
+        </Button>
+      ))}
+    </div>
+  );
+
+  if (query.isLoading) {
+    return (
+      <div className="space-y-3">
+        {chips}
+        <FeedSkeleton />
+      </div>
+    );
+  }
+
   if (query.isError) {
     return (
-      <EmptyBody
-        title="Couldn't load your community activity"
-        body={
-          query.error instanceof ApiError
-            ? query.error.message
-            : "Please try again in a moment."
-        }
-      />
+      <div className="space-y-3">
+        {chips}
+        <EmptyBody
+          title="Couldn't load your community activity"
+          body={engageErrorMessage(query.error)}
+        />
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-7 text-xs"
+          onClick={() => void query.refetch()}
+        >
+          Try again
+        </Button>
+      </div>
     );
   }
 
@@ -94,25 +192,7 @@ export function CommunityFeedPanel({ author }: { author: LinkedInAuthor | null }
     <div className="space-y-3">
       <FeedHeader counts={counts} />
 
-      <div className="flex flex-wrap gap-1.5">
-        {FILTERS.map((f) => (
-          <Button
-            key={f.key}
-            type="button"
-            size="sm"
-            variant={filter === f.key ? "default" : "outline"}
-            className="h-7 px-2.5 text-xs"
-            onClick={() => setFilter(f.key)}
-          >
-            {f.label}
-            {countFor(f.key, counts) !== null && (
-              <span className="ml-1.5 tabular-nums opacity-70">
-                {countFor(f.key, counts)}
-              </span>
-            )}
-          </Button>
-        ))}
-      </div>
+      {chips}
 
       {rows.length === 0 ? (
         <EmptyBody
@@ -127,7 +207,12 @@ export function CommunityFeedPanel({ author }: { author: LinkedInAuthor | null }
         <ul className="space-y-3">
           {rows.map((row) => (
             <li key={row.id}>
-              <InteractionRow row={row} author={author} filter={filter} />
+              <InteractionRow
+              row={row}
+              author={author}
+              filter={filter}
+              onSeen={markSeen}
+            />
             </li>
           ))}
         </ul>
@@ -192,46 +277,59 @@ function InteractionRow({
   row,
   author,
   filter,
+  onSeen,
 }: {
   row: LinkedInInteraction;
   author: LinkedInAuthor | null;
   filter: FilterKey;
+  onSeen: (interactionUrn: string) => void;
 }) {
   const { formatRelativeTime } = useLocale();
   const qc = useQueryClient();
   const [replying, setReplying] = useState(false);
+  const ref = useRef<HTMLDivElement | null>(null);
 
-  // Marked seen when the row renders, not when it is clicked. The badge
-  // asks "has anyone here looked at this", and it is on screen — but this
-  // is deliberately NOT a status change, so it can never empty the reply
-  // queue by scrolling.
+  // ★Seen when it ENTERS THE VIEWPORT, not when it renders. "New" means
+  // nobody here has looked at it, and a row below the fold has not been
+  // looked at — marking on render cleared the badge for a whole page
+  // somebody scrolled past the top of. Still deliberately NOT a status
+  // change, so no amount of scrolling can empty the reply queue.
   useEffect(() => {
-    if (row.seenAt) return;
-    const t = setTimeout(() => {
-      linkedInContentApi.markInteractionsSeen([row.interactionUrn]).catch(() => {
-        // A missed "seen" costs a badge, not data. Failing loudly here
-        // would put an error toast on a page the user is only scrolling.
-      });
-    }, 1200);
-    return () => clearTimeout(t);
-  }, [row.interactionUrn, row.seenAt]);
+    if (row.seenAt || !ref.current) return;
+    if (typeof IntersectionObserver === "undefined") return;
+    const el = ref.current;
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (e.isIntersecting) {
+            onSeen(row.interactionUrn);
+            io.unobserve(el);
+          }
+        }
+      },
+      { threshold: 0.5 },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [row.interactionUrn, row.seenAt, onSeen]);
+
+  const snoozed = Boolean(row.snoozedUntil && new Date(row.snoozedUntil) > new Date());
 
   const snooze = useMutation({
-    mutationFn: () =>
-      linkedInContentApi.updateInteraction(row.interactionUrn, {
-        snoozedUntil: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
-      }),
-    onSuccess: () => {
-      toast.success("Snoozed for a day");
+    mutationFn: (until: string | null) =>
+      linkedInContentApi.updateInteraction(row.interactionUrn, { snoozedUntil: until }),
+    onSuccess: (_d, until) => {
+      toast.success(until ? "Snoozed for a day" : "Back in your queue");
       void qc.invalidateQueries({ queryKey: ["linkedin-interactions"] });
     },
-    onError: () => toast.error("Couldn't snooze that. Please try again."),
+    onError: (err) => toast.error(engageErrorMessage(err)),
   });
 
   const canReply = author !== null && row.kind === "comment" && !row.redacted;
+  const postUrl = linkedInPostUrl(row.parentPostUrn);
 
   return (
-    <Card>
+    <Card ref={ref}>
       <CardContent className="space-y-2 p-4">
         <div className="flex flex-wrap items-center gap-1.5">
           <KindBadge kind={row.kind} />
@@ -256,14 +354,20 @@ function InteractionRow({
         )}
 
         <div className="flex flex-wrap items-center gap-1">
-          <a
-            href={`https://www.linkedin.com/feed/update/${row.parentPostUrn}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-          >
-            View post <ExternalLink className="size-3" />
-          </a>
+{/* Guarded, not interpolated: the ingest can put a comment URN in
+              `parentPostUrn`, and a comment URN in a /feed/update/ path is
+              a dead link. No link reads as "no link"; a broken one reads
+              as our bug. */}
+          {postUrl && (
+            <a
+              href={postUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+            >
+              View post <ExternalLink className="size-3" />
+            </a>
+          )}
 
           {canReply && (
             <Button
@@ -277,7 +381,12 @@ function InteractionRow({
             </Button>
           )}
 
-          {filter === "needs_reply" && (
+{/* ★Snoozing has a way back. The button only appeared on the
+              needs_reply filter, which the server excludes snoozed rows
+              from — so once snoozed, an item could not be found again from
+              this surface at all. It shows up under "All" with an
+              un-snooze, which is where someone would go looking. */}
+          {filter === "needs_reply" && !snoozed && (
             <Button
               type="button"
               variant="ghost"
@@ -285,7 +394,7 @@ function InteractionRow({
               className="h-7 gap-1.5 px-2 text-xs"
               disabled={snooze.isPending}
               aria-busy={snooze.isPending}
-              onClick={() => snooze.mutate()}
+              onClick={() => snooze.mutate(new Date(Date.now() + 24 * 3600 * 1000).toISOString())}
             >
               {snooze.isPending ? (
                 <Loader2 className="size-3.5 animate-spin motion-reduce:animate-none" />
@@ -293,6 +402,25 @@ function InteractionRow({
                 <BellOff className="size-3.5" />
               )}
               Snooze a day
+            </Button>
+          )}
+
+          {snoozed && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 gap-1.5 px-2 text-xs"
+              disabled={snooze.isPending}
+              aria-busy={snooze.isPending}
+              onClick={() => snooze.mutate(null)}
+            >
+              {snooze.isPending ? (
+                <Loader2 className="size-3.5 animate-spin motion-reduce:animate-none" />
+              ) : (
+                <BellOff className="size-3.5" />
+              )}
+              Un-snooze
             </Button>
           )}
         </div>
@@ -303,83 +431,15 @@ function InteractionRow({
             parentCommentUrn={row.interactionUrn}
             author={author}
             onClose={() => setReplying(false)}
+            // The server marks the interaction replied in the same call,
+            // so refetching is what moves it out of the queue.
+            onReplied={() =>
+              void qc.invalidateQueries({ queryKey: ["linkedin-interactions"] })
+            }
           />
         )}
       </CardContent>
     </Card>
-  );
-}
-
-function ReplyBox({
-  postUrn,
-  parentCommentUrn,
-  author,
-  onClose,
-}: {
-  postUrn: string;
-  parentCommentUrn: string;
-  author: LinkedInAuthor;
-  onClose: () => void;
-}) {
-  const [text, setText] = useState("");
-  const qc = useQueryClient();
-  const send = useMutation({
-    mutationFn: () =>
-      linkedInContentApi.createComment(postUrn, {
-        text: text.trim(),
-        author,
-        parentCommentUrn,
-      }),
-    onSuccess: () => {
-      toast.success("Reply posted");
-      onClose();
-      // The server marks the interaction replied as part of the same
-      // call, so refetching is what moves it out of the queue.
-      void qc.invalidateQueries({ queryKey: ["linkedin-interactions"] });
-    },
-    onError: (err) =>
-      toast.error(
-        err instanceof ApiError ? err.message : "Couldn't post that reply.",
-      ),
-  });
-
-  return (
-    <div className="space-y-1.5 border-t pt-2">
-      <Textarea
-        value={text}
-        onChange={(e) => setText(e.target.value.slice(0, COMMENT_MAX_LEN))}
-        placeholder="Write a reply…"
-        rows={2}
-        className="text-sm"
-      />
-      <div className="flex items-center gap-2">
-        <Button
-          type="button"
-          size="sm"
-          className="h-7 px-2 text-xs"
-          disabled={!text.trim() || send.isPending}
-          aria-busy={send.isPending}
-          onClick={() => send.mutate()}
-        >
-          {send.isPending && (
-            <Loader2 className="mr-1.5 size-3.5 animate-spin motion-reduce:animate-none" />
-          )}
-          Reply
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="h-7 px-2 text-xs"
-          onClick={onClose}
-        >
-          Cancel
-        </Button>
-        <span className="ml-auto text-[10px] tabular-nums text-muted-foreground">
-          {text.length}/{COMMENT_MAX_LEN}
-        </span>
-      </div>
-    </div>
   );
 }
 
