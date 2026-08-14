@@ -19,7 +19,34 @@ import {
 import { AudiencePanel } from "./_components/audience-panel";
 import { BoostCandidatesPanel } from "./_components/boost-candidates-panel";
 import { LibraryPanel } from "./_components/library-panel";
+import { CommunityFeedPanel } from "./_components/community-feed-panel";
+import type {
+  LinkedInAuthor,
+  LinkedInIdentity,
+} from "@/lib/api/linkedin-content";
 import { SuggestedDraftsPanel } from "./_components/suggested-drafts-panel";
+
+/**
+ * Who the Feed replies AS.
+ *
+ * A Feed row spans every Page a business administers, so unlike the
+ * thread panel — which knows the post it belongs to — there is no
+ * per-row author to infer. Defaults to the first enabled Company Page,
+ * falling back to the member.
+ *
+ * ★A known simplification, and worth stating: replying to a comment on
+ * the SECOND Page currently replies as the first. The server rejects an
+ * author the business has not enabled, so this cannot post as a Page
+ * nobody authorised — but it can post as the wrong one. The fix is to
+ * carry the post's author on each interaction row, which needs the
+ * ingest to record it; until then the thread panel in Library is the
+ * correct surface for a multi-Page business.
+ */
+function feedAuthor(identity?: LinkedInIdentity): LinkedInAuthor | null {
+  const page = identity?.pages?.[0];
+  if (page) return { type: "org", pageId: page.id };
+  return identity ? { type: "person" } : null;
+}
 
 /** Reconnect round trips come back to this hub, not to Settings. */
 const RECONNECT_HREF = reconnectHref("/dashboard/content/linkedin", LINKEDIN_CONTENT_PROVIDER);
@@ -147,7 +174,8 @@ function LinkedInTabs({
   // the last one did, and splitting those across tabs meant navigating in
   // order to learn. The new Feed (incoming community activity) arrives
   // with the webhook work, so this hub has three tabs today, not four.
-  const [tab, setTab] = useState<"library" | "audience" | "boost">("library");
+  const [tab, setTab] = useState<"library" | "feed" | "audience" | "boost">("library");
+  const [feedOpened, setFeedOpened] = useState(false);
   const [audienceOpened, setAudienceOpened] = useState(false);
   const [boostOpened, setBoostOpened] = useState(false);
   // Composer seed text — set when the user clicks "Use this draft" on
@@ -157,8 +185,14 @@ function LinkedInTabs({
   const [composerSeed, setComposerSeed] = useState<string | undefined>(undefined);
 
   function handleTabChange(value: string) {
-    if (value === "library" || value === "audience" || value === "boost") {
+    if (
+      value === "library" ||
+      value === "feed" ||
+      value === "audience" ||
+      value === "boost"
+    ) {
       setTab(value);
+      if (value === "feed") setFeedOpened(true);
       // Radix TabsContent mounts eagerly, so each non-default tab stays
       // gated on having been opened once. A tab that skips this fires its
       // query on every page load — which, against a ~500-requests/day
@@ -173,6 +207,9 @@ function LinkedInTabs({
       <TabsList>
         <TabsTrigger value="library" className="gap-1.5">
           <Newspaper className="size-4" /> Library
+        </TabsTrigger>
+        <TabsTrigger value="feed" className="gap-1.5">
+          <MessageSquare className="size-4" /> Feed
         </TabsTrigger>
         <TabsTrigger value="audience" className="gap-1.5">
           <Users className="size-4" /> Audience
@@ -207,6 +244,19 @@ function LinkedInTabs({
             output), so it costs no LinkedIn budget. The per-post threads
             are the on-demand part. */}
         <LibraryPanel />
+      </TabsContent>
+
+      <TabsContent value="feed" className="mt-4">
+        {/* Lazy-mounted like every other non-default tab. This one reads
+            Mongo rather than LinkedIn so it costs no API budget — but it
+            still costs a round trip on a page nobody may open. */}
+        {feedOpened ? (
+          <CommunityFeedPanel author={feedAuthor(enabledIdentity?.data)} />
+        ) : null}
+        <p className="mt-3 text-xs text-muted-foreground">
+          Comments, mentions and reposts across your Pages, newest first. Replies
+          you send here post straight to LinkedIn.
+        </p>
       </TabsContent>
 
       <TabsContent value="audience" className="mt-4">
