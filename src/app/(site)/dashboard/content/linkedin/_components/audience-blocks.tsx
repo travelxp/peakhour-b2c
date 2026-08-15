@@ -50,6 +50,10 @@ const REACTION_LABEL: Record<string, string> = {
   MAYBE: "Curious",
 };
 
+/** How many buckets a facet card shows. Past the top few the counts are
+ *  single digits and the question the block answers is already answered. */
+const MAX_BUCKETS_PER_FACET = 8;
+
 /** The demographic facets worth showing, in the order a person reads
  *  them: who they are, then what they do, then where. */
 const DEMOGRAPHIC_BLOCKS: Array<{ field: string; title: string }> = [
@@ -59,6 +63,36 @@ const DEMOGRAPHIC_BLOCKS: Array<{ field: string; title: string }> = [
   { field: "followerCountsByStaffCountRange", title: "By company size" },
   { field: "followerCountsByGeoCountry", title: "By country" },
 ];
+
+/**
+ * What a block shows when it cannot show numbers.
+ *
+ * ★NOT `null`. Returning nothing on error deletes the block silently and
+ * leaves the window buttons above it looking inert — the user clicks 90d,
+ * nothing happens, and there is no way to tell a broken tab from an empty
+ * community. A 403 here means no business is selected, which is a thing
+ * the person can fix, so it is named rather than absorbed.
+ */
+function BlockError({ title, error }: { title: string; error: unknown }) {
+  const noBusiness = error instanceof ApiError && error.status === 403;
+  return (
+    <section className="space-y-3">
+      <BlockHeading title={title} />
+      <Card>
+        <CardContent className="p-6 text-center">
+          <p className="text-sm font-medium">
+            {noBusiness ? "Pick a business to see this" : `Couldn't load ${title.toLowerCase()}`}
+          </p>
+          <p className="mx-auto mt-1 max-w-md text-xs text-muted-foreground">
+            {noBusiness
+              ? "Once a business is selected, we'll show how its community has been engaging."
+              : "Try again in a moment. Your LinkedIn connection is unaffected — these numbers come from Peakhour, not LinkedIn."}
+          </p>
+        </CardContent>
+      </Card>
+    </section>
+  );
+}
 
 export function useAudienceSummary(days: number) {
   return useQuery({
@@ -83,11 +117,14 @@ export function useAudienceSummary(days: number) {
 export function CommunityPulse({
   summary,
   loading,
+  error,
 }: {
   summary?: LinkedInAudienceSummary;
   loading: boolean;
+  error?: unknown;
 }) {
   if (loading) return <BlockSkeleton rows={2} />;
+  if (error) return <BlockError title="Community pulse" error={error} />;
   if (!summary) return null;
 
   const t = summary.totals;
@@ -132,17 +169,29 @@ export function CommunityPulse({
 export function ResponseHealth({
   summary,
   loading,
+  error,
 }: {
   summary?: LinkedInAudienceSummary;
   loading: boolean;
+  error?: unknown;
 }) {
   if (loading) return <BlockSkeleton rows={1} />;
+  if (error) return <BlockError title="Response health" error={error} />;
   if (!summary) return null;
   const h = summary.responseHealth;
 
   return (
     <section className="space-y-3">
-      <BlockHeading title="Response health" />
+      {/* ★The badge belongs here as much as on the pulse. Reply rate,
+          median first reply and replies-sent are all rollup-derived and
+          all window-scoped — a 90-day view backed by three days reports
+          an uncaveated reply rate, which is exactly the "not measured
+          read as nothing happened" failure this file exists to prevent. */}
+      <BlockHeading
+        title="Response health"
+        coverageDays={summary.coverageDays}
+        days={summary.days}
+      />
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           title="Reply rate"
@@ -191,14 +240,42 @@ export function ResponseHealth({
  * here it DOES cost a LinkedIn request, against a ~500/day app-wide
  * budget shared with the thread panel and the reactions list.
  */
-export function WhoFollows() {
+export function WhoFollows({ orgPageId }: { orgPageId?: string }) {
   const query = useQuery({
-    queryKey: ["linkedin-follower-stats"],
-    queryFn: () => linkedInContentApi.followerStats(),
+    // ★The Page is part of the key, not just the request. Demographics
+    // are per Page; a key that omitted it would serve the first Page's
+    // breakdown for the second one from cache.
+    queryKey: ["linkedin-follower-stats", orgPageId],
+    queryFn: () => linkedInContentApi.followerStats(orgPageId as string),
+    // ★REQUIRED by the route, which 400s without it before doing anything
+    // else. Firing anyway would render the "you publish only to a
+    // personal feed" fallback for every Company Page on the platform —
+    // a confident wrong answer rather than an error.
+    enabled: Boolean(orgPageId),
     staleTime: 60 * 60_000,
     refetchOnWindowFocus: false,
     retry: (count, err) => !(err instanceof ApiError && err.status === 403) && count < 1,
   });
+
+  if (!orgPageId) {
+    // Genuinely pageless: the member publishes to their own feed, and
+    // LinkedIn has no follower breakdown to give. This is the ONLY
+    // situation in which that sentence is true.
+    return (
+      <section className="space-y-3">
+        <BlockHeading title="Who follows" />
+        <Card>
+          <CardContent className="p-6 text-center">
+            <p className="text-sm font-medium">No Company Page connected</p>
+            <p className="mx-auto mt-1 max-w-md text-xs text-muted-foreground">
+              LinkedIn reports follower demographics for Company Pages you
+              administer. Personal-feed followers have no breakdown.
+            </p>
+          </CardContent>
+        </Card>
+      </section>
+    );
+  }
 
   if (query.isLoading) return <BlockSkeleton rows={2} />;
 
@@ -211,9 +288,9 @@ export function WhoFollows() {
           <CardContent className="p-6 text-center">
             <p className="text-sm font-medium">Follower demographics unavailable</p>
             <p className="mx-auto mt-1 max-w-md text-xs text-muted-foreground">
-              LinkedIn provides this for Company Pages you administer. If you
-              publish only to your personal feed, there is nothing to break
-              down here.
+              We couldn&apos;t read this Page&apos;s follower breakdown from
+              LinkedIn. It needs the page-admin permission, and LinkedIn only
+              reports demographics once a Page has enough followers.
             </p>
           </CardContent>
         </Card>
@@ -221,9 +298,19 @@ export function WhoFollows() {
     );
   }
 
+  // ★SORTED AND CAPPED. LinkedIn returns these in its own order, which is
+  // not by size — a Page spanning sixty industries rendered a sixty-row
+  // card with the dominant bucket somewhere in the middle. The reaction
+  // mix above was already sorted; these were the same kind of list and
+  // were not. The tail is dropped rather than scrolled: past the top few
+  // the counts are single digits and the question ("who follows us?")
+  // is answered by the head.
   const blocks = DEMOGRAPHIC_BLOCKS.map(({ field, title }) => ({
     title,
-    buckets: (byDemographic[field] ?? []).filter((b) => b.organic > 0),
+    buckets: (byDemographic[field] ?? [])
+      .filter((b) => b.organic > 0)
+      .sort((a, b) => b.organic - a.organic)
+      .slice(0, MAX_BUCKETS_PER_FACET),
   })).filter((b) => b.buckets.length > 0);
 
   return (

@@ -154,6 +154,11 @@ const WINDOWS = [7, 30, 90] as const;
 export function AudiencePanel() {
   const [days, setDays] = useState<number>(30);
   const summary = useAudienceSummary(days);
+  // Follower demographics are per Company Page and the route requires the
+  // id. Shares the cached ["linkedin-me"] query with the composer, so this
+  // costs no extra round trip.
+  const { data: identity } = useLinkedInIdentity();
+  const orgPageId = identity?.pages?.[0]?.id;
 
   return (
     <div className="space-y-6">
@@ -172,10 +177,18 @@ export function AudiencePanel() {
         ))}
       </div>
 
-      <CommunityPulse summary={summary.data} loading={summary.isLoading} />
-      <ResponseHealth summary={summary.data} loading={summary.isLoading} />
+      <CommunityPulse
+        summary={summary.data}
+        loading={summary.isLoading}
+        error={summary.error}
+      />
+      <ResponseHealth
+        summary={summary.data}
+        loading={summary.isLoading}
+        error={summary.error}
+      />
       <TopEngagersBlock />
-      <WhoFollows />
+      <WhoFollows orgPageId={orgPageId} />
     </div>
   );
 }

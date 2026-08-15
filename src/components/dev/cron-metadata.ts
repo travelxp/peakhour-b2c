@@ -324,10 +324,15 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       // the one outcome here that loses data permanently, and it arrives
       // inside an HTTP 200.
       if (num(d.truncatedBuckets) > 0) {
+        const n = num(d.truncatedBuckets);
         return {
           level: "warning",
+          // ★A bucket is one (Page, day), NOT one day. Three Pages
+          // truncated on a single day is three buckets — calling them
+          // "3 days" overstates the loss and, worse, sends someone
+          // looking for two days that were never affected.
           message:
-            `Rollup hit its cap — ${num(d.truncatedBuckets)} day${plural(num(d.truncatedBuckets), "")} were NOT written and cannot be recovered later.`,
+            `Rollup hit its cap — ${n} Page-${plural(n, "day")} ${n === 1 ? "was" : "were"} NOT written and cannot be recovered later.`,
         };
       }
       // Rows carrying no Page are grouped out of every Page's totals. A

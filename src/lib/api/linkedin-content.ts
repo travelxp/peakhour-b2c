@@ -501,10 +501,23 @@ export const linkedInContentApi = {
       `/v1/linkedin/content/audience/summary${days ? `?days=${days}` : ""}`,
     ),
 
-  /** Follower demographics (lifetime mode — omit the interval). ★This one
-   *  DOES hit LinkedIn, so it is fetched once per tab open, never polled. */
-  followerStats: () =>
-    api.get<LinkedInFollowerStats>("/v1/linkedin/content/analytics/followers"),
+  /**
+   * Follower demographics for one Company Page, lifetime mode (no interval).
+   *
+   * ★`orgPageId` IS REQUIRED. The route validates it before doing anything
+   * else and 400s without it — so omitting it does not degrade the block,
+   * it kills it: the fallback shown would read "you publish only to your
+   * personal feed", which is a confident wrong answer rather than an
+   * error. Demographics are per Page by construction; there is no
+   * business-wide breakdown to fall back to.
+   *
+   * ★This one DOES hit LinkedIn, so it is fetched once per tab open and
+   * never polled.
+   */
+  followerStats: (orgPageId: string) =>
+    api.get<LinkedInFollowerStats>(
+      `/v1/linkedin/content/analytics/followers?orgPageId=${encodeURIComponent(orgPageId)}`,
+    ),
 
   /** Per-reaction-type counts + comment summary for a post. The AUTHORITATIVE
    *  reaction breakdown — `reactions` above only returns the current page. */
@@ -722,8 +735,6 @@ export interface LinkedInSocialMetadata {
 }
 
 
-/** One row in the Community Feed. */
-
 /** One day of the Audience pulse. Days with no rollup row are ABSENT
  *  rather than zero — a day that was not measured is not a quiet day. */
 export interface LinkedInPulsePoint {
@@ -779,6 +790,7 @@ export interface LinkedInFollowerStats {
   series: Array<{ start: number; end?: number; organicGain: number; paidGain: number }> | null;
 }
 
+/** One row in the Community Feed. */
 export interface LinkedInInteraction {
   id: string;
   kind: "comment" | "reaction" | "repost" | "mention";
