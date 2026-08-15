@@ -311,6 +311,39 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       return `LinkedIn data cleaned — ${total} ${plural(total, "row")} removed.`;
     },
   },
+  "linkedin-community-rollup": {
+    label: "Roll up LinkedIn community",
+    frequency: "Runs hourly (at :20 past)",
+    description:
+      "Folds comments, reactions, reposts and mentions into the daily numbers the Audience tab reads. ★Hourly because it is racing the 48-hour retention sweep: once the raw rows are redacted those days cannot be reconstructed, from us or from LinkedIn.",
+    summarize: (data) => {
+      const d = asRecord(data);
+      if (!d) return "Community rollup complete.";
+      // ★A capped run is a WARNING, not a success. The buckets it refused
+      // to write are redacted before a later run can reach them — this is
+      // the one outcome here that loses data permanently, and it arrives
+      // inside an HTTP 200.
+      if (num(d.truncatedBuckets) > 0) {
+        return {
+          level: "warning",
+          message:
+            `Rollup hit its cap — ${num(d.truncatedBuckets)} day${plural(num(d.truncatedBuckets), "")} were NOT written and cannot be recovered later.`,
+        };
+      }
+      // Rows carrying no Page are grouped out of every Page's totals. A
+      // number that stays high means the ingest stopped recording it,
+      // which is invisible on every other surface.
+      if (num(d.skippedNoPage) > 0 && num(d.daysRolled) === 0) {
+        return {
+          level: "warning",
+          message: `Nothing rolled up — ${num(d.skippedNoPage)} interactions have no Page recorded.`,
+        };
+      }
+      const days = num(d.daysRolled);
+      if (days === 0) return { level: "warning", message: "Nothing to roll up yet — no LinkedIn community activity received." };
+      return `Rolled up ${days} ${plural(days, "day")} across ${num(d.pages)} ${plural(num(d.pages), "Page")}.`;
+    },
+  },
   "linkedin-subscription-reconcile": {
     label: "Reconnect LinkedIn comment alerts",
     frequency: "Runs daily at 4:30 AM UTC",
