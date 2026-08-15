@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { linkedInContentApi, type LinkedInAuthor } from "@/lib/api/linkedin-content";
 import { ApiError } from "@/lib/api";
+import { SavedReplyPicker, appendReply } from "@/components/inbox/saved-reply-picker";
 
 /** LinkedIn's own cap on comment text. */
 export const COMMENT_MAX_LEN = 1250;
@@ -119,6 +120,15 @@ export function ReplyBox({
         className="text-sm"
       />
       <div className="flex items-center gap-2">
+        {/* ★Inserts, never sends. The reply lands in the textarea above
+            and the person still presses Reply — see the picker's own
+            note on why that separation is load-bearing. Appending rather
+            than replacing keeps a half-typed sentence. */}
+        <SavedReplyPicker
+          channel="linkedin"
+          disabled={send.isPending}
+          onInsert={(body) => setText((cur) => appendReply(cur, body, COMMENT_MAX_LEN))}
+        />
         <Button
           type="button"
           size="sm"
