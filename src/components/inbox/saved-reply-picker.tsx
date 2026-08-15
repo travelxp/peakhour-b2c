@@ -25,8 +25,10 @@
  */
 
 import { useState } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { MessageSquareQuote, Loader2, Search } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { MessageSquareQuote, Loader2, Search, Plus } from "lucide-react";
+import { toast } from "sonner";
+import { ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -43,18 +45,32 @@ import {
 export function SavedReplyPicker({
   channel,
   onInsert,
+  draft,
   disabled,
 }: {
   /** Narrows the list to replies scoped to this surface, plus every
    *  reply with no scope at all — which is most of them. */
   channel: SavedReplyChannel;
-  /** Receives the reply's text. The caller decides where it goes; this
-   *  component never sends anything. */
-  onInsert: (body: string) => void;
+  /**
+   * Receives the reply's text. The caller decides where it goes; this
+   * component never sends anything.
+   *
+   * Returns whether the text actually landed — a composer at its
+   * character cap refuses rather than truncating, and a reply that did
+   * not go in must not be counted as used.
+   */
+  onInsert: (body: string) => boolean;
+  /** The composer's current text, so "save this answer" can offer it.
+   *  Without a create path the library stays permanently empty and the
+   *  picker's own empty state asks for something the product cannot do. */
+  draft?: string;
   disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [newTitle, setNewTitle] = useState("");
+  const qc = useQueryClient();
 
   const query = useQuery({
     queryKey: ["saved-replies", channel],
@@ -88,14 +104,67 @@ export function SavedReplyPicker({
     : replies;
 
   function insert(reply: SavedReply) {
-    onInsert(reply.body);
+    // ★Counted only when it actually went in. `usageCount` is documented
+    // as "times inserted" and orders the list — counting a refused
+    // insert inflates the number and promotes a reply nobody could use.
+    if (!onInsert(reply.body)) {
+      toast.warning("That reply is too long to add to what you've already written.", {
+        description: "Shorten your draft, or clear it and insert the reply first.",
+      });
+      return;
+    }
     markUsed.mutate(reply.id);
     setOpen(false);
-    setFilter("");
   }
 
+  /**
+   * Save what is in the composer as a new reply.
+   *
+   * ★THE CREATE PATH LIVES HERE BECAUSE THIS IS WHERE THE ANSWER EXISTS.
+   * The picker shipped without one, so the library was permanently empty
+   * and its own empty state ("save the answer here") pointed at an
+   * affordance the product did not have. A settings page would work and
+   * would be the wrong first home: you learn a reply is worth saving at
+   * the moment you finish typing it for the second time, not later, in
+   * another tab.
+   */
+  const create = useMutation({
+    mutationFn: (title: string) =>
+      savedRepliesApi.create({ title, body: (draft ?? "").trim() }),
+    onSuccess: () => {
+      toast.success("Saved. It'll be here next time.");
+      setSaving(false);
+      setNewTitle("");
+      void qc.invalidateQueries({ queryKey: ["saved-replies"] });
+    },
+    onError: (err) => {
+      // The api answers 409 with a sentence about the existing title,
+      // which is the useful thing to show — a generic failure would send
+      // someone looking for a bug instead of at their own list.
+      toast.error(
+        err instanceof ApiError && err.code === "DUPLICATE_TITLE"
+          ? err.message
+          : "Couldn't save that reply. Please try again.",
+      );
+    },
+  });
+
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        // ★Reset on CLOSE, not only on insert. Escape or an outside click
+        // used to leave the search term behind, so the next open showed a
+        // filtered list — or "Nothing matches" — for a search the person
+        // had already abandoned and could not see.
+        if (!next) {
+          setFilter("");
+          setSaving(false);
+          setNewTitle("");
+        }
+      }}
+    >
       <PopoverTrigger asChild>
         <Button
           type="button"
@@ -142,7 +211,15 @@ export function SavedReplyPicker({
             </div>
           ) : shown.length === 0 ? (
             <p className="p-4 text-xs text-muted-foreground">
-              Nothing matches &ldquo;{filter}&rdquo;.
+              Nothing matches &ldquo;{filter}&rdquo;
+              {/* ★Says WHY it might be lying. The filter runs over the
+                  rows already loaded, and the server caps that list — so
+                  on a large library a reply that exists can be absent
+                  from a search. Claiming a flat "nothing matches" there
+                  is the search telling the person their answer is gone. */}
+              {query.data?.truncated
+                ? " in the replies loaded so far. Archive ones you no longer use so the rest can load."
+                : "."}
             </p>
           ) : (
             <ul>
@@ -167,10 +244,67 @@ export function SavedReplyPicker({
           )}
         </div>
 
+        {/* ★No number. The cap is the api's (`LIST_LIMIT`) and nothing
+            ties the two files together, so a figure printed here is one
+            deploy away from being a confident lie. The flag is the fact;
+            the count is the server's business. */}
         {query.data?.truncated && (
           <p className="border-t p-2 text-[10px] text-muted-foreground">
-            Showing the first 200. Archive the ones you no longer use.
+            Not all of your saved replies are shown. Archive the ones you no
+            longer use.
           </p>
+        )}
+
+        {/* ── Save what is in the box ──────────────────────────────── */}
+        {(draft ?? "").trim().length > 0 && (
+          <div className="border-t p-2">
+            {saving ? (
+              <div className="space-y-1.5">
+                <Input
+                  value={newTitle}
+                  onChange={(e) => setNewTitle(e.target.value.slice(0, 80))}
+                  placeholder="Name it — e.g. Pricing"
+                  className="h-7 text-xs"
+                  autoFocus
+                />
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="h-6 px-2 text-[11px]"
+                    disabled={!newTitle.trim() || create.isPending}
+                    aria-busy={create.isPending}
+                    onClick={() => create.mutate(newTitle.trim())}
+                  >
+                    {create.isPending && (
+                      <Loader2 className="mr-1 size-3 animate-spin motion-reduce:animate-none" />
+                    )}
+                    Save
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-[11px]"
+                    onClick={() => setSaving(false)}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-6 w-full justify-start gap-1.5 px-1 text-[11px]"
+                onClick={() => setSaving(true)}
+              >
+                <Plus className="size-3" />
+                Save what you&apos;ve written as a reply
+              </Button>
+            )}
+          </div>
         )}
       </PopoverContent>
     </Popover>
@@ -186,11 +320,26 @@ export function SavedReplyPicker({
  * sentence. Blank draft in, reply out; non-blank draft in, both, with one
  * blank line between so the seam is visible and editable.
  */
-export function appendReply(draft: string, reply: string, maxLen: number): string {
+export function appendReply(
+  draft: string,
+  reply: string,
+  maxLen: number,
+): { text: string; fitted: boolean } {
   const base = draft.trimEnd();
   const joined = base.length === 0 ? reply : `${base}\n\n${reply}`;
-  // The caller's channel cap wins. Truncating here is the lesser evil
-  // versus handing a composer a value it will refuse on send — but it is
-  // still a loss, which is why the picker shows the body before insert.
-  return joined.slice(0, maxLen);
+
+  // ★IT REFUSES RATHER THAN TRUNCATING, and the first version did the
+  // opposite. `joined.slice(0, maxLen)` on a near-full draft appends a
+  // mid-word fragment — a draft at 1,240 characters gained "\n\nOur pl"
+  // — or, at 1,249, nothing but a stray newline. Both are silent, and
+  // both end up in a message to a customer if the person does not
+  // re-read what the button just did to their text.
+  //
+  // Cutting at a word boundary would be tidier and no more honest: half
+  // a saved reply is not the saved reply, and the half that gets cut is
+  // the end, where the call to action lives. So the draft is left
+  // untouched and the caller is told it did not fit — which is
+  // information the person can act on.
+  if (joined.length > maxLen) return { text: draft, fitted: false };
+  return { text: joined, fitted: true };
 }

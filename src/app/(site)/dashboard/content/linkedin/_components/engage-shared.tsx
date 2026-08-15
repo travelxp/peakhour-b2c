@@ -126,8 +126,17 @@ export function ReplyBox({
             than replacing keeps a half-typed sentence. */}
         <SavedReplyPicker
           channel="linkedin"
+          draft={text}
           disabled={send.isPending}
-          onInsert={(body) => setText((cur) => appendReply(cur, body, COMMENT_MAX_LEN))}
+          onInsert={(body) => {
+            // ★Computed against the CURRENT text rather than inside a
+            // functional update, because the picker needs the answer
+            // synchronously to decide whether to count the insert — and
+            // a setState updater's return value is not available to it.
+            const next = appendReply(text, body, COMMENT_MAX_LEN);
+            if (next.fitted) setText(next.text);
+            return next.fitted;
+          }}
         />
         <Button
           type="button"
