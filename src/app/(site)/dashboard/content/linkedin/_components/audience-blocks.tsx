@@ -229,6 +229,125 @@ export function ResponseHealth({
   );
 }
 
+/** Our taxonomy → the words a person uses. The classifier's labels are
+ *  fixed (see the api's TOPIC_LABELS) so this map is total; an unknown
+ *  label still renders itself rather than vanishing from a count. */
+const TOPIC_LABEL: Record<string, string> = {
+  pricing: "Pricing",
+  product_question: "Product questions",
+  support_issue: "Support issues",
+  hiring: "Hiring",
+  partnership: "Partnerships",
+  praise: "Praise",
+  criticism: "Criticism",
+  availability: "Availability",
+  event_or_webinar: "Events",
+  other: "Other",
+};
+
+/**
+ * What the community talked about.
+ *
+ * ── ★IT REPORTS ITS OWN COVERAGE, SEPARATELY ─────────────────────────
+ * Classification is a SECOND pass over the same days the pulse counts:
+ * it costs an AI call, it can be switched off, and it loses a day
+ * outright if the 48-hour sweep reaches the words first. So a window can
+ * be fully counted and barely classified — and topics drawn over 3
+ * classified days of 30, presented as 30, is exactly the lie
+ * `coverageDays` exists to prevent one level up.
+ *
+ * When nothing is classified the block says so plainly rather than
+ * rendering an empty chart, because an empty chart reads as "nobody
+ * discussed anything".
+ */
+export function CommunityTopics({
+  summary,
+  loading,
+  error,
+}: {
+  summary?: LinkedInAudienceSummary;
+  loading: boolean;
+  error?: unknown;
+}) {
+  if (loading) return <BlockSkeleton rows={1} />;
+  // Same convention as its neighbours: a named state, not a vanished
+  // block. Returning null here left this one silently absent while the
+  // blocks either side said "Pick a business to see this".
+  if (error) return <BlockError title="What people talked about" error={error} />;
+  if (!summary) return null;
+
+  // ★DEFAULTED, because `conversation` is a NEW required field on an
+  // endpoint that already existed. Between the api deploy and the b2c
+  // one — or the reverse, on a rollback — a bare `summary.conversation`
+  // throws in render and takes the WHOLE Audience tab down, not just
+  // this block. A missing field should cost the feature that needs it
+  // and nothing else.
+  const c = summary.conversation ?? {
+    classifiedDays: 0,
+    topics: [],
+    sentiment: { positive: 0, neutral: 0, negative: 0 },
+  };
+  const sentimentTotal =
+    c.sentiment.positive + c.sentiment.neutral + c.sentiment.negative;
+
+  // ★Caveated against the WINDOW as well as against measured coverage.
+  // Comparing only to `coverageDays` meant a fully-classified 3-day
+  // rollup rendered topics inside a 90-day view with no caveat at all —
+  // while the pulse above it, on the same three days, carried one.
+  const partial =
+    c.classifiedDays > 0 &&
+    (c.classifiedDays < summary.coverageDays || c.classifiedDays < summary.days);
+
+  return (
+    <section className="space-y-3">
+      <div className="flex items-center gap-2">
+        <h3 className="text-sm font-semibold">What people talked about</h3>
+        {partial && (
+          <Badge variant="outline" className="text-[10px] font-normal">
+            {c.classifiedDays} {c.classifiedDays === 1 ? "day" : "days"} classified
+          </Badge>
+        )}
+      </div>
+
+      {c.classifiedDays === 0 ? (
+        <Card>
+          <CardContent className="p-6 text-center">
+            <p className="text-sm font-medium">Nothing classified yet</p>
+            <p className="mx-auto mt-1 max-w-md text-xs text-muted-foreground">
+              Topics are worked out once a day, from that day&apos;s comments,
+              before LinkedIn&apos;s 48-hour window closes on them. They start
+              appearing a day after your first comments arrive.
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-3 lg:grid-cols-2">
+          <ProportionListCard
+            title="Topics"
+            items={c.topics.map((t) => ({
+              id: t.label,
+              label: TOPIC_LABEL[t.label] ?? t.label,
+              count: t.count,
+            }))}
+            total={c.topics.reduce((a, t) => a + t.count, 0)}
+            emptyMessage="No topics recorded."
+          />
+          <ProportionListCard
+            title="Sentiment"
+            items={[
+              { id: "positive", label: "Positive", count: c.sentiment.positive },
+              { id: "neutral", label: "Neutral", count: c.sentiment.neutral },
+              { id: "negative", label: "Negative", count: c.sentiment.negative },
+            ].filter((s) => s.count > 0)}
+            total={sentimentTotal}
+            emptyMessage="No sentiment recorded."
+          />
+        </div>
+      )}
+    </section>
+  );
+}
+
 /**
  * Block 4 — who follows.
  *

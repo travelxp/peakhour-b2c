@@ -12,7 +12,7 @@
 
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
+import { Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -51,6 +51,14 @@ export function engageErrorMessage(err: unknown): string {
     ) {
       return err.message;
     }
+    // ★503 / DRAFT_UNAVAILABLE. The api writes a specific sentence for a
+    // failed AI draft — "write one yourself, or try again in a moment" —
+    // precisely so it does not read as the reply having failed. Falling
+    // through to the generic message below discarded it and produced the
+    // confusion that message exists to prevent.
+    if (err.code === "DRAFT_UNAVAILABLE" || err.status === 503) {
+      return err.message;
+    }
     if (err.status === 403 || err.status === 404 || err.status === 429) {
       return err.message;
     }
@@ -84,6 +92,8 @@ export function ReplyBox({
   author,
   onClose,
   onReplied,
+  commentText,
+  postText,
 }: {
   postUrn: string;
   parentCommentUrn: string;
@@ -92,8 +102,45 @@ export function ReplyBox({
   /** Refresh whichever list this reply belongs to — the thread, the
    *  replies under a comment, or the Feed queue. */
   onReplied: () => void;
+  /** What the member said, for grounding an AI draft. Absent on a
+   *  redacted comment — the button hides rather than drafting a reply to
+   *  a question it cannot read. */
+  commentText?: string;
+  /** Our post, for the same reason. Optional: the server is told to
+   *  guess at nothing when it is missing. */
+  postText?: string;
 }) {
   const [text, setText] = useState("");
+
+  /**
+   * ★A DRAFT LANDS IN THE BOX. IT IS NOT SENT.
+   *
+   * The same rule as the saved-reply picker beside it, and for the same
+   * reason — this text goes out publicly under the brand's name. It also
+   * REPLACES rather than appends, unlike a saved reply: an AI draft is a
+   * whole answer written for this specific comment, and stapling it to a
+   * half-finished sentence produces something nobody wrote. Guarded by a
+   * confirm when there is work to lose.
+   */
+  const draft = useMutation({
+    mutationFn: () =>
+      linkedInContentApi.suggestReply({
+        commentText: commentText ?? "",
+        ...(postText ? { postText } : {}),
+      }),
+    onSuccess: (res) => setText(res.reply.slice(0, COMMENT_MAX_LEN)),
+    onError: (err) => toast.error(engageErrorMessage(err)),
+  });
+
+  function requestDraft() {
+    if (
+      text.trim().length > 0 &&
+      !window.confirm("Replace what you've written with an AI draft?")
+    ) {
+      return;
+    }
+    draft.mutate();
+  }
   const send = useMutation({
     mutationFn: () =>
       linkedInContentApi.createComment(postUrn, {
@@ -112,22 +159,51 @@ export function ReplyBox({
 
   return (
     <div className="mt-2 space-y-1.5">
+      {/* ★LOCKED WHILE A DRAFT IS IN FLIGHT. The replace-confirm is
+          answered at CLICK time, but the draft arrives seconds later and
+          overwrites the box — so anything typed or inserted in between
+          was consented to under a question asked about different text.
+          Freezing the input is the only way the confirm keeps meaning
+          what it said. */}
       <Textarea
         value={text}
         onChange={(e) => setText(e.target.value.slice(0, COMMENT_MAX_LEN))}
-        placeholder="Write a reply…"
+        placeholder={draft.isPending ? "Drafting…" : "Write a reply…"}
         rows={2}
         className="text-sm"
+        readOnly={draft.isPending}
       />
       <div className="flex items-center gap-2">
         {/* ★Inserts, never sends. The reply lands in the textarea above
             and the person still presses Reply — see the picker's own
             note on why that separation is load-bearing. Appending rather
             than replacing keeps a half-typed sentence. */}
+        {/* ★Hidden when there is nothing to read. A draft written
+            against an empty comment is a guess dressed as an answer, and
+            a redacted comment (past LinkedIn's 48h window) is exactly
+            that case — the row survives, the words do not. */}
+        {commentText && commentText.trim().length > 0 && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 gap-1.5 px-2 text-xs"
+            disabled={draft.isPending || send.isPending}
+            aria-busy={draft.isPending}
+            onClick={requestDraft}
+          >
+            {draft.isPending ? (
+              <Loader2 className="size-3.5 animate-spin motion-reduce:animate-none" />
+            ) : (
+              <Sparkles className="size-3.5" />
+            )}
+            Draft with AI
+          </Button>
+        )}
         <SavedReplyPicker
           channel="linkedin"
           draft={text}
-          disabled={send.isPending}
+          disabled={send.isPending || draft.isPending}
           onInsert={(body) => {
             // ★Computed against the CURRENT text rather than inside a
             // functional update, because the picker needs the answer

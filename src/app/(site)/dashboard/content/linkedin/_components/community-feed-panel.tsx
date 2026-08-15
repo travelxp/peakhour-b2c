@@ -431,6 +431,10 @@ function InteractionRow({
             parentCommentUrn={row.interactionUrn}
             author={author}
             onClose={() => setReplying(false)}
+            // ★Only when the row still has words. `redacted` is the
+            // normal end state at 48h, not a failure — and a draft
+            // written against nothing is a guess dressed as an answer.
+            {...(!row.redacted && row.text ? { commentText: row.text } : {})}
             // The server marks the interaction replied in the same call,
             // so refetching is what moves it out of the queue.
             onReplied={() =>

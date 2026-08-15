@@ -31,6 +31,7 @@ import {
   CommunityPulse,
   ResponseHealth,
   WhoFollows,
+  CommunityTopics,
   useAudienceSummary,
 } from "./audience-blocks";
 
@@ -183,6 +184,11 @@ export function AudiencePanel() {
         error={summary.error}
       />
       <ResponseHealth
+        summary={summary.data}
+        loading={summary.isLoading}
+        error={summary.error}
+      />
+      <CommunityTopics
         summary={summary.data}
         loading={summary.isLoading}
         error={summary.error}

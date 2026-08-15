@@ -395,6 +395,10 @@ function CommentRow({
               author={author}
               onClose={() => setReplying(false)}
               onReplied={refreshOwnList}
+              // Absent on a redacted comment — the 48h sweep takes the
+              // words and keeps the row, and the Draft button hides
+              // rather than answering a question it cannot read.
+              {...(comment.message ? { commentText: comment.message } : {})}
             />
           )}
 
