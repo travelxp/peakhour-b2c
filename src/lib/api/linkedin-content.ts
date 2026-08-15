@@ -490,6 +490,35 @@ export const linkedInContentApi = {
       body,
     ),
 
+  /**
+   * The Audience tab's four blocks.
+   *
+   * ★Reads our own rollup, never LinkedIn — so unlike the thread panel
+   * this is cheap to poll and cheap to leave open.
+   */
+  audienceSummary: (days?: number) =>
+    api.get<LinkedInAudienceSummary>(
+      `/v1/linkedin/content/audience/summary${days ? `?days=${days}` : ""}`,
+    ),
+
+  /**
+   * Follower demographics for one Company Page, lifetime mode (no interval).
+   *
+   * ★`orgPageId` IS REQUIRED. The route validates it before doing anything
+   * else and 400s without it — so omitting it does not degrade the block,
+   * it kills it: the fallback shown would read "you publish only to your
+   * personal feed", which is a confident wrong answer rather than an
+   * error. Demographics are per Page by construction; there is no
+   * business-wide breakdown to fall back to.
+   *
+   * ★This one DOES hit LinkedIn, so it is fetched once per tab open and
+   * never polled.
+   */
+  followerStats: (orgPageId: string) =>
+    api.get<LinkedInFollowerStats>(
+      `/v1/linkedin/content/analytics/followers?orgPageId=${encodeURIComponent(orgPageId)}`,
+    ),
+
   /** Per-reaction-type counts + comment summary for a post. The AUTHORITATIVE
    *  reaction breakdown — `reactions` above only returns the current page. */
   socialMetadata: (postUrn: string) =>
@@ -705,6 +734,61 @@ export interface LinkedInSocialMetadata {
   topLevelCommentCount: number;
 }
 
+
+/** One day of the Audience pulse. Days with no rollup row are ABSENT
+ *  rather than zero — a day that was not measured is not a quiet day. */
+export interface LinkedInPulsePoint {
+  date: string;
+  reactions: number;
+  comments: number;
+  reposts: number;
+  mentions: number;
+}
+
+/**
+ * The Audience tab's four blocks, from `ana_linkedin_community_daily`.
+ *
+ * ★Costs no LinkedIn requests — the hourly rollup wrote all of it before
+ * the 48h sweep could reach the rows it came from. The consequence worth
+ * rendering: the series begins the day the rollup first ran and cannot be
+ * backfilled, which is what `coverageDays` is for.
+ */
+export interface LinkedInAudienceSummary {
+  days: number;
+  /** Distinct days in the window that actually have data. A 90-day chart
+   *  holding 3 days is a young rollup, not a quiet Page. */
+  coverageDays: number;
+  pulse: LinkedInPulsePoint[];
+  totals: {
+    reactions: number;
+    comments: number;
+    reposts: number;
+    mentions: number;
+    reactionsByType: Record<string, number>;
+  };
+  responseHealth: {
+    /** Null — not 0 — when nothing arrived to answer. */
+    replyRate: number | null;
+    medianFirstResponseMs: number | null;
+    repliesSent: number;
+    needsReplyOpen: number;
+    oldestUnansweredMs: number | null;
+  };
+  engagers: { unique: number; new: number; returning: number };
+}
+
+/** One demographic bucket, with the label the api resolved for its URN.
+ *  `label` falls back to the id when LinkedIn's taxonomy is unreachable. */
+export interface LinkedInDemographicBucket {
+  key: string;
+  organic: number;
+  label?: string;
+}
+
+export interface LinkedInFollowerStats {
+  byDemographic: Record<string, LinkedInDemographicBucket[]> | null;
+  series: Array<{ start: number; end?: number; organicGain: number; paidGain: number }> | null;
+}
 
 /** One row in the Community Feed. */
 export interface LinkedInInteraction {

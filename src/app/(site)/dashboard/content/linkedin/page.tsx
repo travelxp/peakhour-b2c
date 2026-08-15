@@ -306,6 +306,12 @@ function LinkedInPageShell({ children, loading }: { children?: React.ReactNode; 
           "jobs-runner",
           "performance-sync",
           "linkedin-subscription-reconcile",
+          // ★Must be pressed BEFORE retention-cleanup, always. The rollup
+          // is what turns 48-hour member activity into the year-retainable
+          // daily numbers the Audience tab reads; the cleanup is what
+          // deletes the source. Run them the other way round on dev and
+          // those days are gone for good.
+          "linkedin-community-rollup",
           "linkedin-retention-cleanup",
         ]}
         onTriggered={() => {
@@ -327,6 +333,9 @@ function LinkedInPageShell({ children, loading }: { children?: React.ReactNode; 
           // serving the empty result they cached.
           queryClient.invalidateQueries({ queryKey: ["linkedin-interactions"] });
           queryClient.invalidateQueries({ queryKey: ["linkedin-post-reposts"] });
+          // The rollup writes exactly what the Audience tab's pulse and
+          // response-health blocks read.
+          queryClient.invalidateQueries({ queryKey: ["linkedin-audience-summary"] });
         }}
       />
       <div>

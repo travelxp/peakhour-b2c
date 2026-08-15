@@ -27,6 +27,12 @@ import {
 } from "@/lib/api/linkedin-content";
 import { useLinkedInIdentity } from "./post-composer";
 import { RetentionFootnote } from "./retention-footnote";
+import {
+  CommunityPulse,
+  ResponseHealth,
+  WhoFollows,
+  useAudienceSummary,
+} from "./audience-blocks";
 
 const COMMENT_MAX = 1250; // LinkedIn comment cap (mirrors the api route)
 const HAS_ORG_SCOPE = "w_organization_social";
@@ -125,7 +131,69 @@ export function engageErrorMessage(err: unknown): string {
  * enrichment (which returns the public profile URL alongside the
  * name).
  */
+/** How much history the pulse and response-health blocks cover. Capped at
+ *  the rollup collection's own one-year TTL — asking for more cannot
+ *  return more. */
+const WINDOWS = [7, 30, 90] as const;
+
+/**
+ * The Audience tab — four blocks, replacing what used to be a single
+ * 48-hour engager list.
+ *
+ * ── ★THREE OF THEM COST NOTHING, AND ONE DOES ────────────────────────
+ * Pulse, response health and the engager ranking all read our own Mongo.
+ * "Who follows" is a live LinkedIn call against a ~500/day app-wide
+ * budget shared with the thread panel and the reactions list, which is
+ * why it is fetched once per tab open and never polled.
+ *
+ * The window selector applies only to the first two: the engager
+ * ranking has its own retention-bound lookback, and follower
+ * demographics are a lifetime snapshot with no window at all. Wiring one
+ * control to all three would imply a consistency the data does not have.
+ */
 export function AudiencePanel() {
+  const [days, setDays] = useState<number>(30);
+  const summary = useAudienceSummary(days);
+  // Follower demographics are per Company Page and the route requires the
+  // id. Shares the cached ["linkedin-me"] query with the composer, so this
+  // costs no extra round trip.
+  const { data: identity } = useLinkedInIdentity();
+  const orgPageId = identity?.pages?.[0]?.id;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-1">
+        {WINDOWS.map((w) => (
+          <Button
+            key={w}
+            type="button"
+            size="sm"
+            variant={days === w ? "secondary" : "ghost"}
+            className="h-7 px-2.5 text-xs"
+            onClick={() => setDays(w)}
+          >
+            {w}d
+          </Button>
+        ))}
+      </div>
+
+      <CommunityPulse
+        summary={summary.data}
+        loading={summary.isLoading}
+        error={summary.error}
+      />
+      <ResponseHealth
+        summary={summary.data}
+        loading={summary.isLoading}
+        error={summary.error}
+      />
+      <TopEngagersBlock />
+      <WhoFollows orgPageId={orgPageId} />
+    </div>
+  );
+}
+
+function TopEngagersBlock() {
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["linkedin-engagers"],
     queryFn: () => linkedInContentApi.engagers(),
