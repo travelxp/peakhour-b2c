@@ -519,6 +519,20 @@ export const linkedInContentApi = {
       `/v1/linkedin/content/analytics/followers?orgPageId=${encodeURIComponent(orgPageId)}`,
     ),
 
+  /**
+   * Draft a reply to one comment.
+   *
+   * ★A DRAFT. The server posts nothing and stores nothing — the text
+   * comes back to a person looking at a text box, and the distance
+   * between "drafted" and "sent" is them reading it. One call per press
+   * of a button; never call this in a loop over a list.
+   */
+  suggestReply: (body: { commentText: string; postText?: string }) =>
+    api.post<{ reply: string; rationale: string }>(
+      "/v1/linkedin/content/suggest-reply",
+      body,
+    ),
+
   /** Per-reaction-type counts + comment summary for a post. The AUTHORITATIVE
    *  reaction breakdown — `reactions` above only returns the current page. */
   socialMetadata: (postUrn: string) =>
@@ -775,6 +789,21 @@ export interface LinkedInAudienceSummary {
     oldestUnansweredMs: number | null;
   };
   engagers: { unique: number; new: number; returning: number };
+  /**
+   * What the community talked about.
+   *
+   * ★`classifiedDays` is its OWN coverage number, separate from
+   * `coverageDays`. Classification is a second pass that costs an AI
+   * call, can be switched off, and loses a day outright if the 48-hour
+   * sweep reaches the words first — so a window can be fully counted and
+   * barely classified. Rendering topics without saying which is the same
+   * lie `coverageDays` exists to prevent.
+   */
+  conversation: {
+    classifiedDays: number;
+    topics: Array<{ label: string; count: number }>;
+    sentiment: { positive: number; neutral: number; negative: number };
+  };
 }
 
 /** One demographic bucket, with the label the api resolved for its URN.
