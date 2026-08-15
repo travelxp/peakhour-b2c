@@ -51,6 +51,14 @@ export function engageErrorMessage(err: unknown): string {
     ) {
       return err.message;
     }
+    // ★503 / DRAFT_UNAVAILABLE. The api writes a specific sentence for a
+    // failed AI draft — "write one yourself, or try again in a moment" —
+    // precisely so it does not read as the reply having failed. Falling
+    // through to the generic message below discarded it and produced the
+    // confusion that message exists to prevent.
+    if (err.code === "DRAFT_UNAVAILABLE" || err.status === 503) {
+      return err.message;
+    }
     if (err.status === 403 || err.status === 404 || err.status === 429) {
       return err.message;
     }
@@ -151,12 +159,19 @@ export function ReplyBox({
 
   return (
     <div className="mt-2 space-y-1.5">
+      {/* ★LOCKED WHILE A DRAFT IS IN FLIGHT. The replace-confirm is
+          answered at CLICK time, but the draft arrives seconds later and
+          overwrites the box — so anything typed or inserted in between
+          was consented to under a question asked about different text.
+          Freezing the input is the only way the confirm keeps meaning
+          what it said. */}
       <Textarea
         value={text}
         onChange={(e) => setText(e.target.value.slice(0, COMMENT_MAX_LEN))}
-        placeholder="Write a reply…"
+        placeholder={draft.isPending ? "Drafting…" : "Write a reply…"}
         rows={2}
         className="text-sm"
+        readOnly={draft.isPending}
       />
       <div className="flex items-center gap-2">
         {/* ★Inserts, never sends. The reply lands in the textarea above
@@ -188,7 +203,7 @@ export function ReplyBox({
         <SavedReplyPicker
           channel="linkedin"
           draft={text}
-          disabled={send.isPending}
+          disabled={send.isPending || draft.isPending}
           onInsert={(body) => {
             // ★Computed against the CURRENT text rather than inside a
             // functional update, because the picker needs the answer

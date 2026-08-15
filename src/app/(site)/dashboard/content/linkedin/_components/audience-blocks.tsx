@@ -263,24 +263,48 @@ const TOPIC_LABEL: Record<string, string> = {
 export function CommunityTopics({
   summary,
   loading,
+  error,
 }: {
   summary?: LinkedInAudienceSummary;
   loading: boolean;
+  error?: unknown;
 }) {
   if (loading) return <BlockSkeleton rows={1} />;
+  // Same convention as its neighbours: a named state, not a vanished
+  // block. Returning null here left this one silently absent while the
+  // blocks either side said "Pick a business to see this".
+  if (error) return <BlockError title="What people talked about" error={error} />;
   if (!summary) return null;
 
-  const c = summary.conversation;
+  // ★DEFAULTED, because `conversation` is a NEW required field on an
+  // endpoint that already existed. Between the api deploy and the b2c
+  // one — or the reverse, on a rollback — a bare `summary.conversation`
+  // throws in render and takes the WHOLE Audience tab down, not just
+  // this block. A missing field should cost the feature that needs it
+  // and nothing else.
+  const c = summary.conversation ?? {
+    classifiedDays: 0,
+    topics: [],
+    sentiment: { positive: 0, neutral: 0, negative: 0 },
+  };
   const sentimentTotal =
     c.sentiment.positive + c.sentiment.neutral + c.sentiment.negative;
+
+  // ★Caveated against the WINDOW as well as against measured coverage.
+  // Comparing only to `coverageDays` meant a fully-classified 3-day
+  // rollup rendered topics inside a 90-day view with no caveat at all —
+  // while the pulse above it, on the same three days, carried one.
+  const partial =
+    c.classifiedDays > 0 &&
+    (c.classifiedDays < summary.coverageDays || c.classifiedDays < summary.days);
 
   return (
     <section className="space-y-3">
       <div className="flex items-center gap-2">
         <h3 className="text-sm font-semibold">What people talked about</h3>
-        {c.classifiedDays > 0 && c.classifiedDays < summary.coverageDays && (
+        {partial && (
           <Badge variant="outline" className="text-[10px] font-normal">
-            {c.classifiedDays} of {summary.coverageDays} days
+            {c.classifiedDays} {c.classifiedDays === 1 ? "day" : "days"} classified
           </Badge>
         )}
       </div>

@@ -188,7 +188,11 @@ export function AudiencePanel() {
         loading={summary.isLoading}
         error={summary.error}
       />
-      <CommunityTopics summary={summary.data} loading={summary.isLoading} />
+      <CommunityTopics
+        summary={summary.data}
+        loading={summary.isLoading}
+        error={summary.error}
+      />
       <TopEngagersBlock />
       <WhoFollows orgPageId={orgPageId} />
     </div>
