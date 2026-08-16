@@ -4,11 +4,20 @@
  * for KWD), so never assume ÷100.
  *
  * ★THE EXPONENT MUST BE THE ONE THE api MINTED WITH, AND IT IS NOT `Intl`'s.
- * Every minor amount on the Commerce endpoints is written by `toMinor` in
+ * Minor amounts on the Commerce endpoints are written by `toMinor` in
  * peakhour-api `helpers/money.ts`, from a `currencyDecimals` table that follows
  * **ISO 4217**. This file derived it from `Intl.NumberFormat`, which reports a
  * **CLDR display convention** — how a currency is customarily shown, not how
  * many minor units make one major.
+ *
+ * ★★DEPENDS ON peakhour-api#1098, AND MUST NOT SHIP AHEAD OF IT. Two fields were
+ * the exception to the sentence above: `orderDerived.gmvMinor` and `aovMinor`
+ * were minted by `summary.ts` with the Intl exponent, so before that PR they
+ * were the ONLY fields this file decoded correctly for the twelve currencies
+ * below — and this table makes them wrong. api#1098 moves that mint onto
+ * `currencyDecimals` too, at which point every field agrees and this comment is
+ * merely history. If you are reading this while GMV looks wrong by a hundred,
+ * check whether that PR actually landed.
  *
  * They disagree for **IQD** (ISO 3, CLDR 0) and for **RSD, LBP, ALL, AFN, IRR,
  * LAK, MMK, SLL, SOS, SYP, YER** (ISO 2, CLDR 0). So a Serbian store's stock

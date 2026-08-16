@@ -40,20 +40,25 @@ describe("minorUnitExponent — ISO 4217, not CLDR display", () => {
     expect(minorUnitExponent("")).toBe(2);
   });
 
-  it("★mirrors the api table rather than the runtime — which is the whole fix", () => {
-    // Stated as an executable contrast so nobody "simplifies" this back to Intl:
-    // where the runtime and ISO disagree, we follow ISO, because ISO is what
-    // minted the number.
+  it("★does not consult the runtime at all — which is the whole fix", () => {
+    // ★AND THIS ASSERTS IT UNCONDITIONALLY. A first cut wrote the guard as
+    // `if (cldr(c) !== ours(c)) expect(...)`, which passes with ZERO assertions
+    // run when someone reverts this file to Intl — the two agree again, the `if`
+    // never fires, and vitest reports green. A test written to catch a revert
+    // that passes after the revert is worse than no test.
+    //
+    // So: the values are pinned outright above, and here we state the one thing
+    // that makes them meaningful — for IQD and RSD our answer is the ISO one, and
+    // it stays the ISO one no matter what the runtime's CLDR data says today or
+    // after the next Node upgrade.
+    expect(minorUnitExponent("IQD")).toBe(3);
+    expect(minorUnitExponent("RSD")).toBe(2);
     const cldr = (c: string) =>
       new Intl.NumberFormat("en", { style: "currency", currency: c }).resolvedOptions()
         .maximumFractionDigits ?? 2;
-    // Not asserted as a fixed value — CLDR data ships with the runtime and may
-    // move. Asserted as a RELATIONSHIP: wherever they differ, ours is ISO.
-    for (const c of ["IQD", "RSD", "LBP"]) {
-      if (cldr(c) !== minorUnitExponent(c)) {
-        expect(minorUnitExponent(c)).toBeGreaterThan(cldr(c));
-      }
-    }
+    // Not an assertion about CLDR's value — an assertion that ours is unaffected
+    // by it. Reverting to `Intl` fails the two lines above, which is the point.
+    expect(typeof cldr("IQD")).toBe("number");
   });
 });
 
