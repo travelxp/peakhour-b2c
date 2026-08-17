@@ -34,6 +34,7 @@ import type {
 } from "@/lib/api/linkedin-content";
 import { SuggestedDraftsPanel } from "./_components/suggested-drafts-panel";
 import { ScheduledPanel } from "./_components/scheduled-panel";
+import { PageSwitcher } from "./_components/page-switcher";
 
 /**
  * Who the Feed replies AS.
@@ -118,7 +119,7 @@ export default function LinkedInDashboardPage() {
     const err = identity.error;
     const code = err instanceof ApiError ? err.code : "UNKNOWN";
     return (
-      <LinkedInPageShell>
+      <LinkedInPageShell identity={identity.data}>
         <EmptyState
           icon={RefreshCw}
           title="LinkedIn needs a quick reconnect"
@@ -137,7 +138,7 @@ export default function LinkedInDashboardPage() {
     enabledIdentity?.data && enabledIdentity.data.status !== "active";
 
   return (
-    <LinkedInPageShell>
+    <LinkedInPageShell identity={enabledIdentity?.data}>
       {needsReauth && (
         <Card className="border-warning/30 bg-warning/5">
           <CardContent className="flex items-center justify-between gap-4 p-4 text-sm">
@@ -314,7 +315,19 @@ function LinkedInTabs({
  * was called `PageShell` too until the shared one landed and the collision
  * became a trap for anyone importing the real thing here.
  */
-function LinkedInPageShell({ children, loading }: { children?: React.ReactNode; loading?: boolean }) {
+function LinkedInPageShell({
+  children,
+  loading,
+  identity,
+}: {
+  children?: React.ReactNode;
+  loading?: boolean;
+  /** Passed so the switcher renders in the header on EVERY branch of this page,
+   *  including the reconnect prompts. A control that vanished whenever the
+   *  connection was unhealthy would hide the one thing that says which brand
+   *  the screen is about. */
+  identity?: LinkedInIdentity;
+}) {
   const queryClient = useQueryClient();
   return (
     <div className="space-y-6">
@@ -357,13 +370,19 @@ function LinkedInPageShell({ children, loading }: { children?: React.ReactNode; 
         // data, which looks exactly like a quiet week.
         onTriggered={() => invalidateLinkedInContentQueries(queryClient)}
       />
-      <div>
-        {/* h1: this was the page's only heading and it was an h2, so the
-            route had no page title in the document outline at all. */}
-        <h1 className="text-2xl font-semibold tracking-tight">LinkedIn</h1>
-        <p className="text-muted-foreground">
-          Publish to your personal feed or any company page you administer.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          {/* h1: this was the page's only heading and it was an h2, so the
+              route had no page title in the document outline at all. */}
+          <h1 className="text-2xl font-semibold tracking-tight">LinkedIn</h1>
+          <p className="text-muted-foreground">
+            Publish to your personal feed or any company page you administer.
+          </p>
+        </div>
+        {/* ★In the HEADER, not in a tab. This governs every tab below it and
+            the Growth pillar besides; a control sitting inside one tab would
+            read as belonging to that tab alone. */}
+        <PageSwitcher identity={identity} />
       </div>
       {loading ? (
         <div className="space-y-4">

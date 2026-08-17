@@ -159,7 +159,15 @@ export function AudiencePanel() {
   // id. Shares the cached ["linkedin-me"] query with the composer, so this
   // costs no extra round trip.
   const { data: identity } = useLinkedInIdentity();
-  const orgPageId = identity?.pages?.[0]?.id;
+  // ★THE ACTIVE PAGE, NOT `pages[0]`. Who Follows takes an explicit Page and
+  // was handed whichever one LinkedIn happened to return first — so on a
+  // two-Page business this block described a different brand than the engager
+  // list and the pulse chart directly above it, with nothing on screen saying
+  // the two headings meant different Pages. `activePageId` is resolved and
+  // validated server-side so the client cannot reach a different answer than
+  // the queries did; the `pages[0]` fallback survives only for an API deploy
+  // that predates the field, where nothing is scoped anyway.
+  const orgPageId = identity?.activePageId ?? identity?.pages?.[0]?.id;
 
   return (
     <div className="space-y-6">
@@ -210,13 +218,19 @@ function TopEngagersBlock() {
       return failureCount < 2;
     },
     staleTime: 5 * 60_000,
-    // The engagers endpoint runs a Mongo aggregation per call. Match
-    // the heavier insights panels' convention: don't auto-refetch on
-    // tab refocus or component remount — the 5min staleTime is the
-    // honest refresh cadence here, and the user can hard-refresh if
-    // they want a fresher view.
+    // ★`refetchOnMount: false` USED TO SIT HERE, and with
+    // refetchOnWindowFocus:false it made this panel UNREFRESHABLE inside a
+    // session — which is the other half of "likes and comments aren't
+    // updating". The reasoning it carried ("the user can hard-refresh") was
+    // the bug: nothing in the UI says a hard refresh is required, so a panel
+    // that never updates reads as a panel with nothing to show. Same removal
+    // the Library feed already got.
+    //
+    // The aggregation this endpoint runs is real, which is what `staleTime`
+    // is for: a remount inside five minutes still serves the cache and costs
+    // nothing. Beyond it, one query is the correct price for a number that
+    // claims to be current.
     refetchOnWindowFocus: false,
-    refetchOnMount: false,
   });
 
   // Identity (member + managed pages) for the "engage as" picker. Shares the
