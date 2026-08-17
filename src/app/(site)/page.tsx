@@ -2,11 +2,6 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
   ArrowRight,
-  ShoppingBag,
-  PenLine,
-  TrendingUp,
-  MessageSquare,
-  MapPin,
   Check,
   AlertTriangle,
   CheckCircle2,
@@ -16,29 +11,23 @@ import {
 import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
 import { pageMetadata } from "@/lib/seo";
-import { HOW_IT_WORKS_STEPS } from "@/lib/how-it-works";
-import {
-  PILLAR_CONSOLE_ROWS,
-  PILLAR_CONSOLE_LABEL,
-  PILLAR_CONSOLE_ROW_CLASS,
-  SIGNUP_PROMISES,
-} from "@/lib/pillar-console";
-import {
-  getPricing,
-  minFreePeaksPerMonth,
-  formatPeaks,
-  FREE_PEAKS_FALLBACK,
-} from "@/lib/pricing";
+import { HERO_TRUST_POINTS } from "@/lib/pillar-console";
+import { AUDIENCE_SEGMENTS } from "@/lib/audience-segments";
+import { PILLARS } from "@/lib/pillars";
+import { BrandBackdrop } from "@/components/marketing/brand-backdrop";
+import { PillarOrbit } from "@/components/marketing/pillar-orbit";
+import { PillarCards } from "@/components/marketing/pillar-cards";
+import { StepTimeline } from "@/components/marketing/step-timeline";
 import {
   getPublicCatalog,
   publicMarketingIntegrations,
   signupCta,
+  type PlatformSignupMode,
 } from "@/lib/catalog";
 import {
   IntegrationBrandIcon,
   integrationBrandColor,
 } from "@/components/marketing/integration-brand";
-import { PeaksGlyph } from "@/components/peaks/peaks-glyph";
 import {
   LinkedinIcon,
   FacebookIcon,
@@ -54,60 +43,6 @@ export const metadata = pageMetadata({
     "Five AI pillars — Commerce, Content, Growth, Support, Presence — that sell, publish, advertise, answer, and get you found. A free plan on every pillar. No credit card.",
   path: "/",
 });
-
-/**
- * The five pillars are the product. This list is stable brand architecture
- * (mirrors cfg_products.pillar); the section ids give each pillar an on-page
- * anchor (the header/footer now link to the dedicated /commerce … pages).
- * Integrations below stay catalog-driven.
- */
-const PILLARS = [
-  {
-    id: "commerce",
-    icon: ShoppingBag,
-    name: "Commerce",
-    blurb:
-      "An AI assistant that knows your whole catalog and sells on WhatsApp and your storefront, 24/7.",
-    points: ["Catalog always in sync", "WhatsApp storefront chat", "Inventory intelligence"],
-    free: "Free plan included",
-  },
-  {
-    id: "content",
-    icon: PenLine,
-    name: "Content",
-    blurb:
-      "AI writers that publish in your voice — blogs, newsletters, socials — from your news desk to every channel.",
-    points: ["Brand-voice AI writers", "News-driven ideas", "Multi-format publishing"],
-    free: "Free plan included",
-  },
-  {
-    id: "growth",
-    icon: TrendingUp,
-    name: "Growth",
-    blurb:
-      "Ads and LinkedIn on autopilot — campaigns drafted, leads captured, budgets optimized while you sleep.",
-    points: ["LinkedIn growth engine", "Ad campaigns + optimizer", "Lead inbox"],
-    free: "Free plan included",
-  },
-  {
-    id: "support",
-    icon: MessageSquare,
-    name: "Support",
-    blurb:
-      "One inbox for every channel. AI answers what it can, hands you what it can't — with full context.",
-    points: ["Omnichannel inbox", "AI-drafted replies", "Human handoff"],
-    free: "Free plan included",
-  },
-  {
-    id: "presence",
-    icon: MapPin,
-    name: "Presence",
-    blurb:
-      "Own how you show up on Google — listings, hours, photos, and reviews managed from one place.",
-    points: ["Google Business Profile", "Review management", "Listing health"],
-    free: "Always free",
-  },
-] as const;
 
 /**
  * Free → Pro ladder — the current pricing architecture. Free is a complete,
@@ -135,9 +70,6 @@ const FREE_POINTS = [
   },
 ] as const;
 
-// Shared with the standalone /how-it-works page (single source of truth).
-const STEPS = HOW_IT_WORKS_STEPS;
-
 // Degraded-mode fallback for the integrations strip — rendered ONLY when the
 // catalog API is unreachable or publishes nothing, so the section can't fail
 // into a heading over an empty grid.
@@ -164,6 +96,28 @@ const INTEGRATIONS = [
 // only ever carries a well-formed inviter code.
 const REFERRAL_CODE_PATTERN = /^[0-9A-Z]{4,32}$/;
 
+/**
+ * The closing ask, phrased for the door that is actually open. `signupCta`
+ * already picks the button label from the platform's signup mode; this picks
+ * the sentence above it from the same fact, so the page can never invite
+ * someone onto a waitlist that no longer exists (or offer a free start while
+ * signups are shut).
+ */
+function closingLede(mode: PlatformSignupMode): string {
+  const tail =
+    "bring Commerce, Content, Growth, Support and Presence into one intelligence layer.";
+  switch (mode) {
+    case "waitlist_only":
+      return `Join the Peakhour waitlist and ${tail}`;
+    case "invite_only":
+      return `Request an invite and ${tail}`;
+    case "closed":
+      return `Peakhour opens soon — and will ${tail}`;
+    case "open":
+      return `Start free with Peakhour and ${tail}`;
+  }
+}
+
 export default async function Home({
   searchParams,
 }: {
@@ -186,20 +140,11 @@ export default async function Home({
 
   // Integration catalog from the platform resolver (CMS-driven, env-gated,
   // stage-capped). Falls back to the static list below if the API is
-  // unreachable so the landing never hard-fails (mirrors the pricing fallback).
-  // In parallel — two independent endpoints; awaiting them in sequence costs a
-  // second round trip on a cold cache.
-  const [catalog, pricing] = await Promise.all([
-    getPublicCatalog(),
-    // "DEFAULT" is not a sentinel the API honours — it fails the two-letter
-    // validation and the response comes back geo-resolved. We pass it purely
-    // to pin one cache key, and read only `peaksIncluded`, which is a
-    // plan-level allowance and country-independent. Never read a price here.
-    getPricing("DEFAULT"),
-  ]);
-  const freePeaks = formatPeaks(minFreePeaksPerMonth(pricing) ?? FREE_PEAKS_FALLBACK);
+  // unreachable so the landing never hard-fails.
+  const catalog = await getPublicCatalog();
   const platform = catalog?.platform;
-  const cta = signupCta(platform?.signupMode ?? "open");
+  const signupMode = platform?.signupMode ?? "open";
+  const cta = signupCta(signupMode);
   // Fall back on an EMPTY published set too, not just a null catalog — a
   // catalog that publishes nothing would otherwise render the section heading
   // over an empty grid.
@@ -278,49 +223,43 @@ export default async function Home({
       <Header />
 
       <main>
-        {/* Hero — tighter top (the sticky header + announcement bar already
-            carry weight above it) and a bottom that steps into the same
-            py-12 sm:py-16 rhythm every band below uses, so no gap on the page
-            reads as a hole. */}
-        <section className="pt-8 pb-12 sm:pt-12 sm:pb-16">
-          {/* `min-w-0` on both tracks: the console rows below use `truncate`
-              (white-space: nowrap), whose min-content is the FULL untruncated
-              string. Without an explicit 0 minimum a grid item's automatic
-              minimum size is its min-content, so that nowrap text sized the
-              track ~519px wide and pushed the whole page into a horizontal
-              scroll on phones. */}
-          <div className="mx-auto grid max-w-6xl items-center gap-10 px-4 sm:gap-14 sm:px-6 lg:grid-cols-[1.1fr_0.9fr]">
+        {/* Hero — the H1 states the visitor's problem, the orbit answers it.
+            Everything down to the three trust points is sized to clear a
+            laptop fold together with the header and the announcement bar. */}
+        <section className="relative isolate overflow-hidden pt-8 pb-12 sm:pt-12 sm:pb-16">
+          <BrandBackdrop />
+          {/* `min-w-0` on both tracks so neither a long word nor the orbit's
+              absolutely-positioned nodes can size the grid track above the
+              viewport and put the page into a horizontal scroll on phones. */}
+          <div className="mx-auto grid max-w-6xl items-center gap-10 px-4 sm:gap-14 sm:px-6 lg:grid-cols-[1.05fr_0.95fr]">
             <div className="min-w-0">
-              {/* The eyebrow now carries the old H1 ("Five AI pillars. One
-                  platform. Free to start.") — it is the positioning badge, and
-                  the H1 above it is the visitor's problem stated back to them.
-                  Keep the three sentences: they are the shortest complete
-                  statement of what Peakhour is and what it costs to try. */}
+              {/* The eyebrow carries the positioning badge; the H1 above it is
+                  the visitor's own problem stated back to them. */}
               <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand-label">
                 <span className="h-0.5 w-7 bg-brand-gradient" aria-hidden />
                 Five AI pillars. One platform. Free to start.
               </span>
-              <h1 className="mt-5 text-4xl font-extrabold leading-[1.03] tracking-tight text-pretty sm:text-5xl lg:text-6xl">
+              {/* `block` on the accent, not a line break: the question has to
+                  land on its own line at EVERY width, and a <br> would only
+                  hold at the one the type was measured in. */}
+              <h1 className="mt-5 text-3xl font-extrabold leading-[1.05] tracking-tight text-pretty sm:text-4xl lg:text-5xl">
                 Still running one business across{" "}
-                <span className="font-serif italic font-normal text-brand-gradient">
+                <span className="block font-serif italic font-normal text-brand-gradient">
                   10 different tools?
                 </span>
               </h1>
-              {/* Two ranks, deliberately: the first line is the value
-                  proposition and sits at foreground weight so it reads as the
-                  answer to the question above; the second line names the five
-                  pillars in plain words and stays muted so it supports rather
-                  than competes. Neither is a second headline — no display
-                  sizing, no serif accent, both well under the H1. */}
-              <p className="mt-5 max-w-xl text-lg font-medium text-foreground">
-                Peakhour runs the work your growing business can&rsquo;t hire a
-                team for yet.
+              {/* One block, two sentences: what Peakhour does for you, then
+                  what it covers. Splitting them into two ranks made the second
+                  read as a second headline. */}
+              <p className="mt-5 max-w-xl text-lg text-muted-foreground">
+                <span className="font-medium text-foreground">
+                  Peakhour runs the work your growing business can&rsquo;t hire a
+                  team for yet.
+                </span>{" "}
+                One unified AI platform for commerce, content, marketing,
+                customer support and online presence.
               </p>
-              <p className="mt-2.5 max-w-xl text-lg text-muted-foreground">
-                One unified AI platform for sales, content, marketing, customer
-                support and online presence.
-              </p>
-              <div className="mt-8 flex flex-wrap items-center gap-4">
+              <div className="mt-7 flex flex-wrap items-center gap-4">
                 {cta.disabled ? (
                   <span className="inline-flex items-center gap-2 rounded-full border bg-muted/40 px-5 py-3 text-sm font-medium text-muted-foreground">
                     <Zap className="size-4" aria-hidden />
@@ -337,10 +276,7 @@ export default async function Home({
                 )}
                 {/* Secondary CTA points at the story page, not at /peaks. A
                     visitor who has just read "10 different tools?" is asking
-                    how this works, not how the AI currency is metered — and
-                    /how-it-works is the page that answers it. Peaks are still
-                    one click away from there, from /pricing and from the
-                    footer. */}
+                    how this works, not how the AI currency is metered. */}
                 <Link
                   href="/how-it-works"
                   className="inline-flex items-center gap-2 rounded-xl border-2 px-6 py-3 text-sm font-bold transition-colors hover:border-brand hover:text-brand"
@@ -348,10 +284,11 @@ export default async function Home({
                   See how Peakhour works
                 </Link>
               </div>
-              {/* Shared with /auth — the pitch must not change at the point
-                  of signup, which only holds with one copy of the strings. */}
+              {/* The three trust points. Kept directly under the CTA so they
+                  clear the fold with it — they are the answer to "what does
+                  clicking this cost me". */}
               <p className="mt-5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
-                {SIGNUP_PROMISES.map((promise, i) => (
+                {HERO_TRUST_POINTS.map((promise, i) => (
                   <span key={promise} className="flex items-center gap-x-2">
                     {i > 0 && (
                       <span aria-hidden className="opacity-40">
@@ -367,51 +304,14 @@ export default async function Home({
               </p>
             </div>
 
-            {/* Pillar console — always-dark product panel (fixed tones so it
-                reads on both light and dark grounds). */}
-            <div
-              className="min-w-0 rounded-2xl border border-ink-line bg-ink p-4 shadow-2xl sm:p-5"
-              role="img"
-              aria-label={PILLAR_CONSOLE_LABEL}
-            >
-              <div className="flex items-center justify-between px-1 pb-2 text-[0.7rem] font-bold uppercase tracking-[0.18em] text-on-ink-dim">
-                <span>Your business, at a glance</span>
-                <span className="flex items-center gap-1.5 text-success">
-                  <span className="size-1.5 rounded-full bg-success" aria-hidden />
-                  live
-                </span>
-              </div>
-              <div className="flex flex-col gap-2.5">
-                {PILLAR_CONSOLE_ROWS.map((row) => (
-                  <div
-                    key={row.name}
-                    className={PILLAR_CONSOLE_ROW_CLASS}
-                  >
-                    <span className="size-2 shrink-0 rounded-full bg-success" aria-hidden />
-                    <span className="w-20 shrink-0 font-bold text-on-ink">{row.name}</span>
-                    <span className="min-w-0 flex-1 truncate text-on-ink-dim">{row.status}</span>
-                    <span className="shrink-0 rounded-full bg-success/15 px-2.5 py-0.5 text-[0.65rem] font-bold uppercase tracking-wide text-success">
-                      Free
-                    </span>
-                  </div>
-                ))}
-              </div>
-              {/* flex-wrap: the two spans don't shrink, and they meet at ~280px
-                  (Galaxy Fold cover screen). */}
-              <div className="flex flex-wrap items-center justify-between gap-y-1 px-1 pt-3 text-xs text-on-ink-dim">
-                {/* Peaks is always the coin glyph, never a generic bolt. */}
-                <span className="flex items-center gap-1.5">
-                  Metered in{" "}
-                  <PeaksGlyph size={16} />
-                  <span className="font-bold text-brand-gradient">Peaks</span>
-                </span>
-                <span>{freePeaks}+ free Peaks/mo</span>
-              </div>
-            </div>
+            {/* Peakhour at the centre, the five pillars around it, every one
+                of them wired to the hub and to its neighbours. */}
+            <PillarOrbit />
           </div>
         </section>
 
-        {/* Pillar grid — section ids back the header/footer anchors */}
+        {/* The five pillars — one row of tall panels that open in place. The
+            section ids the header/footer anchor to live on the panels. */}
         <section className="border-t bg-muted/30 py-12 sm:py-16">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <div className="max-w-3xl">
@@ -424,51 +324,68 @@ export default async function Home({
               </h2>
               <p className="mt-3 text-muted-foreground">
                 Each pillar works alone. Together they share one brain — your
-                catalog, your brand voice, your customers.
+                catalog, your brand voice, your customers.{" "}
+                <span className="font-medium text-foreground">
+                  Open any pillar to see what it runs.
+                </span>
               </p>
             </div>
-            <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {PILLARS.map((pillar) => {
-                const PillarIcon = pillar.icon;
+            <div className="mt-10">
+              <PillarCards />
+            </div>
+          </div>
+        </section>
+
+        {/* Who it's for — the visitor sorting themselves before they read on.
+            Problem first, then fit; no pillar is named until the fit line. */}
+        <section className="relative isolate overflow-hidden py-12 sm:py-16">
+          <BrandBackdrop flip />
+          <div className="mx-auto max-w-6xl px-4 sm:px-6">
+            <div className="max-w-3xl">
+              <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand-label">
+                <span className="h-0.5 w-7 bg-brand-gradient" aria-hidden />
+                Who Peakhour is for
+              </span>
+              <h2 className="mt-4 text-3xl font-extrabold tracking-tight text-pretty lg:text-4xl">
+                Built for the businesses doing five jobs{" "}
+                <span className="font-serif italic font-normal text-brand-gradient">
+                  with one team.
+                </span>
+              </h2>
+            </div>
+            <div className="mt-10 grid gap-4 sm:grid-cols-2">
+              {AUDIENCE_SEGMENTS.map((segment) => {
+                const SegmentIcon = segment.icon;
                 return (
                   <div
-                    key={pillar.id}
-                    id={pillar.id}
-                    // Sleeker than the old lift: a shorter travel on a real
-                    // easing curve, a gold-tinted shadow instead of a heavy
-                    // neutral one, and a border that warms to brand rather
-                    // than snapping to near-black. Every transition is
-                    // motion-reduce guarded.
-                    className="group relative flex scroll-mt-24 flex-col gap-3 overflow-hidden rounded-2xl border bg-background p-6 transition-[transform,border-color,box-shadow] duration-300 ease-out hover:-translate-y-1 hover:border-brand/50 hover:shadow-lg hover:shadow-brand/15 motion-reduce:transition-none motion-reduce:hover:translate-y-0"
+                    key={segment.id}
+                    className="u-lift flex flex-col gap-3 rounded-2xl border bg-background p-6"
                   >
-                    {/* Gold hairline that wipes across the top edge on hover. */}
-                    <span
-                      aria-hidden
-                      className="absolute inset-x-0 top-0 h-0.5 origin-left scale-x-0 bg-brand-gradient transition-transform duration-300 ease-out group-hover:scale-x-100 motion-reduce:hidden"
-                    />
-                    {/* motion-reduce neutralises the transform itself, not just
-                        its duration — transition-none alone would make the tile
-                        snap to rotated+scaled instantly, which is the jump the
-                        preference exists to avoid. */}
-                    <div className="flex size-11 items-center justify-center rounded-xl bg-brand-gradient shadow-inner transition-transform duration-300 ease-out group-hover:-rotate-3 group-hover:scale-105 motion-reduce:transition-none motion-reduce:group-hover:rotate-0 motion-reduce:group-hover:scale-100">
-                      <PillarIcon className="size-5 text-brand-contrast" strokeWidth={2} />
+                    <div className="flex items-center gap-3">
+                      <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-brand-soft">
+                        <SegmentIcon
+                          className="size-4.5 text-brand-ink"
+                          strokeWidth={2}
+                          aria-hidden
+                        />
+                      </span>
+                      <h3 className="text-lg font-bold tracking-tight">{segment.name}</h3>
                     </div>
-                    <h3 className="text-lg font-bold tracking-tight">{pillar.name}</h3>
-                    <p className="flex-1 text-sm text-muted-foreground">{pillar.blurb}</p>
-                    <ul className="flex flex-col gap-1.5">
-                      {pillar.points.map((point) => (
+                    {/* The problem is set at foreground weight and the fit
+                        muted below it — the visitor recognises themselves
+                        first, and only then reads what we do about it. */}
+                    <p className="font-medium text-pretty">{segment.problem}</p>
+                    <p className="text-sm text-muted-foreground">{segment.fit}</p>
+                    <ul className="mt-auto flex flex-wrap gap-1.5 pt-1">
+                      {segment.pillars.map((slug) => (
                         <li
-                          key={point}
-                          className="flex items-center gap-2 text-xs font-medium text-muted-foreground"
+                          key={slug}
+                          className="rounded-full border border-brand/25 px-2.5 py-0.5 text-xs font-medium text-brand-label"
                         >
-                          <Check className="size-3.5 shrink-0 text-brand" strokeWidth={2.5} />
-                          {point}
+                          {PILLARS[slug].name}
                         </li>
                       ))}
                     </ul>
-                    <span className="self-start rounded-full bg-brand-soft px-2.5 py-1 text-[0.65rem] font-bold uppercase tracking-wide text-brand-ink transition-shadow duration-300 ease-out group-hover:shadow-sm group-hover:shadow-brand/30 motion-reduce:transition-none">
-                      {pillar.free}
-                    </span>
                   </div>
                 );
               })}
@@ -516,13 +433,14 @@ export default async function Home({
           </div>
         </section>
 
-        {/* How it works */}
+        {/* How it works — three stops on one line that draws itself as you
+            scroll, so the steps read as a sequence rather than three cards. */}
         <section id="how-it-works" className="scroll-mt-24 border-t bg-muted/30 py-12 sm:py-16">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <div className="max-w-3xl">
               <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand-label">
                 <span className="h-0.5 w-7 bg-brand-gradient" aria-hidden />
-                How it works
+                How Peakhour works
               </span>
               <h2 className="mt-4 text-3xl font-extrabold tracking-tight text-pretty lg:text-4xl">
                 From Setup to Autopilot.{" "}
@@ -531,21 +449,8 @@ export default async function Home({
                 </span>
               </h2>
             </div>
-            <div className="mt-10 grid gap-4 md:grid-cols-3">
-              {STEPS.map((s) => (
-                <div
-                  key={s.step}
-                  className="rounded-2xl border bg-background p-7 transition-all hover:-translate-y-1 hover:border-foreground hover:shadow-xl"
-                >
-                  <div className="font-serif text-4xl font-normal italic text-brand-gradient">
-                    {s.step}
-                  </div>
-                  <h3 className="mt-3 text-lg font-bold tracking-tight">{s.title}</h3>
-                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                    {s.description}
-                  </p>
-                </div>
-              ))}
+            <div className="mt-12">
+              <StepTimeline />
             </div>
           </div>
         </section>
@@ -597,57 +502,19 @@ export default async function Home({
           </div>
         </section>
 
-        {/* Who's behind it — a quiet credibility beat between "here's the
-            product" and the ask. Deliberately small: one panel, no photo, no
-            logo wall, no press strip. A pre-launch product can't show customer
-            proof honestly, and the founder's track record is the one piece of
-            proof that is true today.
-
-            Text-only by design — there's no founder portrait in /public, and a
-            stock headshot on a credibility section would undercut the exact
-            thing the section exists to establish. */}
-        <section className="border-t bg-muted/30 py-12 sm:py-16">
-          <div className="mx-auto max-w-6xl px-4 sm:px-6">
-            <div className="mx-auto flex max-w-3xl flex-col gap-6 rounded-3xl border bg-background p-7 sm:flex-row sm:items-start sm:gap-7 sm:p-9">
-              {/* Monogram rather than an avatar — same gold tile the pillar
-                  cards use, so it reads as part of the brand system. */}
-              <div
-                className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-brand-gradient text-lg font-extrabold tracking-tight text-brand-contrast shadow-inner"
-                aria-hidden
-              >
-                PC
-              </div>
-              <div className="min-w-0">
-                <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand-label">
-                  <span className="h-0.5 w-7 bg-brand-gradient" aria-hidden />
-                  Who&rsquo;s behind it
-                </span>
-                <h2 className="mt-3 text-xl font-bold tracking-tight text-pretty sm:text-2xl">
-                  Built by someone who knows what it takes to run a business.
-                </h2>
-                <p className="mt-3 text-muted-foreground">
-                  Peakhour comes from Prashant Chothani, CEO &amp; Managing
-                  Director of Travelxp and Media Worldwide — with decades spent
-                  building, scaling and innovating across global businesses.
-                </p>
-              </div>
-            </div>
-          </div>
-        </section>
-
         {/* Final CTA — always-dark panel */}
         <section className="pt-12 pb-16 sm:pt-16 sm:pb-20">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <div className="overflow-hidden rounded-3xl border border-ink-line bg-ink px-6 py-16 text-center text-on-ink shadow-2xl sm:py-20">
-              <h2 className="mx-auto max-w-2xl text-3xl font-extrabold tracking-tight text-pretty sm:text-4xl">
-                Start with one pillar.{" "}
+              <h2 className="mx-auto max-w-3xl text-3xl font-extrabold tracking-tight text-pretty sm:text-4xl">
+                Ready to stop being the{" "}
                 <span className="font-serif italic font-normal text-brand-gradient">
-                  Keep all five.
-                </span>
+                  glue
+                </span>{" "}
+                between every part of your business?
               </h2>
               <p className="mx-auto mt-4 max-w-xl text-on-ink-dim">
-                Free plans on Commerce, Content, Growth, Support, and Presence. No
-                credit card. Your first Peaks are on us.
+                {closingLede(signupMode)}
               </p>
               {!cta.disabled && (
                 <Link
@@ -658,6 +525,9 @@ export default async function Home({
                   <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
                 </Link>
               )}
+              <p className="mt-5 text-sm text-on-ink-dim">
+                Free plan available · No credit card
+              </p>
             </div>
           </div>
         </section>
