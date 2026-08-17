@@ -41,6 +41,11 @@ export const LINKEDIN_CONTENT_QUERY_KEYS = [
   // Voice + drafting.
   ["linkedin-voice-card"],
   ["linkedin-suggested-drafts"],
+  // Per-Page brand-fit + enabled set (GET /integrations/linkedin_content/pages),
+  // read by the Manage-Pages dialog and the composer's off-brand notice. A Page
+  // toggle changes the `enabled` flags in this very payload, so leaving it
+  // cached is precisely the "forgot one key" case this file exists to prevent.
+  ["linkedin-page-fit"],
 ] as const;
 
 /**
