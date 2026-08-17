@@ -60,6 +60,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { EmptyState } from "@/components/molecules/empty-state";
+import { NoAdAccountState } from "./ad-account-picker";
 import { reconnectHref, ADS_LINKEDIN_PATH, LINKEDIN_ADS_PROVIDER } from "@/lib/integrations-connect";
 import { AlertTriangle, Archive, ClipboardList, RefreshCw, Sparkles } from "lucide-react";
 
@@ -173,6 +174,13 @@ export function LeadFormsPanel() {
             title="Couldn't load your lead forms"
             description="Refresh in a moment — nothing has changed on LinkedIn."
           />
+        ) : (asks.data?.asks?.length ?? 0) === 0 && asks.data?.pageId && !asks.data.adAccountId ? (
+          // ★NOT "no lead forms yet" — we are WITHHOLDING them. A published form
+          // belongs to the ad account it was published into, so a Page with no
+          // mapped account has forms we deliberately do not show rather than
+          // guess whose they are. Offering "Design a form" here would invite
+          // someone to build a second copy of a form they already have.
+          <NoAdAccountState what="lead forms" />
         ) : (asks.data?.asks?.length ?? 0) === 0 ? (
           <EmptyState
             icon={ClipboardList}

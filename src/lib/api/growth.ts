@@ -1,5 +1,6 @@
 import { api } from "@/lib/api";
 import type { AdvertisingDeclaration } from "@/lib/ads-copy";
+import type { PageScopeMeta } from "@/lib/api/linkedin-ads";
 
 /**
  * Growth-engine client (G3) — the channel-common /v1/growth surface.
@@ -358,8 +359,14 @@ export const growthApi = {
 
   // ── Asks ───────────────────────────────────────────────────────────────
 
+  /** Lead Gen Forms for the active Page's ad account.
+   *
+   *  Carries the scope it was resolved under (see `PageScopeMeta`): published
+   *  forms belong to the ad account they were published into, so an unmapped
+   *  Page withholds them rather than falling back to every brand's. Drafts
+   *  always come through — they belong to no account yet. */
   listAsks: (includeArchived = false) =>
-    api.get<{ asks: Ask[] }>(
+    api.get<{ asks: Ask[] } & Partial<PageScopeMeta>>(
       `/v1/growth/asks${includeArchived ? "?includeArchived=true" : ""}`,
     ),
 

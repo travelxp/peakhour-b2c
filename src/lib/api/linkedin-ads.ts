@@ -238,11 +238,59 @@ export interface BoostCampaignInput {
   askId?: string;
 }
 
+/**
+ * Which ad account a Page's Growth surfaces spend from.
+ *
+ * ★THERE IS NOTHING TO AUTO-MATCH ON, WHICH IS WHY THIS IS A PICKER. LinkedIn
+ * exposes no ownership link between a Company Page and an ad account; names
+ * routinely disagree, one advertiser legitimately runs several accounts, and an
+ * agency's account administers Pages it does not own. Every heuristic is a
+ * guess — and the guess the product used to make, "the first ad account on the
+ * connection", is what showed one business a shared test account's campaigns
+ * and Lead Gen Forms as their own.
+ */
+export interface PageAdAccountState {
+  /** The Page every Growth read is scoped to. Null on a pageless connection. */
+  activePageId: string | null;
+  /** The account resolved for that Page. Null means unmapped — the surfaces
+   *  offer "connect or create an ad account" rather than showing anything. */
+  adAccountId: string | null;
+  /** Every stored mapping, so the picker can show what other Pages point at. */
+  byPage: Record<string, string>;
+  /** Only accounts this connection actually administers — the same set the PUT
+   *  validates against, so the picker cannot offer a choice the write refuses. */
+  accounts: Array<{ id: string; name: string | null; currency: string | null }>;
+}
+
+/**
+ * The scope a Growth list was resolved under, returned alongside it.
+ *
+ * ★AN EMPTY LIST HAS TO SAY WHY IT IS EMPTY. "You have no campaigns yet" and
+ * "this Page has no ad account, so there is nothing we could show you" render
+ * identically without this, and only one of them is something a user can act
+ * on. Optional because an API deploy predating the scoping omits them.
+ */
+export interface PageScopeMeta {
+  adAccountId: string | null;
+  pageId: string | null;
+  connected: boolean;
+}
+
 export const linkedInAdsApi = {
   /** Local managed campaigns for the active business (newest first). */
   managedCampaigns: () =>
-    api.get<{ campaigns: ManagedCampaign[] }>(
+    api.get<{ campaigns: ManagedCampaign[] } & Partial<PageScopeMeta>>(
       "/v1/linkedin/ads/managed-campaigns",
+    ),
+
+  /** The active Page's ad-account mapping + the accounts available to it. */
+  pageAdAccount: () => api.get<PageAdAccountState>("/v1/linkedin/ads/page-ad-account"),
+
+  /** Map a Page to an ad account, or pass null to clear it. */
+  setPageAdAccount: (pageId: string, adAccountId: string | null) =>
+    api.put<{ pageId: string; adAccountId: string | null }>(
+      "/v1/linkedin/ads/page-ad-account",
+      { pageId, adAccountId },
     ),
 
   /**

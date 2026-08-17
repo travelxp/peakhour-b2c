@@ -47,6 +47,7 @@ import { AdvertisingDeclarationCard } from "@/components/ads/advertising-declara
 import { formatDeclaredAt } from "@/lib/ads-copy";
 import { flightEndBanner, flightEndDetail } from "@/lib/flight-end-copy";
 import { EmptyState } from "@/components/molecules/empty-state";
+import { AdAccountPicker, NoAdAccountState } from "./ad-account-picker";
 import {
   AlertTriangle,
   Archive,
@@ -185,6 +186,16 @@ export function LinkedInAdsPanel() {
               </CardContent>
             </Card>
           ) : null}
+          {/* ★ABOVE THE LISTS, because it decides what they contain. Every
+              surface below spends from — and is scoped to — the account chosen
+              here, so a picker sitting underneath them would be the answer to a
+              question the user had already given up on.
+              ★And it STAYS once chosen, quietly, rather than disappearing: the
+              confusion being fixed is "whose campaigns are these", and a line
+              naming the account these numbers belong to is the shortest
+              possible answer. It renders nothing on a pageless connection,
+              which has no Page to map. */}
+          <AdAccountPicker />
           <CampaignsPanel />
           {/* Below the campaigns, deliberately: a form is the thing a lead-gen
               campaign needs BEFORE it can exist, but the campaign list is what
@@ -379,6 +390,18 @@ function CampaignsPanel() {
 
   const rows = campaigns.data?.campaigns ?? [];
   if (rows.length === 0) {
+    // ★AN EMPTY LIST MEANS TWO DIFFERENT THINGS, AND ONLY ONE IS ACTIONABLE.
+    //
+    // The server returns the scope it resolved the list under. A Page with an
+    // ad account and no campaigns really has none — offer the Boost tab. A Page
+    // with NO ad account has campaigns we are deliberately not showing, because
+    // we cannot tell which of them are this brand's; telling that user to go
+    // make a campaign sends them to fix the wrong thing, and telling them
+    // nothing is how "Managed Campaigns shows the wrong brand" became a report
+    // in the first place.
+    if (campaigns.data?.pageId && !campaigns.data.adAccountId) {
+      return <NoAdAccountState what="campaigns" />;
+    }
     return (
       <EmptyState
         icon={Rocket}
