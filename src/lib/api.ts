@@ -120,9 +120,10 @@ class ApiClient {
     }
 
     if (!res.ok || !json.ok) {
-      const error = (json.error as { code?: string; message?: string }) || {
-        message: "Request failed",
-      };
+      const error =
+        (json.error as { code?: string; message?: string; details?: unknown }) || {
+          message: "Request failed",
+        };
 
       // A retry SUPERSEDES the first response. When one happens and still
       // fails, the error we throw must describe the RETRY — otherwise the
@@ -184,13 +185,18 @@ class ApiClient {
       }
 
       const errorEnvelope =
-        (finalJson.error as { code?: string; message?: string }) || error;
+        (finalJson.error as {
+          code?: string;
+          message?: string;
+          details?: unknown;
+        }) || error;
 
       throw new ApiError(
         errorEnvelope.code || "UNKNOWN",
         errorEnvelope.message || "Request failed",
         finalRes.status,
-        requestIdOf(finalJson)
+        requestIdOf(finalJson),
+        errorEnvelope.details
       );
     }
 
@@ -251,12 +257,16 @@ class ApiClient {
       throw new ApiError("PARSE_ERROR", `Server returned non-JSON response (${res.status})`, res.status);
     }
     if (!res.ok || !json.ok) {
-      const error = (json.error as { code?: string; message?: string }) || { message: "Request failed" };
+      const error =
+        (json.error as { code?: string; message?: string; details?: unknown }) || {
+          message: "Request failed",
+        };
       throw new ApiError(
         error.code || "UNKNOWN",
         error.message || "Request failed",
         res.status,
-        requestIdOf(json)
+        requestIdOf(json),
+        error.details
       );
     }
     return { data: json.data as T, meta: (json.meta as Record<string, unknown>) ?? {} };
@@ -321,12 +331,16 @@ class ApiClient {
       throw new ApiError("PARSE_ERROR", `Server returned non-JSON response (${res.status})`, res.status);
     }
     if (!res.ok || !json.ok) {
-      const error = (json.error as { code?: string; message?: string }) || { message: "Upload failed" };
+      const error =
+        (json.error as { code?: string; message?: string; details?: unknown }) || {
+          message: "Upload failed",
+        };
       throw new ApiError(
         error.code || "UNKNOWN",
         error.message || "Upload failed",
         res.status,
-        requestIdOf(json)
+        requestIdOf(json),
+        error.details
       );
     }
     return json.data as T;
@@ -380,7 +394,7 @@ class ApiClient {
 
     if (!res.ok) {
       const json = (await res.json().catch(() => null)) as
-        | { error?: { code?: string; message?: string } }
+        | { error?: { code?: string; message?: string; details?: unknown } }
         | null;
       const error = json?.error;
       throw new ApiError(
@@ -407,7 +421,20 @@ export class ApiError extends Error {
      * what actually went wrong — without us rendering raw provider text
      * (which can carry internal ids and config names) to the user.
      */
-    public requestId?: string
+    public requestId?: string,
+    /**
+     * `error.details` from the api envelope, verbatim.
+     *
+     * ★Structured 409s carry the caller's next decision in here, not just prose:
+     * the LinkedIn Page toggle refuses with QUEUED_POSTS_AFFECTED and returns the
+     * scheduled posts the change would break, so the dialog can list them and
+     * offer a choice. Dropping details on the floor — as this class did — left a
+     * client with nothing but a message string and no way to act on it.
+     *
+     * `unknown` on purpose: the shape is per-code, and each caller narrows the
+     * one it asked for rather than this class pretending to know them all.
+     */
+    public details?: unknown
   ) {
     super(message);
     this.name = "ApiError";

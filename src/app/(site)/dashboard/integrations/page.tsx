@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/providers/auth-provider";
@@ -38,6 +39,7 @@ import {
   Plug,
   CheckCircle,
   AlertCircle,
+  AlertTriangle,
   ExternalLink,
   Unplug,
   Mail,
@@ -1840,6 +1842,35 @@ interface AdminPage {
   role?: string;
 }
 
+/**
+ * `error.details` of a 409 QUEUED_POSTS_AFFECTED from the page toggle.
+ *
+ * The toggle refuses rather than silently arming a failure: a scheduled post
+ * freezes its author, the publisher re-checks that author when the post goes out,
+ * and a Page change therefore reaches BACKWARDS into the queue. Each affected
+ * post would fail terminally at its own scheduled time — days apart, long after
+ * the click. So the server hands back what would break and waits.
+ */
+interface QueuedPostsAffected {
+  /** Exact. `posts` is a capped sample — see `truncated`. */
+  count: number;
+  truncated: boolean;
+  posts: {
+    itemId: string;
+    scheduledAtUtc: string;
+    preview: string;
+    reason: "page_not_enabled" | "person_posting_disabled";
+  }[];
+}
+
+/** A toggle held for confirmation, with what it would break. */
+interface PendingToggle {
+  pageId: string;
+  pageName: string;
+  next: boolean;
+  affected: QueuedPostsAffected;
+}
+
 /** Per-Page brand verdict from GET /v1/integrations/linkedin_content/pages. */
 interface PageFitResponse {
   brandAnchor: string | null;
@@ -1933,14 +1964,20 @@ function ManagePagesDialog({
 
   const [pending, setPending] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
+  const [pendingToggle, setPendingToggle] = useState<PendingToggle | null>(null);
 
   const enabledCount = enabledIds.size;
   const atCap = typeof cap === "number" && enabledCount >= cap;
   const overCap = typeof cap === "number" && enabledCount > cap; // legacy state
 
-  async function togglePage(pageId: string, next: boolean) {
+  async function togglePage(
+    pageId: string,
+    next: boolean,
+    onQueued?: "cancel" | "keep",
+  ) {
     if (pending.has(pageId)) return;
     setError(null);
+    if (!onQueued) setPendingToggle(null);
 
     // Optimistic — flip THIS pageId via the updater form so two rapid
     // clicks on DIFFERENT pages don't clobber each other (each click
@@ -1960,7 +1997,12 @@ function ManagePagesDialog({
       await api.patch("/v1/integrations/linkedin_content/pages", {
         pageId,
         enabled: next,
+        // Set only once the user has answered the 409 below. Absent on the first
+        // attempt ON PURPOSE — that is what makes the server refuse instead of
+        // arming a queue of doomed posts on an uninformed click.
+        ...(onQueued ? { onQueued } : {}),
       });
+      setPendingToggle(null);
       onChanged?.();
     } catch (err) {
       // Roll back this pageId only — never overwrite the whole set,
@@ -1971,6 +2013,24 @@ function ManagePagesDialog({
         else reverted.add(pageId);
         return reverted;
       });
+      // Not an error — a question. The server is telling us this change would
+      // break posts already in the queue, and handing over the list so the user
+      // can decide. Rolling the switch back above is what makes the held state
+      // honest: nothing has changed yet.
+      if (err instanceof ApiError && err.code === "QUEUED_POSTS_AFFECTED") {
+        const details = err.details as QueuedPostsAffected | undefined;
+        if (details && Array.isArray(details.posts) && details.posts.length > 0) {
+          setPendingToggle({
+            pageId,
+            pageName:
+              pages.find((pg) => pg.organizationId === pageId)?.organizationName ||
+              `Page ${pageId}`,
+            next,
+            affected: details,
+          });
+          return;
+        }
+      }
       if (err instanceof ApiError) {
         setError(err.message);
       } else {
@@ -2000,7 +2060,18 @@ function ManagePagesDialog({
   const brandAnchor = fitQuery.data?.brandAnchor ?? null;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        // A held toggle is a question about a specific moment. Closing the dialog
+        // abandons it — reopening to find the warning still there, possibly about
+        // a page whose state has since changed, would be a stale question the
+        // user could answer wrongly. Cleared here rather than in an effect
+        // (setState-in-effect is a lint error in this repo).
+        if (!next) setPendingToggle(null);
+        onOpenChange(next);
+      }}
+    >
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <div className="flex items-center gap-3">
@@ -2052,6 +2123,20 @@ function ManagePagesDialog({
           <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-[11px] text-destructive">
             {error}
           </div>
+        )}
+
+        {pendingToggle && (
+          <QueuedPostsPrompt
+            pending={pendingToggle}
+            busy={pending.has(pendingToggle.pageId)}
+            onCancelPosts={() =>
+              togglePage(pendingToggle.pageId, pendingToggle.next, "cancel")
+            }
+            onKeepPosts={() =>
+              togglePage(pendingToggle.pageId, pendingToggle.next, "keep")
+            }
+            onAbandon={() => setPendingToggle(null)}
+          />
         )}
 
         <TooltipProvider delayDuration={150}>
@@ -2144,7 +2229,7 @@ function ManagePagesDialog({
         <DialogFooter className="flex-row gap-2 sm:justify-between">
           {atCap ? (
             <Button asChild variant="outline" size="sm">
-              <a href="/dashboard/settings/billing">Upgrade plan</a>
+              <Link href="/dashboard/settings/billing">Upgrade plan</Link>
             </Button>
           ) : (
             <span />
@@ -2155,5 +2240,101 @@ function ManagePagesDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * The question the toggle asks before it changes anything.
+ *
+ * ★A Page change reaches BACKWARDS into the queue. Scheduled posts freeze their
+ * author, and the publisher re-checks it when the post goes out — so disabling a
+ * Page (or enabling the first one, which turns personal-feed posting off) leaves
+ * every affected post to fail terminally at its own scheduled time, days apart,
+ * with nothing tying the failures back to the click. This is the moment where
+ * that is still preventable, so it is the moment the user gets told.
+ *
+ * Three answers, and no default: cancelling posts and publishing nothing at all
+ * are both consequences someone has to choose, and "Keep the page as it is" has
+ * to stay available or the dialog would be a trap.
+ */
+function QueuedPostsPrompt({
+  pending,
+  busy,
+  onCancelPosts,
+  onKeepPosts,
+  onAbandon,
+}: {
+  pending: PendingToggle;
+  busy: boolean;
+  onCancelPosts: () => void;
+  onKeepPosts: () => void;
+  onAbandon: () => void;
+}) {
+  const { count, posts } = pending.affected;
+  const one = count === 1;
+  // Both reasons produce the same failure; the sentence differs because the
+  // CAUSE differs, and "enabling a page broke my personal posts" is the one
+  // nobody would guess.
+  const personal = posts.some((x) => x.reason === "person_posting_disabled");
+  const shown = posts.slice(0, 5);
+
+  return (
+    <div className="space-y-2.5 rounded-md border border-warning/50 bg-warning/10 px-3 py-2.5 text-[11px] text-warning-on-tint">
+      <div className="flex items-start gap-2">
+        <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+        <div className="space-y-1">
+          <p className="font-medium">
+            {one ? "1 scheduled post would fail" : count + " scheduled posts would fail"}
+          </p>
+          <p>
+            {personal
+              ? "Turning on " +
+                pending.pageName +
+                " means this workspace publishes as its page, so posts already scheduled to your personal feed can no longer go out."
+              : "Posts already scheduled to publish as " +
+                pending.pageName +
+                " can't go out once it's switched off."}{" "}
+            {one ? "It" : "They"} would fail silently at the scheduled time.
+          </p>
+        </div>
+      </div>
+
+      <ul className="space-y-1 border-t border-warning/30 pt-2">
+        {shown.map((x) => (
+          <li key={x.itemId} className="flex items-baseline gap-2">
+            <span className="shrink-0 tabular-nums opacity-80">
+              {new Date(x.scheduledAtUtc).toLocaleDateString(undefined, {
+                month: "short",
+                day: "numeric",
+              })}
+            </span>
+            <span className="truncate">{x.preview || "(no text)"}</span>
+          </li>
+        ))}
+        {count > shown.length && (
+          <li className="italic opacity-70">+ {count - shown.length} more</li>
+        )}
+      </ul>
+
+      <div className="flex flex-wrap gap-2 border-t border-warning/30 pt-2">
+        <Button size="sm" variant="destructive" onClick={onCancelPosts} disabled={busy}>
+          {busy ? "Working…" : one ? "Cancel that post" : "Cancel " + count + " posts"}
+        </Button>
+        <Button size="sm" variant="outline" onClick={onKeepPosts} disabled={busy}>
+          Change anyway
+        </Button>
+        <Button size="sm" variant="ghost" onClick={onAbandon} disabled={busy}>
+          Keep the page as it is
+        </Button>
+      </div>
+      {/* "Change anyway" is a real choice — someone may be about to re-enable the
+          page, or want to edit those posts first — but it must not read as the
+          safe one. */}
+      <p className="opacity-80">
+        &ldquo;Change anyway&rdquo; leaves {one ? "it" : "them"} scheduled, and{" "}
+        {one ? "it" : "they"} will fail. Posts on other channels are never
+        touched.
+      </p>
+    </div>
   );
 }
