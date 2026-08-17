@@ -132,10 +132,22 @@ export function removeLinkedInPageScopedQueries(queryClient: QueryClient): void 
     ...LINKEDIN_CONTENT_QUERY_KEYS,
     ...LINKEDIN_PAGE_SCOPED_QUERY_KEYS,
   ]) {
+    // ★`linkedin-me` IS INVALIDATED, NOT REMOVED, AND THE SWITCHER IS WHY.
+    //
+    // It is the query the switcher itself renders from — the Page list and the
+    // active id both come out of it. Removing it empties `identity` for the
+    // duration of the refetch, so the control unmounts the moment you use it:
+    // you pick a Page and the thing you picked it with disappears. Invalidation
+    // keeps the last identity on screen (showing the Page you just left, for
+    // the one beat the spinner is already explaining) and swaps it when the
+    // server confirms.
+    //
+    // Every OTHER key here is data ABOUT the Page, where showing the previous
+    // brand's rows is the failure this function exists to prevent.
+    if (queryKey[0] === "linkedin-me") {
+      void queryClient.invalidateQueries({ queryKey });
+      continue;
+    }
     queryClient.removeQueries({ queryKey });
   }
-  // The connect gate is about the CONNECTION, not the Page — it does not change
-  // under a switch, and removing it would flash the whole hub through its
-  // loading state for nothing.
-  void queryClient.invalidateQueries({ queryKey: ["linkedin-me"] });
 }

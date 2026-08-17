@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Building2, Check, ChevronDown, Loader2 } from "lucide-react";
 
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import { removeLinkedInPageScopedQueries } from "@/lib/linkedin-cache";
 import type { LinkedInIdentity } from "@/lib/api/linkedin-content";
 import { Button } from "@/components/ui/button";
@@ -81,10 +81,14 @@ export function PageSwitcher({ identity }: { identity: LinkedInIdentity | undefi
       // Page name. See linkedin-cache.ts.
       removeLinkedInPageScopedQueries(queryClient);
     } catch (err) {
-      // Never a raw API error: the server's own message here is
-      // "PAGE_NOT_ENABLED", which tells a user nothing they can act on.
+      // ★Matched on the TYPED code, not on the message text. `ApiError` carries
+      // `code` for exactly this; a `message.includes(...)` test passes only
+      // while the server's prose happens to contain the identifier, and starts
+      // silently falling through to the generic copy the day somebody rewords
+      // it. Never the raw error either — "PAGE_NOT_ENABLED" tells a user
+      // nothing they can act on.
       toast.error(
-        err instanceof Error && err.message.includes("PAGE_NOT_ENABLED")
+        err instanceof ApiError && err.code === "PAGE_NOT_ENABLED"
           ? "That Page is no longer enabled for this workspace. Re-enable it under Integrations."
           : "Couldn't switch Page. Try again in a moment.",
       );
