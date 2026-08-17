@@ -46,6 +46,12 @@ export const LINKEDIN_CONTENT_QUERY_KEYS = [
   // toggle changes the `enabled` flags in this very payload, so leaving it
   // cached is precisely the "forgot one key" case this file exists to prevent.
   ["linkedin-page-fit"],
+  // ★The scheduled queue, because a PAGE TOGGLE CAN NOW MUTATE IT. Disabling a
+  // Page invalidates the author of posts already queued as it, and the toggle
+  // offers to cancel them — so the Scheduled tab and the calendar are stale the
+  // moment that happens. `scheduler:items` is the calendar's key prefix.
+  ["linkedin-scheduled-items"],
+  ["scheduler:items"],
 ] as const;
 
 /**

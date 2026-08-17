@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/providers/auth-provider";
@@ -38,6 +39,7 @@ import {
   Plug,
   CheckCircle,
   AlertCircle,
+  AlertTriangle,
   ExternalLink,
   Unplug,
   Mail,
@@ -1840,6 +1842,39 @@ interface AdminPage {
   role?: string;
 }
 
+/**
+ * `error.details` of a 409 QUEUED_POSTS_AFFECTED from the page toggle.
+ *
+ * The toggle refuses rather than silently arming a failure: a scheduled post
+ * freezes its author, the publisher re-checks that author when the post goes out,
+ * and a Page change therefore reaches BACKWARDS into the queue. Each affected
+ * post would fail terminally at its own scheduled time — days apart, long after
+ * the click. So the server hands back what would break and waits.
+ */
+interface QueuedPostsAffected {
+  /** Exact. `posts` is a capped sample — see `truncated`. */
+  count: number;
+  truncated: boolean;
+  posts: {
+    itemId: string;
+    scheduledAtUtc: string;
+    /** Rendered with this, not the browser's zone — the same way the Scheduled
+     *  tab and calendar render it, so a list the user cross-checks before
+     *  cancelling cannot be a day off from what they are checking against. */
+    audienceTimezone: string;
+    preview: string;
+    reason: "page_not_enabled" | "person_posting_disabled";
+  }[];
+}
+
+/** A toggle held for confirmation, with what it would break. */
+interface PendingToggle {
+  pageId: string;
+  pageName: string;
+  next: boolean;
+  affected: QueuedPostsAffected;
+}
+
 /** Per-Page brand verdict from GET /v1/integrations/linkedin_content/pages. */
 interface PageFitResponse {
   brandAnchor: string | null;
@@ -1933,14 +1968,23 @@ function ManagePagesDialog({
 
   const [pending, setPending] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
+  const [pendingToggle, setPendingToggle] = useState<PendingToggle | null>(null);
+  /** Which answer to a held 409 is currently in flight. */
+  const [answeringWith, setAnsweringWith] = useState<"cancel" | "keep" | null>(null);
 
   const enabledCount = enabledIds.size;
   const atCap = typeof cap === "number" && enabledCount >= cap;
   const overCap = typeof cap === "number" && enabledCount > cap; // legacy state
 
-  async function togglePage(pageId: string, next: boolean) {
+  async function togglePage(
+    pageId: string,
+    next: boolean,
+    onQueued?: "cancel" | "keep",
+  ) {
     if (pending.has(pageId)) return;
     setError(null);
+    if (!onQueued) setPendingToggle(null);
+    setAnsweringWith(onQueued ?? null);
 
     // Optimistic — flip THIS pageId via the updater form so two rapid
     // clicks on DIFFERENT pages don't clobber each other (each click
@@ -1957,10 +2001,30 @@ function ManagePagesDialog({
 
     setPending((p) => new Set(p).add(pageId));
     try {
-      await api.patch("/v1/integrations/linkedin_content/pages", {
+      const res = await api.patch<{
+        queuedPosts?: { cancelledItemIds?: string[]; skippedItemIds?: string[] };
+      }>("/v1/integrations/linkedin_content/pages", {
         pageId,
         enabled: next,
+        // Set only once the user has answered the 409 below. Absent on the first
+        // attempt ON PURPOSE — that is what makes the server refuse instead of
+        // arming a queue of doomed posts on an uninformed click.
+        ...(onQueued ? { onQueued } : {}),
       });
+      setPendingToggle(null);
+      // ★A skipped item is one a worker grabbed mid-request, or that went
+      // terminal underneath us. It was NOT cancelled and will still try to
+      // publish — then fail terminally, days later, for a reason the user has
+      // just been told is handled. The server returns these deliberately; saying
+      // nothing would claim a clean sweep we did not make.
+      const skipped = res?.queuedPosts?.skippedItemIds?.length ?? 0;
+      if (onQueued === "cancel" && skipped > 0) {
+        setError(
+          skipped === 1
+            ? "1 post could not be cancelled — it was already publishing. Check the Scheduled tab."
+            : `${skipped} posts could not be cancelled — they were already publishing. Check the Scheduled tab.`,
+        );
+      }
       onChanged?.();
     } catch (err) {
       // Roll back this pageId only — never overwrite the whole set,
@@ -1971,18 +2035,52 @@ function ManagePagesDialog({
         else reverted.add(pageId);
         return reverted;
       });
+      // Not an error — a question. The server is telling us this change would
+      // break posts already in the queue, and handing over the list so the user
+      // can decide. Rolling the switch back above is what makes the held state
+      // honest: nothing has changed yet.
+      if (err instanceof ApiError && err.code === "QUEUED_POSTS_AFFECTED") {
+        const details = err.details as QueuedPostsAffected | undefined;
+        if (details && Array.isArray(details.posts) && details.posts.length > 0) {
+          setPendingToggle({
+            pageId,
+            pageName:
+              pages.find((pg) => pg.organizationId === pageId)?.organizationName ||
+              `Page ${pageId}`,
+            next,
+            affected: details,
+          });
+          return;
+        }
+      }
       if (err instanceof ApiError) {
         setError(err.message);
       } else {
         setError("Failed to update page. Please try again.");
       }
     } finally {
+      setAnsweringWith(null);
       setPending((p) => {
         const n = new Set(p);
         n.delete(pageId);
         return n;
       });
     }
+  }
+
+  /**
+   * The ONE way this dialog closes.
+   *
+   * ★A held 409 is a question about a specific moment: which posts this toggle
+   * would break, given the state a second ago. Leaving it set across a close
+   * means reopening to a stale question whose answer fires a decision about a
+   * state that has since moved on. Every affordance routes here — Esc, the X, and
+   * "Done", which used to call `onOpenChange` directly and so skipped the clear.
+   * Not an effect: setState-in-effect is a lint error in this repo.
+   */
+  function closeDialog() {
+    setPendingToggle(null);
+    onOpenChange(false);
   }
 
   const capLabel =
@@ -2000,7 +2098,7 @@ function ManagePagesDialog({
   const brandAnchor = fitQuery.data?.brandAnchor ?? null;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(next) => (next ? onOpenChange(true) : closeDialog())}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <div className="flex items-center gap-3">
@@ -2052,6 +2150,20 @@ function ManagePagesDialog({
           <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-[11px] text-destructive">
             {error}
           </div>
+        )}
+
+        {pendingToggle && (
+          <QueuedPostsPrompt
+            pending={pendingToggle}
+            busy={pending.has(pendingToggle.pageId) ? answeringWith : null}
+            onCancelPosts={() =>
+              togglePage(pendingToggle.pageId, pendingToggle.next, "cancel")
+            }
+            onKeepPosts={() =>
+              togglePage(pendingToggle.pageId, pendingToggle.next, "keep")
+            }
+            onAbandon={() => setPendingToggle(null)}
+          />
         )}
 
         <TooltipProvider delayDuration={150}>
@@ -2144,16 +2256,147 @@ function ManagePagesDialog({
         <DialogFooter className="flex-row gap-2 sm:justify-between">
           {atCap ? (
             <Button asChild variant="outline" size="sm">
-              <a href="/dashboard/settings/billing">Upgrade plan</a>
+              <Link href="/dashboard/settings/billing">Upgrade plan</Link>
             </Button>
           ) : (
             <span />
           )}
-          <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
+          {/* closeDialog, not onOpenChange: this button bypassed the wrapper
+              that clears a held 409, so Esc and the X abandoned the question but
+              "Done" left it to reappear on reopen — and answering it later would
+              fire a decision about a state that had moved on. */}
+          <Button variant="ghost" size="sm" onClick={() => closeDialog()}>
             Done
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * The question the toggle asks before it changes anything.
+ *
+ * ★A Page change reaches BACKWARDS into the queue. Scheduled posts freeze their
+ * author, and the publisher re-checks it when the post goes out — so disabling a
+ * Page (or enabling the first one, which turns personal-feed posting off) leaves
+ * every affected post to fail terminally at its own scheduled time, days apart,
+ * with nothing tying the failures back to the click. This is the moment where
+ * that is still preventable, so it is the moment the user gets told.
+ *
+ * Three answers, and no default: cancelling posts and publishing nothing at all
+ * are both consequences someone has to choose, and "Keep the page as it is" has
+ * to stay available or the dialog would be a trap.
+ */
+function QueuedPostsPrompt({
+  pending,
+  busy,
+  onCancelPosts,
+  onKeepPosts,
+  onAbandon,
+}: {
+  pending: PendingToggle;
+  /** Which action is in flight, if any. Per-ACTION rather than per-page: a single
+   *  boolean made an in-flight "Change anyway" relabel the destructive
+   *  "Cancel N posts" button to "Working…", which reads as the cancel running. */
+  busy: "cancel" | "keep" | null;
+  onCancelPosts: () => void;
+  onKeepPosts: () => void;
+  onAbandon: () => void;
+}) {
+  const { count, posts } = pending.affected;
+  const one = count === 1;
+  // Both reasons produce the same failure; the sentence differs because the
+  // CAUSE differs, and "enabling a page broke my personal posts" is the one
+  // nobody would guess.
+  const personal = posts.some((x) => x.reason === "person_posting_disabled");
+  const shown = posts.slice(0, 5);
+
+  return (
+    <div
+      // Announced AND focused. Without this a screen-reader user gets only the
+      // switch snapping back — no way to discover that a question was asked, let
+      // alone answer it. (This file already announces the far more trivial
+      // "Fetching Page names" notice.)
+      role="alertdialog"
+      aria-live="assertive"
+      aria-label="Scheduled posts would fail"
+      tabIndex={-1}
+      ref={(el) => el?.focus()}
+      className="space-y-2.5 rounded-md border border-warning/50 bg-warning/10 px-3 py-2.5 text-[11px] text-warning-on-tint focus:outline-none focus-visible:ring-2 focus-visible:ring-warning"
+    >
+      <div className="flex items-start gap-2">
+        <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+        <div className="space-y-1">
+          <p className="font-medium">
+            {one ? "1 scheduled post would fail" : count + " scheduled posts would fail"}
+          </p>
+          <p>
+            {personal
+              ? "Turning on " +
+                pending.pageName +
+                " means this workspace publishes as its page, so posts already scheduled to your personal feed can no longer go out."
+              : "Posts already scheduled to publish as " +
+                pending.pageName +
+                " can't go out once it's switched off."}{" "}
+            {one ? "It" : "They"} would fail silently at the scheduled time.
+          </p>
+        </div>
+      </div>
+
+      <ul className="space-y-1 border-t border-warning/30 pt-2">
+        {shown.map((x) => (
+          <li key={x.itemId} className="flex items-baseline gap-2">
+            <span className="shrink-0 tabular-nums opacity-80">
+              {new Date(x.scheduledAtUtc).toLocaleDateString(undefined, {
+                month: "short",
+                day: "numeric",
+                timeZone: x.audienceTimezone,
+              })}
+            </span>
+            <span className="truncate">{x.preview || "(no text)"}</span>
+          </li>
+        ))}
+        {count > shown.length && (
+          <li className="italic opacity-70">+ {count - shown.length} more</li>
+        )}
+      </ul>
+
+      <div className="flex flex-wrap gap-2 border-t border-warning/30 pt-2">
+        <Button
+          size="sm"
+          variant="destructive"
+          onClick={onCancelPosts}
+          disabled={busy !== null}
+          aria-busy={busy === "cancel"}
+        >
+          {busy === "cancel"
+            ? "Cancelling…"
+            : one
+              ? "Cancel that post"
+              : "Cancel " + count + " posts"}
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={onKeepPosts}
+          disabled={busy !== null}
+          aria-busy={busy === "keep"}
+        >
+          {busy === "keep" ? "Applying…" : "Change anyway"}
+        </Button>
+        <Button size="sm" variant="ghost" onClick={onAbandon} disabled={busy !== null}>
+          Keep the page as it is
+        </Button>
+      </div>
+      {/* "Change anyway" is a real choice — someone may be about to re-enable the
+          page, or want to edit those posts first — but it must not read as the
+          safe one. */}
+      <p className="opacity-80">
+        &ldquo;Change anyway&rdquo; leaves {one ? "it" : "them"} scheduled, and{" "}
+        {one ? "it" : "they"} will fail. Posts on other channels are never
+        touched.
+      </p>
+    </div>
   );
 }
