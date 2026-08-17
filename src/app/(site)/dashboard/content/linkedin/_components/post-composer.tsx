@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
+import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -67,7 +68,7 @@ import {
 import { CarouselPreviewDialog } from "./carousel-preview-dialog";
 import { PollEditor, emptyPoll, isPollValid, type PollState } from "./poll-editor";
 import { buildCommentarySegments, type ResolvedMention } from "./commentary-segments";
-import { ApiError } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import { rewriteContent, createDraft, updateDraft, type ComposerDraftRef } from "@/lib/api/content";
 import { insertAtCaret } from "@/lib/composer/caret";
 import {
@@ -777,12 +778,12 @@ export function PostComposer({ identity, seedText }: Props) {
             {identity.scopes.includes(HAS_ORG_SCOPE) && identity.pages.length === 0 && (
               <p className="text-xs text-muted-foreground">
                 No pages enabled.{" "}
-                <a
-                  href="/dashboard/integrations"
+                <Link
+                  href="/dashboard/integrations?manage_pages=1"
                   className="font-medium text-primary underline underline-offset-2 hover:no-underline"
                 >
                   Manage pages
-                </a>
+                </Link>
                 .
               </p>
             )}
@@ -814,7 +815,12 @@ export function PostComposer({ identity, seedText }: Props) {
           </div>
         </div>
       }
-      subHeaderSlot={<VoiceCardPanel />}
+      subHeaderSlot={
+        <>
+          <OffBrandVoiceNotice authorKey={authorKey} />
+          <VoiceCardPanel />
+        </>
+      }
       toolbarSlot={<AiComposeToolbar text={text} platform="linkedin" onAiAction={handleAiAction} />}
       statusSlot={
         <>
@@ -1591,6 +1597,64 @@ const PERSPECTIVE_LABEL: Record<LinkedInVoiceCard["voice"]["perspective"], strin
  * composer so the user sees the tone/perspective/signature phrases
  * we learned from their own posts before they type.
  */
+/**
+ * Says whose voice the AI writes in, when that is NOT the Page you selected.
+ *
+ * ★THE REPORTED BUG THIS ANSWERS: switch the Page to another brand, hit Redraft,
+ * and the draft comes back about the OTHER brand. Nothing is broken — every AI
+ * op on this surface posts to `/v1/content/rewrite`, which grounds on
+ * `buildBusinessContext(orgId, businessId)`: the WORKSPACE's brand voice,
+ * taxonomy and value proposition. The request has no field for a Page and could
+ * not accept one. So the AI is behaving exactly as designed and the UI was
+ * silent about it, which reads as the AI ignoring you.
+ *
+ * The fix that matters is structural — the other brand belongs in its own
+ * workspace, where its voice, audience and reporting are its own. This notice is
+ * how the composer says so at the moment of confusion, instead of after it.
+ *
+ * Renders NOTHING in the ordinary case (Page matches the workspace, unanchored
+ * workspace, personal feed, or the fit lookup failed) — a note on every draft
+ * would be noise, and noise is how real warnings get ignored.
+ */
+function OffBrandVoiceNotice({ authorKey }: { authorKey: string }) {
+  const pageId = authorKey.startsWith("org:") ? authorKey.slice("org:".length) : null;
+
+  // Same key + endpoint the Manage-Pages dialog uses, so the two dedupe rather
+  // than each paying for the round trip.
+  const { data } = useQuery({
+    queryKey: ["linkedin-page-fit"],
+    queryFn: () =>
+      api.get<{
+        brandAnchor: string | null;
+        pages: { organizationId: string; brandFit: "match" | "unrelated" | "unknown" }[];
+      }>("/v1/integrations/linkedin_content/pages"),
+    enabled: pageId !== null,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+
+  if (!pageId || !data) return null;
+  const fit = data.pages.find((p) => p.organizationId === pageId)?.brandFit;
+  if (fit !== "unrelated") return null;
+
+  return (
+    <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-1 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning-on-tint">
+      <Sparkles className="size-3.5 shrink-0 self-center" />
+      <span>
+        Publishing to this page, but AI drafts are written in
+        {data.brandAnchor ? ` ${data.brandAnchor}` : " this workspace"}&apos;s
+        voice — this workspace has one brand.
+      </span>
+      <Link
+        href="/dashboard/integrations?manage_pages=1"
+        className="font-medium underline underline-offset-2 hover:no-underline"
+      >
+        Give it its own workspace
+      </Link>
+    </div>
+  );
+}
+
 function VoiceCardPanel() {
   const [open, setOpen] = useState(false);
   const { data, isLoading, isError, error } = useQuery({

@@ -12,12 +12,15 @@
  *   [PageHeader] — title + week/month toggle + "today" + week nav
  *   [Filter bar] — channel chip strip + status filter
  *   [CalendarView] — grid of items with drag-to-reschedule
- *   [PerItemDrawer] — opens when user clicks a chip; per-item drawer
- *                     with payload preview + attempts log + cancel button
+ *   [PerItemDrawer] — opens when user clicks a chip; smart-time audit +
+ *                     attempts log, and for a live item the shared
+ *                     <ScheduledPostEditor/> (edit / reschedule / publish now /
+ *                     cancel). A terminal item shows its frozen snapshot.
  *
  * Data flow:
  *   - listItems({ from, to, channel?, status? }) on each window change
- *   - mutations: cancel, refresh-stale, drag-to-reschedule (PR 8)
+ *   - drag-to-reschedule lives here; every other mutation belongs to the
+ *     editor, and this page only invalidates afterwards
  *
  * Power-user shortcuts:
  *   - Arrow Left / Right: previous / next window
@@ -161,7 +164,35 @@ export default function CalendarPage() {
   const [statusFilter, setStatusFilter] = useState<ScheduledItemStatus | null>(
     null,
   );
-  const [drawerItem, setDrawerItem] = useState<ScheduledItemDto | null>(null);
+  /**
+   * ★The drawer holds an ID, not the row.
+   *
+   * It used to store the whole `ScheduledItemDto` captured on click, which was
+   * fine while the drawer could only preview and cancel. With an EDITOR inside
+   * it, a captured object is a bug: after a save the refetched row has new text
+   * and a bumped `payload.version`, but the drawer would keep rendering the
+   * snapshot from click time — so the form permanently showed "Unsaved edits"
+   * against changes that had already landed. Worse after a reschedule, which
+   * cancels the row and inserts a SUCCESSOR with a new `_id`: the drawer would
+   * be editing a cancelled row.
+   *
+   * Deriving from the live query fixes both, and makes a vanished id (successor,
+   * cancellation, or a filter that no longer matches) close the drawer instead
+   * of showing a ghost.
+   */
+  const [drawerItemId, setDrawerItemId] = useState<string | null>(null);
+  /**
+   * Which query window the drawer was opened against.
+   *
+   * ★Without it, the drawer POPPED BACK OPEN. Arrow-keying to another week
+   * changes the queryKey, `data` goes undefined (no placeholderData), the
+   * derived item vanishes and the Sheet closes — but a controlled `open` going
+   * false does not fire `onOpenChange`, so the id stayed set and arrow-keying
+   * back re-opened the drawer on its own, mid-edit. Pinning the window makes the
+   * close permanent without an effect (setState-in-effect is a lint error here)
+   * and without touching all eleven window/filter mutators.
+   */
+  const [drawerWindow, setDrawerWindow] = useState<string | null>(null);
 
   const { rangeStart, rangeEnd } = useMemo(() => {
     if (!anchor) {
@@ -214,6 +245,21 @@ export default function CalendarPage() {
         limit: 500,
       }),
   });
+
+  /**
+   * The drawer's row, resolved from the LIVE query on every render — so an edit
+   * lands in the open form, and a reschedule (which replaces the row with a
+   * successor under a new id) or a cancel closes the drawer rather than leaving
+   * it editing something that no longer exists.
+   */
+  const windowKey = queryKey.join("|");
+  const drawerItem = useMemo(
+    () =>
+      drawerWindow === windowKey
+        ? ((data?.items ?? []).find((i) => i._id === drawerItemId) ?? null)
+        : null,
+    [data, drawerItemId, drawerWindow, windowKey],
+  );
 
   // Channel chip palette — derived from items so we don't show chips
   // for channels the business has never scheduled to. Stable order:
@@ -269,7 +315,8 @@ export default function CalendarPage() {
       } else if (e.key === "m" || e.key === "M") {
         setMode("month");
       } else if (e.key === "Escape") {
-        setDrawerItem(null);
+        setDrawerItemId(null);
+        setDrawerWindow(null);
       }
     }
     window.addEventListener("keydown", onKey);
@@ -299,32 +346,18 @@ export default function CalendarPage() {
     });
   };
 
-  const onCancelItem = useCallback(
-    async (item: ScheduledItemDto) => {
-      try {
-        await scheduler.cancelPlan(item.planId, "user_cancelled_from_calendar");
-        toast.success("Scheduled bundle cancelled.");
-        setDrawerItem(null);
-        void queryClient.invalidateQueries({ queryKey: ["scheduler:items"] });
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Cancel failed");
-      }
-    },
-    [queryClient],
-  );
-
-  const onRefreshStale = useCallback(
-    async (item: ScheduledItemDto, newHash: string) => {
-      try {
-        await scheduler.markStale(item.planId, newHash);
-        toast.success("Snapshot refresh requested.");
-        void queryClient.invalidateQueries({ queryKey: ["scheduler:items"] });
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Refresh failed");
-      }
-    },
-    [queryClient],
-  );
+  /**
+   * Any drawer mutation landed (edit / reschedule / publish-now / cancel).
+   *
+   * The editor owns the calls and their toasts — this only refreshes what the
+   * page renders. `linkedin-scheduled-items` goes too: the LinkedIn hub's
+   * Scheduled tab is the same rows under a different key, and a post cancelled
+   * here would otherwise still be listed there.
+   */
+  const onItemChanged = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: ["scheduler:items"] });
+    void queryClient.invalidateQueries({ queryKey: ["linkedin-scheduled-items"] });
+  }, [queryClient]);
 
   /**
    * Drag-to-reschedule. The CalendarView callback gives us a day
@@ -643,7 +676,10 @@ export default function CalendarPage() {
           rangeEnd={rangeEnd}
           timezone={tz}
           mode={mode}
-          onItemClick={(item) => setDrawerItem(item)}
+          onItemClick={(item) => {
+            setDrawerItemId(item._id);
+            setDrawerWindow(windowKey);
+          }}
           onItemMove={onItemMove}
         />
       )}
@@ -661,7 +697,10 @@ export default function CalendarPage() {
       <Sheet
         open={drawerItem !== null}
         onOpenChange={(open) => {
-          if (!open) setDrawerItem(null);
+          if (!open) {
+            setDrawerItemId(null);
+            setDrawerWindow(null);
+          }
         }}
       >
         <SheetContent
@@ -679,10 +718,11 @@ export default function CalendarPage() {
           {drawerItem && (
             <CalendarItemDrawer
               item={drawerItem}
-              onCancel={() => onCancelItem(drawerItem)}
-              onRefreshStale={(newHash) =>
-                onRefreshStale(drawerItem, newHash)
-              }
+              onChanged={onItemChanged}
+              onCancelled={() => {
+                setDrawerItemId(null);
+                setDrawerWindow(null);
+              }}
             />
           )}
         </SheetContent>

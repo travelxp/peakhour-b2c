@@ -11,12 +11,20 @@
  *
  * Each button:
  *   - Disabled when `text.length === 0` (except Compose, which
- *     generates from nothing).
+ *     generates from nothing). This is the ONLY thing that disables a
+ *     chip — there is no entitlement or plan gate here.
  *   - Shows a spinning loader while its op is in flight (per-op
  *     loading flag — the user can fire Quote while Shorten is still
  *     running).
  *   - Tooltip explains the op in plain English (NO marketing copy
- *     today, NO SME pass yet — that's [[project_sme_cta_vocabulary]]).
+ *     today, NO SME pass yet — that's [[project_sme_cta_vocabulary]])
+ *     — and when the chip is DISABLED, explains that instead. A greyed
+ *     chip still describing its capability was reported as "the AI
+ *     option is disabled for some reason": the UI stated what the
+ *     button does and withheld the one condition. Each trigger is
+ *     wrapped in a focusable span because a disabled button swallows
+ *     the hover Radix needs, so the tooltip that matters most was the
+ *     one that could never open.
  *
  * The Tone button opens a small popover with 4 preset tones (Punchier,
  * Warmer, More formal, Storytelling) — host's onAiAction receives the
@@ -214,6 +222,25 @@ export function AiComposeToolbar({
   const visibleInsertOps = INSERT_OPS.filter((o) => !hideOps?.includes(o.op));
   const showTone = !hideOps?.includes("tone");
 
+  const isEmpty = text.trim().length === 0;
+
+  /**
+   * The tooltip a DISABLED chip shows — the reason, not the description.
+   *
+   * ★A greyed chip whose tooltip still reads "Rewrite the current draft with a
+   * different angle" was reported as "the AI option is disabled for some
+   * reason". It reads as broken because the UI states the capability and
+   * withholds the condition. The only condition is an empty box (Compose is the
+   * one op that works from nothing), so say that.
+   */
+  function tooltipFor(meta: OpMeta, disabled: boolean, running: boolean): string {
+    if (running) return `${meta.label} is running…`;
+    if (disabled && meta.requiresText && isEmpty) {
+      return `Write something first, or use Compose to generate a draft from scratch. ${meta.label} needs existing text.`;
+    }
+    return meta.tooltip;
+  }
+
   return (
     <TooltipProvider delayDuration={250}>
       <div
@@ -242,29 +269,37 @@ export function AiComposeToolbar({
           {/* Primary rewrite ops */}
           {visibleOps.map((meta) => {
             const key = runningKey(meta.op);
-            const isRunning = running[key];
-            const disabled = isRunning || (meta.requiresText && text.trim().length === 0);
+            const isRunning = Boolean(running[key]);
+            const disabled = isRunning || (meta.requiresText && isEmpty);
             const Icon = meta.icon;
             return (
               <Tooltip key={meta.op}>
+                {/* A disabled <button> fires no pointer events, so Radix's
+                    trigger never sees the hover and the tooltip explaining WHY
+                    it is disabled can't open — the exact state that needs
+                    explaining is the one that stayed silent. Wrapping in a
+                    focusable span restores hover + keyboard access; the button
+                    inside is still genuinely disabled. */}
                 <TooltipTrigger asChild>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    className="h-7 gap-1 px-1.5 text-xs"
-                    onClick={() => fire(meta.op)}
-                    disabled={disabled}
-                  >
-                    {isRunning ? (
-                      <Loader2 className="size-3.5 animate-spin motion-reduce:animate-none" />
-                    ) : (
-                      <Icon className="size-3.5" />
-                    )}
-                    {compact ? null : meta.label}
-                  </Button>
+                  <span tabIndex={disabled ? 0 : -1} className="inline-flex">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 gap-1 px-1.5 text-xs"
+                      onClick={() => fire(meta.op)}
+                      disabled={disabled}
+                    >
+                      {isRunning ? (
+                        <Loader2 className="size-3.5 animate-spin motion-reduce:animate-none" />
+                      ) : (
+                        <Icon className="size-3.5" />
+                      )}
+                      {compact ? null : meta.label}
+                    </Button>
+                  </span>
                 </TooltipTrigger>
-                <TooltipContent>{meta.tooltip}</TooltipContent>
+                <TooltipContent>{tooltipFor(meta, disabled, isRunning)}</TooltipContent>
               </Tooltip>
             );
           })}
@@ -277,20 +312,29 @@ export function AiComposeToolbar({
               <Popover open={tonePopoverOpen} onOpenChange={setTonePopoverOpen}>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <PopoverTrigger asChild>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 gap-1 px-1.5 text-xs"
-                        disabled={text.trim().length === 0}
-                      >
-                        <Mic2 className="size-3.5" />
-                        {compact ? null : "Tone"}
-                      </Button>
-                    </PopoverTrigger>
+                    {/* Same wrapper as the rewrite chips: a disabled trigger
+                        swallows hover, so without it the greyed Tone button
+                        could not say why it was greyed either. */}
+                    <span tabIndex={isEmpty ? 0 : -1} className="inline-flex">
+                      <PopoverTrigger asChild>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 gap-1 px-1.5 text-xs"
+                          disabled={isEmpty}
+                        >
+                          <Mic2 className="size-3.5" />
+                          {compact ? null : "Tone"}
+                        </Button>
+                      </PopoverTrigger>
+                    </span>
                   </TooltipTrigger>
-                  <TooltipContent>Rewrite in a different tone.</TooltipContent>
+                  <TooltipContent>
+                    {isEmpty
+                      ? "Write something first — Tone rewrites the draft you already have."
+                      : "Rewrite in a different tone."}
+                  </TooltipContent>
                 </Tooltip>
                 <PopoverContent align="start" className="w-64 p-0">
                   <div className="border-b px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
@@ -338,29 +382,31 @@ export function AiComposeToolbar({
             <span className="text-muted-foreground/40">·</span>
             {visibleInsertOps.map((meta) => {
               const key = runningKey(meta.op);
-              const isRunning = running[key];
-              const disabled = isRunning || (meta.requiresText && text.trim().length === 0);
+              const isRunning = Boolean(running[key]);
+              const disabled = isRunning || (meta.requiresText && isEmpty);
               const Icon = meta.icon;
               return (
                 <Tooltip key={meta.op}>
                   <TooltipTrigger asChild>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 gap-1 px-1.5 text-xs"
-                      onClick={() => fire(meta.op)}
-                      disabled={disabled}
-                    >
-                      {isRunning ? (
-                        <Loader2 className="size-3.5 animate-spin motion-reduce:animate-none" />
-                      ) : (
-                        <Icon className="size-3.5" />
-                      )}
-                      {compact ? null : meta.label}
-                    </Button>
+                    <span tabIndex={disabled ? 0 : -1} className="inline-flex">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 gap-1 px-1.5 text-xs"
+                        onClick={() => fire(meta.op)}
+                        disabled={disabled}
+                      >
+                        {isRunning ? (
+                          <Loader2 className="size-3.5 animate-spin motion-reduce:animate-none" />
+                        ) : (
+                          <Icon className="size-3.5" />
+                        )}
+                        {compact ? null : meta.label}
+                      </Button>
+                    </span>
                   </TooltipTrigger>
-                  <TooltipContent>{meta.tooltip}</TooltipContent>
+                  <TooltipContent>{tooltipFor(meta, disabled, isRunning)}</TooltipContent>
                 </Tooltip>
               );
             })}

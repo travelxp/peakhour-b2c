@@ -5,15 +5,19 @@
  * a chip in CalendarView. Shows:
  *   - Title row: channel icon + display name + status badge
  *   - When + where badge (resolved local time + audience timezone)
- *   - Payload preview (text snippet, hashtags, media count)
+ *   - For a live item: the shared <ScheduledPostEditor/> — edit, reschedule,
+ *     publish now, cancel. For a terminal one: the read-only snapshot, since
+ *     there is nothing left to change.
  *   - Smart-time audit (which tier picked the time + conflicts)
  *   - Attempts log (per-attempt outcome + errorCode + retry timeline)
- *   - Action buttons (cancel + refresh-stale)
  *
- * Stateless presentational; parent owns the mutations.
+ * ★The actions used to be a cancel button and a PERMANENTLY DISABLED "Refresh
+ * snapshot" whose tooltip told the user to go and recompose the post. Editing
+ * the payload is what releases a stale hold now — the same act that made the
+ * user look at the content — so that button is gone rather than sitting there
+ * greyed out, and its job is done by Save.
  */
 
-import { useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -23,9 +27,9 @@ import {
   RotateCw,
   XCircle,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { ChannelIconCompact } from "@/components/brand/channel-icon";
+import { ScheduledPostEditor } from "@/components/scheduler/scheduled-post-editor";
 import { cn } from "@/lib/utils";
 import {
   channelDisplayName,
@@ -50,12 +54,10 @@ const STATUS_ICON = {
 
 export interface CalendarItemDrawerProps {
   item: ScheduledItemDto;
-  onCancel?: () => void;
-  /** Reserved for the next-PR source-hash sync. Currently unused —
-   *  the refresh button is disabled until the live source-hash fetch
-   *  lands. Keeping the prop on the public shape so the parent can
-   *  wire it once the API is ready. */
-  onRefreshStale?: (newSourceTextHash: string) => void;
+  /** Any mutation landed — parent refetches the calendar. */
+  onChanged: () => void;
+  /** The item was cancelled — parent closes the drawer. */
+  onCancelled: () => void;
 }
 
 function ToneBadge({
@@ -87,13 +89,9 @@ function ToneBadge({
 
 export function CalendarItemDrawer({
   item,
-  onCancel,
-  // Currently unused — see prop JSDoc. Will be wired with the source-
-  // hash sync API in a follow-up.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  onRefreshStale,
+  onChanged,
+  onCancelled,
 }: CalendarItemDrawerProps) {
-  const [confirmCancel, setConfirmCancel] = useState(false);
   const Icon = STATUS_ICON[item.status] ?? Clock;
   const tone = statusTone(item.status);
   const attemptCount = item.attempts?.length ?? 0;
@@ -132,8 +130,11 @@ export function CalendarItemDrawer({
               <>
                 <div className="font-medium">Snapshot is stale</div>
                 <p className="mt-0.5">
-                  The source content was edited after this was scheduled. The
-                  cron is holding the publish until you refresh.
+                  The source content was edited after this was scheduled, so the
+                  publish is held.
+                  {isTerminal
+                    ? ""
+                    : " Saving the post below releases it — what goes out is what you see."}
                 </p>
               </>
             ) : (
@@ -152,45 +153,55 @@ export function CalendarItemDrawer({
 
       <Separator />
 
-      {/* Payload preview */}
-      <div>
-        <div className="mb-1 text-xs font-medium text-muted-foreground">
-          Content snapshot
+      {/* Live item → the editor. Terminal item → the frozen snapshot, because
+          there is nothing left to change and a form implying otherwise is
+          worse than a record. */}
+      {isTerminal ? (
+        <div>
+          <div className="mb-1 text-xs font-medium text-muted-foreground">
+            Content snapshot
+          </div>
+          <div className="rounded-md border bg-muted/30 p-3 text-sm">
+            <p className="whitespace-pre-wrap wrap-break-word text-foreground">
+              {item.payload.text.length > 400
+                ? `${item.payload.text.slice(0, 400)}…`
+                : item.payload.text}
+            </p>
+            {item.payload.hashtags && item.payload.hashtags.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1">
+                {item.payload.hashtags.map((h) => (
+                  <span
+                    key={h}
+                    className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground"
+                  >
+                    #{h}
+                  </span>
+                ))}
+              </div>
+            )}
+            {item.payload.mediaUrls && item.payload.mediaUrls.length > 0 && (
+              <div className="mt-2 flex items-center gap-1 text-[11px] text-muted-foreground">
+                {/* eslint-disable-next-line jsx-a11y/alt-text */}
+                <Image className="h-3 w-3" />
+                {item.payload.mediaUrls.length} attachment
+                {item.payload.mediaUrls.length === 1 ? "" : "s"}
+              </div>
+            )}
+            {item.payload.threadParts && item.payload.threadParts.length > 0 && (
+              <div className="mt-2 text-[11px] text-muted-foreground">
+                Thread · {item.payload.threadParts.length} part
+                {item.payload.threadParts.length === 1 ? "" : "s"}
+              </div>
+            )}
+          </div>
         </div>
-        <div className="rounded-md border bg-muted/30 p-3 text-sm">
-          <p className="whitespace-pre-wrap wrap-break-word text-foreground">
-            {item.payload.text.length > 400
-              ? `${item.payload.text.slice(0, 400)}…`
-              : item.payload.text}
-          </p>
-          {item.payload.hashtags && item.payload.hashtags.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-1">
-              {item.payload.hashtags.map((h) => (
-                <span
-                  key={h}
-                  className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground"
-                >
-                  #{h}
-                </span>
-              ))}
-            </div>
-          )}
-          {item.payload.mediaUrls && item.payload.mediaUrls.length > 0 && (
-            <div className="mt-2 flex items-center gap-1 text-[11px] text-muted-foreground">
-              {/* eslint-disable-next-line jsx-a11y/alt-text */}
-              <Image className="h-3 w-3" />
-              {item.payload.mediaUrls.length} attachment
-              {item.payload.mediaUrls.length === 1 ? "" : "s"}
-            </div>
-          )}
-          {item.payload.threadParts && item.payload.threadParts.length > 0 && (
-            <div className="mt-2 text-[11px] text-muted-foreground">
-              Thread · {item.payload.threadParts.length} part
-              {item.payload.threadParts.length === 1 ? "" : "s"}
-            </div>
-          )}
-        </div>
-      </div>
+      ) : (
+        <ScheduledPostEditor
+          item={item}
+          onChanged={onChanged}
+          onCancelled={onCancelled}
+        />
+      )}
 
       {/* Smart-time audit */}
       {item.smartTime && (
@@ -285,64 +296,10 @@ export function CalendarItemDrawer({
         </a>
       )}
 
-      <Separator />
-
-      {/* Actions */}
-      <div className="flex flex-wrap gap-2">
-        {item.payloadStale && (
-          // The "Refresh snapshot" button needs to fetch the live
-          // source content's hash from the source collection (the
-          // server treats markStale as a no-op when the new hash
-          // matches the existing one). That source-fetch API isn't
-          // wired in this PR, so the button shows as disabled with a
-          // tooltip-style label. The /stale path on the API stays
-          // gated to the plan owner anyway, so leaving it disabled
-          // also avoids the cross-user grief vector.
-          <Button
-            size="sm"
-            variant="outline"
-            disabled
-            title="Source-content sync ships next — for now, recompose the post to refresh"
-            onClick={() => undefined}
-          >
-            Refresh snapshot
-          </Button>
-        )}
-        {!isTerminal && onCancel && (
-          <>
-            {!confirmCancel ? (
-              <Button
-                size="sm"
-                variant="outline"
-                className="text-destructive"
-                onClick={() => setConfirmCancel(true)}
-              >
-                Cancel publish
-              </Button>
-            ) : (
-              <div className="flex gap-1">
-                <Button
-                  size="sm"
-                  variant="destructive"
-                  onClick={() => {
-                    onCancel();
-                    setConfirmCancel(false);
-                  }}
-                >
-                  Confirm cancel
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setConfirmCancel(false)}
-                >
-                  Keep it
-                </Button>
-              </div>
-            )}
-          </>
-        )}
-      </div>
+      {/* No actions block: every action a live item has — save, reschedule,
+          publish now, cancel — belongs to <ScheduledPostEditor/> above, so it
+          behaves identically here and in the LinkedIn hub's Scheduled tab.
+          A terminal item has none. */}
 
       {/* Item metadata footer */}
       <div className="border-t pt-3 text-[10px] text-muted-foreground">

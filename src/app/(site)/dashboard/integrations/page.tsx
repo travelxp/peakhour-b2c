@@ -2,7 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/providers/auth-provider";
+import { invalidateLinkedInContentQueries } from "@/lib/linkedin-cache";
+import { CreateWorkspaceButton } from "@/components/integrations/create-workspace-button";
 import { useLocale } from "@/hooks/use-locale";
 import { api, ApiError, API_BASE_URL } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -301,6 +304,7 @@ export default function IntegrationsPage() {
    *  then also connects Instagram must not be sent to the LinkedIn Ads hub
    *  with "Instagram connected." */
   const returnFor = searchParams?.get("returnFor") ?? null;
+  const queryClient = useQueryClient();
   const [integrations, setIntegrations] = useState<Integration[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -322,7 +326,22 @@ export default function IntegrationsPage() {
     loadIntegrations();
   }, [org?._id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  /**
+   * Reload the cards AND drop the LinkedIn content caches.
+   *
+   * ★This page is the only place a Company Page is enabled or disabled, and it
+   * holds its state in `useState` + a bare `api.get` — nothing TanStack knows
+   * about. So a Page toggle used to leave every LinkedIn hub query serving the
+   * previous Page's data, and the Library feed (staleTime 5m, refetchOnMount
+   * false, refetchOnWindowFocus false) could not refresh at all short of a hard
+   * reload. Wrong-brand content that looks exactly like a quiet week.
+   *
+   * Invalidating on EVERY reload, not only on the page toggle: connect,
+   * reconnect, refresh and disconnect all change what the hub should show, and
+   * an invalidate on a fresh cache costs nothing.
+   */
   async function loadIntegrations() {
+    invalidateLinkedInContentQueries(queryClient);
     try {
       const data = await api.get<{ integrations: Integration[] }>("/v1/integrations");
       setIntegrations(flattenMetaIntegration(data.integrations));
@@ -1821,6 +1840,16 @@ interface AdminPage {
   role?: string;
 }
 
+/** Per-Page brand verdict from GET /v1/integrations/linkedin_content/pages. */
+interface PageFitResponse {
+  brandAnchor: string | null;
+  pages: {
+    organizationId: string;
+    organizationName: string | null;
+    brandFit: "match" | "unrelated" | "unknown";
+  }[];
+}
+
 function ManagePagesDialog({
   open,
   onOpenChange,
@@ -1837,6 +1866,40 @@ function ManagePagesDialog({
   const pages: AdminPage[] = Array.isArray(extra?.pages) ? extra.pages : [];
   const cap = entitlements?.limits.maxLinkedInPagesPerBusiness;
   const planLabel = entitlements?.plan ?? "your";
+
+  /**
+   * Brand fit per Page.
+   *
+   * ★WHY THIS DIALOG NEEDS IT. The connect-time guard enforces "one workspace =
+   * one brand", but it runs BEFORE Pages exist: one LinkedIn member who
+   * administers two brands' Pages hands us both inside a single approved
+   * connection, and these switches then let either one be enabled here. Doing so
+   * re-mixes exactly what the guard separated — the composer publishes as the
+   * Page you picked while every AI surface (Redraft, Compose, voice) keeps
+   * writing as the WORKSPACE's brand, because brand voice, taxonomy and value
+   * proposition are read per business and no Page selection reaches them.
+   *
+   * Fetched rather than computed here so the comparison uses the same trusted
+   * anchor the connect guard uses. Only `brandFit` + `brandAnchor` are consumed:
+   * the endpoint also returns `enabled` and `cap`, but this dialog's optimistic
+   * toggle state and cap maths already work, and a second source for them would
+   * be two things to keep in step for no gain.
+   *
+   * A failed fetch degrades to no warnings — advice is not worth an error state.
+   */
+  const fitQuery = useQuery({
+    queryKey: ["linkedin-page-fit"],
+    queryFn: () => api.get<PageFitResponse>("/v1/integrations/linkedin_content/pages"),
+    enabled: open,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+
+  const fitById = useMemo(() => {
+    const map = new Map<string, "match" | "unrelated" | "unknown">();
+    for (const p of fitQuery.data?.pages ?? []) map.set(p.organizationId, p.brandFit);
+    return map;
+  }, [fitQuery.data]);
 
   // Seed local state from the connection's persisted set. Missing
   // `enabledResourceIds` (legacy rows, fresh OAuth before the API
@@ -1927,6 +1990,15 @@ function ManagePagesDialog({
       ? `${enabledCount} of ${cap} active on your ${planLabel} plan`
       : `${enabledCount} active · unlimited on your ${planLabel} plan`;
 
+  // Off-brand Pages that are switched ON right now. These are the ones already
+  // costing the user something — the composer publishes as them while the AI
+  // writes as this workspace's brand — so the callout describes the live state
+  // rather than warning about a hypothetical click.
+  const offBrandEnabled = pages.filter(
+    (p) => enabledIds.has(p.organizationId) && fitById.get(p.organizationId) === "unrelated",
+  );
+  const brandAnchor = fitQuery.data?.brandAnchor ?? null;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
@@ -1941,6 +2013,32 @@ function ManagePagesDialog({
             </div>
           </div>
         </DialogHeader>
+
+        {offBrandEnabled.length > 0 && (
+          <div className="space-y-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2.5 text-[11px] text-warning-on-tint">
+            <p className="font-medium">
+              {offBrandEnabled.length === 1
+                ? `${offBrandEnabled[0]!.organizationName || "One page"} looks like a different brand`
+                : `${offBrandEnabled.length} pages look like a different brand`}
+              {brandAnchor ? ` to ${brandAnchor}` : ""}
+            </p>
+            {/* The consequence, stated plainly — this is the actual reported
+                bug: the Page switched and Redraft kept writing as the old
+                brand, which reads as the AI ignoring you rather than as a
+                workspace boundary doing its job. */}
+            <p>
+              A workspace has one brand voice. You can publish to these pages,
+              but everything the AI writes here — Compose, Redraft, tone — is
+              grounded in this workspace&apos;s brand, so drafts will come back
+              in the wrong voice. Give the other brand its own workspace and its
+              content gets its own voice, audience and reporting.
+            </p>
+            <CreateWorkspaceButton
+              provider="LinkedIn"
+              suggestedName={offBrandEnabled[0]!.organizationName ?? null}
+            />
+          </div>
+        )}
 
         {overCap && (
           <div className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-[11px] text-warning-on-tint">
@@ -1979,8 +2077,33 @@ function ManagePagesDialog({
                   className="flex items-center justify-between gap-3 rounded-md border bg-background px-3 py-2"
                 >
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">
-                      {p.organizationName || `Page ${p.organizationId}`}
+                    <p className="flex items-center gap-1.5 truncate text-sm font-medium">
+                      <span className="truncate">
+                        {p.organizationName || `Page ${p.organizationId}`}
+                      </span>
+                      {/* Marked on the row as well as in the callout above, so
+                          the flag is visible BEFORE the switch is flipped —
+                          `unknown` is never marked (an unanchored workspace, or
+                          a Page whose name has not hydrated yet, is not
+                          evidence of anything). */}
+                      {fitById.get(p.organizationId) === "unrelated" && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span
+                              tabIndex={0}
+                              className="shrink-0 rounded bg-warning/20 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-warning-on-tint"
+                            >
+                              Other brand
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="left" className="max-w-60 text-[11px]">
+                            This page doesn&apos;t look like
+                            {brandAnchor ? ` ${brandAnchor}` : " this workspace's brand"}.
+                            You can still use it, but AI drafts here are written in
+                            this workspace&apos;s voice.
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
                     </p>
                     <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
                       {p.role && (
