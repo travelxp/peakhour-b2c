@@ -17,9 +17,12 @@ import type { QueryClient } from "@tanstack/react-query";
  * brand's data, which is indistinguishable from that brand having no activity.
  * Any new LinkedIn content query belongs in this array.
  *
- * LinkedIn ADS keys (`linkedin-managed-campaigns`, `linkedin-targeting-entities`)
- * are deliberately absent: they hang off the ads connection, not the content
- * connection's Page set, and dropping them would refetch an unrelated surface.
+ * LinkedIn ADS keys are absent from THIS list because a content cron does not
+ * change them — but they are no longer independent of the Page. See
+ * `LINKEDIN_PAGE_SCOPED_QUERY_KEYS` below: switching the active Page now
+ * re-scopes Growth as well, and the note that used to live here ("they hang off
+ * the ads connection, not the content connection's Page set") stopped being
+ * true the moment every ads surface started resolving its ad account per Page.
  */
 export const LINKEDIN_CONTENT_QUERY_KEYS = [
   // Identity + the composer's Page picker — the first thing that goes stale.
@@ -72,4 +75,67 @@ export function invalidateLinkedInContentQueries(queryClient: QueryClient): void
     void queryClient.invalidateQueries({ queryKey });
   }
   void queryClient.invalidateQueries({ queryKey: ["content-hub-integrations"] });
+}
+
+/**
+ * Everything that changes meaning when the ACTIVE PAGE changes — Growth
+ * included.
+ *
+ * ★A CRON REFRESH AND A PAGE SWITCH ARE NOT THE SAME EVENT, which is why this
+ * is a second list rather than more entries in the first. A content cron writes
+ * new rows for the Page you are already looking at; a Page switch changes which
+ * Page every surface in the product is answering about, and that reaches
+ * campaigns, Lead Gen Forms and audiences that no content cron ever touches.
+ *
+ * ★THE FAILURE MODE OF MISSING ONE IS THE BUG THIS WHOLE CHANGE FIXES. A
+ * Growth panel left holding the previous Page's campaigns does not look stale —
+ * it looks like this Page has those campaigns. Which is exactly the report:
+ * "Managed Campaigns shows the wrong brand's campaigns."
+ */
+export const LINKEDIN_PAGE_SCOPED_QUERY_KEYS = [
+  // Managed campaigns + the surfaces hanging off them.
+  ["linkedin-managed-campaigns"],
+  ["linkedin-page-ad-account"],
+  // Lead Gen Forms.
+  ["growth-asks"],
+  // Audiences, outcomes and the optimizer all read per-account figures.
+  ["audience-sets"],
+  ["audience-set"],
+  ["growth-outcomes"],
+  ["growth-adjustments"],
+] as const;
+
+/**
+ * Discard every query whose answer depends on which Page is active — Content
+ * AND Growth.
+ *
+ * The one call the Page switcher makes. Deliberately broader than the cron
+ * toolbar's: "switching the active Page refreshes all Content and Growth data"
+ * is the requirement, and a switcher that refreshed only the tab it lives on
+ * would leave the other pillar quietly describing the Page you just left.
+ *
+ * ★REMOVE, NOT INVALIDATE, AND THAT IS THE WHOLE DIFFERENCE HERE.
+ * `invalidateQueries` marks data stale and refetches — but a mounted panel goes
+ * on RENDERING the cached rows until the new ones land. For a cron refresh that
+ * is correct: the old rows are the same Page, just older. For a Page switch it
+ * means the seconds after you pick Page B are spent looking at Page A's posts,
+ * campaigns and engagers, under Page B's name. That is the exact bug being
+ * fixed, reproduced as a transient — and a transient wrong answer is harder to
+ * report than a permanent one.
+ *
+ * `removeQueries` drops the entries, so every panel falls to its loading state
+ * and comes back with the Page you actually chose. The cost is a spinner; the
+ * alternative is briefly lying.
+ */
+export function removeLinkedInPageScopedQueries(queryClient: QueryClient): void {
+  for (const queryKey of [
+    ...LINKEDIN_CONTENT_QUERY_KEYS,
+    ...LINKEDIN_PAGE_SCOPED_QUERY_KEYS,
+  ]) {
+    queryClient.removeQueries({ queryKey });
+  }
+  // The connect gate is about the CONNECTION, not the Page — it does not change
+  // under a switch, and removing it would flash the whole hub through its
+  // loading state for nothing.
+  void queryClient.invalidateQueries({ queryKey: ["linkedin-me"] });
 }

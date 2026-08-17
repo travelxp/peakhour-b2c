@@ -80,6 +80,18 @@ export interface LinkedInIdentity {
     email?: string;
   };
   pages: LinkedInOrgPage[];
+  /** ★THE PAGE EVERY CONTENT AND GROWTH READ IS SCOPED TO.
+   *
+   *  Resolved server-side and validated against the enabled set, so the client
+   *  cannot arrive at a different answer than the queries did. Before this
+   *  existed each surface reached for `pages[0]` on its own — which is how the
+   *  Audience tab's follower stats came to describe whichever Page LinkedIn
+   *  returned first, while the panels beside it described another.
+   *
+   *  `null` means a pageless (personal-feed) connection. Absent means an older
+   *  API deploy that does not scope yet — render the switcher as unavailable
+   *  rather than claiming a Page is active when nothing is filtering. */
+  activePageId?: string | null;
   /** Personal-feed publishing is the pageless fallback only — false
    *  whenever a Company Page is enabled on the connection (the
    *  server rejects person authors on publish surfaces then). Absent

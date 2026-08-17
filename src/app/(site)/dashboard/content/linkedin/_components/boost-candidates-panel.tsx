@@ -44,8 +44,13 @@ export function BoostCandidatesPanel() {
       return failureCount < 2;
     },
     staleTime: 5 * 60_000,
+    // `refetchOnMount: false` removed for the same reason it was removed from
+    // the Library feed and the Audience panel: paired with
+    // refetchOnWindowFocus:false it made this unrefreshable inside a session,
+    // so a Boost list that had gone stale could only be fixed by reloading the
+    // page — and nothing on screen said so. `staleTime` still collapses the
+    // remounts that a tab switch causes.
     refetchOnWindowFocus: false,
-    refetchOnMount: false,
   });
 
   // Surface non-403 errors in the dev console for debugging — same
