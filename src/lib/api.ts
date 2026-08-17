@@ -401,7 +401,8 @@ class ApiClient {
         error?.code || "STREAM_ERROR",
         error?.message || `Request failed (${res.status})`,
         res.status,
-        requestIdOf(json as Record<string, unknown> | null)
+        requestIdOf(json as Record<string, unknown> | null),
+        error?.details
       );
     }
 
