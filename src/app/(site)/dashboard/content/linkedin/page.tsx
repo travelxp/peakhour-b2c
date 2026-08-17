@@ -5,12 +5,20 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { OAuthConnectResult } from "@/components/integrations/oauth-connect-result";
 import { reconnectHref, LINKEDIN_CONTENT_PROVIDER } from "@/lib/integrations-connect";
+import { invalidateLinkedInContentQueries } from "@/lib/linkedin-cache";
 import { api, ApiError } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EmptyState } from "@/components/molecules/empty-state";
-import { MessageSquare, Newspaper, RefreshCw, Rocket, Users } from "lucide-react";
+import {
+  CalendarClock,
+  MessageSquare,
+  Newspaper,
+  RefreshCw,
+  Rocket,
+  Users,
+} from "lucide-react";
 import {
   PostComposer,
   PostComposerSkeleton,
@@ -25,6 +33,7 @@ import type {
   LinkedInIdentity,
 } from "@/lib/api/linkedin-content";
 import { SuggestedDraftsPanel } from "./_components/suggested-drafts-panel";
+import { ScheduledPanel } from "./_components/scheduled-panel";
 
 /**
  * Who the Feed replies AS.
@@ -169,12 +178,17 @@ function LinkedInTabs({
   identity: ReturnType<typeof useLinkedInIdentity>;
   enabledIdentity: ReturnType<typeof useLinkedInIdentity> | null;
 }) {
-  // ★Library · Feed · Audience · Boost is the settled shape. Library holds
-  // drafting AND the published archive — you write the next post from how
-  // the last one did, and splitting those across tabs meant navigating in
-  // order to learn. The new Feed (incoming community activity) arrives
-  // with the webhook work, so this hub has three tabs today, not four.
-  const [tab, setTab] = useState<"library" | "feed" | "audience" | "boost">("library");
+  // ★Library · Scheduled · Feed · Audience · Boost is the settled shape.
+  // Library holds drafting AND the published archive — you write the next post
+  // from how the last one did, and splitting those across tabs meant navigating
+  // in order to learn. Scheduled sits between them because it is the same
+  // timeline's middle: written, not yet out. It was previously only reachable as
+  // chips on /dashboard/calendar's month grid, which answers "when" but not
+  // "what is queued, and can I change it".
+  const [tab, setTab] = useState<
+    "library" | "scheduled" | "feed" | "audience" | "boost"
+  >("library");
+  const [scheduledOpened, setScheduledOpened] = useState(false);
   const [feedOpened, setFeedOpened] = useState(false);
   const [audienceOpened, setAudienceOpened] = useState(false);
   const [boostOpened, setBoostOpened] = useState(false);
@@ -187,11 +201,13 @@ function LinkedInTabs({
   function handleTabChange(value: string) {
     if (
       value === "library" ||
+      value === "scheduled" ||
       value === "feed" ||
       value === "audience" ||
       value === "boost"
     ) {
       setTab(value);
+      if (value === "scheduled") setScheduledOpened(true);
       if (value === "feed") setFeedOpened(true);
       // Radix TabsContent mounts eagerly, so each non-default tab stays
       // gated on having been opened once. A tab that skips this fires its
@@ -207,6 +223,9 @@ function LinkedInTabs({
       <TabsList>
         <TabsTrigger value="library" className="gap-1.5">
           <Newspaper className="size-4" /> Library
+        </TabsTrigger>
+        <TabsTrigger value="scheduled" className="gap-1.5">
+          <CalendarClock className="size-4" /> Scheduled
         </TabsTrigger>
         <TabsTrigger value="feed" className="gap-1.5">
           <MessageSquare className="size-4" /> Feed
@@ -244,6 +263,18 @@ function LinkedInTabs({
             output), so it costs no LinkedIn budget. The per-post threads
             are the on-demand part. */}
         <LibraryPanel />
+      </TabsContent>
+
+      <TabsContent value="scheduled" className="mt-4">
+        {/* Lazy-mounted like every other non-default tab. This one reads Mongo
+            (scd_scheduled_items), so it costs no LinkedIn budget — but it still
+            costs a round trip on a page nobody may open. */}
+        {scheduledOpened ? <ScheduledPanel /> : null}
+        <p className="mt-3 text-xs text-muted-foreground">
+          Everything written but not yet published, soonest first. Open a post to
+          rewrite it, swap its media, move it, publish it early, or call it off.
+          Published posts move to Library.
+        </p>
       </TabsContent>
 
       <TabsContent value="feed" className="mt-4">
@@ -314,29 +345,17 @@ function LinkedInPageShell({ children, loading }: { children?: React.ReactNode; 
           "linkedin-community-rollup",
           "linkedin-retention-cleanup",
         ]}
-        onTriggered={() => {
-          queryClient.invalidateQueries({ queryKey: ["content-hub-integrations"] });
-          queryClient.invalidateQueries({ queryKey: ["linkedin-me"] });
-          // The post-sync + retention crons write the very data these
-          // panels render — without invalidating them, a sync completes
-          // but the Boost / Audience tabs keep serving their cached
-          // (often empty) result, so nothing visibly changes. Both panels
-          // also set refetchOnMount:false, so invalidation is the only
-          // thing that refreshes them after a manual trigger.
-          queryClient.invalidateQueries({ queryKey: ["linkedin-boost-candidates"] });
-          queryClient.invalidateQueries({ queryKey: ["linkedin-engagers"] });
-          // post-sync writes the feed rows too — refresh the Feed tab.
-          queryClient.invalidateQueries({ queryKey: ["linkedin-feed"] });
-          // The subscription cron's backfill writes soc_linkedin_interactions
-          // — the Feed tab's own rows, and the per-post Reposts dialog's.
-          // Without these the cron reports events replayed and both keep
-          // serving the empty result they cached.
-          queryClient.invalidateQueries({ queryKey: ["linkedin-interactions"] });
-          queryClient.invalidateQueries({ queryKey: ["linkedin-post-reposts"] });
-          // The rollup writes exactly what the Audience tab's pulse and
-          // response-health blocks read.
-          queryClient.invalidateQueries({ queryKey: ["linkedin-audience-summary"] });
-        }}
+        // These crons write the very data every panel here renders — without
+        // invalidating, a sync completes and the Boost / Audience / Feed tabs
+        // keep serving their cached (often empty) result, so nothing visibly
+        // changes. The panels also set refetchOnMount:false, which makes
+        // invalidation the ONLY thing that refreshes them after a trigger.
+        //
+        // The key list is shared with the Integrations page's Page toggle (see
+        // lib/linkedin-cache.ts) because both need every key and the failure
+        // mode of missing one is invisible: the panel that forgot renders old
+        // data, which looks exactly like a quiet week.
+        onTriggered={() => invalidateLinkedInContentQueries(queryClient)}
       />
       <div>
         {/* h1: this was the page's only heading and it was an h2, so the

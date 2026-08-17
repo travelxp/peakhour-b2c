@@ -83,7 +83,14 @@ export function LibraryPanel() {
     },
     staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
-    refetchOnMount: false,
+    // ★`refetchOnMount: false` used to sit here, and combined with
+    // refetchOnWindowFocus:false it made this panel UNREFRESHABLE inside a
+    // session: after changing the active Company Page on /dashboard/integrations
+    // and navigating back, the Library kept rendering the previous Page's posts
+    // until a hard reload. The budget argument that justified it doesn't apply —
+    // this endpoint reads Mongo (the post-sync cron's output), not LinkedIn, so
+    // a refetch on mount costs one cheap query and `staleTime` still collapses
+    // rapid tab switching.
   });
 
   if (isError && !(error instanceof ApiError && error.status === 403)) {

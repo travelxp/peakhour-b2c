@@ -16,6 +16,7 @@ import type {
   PlanDetailResponse,
   PreviewTimeRequest,
   PreviewTimeResponse,
+  ScheduledItemDto,
   ScheduledItemStatus,
   PublishPlanStatus,
   PublishPlanApprovalState,
@@ -99,6 +100,67 @@ export const scheduler = {
       scheduledAtUtc: body.scheduledAtUtc.toISOString(),
       mode: body.mode,
     });
+  },
+
+  /**
+   * Edit a scheduled post's frozen snapshot. Every field is optional and an
+   * omitted field keeps its stored value, so a text-only edit needs no media
+   * round trip. Clears the `payloadStale` hold — the author has just
+   * re-authored the content, which is what the hold was waiting for.
+   *
+   * `channelOptions` is deliberately NOT editable: it carries the author URN +
+   * visibility the plan was committed with, and changing who publishes means
+   * cancelling and recomposing so the author policy runs again. The server
+   * REJECTS an unknown field rather than dropping it, so a client that tries
+   * gets a 400 instead of a false success.
+   *
+   * 400 TEXT_TOO_LONG / TEXT_REQUIRED / TOO_MANY_MEDIA on invalid content
+   * (over-length text is rejected, never silently truncated). 409 when the
+   * item is terminal or the publisher already holds it.
+   */
+  editItemPayload(
+    itemId: string,
+    patch: {
+      text?: string;
+      hashtags?: string[];
+      mediaUrls?: string[];
+      firstComment?: string;
+      threadParts?: string[];
+    },
+  ) {
+    return api.patch<{
+      itemId: string;
+      status: ScheduledItemStatus;
+      payload: ScheduledItemDto["payload"];
+    }>(`/v1/scheduler/items/${itemId}/payload`, patch);
+  },
+
+  /**
+   * Publish one scheduled item immediately, ahead of its time.
+   *
+   * Runs the publish cron's own path server-side, so the attempt is recorded on
+   * the item exactly as a scheduled attempt would be. `outcome` is therefore
+   * NOT always "published": a transient provider error comes back as
+   * `transient_error` with a 200, and the item goes to `awaiting_retry` on its
+   * normal backoff. Callers should read `outcome` and refetch, not assume
+   * success from the status code.
+   *
+   * 409 with a specific code for every state that cannot publish:
+   * ITEM_TERMINAL, ITEM_NEEDS_ACTION, ITEM_PAYLOAD_STALE, ITEM_IN_FLIGHT.
+   */
+  publishItemNow(itemId: string) {
+    return api.post<{
+      itemId: string;
+      outcome:
+        | "published"
+        | "transient_error"
+        | "permanent_error"
+        | "rate_limited"
+        | "needs_action"
+        | "unknown";
+      code?: string;
+      published: boolean;
+    }>(`/v1/scheduler/items/${itemId}/publish-now`, {});
   },
 
   listPlans(query: ListPlansQuery = {}) {

@@ -299,32 +299,18 @@ export default function CalendarPage() {
     });
   };
 
-  const onCancelItem = useCallback(
-    async (item: ScheduledItemDto) => {
-      try {
-        await scheduler.cancelPlan(item.planId, "user_cancelled_from_calendar");
-        toast.success("Scheduled bundle cancelled.");
-        setDrawerItem(null);
-        void queryClient.invalidateQueries({ queryKey: ["scheduler:items"] });
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Cancel failed");
-      }
-    },
-    [queryClient],
-  );
-
-  const onRefreshStale = useCallback(
-    async (item: ScheduledItemDto, newHash: string) => {
-      try {
-        await scheduler.markStale(item.planId, newHash);
-        toast.success("Snapshot refresh requested.");
-        void queryClient.invalidateQueries({ queryKey: ["scheduler:items"] });
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Refresh failed");
-      }
-    },
-    [queryClient],
-  );
+  /**
+   * Any drawer mutation landed (edit / reschedule / publish-now / cancel).
+   *
+   * The editor owns the calls and their toasts — this only refreshes what the
+   * page renders. `linkedin-scheduled-items` goes too: the LinkedIn hub's
+   * Scheduled tab is the same rows under a different key, and a post cancelled
+   * here would otherwise still be listed there.
+   */
+  const onItemChanged = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: ["scheduler:items"] });
+    void queryClient.invalidateQueries({ queryKey: ["linkedin-scheduled-items"] });
+  }, [queryClient]);
 
   /**
    * Drag-to-reschedule. The CalendarView callback gives us a day
@@ -679,10 +665,8 @@ export default function CalendarPage() {
           {drawerItem && (
             <CalendarItemDrawer
               item={drawerItem}
-              onCancel={() => onCancelItem(drawerItem)}
-              onRefreshStale={(newHash) =>
-                onRefreshStale(drawerItem, newHash)
-              }
+              onChanged={onItemChanged}
+              onCancelled={() => setDrawerItem(null)}
             />
           )}
         </SheetContent>
