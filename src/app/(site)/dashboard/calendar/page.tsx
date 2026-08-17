@@ -181,6 +181,18 @@ export default function CalendarPage() {
    * of showing a ghost.
    */
   const [drawerItemId, setDrawerItemId] = useState<string | null>(null);
+  /**
+   * Which query window the drawer was opened against.
+   *
+   * ★Without it, the drawer POPPED BACK OPEN. Arrow-keying to another week
+   * changes the queryKey, `data` goes undefined (no placeholderData), the
+   * derived item vanishes and the Sheet closes — but a controlled `open` going
+   * false does not fire `onOpenChange`, so the id stayed set and arrow-keying
+   * back re-opened the drawer on its own, mid-edit. Pinning the window makes the
+   * close permanent without an effect (setState-in-effect is a lint error here)
+   * and without touching all eleven window/filter mutators.
+   */
+  const [drawerWindow, setDrawerWindow] = useState<string | null>(null);
 
   const { rangeStart, rangeEnd } = useMemo(() => {
     if (!anchor) {
@@ -240,9 +252,13 @@ export default function CalendarPage() {
    * successor under a new id) or a cancel closes the drawer rather than leaving
    * it editing something that no longer exists.
    */
+  const windowKey = queryKey.join("|");
   const drawerItem = useMemo(
-    () => (data?.items ?? []).find((i) => i._id === drawerItemId) ?? null,
-    [data, drawerItemId],
+    () =>
+      drawerWindow === windowKey
+        ? ((data?.items ?? []).find((i) => i._id === drawerItemId) ?? null)
+        : null,
+    [data, drawerItemId, drawerWindow, windowKey],
   );
 
   // Channel chip palette — derived from items so we don't show chips
@@ -300,6 +316,7 @@ export default function CalendarPage() {
         setMode("month");
       } else if (e.key === "Escape") {
         setDrawerItemId(null);
+        setDrawerWindow(null);
       }
     }
     window.addEventListener("keydown", onKey);
@@ -659,7 +676,10 @@ export default function CalendarPage() {
           rangeEnd={rangeEnd}
           timezone={tz}
           mode={mode}
-          onItemClick={(item) => setDrawerItemId(item._id)}
+          onItemClick={(item) => {
+            setDrawerItemId(item._id);
+            setDrawerWindow(windowKey);
+          }}
           onItemMove={onItemMove}
         />
       )}
@@ -677,7 +697,10 @@ export default function CalendarPage() {
       <Sheet
         open={drawerItem !== null}
         onOpenChange={(open) => {
-          if (!open) setDrawerItemId(null);
+          if (!open) {
+            setDrawerItemId(null);
+            setDrawerWindow(null);
+          }
         }}
       >
         <SheetContent
@@ -696,7 +719,10 @@ export default function CalendarPage() {
             <CalendarItemDrawer
               item={drawerItem}
               onChanged={onItemChanged}
-              onCancelled={() => setDrawerItemId(null)}
+              onCancelled={() => {
+                setDrawerItemId(null);
+                setDrawerWindow(null);
+              }}
             />
           )}
         </SheetContent>
