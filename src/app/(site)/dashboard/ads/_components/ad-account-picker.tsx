@@ -53,23 +53,56 @@ export function AdAccountPicker() {
     mutationFn: ({ pageId, adAccountId }: { pageId: string; adAccountId: string | null }) =>
       linkedInAdsApi.setPageAdAccount(pageId, adAccountId),
     onSuccess: () => {
-      // ★Every Page-scoped list, not just this card. Changing the mapping
-      // changes which campaigns, forms and audiences exist as far as the
-      // product is concerned — a card that refreshed only itself would sit
-      // beside a campaign list still showing the previous account's rows.
+      // ★REMOVED, NOT INVALIDATED, for the reason `linkedin-cache.ts` records
+      // about the Page switcher: a mounted panel goes on RENDERING cached rows
+      // through an invalidation, so the campaign list directly below this card
+      // would spend the refetch window showing the previous account's campaigns
+      // under a card that now names the new one. Changing the mapping changes
+      // which campaigns and forms exist as far as the product is concerned.
       for (const queryKey of LINKEDIN_PAGE_SCOPED_QUERY_KEYS) {
-        void queryClient.invalidateQueries({ queryKey });
+        queryClient.removeQueries({ queryKey });
       }
       toast.success("Ad account saved for this Page.");
     },
     onError: (err) => {
-      toast.error(
-        err instanceof ApiError && err.code === "AD_ACCOUNT_NOT_FOUND"
-          ? "That ad account is no longer available on this LinkedIn connection."
-          : "Couldn't save the ad account. Try again in a moment.",
-      );
+      // ★A 4xx HERE ALWAYS NAMES SOMETHING THE USER CAN DO, so collapsing them
+      // into "try again in a moment" gives an instruction that can never
+      // succeed. `PAGE_NOT_ENABLED` is genuinely reachable: this card's state
+      // is a minute stale, and a Page toggled off under /dashboard/integrations
+      // in that window lands here. The sibling panels already surface `message`
+      // for 4xx; only a 5xx or a dead network is worth a retry.
+      if (err instanceof ApiError && err.code === "AD_ACCOUNT_NOT_FOUND") {
+        toast.error("That ad account is no longer available on this LinkedIn connection.");
+        return;
+      }
+      if (err instanceof ApiError && err.status >= 400 && err.status < 500) {
+        toast.error(err.message);
+        return;
+      }
+      toast.error("Couldn't save the ad account. Try again in a moment.");
     },
   });
+
+  // ★A FAILED LOOKUP IS NOT NOTHING. The lists below can already be saying
+  // "choose the ad account this Page spends from" — rendering nothing here
+  // leaves that instruction on screen with no control anywhere to follow it.
+  // Distinguished from the loading and not-connected paths, which are silent
+  // for good reasons of their own.
+  if (state.isError && state.error instanceof ApiError && state.error.status >= 500) {
+    return (
+      <Card className="border-warning/40 bg-warning/5">
+        <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
+          <p className="text-sm">
+            Couldn&apos;t load this Page&apos;s ad account. Campaign and lead-form lists
+            below may be incomplete until it loads.
+          </p>
+          <Button variant="outline" size="sm" onClick={() => void state.refetch()}>
+            Retry
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
 
   // ★Absent `activePageId` means an API deploy that does not scope yet. Showing
   // a picker whose writes nothing reads would let someone "fix" this and see no
@@ -104,8 +137,20 @@ export function AdAccountPicker() {
         {hasAccounts ? (
           <div className="flex items-center gap-2">
             {save.isPending ? <Loader2 className="size-4 animate-spin" /> : null}
+            {/* ★FULLY CONTROLLED, INCLUDING WHILE UNMAPPED. `value={undefined}`
+                hands the Select back to Radix's internal state, so a REJECTED
+                write — a stale Page, an account revoked since the card
+                loaded — left the trigger displaying an account that was never
+                saved, directly beside a card still saying "pick which account
+                this Page spends from". Showing the in-flight choice while
+                pending and the server's answer otherwise means a refusal
+                reverts the control by itself. */}
             <Select
-              value={adAccountId ?? undefined}
+              value={
+                save.isPending && save.variables
+                  ? (save.variables.adAccountId ?? undefined)
+                  : (adAccountId ?? undefined)
+              }
               disabled={save.isPending}
               onValueChange={(next) => save.mutate({ pageId: activePageId, adAccountId: next })}
             >
