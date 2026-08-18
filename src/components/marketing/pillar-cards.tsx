@@ -26,15 +26,29 @@ import { cn } from "@/lib/utils";
  * each panel ~110px, which is narrower than the words inside it.
  */
 
-/** Panels this tall fit the row plus its heading in one ~900px viewport. */
-const ROW_HEIGHT = "lg:h-[28rem]";
+/**
+ * Panel height, and it is measured rather than chosen: the track clips its
+ * overflow, so a row that is too short LOSES the bottom of an open panel
+ * instead of scrolling it. The tallest case is Content — a two-line value
+ * proposition, three capabilities, six channel chips that wrap to two rows,
+ * and a two-line outcome — which comes to roughly 510px at the open panel's
+ * ~477px width. 34rem leaves that a little over 30px of headroom.
+ *
+ * If you add a line to the open detail, or a sixth pillar (which narrows the
+ * open panel and so wraps more), re-measure this.
+ */
+const ROW_HEIGHT = "lg:h-[34rem]";
 
 export function PillarCards() {
-  // Two inputs, one derived state. `pinned` outranks `hovered` so moving the
-  // cursor off a panel that was deliberately opened doesn't close it.
+  // Three inputs, one derived state, and the ORDER is the whole design:
+  // whatever the visitor is pointing at wins, then whatever they have
+  // focused, and a pin is only the resting state underneath both. Pin last is
+  // what makes "click to keep it, then move the mouse away" work — reverse it
+  // and a pinned panel would swallow every subsequent hover.
   const [pinned, setPinned] = useState<number | null>(null);
   const [hovered, setHovered] = useState<number | null>(null);
-  const active = pinned ?? hovered;
+  const [focused, setFocused] = useState<number | null>(null);
+  const active = hovered ?? focused ?? pinned;
 
   return (
     <div
@@ -43,6 +57,12 @@ export function PillarCards() {
       // it in the first place, and a keyboard user is handled by focus below.
       onPointerLeave={(e) => {
         if (e.pointerType === "mouse") setHovered(null);
+      }}
+      // focusout bubbles, so this fires for anything inside the track. Only
+      // clear when focus has actually left it — moving between the trigger and
+      // the "Explore" link inside one panel must not close that panel.
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget)) setFocused(null);
       }}
     >
       {PILLAR_ORDER.map((slug, i) => {
@@ -61,12 +81,12 @@ export function PillarCards() {
               // `u-rail` is the shared gold hairline, and it reads
               // `data-active` — so an open panel wears the same marker the
               // dashboard nav uses for the page you're on.
-              "u-rail group relative flex min-w-0 scroll-mt-24 flex-col overflow-hidden rounded-2xl border bg-background",
+              "u-rail relative flex min-w-0 scroll-mt-24 flex-col overflow-hidden rounded-2xl border bg-background",
               "transition-[flex-grow,border-color,box-shadow] duration-500 ease-brand motion-reduce:transition-none",
               // `basis-0` rather than `flex-1`: the shorthand and the `grow-*`
               // longhand below would both set flex-grow, and which one wins
               // would come down to stylesheet order.
-              "lg:basis-0 lg:justify-end",
+              "lg:basis-0",
               isActive
                 ? "border-brand/55 shadow-lg shadow-brand/10 lg:grow-[2.7]"
                 : isDimmed
@@ -76,16 +96,25 @@ export function PillarCards() {
             onPointerEnter={(e) => {
               if (e.pointerType === "mouse") setHovered(i);
             }}
+            // focusin bubbles, so tabbing to the trigger OR to the "Explore"
+            // link inside the open detail keeps the panel open.
+            onFocus={() => setFocused(i)}
           >
             <CardVeil active={isActive} />
+
+            {/* Sits the content on the floor of a tall panel — and, because it
+                is shrinkable, gives its own height back the moment the open
+                detail needs it. `justify-end` would do the first job and fail
+                the second: an over-tall column with end alignment overflows
+                past the TOP edge, where `overflow-hidden` clips it away. */}
+            <span aria-hidden className="hidden lg:block lg:min-h-0 lg:flex-1" />
 
             <button
               type="button"
               aria-expanded={isActive}
               aria-controls={detailsId}
               onClick={() => setPinned((p) => (p === i ? null : i))}
-              onFocus={() => setHovered(i)}
-              className="relative flex w-full min-w-0 items-start gap-3 rounded-2xl p-5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-inset lg:flex-col lg:gap-3.5"
+              className="relative flex w-full min-w-0 shrink-0 items-start gap-3 rounded-2xl p-5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-inset lg:flex-col lg:gap-3.5"
             >
               <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-brand-gradient shadow-inner">
                 <Icon className="size-5 text-brand-contrast" strokeWidth={2} aria-hidden />
@@ -123,12 +152,12 @@ export function PillarCards() {
               // `aria-expanded={false}` on the trigger promises it isn't there.
               inert={!isActive}
               className={cn(
-                "relative grid transition-[grid-template-rows,opacity] duration-500 ease-brand motion-reduce:transition-none",
+                "relative grid shrink-0 transition-[grid-template-rows,opacity] duration-500 ease-brand motion-reduce:transition-none",
                 isActive ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
               )}
             >
               <div className="min-h-0 overflow-hidden">
-                <div className="flex flex-col gap-4 px-5 pb-5">
+                <div className="flex flex-col gap-3.5 px-5 pb-5">
                   <div>
                     <p className="text-[0.65rem] font-bold uppercase tracking-[0.18em] text-brand-label">
                       Key capabilities
@@ -165,7 +194,7 @@ export function PillarCards() {
 
                   {/* The payoff — one outcome, stated as the visitor's result
                       rather than as another product feature. */}
-                  <div className="rounded-xl border border-brand/25 bg-brand-soft/40 px-3.5 py-3">
+                  <div className="rounded-xl border border-brand/25 bg-brand-soft/40 px-3.5 py-2.5">
                     <p className="text-[0.65rem] font-bold uppercase tracking-[0.18em] text-brand-label">
                       The outcome
                     </p>

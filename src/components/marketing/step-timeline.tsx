@@ -84,14 +84,7 @@ export function StepTimeline() {
   }, []);
 
   return (
-    <div
-      ref={ref}
-      className="relative"
-      // Server-rendered at 0 so there is no full-length path to un-draw on
-      // hydration. With JS off the muted base track below still connects the
-      // three steps; only the gold overlay is missing.
-      style={{ "--tl": 0 } as React.CSSProperties}
-    >
+    <div ref={ref} className="relative">
       {/* Vertical track (below lg). Sits on the centre line of the 3.5rem node
           column; `bottom-10` stops it inside the last step's body the way the
           /how-it-works spine does. */}
@@ -99,31 +92,40 @@ export function StepTimeline() {
         aria-hidden
         className="pointer-events-none absolute bottom-10 left-7 top-7 w-px overflow-hidden bg-linear-to-b from-brand/25 to-brand/5 lg:hidden"
       >
+        {/* `var(--tl, 0)` — the fallback IS the initial state, which is why
+            React never renders a `--tl` of its own: the effect owns that
+            property, and a React-rendered style would be re-applied on every
+            re-render and fight it. With JS off nothing sets it, the fallback
+            holds, and the muted base track it sits inside still connects the
+            three steps on its own. */}
         <span
           className="absolute inset-x-0 top-0 h-full origin-top bg-linear-to-b from-brand via-brand to-brand/40"
-          style={{ transform: "scaleY(var(--tl))" }}
+          style={{ transform: "scaleY(var(--tl, 0))" }}
         />
       </span>
 
-      {/* Horizontal track (lg and up). The three steps are equal columns, so
-          the first and last node centres land at 1/6 and 5/6 of the width. */}
+      {/* Horizontal track (lg and up). The three steps are equal columns and
+          the row carries NO column gap (see `lg:gap-x-0` below — the breathing
+          room is padding inside each step instead), so the first and last node
+          centres land at exactly 1/6 and 5/6 of the width. Reintroduce a gap
+          and the line stops short of both end nodes. */}
       <span
         aria-hidden
         className="pointer-events-none absolute left-[16.6667%] right-[16.6667%] top-7 hidden h-px overflow-hidden bg-linear-to-r from-brand/25 via-brand/20 to-brand/5 lg:block"
       >
         <span
           className="absolute inset-y-0 left-0 w-full origin-left bg-linear-to-r from-brand via-brand to-brand/40"
-          style={{ transform: "scaleX(var(--tl))" }}
+          style={{ transform: "scaleX(var(--tl, 0))" }}
         />
       </span>
 
-      <ol className="relative grid gap-8 lg:grid-cols-3 lg:gap-8">
+      <ol className="relative grid gap-8 lg:grid-cols-3 lg:gap-x-0">
         {HOW_IT_WORKS_STEPS.map((s, i) => {
           const lit = reached > i;
           return (
             <li
               key={s.step}
-              className="grid grid-cols-[3.5rem_1fr] items-start gap-4 lg:flex lg:flex-col lg:items-center lg:gap-4 lg:text-center"
+              className="grid grid-cols-[3.5rem_1fr] items-start gap-4 lg:flex lg:flex-col lg:items-center lg:gap-4 lg:px-4 lg:text-center"
             >
               <span
                 className={cn(

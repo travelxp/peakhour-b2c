@@ -231,10 +231,10 @@ export default async function Home({
           {/* `min-w-0` on both tracks so neither a long word nor the orbit's
               absolutely-positioned nodes can size the grid track above the
               viewport and put the page into a horizontal scroll on phones. */}
-          <div className="mx-auto grid max-w-6xl items-center gap-10 px-4 sm:gap-14 sm:px-6 lg:grid-cols-[1.05fr_0.95fr]">
+          <div className="mx-auto grid max-w-6xl items-center gap-10 px-4 sm:gap-14 sm:px-6 lg:grid-cols-[1.1fr_0.9fr]">
             <div className="min-w-0">
-              {/* The eyebrow carries the positioning badge; the H1 above it is
-                  the visitor's own problem stated back to them. */}
+              {/* The eyebrow carries the positioning badge; the H1 under it
+                  is the visitor's own problem stated back to them. */}
               <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand-label">
                 <span className="h-0.5 w-7 bg-brand-gradient" aria-hidden />
                 Five AI pillars. One platform. Free to start.
@@ -337,7 +337,8 @@ export default async function Home({
         </section>
 
         {/* Who it's for — the visitor sorting themselves before they read on.
-            Problem first, then fit; no pillar is named until the fit line. */}
+            Problem first, then fit: the problem line names no product at all,
+            so it can only be recognised or skipped, never argued with. */}
         <section className="relative isolate overflow-hidden py-12 sm:py-16">
           <BrandBackdrop flip />
           <div className="mx-auto max-w-6xl px-4 sm:px-6">

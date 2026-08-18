@@ -12,11 +12,13 @@ import { PILLAR_ORDER, PILLARS } from "@/lib/pillars";
  * argument and wants to see the product.)
  *
  * Geometry lives in TS rather than in a hand-drawn SVG so the diagram is
- * derived from PILLAR_ORDER — add or reorder a pillar and the ring, the spokes
- * and the node ring all follow. The lines are SVG on a 0–100 viewBox; the nodes
- * are real HTML positioned in the same coordinate space, so the pillar names
- * and value lines stay selectable text a screen reader can read, at a font size
- * the container query below scales rather than a rasterised label.
+ * derived from PILLAR_ORDER — reorder the pillars, or add one, and the node
+ * positions, the spokes and the pillar-to-pillar ring all follow.
+ *
+ * The lines are SVG on a 0–100 viewBox and the nodes are real HTML positioned
+ * in the same coordinate space. That split is deliberate: it keeps the pillar
+ * names and their value lines as selectable text a screen reader can read,
+ * scaled by the container query below rather than baked into a raster.
  *
  * Deliberately static. globals.css states the house rule — motion means change
  * — and a hero diagram that spins forever is the ambient movement that rule
@@ -115,6 +117,9 @@ export function PillarOrbit() {
           className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center gap-[3%] rounded-full border border-brand/35 bg-background shadow-lg shadow-brand/10"
           style={{ width: `${HUB_RADIUS * 2}%`, height: `${HUB_RADIUS * 2}%` }}
         >
+          {/* `alt=""` already marks the mark decorative — the pillar names
+              below are the content. `dark:invert` because the artwork is black
+              contours on transparent. */}
           <Image
             src="/peakhour-icon.svg"
             alt=""
@@ -122,7 +127,9 @@ export function PillarOrbit() {
             height={64}
             className="w-[42%] dark:invert"
             unoptimized
-            aria-hidden
+            // Hero-visible: without this next/image emits loading="lazy" and
+            // the centre of the figure arrives after everything around it.
+            priority
           />
           <span
             className="font-extrabold leading-none tracking-tight"
@@ -134,7 +141,7 @@ export function PillarOrbit() {
 
         {/* Nodes. A list, not decoration — this is the only place on the page
             that says what each pillar does in three words. */}
-        <ul className="absolute inset-0 m-0 list-none p-0">
+        <ul className="absolute inset-0">
           {NODES.map((n) => {
             const pillar = PILLARS[n.slug];
             const Icon = pillar.icon;
