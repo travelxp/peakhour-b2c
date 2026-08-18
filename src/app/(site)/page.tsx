@@ -29,14 +29,7 @@ import {
   IntegrationBrandIcon,
   integrationBrandColor,
 } from "@/components/marketing/integration-brand";
-import {
-  LinkedinIcon,
-  FacebookIcon,
-  InstagramIcon,
-  BeehiivIcon,
-  TwitterIcon,
-  WhatsAppIcon,
-} from "@/components/brand/brand-icons";
+import { STATIC_FALLBACK_INTEGRATIONS } from "@/lib/integrations-fallback";
 
 export const metadata = pageMetadata({
   title: "Peakhour.ai — The AI business platform for growing brands",
@@ -69,28 +62,6 @@ const FREE_POINTS = [
     detail:
       "Peaks power AI across Commerce, Content, Growth, Support, and Presence, giving you one simple way to manage AI usage across your business.",
   },
-] as const;
-
-// Degraded-mode fallback for the integrations strip — rendered ONLY when the
-// catalog API is unreachable or publishes nothing, so the section can't fail
-// into a heading over an empty grid.
-//
-// These cards carry no "Coming soon" badge, and an unbadged card under
-// "Plugged into the tools you already use" reads as available TODAY — the
-// strongest claim on the page. So this list is restricted to connectors that
-// are actually `live` in the production catalog. Anything coming_soon is
-// deliberately absent: without the catalog we can't badge it honestly, and a
-// silent promise is worse than a shorter list. Re-check against
-// /v1/platform/catalog when connectors go live.
-const INTEGRATIONS = [
-  { name: "WhatsApp Business", icon: WhatsAppIcon, color: "bg-[#25D366] text-black", description: "Conversations & storefront chat" },
-  { name: "Instagram", icon: InstagramIcon, color: "bg-[#E4405F] text-white", description: "Reels, stories & ads" },
-  { name: "Facebook Pages", icon: FacebookIcon, color: "bg-[#0668E1] text-white", description: "Pages, posts & insights" },
-  { name: "Meta Ads", icon: FacebookIcon, color: "bg-[#0668E1] text-white", description: "Facebook & Instagram campaigns" },
-  { name: "LinkedIn", icon: LinkedinIcon, color: "bg-[#0A66C2] text-white", description: "Organic posts & Lead Gen" },
-  { name: "X (Twitter)", icon: TwitterIcon, color: "bg-black text-white", description: "Posts & mentions inbox" },
-  { name: "X Ads", icon: TwitterIcon, color: "bg-black text-white", description: "Promoted posts & campaigns" },
-  { name: "Beehiiv", icon: BeehiivIcon, color: "bg-[#FFD100] text-black", description: "Newsletter import" },
 ] as const;
 
 // Same validator as /auth — sanitises a tampered ?ref= so the redirect target
@@ -154,12 +125,12 @@ export default async function Home({
   // grid below and the "Channels & platforms" chips inside the pillar cards.
   // The chips are a client component, so they receive the answer as plain
   // strings rather than the catalog that produced it.
-  const comingSoonKeys = badgedComingSoonKeys(
+  const comingSoonKeys = badgedComingSoonKeys({
     published,
-    catalog?.integrations ?? [],
-  );
+    all: catalog?.integrations ?? [],
+  });
   // NOT named `comingSoon`: ResolvedIntegration has a field by that name (an
-  // object carrying the CMS copy, read four lines below as i.comingSoon.copy),
+  // object carrying the CMS copy, read as i.comingSoon.copy in the map below),
   // and two unrelated things under one name in one object literal is how a
   // later reader ends up conflating them.
   const badgedKeys = new Set(comingSoonKeys);
@@ -180,14 +151,15 @@ export default async function Home({
         ),
         // The rule this used to spell out inline now lives in
         // badgedComingSoonKeys(), because the pillar chips have to apply the
-        // same one — see the note there for why a capped platform badges
-        // nothing at all.
+        // same one. Unchanged in substance — see the note there, and note in
+        // particular that the cap is read PER ROW: it marks the connectors
+        // that are live underneath a pre-launch platform, not the platform.
         comingSoon: badgedKeys.has(i.key),
       }))
-    : INTEGRATIONS.map((item) => {
+    : STATIC_FALLBACK_INTEGRATIONS.map((item) => {
         const IntIcon = item.icon;
         return {
-          id: item.name,
+          id: item.key,
           name: item.name,
           description: item.description,
           colorClass: item.color,

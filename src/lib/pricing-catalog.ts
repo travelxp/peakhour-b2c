@@ -34,8 +34,9 @@ export interface PricingPillarMeta {
   promise: string;
   /** The single reason to move from Free to Paid. */
   upgradeHook: string;
-  /** Channels this pillar runs inside (keys into CHANNELS). */
   /**
+   * Channels this pillar runs inside (keys into CHANNELS).
+   *
    * Renamed off `channels` deliberately. pricingPillar() spreads this meta
    * OVER PillarContent, which has a `channels` of its own — the marketing
    * chips, a different shape entirely — and the spread silently resolved the
@@ -81,12 +82,19 @@ export const PRICING_PILLARS: Record<PillarSlug, PricingPillarMeta> = {
 /**
  * Merge the pricing meta with the shared pillar identity (icon, name, lede).
  *
- * The result carries BOTH `runsIn` (this file's platform list, what the
- * pricing pages want) and `channels` (PillarContent's marketing chips, which
- * they don't). Reach for `runsIn` here.
+ * PillarContent's own `channels` — the homepage's marketing chips — is
+ * dropped rather than carried through. Nothing here wants it, and leaving it
+ * on the result would put a `PillarChannel[]` under a name the pricing pages
+ * used to read as `ChannelKey[]`: it still compiles in `.length` and `.map()`
+ * positions, so the trap survives the rename unless the field does not.
+ * `runsIn` is the platform list these pages want.
  */
 export function pricingPillar(slug: PillarSlug) {
-  return { ...PILLARS[slug], ...PRICING_PILLARS[slug] };
+  const { channels, ...identity } = PILLARS[slug];
+  // Referenced only so the omission is explicit: this `channels` is the
+  // HOMEPAGE's marketing chips, not this file's platform list.
+  void channels;
+  return { ...identity, ...PRICING_PILLARS[slug] };
 }
 
 export function isPillarSlug(value: string): value is PillarSlug {

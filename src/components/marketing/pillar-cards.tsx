@@ -68,7 +68,7 @@ export function PillarCards({
 }) {
   // The parent is a server component, so this prop is stable for the life of
   // the page — but this component re-renders on every hover, and rebuilding
-  // the set five times per pointer move for nothing is just waste.
+  // the set on each of those for nothing is just waste.
   const comingSoon = useMemo(() => new Set(comingSoonKeys), [comingSoonKeys]);
   // Three inputs, one derived state, and the ORDER is the whole design.
   //
@@ -292,6 +292,11 @@ export function PillarCards({
                             )}
                           >
                             {c.name}
+                            {/* Deliberately not the grid's solid "Coming
+                                soon" pill: at chip scale that badge is wider
+                                than most of the names it would sit beside. A
+                                dashed edge and the short word carry the same
+                                state at a size that fits. */}
                             {soon && (
                               <>
                                 {/* No opacity here. This word is the only

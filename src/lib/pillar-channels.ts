@@ -1,4 +1,5 @@
 import type { ResolvedIntegration } from "@/lib/catalog";
+import { STATIC_FALLBACK_KEYS } from "@/lib/integrations-fallback";
 import { PILLAR_ORDER, PILLARS } from "@/lib/pillars";
 
 /**
@@ -43,9 +44,17 @@ export const PILLAR_CONNECTOR_KEYS: readonly string[] = [
  *
  * Three rules, in order:
  *
- *  1. Nothing advertisable → badge nothing. The grid is rendering its static
- *     fallback, which is restricted to connectors that are live, and a chip
- *     claiming otherwise would be the only voice on the page saying so.
+ *  1. Nothing advertisable → badge everything the static fallback doesn't
+ *     vouch for. This branch is reachable in production, not just at build:
+ *     getPublicCatalog() returns null on any fetch failure, and / is dynamic.
+ *
+ *     Returning nothing here looks conservative and isn't. The grid degrades
+ *     to a list restricted to connectors that are genuinely live, so IT stays
+ *     honest — but the chips name six the fallback deliberately omits
+ *     (Shopify, WooCommerce, WordPress, LinkedIn Ads, Google Ads, Google
+ *     Business Profile), and silence would render all six as available. An
+ *     API blip would turn this module into the thing it exists to prevent.
+ *     So both surfaces fall back to the same allow-list.
  *
  *  2. A row the resolver marks coming_soon → badge it, UNLESS it carries
  *     `cappedByPlatformStage`.
@@ -54,11 +63,13 @@ export const PILLAR_CONNECTOR_KEYS: readonly string[] = [
  *     the platform sits at coming_soon/waitlist the resolver forces
  *     `surfacedState` to coming_soon on every row — but it only sets
  *     `cappedByPlatformStage` on the ones that are live underneath. So the
- *     flag is exactly what separates "the platform hasn't launched" (already
- *     said by the announcement bar and the waitlist CTA, and not worth
- *     stamping on WhatsApp, X and Instagram) from "this connector isn't
- *     built yet". Reading the cap as a global gate — "if any row is capped,
- *     say nothing" — deletes all eleven badges production shows today.
+ *     flag is exactly what separates "the platform hasn't launched" from
+ *     "this connector isn't built yet" — and the first of those is the
+ *     waitlist CTA's job, not something worth stamping on WhatsApp, X and
+ *     Instagram. (The CMS announcement banner would carry it too, but it is
+ *     disabled in production today, so the CTA is the one that does.)
+ *     Reading the cap as a global gate — "if any row is capped, say nothing"
+ *     — deletes all eleven badges production shows right now.
  *
  *  3. Plus every pillar chip key that isn't in the list at all. This is the
  *     fail-closed half: a chip naming a connector we cannot prove is live
@@ -72,17 +83,27 @@ export const PILLAR_CONNECTOR_KEYS: readonly string[] = [
  *     backwards, announcing a connector on its way OUT as one on its way in,
  *     which is why the second input exists.
  */
-export function badgedComingSoonKeys(
+export function badgedComingSoonKeys({
+  published,
+  all,
+}: {
   /** The marketing-advertisable rows — publicMarketingIntegrations() output. */
-  published: readonly ResolvedIntegration[],
+  published: readonly ResolvedIntegration[];
   /**
    * Every row the catalog returned, advertisable or not. Used for one thing:
    * telling a connector that is on its way out from one that hasn't arrived,
    * both of which are simply ABSENT from `published`.
    */
-  all: readonly ResolvedIntegration[],
-): string[] {
-  if (published.length === 0) return [];
+  all: readonly ResolvedIntegration[];
+}): string[] {
+  // An object, not two positional arrays of the same type, so the roles are
+  // named at the call site and a transposition can't compile. (In fairness
+  // the two converge on every input I could construct where `all` is a
+  // superset of `published`, which is the real invariant — this is about the
+  // reader, not a demonstrated bug.)
+  if (published.length === 0) {
+    return PILLAR_CONNECTOR_KEYS.filter((k) => !STATIC_FALLBACK_KEYS.has(k));
+  }
 
   const publishedKeys = new Set(published.map((i) => i.key));
   const retiring = new Set(
