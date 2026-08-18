@@ -15,20 +15,15 @@ import { cn } from "@/lib/utils";
  * disappearing behind the page.
  */
 export function BrandBackdrop({
-  className,
   /** Mirror the ridges to the left edge — for bands that alternate. */
   flip = false,
 }: {
-  className?: string;
   flip?: boolean;
 }) {
   return (
     <div
       aria-hidden
-      className={cn(
-        "pointer-events-none absolute inset-0 -z-10 overflow-hidden",
-        className,
-      )}
+      className="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
     >
       {/* Mesh. `closest-side` keeps each bloom circular whatever the band's
           aspect ratio, and blur-3xl removes the last of the banding. */}

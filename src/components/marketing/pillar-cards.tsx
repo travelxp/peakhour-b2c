@@ -138,43 +138,54 @@ export function PillarCards() {
                 past the TOP edge, where `overflow-hidden` clips it away. */}
             <span aria-hidden className="hidden lg:block lg:min-h-0 lg:flex-1" />
 
-            <button
-              type="button"
-              aria-expanded={isActive}
-              aria-controls={detailsId}
-              onClick={() => toggle(i)}
-              className="relative flex w-full min-w-0 shrink-0 items-start gap-3 rounded-2xl p-5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-inset lg:flex-col lg:gap-3.5"
-            >
-              <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-brand-gradient shadow-inner">
-                <Icon className="size-5 text-brand-contrast" strokeWidth={2} aria-hidden />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-base font-bold tracking-tight">{pillar.name}</span>
-                {/* The one line a collapsed panel carries. It folds away while
-                    another panel is open, because at ~110px it would wrap to
-                    six lines and stop being scannable.
-
-                    `max-h-40` is the ceiling that fold animates from, so it
-                    also caps this line at EVERY width: 160px against a longest
-                    `valueProp` of ~120px at 320px. Grow the copy past that and
-                    it clips on phones. */}
-                <span
-                  className={cn(
-                    "mt-1.5 block overflow-hidden text-sm text-muted-foreground transition-[max-height,opacity,margin] duration-500 ease-brand motion-reduce:transition-none",
-                    isDimmed ? "lg:mt-0 lg:max-h-0 lg:opacity-0" : "max-h-40 opacity-100",
-                  )}
-                >
-                  {pillar.valueProp}
+            {/* The heading wraps the trigger rather than sitting beside it —
+                the WAI-ARIA accordion shape, and the only one available here:
+                an <h3> is flow content and would be invalid inside a <button>,
+                while dropping the heading altogether (which this component did
+                until now) takes the five pillar names out of the document
+                outline and makes the whole section unreachable to anyone
+                navigating by heading. Preflight already strips the margin and
+                resets font-size/weight to inherit, so it changes nothing
+                visually. */}
+            <h3 className="relative min-w-0 shrink-0">
+              <button
+                type="button"
+                aria-expanded={isActive}
+                aria-controls={detailsId}
+                onClick={() => toggle(i)}
+                className="flex w-full min-w-0 items-start gap-3 rounded-2xl p-5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-inset lg:flex-col lg:gap-3.5"
+              >
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-brand-gradient shadow-inner">
+                  <Icon className="size-5 text-brand-contrast" strokeWidth={2} aria-hidden />
                 </span>
-              </span>
-              <ChevronDown
-                aria-hidden
-                className={cn(
-                  "mt-2 size-4 shrink-0 text-muted-foreground transition-transform duration-300 motion-reduce:transition-none lg:hidden",
-                  isActive && "rotate-180",
-                )}
-              />
-            </button>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-base font-bold tracking-tight">{pillar.name}</span>
+                  {/* The one line a collapsed panel carries. It folds away
+                      while another panel is open, because at ~110px it would
+                      wrap to six lines and stop being scannable.
+
+                      `max-h-40` is the ceiling that fold animates from, so it
+                      also caps this line at EVERY width: 160px against a
+                      longest `valueProp` of ~120px at 320px. Grow the copy
+                      past that and it clips on phones. */}
+                  <span
+                    className={cn(
+                      "mt-1.5 block overflow-hidden text-sm font-normal text-muted-foreground transition-[max-height,opacity,margin] duration-500 ease-brand motion-reduce:transition-none",
+                      isDimmed ? "lg:mt-0 lg:max-h-0 lg:opacity-0" : "max-h-40 opacity-100",
+                    )}
+                  >
+                    {pillar.valueProp}
+                  </span>
+                </span>
+                <ChevronDown
+                  aria-hidden
+                  className={cn(
+                    "mt-2 size-4 shrink-0 text-muted-foreground transition-transform duration-300 motion-reduce:transition-none lg:hidden",
+                    isActive && "rotate-180",
+                  )}
+                />
+              </button>
+            </h3>
 
             {/* 0fr → 1fr is the only height transition that runs from
                 content-sized to zero without a hardcoded max-height, which

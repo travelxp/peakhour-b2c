@@ -228,9 +228,11 @@ export default async function Home({
             laptop fold together with the header and the announcement bar. */}
         <section className="relative isolate overflow-hidden pt-8 pb-12 sm:pt-12 sm:pb-16">
           <BrandBackdrop />
-          {/* `min-w-0` on both tracks so neither a long word nor the orbit's
-              absolutely-positioned nodes can size the grid track above the
-              viewport and put the page into a horizontal scroll on phones. */}
+          {/* Both grid tracks need `min-w-0` or a grid item's automatic
+              minimum is its min-content, which on a phone sizes a track wider
+              than the viewport and puts the whole page into a horizontal
+              scroll. The copy column carries it below; the orbit's is on
+              PillarOrbit's own root, which IS the second grid item. */}
           <div className="mx-auto grid max-w-6xl items-center gap-10 px-4 sm:gap-14 sm:px-6 lg:grid-cols-[1.1fr_0.9fr]">
             <div className="min-w-0">
               {/* The eyebrow carries the positioning badge; the H1 under it
@@ -523,18 +525,23 @@ export default async function Home({
               <p className="mx-auto mt-4 max-w-xl text-on-ink-dim">
                 {closingLede(signupMode)}
               </p>
+              {/* Both halves are gated together: the promise under the button
+                  answers "what does clicking this cost me", and with signups
+                  closed there is no button and nothing to answer. */}
               {!cta.disabled && (
-                <Link
-                  href={cta.href}
-                  className="group mt-8 inline-flex items-center gap-2 rounded-xl bg-brand-gradient px-7 py-3.5 text-sm font-bold text-brand-contrast shadow-sm transition-transform hover:-translate-y-0.5 focus-visible:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900"
-                >
-                  {cta.label}
-                  <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
-                </Link>
+                <>
+                  <Link
+                    href={cta.href}
+                    className="group mt-8 inline-flex items-center gap-2 rounded-xl bg-brand-gradient px-7 py-3.5 text-sm font-bold text-brand-contrast shadow-sm transition-transform hover:-translate-y-0.5 focus-visible:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900"
+                  >
+                    {cta.label}
+                    <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
+                  </Link>
+                  <p className="mt-5 text-sm text-on-ink-dim">
+                    Free plan available · No credit card
+                  </p>
+                </>
               )}
-              <p className="mt-5 text-sm text-on-ink-dim">
-                Free plan available · No credit card
-              </p>
             </div>
           </div>
         </section>
