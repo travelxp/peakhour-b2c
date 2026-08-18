@@ -14,6 +14,7 @@ import { pageMetadata } from "@/lib/seo";
 import { HERO_TRUST_POINTS } from "@/lib/pillar-console";
 import { AUDIENCE_SEGMENTS } from "@/lib/audience-segments";
 import { PILLARS } from "@/lib/pillars";
+import { badgedComingSoonKeys } from "@/lib/pillar-channels";
 import { BrandBackdrop } from "@/components/marketing/brand-backdrop";
 import { PillarOrbit } from "@/components/marketing/pillar-orbit";
 import { PillarCards } from "@/components/marketing/pillar-cards";
@@ -28,14 +29,7 @@ import {
   IntegrationBrandIcon,
   integrationBrandColor,
 } from "@/components/marketing/integration-brand";
-import {
-  LinkedinIcon,
-  FacebookIcon,
-  InstagramIcon,
-  BeehiivIcon,
-  TwitterIcon,
-  WhatsAppIcon,
-} from "@/components/brand/brand-icons";
+import { STATIC_FALLBACK_INTEGRATIONS } from "@/lib/integrations-fallback";
 
 export const metadata = pageMetadata({
   title: "Peakhour.ai — The AI business platform for growing brands",
@@ -68,28 +62,6 @@ const FREE_POINTS = [
     detail:
       "Peaks power AI across Commerce, Content, Growth, Support, and Presence, giving you one simple way to manage AI usage across your business.",
   },
-] as const;
-
-// Degraded-mode fallback for the integrations strip — rendered ONLY when the
-// catalog API is unreachable or publishes nothing, so the section can't fail
-// into a heading over an empty grid.
-//
-// These cards carry no "Coming soon" badge, and an unbadged card under
-// "Plugged into the tools you already use" reads as available TODAY — the
-// strongest claim on the page. So this list is restricted to connectors that
-// are actually `live` in the production catalog. Anything coming_soon is
-// deliberately absent: without the catalog we can't badge it honestly, and a
-// silent promise is worse than a shorter list. Re-check against
-// /v1/platform/catalog when connectors go live.
-const INTEGRATIONS = [
-  { name: "WhatsApp Business", icon: WhatsAppIcon, color: "bg-[#25D366] text-black", description: "Conversations & storefront chat" },
-  { name: "Instagram", icon: InstagramIcon, color: "bg-[#E4405F] text-white", description: "Reels, stories & ads" },
-  { name: "Facebook Pages", icon: FacebookIcon, color: "bg-[#0668E1] text-white", description: "Pages, posts & insights" },
-  { name: "Meta Ads", icon: FacebookIcon, color: "bg-[#0668E1] text-white", description: "Facebook & Instagram campaigns" },
-  { name: "LinkedIn", icon: LinkedinIcon, color: "bg-[#0A66C2] text-white", description: "Organic posts & Lead Gen" },
-  { name: "X (Twitter)", icon: TwitterIcon, color: "bg-black text-white", description: "Posts & mentions inbox" },
-  { name: "X Ads", icon: TwitterIcon, color: "bg-black text-white", description: "Promoted posts & campaigns" },
-  { name: "Beehiiv", icon: BeehiivIcon, color: "bg-[#FFD100] text-black", description: "Newsletter import" },
 ] as const;
 
 // Same validator as /auth — sanitises a tampered ?ref= so the redirect target
@@ -149,6 +121,19 @@ export default async function Home({
   // catalog that publishes nothing would otherwise render the section heading
   // over an empty grid.
   const published = catalog ? publicMarketingIntegrations(catalog.integrations) : [];
+  // Resolved ONCE, for both surfaces that state availability on this page: the
+  // grid below and the "Channels & platforms" chips inside the pillar cards.
+  // The chips are a client component, so they receive the answer as plain
+  // strings rather than the catalog that produced it.
+  const comingSoonKeys = badgedComingSoonKeys({
+    published,
+    all: catalog?.integrations ?? [],
+  });
+  // NOT named `comingSoon`: ResolvedIntegration has a field by that name (an
+  // object carrying the CMS copy, read as i.comingSoon.copy in the map below),
+  // and two unrelated things under one name in one object literal is how a
+  // later reader ends up conflating them.
+  const badgedKeys = new Set(comingSoonKeys);
   const integrationCards = published.length
     ? published.map((i) => ({
         id: i.key,
@@ -164,20 +149,17 @@ export default async function Home({
             name={i.name}
           />
         ),
-        // Per-CONNECTOR state only. `surfacedState` folds in the global
-        // platform-stage cap, so while the platform sits at coming_soon/
-        // waitlist the resolver marks EVERY row coming_soon — badging all of
-        // them would stamp "Coming soon" on WhatsApp, Shopify and X, which are
-        // live. `cappedByPlatformStage` is exactly the flag that distinguishes
-        // "pre-launch platform" from "connector isn't built"; the platform's own
-        // state is already carried by the announcement banner and the waitlist
-        // CTA and doesn't need repeating on every card.
-        comingSoon: i.surfacedState === "coming_soon" && !i.cappedByPlatformStage,
+        // The rule this used to spell out inline now lives in
+        // badgedComingSoonKeys(), because the pillar chips have to apply the
+        // same one. Unchanged in substance — see the note there, and note in
+        // particular that the cap is read PER ROW: it marks the connectors
+        // that are live underneath a pre-launch platform, not the platform.
+        comingSoon: badgedKeys.has(i.key),
       }))
-    : INTEGRATIONS.map((item) => {
+    : STATIC_FALLBACK_INTEGRATIONS.map((item) => {
         const IntIcon = item.icon;
         return {
-          id: item.name,
+          id: item.key,
           name: item.name,
           description: item.description,
           colorClass: item.color,
@@ -339,7 +321,7 @@ export default async function Home({
               </p>
             </div>
             <div className="mt-10">
-              <PillarCards />
+              <PillarCards comingSoonKeys={comingSoonKeys} />
             </div>
           </div>
         </section>

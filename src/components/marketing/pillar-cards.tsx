@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Check, ChevronDown } from "lucide-react";
 import { PILLAR_ORDER, PILLARS } from "@/lib/pillars";
 import { cn } from "@/lib/utils";
@@ -47,10 +47,29 @@ import { cn } from "@/lib/utils";
  * viewport: at 1024px the track is 928px and the open panel only ~419px, so
  * Content's six channel chips wrap to two rows and its detail runs ~504px.
  * Above ~1130px the panel is wide enough that they fit one row again.
+ *
+ * A badged chip carries a "soon" suffix and runs ~40px wider, so the count
+ * that matters is the badged one — at 1024px even six badged chips still land
+ * in two rows, and the floor holds. That headroom is not the guarantee
+ * though: `min-h` is, by letting the row grow rather than clip.
  */
 const ROW_HEIGHT = "lg:min-h-[34rem]";
 
-export function PillarCards() {
+export function PillarCards({
+  /**
+   * Catalog keys to badge "soon", already resolved by the page through the
+   * same rule the integrations grid uses (lib/pillar-channels.ts). Required,
+   * not optional: a caller who forgets it should fail to compile rather than
+   * quietly ship chips that claim more than the grid does.
+   */
+  comingSoonKeys,
+}: {
+  comingSoonKeys: readonly string[];
+}) {
+  // The parent is a server component, so this prop is stable for the life of
+  // the page — but this component re-renders on every hover, and rebuilding
+  // the set on each of those for nothing is just waste.
+  const comingSoon = useMemo(() => new Set(comingSoonKeys), [comingSoonKeys]);
   // Three inputs, one derived state, and the ORDER is the whole design.
   //
   // Focus first. A cursor left sitting anywhere over the row holds `hovered`
@@ -257,14 +276,45 @@ export function PillarCards() {
                       Channels &amp; platforms
                     </p>
                     <ul className="mt-2 flex flex-wrap gap-1.5">
-                      {pillar.channels.map((c) => (
-                        <li
-                          key={c}
-                          className="rounded-full border bg-muted/50 px-2.5 py-0.5 text-xs text-muted-foreground"
-                        >
-                          {c}
-                        </li>
-                      ))}
+                      {pillar.channels.map((c) => {
+                        const soon = c.key !== undefined && comingSoon.has(c.key);
+                        return (
+                          <li
+                            key={c.name}
+                            className={cn(
+                              "rounded-full border px-2.5 py-0.5 text-xs",
+                              // Dashed, not merely dimmer: the state has to
+                              // survive being read by someone who can't tell
+                              // the two greys apart. The word carries it too.
+                              soon
+                                ? "border-dashed border-muted-foreground/40 text-muted-foreground"
+                                : "bg-muted/50 text-muted-foreground",
+                            )}
+                          >
+                            {c.name}
+                            {/* Deliberately not the grid's solid "Coming
+                                soon" pill: at chip scale that badge is wider
+                                than most of the names it would sit beside. A
+                                dashed edge and the short word carry the same
+                                state at a size that fits. */}
+                            {soon && (
+                              <>
+                                {/* No opacity here. This word is the only
+                                    visible carrier of the state — the dashed
+                                    border is reinforcement, not the signal —
+                                    and dimming 12px text to 70% took it to
+                                    2.9:1 in light mode. */}
+                                <span aria-hidden className="ml-1">&middot; soon</span>
+                                {/* The grid below says "Coming soon" in full;
+                                    a chip has no room for it, so the short
+                                    form is visual and the full phrase is what
+                                    a screen reader actually hears. */}
+                                <span className="sr-only"> &mdash; coming soon</span>
+                              </>
+                            )}
+                          </li>
+                        );
+                      })}
                     </ul>
                   </div>
 
