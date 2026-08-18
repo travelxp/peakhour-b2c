@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
-import { ArrowRight, Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown } from "lucide-react";
 import { PILLAR_ORDER, PILLARS } from "@/lib/pillars";
 import { cn } from "@/lib/utils";
 
@@ -21,6 +20,14 @@ import { cn } from "@/lib/utils";
  * checked so a tap can't also leave a panel stuck open behind the one the
  * visitor actually chose), click/tap, and focus. Click PINS, so a mouse user
  * who opens a panel and moves the cursor across it to read doesn't lose it.
+ *
+ * The open detail deliberately contains NOTHING FOCUSABLE. It collapses when
+ * another panel is hovered, so anything tabbable inside it would be a focus
+ * stop the visitor cannot see — and making the collapsed region `inert` to
+ * prevent that only moves the bug, because `inert` over the active element
+ * blurs it to <body>. There is no arrangement of "focusable content inside a
+ * region that another element's hover collapses" that behaves. A pillar's own
+ * page is reached from the header and footer, which link the same five routes.
  *
  * Below `lg` the same component is a vertical accordion: the row would give
  * each panel ~110px, which is narrower than the words inside it.
@@ -44,15 +51,22 @@ import { cn } from "@/lib/utils";
 const ROW_HEIGHT = "lg:min-h-[34rem]";
 
 export function PillarCards() {
-  // Three inputs, one derived state, and the ORDER is the whole design:
-  // whatever the visitor is pointing at wins, then whatever they have
-  // focused, and a pin is only the resting state underneath both. Pin last is
-  // what makes "click to keep it, then move the mouse away" work — reverse it
-  // and a pinned panel would swallow every subsequent hover.
+  // Three inputs, one derived state, and the ORDER is the whole design.
+  //
+  // Focus first. A cursor left sitting anywhere over the row holds `hovered`
+  // indefinitely, so ranking hover above it meant a keyboard visitor could tab
+  // through all five panels without opening one — the open panel stayed
+  // wherever the mouse happened to be parked. A parked cursor is not an
+  // intent; a Tab is. Hover takes the row back on the next real pointer MOVE,
+  // which is what `onPointerEnter` clearing `focused` below is for.
+  //
+  // Pin last, underneath both, is what makes "click to keep it, then move the
+  // mouse away" work — promote it and a pinned panel swallows every later
+  // hover and focus.
   const [pinned, setPinned] = useState<number | null>(null);
   const [hovered, setHovered] = useState<number | null>(null);
   const [focused, setFocused] = useState<number | null>(null);
-  const active = hovered ?? focused ?? pinned;
+  const active = focused ?? hovered ?? pinned;
 
   /**
    * The trigger. Opening is just a pin; CLOSING has to release the two inputs
@@ -100,6 +114,7 @@ export function PillarCards() {
         const isActive = active === i;
         const isDimmed = active !== null && !isActive;
         const detailsId = `pillar-detail-${slug}`;
+        const labelId = `pillar-label-${slug}`;
 
         return (
           <div
@@ -123,10 +138,15 @@ export function PillarCards() {
                   : "lg:grow",
             )}
             onPointerEnter={(e) => {
-              if (e.pointerType === "mouse") setHovered(i);
+              if (e.pointerType !== "mouse") return;
+              setHovered(i);
+              // Clearing `focused` while the trigger still holds DOM focus is a
+              // small lie, and a deliberate one: the next Tab corrects it, and
+              // nothing focusable lives in the region this closes, so nobody
+              // loses their place over it.
+              setFocused(null);
             }}
-            // focusin bubbles, so tabbing to the trigger OR to the "Explore"
-            // link inside the open detail keeps the panel open.
+            // focusin bubbles up from the trigger.
             onFocus={() => setFocused(i)}
           >
             <CardVeil active={isActive} />
@@ -152,6 +172,11 @@ export function PillarCards() {
                 type="button"
                 aria-expanded={isActive}
                 aria-controls={detailsId}
+                // Names the trigger — and through it the <h3> that wraps it —
+                // "Commerce", rather than "Commerce" followed by the whole
+                // value-proposition sentence, which is what name-from-content
+                // would otherwise concatenate for both.
+                aria-labelledby={labelId}
                 onClick={() => toggle(i)}
                 className="flex w-full min-w-0 items-start gap-3 rounded-2xl p-5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-inset lg:flex-col lg:gap-3.5"
               >
@@ -159,7 +184,9 @@ export function PillarCards() {
                   <Icon className="size-5 text-brand-contrast" strokeWidth={2} aria-hidden />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-base font-bold tracking-tight">{pillar.name}</span>
+                  <span id={labelId} className="block text-base font-bold tracking-tight">
+                    {pillar.name}
+                  </span>
                   {/* The one line a collapsed panel carries. It folds away
                       while another panel is open, because at ~110px it would
                       wrap to six lines and stop being scannable.
@@ -196,13 +223,10 @@ export function PillarCards() {
               // it also has to leave the a11y tree and the tab order —
               // `aria-expanded={false}` on the trigger promises it isn't there.
               //
-              // `focused !== i` is the exception, and it is not optional: a
-              // keyboard visitor on the "Explore" link inside this detail
-              // stops being active the moment a MOUSE wanders onto another
-              // panel, and `inert` over the active element blurs it to
-              // <body> — losing their place mid-page. Holding off for one
-              // panel is the smaller harm, and it resolves on the next Tab.
-              inert={!isActive && focused !== i}
+              // Unconditional, and safe to be so only because the detail holds
+              // no focusable content (see the note at the top of the file) —
+              // `inert` can therefore never land on the active element.
+              inert={!isActive}
               className={cn(
                 "relative grid shrink-0 transition-[grid-template-rows,opacity] duration-500 ease-brand motion-reduce:transition-none",
                 isActive ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
@@ -257,21 +281,13 @@ export function PillarCards() {
                     <p className="mt-1.5 text-sm font-medium">{pillar.outcomes[0]}</p>
                   </div>
 
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="rounded-full bg-brand-soft px-2.5 py-1 text-[0.65rem] font-bold uppercase tracking-wide text-brand-ink">
-                      {pillar.freeLabel}
-                    </span>
-                    <Link
-                      href={"/" + slug}
-                      className="group/link inline-flex items-center gap-1.5 text-sm font-bold text-brand-label hover:underline"
-                    >
-                      Explore {pillar.name}
-                      <ArrowRight
-                        className="size-3.5 transition-transform group-hover/link:translate-x-0.5 motion-reduce:transition-none"
-                        aria-hidden
-                      />
-                    </Link>
-                  </div>
+                  {/* --brand-soft / --brand-ink are theme-stable, so at full
+                      opacity this chip is the brightest object on a dark page.
+                      The dark step is the one /auth and /pricing already use
+                      for this exact pair. */}
+                  <span className="self-start rounded-full bg-brand-soft px-2.5 py-1 text-[0.65rem] font-bold uppercase tracking-wide text-brand-ink dark:bg-brand/12 dark:text-brand-soft">
+                    {pillar.freeLabel}
+                  </span>
                 </div>
               </div>
             </div>

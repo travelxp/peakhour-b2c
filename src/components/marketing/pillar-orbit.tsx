@@ -43,8 +43,10 @@ const NODES = PILLAR_ORDER.map((slug, i) => {
     slug,
     x: 50 + RADIUS * cos,
     y: 50 + RADIUS * sin,
-    // Spoke endpoints: from the rim of the hub to just short of the node card,
-    // so neither end of the line disappears under a surface.
+    // Spoke endpoints: out from the rim of the hub, and in far enough that
+    // the outer end finishes UNDER its node card. That is deliberate — a line
+    // stopping in the gap reads as a line near a box, while one running into
+    // the card reads as the card sitting on the line.
     x1: 50 + (HUB_RADIUS + 1.5) * cos,
     y1: 50 + (HUB_RADIUS + 1.5) * sin,
     x2: 50 + (RADIUS - 7) * cos,

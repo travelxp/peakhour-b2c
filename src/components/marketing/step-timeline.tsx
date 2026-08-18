@@ -76,8 +76,15 @@ export function StepTimeline() {
     measure();
     window.addEventListener("scroll", schedule, { passive: true });
     window.addEventListener("resize", schedule);
+    // Neither listener fires for a reflow that isn't the window changing size
+    // — a webfont swapping in, or anything above this section growing — and
+    // both move the track without a scroll. The observer closes that gap.
+    const ro =
+      typeof ResizeObserver === "function" ? new ResizeObserver(schedule) : null;
+    ro?.observe(el);
     return () => {
       if (frame) cancelAnimationFrame(frame);
+      ro?.disconnect();
       window.removeEventListener("scroll", schedule);
       window.removeEventListener("resize", schedule);
     };
@@ -122,7 +129,13 @@ export function StepTimeline() {
         />
       </span>
 
-      <ol className="relative grid gap-8 lg:grid-cols-3 lg:gap-x-0">
+      {/* The explicit role is load-bearing, not belt-and-braces: preflight
+          sets list-style:none on every ol/ul, and WebKit drops the list role
+          from a list styled that way — taking "1 of 3" with it. That is the
+          only thing conveying the step ORDER to a screen reader, because the
+          visible numeral below is aria-hidden. Without this, VoiceOver hears
+          three unordered headings under an h2 promising "3 simple steps". */}
+      <ol role="list" className="relative grid gap-8 lg:grid-cols-3 lg:gap-x-0">
         {HOW_IT_WORKS_STEPS.map((s, i) => {
           const lit = reached > i;
           return (
@@ -137,8 +150,8 @@ export function StepTimeline() {
                     ? "border-transparent bg-brand-gradient text-brand-contrast shadow-lg shadow-brand/20"
                     : "border-brand/25 bg-background text-muted-foreground",
                 )}
-                // The <ol> already numbers these for a screen reader; "1" read
-                // out before "1." is the same fact twice.
+                // The list conveys position already (see the role above);
+                // announcing "1" on top of "1 of 3" is the same fact twice.
                 aria-hidden
               >
                 {s.step}

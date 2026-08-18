@@ -371,9 +371,12 @@ export default async function Home({
                     className="u-lift flex flex-col gap-3 rounded-2xl border bg-background p-6"
                   >
                     <div className="flex items-center gap-3">
-                      <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-brand-soft">
+                      {/* --brand-soft / --brand-ink are theme-stable, so at
+                          full opacity this tile is the brightest object on a
+                          dark page. Same dark step /auth and /pricing use. */}
+                      <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-brand-soft dark:bg-brand/12">
                         <SegmentIcon
-                          className="size-4.5 text-brand-ink"
+                          className="size-4.5 text-brand-ink dark:text-brand-soft"
                           strokeWidth={2}
                           aria-hidden
                         />
