@@ -167,6 +167,94 @@ describe("resolveChannelCta", () => {
     expect(r.isConnected).toBe(false);
     expect(resolveChannelCta(chan({ status: "coming_soon" }), undefined, STATIC).isConnected).toBe(false);
   });
+});
+
+/**
+ * ★`showsComingSoon` DRIVES CLICKABILITY, and it is the reason this lives in a
+ * tested function instead of inline in the page.
+ *
+ * The first cut of this fix derived the rule inline in `page.tsx` as
+ * `channel.status === "coming_soon" && !isConnected`. That covered only ACTIVE
+ * connections, because `isConnected` is `connected`, which the API sets from
+ * `status === "active"`. A production Shopify merchant in `needs_reauth`
+ * therefore still got a DISABLED row badged "Coming soon" — the original bug,
+ * surviving the fix for it, on a surface with no test file to catch it.
+ *
+ * `page.tsx` reads this value for `actionDisabled`, the button variant, the
+ * button label and `StatusBadge`. These cases are what hold all four.
+ */
+describe("resolveChannelCta — showsComingSoon", () => {
+  const SHOPIFY = { status: "coming_soon" as const, providerKey: "shopify" };
+
+  it("signposts a coming-soon channel the org has never connected", () => {
+    expect(resolveChannelCta(chan(SHOPIFY), undefined, STATIC).showsComingSoon).toBe(true);
+    expect(
+      resolveChannelCta(chan(SHOPIFY), { connected: false }, STATIC).showsComingSoon,
+    ).toBe(true);
+  });
+
+  it("signposts a coming-soon channel the org disconnected", () => {
+    expect(
+      resolveChannelCta(chan(SHOPIFY), { connected: false, status: "disconnected" }, STATIC)
+        .showsComingSoon,
+    ).toBe(true);
+  });
+
+  it("★yields to a BROKEN connection — the case the inline version missed", () => {
+    for (const status of ["needs_reauth", "expired", "error"]) {
+      const r = resolveChannelCta(chan(SHOPIFY), { connected: false, status }, STATIC);
+      expect(r.showsComingSoon).toBe(false);
+      // Not connected either — the row is neither "Connected" nor "Coming
+      // soon". It is reachable, which is the whole point: /dashboard/integrations
+      // is where the Reconnect lives.
+      expect(r.isConnected).toBe(false);
+    }
+  });
+
+  it("yields to an ACTIVE connection", () => {
+    const r = resolveChannelCta(
+      chan(SHOPIFY),
+      { connected: true, status: "active" },
+      STATIC,
+    );
+    expect(r.showsComingSoon).toBe(false);
+    expect(r.isConnected).toBe(true);
+  });
+
+  it("never signposts a channel that isn't coming_soon", () => {
+    for (const status of ["live", "available"] as const) {
+      expect(
+        resolveChannelCta(chan({ status, providerKey: "x" }), undefined, STATIC).showsComingSoon,
+      ).toBe(false);
+    }
+  });
+
+  it("does not report a connected shopify row as a config gap", () => {
+    // shopify has no dashboardPath in either source and is managed from
+    // /dashboard/integrations, so the row becoming reachable must not start
+    // firing the dev-only config-gap console.error.
+    const r = resolveChannelCta(
+      chan(SHOPIFY),
+      { connected: false, status: "needs_reauth" },
+      STATIC,
+    );
+    expect(r.dashboardPath).toBeUndefined();
+    expect(r.configGap).toBe(false);
+    expect(r.manageViaIntegrations).toBe(false); // not connected, so no "Manage"
+  });
+
+  it("keeps the eight genuinely-unlaunched rows out of configGap", () => {
+    // Dropping the coming_soon clause outright (rather than keying it off the
+    // presented state) would fire a console.error per unconnected coming-soon
+    // row on every mount in dev.
+    const r = resolveChannelCta(
+      chan({ status: "coming_soon", providerKey: "youtube" }),
+      undefined,
+      STATIC,
+    );
+    expect(r.showsComingSoon).toBe(true);
+    expect(r.configGap).toBe(false);
+  });
 
   it("catalog dashboardPath takes precedence over the static fallback", () => {
     const r = resolveChannelCta(

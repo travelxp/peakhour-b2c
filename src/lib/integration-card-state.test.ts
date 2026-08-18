@@ -36,22 +36,54 @@ describe("isRecoverableStatus", () => {
     }
   });
 
-  it("holds exactly three states, so adding one has to be a deliberate edit", () => {
-    // A change-detector, and named as one. `zConnectionStatus` closes the union
-    // at five values; this list and CONNECTED_STATUSES between them must
-    // account for all five, and a new API status should fail here rather than
-    // fall silently into the unrecognized-status path below.
-    expect([...RECOVERABLE_STATUSES].sort()).toEqual([
-      "error",
-      "expired",
-      "needs_reauth",
-    ]);
-    expect([...CONNECTED_STATUSES].sort()).toEqual([
-      "active",
-      "error",
-      "expired",
-      "needs_reauth",
-    ]);
+  it("classifies every member of the API's status union, exhaustively", () => {
+    // ★A COMPILE-TIME GATE, not just an assertion. An earlier version compared
+    // the local constants against local literals and claimed "a new API status
+    // should fail here" — it could not: nothing in this repo referenced the
+    // union, so adding a sixth value changed nothing and the test still
+    // passed. `Record<ConnectionStatus, …>` makes a new member a BUILD error
+    // in this file, which is the only thing that actually holds the line.
+    //
+    // Mirrors `zConnectionStatus` in
+    // peakhour-mongodb/schemas/zod/db/_common.zod.ts. If that gains a member,
+    // add it here and decide deliberately which side it falls on.
+    type ConnectionStatus =
+      | "active"
+      | "disconnected"
+      | "expired"
+      | "error"
+      | "needs_reauth";
+
+    const HOLDS_CREDENTIALS: Record<ConnectionStatus, boolean> = {
+      active: true,
+      needs_reauth: true,
+      expired: true,
+      error: true,
+      // Credentials wiped by DELETE /v1/integrations/:provider — a fresh
+      // connect, so the coming-soon gate legitimately applies.
+      disconnected: false,
+    };
+    const IS_RECOVERABLE: Record<ConnectionStatus, boolean> = {
+      active: false,
+      needs_reauth: true,
+      expired: true,
+      error: true,
+      disconnected: false,
+    };
+
+    for (const [status, expected] of Object.entries(HOLDS_CREDENTIALS)) {
+      expect(hasConnection(status)).toBe(expected);
+    }
+    for (const [status, expected] of Object.entries(IS_RECOVERABLE)) {
+      expect(isRecoverableStatus(status)).toBe(expected);
+    }
+    // And the two exported lists agree with the tables above.
+    expect([...CONNECTED_STATUSES].sort()).toEqual(
+      Object.keys(HOLDS_CREDENTIALS).filter((s) => HOLDS_CREDENTIALS[s as ConnectionStatus]).sort(),
+    );
+    expect([...RECOVERABLE_STATUSES].sort()).toEqual(
+      Object.keys(IS_RECOVERABLE).filter((s) => IS_RECOVERABLE[s as ConnectionStatus]).sort(),
+    );
   });
 });
 

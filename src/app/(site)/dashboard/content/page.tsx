@@ -194,16 +194,16 @@ function ChannelRow({ channel, integration, connectionStateUnknown }: ChannelRow
   // the static dashboard path when the catalog row omits it — see
   // resolveChannelCta for the full rationale (this fixes a connected channel
   // rendering "Connect" when its catalog row lacks display.dashboardPath).
-  const { isConnected, dashboardPath, manageViaIntegrations, configGap } =
+  const { isConnected, showsComingSoon, dashboardPath, manageViaIntegrations, configGap } =
     resolveChannelCta(channel, integration);
   const lastSyncedLabel = useLastSyncedLabel(integration?.lastSyncAt);
-  // A coming-soon channel has nothing to click — UNLESS this org is already
-  // connected to it, in which case the row's job is to manage that connection
-  // and disabling it strands the merchant. Same rule as `isConnected` above;
-  // see resolveChannelCta for why a lifecycle cannot veto a live connection.
-  const actionDisabled =
-    (channel.status === "coming_soon" && !isConnected) ||
-    connectionStateUnknown === true;
+  // ★`showsComingSoon`, never `channel.status === "coming_soon"`. A row whose
+  // org holds a connection — active OR broken — must stay reachable, because
+  // /dashboard/integrations is where the merchant fixes it. Deriving it in
+  // resolveChannelCta rather than here is what lets it be tested; an earlier
+  // cut of this fix re-derived it inline and silently covered only the ACTIVE
+  // case, leaving a needs_reauth merchant with a disabled "Coming soon" row.
+  const actionDisabled = showsComingSoon || connectionStateUnknown === true;
 
   // A connectable channel with no dashboardPath, that isn't one of the
   // known integrations-managed providers, is a catalog/config gap — the exact
@@ -245,7 +245,10 @@ function ChannelRow({ channel, integration, connectionStateUnknown }: ChannelRow
       <div className="flex-1 min-w-0 space-y-1">
         <div className="flex flex-wrap items-center gap-2">
           <p className="font-medium">{channel.name}</p>
-          <StatusBadge channel={channel} isConnected={isConnected} />
+          <StatusBadge
+            isConnected={isConnected}
+            showsComingSoon={showsComingSoon}
+          />
         </div>
         <p className="text-sm text-muted-foreground">{channel.description}</p>
         {isConnected && integration?.lastError && (
@@ -265,7 +268,7 @@ function ChannelRow({ channel, integration, connectionStateUnknown }: ChannelRow
         variant={
           isConnected
             ? "outline"
-            : channel.status === "coming_soon" || connectionStateUnknown
+            : showsComingSoon || connectionStateUnknown
               ? "ghost"
               : "default"
         }
@@ -281,7 +284,7 @@ function ChannelRow({ channel, integration, connectionStateUnknown }: ChannelRow
               manageViaIntegrations
               ? "Manage connection"
               : "Manage"
-            : channel.status === "coming_soon"
+            : showsComingSoon
               ? "Coming soon"
               : "Connect"}
       </Button>
@@ -290,11 +293,14 @@ function ChannelRow({ channel, integration, connectionStateUnknown }: ChannelRow
 }
 
 function StatusBadge({
-  channel,
   isConnected,
+  showsComingSoon,
 }: {
-  channel: ChannelConfig;
   isConnected: boolean;
+  /** From resolveChannelCta — NOT `channel.status === "coming_soon"`. A row
+   *  whose org holds a broken connection is neither Connected nor Coming
+   *  soon; badging it "Coming soon" is what hid the failure. */
+  showsComingSoon: boolean;
 }) {
   if (isConnected) {
     return (
@@ -303,7 +309,7 @@ function StatusBadge({
       </Badge>
     );
   }
-  if (channel.status === "coming_soon") {
+  if (showsComingSoon) {
     return <Badge variant="outline">Coming soon</Badge>;
   }
   return <Badge variant="outline">Available</Badge>;

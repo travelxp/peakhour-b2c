@@ -1051,6 +1051,20 @@ function IntegrationCard({
   // activeness. See lib/integration-card-state.ts for the Shopify install path
   // that makes it reachable in production, and for the two states it broke.
   const showComingSoon = showsComingSoon(integration.availability, integration.status);
+  // ★CAN THIS PROVIDER ACTUALLY RECONNECT RIGHT NOW? Surfacing the Reconnect
+  // button on a coming-soon provider is the point of the fix above, but the
+  // button has to lead somewhere. Only Shopify does: `handleConnect`
+  // intercepts it and opens the App Store listing, a path that ignores
+  // `availability` entirely. Every other coming-soon provider would hit a
+  // gate — oauth2 does a FULL-PAGE navigation to `/authorize`, which 400s
+  // COMING_SOON and dumps the merchant on a raw JSON error page outside the
+  // app with no way back; api_key opens a modal whose POST 400s the same way.
+  // So for those, keep the card honest (undimmed, lastError shown) but leave
+  // the static copy in place of a button that cannot work.
+  const canReconnectWhileComingSoon = resolveProvider(integration.provider) === "shopify";
+  const offerReconnect =
+    isRecoverable &&
+    (integration.availability !== "coming_soon" || canReconnectWhileComingSoon);
 
   return (
     <Card className={`group relative overflow-hidden transition-all hover:shadow-md ${
@@ -1217,7 +1231,7 @@ function IntegrationCard({
           <p className="text-[11px] text-muted-foreground">Coming soon</p>
         ) : (
           <div className="space-y-1.5">
-            {isRecoverable ? (
+            {offerReconnect ? (
               <>
                 <ConfirmDialog
                   trigger={
@@ -1237,12 +1251,29 @@ function IntegrationCard({
                   // production on a coming-soon provider.
                   description={
                     resolveProvider(integration.provider) === "shopify"
-                      ? "This opens our Shopify App Store listing. Finish the reinstall from your Shopify admin and your store reconnects with a fresh access token."
+                      ? "This opens the Shopify App Store. Finish the reinstall from your Shopify admin and your store reconnects with a fresh access token."
                       : "This starts a fresh sign-in and replaces the current access token — the provider invalidates the previous one. Only reconnect if posting is actually failing; repeated reconnects are what break the connection."
                   }
                   confirmLabel="Reconnect"
                   onConfirm={onConnect}
                 />
+                {integration.lastError && (
+                  <p className="text-[10px] text-destructive truncate">{integration.lastError}</p>
+                )}
+              </>
+            ) : isRecoverable ? (
+              // Broken, on a gated provider with no working reconnect path.
+              // Falling through to the plain Connect button below would be
+              // WORSE than the bug this branch fixes: that button navigates
+              // straight to `/authorize`, which 400s COMING_SOON and strands
+              // the merchant on a raw JSON page. So say what is true and keep
+              // the error visible — the card is still undimmed and unbadged,
+              // which is what tells them this is a fault and not a signpost.
+              <>
+                <p className="text-[11px] text-muted-foreground">
+                  {integration.name} needs reconnecting, but isn&apos;t open for
+                  new connections yet. Contact support and we&apos;ll restore it.
+                </p>
                 {integration.lastError && (
                   <p className="text-[10px] text-destructive truncate">{integration.lastError}</p>
                 )}
