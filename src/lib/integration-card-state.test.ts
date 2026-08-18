@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  CONNECTED_STATUSES,
   RECOVERABLE_STATUSES,
   hasConnection,
   isRecoverableStatus,
@@ -35,8 +36,18 @@ describe("isRecoverableStatus", () => {
     }
   });
 
-  it("exports the states it tests, so the card and the tests cannot drift", () => {
+  it("holds exactly three states, so adding one has to be a deliberate edit", () => {
+    // A change-detector, and named as one. `zConnectionStatus` closes the union
+    // at five values; this list and CONNECTED_STATUSES between them must
+    // account for all five, and a new API status should fail here rather than
+    // fall silently into the unrecognized-status path below.
     expect([...RECOVERABLE_STATUSES].sort()).toEqual([
+      "error",
+      "expired",
+      "needs_reauth",
+    ]);
+    expect([...CONNECTED_STATUSES].sort()).toEqual([
+      "active",
       "error",
       "expired",
       "needs_reauth",
@@ -94,5 +105,18 @@ describe("hasConnection", () => {
     for (const status of [undefined, "", "disconnected"]) {
       expect(hasConnection(status)).toBe(false);
     }
+  });
+
+  it("★fails toward the signpost for a status it does not recognize", () => {
+    // The set is closed deliberately. An open "anything but disconnected" rule
+    // would call an unknown status a live connection, suppress the signpost,
+    // and — not being recoverable either — render a Connect button that 400s
+    // COMING_SOON. Falling back to the inert signpost is the safe direction.
+    expect(hasConnection("suspended_by_provider")).toBe(false);
+    expect(showsComingSoon("coming_soon", "suspended_by_provider")).toBe(true);
+    expect(isRecoverableStatus("suspended_by_provider")).toBe(false);
+    // On an available provider an unknown status still just offers Connect,
+    // exactly as it did before this rule existed.
+    expect(showsComingSoon("available", "suspended_by_provider")).toBe(false);
   });
 });

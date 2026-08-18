@@ -1,6 +1,6 @@
 /**
- * How an integration card presents itself, derived from the one connection
- * row `GET /v1/integrations` resolves for that provider.
+ * How an integration card presents itself, derived from the connection row
+ * `GET /v1/integrations` resolves for that provider.
  *
  * This lives outside the card because the two facts it combines come from
  * different places and had drifted apart: `availability` is a CATALOG fact
@@ -8,34 +8,58 @@
  * CONNECTION fact about this business. Reading the catalog fact alone is what
  * let real connections render as a coming-soon signpost — see
  * `showsComingSoon` below.
+ *
+ * ★ON THE META VIRTUAL CARDS, `status` IS NOT THIS CARD'S OWN. The four
+ * capability rows (facebook_pages, instagram, meta_ads, whatsapp) are expanded
+ * from ONE `facebook` connection by `integrations-meta.ts`, which spreads the
+ * parent row and recomputes `connected` per capability but leaves `status`
+ * as the parent's. So a capability with no resources can read
+ * `status: "active"`, `connected: false`. Nothing here is wrong today, because
+ * `facebook.provider.ts` is `availability: "available"` and the coming-soon
+ * branch is never taken for those cards. It would stop being true the day the
+ * Meta providers get the same env gate the commerce ones carry — at which
+ * point these helpers need `connected` as well, not just `status`.
  */
 
 /**
  * Connection states that still hold a token, but a token the provider will no
  * longer accept. These are recoverable: a fresh authorization replaces it.
  */
-export const RECOVERABLE_STATUSES: readonly string[] = [
-  "needs_reauth",
-  "expired",
-  "error",
-];
+export const RECOVERABLE_STATUSES = ["needs_reauth", "expired", "error"] as const;
+
+/**
+ * Every state in which a connection row HOLDS credentials. `disconnected` is
+ * deliberately absent — `DELETE /v1/integrations/:provider` wipes the
+ * credentials (`$unset: { credentials: "" }`), so reconnecting it is a fresh
+ * CONNECT, and a gate on new connections applies to it exactly as it does to a
+ * provider that was never connected at all.
+ *
+ * ★A CLOSED SET, ON PURPOSE. The obvious alternative — "anything that isn't
+ * `disconnected` or absent" — is an open deny-list, and it fails in the wrong
+ * direction: a status this file has never heard of would count as a live
+ * connection, suppress the coming-soon signpost, and (not being recoverable
+ * either) render an enabled Connect button that 400s `COMING_SOON` against a
+ * gated provider. Listing the states positively means an unrecognized one
+ * falls back to the signpost, which is inert. The union is closed at five
+ * values in `schemas/zod/db/_common.zod.ts` (`zConnectionStatus`); if the API
+ * adds a sixth, it belongs in one of these two lists by hand.
+ */
+export const CONNECTED_STATUSES = ["active", ...RECOVERABLE_STATUSES] as const;
 
 /**
  * True when a connection EXISTS for this provider but is not usable — the
  * card owes the merchant a Reconnect button and the `lastError` behind it.
  */
 export function isRecoverableStatus(status: string | undefined): boolean {
-  return RECOVERABLE_STATUSES.includes(status ?? "");
+  return (RECOVERABLE_STATUSES as readonly string[]).includes(status ?? "");
 }
 
 /**
- * True when this business has a connection row worth showing — of ANY
- * activeness. `disconnected` is deliberately excluded: its credentials are
- * wiped, so reconnecting it is a fresh CONNECT, and a gate on new connections
- * applies to it exactly as it does to a provider never connected at all.
+ * True when this business holds a connection for the provider, of ANY
+ * activeness — healthy or broken.
  */
 export function hasConnection(status: string | undefined): boolean {
-  return Boolean(status) && status !== "disconnected";
+  return (CONNECTED_STATUSES as readonly string[]).includes(status ?? "");
 }
 
 /**

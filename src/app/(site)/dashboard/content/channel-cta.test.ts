@@ -149,9 +149,23 @@ describe("resolveChannelCta", () => {
     expect(r.isConnected).toBe(false);
   });
 
-  it("(f) coming_soon never reads as Connected, even if integration says connected", () => {
+  it("(f) ★coming_soon + a real connection READS AS CONNECTED", () => {
+    // This case asserted the opposite until 2026-08-18, on the premise that a
+    // not-yet-launched channel could not have a real connection. shopify
+    // disproves it: `channels.config.ts` carries it as `coming_soon`, and a
+    // production merchant holds a live connection to it because App Store
+    // installs never consult a lifecycle. The old rule gave that merchant a
+    // disabled "Coming soon" row with no Connected badge.
     const r = resolveChannelCta(chan({ status: "coming_soon" }), { connected: true }, STATIC);
+    expect(r.isConnected).toBe(true);
+  });
+
+  it("(f2) coming_soon with NO connection still reads as not-Connected", () => {
+    // The lifecycle still governs every channel nobody is connected to, which
+    // is the case it was actually written for.
+    const r = resolveChannelCta(chan({ status: "coming_soon" }), { connected: false }, STATIC);
     expect(r.isConnected).toBe(false);
+    expect(resolveChannelCta(chan({ status: "coming_soon" }), undefined, STATIC).isConnected).toBe(false);
   });
 
   it("catalog dashboardPath takes precedence over the static fallback", () => {

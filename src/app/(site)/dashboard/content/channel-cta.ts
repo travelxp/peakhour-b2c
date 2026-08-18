@@ -12,8 +12,21 @@ import { CHANNELS, type ChannelConfig } from "./channels.config";
  *    `display.dashboardPath` resolves to lifecycle "available" (see
  *    channels-from-catalog.ts `toLifecycle`); gating connected-ness on
  *    `status === "live"` therefore made a genuinely-connected channel (e.g.
- *    linkedin_content) read as "Connect". `coming_soon` is excluded — a
- *    not-yet-launched channel can't have a real connection.
+ *    linkedin_content) read as "Connect".
+ *
+ *    ★`coming_soon` USED TO BE EXCLUDED TOO, on the reasoning that "a
+ *    not-yet-launched channel can't have a real connection". That is false,
+ *    and shopify is the counter-example: it is `status: "coming_soon"` in
+ *    channels.config.ts, and a production merchant CAN hold a live connection
+ *    to it, because App Store installs land through
+ *    `GET /v1/integrations/shopify/install` and never consult a lifecycle. The
+ *    hub prefers the CMS catalog — where an invited org resolves shopify to
+ *    `connectable` — but falls back to the static config whenever the catalog
+ *    fetch fails, which is a handled production path, and there the connected
+ *    merchant got a disabled "Coming soon" row with no Connected badge. The
+ *    connection fact now wins outright, matching
+ *    `lib/integration-card-state.ts` (`showsComingSoon`), which fixes the same
+ *    conflation on the integrations grid.
  *  - `dashboardPath`: the "Manage" deep-link. Prefer the catalog path, then
  *    fall back to the static config path by providerKey so a catalog row
  *    missing the path still routes to the real in-app dashboard instead of
@@ -89,8 +102,9 @@ export function resolveChannelCta(
   integration: { connected?: boolean } | undefined,
   staticDashboardPaths: ReadonlyMap<string, string> = STATIC_DASHBOARD_PATHS,
 ): ChannelCta {
-  const isConnected =
-    integration?.connected === true && channel.status !== "coming_soon";
+  // The org's own connection, and nothing else. A channel's catalog lifecycle
+  // says whether we are SELLING it, never whether this org already has it.
+  const isConnected = integration?.connected === true;
   // `||`, not `??`: an operator can blank a CMS display.dashboardPath to "",
   // which must fall through to the static path rather than count as "set"
   // (channels-from-catalog.ts makes the same truthiness choice for tagline).

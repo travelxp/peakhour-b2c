@@ -197,8 +197,13 @@ function ChannelRow({ channel, integration, connectionStateUnknown }: ChannelRow
   const { isConnected, dashboardPath, manageViaIntegrations, configGap } =
     resolveChannelCta(channel, integration);
   const lastSyncedLabel = useLastSyncedLabel(integration?.lastSyncAt);
+  // A coming-soon channel has nothing to click — UNLESS this org is already
+  // connected to it, in which case the row's job is to manage that connection
+  // and disabling it strands the merchant. Same rule as `isConnected` above;
+  // see resolveChannelCta for why a lifecycle cannot veto a live connection.
   const actionDisabled =
-    channel.status === "coming_soon" || connectionStateUnknown === true;
+    (channel.status === "coming_soon" && !isConnected) ||
+    connectionStateUnknown === true;
 
   // A connectable channel with no dashboardPath, that isn't one of the
   // known integrations-managed providers, is a catalog/config gap — the exact

@@ -1227,7 +1227,19 @@ function IntegrationCard({
                     </Button>
                   }
                   title={`Reconnect ${integration.name}?`}
-                  description="This starts a fresh sign-in and replaces the current access token — the provider invalidates the previous one. Only reconnect if posting is actually failing; repeated reconnects are what break the connection."
+                  // Shopify does not reconnect in place. `handleConnect`
+                  // intercepts it and opens our App Store listing, because
+                  // App Store req 2.3.1 forbids starting an install from our
+                  // own surface — the merchant finishes from Shopify admin.
+                  // The generic copy below describes an in-place OAuth
+                  // sign-in and warns about posting, neither of which applies;
+                  // it went unnoticed while this button was unreachable in
+                  // production on a coming-soon provider.
+                  description={
+                    resolveProvider(integration.provider) === "shopify"
+                      ? "This opens our Shopify App Store listing. Finish the reinstall from your Shopify admin and your store reconnects with a fresh access token."
+                      : "This starts a fresh sign-in and replaces the current access token — the provider invalidates the previous one. Only reconnect if posting is actually failing; repeated reconnects are what break the connection."
+                  }
                   confirmLabel="Reconnect"
                   onConfirm={onConnect}
                 />
