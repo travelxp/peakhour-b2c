@@ -188,6 +188,10 @@ import {
   isMetaVirtual,
   type MetaVirtualCard,
 } from "@/lib/integrations-meta";
+import {
+  isRecoverableStatus,
+  showsComingSoon,
+} from "@/lib/integration-card-state";
 
 function flattenMetaIntegration(integrations: Integration[]): Integration[] {
   return flattenMetaIntegrationBase<Integration>(integrations, (item, card) => {
@@ -1033,20 +1037,24 @@ function IntegrationCard({
   const { formatDate, formatDateTime } = useLocale();
   const Icon = PROVIDER_ICONS[integration.provider] || Plug;
   const colorClass = PROVIDER_COLORS[integration.provider] || "bg-muted";
-  const isComingSoon = integration.availability === "coming_soon";
   // A connection that already has a token but isn't `active` (stale scope /
   // revoked / errored). Reconnecting it starts a fresh OAuth which makes
   // the provider issue a NEW token and invalidate the current one — so we
   // gate it behind a confirm to stop accidental token-killing reconnects
   // (the LinkedIn reconnect loop). A truly fresh/disconnected provider gets
   // the plain one-click Connect.
-  const isRecoverable = ["needs_reauth", "expired", "error"].includes(
-    integration.status ?? "",
-  );
+  const isRecoverable = isRecoverableStatus(integration.status);
+  // Whether the card presents as a coming-soon signpost. NOT the same question
+  // as `availability === "coming_soon"`: a coming-soon provider can still hold
+  // a real connection — active or broken — and that connection outranks the
+  // signpost, so this tests the connection's EXISTENCE rather than its
+  // activeness. See lib/integration-card-state.ts for the Shopify install path
+  // that makes it reachable in production, and for the two states it broke.
+  const showComingSoon = showsComingSoon(integration.availability, integration.status);
 
   return (
     <Card className={`group relative overflow-hidden transition-all hover:shadow-md ${
-      isComingSoon ? "opacity-50" : ""
+      showComingSoon ? "opacity-50" : ""
     } ${integration.connected ? "ring-1 ring-success/20" : ""}`}>
       {/* Connected indicator stripe */}
       {integration.connected && (
@@ -1083,7 +1091,7 @@ function IntegrationCard({
                 formatDateTime={formatDateTime}
               />
             )}
-            {isComingSoon && (
+            {showComingSoon && (
               <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">
                 Soon
               </Badge>
@@ -1205,7 +1213,7 @@ function IntegrationCard({
               onConfirm={onDisconnect}
             />
           </div>
-        ) : isComingSoon ? (
+        ) : showComingSoon ? (
           <p className="text-[11px] text-muted-foreground">Coming soon</p>
         ) : (
           <div className="space-y-1.5">
