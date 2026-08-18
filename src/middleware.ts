@@ -21,19 +21,45 @@ function buildCsp(req: NextRequest): { csp: string; reqHeaders: Headers } {
   const nonce = btoa(
     String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16))),
   );
+
+  // WhatsApp Embedded Signup: AFTER the merchant logs in, the Facebook JS SDK
+  // executes a PARSER-INSERTED INLINE <script> in our page to process the
+  // response. 'strict-dynamic' only auto-trusts script-API-inserted scripts (a
+  // trusted script calling createElement+src) — NOT inline scripts — and we
+  // can't put our nonce on a script Facebook injects, so it's CSP-blocked and
+  // FB.login fails with Meta's generic "Sorry, something went wrong" page. The
+  // browser's own violation report names the remedy: allow the script's hash
+  // (hashes ARE honoured alongside 'strict-dynamic'). If a future Facebook
+  // sdk.js revision changes this inline script, the console reports the new
+  // hash — add it here. Scoped to script-src so only this exact content runs.
+  const META_SDK_INLINE_HASHES = [
+    "'sha256-n46vPwSWuMC0W703pBofImv82Z26xo4LXymv0E9caPk='",
+  ].join(" ");
   const scriptSrc = isDev
     ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
-    : `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`;
+    : `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' ${META_SDK_INLINE_HASHES}`;
   const connectSrc = [
     "connect-src 'self'",
     apiOrigin,
     "https://*.vercel-insights.com",
     "https://vitals.vercel-insights.com",
     "https://*.vercel-analytics.com",
+    // WhatsApp Embedded Signup: the Facebook JS SDK (connect.facebook.net,
+    // loaded via 'strict-dynamic') makes runtime fetch/XHR calls to
+    // www.facebook.com (impression/funnel logging) and graph.facebook.com.
+    // Without these, the SDK is blocked by CSP and FB.login dies with Meta's
+    // generic "Sorry, something went wrong" page. The ES popup can launch from
+    // /dashboard/content/whatsapp and the /dashboard/integrations modal, so the
+    // allowance is global (like the Vercel hosts above). frame-src/img-src
+    // already permit `https:`, covering the SDK's xd_arbiter iframe + pixels.
+    "https://www.facebook.com",
+    "https://graph.facebook.com",
+    "https://connect.facebook.net",
     isDev ? "ws: wss: http://localhost:* ws://localhost:*" : "",
   ]
     .filter(Boolean)
     .join(" ");
+  const frameAncestors = "frame-ancestors 'none'";
   const csp = [
     "default-src 'self'",
     scriptSrc,
@@ -46,7 +72,7 @@ function buildCsp(req: NextRequest): { csp: string; reqHeaders: Headers } {
     // from framing US.
     "frame-src 'self' https:",
     connectSrc,
-    "frame-ancestors 'none'",
+    frameAncestors,
     "base-uri 'self'",
     "form-action 'self'",
     "object-src 'none'",
@@ -101,9 +127,32 @@ export function middleware(req: NextRequest) {
   // launch partners (e.g. quests.travel). The page itself reveals nothing
   // sensitive; the magic-link endpoint only sends a real link to ops-approved
   // emails (see peakhour-api auth/magic-link.ts), so exposing the form is safe.
+  // (4) /pricing (hub + per-pillar + /pricing/teams) — the plans are a public
+  // marketing asset; prospects and launch partners evaluate them pre-launch, and
+  // the CTAs already resolve to "Join the waitlist" while signups aren't open
+  // (see signupCta + the pricing pages). It surfaces no gated data.
   // This is a plain allowlist entry on the already-running middleware — it
   // adds NO new edge function (the middleware runs on every request for the
   // CSP nonce regardless).
+  // (5) /shopify/connect, /claim and /reconnect — the pages a merchant is SENT to
+  // from inside another platform, with no Peakhour session, mid-flow. /shopify/connect
+  // is where peakhour-api lands a failed install or reconnect; /claim/{shopify,
+  // wordpress} is where the embedded app's BLOCKING claim gate sends a
+  // cold-installed store to be adopted, carrying a one-shot token in the URL.
+  // With the gate on and neither exempt, a cold App Store install dead-ends on
+  // the teaser holding a token it can no longer spend, and the store stays stuck
+  // — while /shopify/connect cheerfully advises the merchant to go and do exactly
+  // that. b2c#384 removed the first exemption along with the embedded app; the
+  // second was never added. /reconnect/wordpress is the same shape from the other
+  // platform: the WP plugin renders it as its "Approve on Peakhour.ai" button
+  // (wp-bridge.ts returns it as `reconnect_url`), and the gate would leave a
+  // reinstalled site permanently unable to approve its pairing code — sessionBypass
+  // does not help, since it is scoped to /dashboard, /onboarding and /cms.
+  //
+  // That is the whole set: enumerating every B2C_URL/DASHBOARD_URL the API hands
+  // out gives /auth, /claim/*, /reconnect/wordpress, /shopify/connect and
+  // /dashboard/*. These are the pages whose entire job is to work for someone who
+  // has never heard of us.
   const PUBLIC_PATHS = [
     "/privacy-policy",
     "/terms",
@@ -111,6 +160,10 @@ export function middleware(req: NextRequest) {
     "/data-deletion",
     "/launch-partner",
     "/auth",
+    "/pricing",
+    "/shopify/connect",
+    "/claim",
+    "/reconnect",
   ];
   const isPublicPath = PUBLIC_PATHS.some(
     (p) => pathname === p || pathname.startsWith(`${p}/`),

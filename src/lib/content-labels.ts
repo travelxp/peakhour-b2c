@@ -27,11 +27,11 @@ export const CONTENT_CATEGORY_LABELS: Record<string, string> = {
 
 /** Sentiment config with colors (universal) */
 export const SENTIMENT_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  bullish: { label: "Bullish", color: "text-green-700", bg: "bg-green-100" },
-  bearish: { label: "Bearish", color: "text-red-700", bg: "bg-red-100" },
-  cautious: { label: "Cautious", color: "text-amber-700", bg: "bg-amber-100" },
-  neutral: { label: "Neutral", color: "text-slate-700", bg: "bg-slate-100" },
-  mixed: { label: "Mixed", color: "text-purple-700", bg: "bg-purple-100" },
+  bullish: { label: "Bullish", color: "text-success-on-tint", bg: "bg-success/15" },
+  bearish: { label: "Bearish", color: "text-destructive-on-tint", bg: "bg-destructive/15" },
+  cautious: { label: "Cautious", color: "text-warning-on-tint", bg: "bg-warning/15" },
+  neutral: { label: "Neutral", color: "text-foreground", bg: "bg-muted" },
+  mixed: { label: "Mixed", color: "text-state-progress-on-tint", bg: "bg-state-progress/15" },
 };
 
 /** Shelf life labels (universal) */

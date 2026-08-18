@@ -45,3 +45,7 @@ next-env.d.ts
 .claude/settings.json
 .claude/settings.local.json
 .claude/worktrees/
+
+# agent skills (installed via `npx skills`, kept local)
+.agents/
+skills-lock.json

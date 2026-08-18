@@ -59,7 +59,7 @@ const UsageCard = ({ usage, className }: UsageCardProps) => {
         <div className="flex flex-wrap items-center gap-2">
           <p className="font-semibold">{usage.title}</p>
           {usage.tag && (
-            <Badge variant="secondary" className="bg-green-100 text-green-700">
+            <Badge variant="secondary" className="bg-success/15 text-success-on-tint">
               {usage.tag}
             </Badge>
           )}
@@ -233,8 +233,8 @@ const SettingsBilling1 = ({
           variant="secondary"
           className={cn(
             value === "Paid"
-              ? "bg-green-100 text-green-700"
-              : "bg-yellow-100 text-yellow-700",
+              ? "bg-success/15 text-success-on-tint"
+              : "bg-warning/15 text-warning-on-tint",
           )}
         >
           {value}

@@ -193,7 +193,7 @@ export function TeamSection() {
                 <div className="text-sm">
                   <div className="flex items-center gap-1.5">
                     <span className="font-medium">{m.name || m.email}</span>
-                    {m.isOwner && <Crown className="size-3.5 text-amber-500" />}
+                    {m.isOwner && <Crown className="size-3.5 text-warning" />}
                   </div>
                   <p className="text-xs text-muted-foreground">{m.email}</p>
                 </div>
@@ -242,7 +242,7 @@ export function TeamSection() {
                         trigger={
                           <DropdownMenuItem
                             onSelect={(e) => e.preventDefault()}
-                            className="text-red-600"
+                            className="text-destructive-on-tint"
                           >
                             <Trash2 className="size-3.5 mr-2" />
                             Remove from team
@@ -273,8 +273,8 @@ export function TeamSection() {
             {invites.map((inv) => (
               <li key={inv.email} className="flex items-center justify-between border-b py-3 first:pt-0">
                 <div className="flex items-center gap-3">
-                  <div className="flex size-10 items-center justify-center rounded-full bg-amber-50 dark:bg-amber-950">
-                    <Clock className="size-4 text-amber-500" />
+                  <div className="flex size-10 items-center justify-center rounded-full bg-warning/10">
+                    <Clock className="size-4 text-warning" />
                   </div>
                   <div className="text-sm">
                     <p className="font-medium">{inv.email}</p>
@@ -289,7 +289,7 @@ export function TeamSection() {
                   </span>
                   <ConfirmDialog
                     trigger={
-                      <Button variant="ghost" size="icon-xs" className="text-muted-foreground hover:text-red-600">
+                      <Button variant="ghost" size="icon-xs" className="text-muted-foreground hover:text-destructive-on-tint">
                         <Trash2 className="size-3.5" />
                       </Button>
                     }

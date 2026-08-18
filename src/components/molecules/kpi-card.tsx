@@ -34,9 +34,9 @@ export function KpiCard({
                 className={cn(
                   "inline-flex items-center gap-0.5 font-medium",
                   trend.value > 0
-                    ? "text-emerald-600 dark:text-emerald-400"
+                    ? "text-success-on-tint"
                     : trend.value < 0
-                      ? "text-red-600 dark:text-red-400"
+                      ? "text-destructive-on-tint"
                       : ""
                 )}
               >

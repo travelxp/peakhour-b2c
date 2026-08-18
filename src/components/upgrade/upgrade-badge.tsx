@@ -16,9 +16,8 @@ export function UpgradeBadge({ className, label }: { className?: string; label?:
     <span
       className={cn(
         "absolute -top-2 -right-2 z-10 inline-flex items-center gap-1",
-        "rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5",
-        "text-[10px] font-medium text-amber-700 shadow-sm",
-        "dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300",
+        "rounded-full border border-brand/30 bg-brand/10 px-2 py-0.5",
+        "text-[10px] font-medium text-brand-label shadow-sm",
         className,
       )}
     >

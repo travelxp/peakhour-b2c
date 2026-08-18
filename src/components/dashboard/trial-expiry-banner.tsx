@@ -82,8 +82,8 @@ export function TrialExpiryBanner() {
   // last day.
   const critical = days <= 1;
   const wrapClass = critical
-    ? "border-red-200 bg-red-50 text-red-900 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200"
-    : "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200";
+    ? "border-destructive/30 bg-destructive/10 text-destructive-on-tint"
+    : "border-warning/30 bg-warning/10 text-warning-on-tint";
 
   return (
     // Critical (≤1 day) bumps the ARIA role to `alert` so assistive

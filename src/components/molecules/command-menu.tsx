@@ -21,6 +21,10 @@ import {
   Sparkles,
   Plug,
   Settings,
+  LineChart,
+  Search,
+  Building2,
+  Users,
 } from "lucide-react";
 
 const PAGES = [
@@ -28,9 +32,15 @@ const PAGES = [
   { label: "Content Library", href: "/dashboard/content", icon: FileText, group: "Navigation" },
   { label: "Strategist", href: "/dashboard/strategist", icon: Brain, group: "Navigation" },
   { label: "Calendar", href: "/dashboard/calendar", icon: Calendar, group: "Navigation" },
+  // ★THE SECOND NAVIGATION SURFACE, AND IT WAS MISSED BY BOTH G1 AND G2 — on a
+  // pair of pages whose entire thesis is that nobody could find them.
+  { label: "Your Business", href: "/dashboard/growth/business", icon: Building2, group: "Navigation" },
+  { label: "Audiences", href: "/dashboard/growth/audiences", icon: Users, group: "Navigation" },
   { label: "Ads", href: "/dashboard/ads", icon: Megaphone, group: "Navigation" },
   { label: "Outcomes", href: "/dashboard/outcomes", icon: TrendingUp, group: "Navigation" },
   { label: "Optimizer", href: "/dashboard/optimizer", icon: Sparkles, group: "Navigation" },
+  { label: "Web Analytics", href: "/dashboard/insights/analytics", icon: LineChart, group: "Navigation" },
+  { label: "Search Console", href: "/dashboard/insights/search-console", icon: Search, group: "Navigation" },
   { label: "Integrations", href: "/dashboard/integrations", icon: Plug, group: "Settings" },
   { label: "Settings", href: "/dashboard/settings", icon: Settings, group: "Settings" },
 ] as const;

@@ -11,9 +11,9 @@ interface KpiCardProps {
 
 const TONE: Record<NonNullable<KpiCardProps["tone"]>, string> = {
   default: "text-foreground",
-  success: "text-emerald-600",
-  warning: "text-amber-600",
-  danger: "text-red-600",
+  success: "text-success-on-tint",
+  warning: "text-warning-on-tint",
+  danger: "text-destructive-on-tint",
 };
 
 export function KpiCard({ label, value, hint, icon: Icon, tone = "default" }: KpiCardProps) {

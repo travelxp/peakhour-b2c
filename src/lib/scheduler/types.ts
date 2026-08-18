@@ -239,6 +239,10 @@ export interface PreviewTimeResponse {
     scheduledAtUtc: string | null;
     audit: string[];
   }[];
+  /** Present when the preview includes LinkedIn and the business has an
+   *  approved/applied `posting_cadence` adjustment from the weekly
+   *  optimizer (G3) — surfaced so cadence guidance steers scheduling. */
+  cadenceAdjustment?: { summary: string; expectedEffect: string };
 }
 
 export interface ListPlansResponse {

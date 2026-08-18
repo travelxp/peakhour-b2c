@@ -17,13 +17,13 @@ const UPGRADABLE = new Set(["free", "starter", "growth"]);
 const PLAN_STYLES: Record<string, string> = {
   free: "bg-muted text-muted-foreground",
   starter:
-    "bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300",
+    "bg-state-info/15 text-state-info-on-tint",
   growth:
-    "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300",
+    "bg-success/15 text-success-on-tint",
   agency:
-    "bg-violet-100 text-violet-700 dark:bg-violet-950/60 dark:text-violet-300",
+    "bg-state-progress/15 text-state-progress-on-tint",
   enterprise:
-    "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300",
+    "bg-warning/15 text-warning-on-tint",
 };
 
 function planLabel(key: string): string {

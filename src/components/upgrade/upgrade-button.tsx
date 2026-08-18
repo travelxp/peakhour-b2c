@@ -66,8 +66,11 @@ export function UpgradeButton(props: UpgradeButtonProps) {
             onClick={() => setOpen(true)}
             className={cn(
               "relative rounded-full gap-1.5",
-              "bg-gradient-to-r from-amber-50 to-amber-100 text-amber-900 hover:from-amber-100 hover:to-amber-200",
-              "dark:from-amber-950 dark:to-amber-900 dark:text-amber-200 dark:hover:from-amber-900 dark:hover:to-amber-800",
+              // One gradient for both themes: --brand is theme-stable and the
+              // alpha steps read on either ground, so the dark: twin this used
+              // to carry is gone rather than duplicated.
+              "bg-linear-to-r from-brand/10 to-brand/20 text-brand-label",
+              "hover:from-brand/20 hover:to-brand/35",
               "border-0 shadow-sm",
             )}
           >

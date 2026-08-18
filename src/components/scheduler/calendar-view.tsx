@@ -28,7 +28,7 @@ import {
   RotateCw,
   XCircle,
 } from "lucide-react";
-import { ChannelIconCompact } from "@/components/ui/channel-icon";
+import { ChannelIconCompact } from "@/components/brand/channel-icon";
 import { cn } from "@/lib/utils";
 import {
   channelDisplayName,
@@ -143,11 +143,11 @@ function ItemChip({ item, onClick, draggable, onDragStart }: ItemChipProps) {
       className={cn(
         "group relative flex w-full items-center gap-1.5 rounded-md border bg-card px-2 py-1.5 text-left text-xs transition",
         "hover:border-primary/40 hover:shadow-sm",
-        item.payloadStale && "border-amber-400 bg-amber-50 dark:bg-amber-950/40",
+        item.payloadStale && "border-warning/30 bg-warning/10",
         tone === "warn" && !item.payloadStale &&
-          "border-amber-300 bg-amber-50 dark:bg-amber-950/30",
-        tone === "error" && "border-rose-300 bg-rose-50 dark:bg-rose-950/30",
-        tone === "success" && "bg-emerald-50 dark:bg-emerald-950/20",
+          "border-warning/30 bg-warning/10",
+        tone === "error" && "border-destructive/30 bg-destructive/10",
+        tone === "success" && "bg-success/10",
         draggable && "cursor-grab active:cursor-grabbing",
       )}
       title={
@@ -167,10 +167,10 @@ function ItemChip({ item, onClick, draggable, onDragStart }: ItemChipProps) {
       <Icon
         className={cn(
           "h-3 w-3 shrink-0",
-          tone === "success" && "text-emerald-600",
-          tone === "info" && "text-sky-600",
-          tone === "warn" && "text-amber-600",
-          tone === "error" && "text-rose-600",
+          tone === "success" && "text-success-on-tint",
+          tone === "info" && "text-state-info-on-tint",
+          tone === "warn" && "text-warning-on-tint",
+          tone === "error" && "text-destructive-on-tint",
         )}
       />
     </button>

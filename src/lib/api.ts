@@ -11,41 +11,50 @@ let csrfToken: string | null = null;
 let csrfFetchPromise: Promise<string | null> | null = null;
 let refreshPromise: Promise<boolean> | null = null;
 
+/**
+ * Fetch a CSRF token from the server (cached, with dedup guard). Exported so
+ * non-ApiClient callers — e.g. the Ask Peakhour `useChat` transport, which POSTs
+ * directly to /v1/ask and must set `X-CSRF-Token` itself — reuse the same cache.
+ */
+export async function getCsrfToken(): Promise<string | null> {
+  if (csrfToken) return csrfToken;
+
+  // Deduplicate concurrent fetches
+  if (!csrfFetchPromise) {
+    csrfFetchPromise = (async () => {
+      try {
+        const res = await fetch(`${API_URL}/v1/auth/csrf/token`, {
+          credentials: "include",
+        });
+        const json = await res.json();
+        if (json.ok && json.data?.csrf_token) {
+          csrfToken = json.data.csrf_token;
+          return csrfToken;
+        }
+      } catch {
+        // CSRF token fetch is best-effort
+      }
+      return null;
+    })();
+  }
+
+  try {
+    return await csrfFetchPromise;
+  } finally {
+    csrfFetchPromise = null;
+  }
+}
+
+/** Clear the cached CSRF token (e.g. after a CSRF rejection). */
+export function clearCsrfToken(): void {
+  csrfToken = null;
+}
+
 class ApiClient {
   private baseUrl: string;
 
   constructor(baseUrl: string) {
     this.baseUrl = baseUrl;
-  }
-
-  /** Fetch a CSRF token from the server (cached, with dedup guard) */
-  private async getCsrfToken(): Promise<string | null> {
-    if (csrfToken) return csrfToken;
-
-    // Deduplicate concurrent fetches
-    if (!csrfFetchPromise) {
-      csrfFetchPromise = (async () => {
-        try {
-          const res = await fetch(`${this.baseUrl}/v1/auth/csrf/token`, {
-            credentials: "include",
-          });
-          const json = await res.json();
-          if (json.ok && json.data?.csrf_token) {
-            csrfToken = json.data.csrf_token;
-            return csrfToken;
-          }
-        } catch {
-          // CSRF token fetch is best-effort
-        }
-        return null;
-      })();
-    }
-
-    try {
-      return await csrfFetchPromise;
-    } finally {
-      csrfFetchPromise = null;
-    }
   }
 
   async request<T>(path: string, options: FetchOptions = {}): Promise<T> {
@@ -87,7 +96,7 @@ class ApiClient {
 
     // Add CSRF token for state-changing requests
     if (method !== "GET" && method !== "HEAD" && method !== "OPTIONS") {
-      const token = await this.getCsrfToken();
+      const token = await getCsrfToken();
       if (token) {
         headers["X-CSRF-Token"] = token;
       }
@@ -111,17 +120,25 @@ class ApiClient {
     }
 
     if (!res.ok || !json.ok) {
-      const error = (json.error as { code?: string; message?: string }) || {
-        message: "Request failed",
-      };
+      const error =
+        (json.error as { code?: string; message?: string; details?: unknown }) || {
+          message: "Request failed",
+        };
+
+      // A retry SUPERSEDES the first response. When one happens and still
+      // fails, the error we throw must describe the RETRY — otherwise the
+      // request id we hand the user points at a log showing only the CSRF
+      // rejection or the 401, not the failure they actually hit.
+      let finalRes = res;
+      let finalJson = json;
 
       // If CSRF token was rejected, clear cache and retry once
       if (
         (error.code === "CSRF_INVALID" || error.code === "CSRF_MISSING") &&
         method !== "GET"
       ) {
-        csrfToken = null;
-        const retryToken = await this.getCsrfToken();
+        clearCsrfToken();
+        const retryToken = await getCsrfToken();
         if (retryToken) {
           headers["X-CSRF-Token"] = retryToken;
           const retryRes = await fetch(url, {
@@ -129,15 +146,23 @@ class ApiClient {
             ...fetchOptions,
             headers,
           });
-          const retryJson = (await retryRes.json()) as Record<string, unknown>;
-          if (retryRes.ok && retryJson.ok) {
-            return retryJson.data as T;
+          try {
+            const retryJson = (await retryRes.json()) as Record<string, unknown>;
+            if (retryRes.ok && retryJson.ok) {
+              return retryJson.data as T;
+            }
+            finalRes = retryRes;
+            finalJson = retryJson;
+          } catch {
+            // Non-JSON on the retry — keep the ORIGINAL server error.
+            // Letting the SyntaxError escape here would discard the only
+            // useful diagnosis.
           }
         }
       }
 
       // Auto-refresh on 401: call /auth/refresh to renew access_token, then retry once
-      if (res.status === 401 && !path.includes("/auth/refresh")) {
+      if (finalRes.status === 401 && !path.includes("/auth/refresh")) {
         const refreshed = await this.tryRefresh();
         if (refreshed) {
           // Retry the original request with fresh access_token cookie
@@ -151,16 +176,27 @@ class ApiClient {
             if (retryRes.ok && retryJson.ok) {
               return retryJson.data as T;
             }
+            finalRes = retryRes;
+            finalJson = retryJson;
           } catch {
-            // Fall through to original error
+            // Keep whatever we had — see above.
           }
         }
       }
 
+      const errorEnvelope =
+        (finalJson.error as {
+          code?: string;
+          message?: string;
+          details?: unknown;
+        }) || error;
+
       throw new ApiError(
-        error.code || "UNKNOWN",
-        error.message || "Request failed",
-        res.status
+        errorEnvelope.code || "UNKNOWN",
+        errorEnvelope.message || "Request failed",
+        finalRes.status,
+        requestIdOf(finalJson),
+        errorEnvelope.details
       );
     }
 
@@ -221,8 +257,17 @@ class ApiClient {
       throw new ApiError("PARSE_ERROR", `Server returned non-JSON response (${res.status})`, res.status);
     }
     if (!res.ok || !json.ok) {
-      const error = (json.error as { code?: string; message?: string }) || { message: "Request failed" };
-      throw new ApiError(error.code || "UNKNOWN", error.message || "Request failed", res.status);
+      const error =
+        (json.error as { code?: string; message?: string; details?: unknown }) || {
+          message: "Request failed",
+        };
+      throw new ApiError(
+        error.code || "UNKNOWN",
+        error.message || "Request failed",
+        res.status,
+        requestIdOf(json),
+        error.details
+      );
     }
     return { data: json.data as T, meta: (json.meta as Record<string, unknown>) ?? {} };
   }
@@ -262,7 +307,7 @@ class ApiClient {
       throw new ApiError("CONFIG_ERROR", "NEXT_PUBLIC_API_URL is not configured", 0);
     }
     const headers: Record<string, string> = {};
-    const token = await this.getCsrfToken();
+    const token = await getCsrfToken();
     if (token) headers["X-CSRF-Token"] = token;
 
     const doFetch = () =>
@@ -286,8 +331,17 @@ class ApiClient {
       throw new ApiError("PARSE_ERROR", `Server returned non-JSON response (${res.status})`, res.status);
     }
     if (!res.ok || !json.ok) {
-      const error = (json.error as { code?: string; message?: string }) || { message: "Upload failed" };
-      throw new ApiError(error.code || "UNKNOWN", error.message || "Upload failed", res.status);
+      const error =
+        (json.error as { code?: string; message?: string; details?: unknown }) || {
+          message: "Upload failed",
+        };
+      throw new ApiError(
+        error.code || "UNKNOWN",
+        error.message || "Upload failed",
+        res.status,
+        requestIdOf(json),
+        error.details
+      );
     }
     return json.data as T;
   }
@@ -302,7 +356,7 @@ class ApiClient {
     const headers: Record<string, string> = {};
     if (body) headers["Content-Type"] = "application/json";
 
-    const token = await this.getCsrfToken();
+    const token = await getCsrfToken();
     if (token) headers["X-CSRF-Token"] = token;
 
     const fetchOpts: RequestInit = {
@@ -321,8 +375,8 @@ class ApiClient {
         | null;
       const code = errJson?.error?.code;
       if (code === "CSRF_INVALID" || code === "CSRF_MISSING") {
-        csrfToken = null;
-        const retryToken = await this.getCsrfToken();
+        clearCsrfToken();
+        const retryToken = await getCsrfToken();
         if (retryToken) {
           (fetchOpts.headers as Record<string, string>)["X-CSRF-Token"] = retryToken;
           res = await fetch(`${this.baseUrl}${path}`, fetchOpts);
@@ -340,13 +394,15 @@ class ApiClient {
 
     if (!res.ok) {
       const json = (await res.json().catch(() => null)) as
-        | { error?: { code?: string; message?: string } }
+        | { error?: { code?: string; message?: string; details?: unknown } }
         | null;
       const error = json?.error;
       throw new ApiError(
         error?.code || "STREAM_ERROR",
         error?.message || `Request failed (${res.status})`,
-        res.status
+        res.status,
+        requestIdOf(json as Record<string, unknown> | null),
+        error?.details
       );
     }
 
@@ -358,11 +414,40 @@ export class ApiError extends Error {
   constructor(
     public code: string,
     message: string,
-    public status: number
+    public status: number,
+    /**
+     * `meta.request_id` from the api envelope, when the response had
+     * one. The api puts it on EVERY response and logs the full provider
+     * detail against it, so this is the handle that lets support find
+     * what actually went wrong — without us rendering raw provider text
+     * (which can carry internal ids and config names) to the user.
+     */
+    public requestId?: string,
+    /**
+     * `error.details` from the api envelope, verbatim.
+     *
+     * ★Structured 409s carry the caller's next decision in here, not just prose:
+     * the LinkedIn Page toggle refuses with QUEUED_POSTS_AFFECTED and returns the
+     * scheduled posts the change would break, so the dialog can list them and
+     * offer a choice. Dropping details on the floor — as this class did — left a
+     * client with nothing but a message string and no way to act on it.
+     *
+     * `unknown` on purpose: the shape is per-code, and each caller narrows the
+     * one it asked for rather than this class pretending to know them all.
+     */
+    public details?: unknown
   ) {
     super(message);
     this.name = "ApiError";
   }
+}
+
+/** Pull `meta.request_id` out of a parsed api envelope, if present. */
+function requestIdOf(json: Record<string, unknown> | null | undefined): string | undefined {
+  const meta = json?.meta as { request_id?: unknown } | undefined;
+  return typeof meta?.request_id === "string" && meta.request_id !== "unknown"
+    ? meta.request_id
+    : undefined;
 }
 
 export const api = new ApiClient(API_URL);

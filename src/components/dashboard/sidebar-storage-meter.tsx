@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { getStorageUsage } from "@/lib/api/media";
-import { StorageMeter } from "@/app/dashboard/media/storage-meter";
+import { StorageMeter } from "@/app/(site)/dashboard/media/storage-meter";
 
 /**
  * Always-visible storage meter in the dashboard sidebar footer (Media

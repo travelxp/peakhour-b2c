@@ -1,0 +1,859 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import Link from "next/link";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { api, ApiError } from "@/lib/api";
+import {
+  toastUnhandledApiError,
+  toastAdAccountNotAuthorized,
+  toastAdAccountForbidden,
+  RECONNECT_NUANCE,
+} from "@/lib/toast-errors";
+import {
+  reconnectHref,
+  ADS_LINKEDIN_PATH,
+  LINKEDIN_ADS_PROVIDER,
+} from "@/lib/integrations-connect";
+import {
+  linkedInAdsApi,
+  type ManagedCampaign,
+  type ManagedCampaignStatus,
+} from "@/lib/api/linkedin-ads";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { AdvertisingDeclarationCard } from "@/components/ads/advertising-declaration-card";
+import { formatDeclaredAt } from "@/lib/ads-copy";
+import { flightEndBanner, flightEndDetail } from "@/lib/flight-end-copy";
+import { EmptyState } from "@/components/molecules/empty-state";
+import { AdAccountPicker, NoAdAccountState } from "./ad-account-picker";
+import {
+  AlertTriangle,
+  Archive,
+  Megaphone,
+  Pause,
+  Play,
+  RefreshCw,
+  Rocket,
+  Target,
+} from "lucide-react";
+import { AudienceCard } from "./audience-card";
+import { LeadFormsPanel } from "./lead-forms-panel";
+import { TargetingDialog, editorTargeting } from "./targeting-dialog";
+import { UseSavedAudienceDialog } from "@/components/audience/use-saved-audience-dialog";
+
+/**
+ * LinkedIn Ads panel (G1 MVP) — the Growth pillar's first live surface,
+ * rendered inside the shared Ads hub (`/dashboard/ads?channel=linkedin`).
+ * The hub owns the page header, channel selector, and CronToolbar; this
+ * component owns everything below it, including its own connection gate.
+ *
+ * Lists the business's MANAGED campaigns (Peakhour-created via
+ * Boost-to-Campaign / the WhatsApp BOOST workflow — all born as
+ * non-serving LinkedIn drafts) with live performance, and owns the one
+ * spend-enabling action in the product: Activate, behind an explicit
+ * confirm. Campaigns created directly in LinkedIn's own Campaign
+ * Manager are out of scope here (no import yet).
+ */
+
+interface ApiIntegration {
+  provider: string;
+  connected?: boolean;
+  status?: string;
+}
+
+/** Reconnect CTAs come back HERE, not to /dashboard/settings — this is the
+ *  surface whose work the reconnect was meant to unblock. */
+const RECONNECT_HREF = reconnectHref(ADS_LINKEDIN_PATH, LINKEDIN_ADS_PROVIDER);
+
+const STATUS_BADGE: Record<ManagedCampaignStatus, string> = {
+  draft: "bg-muted text-muted-foreground",
+  review: "bg-warning/15 text-warning-on-tint",
+  active: "bg-success/15 text-success-on-tint",
+  paused: "bg-warning/15 text-warning-on-tint",
+  completed: "bg-state-info/15 text-state-info-on-tint",
+  archived: "bg-muted/60 text-muted-foreground",
+};
+
+function formatMoney(value: number | undefined, currency?: string): string {
+  if (typeof value !== "number") return "—";
+  if (currency) {
+    try {
+      return new Intl.NumberFormat(undefined, {
+        style: "currency",
+        currency,
+        maximumFractionDigits: 2,
+      }).format(value);
+    } catch {
+      // Unknown ISO code — fall through to the plain render.
+    }
+  }
+  const rounded = Math.round(value * 100) / 100;
+  return currency ? `${currency} ${rounded}` : String(rounded);
+}
+
+// channelKey is part of the shared panel signature (see PANELS in the hub);
+// this panel owns no search params, so it doesn't need it.
+export function LinkedInAdsPanel() {
+  const integrations = useQuery({
+    queryKey: ["content-hub-integrations"],
+    queryFn: () =>
+      api.get<{ integrations: ApiIntegration[] }>("/v1/integrations"),
+    staleTime: 30_000,
+  });
+
+  const adsConnection = useMemo(
+    () => integrations.data?.integrations?.find((i) => i.provider === "linkedin_ads"),
+    [integrations.data],
+  );
+  const isConnected =
+    adsConnection?.connected === true || adsConnection?.status === "needs_reauth";
+
+  return (
+    <div className="space-y-6">
+      {/* Before the connection gate, deliberately: a revoked connection is a
+          state that makes the protective auto-pause fail PERMANENTLY, and the
+          gate below renders an EmptyState — which used to hide this warning in
+          the one case it matters most. */}
+      <SpendAlarmBanner />
+      <FlightEndBanner canUseRowControls={isConnected} />
+      {/* Above the gate for the same reason, plus one of its own: the
+          declaration governs every campaign create including the autonomous
+          ones, and a business can make it before it connects. Not on
+          /dashboard/optimizer — that page is FeatureGate'd on
+          growth.optimizer, so a business entitled to ads but not the
+          optimizer could boost campaigns and never be able to declare. */}
+      <AdvertisingDeclarationCard />
+      {integrations.isLoading ? (
+        <Card>
+          <CardContent className="space-y-3 p-6">
+            <Skeleton className="h-5 w-1/3" />
+            <Skeleton className="h-4 w-2/3" />
+            <Skeleton className="h-24 w-full" />
+          </CardContent>
+        </Card>
+      ) : integrations.isError ? (
+        <EmptyState
+          icon={RefreshCw}
+          title="Couldn't check your connections"
+          description="We couldn't load your integration status just now. Refresh in a moment — your campaigns are unaffected."
+        />
+      ) : !isConnected ? (
+        <EmptyState
+          icon={Megaphone}
+          title="Connect LinkedIn Ads to get started"
+          description="Connect your LinkedIn ad account, then boost your best organic posts into campaigns from the Content → LinkedIn → Boost tab. Campaigns are created as drafts — nothing spends until you activate it."
+          action={{ label: "Connect LinkedIn Ads", href: RECONNECT_HREF }}
+        />
+      ) : (
+        <>
+          {adsConnection?.status === "needs_reauth" ? (
+            <Card className="border-warning/30 bg-warning/5">
+              <CardContent className="flex items-center justify-between gap-4 p-4 text-sm">
+                <span>
+                  Your LinkedIn Ads connection is{" "}
+                  <span className="font-medium">stale</span>. Reconnect to
+                  boost posts, sync metrics, or change campaigns — the list
+                  below still works.
+                </span>
+                <Link
+                  href={RECONNECT_HREF}
+                  className="font-medium text-warning-on-tint underline underline-offset-4"
+                >
+                  Reconnect
+                </Link>
+              </CardContent>
+            </Card>
+          ) : null}
+          {/* ★ABOVE THE LISTS, because it decides what they contain. Every
+              surface below spends from — and is scoped to — the account chosen
+              here, so a picker sitting underneath them would be the answer to a
+              question the user had already given up on.
+              ★And it STAYS once chosen, quietly, rather than disappearing: the
+              confusion being fixed is "whose campaigns are these", and a line
+              naming the account these numbers belong to is the shortest
+              possible answer. It renders nothing on a pageless connection,
+              which has no Page to map. */}
+          <AdAccountPicker />
+          <CampaignsPanel />
+          {/* Below the campaigns, deliberately: a form is the thing a lead-gen
+              campaign needs BEFORE it can exist, but the campaign list is what
+              a returning customer came for. */}
+          <LeadFormsPanel />
+        </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Campaigns still SERVING past the budget cap the user set.
+ *
+ * The api derives `spendAlarm` (at/over cap AND still active), which covers
+ * both an auto-pause that failed and one that never ran.
+ *
+ * (That last case used to be the common one: campaigns created through the Ads
+ * Manager got no monitor at all, because the monitoring workflow started only
+ * from the WhatsApp BOOST command. Closed by the hourly sweep — P1, api#1030 —
+ * so this banner is now the escalation of a failure rather than the only
+ * protection there is.)
+ *
+ * Own component, mounted above the connection gate, sharing CampaignsPanel's
+ * queryKey (react-query dedupes, so no extra request).
+ */
+function SpendAlarmBanner() {
+  const campaigns = useQuery({
+    queryKey: ["linkedin-managed-campaigns"],
+    queryFn: () => linkedInAdsApi.managedCampaigns(),
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+  });
+  const overCap = (campaigns.data?.campaigns ?? []).filter((r) => r.spendAlarm?.overCap);
+  if (overCap.length === 0) return null;
+
+  return (
+    // role=alert (implies aria-live=assertive): money still going out past a
+    // cap is worth interrupting a screen-reader user for.
+    <Card role="alert" className="border-destructive/40 bg-destructive/5">
+      <CardContent className="space-y-2 p-4 text-sm">
+        <div className="flex items-start gap-2">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden="true" />
+          <div className="space-y-1">
+            <p className="font-medium text-destructive">
+              {overCap.length === 1
+                ? "A campaign is still running past its budget cap"
+                : `${overCap.length} campaigns are still running past their budget cap`}
+            </p>
+            <p className="text-muted-foreground">
+              LinkedIn may still be spending on{" "}
+              {overCap.length === 1 ? "it" : "them"}.{" "}
+              <strong className="font-medium text-foreground">
+                Pause {overCap.length === 1 ? "it" : "them"} in LinkedIn Campaign Manager
+              </strong>{" "}
+              — the Pause button here uses the same connection, so if that is
+              what failed it will fail again.
+            </p>
+            <ul className="space-y-1 pt-1">
+              {overCap.map((r) => (
+                <li key={r._id} className="text-muted-foreground">
+                  <span className="font-medium text-foreground">{r.name}</span>
+                  {" — "}
+                  {formatMoney(r.spendAlarm?.spend, r.currency)} of{" "}
+                  {formatMoney(r.spendAlarm?.cap, r.currency)}
+                  {r.spendAlarm?.reason ? `. ${r.spendAlarm.reason}.` : "."}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Campaigns that should have STOPPED and have not.
+ *
+ * ★THE STATE THIS RENDERS ONLY EXISTS BECAUSE THE MONITOR NOW REFUSES TO LIE.
+ * LinkedIn carries no `end` on a campaign's `runSchedule` — the flight window
+ * lives only on our row — and the monitor used to write `status: "completed"`
+ * locally with no platform call at all, so a campaign that had not also
+ * tripped its budget cap carried on serving indefinitely while this screen
+ * reported it finished. It now stops the campaign on LinkedIn first, and
+ * leaves the row `active` when it cannot.
+ *
+ * ★AND A SEPARATE BANNER FROM SpendAlarmBanner, DELIBERATELY. "You are over
+ * the cap you set" and "this should have stopped four days ago" are different
+ * asks with different remedies, and the population here is exactly the
+ * campaigns that UNDER-spend — so folding it into the spend banner would make
+ * it unreadable in the case where it matters most. A campaign in both states
+ * appears in both, which is the truth.
+ *
+ * ★AND THE CTA IS CAMPAIGN MANAGER, FOR THE REASON THE SPEND BANNER GIVES:
+ * Peakhour's own Pause uses the connection whose failure is why this is here.
+ * Hedged the same way, because for a rate limit or an undelivered request it
+ * very likely succeeds on retry.
+ */
+function FlightEndBanner({ canUseRowControls }: { canUseRowControls: boolean }) {
+  const campaigns = useQuery({
+    queryKey: ["linkedin-managed-campaigns"],
+    queryFn: () => linkedInAdsApi.managedCampaigns(),
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+  });
+  // ★MOUNTED WHETHER OR NOT THERE IS ANYTHING TO SAY, AND THAT IS THE POINT OF
+  // THE WRAPPER. A `role="status"` region that is inserted together with its
+  // content is announced by nobody: screen readers announce a polite live
+  // region when its CONTENTS change, not when the region itself appears. The
+  // fix for the double-announcement had removed the announcement.
+  const rows = campaigns.data?.campaigns ?? [];
+  // The banner cannot point at a row that is not on screen: it is mounted above
+  // the connection gate, and a revoked connection is the state most likely to
+  // produce these rows in the first place.
+  const copy = flightEndBanner(rows, canUseRowControls);
+
+  return (
+    <div role="status" aria-label="Campaigns past their end date">
+      {copy && (
+        <Card className="border-destructive/40 bg-destructive/5">
+          <CardContent className="space-y-2 p-4 text-sm">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden="true" />
+              <div className="space-y-1">
+                {/* "Warning:" carries the severity that colour alone conveys —
+                    the icon is aria-hidden and this region is polite. */}
+                <p className="font-medium text-destructive">
+                  <span className="sr-only">Warning: </span>
+                  {copy.headline}
+                </p>
+                <p className="text-muted-foreground">{copy.body}</p>
+                <ul className="space-y-1 pt-1">
+                  {copy.rows.map((r) => (
+                    <li key={r._id} className="text-muted-foreground">
+                      <span className="font-medium text-foreground">{r.name}</span>
+                      {" — "}
+                      {/* ★REUSED, NOT REWRITTEN. `formatDeclaredAt` already
+                          returns "" rather than the words "Invalid Date", which
+                          inside an alert about somebody's money reads as a bug
+                          in the alarm. A second formatter is how the two drift. */}
+                      {flightEndDetail(
+                        r.flightEndAlarm!,
+                        formatDeclaredAt(r.flightEndAlarm!.endsAt),
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+function CampaignsPanel() {
+  const queryClient = useQueryClient();
+  const campaigns = useQuery({
+    queryKey: ["linkedin-managed-campaigns"],
+    queryFn: () => linkedInAdsApi.managedCampaigns(),
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+  });
+
+  const invalidate = () =>
+    queryClient.invalidateQueries({ queryKey: ["linkedin-managed-campaigns"] });
+
+  if (campaigns.isLoading) {
+    return (
+      <Card>
+        <CardContent className="space-y-2 p-6">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-10 w-full" />
+          ))}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (campaigns.isError) {
+    // The list is a pure local read — no reauth special case exists.
+    return (
+      <EmptyState
+        icon={RefreshCw}
+        title="Couldn't load campaigns"
+        description="Try refreshing in a moment. If the problem persists, check your LinkedIn Ads connection."
+      />
+    );
+  }
+
+  const rows = campaigns.data?.campaigns ?? [];
+  if (rows.length === 0) {
+    // ★AN EMPTY LIST MEANS TWO DIFFERENT THINGS, AND ONLY ONE IS ACTIONABLE.
+    //
+    // The server returns the scope it resolved the list under. A Page with an
+    // ad account and no campaigns really has none — offer the Boost tab. A Page
+    // with NO ad account has campaigns we are deliberately not showing, because
+    // we cannot tell which of them are this brand's; telling that user to go
+    // make a campaign sends them to fix the wrong thing, and telling them
+    // nothing is how "Managed Campaigns shows the wrong brand" became a report
+    // in the first place.
+    if (campaigns.data?.pageId && !campaigns.data.adAccountId) {
+      return <NoAdAccountState what="campaigns" />;
+    }
+    return (
+      <EmptyState
+        icon={Rocket}
+        title="No campaigns yet"
+        description="Head to the Boost tab on your LinkedIn content hub — we rank your recent posts by boost-worthiness, and one click turns the winner into a draft campaign."
+        action={{ label: "See boost-worthy posts", href: "/dashboard/content/linkedin" }}
+      />
+    );
+  }
+
+  // ROI strip: blended CPQL across campaigns sharing the first row's
+  // currency (defensive — a mixed-currency edge must not make the sum
+  // lie). Qualified leads are the billable, conservatively-scored ones.
+  const stripCurrency = rows.find((r) => r.performance?.qualifiedLeads)?.currency;
+  const stripRows = rows.filter((r) => r.currency === stripCurrency);
+  const totalQualified = stripRows.reduce(
+    (sum, r) => sum + (r.performance?.qualifiedLeads ?? 0),
+    0,
+  );
+  const totalSpend = stripRows.reduce(
+    (sum, r) => sum + (r.budget?.spent ?? r.performance?.spend ?? 0),
+    0,
+  );
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-base font-semibold leading-none">Managed campaigns</h3>
+          <Badge
+            variant="outline"
+            className="text-[10px] uppercase tracking-wide"
+            title="Campaigns Peakhour created from your organic posts. All start as non-spending LinkedIn drafts; Activate is the only action that starts spend."
+          >
+            Draft-first
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="pt-0">
+        {totalQualified > 0 && (
+          <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-md border bg-muted/20 px-3 py-2 text-xs">
+            <span className="font-medium">Lead ROI</span>
+            <span className="tabular-nums">
+              {totalQualified} qualified lead{totalQualified === 1 ? "" : "s"}
+            </span>
+            <span className="tabular-nums">
+              CPQL {formatMoney(totalSpend / totalQualified, stripCurrency)}
+            </span>
+            <span className="text-muted-foreground">
+              spend ÷ qualified leads, across {stripCurrency} campaigns — leads land in your Inbox
+            </span>
+          </div>
+        )}
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Campaign</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="text-right">Daily budget</TableHead>
+              <TableHead className="text-right">Spent</TableHead>
+              <TableHead className="text-right">Impressions</TableHead>
+              <TableHead className="text-right">Clicks</TableHead>
+              <TableHead className="text-right">CTR</TableHead>
+              <TableHead
+                className="text-right"
+                title="Billable qualified leads · cost per qualified lead (spend ÷ qualified leads)"
+              >
+                Leads · CPQL
+              </TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((c) => (
+              <CampaignRow key={c._id} campaign={c} onChanged={invalidate} />
+            ))}
+          </TableBody>
+        </Table>
+        <p className="mt-3 border-t pt-2 text-[11px] text-muted-foreground">
+          Campaigns are created in LinkedIn as drafts under a draft group —
+          they cannot spend until you activate them. Set the audience with the
+          Audience button before activating. Every campaign is then checked
+          hourly and paused automatically when spend reaches the total budget
+          you set, or when it passes its end date — LinkedIn is not given an end
+          date of its own, so that stop is ours to make. If either one fails you
+          are told above; that is your signal to stop it in LinkedIn Campaign
+          Manager.
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
+function CampaignRow({
+  campaign,
+  onChanged,
+}: {
+  campaign: ManagedCampaign;
+  onChanged: () => void;
+}) {
+  const [confirmActivate, setConfirmActivate] = useState(false);
+  const [confirmArchive, setConfirmArchive] = useState(false);
+  const [targetingOpen, setTargetingOpen] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
+
+  const status = useMutation({
+    mutationFn: (next: "active" | "paused" | "archived") =>
+      linkedInAdsApi.setStatus(campaign._id, next),
+    onSuccess: (_data, next) => {
+      toast.success(
+        next === "active"
+          ? "Campaign activated — LinkedIn will start delivery once its review passes."
+          : next === "paused"
+            ? "Campaign paused."
+            : "Campaign archived.",
+      );
+      onChanged();
+    },
+    onError: (err) => {
+      const code = err instanceof ApiError ? err.code : undefined;
+      if (code === "NEEDS_REAUTH" || code === "NOT_CONNECTED") {
+        toast.error("LinkedIn Ads needs a reconnect before changing campaigns.", {
+          description: RECONNECT_NUANCE,
+          action: {
+            label: "Reconnect",
+            onClick: () => { window.location.href = RECONNECT_HREF; },
+          },
+        });
+      } else if (code === "AD_ACCOUNT_NOT_AUTHORIZED") {
+        // A 403 that looks like a token problem and isn't — no Reconnect
+        // CTA here, it can't clear it. See toastAdAccountNotAuthorized.
+        toastAdAccountNotAuthorized(err, "Changing campaigns");
+      } else if (code === "AD_ACCOUNT_FORBIDDEN") {
+        // Advertiser-fixable, but in LinkedIn Campaign Manager — so no
+        // Reconnect CTA. Deliberately NOT latched like the not-authorised
+        // case: once a billing hold is cleared the very same request works,
+        // so the button stays live. The helper keeps the request id on the
+        // toast — this code is also the api's unattributable-403 catch-all.
+        toastAdAccountForbidden(err, "LinkedIn refused this ad account.");
+      } else if (code === "INVALID_TRANSITION") {
+        toast.error("That status change isn't possible from the campaign's current state.");
+        // The row is by definition stale — resync the table.
+        onChanged();
+      } else if (code === "NO_PLATFORM_ID" || code === "VALIDATION_GROUP_ID_REQUIRED") {
+        toast.error(
+          "This campaign is missing its LinkedIn identity and can't be changed from here — contact support.",
+        );
+      } else if (code === "RATE_LIMITED") {
+        toast.error("LinkedIn is rate-limiting us — give it a minute and try again.");
+      } else if (code === "STATUS_PERSIST_FAILED") {
+        // Qualified FAILURE, and the most important message on this
+        // surface: the platform change DID apply — for "active" that
+        // means LinkedIn is now spending — and only our mirror failed.
+        // The server text is hardcoded and says exactly that, so it is
+        // shown verbatim; routing this through the generic handler would
+        // leave the user unaware that spend had started.
+        onChanged();
+        toast.warning((err as ApiError).message, { duration: Infinity });
+      } else {
+        toastUnhandledApiError(err, "update the campaign", "LinkedIn");
+      }
+    },
+  });
+
+  const sync = useMutation({
+    mutationFn: () => linkedInAdsApi.syncCampaign(campaign._id),
+    onSuccess: () => {
+      toast.success("Campaign metrics refreshed.");
+      onChanged();
+    },
+    onError: (err) => {
+      const code = err instanceof ApiError ? err.code : undefined;
+      if (code === "NEEDS_REAUTH" || code === "NOT_CONNECTED") {
+        toast.error("LinkedIn Ads needs a reconnect before syncing metrics.", {
+          action: {
+            label: "Reconnect",
+            onClick: () => { window.location.href = RECONNECT_HREF; },
+          },
+        });
+      } else if (code === "AD_ACCOUNT_NOT_AUTHORIZED") {
+        toastAdAccountNotAuthorized(err, "Refreshing metrics");
+      } else if (code === "AD_ACCOUNT_FORBIDDEN") {
+        toastAdAccountForbidden(err, "LinkedIn refused this ad account.");
+      } else if (code === "RATE_LIMITED") {
+        toast.error("LinkedIn is rate-limiting us — give it a minute and try again.");
+      } else {
+        toastUnhandledApiError(err, "refresh the metrics", "LinkedIn");
+      }
+    },
+  });
+
+  const busy = status.isPending || sync.isPending;
+  const perf = campaign.performance;
+  const canActivate =
+    ["draft", "review", "paused"].includes(campaign.status) &&
+    Boolean(campaign.platformCampaignId && campaign.platformCampaignGroupId);
+  const canPause = campaign.status === "active";
+  // Rows without a platform campaign (WhatsApp-approval "review"
+  // markers) are workflow-owned: the server 409s NO_PLATFORM_ID on any
+  // status change, so offering actions would only produce dead-end
+  // errors. They resolve via the WhatsApp flow (or expire to archived).
+  const canArchive =
+    !["archived"].includes(campaign.status) && Boolean(campaign.platformCampaignId);
+  const canSync = Boolean(campaign.platformCampaignId);
+  const canTarget =
+    Boolean(campaign.platformCampaignId) &&
+    !["archived", "completed"].includes(campaign.status);
+  // Editor-shaped targeting (workflow rows carry a legacy free-form
+  // object instead — feature-detected by the shared helper).
+  const hasAudience =
+    (editorTargeting(campaign.targeting)?.facets?.locations?.length ?? 0) > 0;
+  // ★THE AUDIENCE GETS ITS OWN ROW, not a tooltip. It is the thing that decides
+  // who sees the ad and where the money goes, and for a year it was recorded in
+  // a column nothing rendered. A second row rather than a cell because the
+  // basis is a list of readable chips and this table is already nine columns
+  // wide.
+  const showAudience = Boolean(campaign.targetingProvenance?.basis?.length);
+
+  return (
+    <>
+    <TableRow className={showAudience ? "border-b-0" : undefined}>
+      <TableCell className="max-w-[260px]">
+        <p className="truncate text-sm font-medium" title={campaign.name}>
+          {campaign.name}
+        </p>
+        {campaign.schedule?.durationDays ? (
+          <p className="text-[11px] text-muted-foreground">
+            {campaign.schedule.durationDays}-day flight
+          </p>
+        ) : null}
+      </TableCell>
+      <TableCell>
+        <span
+          className={`inline-flex rounded-sm px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide ${STATUS_BADGE[campaign.status] ?? STATUS_BADGE.draft}`}
+        >
+          {campaign.status}
+        </span>
+      </TableCell>
+      <TableCell className="text-right text-sm tabular-nums">
+        {formatMoney(campaign.budget?.daily, campaign.currency)}
+      </TableCell>
+      <TableCell className="text-right text-sm tabular-nums">
+        {formatMoney(campaign.budget?.spent ?? perf?.spend, campaign.currency)}
+      </TableCell>
+      <TableCell className="text-right text-sm tabular-nums">
+        {perf ? perf.impressions.toLocaleString() : "—"}
+      </TableCell>
+      <TableCell className="text-right text-sm tabular-nums">
+        {perf ? perf.clicks.toLocaleString() : "—"}
+      </TableCell>
+      <TableCell className="text-right text-sm tabular-nums">
+        {perf ? `${(perf.ctr * 100).toFixed(2)}%` : "—"}
+      </TableCell>
+      <TableCell className="text-right text-sm tabular-nums">
+        {perf?.qualifiedLeads
+          ? `${perf.qualifiedLeads} · ${formatMoney(
+              (campaign.budget?.spent ?? perf.spend ?? 0) / perf.qualifiedLeads,
+              campaign.currency,
+            )}`
+          : "—"}
+      </TableCell>
+      <TableCell>
+        <div className="flex items-center justify-end gap-1">
+          {canSync ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="h-7 px-2"
+              disabled={busy}
+              title="Refresh live metrics from LinkedIn"
+              aria-label="Refresh live metrics from LinkedIn"
+              onClick={() => sync.mutate()}
+            >
+              <RefreshCw className={`size-3 ${sync.isPending ? "animate-spin" : ""}`} />
+            </Button>
+          ) : null}
+          {/* ★ONE DOOR, AND IT OPENS ON WHAT WE SUGGEST. This used to be two
+              buttons — "Set audience" straight into a blank LinkedIn facet
+              picker, and "Saved" into the library beside it — which made
+              hand-picking URNs the default route and the engine's own
+              recommendations the thing you had to know to look for. The picker
+              now leads with our suggestions, offers the customer's own
+              audiences under them, and keeps the facet editor as the escape
+              hatch it should always have been.
+
+              Applying spends nothing either way — a draft stays a draft. */}
+          {canTarget ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-7 px-2 text-xs"
+              disabled={busy}
+              title={
+                hasAudience
+                  ? "Change who sees this campaign"
+                  : "Set the audience (required before the campaign can serve)"
+              }
+              onClick={() => setLibraryOpen(true)}
+            >
+              <Target className="mr-1 size-3" />
+              {hasAudience ? "Audience" : "Set audience"}
+            </Button>
+          ) : null}
+          {canActivate ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="default"
+              className="h-7 px-2 text-xs"
+              disabled={busy}
+              title="Activate — this is the step that starts real ad spend"
+              onClick={() => setConfirmActivate(true)}
+            >
+              <Play className="mr-1 size-3" />
+              Activate
+            </Button>
+          ) : null}
+          {canPause ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-7 px-2 text-xs"
+              disabled={busy}
+              onClick={() => status.mutate("paused")}
+            >
+              <Pause className="mr-1 size-3" />
+              Pause
+            </Button>
+          ) : null}
+          {canArchive ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="h-7 px-2"
+              disabled={busy}
+              title="Archive campaign (permanent)"
+              aria-label="Archive campaign (permanent)"
+              onClick={() => setConfirmArchive(true)}
+            >
+              <Archive className="size-3" />
+            </Button>
+          ) : null}
+        </div>
+
+        {targetingOpen ? (
+          <TargetingDialog
+            open={targetingOpen}
+            onOpenChange={setTargetingOpen}
+            campaign={campaign}
+          />
+        ) : null}
+
+        {libraryOpen ? (
+          <UseSavedAudienceDialog
+            open={libraryOpen}
+            onOpenChange={setLibraryOpen}
+            campaignId={campaign._id}
+            campaignName={campaign.name}
+            // The campaign's OWN channel, which is what the api materialises
+            // the set for. Every row in THIS panel is linkedin — the route
+            // filters on it server-side and `platform` is required on the type,
+            // so this changes nothing today; it is what stops the picker being
+            // wrong the day a campaign list carries a second channel.
+            platform={campaign.platform}
+            // ★WHAT THIS CAMPAIGN IS FOR, so the picker can lead with the
+            // audiences worked out for that and not merely with everything we
+            // have ever suggested. `ad_campaigns.objective` is the same
+            // four-value enum the planner takes, so nothing maps between them.
+            objective={campaign.objective}
+            // The facet editor, handed the campaign this picker was opened
+            // for. Ownership stays here: nesting one modal inside another is
+            // how a Cancel closes the wrong dialog.
+            onBuildByHand={() => setTargetingOpen(true)}
+          />
+        ) : null}
+
+        <AlertDialog open={confirmArchive} onOpenChange={setConfirmArchive}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Archive this campaign?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Archiving &ldquo;{campaign.name}&rdquo; stops it permanently on
+                LinkedIn{campaign.status === "active" ? " (it is currently active)" : ""} —
+                archived campaigns can&apos;t be reactivated here or in Campaign
+                Manager.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Keep it</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  setConfirmArchive(false);
+                  status.mutate("archived");
+                }}
+              >
+                Archive permanently
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog open={confirmActivate} onOpenChange={setConfirmActivate}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Start spending on this campaign?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Activating &ldquo;{campaign.name}&rdquo; also activates its
+                LinkedIn campaign group and submits the campaign for delivery at{" "}
+                <span className="font-medium">
+                  {formatMoney(campaign.budget?.daily, campaign.currency)}/day
+                </span>
+                {typeof campaign.budget?.total === "number" ? (
+                  <>
+                    {" "}
+                    (up to {formatMoney(campaign.budget.total, campaign.currency)}{" "}
+                    total — we auto-pause at that cap)
+                  </>
+                ) : null}
+                .{" "}
+                {hasAudience
+                  ? "Its audience is set — LinkedIn will review, then deliver."
+                  : "No audience is set yet — use the Audience button first, or LinkedIn will reject delivery."}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Not yet</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  setConfirmActivate(false);
+                  status.mutate("active");
+                }}
+              >
+                Activate &amp; start spend
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </TableCell>
+    </TableRow>
+      {showAudience ? (
+        <TableRow className="hover:bg-transparent">
+          {/* Spans the whole row: the audience describes the campaign, not any
+              one of its numbers. */}
+          <TableCell colSpan={9} className="pt-0">
+            <AudienceCard campaign={campaign} />
+          </TableCell>
+        </TableRow>
+      ) : null}
+    </>
+  );
+}

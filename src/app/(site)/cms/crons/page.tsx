@@ -1,0 +1,178 @@
+"use client";
+
+/**
+ * /cms/crons — Dev cron hub. Lists every cron handler that can be manually
+ * triggered (the same whitelist the api enforces), with the <CronToolbar/>
+ * above holding the actual trigger buttons — the rows below are reference,
+ * not controls. Crons whose effects leave Peakhour are marked and confirm
+ * before firing; which those are comes from the api, never a list here.
+ *
+ * Vercel Cron only runs on production deployments, so previews + local
+ * dev had no UI way to exercise cron paths. This page is the central
+ * spot; contextual <CronToolbar/> components on dashboard pages cover
+ * the per-page case.
+ *
+ * Server-side: /v1/dev/cron and /v1/dev/cron/:name return 403 on
+ * production, so this page degrades to "no crons available" there. The
+ * client-side NEXT_PUBLIC_VERCEL_ENV check is a UX-only gate; the
+ * server is the real protection.
+ */
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { CronToolbar } from "@/components/dev/cron-toolbar";
+import { getCronMetadata } from "@/components/dev/cron-metadata";
+import { AlertTriangle, Zap } from "lucide-react";
+
+interface DevCronList {
+  env: string;
+  /** APP_ENV, which the api's production gate also consults — reported so this
+   *  page can't show an environment that disagrees with the one that decided. */
+  appEnv?: string | null;
+  crons: string[];
+  /** Crons the api refuses without an explicit confirmation. Optional because
+   *  this page and the api deploy separately; absent simply means no cron is
+   *  pre-confirmed here and the api's own refusal is the backstop. */
+  requiresConfirmation?: string[];
+  /** Crons only staff may fire. ★Also what tells the two DANGERS apart:
+   *  outside our database, or irreversibly inside it. */
+  requiresInternalUser?: string[];
+}
+
+export default function CmsCronsPage() {
+  const { data, isLoading, isError, error } = useQuery({
+    queryKey: ["dev-crons"],
+    queryFn: () => api.get<DevCronList>("/v1/dev/cron"),
+    // No retry on 403 (production deployment will always reject) — let
+    // the error surface so the user sees the gating message immediately.
+    retry: false,
+    staleTime: 60_000,
+  });
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+          <Zap className="size-6" />
+          Dev Cron Hub
+        </h2>
+        <p className="text-muted-foreground">
+          Manually trigger any cron handler. Vercel Cron only fires on production
+          deployments — this hub covers preview + local dev.
+        </p>
+      </div>
+
+      {isLoading && (
+        <div className="grid gap-2">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-12 w-full" />
+          ))}
+        </div>
+      )}
+
+      {isError && (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-start gap-2 text-sm">
+              <AlertTriangle className="size-4 text-warning mt-0.5 shrink-0" />
+              <div>
+                <p className="font-medium">Cron hub unavailable</p>
+                <p className="text-muted-foreground mt-1">
+                  This usually means you&apos;re on a production deployment (the
+                  /v1/dev namespace is server-side-blocked on prod). Dev cron
+                  triggers are only available on preview + local dev.
+                </p>
+                {error instanceof Error && (
+                  <p className="text-xs text-muted-foreground mt-2 font-mono">{error.message}</p>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {data && (
+        <>
+          <div className="flex items-center gap-2 text-xs">
+            <span className="text-muted-foreground">Environment:</span>
+            {/* Both signals, because the api's gate refuses on EITHER — showing
+                one lets this page display an env that didn't decide anything.
+                `undefined` means an api older than the field; `null` means
+                APP_ENV genuinely isn't set, which is itself the diagnostic
+                (the api can't tell dev from prod without it). Rendering those
+                two identically would hide the case worth seeing. */}
+            <Badge variant="outline">VERCEL_ENV {data.env}</Badge>
+            {data.appEnv !== undefined ? (
+              <Badge variant="outline">APP_ENV {data.appEnv ?? "unset"}</Badge>
+            ) : null}
+            <span className="text-muted-foreground">·</span>
+            <span className="text-muted-foreground">{data.crons.length} crons</span>
+          </div>
+          {/* The toolbar pattern, applied to every cron at once — same
+              friendly labels + hover tooltips as the per-page toolbars.
+              `requiresConfirmation` comes straight from the api so the
+              dangerous ones ask before firing rather than 400-ing into a
+              "try again" that can never succeed. */}
+          <CronToolbar
+            crons={data.crons}
+            requiresConfirmation={data.requiresConfirmation}
+            requiresInternalUser={data.requiresInternalUser}
+          />
+          <Card>
+            <CardContent className="pt-6">
+              <div className="grid gap-2">
+                {data.crons.map((name) => {
+                  const meta = getCronMetadata(name);
+                  // The same marker the toolbar button carries. Without it the
+                  // identical cron reads as dangerous above and ordinary in the
+                  // list right below, which teaches people to ignore the ⚠️.
+                  const guarded = data.requiresConfirmation?.includes(name) ?? false;
+                  const internalOnly = data.requiresInternalUser?.includes(name) ?? false;
+                  return (
+                    <div
+                      key={name}
+                      className="flex items-start justify-between border-b pb-2 last:border-b-0 last:pb-0"
+                    >
+                      <div className="flex flex-col">
+                        <span className="font-medium text-sm">
+                          {guarded || internalOnly ? `⚠️ ${meta.label}` : meta.label}
+                        </span>
+                        {/* ★`guarded || internalOnly` — the api's two sets are
+                            independent, and a cron listed only in
+                            `requiresInternalUser` rendered unmarked. */}
+                        {guarded || internalOnly ? (
+                          <span
+                            className={
+                              internalOnly
+                                ? "text-xs font-medium text-destructive-on-tint"
+                                : "text-xs font-medium text-warning-on-tint"
+                            }
+                          >
+                            {internalOnly
+                              ? "Erases data inside Peakhour, irreversibly, across every tenant on this environment — staff only"
+                              : "Reaches outside Peakhour — asks before running"}
+                          </span>
+                        ) : null}
+                        <span className="text-xs text-muted-foreground">
+                          {meta.frequency}
+                        </span>
+                        <span className="text-xs text-muted-foreground/80 mt-1 max-w-2xl">
+                          {meta.description}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground/60 font-mono mt-1">
+                          cron: {name}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        </>
+      )}
+    </div>
+  );
+}

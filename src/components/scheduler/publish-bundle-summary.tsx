@@ -18,7 +18,7 @@ import {
   RotateCw,
   XCircle,
 } from "lucide-react";
-import { ChannelIconCompact } from "@/components/ui/channel-icon";
+import { ChannelIconCompact } from "@/components/brand/channel-icon";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -93,7 +93,7 @@ export function PublishBundleSummary({
             <Button
               variant="ghost"
               size="sm"
-              className="h-7 px-2 text-xs text-destructive hover:text-destructive"
+              className="h-7 px-2 text-xs text-destructive"
               onClick={onCancel}
             >
               Cancel
@@ -103,7 +103,7 @@ export function PublishBundleSummary({
       </CardHeader>
       <CardContent className="space-y-2 pt-0">
         {(staleCount > 0 || needsActionCount > 0) && (
-          <div className="flex items-start gap-2 rounded-md border border-amber-300/60 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-700/40 dark:bg-amber-950/30 dark:text-amber-200">
+          <div className="flex items-start gap-2 rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning-on-tint">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
             <div className="flex-1">
               {staleCount > 0 && (
@@ -124,7 +124,7 @@ export function PublishBundleSummary({
               <Button
                 size="sm"
                 variant="outline"
-                className="h-7 border-amber-300 px-2 text-xs"
+                className="h-7 border-warning/30 px-2 text-xs"
                 onClick={onRefreshStale}
               >
                 Refresh
@@ -142,7 +142,7 @@ export function PublishBundleSummary({
                 key={item._id}
                 className={cn(
                   "flex items-center gap-3 px-3 py-2",
-                  item.payloadStale && "bg-amber-50/50 dark:bg-amber-950/20",
+                  item.payloadStale && "bg-warning/5",
                 )}
               >
                 <ChannelIconCompact channel={item.channel} size={16} />
@@ -158,13 +158,13 @@ export function PublishBundleSummary({
                   className={cn(
                     "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium",
                     tone === "success" &&
-                      "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300",
+                      "bg-success/15 text-success-on-tint",
                     tone === "info" &&
-                      "bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300",
+                      "bg-state-info/15 text-state-info-on-tint",
                     tone === "warn" &&
-                      "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300",
+                      "bg-warning/15 text-warning-on-tint",
                     tone === "error" &&
-                      "bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300",
+                      "bg-destructive/15 text-destructive-on-tint",
                     tone === "neutral" && "bg-muted text-muted-foreground",
                   )}
                 >
@@ -196,18 +196,18 @@ export function NextActionScheduleSlot({
       className={cn(
         "flex items-center gap-3 rounded-lg border p-3",
         item.status === "needs_action" &&
-          "border-amber-300 bg-amber-50 dark:bg-amber-950/30",
-        item.payloadStale && "border-amber-300",
+          "border-warning/30 bg-warning/10",
+        item.payloadStale && "border-warning/30",
         className,
       )}
     >
       <div
         className={cn(
           "inline-flex h-9 w-9 items-center justify-center rounded-full",
-          tone === "success" && "bg-emerald-100 text-emerald-700",
-          tone === "info" && "bg-sky-100 text-sky-700",
-          tone === "warn" && "bg-amber-100 text-amber-700",
-          tone === "error" && "bg-rose-100 text-rose-700",
+          tone === "success" && "bg-success/15 text-success-on-tint",
+          tone === "info" && "bg-state-info/15 text-state-info-on-tint",
+          tone === "warn" && "bg-warning/15 text-warning-on-tint",
+          tone === "error" && "bg-destructive/15 text-destructive-on-tint",
           tone === "neutral" && "bg-muted text-muted-foreground",
         )}
       >

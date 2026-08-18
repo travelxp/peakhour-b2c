@@ -80,6 +80,23 @@ export interface LinkedInIdentity {
     email?: string;
   };
   pages: LinkedInOrgPage[];
+  /** ★THE PAGE EVERY CONTENT AND GROWTH READ IS SCOPED TO.
+   *
+   *  Resolved server-side and validated against the enabled set, so the client
+   *  cannot arrive at a different answer than the queries did. Before this
+   *  existed each surface reached for `pages[0]` on its own — which is how the
+   *  Audience tab's follower stats came to describe whichever Page LinkedIn
+   *  returned first, while the panels beside it described another.
+   *
+   *  `null` means a pageless (personal-feed) connection. Absent means an older
+   *  API deploy that does not scope yet — render the switcher as unavailable
+   *  rather than claiming a Page is active when nothing is filtering. */
+  activePageId?: string | null;
+  /** Personal-feed publishing is the pageless fallback only — false
+   *  whenever a Company Page is enabled on the connection (the
+   *  server rejects person authors on publish surfaces then). Absent
+   *  on older API deploys → treat as allowed. */
+  personalPostingAllowed?: boolean;
 }
 
 /** Hook DNA score. Tier badge:
@@ -395,6 +412,173 @@ export const linkedInContentApi = {
     ),
 
   /**
+   * Comments on a post — or, when `target` is a comment URN, that comment's
+   * replies. LinkedIn serves both from one resource and nests exactly one
+   * level, so there is no recursion to write in the UI.
+   *
+   * ★ON-DEMAND ONLY. Community Management Development tier allows ~500
+   * requests/day for the whole app across every customer, so this is called
+   * when a person opens a thread and never to pre-fill a list of posts.
+   */
+  comments: (target: string, params?: { count?: number; start?: number }) => {
+    const qs = new URLSearchParams();
+    if (typeof params?.count === "number") qs.set("count", String(params.count));
+    if (typeof params?.start === "number") qs.set("start", String(params.start));
+    const q = qs.toString();
+    return api.get<LinkedInCommentPage>(
+      `/v1/linkedin/content/posts/${encodeURIComponent(target)}/comments${q ? `?${q}` : ""}`,
+    );
+  },
+
+  /** Replies on one comment. */
+  commentReplies: (commentUrn: string, params?: { count?: number; start?: number }) => {
+    const qs = new URLSearchParams();
+    if (typeof params?.count === "number") qs.set("count", String(params.count));
+    if (typeof params?.start === "number") qs.set("start", String(params.start));
+    const q = qs.toString();
+    return api.get<LinkedInCommentPage>(
+      `/v1/linkedin/content/comments/${encodeURIComponent(commentUrn)}/replies${q ? `?${q}` : ""}`,
+    );
+  },
+
+  /**
+   * Who reacted to a post or comment, and with what.
+   *
+   * ★Reactor NAMES are best-effort. LinkedIn returns actor URNs here and
+   * exposes no profile lookup for other members — identity arrives only
+   * alongside a comments read — so a reactor is named only if they also
+   * commented recently. Render a nameless reactor as normal, not as a gap.
+   */
+  reactions: (entityUrn: string, params?: { count?: number; start?: number }) => {
+    const qs = new URLSearchParams();
+    if (typeof params?.count === "number") qs.set("count", String(params.count));
+    if (typeof params?.start === "number") qs.set("start", String(params.start));
+    const q = qs.toString();
+    return api.get<LinkedInReactionPage>(
+      `/v1/linkedin/content/posts/${encodeURIComponent(entityUrn)}/reactions${q ? `?${q}` : ""}`,
+    );
+  },
+
+  /**
+   * The Community Feed — incoming comments, mentions and reposts.
+   *
+   * ★Reads Mongo on the server, never LinkedIn: every row arrived over
+   * the webhook. So this is cheap to poll and cheap to leave open, unlike
+   * the thread panel, which spends real API budget per call.
+   */
+  interactions: (params?: {
+    filter?: string;
+    cursor?: string;
+    limit?: number;
+    /** Narrow to one post — what the Library's per-card Reposts dialog asks.
+     *  The Feed tab omits it and gets the whole-brand queue. */
+    postUrn?: string;
+  }) => {
+    const qs = new URLSearchParams();
+    if (params?.filter) qs.set("filter", params.filter);
+    if (params?.cursor) qs.set("cursor", params.cursor);
+    if (params?.postUrn) qs.set("postUrn", params.postUrn);
+    if (typeof params?.limit === "number") qs.set("limit", String(params.limit));
+    const q = qs.toString();
+    return api.get<LinkedInFeedPage>(
+      `/v1/linkedin/content/interactions${q ? `?${q}` : ""}`,
+    );
+  },
+
+  /** Mark a screenful as seen. Batched, and deliberately does NOT change
+   *  reply status — reading a comment is not answering it. */
+  markInteractionsSeen: (interactionUrns: string[]) =>
+    api.post<{ marked: number }>("/v1/linkedin/content/interactions/seen", {
+      interactionUrns,
+    }),
+
+  /** Snooze, assign or dismiss one interaction. */
+  updateInteraction: (
+    interactionUrn: string,
+    body: { snoozedUntil?: string | null; assignedToId?: string | null; ignored?: boolean },
+  ) =>
+    api.patch<{ interactionUrn: string }>(
+      `/v1/linkedin/content/interactions/${encodeURIComponent(interactionUrn)}`,
+      body,
+    ),
+
+  /**
+   * The Audience tab's four blocks.
+   *
+   * ★Reads our own rollup, never LinkedIn — so unlike the thread panel
+   * this is cheap to poll and cheap to leave open.
+   */
+  audienceSummary: (days?: number) =>
+    api.get<LinkedInAudienceSummary>(
+      `/v1/linkedin/content/audience/summary${days ? `?days=${days}` : ""}`,
+    ),
+
+  /**
+   * Follower demographics for one Company Page, lifetime mode (no interval).
+   *
+   * ★`orgPageId` IS REQUIRED. The route validates it before doing anything
+   * else and 400s without it — so omitting it does not degrade the block,
+   * it kills it: the fallback shown would read "you publish only to your
+   * personal feed", which is a confident wrong answer rather than an
+   * error. Demographics are per Page by construction; there is no
+   * business-wide breakdown to fall back to.
+   *
+   * ★This one DOES hit LinkedIn, so it is fetched once per tab open and
+   * never polled.
+   */
+  followerStats: (orgPageId: string) =>
+    api.get<LinkedInFollowerStats>(
+      `/v1/linkedin/content/analytics/followers?orgPageId=${encodeURIComponent(orgPageId)}`,
+    ),
+
+  /**
+   * Draft a reply to one comment.
+   *
+   * ★A DRAFT. The server posts nothing and stores nothing — the text
+   * comes back to a person looking at a text box, and the distance
+   * between "drafted" and "sent" is them reading it. One call per press
+   * of a button; never call this in a loop over a list.
+   */
+  suggestReply: (body: { commentText: string; postText?: string }) =>
+    api.post<{ reply: string; rationale: string }>(
+      "/v1/linkedin/content/suggest-reply",
+      body,
+    ),
+
+  /** Per-reaction-type counts + comment summary for a post. The AUTHORITATIVE
+   *  reaction breakdown — `reactions` above only returns the current page. */
+  socialMetadata: (postUrn: string) =>
+    api.get<LinkedInSocialMetadata>(
+      `/v1/linkedin/content/posts/${encodeURIComponent(postUrn)}/social-metadata`,
+    ),
+
+  /** Edit a comment we authored. `author` picks the page to edit as; omit to
+   *  edit as the signed-in member. */
+  editComment: (commentUrn: string, body: { text: string; author?: LinkedInAuthor }) =>
+    api.patch<{ commentUrn: string }>(
+      `/v1/linkedin/content/comments/${encodeURIComponent(commentUrn)}`,
+      body,
+    ),
+
+  /** Delete a comment.
+   *
+   *  `commentRef` may be the bare numeric id OR the composite comment URN —
+   *  the server unpacks the thread from the URN when given one, which is
+   *  what the thread panel has to hand. The author is a QUERY pair
+   *  (`authorType`/`pageId`) rather than a body because DELETE carries none. */
+  deleteComment: (postUrn: string, commentRef: string, author?: LinkedInAuthor) => {
+    const qs = new URLSearchParams();
+    if (author?.type === "org") {
+      qs.set("authorType", "org");
+      qs.set("pageId", author.pageId);
+    }
+    const q = qs.toString();
+    return api.delete<{ deleted: boolean }>(
+      `/v1/linkedin/content/posts/${encodeURIComponent(postUrn)}/comments/${encodeURIComponent(commentRef)}${q ? `?${q}` : ""}`,
+    );
+  },
+
+  /**
    * React to a post OR a comment as the member or an org page. `entityUrn` is
    * the target's full URN — a post (`urn:li:share:*` / `urn:li:ugcPost:*`) or a
    * comment (`urn:li:comment:(...)`). Same `RECONNECT_REQUIRED` (403) contract
@@ -497,6 +681,202 @@ export interface CarouselResult {
   /** False when the document upload didn't confirm AVAILABLE before posting
    *  (best-effort path) — the post may still be processing on LinkedIn. */
   documentAvailable: boolean;
+}
+
+
+/** A commenter's public profile, when LinkedIn decorated it.
+ *
+ *  ★24-hour data on the server, and OPTIONAL here. It is absent whenever
+ *  identity is switched off or LinkedIn declined the decoration, so render
+ *  its absence as "A member" — never as an error state. */
+export interface LinkedInActorProfile {
+  actorUrn: string;
+  displayName?: string;
+  headline?: string;
+  pictureUrl?: string;
+  vanityName?: string;
+}
+
+/** One comment in a thread. */
+export interface LinkedInCommentDetail {
+  /** LinkedIn's numeric comment id — what the delete path wants. */
+  id: string;
+  /** The composite `urn:li:comment:(...)`. Absent only when LinkedIn sent
+   *  nothing to build it from; actions that key on a comment are hidden
+   *  in that case rather than sending a URN that matches nothing. */
+  commentUrn?: string;
+  actor: string;
+  /** Present when an org authored it — i.e. this is OUR page's comment. */
+  agent?: string;
+  /** May be empty for an image-only comment. */
+  message: string;
+  createdAt?: number;
+  lastModifiedAt?: number;
+  edited: boolean;
+  likeCount: number;
+  likedByUs: boolean;
+  replyCount: number;
+  parentCommentUrn?: string;
+  objectUrn?: string;
+  imageUrns: string[];
+  actorProfile?: LinkedInActorProfile;
+}
+
+export interface LinkedInCommentPage {
+  comments: LinkedInCommentDetail[];
+  total?: number;
+  /** Pass as `start` for the next page; absent = end of thread. */
+  nextStart?: number;
+  /** Whether names were actually fetched. False means "we are not showing
+   *  names", which is different from "nobody has one". */
+  identityEnabled: boolean;
+}
+
+export interface LinkedInReaction {
+  id: string;
+  actor: string;
+  reactionType: string;
+  createdAt?: number;
+  root?: string;
+  actorProfile?: LinkedInActorProfile;
+}
+
+export interface LinkedInReactionPage {
+  reactions: LinkedInReaction[];
+  total?: number;
+  nextStart?: number;
+  identityEnabled: boolean;
+  /** Always true — see `reactions` above on why most reactors are nameless. */
+  reactorNamesAreBestEffort?: boolean;
+}
+
+/** Authoritative per-type reaction counts for a post. */
+export interface LinkedInSocialMetadata {
+  entity: string;
+  commentsState?: string;
+  reactions: Record<string, number>;
+  totalReactions: number;
+  commentCount: number;
+  topLevelCommentCount: number;
+}
+
+
+/** One day of the Audience pulse. Days with no rollup row are ABSENT
+ *  rather than zero — a day that was not measured is not a quiet day. */
+export interface LinkedInPulsePoint {
+  date: string;
+  reactions: number;
+  comments: number;
+  reposts: number;
+  mentions: number;
+}
+
+/**
+ * The Audience tab's four blocks, from `ana_linkedin_community_daily`.
+ *
+ * ★Costs no LinkedIn requests — the hourly rollup wrote all of it before
+ * the 48h sweep could reach the rows it came from. The consequence worth
+ * rendering: the series begins the day the rollup first ran and cannot be
+ * backfilled, which is what `coverageDays` is for.
+ */
+export interface LinkedInAudienceSummary {
+  days: number;
+  /** Distinct days in the window that actually have data. A 90-day chart
+   *  holding 3 days is a young rollup, not a quiet Page. */
+  coverageDays: number;
+  pulse: LinkedInPulsePoint[];
+  totals: {
+    reactions: number;
+    comments: number;
+    reposts: number;
+    mentions: number;
+    reactionsByType: Record<string, number>;
+  };
+  responseHealth: {
+    /** Null — not 0 — when nothing arrived to answer. */
+    replyRate: number | null;
+    medianFirstResponseMs: number | null;
+    repliesSent: number;
+    needsReplyOpen: number;
+    oldestUnansweredMs: number | null;
+  };
+  engagers: { unique: number; new: number; returning: number };
+  /**
+   * What the community talked about.
+   *
+   * ★`classifiedDays` is its OWN coverage number, separate from
+   * `coverageDays`. Classification is a second pass that costs an AI
+   * call, can be switched off, and loses a day outright if the 48-hour
+   * sweep reaches the words first — so a window can be fully counted and
+   * barely classified. Rendering topics without saying which is the same
+   * lie `coverageDays` exists to prevent.
+   */
+  conversation: {
+    classifiedDays: number;
+    topics: Array<{ label: string; count: number }>;
+    sentiment: { positive: number; neutral: number; negative: number };
+  };
+}
+
+/** One demographic bucket, with the label the api resolved for its URN.
+ *  `label` falls back to the id when LinkedIn's taxonomy is unreachable. */
+export interface LinkedInDemographicBucket {
+  key: string;
+  organic: number;
+  label?: string;
+}
+
+export interface LinkedInFollowerStats {
+  byDemographic: Record<string, LinkedInDemographicBucket[]> | null;
+  series: Array<{ start: number; end?: number; organicGain: number; paidGain: number }> | null;
+}
+
+/** One row in the Community Feed. */
+export interface LinkedInInteraction {
+  id: string;
+  kind: "comment" | "reaction" | "repost" | "mention";
+  interactionUrn: string;
+  parentPostUrn: string;
+  parentCommentUrn?: string;
+  actorUrn?: string;
+  actorType?: "person" | "org";
+  /** Absent once the 48h sweep has taken it — see `redacted`. */
+  text?: string;
+  occurredAt?: string;
+  receivedAt: string;
+  status: "new" | "needs_reply" | "replied" | "ignored";
+  seenAt?: string;
+  repliedAt?: string;
+  replyCommentUrn?: string;
+  firstResponseMs?: number;
+  assignedToId?: string;
+  snoozedUntil?: string;
+  /** LinkedIn's 48-hour cap has passed and the member's words are gone.
+   *  The row remains, and still records what we did about it. */
+  redacted: boolean;
+  /** Who did it, when we still have them in the 24-hour cache.
+   *
+   *  ★Absent is the ORDINARY case, not an error — the cache is filled only
+   *  by comments reads, so a reposter (whose notification carries a URN
+   *  and nothing else) usually has no decoration at all. Render the
+   *  fallback, never an error state. */
+  actorProfile?: LinkedInActorProfile;
+}
+
+export interface LinkedInFeedCounts {
+  needsReply: number;
+  unseen: number;
+  mentions: number;
+  reposts: number;
+  /** How long the oldest unanswered comment has waited, ms. Null when
+   *  nothing is waiting. */
+  oldestUnansweredMs: number | null;
+}
+
+export interface LinkedInFeedPage {
+  rows: LinkedInInteraction[];
+  nextCursor: string | null;
+  counts: LinkedInFeedCounts;
 }
 
 /** One published post in the LinkedIn Feed tab (GET /feed). */

@@ -114,9 +114,9 @@ function RejectReasonDialogBody({
   // Submit gating:
   //  • need a canned pick OR ≥3 chars of detail
   //  • when the canned pick is the OTHER sentinel, the detail is
-  //    mandatory — submitting "Other (use note below)" alone reads
-  //    as "I picked the option that says 'use the note' and didn't
-  //    use the note." The backend would accept it; the UI shouldn't.
+  // mandatory — submitting "Other (use note below)" alone reads
+  // as "I picked the option that says 'use the note' and didn't
+  // use the note." The backend would accept it; the UI shouldn't.
   const otherWithoutDetail =
     selected === OTHER_REASON && detailTrimmed.length < 3;
   const canSubmit =
@@ -218,7 +218,7 @@ function RejectReasonDialogBody({
               rows={3}
             />
             <p
-              className={`text-xs tabular-nums ${otherWithoutDetail ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground"}`}
+              className={`text-xs tabular-nums ${otherWithoutDetail ? "text-warning-on-tint" : "text-muted-foreground"}`}
             >
               {otherWithoutDetail
                 ? "Detail required when 'Other' is selected"

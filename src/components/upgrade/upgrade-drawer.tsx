@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { PaymentModal, type CheckoutResult } from "@/components/upgrade/payment-modal";
 
 /**
  * UpgradeDrawer — reusable Sheet that opens on any plan-gated
@@ -50,6 +51,9 @@ export interface UpgradeDrawerProps {
   featureTagline?: string;
   /** Drawer mode. Defaults to "waitlist" — the v1 production posture. */
   mode?: UpgradeDrawerMode;
+  /** In checkout mode, the cfg_plans tier key to subscribe to
+   *  (e.g. "commerce_assistant.paid"). Required for the checkout CTA. */
+  tier?: string;
   /** Optional intent override; defaults derived from featureKey/addonKey. */
   intent?: "plan_upgrade" | "addon" | "integration" | "general";
   addonKey?: string;
@@ -92,6 +96,7 @@ export function UpgradeDrawer(props: UpgradeDrawerProps) {
     featureName,
     featureTagline,
     mode = "waitlist",
+    tier,
     intent,
     addonKey,
     integrationKey,
@@ -103,6 +108,8 @@ export function UpgradeDrawer(props: UpgradeDrawerProps) {
   const [email, setEmail] = useState(user?.email ?? "");
   const [businessContext, setBusinessContext] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  // When checkout mints a gateway payload, this opens the on-site PaymentModal.
+  const [checkoutResult, setCheckoutResult] = useState<CheckoutResult | null>(null);
   const [success, setSuccess] = useState<{
     referralCode: string;
     foundingMember: boolean;
@@ -116,6 +123,7 @@ export function UpgradeDrawer(props: UpgradeDrawerProps) {
     setBusinessContext("");
     setSuccess(null);
     setSubmitting(false);
+    setCheckoutResult(null); // dismiss any open payment overlay with the drawer
   }
 
   function handleClose(next: boolean) {
@@ -170,10 +178,37 @@ export function UpgradeDrawer(props: UpgradeDrawerProps) {
     }
   }
 
+  /**
+   * Checkout mode: ask the API to mint a hosted gateway checkout
+   * (Stripe/Razorpay, chosen server-side by the tier's pricing) and redirect
+   * the browser to it. Errors are surfaced friendly (the API maps raw gateway
+   * errors to a generic message; billing-not-configured returns 503).
+   */
+  async function submitCheckout() {
+    if (!tier) return;
+    setSubmitting(true);
+    try {
+      const r = await api.post<CheckoutResult>("/v1/billing/checkout", { tier });
+      if (r?.gateway && r?.embed) {
+        setCheckoutResult(r); // opens the on-site PaymentModal overlay
+        setSubmitting(false);
+        return;
+      }
+      toast.error("Could not start checkout. Please try again.");
+      setSubmitting(false);
+    } catch (err) {
+      toast.error((err as Error)?.message || "Could not start checkout. Please try again.");
+      setSubmitting(false);
+    }
+  }
+
   function shareReferral() {
     if (!success) return;
     const base = typeof window !== "undefined" ? window.location.origin : "";
-    const url = `${base}/?ref=${success.referralCode}&n=${clientNonce()}`;
+    // /auth captures `ref` and stamps it onto the recipient's waitlist signup,
+    // crediting the inviter. The marketing root (`/`) ignores the param, so
+    // pointing referrals there silently drops attribution.
+    const url = `${base}/auth?ref=${success.referralCode}&n=${clientNonce()}`;
     if (navigator.share) {
       navigator.share({
         title: "Peakhour — early access",
@@ -189,13 +224,14 @@ export function UpgradeDrawer(props: UpgradeDrawerProps) {
   }
 
   return (
+    <>
     <Sheet open={open} onOpenChange={handleClose}>
       <SheetContent className="sm:max-w-md flex flex-col">
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             {mode === "waitlist" ? (
               <>
-                <Sparkles className="size-5 text-amber-500" />
+                <Sparkles className="size-5 text-brand-label" />
                 Pro is opening soon
               </>
             ) : (
@@ -273,14 +309,11 @@ export function UpgradeDrawer(props: UpgradeDrawerProps) {
             </form>
           ) : null}
 
-          {/* Checkout-mode placeholder. The pricing matrix is wired
-              once we flip drawerMode globally — for now this is a
-              visible reminder that the path exists. */}
+          {/* Checkout mode: confirm + hand off to the hosted gateway. */}
           {mode === "checkout" && !success ? (
-            <div className="rounded-lg border border-dashed bg-muted/30 p-4 text-sm text-muted-foreground">
-              Checkout mode renders the pricing matrix and Stripe/Razorpay
-              handoff. Until public pricing flips on, the drawer ships in
-              waitlist mode.
+            <div className="rounded-lg border bg-muted/30 p-4 text-sm text-muted-foreground">
+              You&apos;ll be taken to our secure checkout to complete your
+              subscription. You can cancel anytime from your billing settings.
             </div>
           ) : null}
 
@@ -288,8 +321,8 @@ export function UpgradeDrawer(props: UpgradeDrawerProps) {
           {success ? (
             <div className="space-y-4">
               <div className="rounded-lg border bg-card p-4 flex items-start gap-3">
-                <div className="rounded-full bg-green-100 dark:bg-green-950 p-2 mt-0.5">
-                  <Check className="size-4 text-green-700 dark:text-green-400" />
+                <div className="rounded-full bg-success/15 p-2 mt-0.5">
+                  <Check className="size-4 text-success-on-tint" />
                 </div>
                 <div className="flex-1">
                   <p className="text-sm font-medium">You&apos;re in line</p>
@@ -299,7 +332,7 @@ export function UpgradeDrawer(props: UpgradeDrawerProps) {
                       : "Position will update on your next visit"}
                   </p>
                   {success.foundingMember ? (
-                    <p className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-amber-700 dark:text-amber-400">
+                    <p className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-brand-label">
                       <Sparkles className="size-3" />
                       Founding Member — early-access perks locked in
                     </p>
@@ -333,11 +366,14 @@ export function UpgradeDrawer(props: UpgradeDrawerProps) {
               <Button variant="outline" onClick={() => handleClose(false)} disabled={submitting}>
                 Maybe later
               </Button>
-              <Button onClick={submitWaitlist} disabled={submitting || mode === "checkout"}>
+              <Button
+                onClick={mode === "checkout" ? submitCheckout : submitWaitlist}
+                disabled={submitting || (mode === "checkout" && !tier)}
+              >
                 {submitting ? (
                   <>
                     <Loader2 className="size-4 mr-2 animate-spin" />
-                    Saving…
+                    {mode === "checkout" ? "Starting…" : "Saving…"}
                   </>
                 ) : (
                   <>
@@ -351,5 +387,16 @@ export function UpgradeDrawer(props: UpgradeDrawerProps) {
         </SheetFooter>
       </SheetContent>
     </Sheet>
+    <PaymentModal
+      checkout={checkoutResult}
+      onOpenChange={(o) => {
+        if (!o) setCheckoutResult(null);
+      }}
+      onSuccess={() => {
+        setCheckoutResult(null);
+        toast.success("Payment received — activating your plan…");
+      }}
+    />
+    </>
   );
 }
