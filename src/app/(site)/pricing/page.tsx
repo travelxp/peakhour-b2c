@@ -333,8 +333,8 @@ export default async function PricingPage() {
                   Bring Peakhour into your stack
                 </h2>
                 <p className="mt-3 text-muted-foreground">
-                  Install our app or plugin and your pillars light up inside the
-                  tools you use every day. Each one shows what runs there.
+                  Your pillars light up inside the tools you already use, each
+                  one the moment it opens. Each card shows what runs there.
                 </p>
               </div>
               <div className="mt-8">

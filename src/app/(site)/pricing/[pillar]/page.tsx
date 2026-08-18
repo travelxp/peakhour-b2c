@@ -28,6 +28,7 @@ import { pageMetadata } from "@/lib/seo";
 import { PlanComparison } from "@/components/marketing/pricing/plan-comparison";
 import { StatusChip } from "@/components/marketing/pricing/status-chip";
 import { ChannelTile } from "@/components/marketing/pricing/channel-tile";
+import { shortChannelName } from "@/components/marketing/pricing/channel-chip";
 import { TeamsCtaBand } from "@/components/marketing/pricing/teams-cta";
 
 /** Pre-render the five known pillar slugs. */
@@ -98,11 +99,25 @@ export default async function PillarPricingPage({
   // this run" from the pillar that exists to run inside your store.
   const runsInLive = meta.runsIn.filter((key) => !channelSoon(key));
   const runsInSoon = meta.runsIn.filter(channelSoon);
-  const channelName = (key: ChannelKey) =>
-    CHANNELS[key].name.replace(" App", "").replace(" Plugin", "");
+  const channelName = (key: ChannelKey) => shortChannelName(CHANNELS[key].name);
 
   const product: ResolvedProduct | undefined = pillarProducts(pricing, slug)[0];
   const tiers = product ? productTiers(product) : [];
+
+  /**
+   * Can a visitor actually turn this on right now? BOTH halves have to hold,
+   * and gating on the channel half alone was wrong in a way that reproduced
+   * the exact bug it was added to fix: /pricing/content rendered "Content is
+   * coming soon — join the waitlist" and then, a hundred pixels below, "Turn
+   * it on where you work / install once and you're live", because ONE of its
+   * channels happened to be live.
+   *
+   * `native` doesn't count toward it either. The Peakhour web app is where a
+   * pillar runs by default; "install once and you're live" is a lie about the
+   * one channel there is nothing to install into.
+   */
+  const installableNow =
+    tiers.length > 0 && runsInLive.some((key) => key !== "native");
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -202,17 +217,25 @@ export default async function PillarPricingPage({
                   {meta.name} is coming soon
                 </h2>
                 <p className="mx-auto mt-3 max-w-md text-sm text-muted-foreground">
-                  We&rsquo;re putting the finishing touches on {meta.name}. Join the
-                  waitlist and we&rsquo;ll let you know the moment it&rsquo;s live —
-                  and get you set up first.
+                  We&rsquo;re putting the finishing touches on {meta.name}. We&rsquo;ll
+                  let you know the moment it&rsquo;s live &mdash; and get you set up
+                  first.
                 </p>
-                <Link
-                  href="/auth?intent=waitlist"
-                  className="mt-6 inline-flex items-center gap-2 rounded-xl bg-brand-gradient px-6 py-3 text-sm font-bold text-brand-contrast shadow-sm transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
-                >
-                  Join the waitlist
-                  <ArrowRight className="size-4" />
-                </Link>
+                {/* Was a hardcoded /auth?intent=waitlist and the words "Join
+                    the waitlist", which agree with reality only while
+                    signupMode is waitlist_only. Every other CTA on this page
+                    already reads `cta`; this one now does too, so when
+                    signups open it stops pointing at a waitlist that isn't
+                    there. */}
+                {!cta.disabled && (
+                  <Link
+                    href={cta.href}
+                    className="mt-6 inline-flex items-center gap-2 rounded-xl bg-brand-gradient px-6 py-3 text-sm font-bold text-brand-contrast shadow-sm transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
+                  >
+                    {cta.label}
+                    <ArrowRight className="size-4" />
+                  </Link>
+                )}
               </div>
             )}
           </div>
@@ -228,15 +251,16 @@ export default async function PillarPricingPage({
                   How to use it
                 </span>
                 <h2 className="mt-4 text-2xl font-extrabold tracking-tight text-pretty sm:text-3xl">
-                  {runsInLive.length > 0 ? "Turn it on where you work" : "Where it will run"}
+                  {installableNow ? "Turn it on where you work" : "Where it runs"}
                 </h2>
-                {/* The lede cannot promise a one-click install over a grid
-                    of "Coming soon" cards — which is exactly what it did on
-                    /pricing/commerce, where all three are unbuilt. */}
+                {/* F4: the heading used to say "Where it will run" and this
+                    line "Where {name} will run." — the same sentence twice in
+                    adjacent elements. The heading names the section; this line
+                    has to add something. */}
                 <p className="mt-3 text-muted-foreground">
-                  {runsInLive.length > 0
-                    ? `${meta.name} runs inside these — install once and you're live.`
-                    : `Where ${meta.name} will run. Join the waitlist and we'll tell you the day each one opens.`}
+                  {installableNow
+                    ? `${meta.name} runs inside these — install once and you’re live.`
+                    : `Each one lights up as it opens. The marked ones aren’t ready yet.`}
                 </p>
               </div>
               <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

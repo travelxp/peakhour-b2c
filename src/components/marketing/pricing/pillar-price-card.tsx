@@ -86,7 +86,12 @@ export function PillarPriceCard({
 
       {pillar.runsIn.length > 0 && (
         <div className="mt-4 flex flex-wrap gap-1.5 border-t border-dashed pt-4">
-          {pillar.runsIn.slice(0, 3).map((ch) => (
+          {/* No slice. It was capped at 3 while every pillar had at most 3,
+              so it hid nothing — and the moment WhatsApp joined commerce it
+              would have dropped a channel with no "+1" to show for it, which
+              is the same silent-hide this PR removed everywhere else. The
+              chips wrap. */}
+          {pillar.runsIn.map((ch) => (
             <ChannelChip key={ch} channel={ch} soon={channelIsComingSoon(ch, badged)} />
           ))}
         </div>

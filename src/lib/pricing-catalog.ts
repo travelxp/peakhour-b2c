@@ -57,7 +57,13 @@ export const PRICING_PILLARS: Record<PillarSlug, PricingPillarMeta> = {
     slug: "commerce",
     promise: "An AI shop assistant that answers buyers from your real catalog — 24/7.",
     upgradeHook: "Upgrade for more stores, human handoff and analytics.",
-    runsIn: ["shopify", "woocommerce", "bigcommerce"],
+    // WhatsApp belongs here: it is the one commerce channel the catalog calls
+    // live today, and leaving it out made the page say "answers shoppers on
+    // WhatsApp" in the lede while the pill below read "Coming to Shopify,
+    // WooCommerce, BigCommerce". Keep this in step with PILLARS.commerce
+    // .channels in lib/pillars.ts — they are two hand-kept lists describing
+    // the same product, and nothing but this comment ties them together.
+    runsIn: ["shopify", "woocommerce", "whatsapp", "bigcommerce"],
   },
   content: {
     slug: "content",
@@ -139,8 +145,6 @@ export interface ChannelMeta {
   blurb: string;
   /** Where billing happens for this channel. */
   billed: string;
-  /** Pillars that run inside this channel. */
-  pillars: PillarSlug[];
   /** Primary link for the channel's card. */
   href: string;
 }
@@ -160,7 +164,6 @@ export const CHANNELS: Record<ChannelKey, ChannelMeta> = {
     // coming_soon, and it sat directly under the chip saying so.
     blurb: "Your catalog-grounded assistant, answering shoppers on your storefront.",
     billed: "Billed through Shopify",
-    pillars: ["commerce"],
     href: SHOPIFY_APP_STORE_URL,
   },
   wordpress: {
@@ -171,7 +174,6 @@ export const CHANNELS: Record<ChannelKey, ChannelMeta> = {
     color: "#21759B",
     blurb: "Publish AI content straight into your site — no copy-paste.",
     billed: "Billed on peakhour.ai",
-    pillars: ["content", "commerce"],
     href: "/content",
   },
   woocommerce: {
@@ -186,7 +188,6 @@ export const CHANNELS: Record<ChannelKey, ChannelMeta> = {
     color: "#873EFF",
     blurb: "Connect your WooCommerce catalog to the shop assistant.",
     billed: "Billed on peakhour.ai",
-    pillars: ["commerce"],
     href: "/commerce",
   },
   bigcommerce: {
@@ -201,7 +202,6 @@ export const CHANNELS: Record<ChannelKey, ChannelMeta> = {
     color: "#121118",
     blurb: "Bring your BigCommerce products into catalog-grounded answers.",
     billed: "Billed on peakhour.ai",
-    pillars: ["commerce"],
     href: "/commerce",
   },
   whatsapp: {
@@ -212,7 +212,6 @@ export const CHANNELS: Record<ChannelKey, ChannelMeta> = {
     color: "#25D366",
     blurb: "Answer shoppers and support requests right on WhatsApp.",
     billed: "Billed on peakhour.ai",
-    pillars: ["support", "commerce"],
     href: "/support",
   },
   native: {
@@ -224,7 +223,6 @@ export const CHANNELS: Record<ChannelKey, ChannelMeta> = {
     color: "#d97a06",
     blurb: "Every pillar works in the Peakhour dashboard out of the box.",
     billed: "Billed on peakhour.ai",
-    pillars: ["presence", "content", "support", "commerce", "growth"],
     href: "/auth",
   },
 };

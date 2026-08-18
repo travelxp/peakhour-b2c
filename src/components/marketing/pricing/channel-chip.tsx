@@ -1,10 +1,15 @@
 import { CHANNELS, type ChannelKey } from "@/lib/pricing-catalog";
 import { cn } from "@/lib/utils";
 
+/** "Shopify App" / "WordPress Plugin" -> "Shopify" / "WordPress". The chip
+ *  and the /pricing/[pillar] hero pill both need the short form. */
+export function shortChannelName(name: string): string {
+  return name.replace(" App", "").replace(" Plugin", "");
+}
+
 /**
- * A compact channel token — a brand-colored square + the channel name. Used on
- * the hub pillar cards ("runs inside Shopify, WooCommerce") and inline wherever
- * a pillar's delivery surfaces need a glanceable label.
+ * A compact channel token — a brand-colored square + the channel name, used on
+ * the pricing hub's pillar cards.
  *
  * `soon` marks a channel the catalog can't vouch for, in the same vocabulary
  * the homepage pillar chips use — dashed edge, the short word. Dropping such a
@@ -15,10 +20,16 @@ import { cn } from "@/lib/utils";
  */
 export function ChannelChip({
   channel,
-  soon = false,
+  soon,
 }: {
   channel: ChannelKey;
-  soon?: boolean;
+  /**
+   * Required, not defaulted. This is the leaf that actually renders the
+   * availability claim, and a default of `false` would make "available" the
+   * thing you get by forgetting — the same reason `comingSoonKeys` is
+   * required on every component above it.
+   */
+  soon: boolean;
 }) {
   const ch = CHANNELS[channel];
   return (
@@ -33,7 +44,7 @@ export function ChannelChip({
         style={{ backgroundColor: ch.color }}
         aria-hidden
       />
-      {ch.name.replace(" App", "").replace(" Plugin", "")}
+      {shortChannelName(ch.name)}
       {soon && (
         <>
           <span aria-hidden>&middot; soon</span>

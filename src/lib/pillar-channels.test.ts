@@ -1,10 +1,12 @@
 import { describe, it, expect } from "vitest";
 import {
   badgedComingSoonKeys,
+  channelIsComingSoon,
   CHANNEL_CONNECTOR_KEYS,
   MARKETING_CONNECTOR_KEYS,
   PILLAR_CONNECTOR_KEYS,
 } from "./pillar-channels";
+import { CHANNELS as PRICING_CHANNELS, type ChannelKey } from "./pricing-catalog";
 import { STATIC_FALLBACK_KEYS } from "./integrations-fallback";
 import type { ResolvedIntegration } from "./catalog";
 import { CHANNELS } from "@/app/(site)/dashboard/content/channels.config";
@@ -222,15 +224,55 @@ describe("badgedComingSoonKeys", () => {
 });
 
 describe("CHANNEL_CONNECTOR_KEYS", () => {
-  it("collects every key the pricing channel cards name, once", () => {
-    // woocommerce rides the wordpress connector, and `native` has no key at
-    // all — it is the web app, not something connected to.
+  it("maps every channel to the connector that vouches for it", () => {
+    /**
+     * Per channel, not just the deduped set. The set alone cannot see the
+     * failure that matters: drop `woocommerce.connectorKey` and the set is
+     * UNCHANGED, because the `wordpress` channel still contributes
+     * "wordpress" — so WooCommerce would read as available on both pricing
+     * surfaces forever and every assertion here would still pass. Same for a
+     * wrong-but-valid alias: `native.connectorKey = "whatsapp"` would make
+     * native silently inherit WhatsApp's state.
+     */
+    const mapping = Object.fromEntries(
+      (Object.keys(PRICING_CHANNELS) as ChannelKey[]).map((k) => [
+        k,
+        PRICING_CHANNELS[k].connectorKey ?? null,
+      ]),
+    );
+    expect(mapping).toEqual({
+      shopify: "shopify",
+      wordpress: "wordpress",
+      // One plugin covers both; WooCommerce has no row of its own.
+      woocommerce: "wordpress",
+      // Deliberately a key nothing publishes — see pricing-catalog.ts.
+      bigcommerce: "bigcommerce",
+      whatsapp: "whatsapp",
+      // The web app is where pillars run, not something connected to.
+      native: null,
+    });
     expect([...CHANNEL_CONNECTOR_KEYS].sort()).toEqual([
       "bigcommerce",
       "shopify",
       "whatsapp",
       "wordpress",
     ]);
+  });
+
+  it("channelIsComingSoon answers per channel, including the aliases", () => {
+    const badged = new Set(badgedComingSoonKeys({ published: PROD, all: PROD }));
+    // wordpress is coming_soon in the catalog, so the channel that rides it
+    // is too — that alias is the whole reason WooCommerce needs a key.
+    expect(channelIsComingSoon("wordpress", badged)).toBe(true);
+    expect(channelIsComingSoon("woocommerce", badged)).toBe(true);
+    expect(channelIsComingSoon("shopify", badged)).toBe(true);
+    // Nothing publishes it, so nothing can ever vouch for it.
+    expect(channelIsComingSoon("bigcommerce", badged)).toBe(true);
+    // Live underneath a pre-launch platform → not badged.
+    expect(channelIsComingSoon("whatsapp", badged)).toBe(false);
+    // No connectorKey: never badged, under any catalog at all.
+    expect(channelIsComingSoon("native", badged)).toBe(false);
+    expect(channelIsComingSoon("native", new Set(["native", "whatsapp"]))).toBe(false);
   });
 
   it("puts bigcommerce beyond anything that could vouch for it", () => {
@@ -252,14 +294,31 @@ describe("CHANNEL_CONNECTOR_KEYS", () => {
 });
 
 describe("MARKETING_CONNECTOR_KEYS", () => {
-  it("is the union of both surfaces, deduped", () => {
-    expect([...MARKETING_CONNECTOR_KEYS].sort()).toEqual(
-      [...new Set([...PILLAR_CONNECTOR_KEYS, ...CHANNEL_CONNECTOR_KEYS])].sort(),
-    );
-    // shopify, wordpress and whatsapp are named by both.
-    expect(MARKETING_CONNECTOR_KEYS.length).toBeLessThan(
-      PILLAR_CONNECTOR_KEYS.length + CHANNEL_CONNECTOR_KEYS.length,
-    );
+  it("is every key any surface names, spelled out", () => {
+    // Spelled out rather than re-derived: recomputing the union the way the
+    // implementation does compares the code to a copy of itself.
+    expect([...MARKETING_CONNECTOR_KEYS].sort()).toEqual([
+      "beehiiv",
+      // Pricing-only — no pillar chip names it.
+      "bigcommerce",
+      "facebook_pages",
+      "google_ads",
+      "google_business_profile",
+      "instagram",
+      "linkedin_ads",
+      "linkedin_content",
+      "meta_ads",
+      "shopify",
+      "whatsapp",
+      "wordpress",
+      "x",
+      "x_ads",
+    ]);
+    // Every channel key is covered, so a chip can never be the only surface
+    // that knows about a connector.
+    for (const key of CHANNEL_CONNECTOR_KEYS) {
+      expect(MARKETING_CONNECTOR_KEYS).toContain(key);
+    }
   });
 });
 
