@@ -294,9 +294,12 @@ export function PillarCards({
                             {c.name}
                             {soon && (
                               <>
-                                <span aria-hidden className="ml-1 opacity-70">
-                                  &middot; soon
-                                </span>
+                                {/* No opacity here. This word is the only
+                                    visible carrier of the state — the dashed
+                                    border is reinforcement, not the signal —
+                                    and dimming 12px text to 70% took it to
+                                    2.9:1 in light mode. */}
+                                <span aria-hidden className="ml-1">&middot; soon</span>
                                 {/* The grid below says "Coming soon" in full;
                                     a chip has no room for it, so the short
                                     form is visual and the full phrase is what

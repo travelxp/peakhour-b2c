@@ -35,7 +35,14 @@ export interface PricingPillarMeta {
   /** The single reason to move from Free to Paid. */
   upgradeHook: string;
   /** Channels this pillar runs inside (keys into CHANNELS). */
-  channels: ChannelKey[];
+  /**
+   * Renamed off `channels` deliberately. pricingPillar() spreads this meta
+   * OVER PillarContent, which has a `channels` of its own — the marketing
+   * chips, a different shape entirely — and the spread silently resolved the
+   * collision in this object's favour. Two shapes under one name, merged
+   * without a word from the compiler, is a trap; the names are distinct now.
+   */
+  runsIn: ChannelKey[];
 }
 
 export const PRICING_PILLARS: Record<PillarSlug, PricingPillarMeta> = {
@@ -43,35 +50,41 @@ export const PRICING_PILLARS: Record<PillarSlug, PricingPillarMeta> = {
     slug: "presence",
     promise: "Get found on Google, Maps and AI search — and keep every listing right.",
     upgradeHook: "Go Pro for multiple locations and competitor insights.",
-    channels: ["native"],
+    runsIn: ["native"],
   },
   commerce: {
     slug: "commerce",
     promise: "An AI shop assistant that answers buyers from your real catalog — 24/7.",
     upgradeHook: "Upgrade for more stores, human handoff and analytics.",
-    channels: ["shopify", "woocommerce", "bigcommerce"],
+    runsIn: ["shopify", "woocommerce", "bigcommerce"],
   },
   content: {
     slug: "content",
     promise: "AI content for social, blog and newsletters — drafted in your voice, on schedule.",
     upgradeHook: "Upgrade for scheduling, newsletters and brand-voice training.",
-    channels: ["wordpress", "native"],
+    runsIn: ["wordpress", "native"],
   },
   support: {
     slug: "support",
     promise: "Every support message — email, chat, WhatsApp, DMs — in one inbox.",
     upgradeHook: "Upgrade for WhatsApp, social DMs and auto-routing.",
-    channels: ["native", "whatsapp"],
+    runsIn: ["native", "whatsapp"],
   },
   growth: {
     slug: "growth",
     promise: "Ads and LinkedIn on autopilot — campaigns, audiences and leads, handled.",
     upgradeHook: "Upgrade for the full optimizer and lead inbox.",
-    channels: ["native"],
+    runsIn: ["native"],
   },
 };
 
-/** Merge the pricing meta with the shared pillar identity (icon, name, lede). */
+/**
+ * Merge the pricing meta with the shared pillar identity (icon, name, lede).
+ *
+ * The result carries BOTH `runsIn` (this file's platform list, what the
+ * pricing pages want) and `channels` (PillarContent's marketing chips, which
+ * they don't). Reach for `runsIn` here.
+ */
 export function pricingPillar(slug: PillarSlug) {
   return { ...PILLARS[slug], ...PRICING_PILLARS[slug] };
 }

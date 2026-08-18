@@ -71,9 +71,9 @@ export function PillarPriceCard({
         {paidFrom && <span className="text-sm text-muted-foreground">/mo</span>}
       </div>
 
-      {pillar.channels.length > 0 && (
+      {pillar.runsIn.length > 0 && (
         <div className="mt-4 flex flex-wrap gap-1.5 border-t border-dashed pt-4">
-          {pillar.channels.slice(0, 3).map((ch) => (
+          {pillar.runsIn.slice(0, 3).map((ch) => (
             <ChannelChip key={ch} channel={ch} />
           ))}
         </div>

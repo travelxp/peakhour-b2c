@@ -122,9 +122,9 @@ export default async function PillarPricingPage({
                   <span className="inline-flex items-center rounded-full border bg-muted/40 px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
                     One shared Peaks wallet
                   </span>
-                  {meta.channels.length > 0 && (
+                  {meta.runsIn.length > 0 && (
                     <span className="inline-flex items-center rounded-full border bg-muted/40 px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
-                      Runs in {meta.channels.map((c) => CHANNELS[c].name.replace(" App", "").replace(" Plugin", "")).join(", ")}
+                      Runs in {meta.runsIn.map((c) => CHANNELS[c].name.replace(" App", "").replace(" Plugin", "")).join(", ")}
                     </span>
                   )}
                 </div>
@@ -191,7 +191,7 @@ export default async function PillarPricingPage({
         </section>
 
         {/* ── Channel usage ────────────────────────────────────────────── */}
-        {meta.channels.length > 0 && (
+        {meta.runsIn.length > 0 && (
           <section className="py-14">
             <div className="mx-auto max-w-5xl px-4 sm:px-6">
               <div className="max-w-2xl">
@@ -207,7 +207,7 @@ export default async function PillarPricingPage({
                 </p>
               </div>
               <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {meta.channels.map((key) => {
+                {meta.runsIn.map((key) => {
                   const ch = CHANNELS[key];
                   const external = ch.href.startsWith("http");
                   return (

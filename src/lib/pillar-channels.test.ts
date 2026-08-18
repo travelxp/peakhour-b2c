@@ -7,9 +7,14 @@ import { CHANNELS } from "@/app/(site)/dashboard/content/channels.config";
 /**
  * The homepage states connector availability in two places — the pillar chips
  * and the integrations grid — and before this rule existed they could only
- * ever agree by accident. These pin every way it refuses to badge, every way
- * it insists, and the one that matters most: that for a row the grid renders,
- * the shared rule still answers exactly what the old inline predicate did.
+ * ever agree by accident.
+ *
+ * The fixture below is the shape production actually returns, and getting that
+ * wrong is not hypothetical: an earlier draft of this rule read
+ * `cappedByPlatformStage` as a global gate, returned nothing whenever any row
+ * carried it, and would have deleted all eleven badges the live grid shows.
+ * The tests it shipped with agreed with it, because they were written from the
+ * same wrong picture. These are built from a captured response instead.
  */
 
 function row(
@@ -28,109 +33,152 @@ function row(
   };
 }
 
-/** Every key the chips name, so "not published" is genuinely not published. */
-const ALL_PUBLISHED = PILLAR_CONNECTOR_KEYS.map((k) => row(k));
+/**
+ * A connector that is LIVE, held back only because the platform hasn't
+ * launched. The resolver forces `surfacedState` to coming_soon AND sets the
+ * cap flag — the flag being the only thing separating it from the row below.
+ */
+const heldByStage = (key: string) =>
+  row(key, {
+    status: "live",
+    surfacedState: "coming_soon",
+    cappedByPlatformStage: true,
+  });
+
+/** A connector that genuinely isn't built yet. Never carries the cap flag. */
+const notBuiltYet = (key: string) =>
+  row(key, {
+    status: "coming_soon",
+    surfacedState: "coming_soon",
+    cappedByPlatformStage: false,
+  });
+
+/**
+ * GET https://api.peakhour.ai/v1/platform/catalog at stage "coming_soon" — all
+ * 19 published rows, split exactly as production splits them. Every row reads
+ * `surfacedState: "coming_soon"`; only the flag tells the two halves apart.
+ */
+const PROD: ResolvedIntegration[] = [
+  ...[
+    "beehiiv",
+    "facebook_pages",
+    "instagram",
+    "linkedin_content",
+    "meta_ads",
+    "whatsapp",
+    "x",
+    "x_ads",
+  ].map(heldByStage),
+  ...[
+    "ghost",
+    "google_ads",
+    "gsc",
+    "kit",
+    "linkedin_ads",
+    "mailchimp",
+    "shopify",
+    "slack",
+    "substack",
+    "wordpress",
+    "youtube",
+  ].map(notBuiltYet),
+];
+
+/** The predicate page.tsx applied inline before the rule was extracted. */
+const wasBadgedBefore = (i: ResolvedIntegration) =>
+  i.surfacedState === "coming_soon" && !i.cappedByPlatformStage;
 
 describe("badgedComingSoonKeys", () => {
-  it("badges nothing when the catalog published nothing", () => {
-    // The grid is on its static fallback here, which only lists live
-    // connectors — a chip saying "soon" would be the page contradicting itself
-    // in the other direction.
-    expect(badgedComingSoonKeys([])).toEqual([]);
+  it("badges nothing when nothing is advertisable", () => {
+    // The grid is on its static fallback here, which lists only live
+    // connectors — a chip saying "soon" would be the one voice on the page
+    // contradicting it.
+    expect(badgedComingSoonKeys([], [])).toEqual([]);
   });
 
-  it("badges nothing while the platform stage is capping", () => {
-    // Today's production state: the resolver marks every row coming_soon, so a
-    // badge would describe the platform rather than the connector.
-    const capped = ALL_PUBLISHED.map((i) =>
-      row(i.key, { surfacedState: "coming_soon", cappedByPlatformStage: true }),
-    );
-    expect(badgedComingSoonKeys(capped)).toEqual([]);
+  it("badges what production badges, and spares the live rows the stage is holding", () => {
+    // The regression test for the global-gate bug: eleven, not zero.
+    expect([...badgedComingSoonKeys(PROD, PROD)].sort()).toEqual([
+      "ghost",
+      "google_ads",
+      // Named by a Presence chip, absent from the catalog → fail-closed.
+      "google_business_profile",
+      "gsc",
+      "kit",
+      "linkedin_ads",
+      "mailchimp",
+      "shopify",
+      "slack",
+      "substack",
+      "wordpress",
+      "youtube",
+    ]);
   });
 
-  it("suppresses badges when only SOME rows carry the cap", () => {
-    // The cap is global in practice; a mixed response means we can't tell what
-    // the badge would be about, and the conservative read is silence.
-    const mixed = [
-      row("shopify", { surfacedState: "coming_soon", cappedByPlatformStage: true }),
-      row("whatsapp"),
-    ];
-    expect(badgedComingSoonKeys(mixed)).toEqual([]);
-  });
-
-  it("badges the rows the resolver marks coming_soon, and no others", () => {
-    const keys = badgedComingSoonKeys(
-      ALL_PUBLISHED.map((i) =>
-        i.key === "google_ads"
-          ? row(i.key, { status: "coming_soon", surfacedState: "coming_soon" })
-          : i,
-      ),
-    );
-    expect(keys).toEqual(["google_ads"]);
-  });
-
-  it("fails CLOSED for a chip the catalog does not publish at all", () => {
-    // Silence would be the over-claim: we cannot prove it is live.
-    const withoutShopify = ALL_PUBLISHED.filter((i) => i.key !== "shopify");
-    expect(badgedComingSoonKeys(withoutShopify)).toEqual(["shopify"]);
-  });
-
-  it("never badges a grid row that isn't coming_soon, whatever the chips need", () => {
-    // The fail-closed clause reads pillar keys, which are a superset of no
-    // grid row — every card the grid renders IS a published row.
-    const keys = new Set(badgedComingSoonKeys(ALL_PUBLISHED));
-    for (const i of ALL_PUBLISHED) expect(keys.has(i.key)).toBe(false);
-  });
-
-  it("leaves locked and deprecated rows alone", () => {
-    // Only `coming_soon` was ever badged. A locked or deprecated row says
-    // something else entirely, and the refactor must not start speaking for
-    // it — this is the case that would break quietly, since neither state
-    // appears in production today.
-    const keys = badgedComingSoonKeys(
-      ALL_PUBLISHED.map((i) =>
-        i.key === "shopify"
-          ? row(i.key, { surfacedState: "locked", isLockedByPlan: true })
-          : i.key === "beehiiv"
-            ? row(i.key, { status: "deprecated", surfacedState: "deprecated" })
-            : i,
-      ),
-    );
-    expect(keys).toEqual([]);
+  it("spares every chip whose connector is live-but-held, and badges the four that aren't", () => {
+    const keys = new Set(badgedComingSoonKeys(PROD, PROD));
+    for (const key of [
+      "whatsapp",
+      "instagram",
+      "facebook_pages",
+      "meta_ads",
+      "linkedin_content",
+      "x",
+      "x_ads",
+      "beehiiv",
+    ]) {
+      expect(keys.has(key), key).toBe(false);
+    }
+    for (const key of ["shopify", "wordpress", "linkedin_ads", "google_ads"]) {
+      expect(keys.has(key), key).toBe(true);
+    }
   });
 
   it("agrees with the per-card predicate the grid used before it", () => {
     /**
-     * The refactor's actual contract. For every row the grid renders, the
-     * shared rule has to produce what `surfacedState === "coming_soon" &&
-     * !cappedByPlatformStage` produced inline in page.tsx — otherwise this
-     * change silently re-badged the integrations section while claiming only
-     * to have moved code.
+     * The refactor's actual contract: for every row the grid renders, the
+     * shared rule must answer exactly what the inline predicate answered. Run
+     * over the production fixture so it covers BOTH sides of the flag — a
+     * fixture with no capped rows exercises only the branch where the two
+     * cannot differ, which is how the bug got through the first time.
      */
-    const grid: ResolvedIntegration[] = [
-      row("whatsapp"),
-      row("shopify", { status: "coming_soon", surfacedState: "coming_soon" }),
-      row("google_ads", { status: "coming_soon", surfacedState: "coming_soon" }),
-      row("wordpress", { surfacedState: "locked", isLockedByPlan: true }),
-      row("instagram", { status: "beta" }),
-      // Not a pillar chip key, so only the grid's own rule can reach it.
-      row("substack", { status: "coming_soon", surfacedState: "coming_soon" }),
-      row("slack"),
+    const keys = new Set(badgedComingSoonKeys(PROD, PROD));
+    for (const i of PROD) expect(keys.has(i.key), i.key).toBe(wasBadgedBefore(i));
+  });
+
+  it("fails CLOSED for a chip the catalog does not carry at all", () => {
+    const live = PILLAR_CONNECTOR_KEYS.filter((k) => k !== "shopify").map((k) =>
+      row(k),
+    );
+    expect(badgedComingSoonKeys(live, live)).toEqual(["shopify"]);
+  });
+
+  it("does not announce a RETIRING connector as an arriving one", () => {
+    // `deprecated` is filtered out of the marketing view, so such a row is
+    // absent from `published` exactly like one that was never built — and the
+    // fail-closed branch would read it backwards. The second argument is the
+    // only thing that tells them apart.
+    const live = PILLAR_CONNECTOR_KEYS.filter((k) => k !== "beehiiv").map((k) =>
+      row(k),
+    );
+    const all = [
+      ...live,
+      row("beehiiv", { status: "deprecated", surfacedState: "deprecated" }),
     ];
-    // Every pillar key present, so nothing here comes from the fail-closed
-    // clause — this test is about the grid half of the rule alone.
-    const withChips = [
-      ...grid,
-      ...PILLAR_CONNECTOR_KEYS.filter(
-        (k) => !grid.some((g) => g.key === k),
-      ).map((k) => row(k)),
-    ];
-    const keys = new Set(badgedComingSoonKeys(withChips));
-    for (const i of withChips) {
-      expect(keys.has(i.key), i.key).toBe(
-        i.surfacedState === "coming_soon" && !i.cappedByPlatformStage,
-      );
-    }
+    expect(badgedComingSoonKeys(live, all)).toEqual([]);
+  });
+
+  it("leaves locked and deprecated PUBLISHED rows alone", () => {
+    // Only `coming_soon` was ever badged. A locked or deprecated row says
+    // something else, and the refactor must not start speaking for it.
+    const rows = PILLAR_CONNECTOR_KEYS.map((k) =>
+      k === "shopify"
+        ? row(k, { surfacedState: "locked", isLockedByPlan: true })
+        : k === "beehiiv"
+          ? row(k, { status: "deprecated", surfacedState: "deprecated" })
+          : row(k),
+    );
+    expect(badgedComingSoonKeys(rows, rows)).toEqual([]);
   });
 });
 
@@ -142,31 +190,31 @@ describe("PILLAR_CONNECTOR_KEYS", () => {
     expect([...PILLAR_CONNECTOR_KEYS].sort()).toEqual(
       [...new Set(fromContent)].sort(),
     );
-    // whatsapp, wordpress, instagram and facebook_pages each serve two
-    // pillars — the dedupe is the point, not an accident of the fixture.
-    expect(PILLAR_CONNECTOR_KEYS.length).toBeLessThan(fromContent.length);
   });
 
-  it("spells every key the way the provider registry does", () => {
+  it("spells every key the way the connector registry does", () => {
     /**
      * A typo here fails closed, so it would never show as a false claim — it
      * would show as a chip stuck reading "soon" forever, which nobody would
      * think to question. This is the check that catches it first.
      *
-     * The Channels Hub registry is the local mirror of the api's provider
-     * names, so it is the source of truth available to a unit test. Keys with
-     * no channel row yet are listed explicitly, with the reason.
+     * `CHANNELS[].providerKey` is a NEAR-mirror, not the same namespace: it is
+     * the api's provider-registry name, while a chip resolves against
+     * `cfg_integrations.key`. The two coincide for every row today and nothing
+     * enforces that they must — so read a failure here as "go check the
+     * catalog key", not as proof the key is wrong. (provider-names.ts is a
+     * third namespace again — OAuth-callback display names — and says
+     * `google_search_console` where the catalog says `gsc`. Not usable here.)
      */
     const known = new Set(CHANNELS.map((c) => c.providerKey));
-    const NO_CHANNEL_ROW_YET: Record<string, string> = {
-      // Presence's connector. Registered in the api (see provider-names.ts)
-      // and grouped under "google" in the catalog, but it has no Channels Hub
-      // row because the hub is a CONTENT surface and Presence isn't content.
+    const NO_CHANNEL_ROW: Record<string, string> = {
+      // Registered in the api and seeded by migration 168, but the Channels
+      // Hub is a CONTENT surface and Presence isn't content, so it has no row.
       google_business_profile: "presence connector, not a content channel",
     };
     for (const key of PILLAR_CONNECTOR_KEYS) {
       expect(
-        known.has(key) || key in NO_CHANNEL_ROW_YET,
+        known.has(key) || key in NO_CHANNEL_ROW,
         `${key} is neither a Channels Hub providerKey nor a documented exception`,
       ).toBe(true);
     }

@@ -154,7 +154,10 @@ export default async function Home({
   // grid below and the "Channels & platforms" chips inside the pillar cards.
   // The chips are a client component, so they receive the answer as plain
   // strings rather than the catalog that produced it.
-  const comingSoonKeys = badgedComingSoonKeys(published);
+  const comingSoonKeys = badgedComingSoonKeys(
+    published,
+    catalog?.integrations ?? [],
+  );
   // NOT named `comingSoon`: ResolvedIntegration has a field by that name (an
   // object carrying the CMS copy, read four lines below as i.comingSoon.copy),
   // and two unrelated things under one name in one object literal is how a
