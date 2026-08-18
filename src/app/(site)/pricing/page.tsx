@@ -11,7 +11,8 @@ import {
   formatPeaks,
   freeTier,
 } from "@/lib/pricing";
-import { getPublicCatalog, signupCta } from "@/lib/catalog";
+import { getPublicCatalog, publicMarketingIntegrations, signupCta } from "@/lib/catalog";
+import { badgedComingSoonKeys } from "@/lib/pillar-channels";
 import {
   PRICING_PILLAR_ORDER,
   PAID_PILLAR_ORDER,
@@ -54,6 +55,14 @@ export default async function PricingPage() {
     getPricing(country),
     getPublicCatalog(),
   ]);
+  // Same rule the homepage runs — the channel strip below states connector
+  // availability, so it has to answer from the same place the integrations
+  // grid does.
+  const published = catalog ? publicMarketingIntegrations(catalog.integrations) : [];
+  const comingSoonKeys = badgedComingSoonKeys({
+    published,
+    all: catalog?.integrations ?? [],
+  });
   const signupMode = catalog?.platform?.signupMode ?? "open";
   const openSignup = signupMode === "open";
   const cta = signupCta(signupMode);
@@ -328,7 +337,7 @@ export default async function PricingPage() {
                 </p>
               </div>
               <div className="mt-8">
-                <ChannelsStrip />
+                <ChannelsStrip comingSoonKeys={comingSoonKeys} />
               </div>
             </div>
           </div>

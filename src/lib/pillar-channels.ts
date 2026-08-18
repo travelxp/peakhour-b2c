@@ -1,11 +1,13 @@
 import type { ResolvedIntegration } from "@/lib/catalog";
 import { STATIC_FALLBACK_KEYS } from "@/lib/integrations-fallback";
 import { PILLAR_ORDER, PILLARS } from "@/lib/pillars";
+import { CHANNELS } from "@/lib/pricing-catalog";
 
 /**
- * ONE availability rule, shared by the two surfaces on the homepage that state
- * it: the "Channels & platforms" chips inside a pillar card, and the
- * catalog-driven integrations grid further down the page.
+ * ONE availability rule, shared by every marketing surface that states it:
+ * the "Channels & platforms" chips inside a homepage pillar card, the
+ * catalog-driven integrations grid further down that page, and the channel
+ * cards on /pricing and /pricing/[pillar].
  *
  * They disagreed by construction. The grid resolved every card against
  * /v1/platform/catalog and badged it; the chips were plain strings that could
@@ -14,7 +16,10 @@ import { PILLAR_ORDER, PILLARS } from "@/lib/pillars";
  * LinkedIn Ads, Google Ads) the pillar chips were naming a few hundred pixels
  * above with nothing said about them at all.
  *
- * Both surfaces now ask this function and render what it returns.
+ * All of them now ask this function and render what it returns. The pricing
+ * channels were the last holdout and the loudest: their cards carry install
+ * copy and, for Shopify, an outbound link to an App Store listing — the
+ * strongest availability claim on the site, made with nothing behind it.
  *
  * Server-only by construction — it takes the resolved catalog. The homepage
  * calls it once and passes the result down as plain strings, so the client
@@ -39,6 +44,25 @@ export const PILLAR_CONNECTOR_KEYS: readonly string[] = [
 ];
 
 /**
+ * The same, for the channel cards on /pricing and /pricing/[pillar]. Separate
+ * constant because the two lists genuinely differ — `bigcommerce` is claimed
+ * only by pricing, `linkedin_ads` only by the pillar chips — and knowing which
+ * surface put a key in the fail-closed set is worth keeping.
+ */
+export const CHANNEL_CONNECTOR_KEYS: readonly string[] = [
+  ...new Set(
+    Object.values(CHANNELS).flatMap((c) =>
+      c.connectorKey ? [c.connectorKey] : [],
+    ),
+  ),
+];
+
+/** Every key any marketing surface names, and so every key that can fail closed. */
+export const MARKETING_CONNECTOR_KEYS: readonly string[] = [
+  ...new Set([...PILLAR_CONNECTOR_KEYS, ...CHANNEL_CONNECTOR_KEYS]),
+];
+
+/**
  * The connector keys the homepage may badge "Coming soon" — for BOTH the grid
  * and the chips.
  *
@@ -50,11 +74,11 @@ export const PILLAR_CONNECTOR_KEYS: readonly string[] = [
  *
  *     Returning nothing here looks conservative and isn't. The grid degrades
  *     to a list restricted to connectors that are genuinely live, so IT stays
- *     honest — but the chips name six the fallback deliberately omits
- *     (Shopify, WooCommerce, WordPress, LinkedIn Ads, Google Ads, Google
- *     Business Profile), and silence would render all six as available. An
- *     API blip would turn this module into the thing it exists to prevent.
- *     So both surfaces fall back to the same allow-list.
+ *     honest — but the other surfaces name several the fallback deliberately
+ *     omits (Shopify, WooCommerce, WordPress, LinkedIn Ads, Google Ads,
+ *     Google Business Profile, BigCommerce), and silence would render all of
+ *     them as available. An API blip would turn this module into the thing it
+ *     exists to prevent. So every surface falls back to the same allow-list.
  *
  *  2. A row the resolver marks coming_soon → badge it, UNLESS it carries
  *     `cappedByPlatformStage`.
@@ -102,7 +126,7 @@ export function badgedComingSoonKeys({
   // superset of `published`, which is the real invariant — this is about the
   // reader, not a demonstrated bug.)
   if (published.length === 0) {
-    return PILLAR_CONNECTOR_KEYS.filter((k) => !STATIC_FALLBACK_KEYS.has(k));
+    return MARKETING_CONNECTOR_KEYS.filter((k) => !STATIC_FALLBACK_KEYS.has(k));
   }
 
   const publishedKeys = new Set(published.map((i) => i.key));
@@ -114,7 +138,7 @@ export function badgedComingSoonKeys({
       .filter((i) => i.surfacedState === "coming_soon" && !i.cappedByPlatformStage)
       .map((i) => i.key),
   );
-  for (const key of PILLAR_CONNECTOR_KEYS) {
+  for (const key of MARKETING_CONNECTOR_KEYS) {
     if (!publishedKeys.has(key) && !retiring.has(key)) badged.add(key);
   }
   return [...badged];

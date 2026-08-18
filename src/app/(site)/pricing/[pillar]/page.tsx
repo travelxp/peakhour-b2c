@@ -11,12 +11,14 @@ import {
   productTiers,
   type ResolvedProduct,
 } from "@/lib/pricing";
-import { getPublicCatalog, signupCta } from "@/lib/catalog";
+import { getPublicCatalog, publicMarketingIntegrations, signupCta } from "@/lib/catalog";
+import { badgedComingSoonKeys } from "@/lib/pillar-channels";
 import {
   PRICING_PILLAR_ORDER,
   pricingPillar,
   isPillarSlug,
   CHANNELS,
+  type ChannelKey,
 } from "@/lib/pricing-catalog";
 import { type PillarSlug } from "@/lib/pillars";
 import { pageMetadata } from "@/lib/seo";
@@ -78,6 +80,22 @@ export default async function PillarPricingPage({
   const openSignup = signupMode === "open";
   const cta = signupCta(signupMode);
 
+  // The channel cards below state connector availability, so they answer from
+  // the same rule the homepage's integrations grid and pillar chips do.
+  const published = catalog ? publicMarketingIntegrations(catalog.integrations) : [];
+  const badged = new Set(
+    badgedComingSoonKeys({ published, all: catalog?.integrations ?? [] }),
+  );
+  const channelSoon = (key: ChannelKey) => {
+    const connector = CHANNELS[key].connectorKey;
+    return connector !== undefined && badged.has(connector);
+  };
+  // The "Runs in …" pill is a flat sentence with nowhere to hang a state, so
+  // it names only what the catalog vouches for. The cards below carry the
+  // full set, each with its own chip — nothing is hidden, it just stops being
+  // asserted in a place that cannot qualify it.
+  const runsInLive = meta.runsIn.filter((key) => !channelSoon(key));
+
   const product: ResolvedProduct | undefined = pillarProducts(pricing, slug)[0];
   const tiers = product ? productTiers(product) : [];
 
@@ -122,9 +140,9 @@ export default async function PillarPricingPage({
                   <span className="inline-flex items-center rounded-full border bg-muted/40 px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
                     One shared Peaks wallet
                   </span>
-                  {meta.runsIn.length > 0 && (
+                  {runsInLive.length > 0 && (
                     <span className="inline-flex items-center rounded-full border bg-muted/40 px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
-                      Runs in {meta.runsIn.map((c) => CHANNELS[c].name.replace(" App", "").replace(" Plugin", "")).join(", ")}
+                      Runs in {runsInLive.map((c) => CHANNELS[c].name.replace(" App", "").replace(" Plugin", "")).join(", ")}
                     </span>
                   )}
                 </div>
@@ -210,23 +228,21 @@ export default async function PillarPricingPage({
                 {meta.runsIn.map((key) => {
                   const ch = CHANNELS[key];
                   const external = ch.href.startsWith("http");
-                  return (
-                    <Link
-                      key={key}
-                      href={ch.href}
-                      {...(external
-                        ? { target: "_blank", rel: "noopener noreferrer" }
-                        : {})}
-                      className="group flex flex-col rounded-2xl border bg-background p-5 transition-all hover:-translate-y-1 hover:border-foreground hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
-                    >
+                  const soon = channelSoon(key);
+                  const shell = "flex flex-col rounded-2xl border bg-background p-5";
+                  const head = (
+                    <>
                       <div className="flex items-center gap-3">
                         <ChannelTile
                           channel={key}
                           className="size-9 rounded-lg text-xs"
                           iconClassName="size-[18px]"
                         />
-                        <div>
-                          <div className="font-bold">{ch.name}</div>
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2 font-bold">
+                            {ch.name}
+                            {soon && <StatusChip status="coming_soon" />}
+                          </div>
                           <div className="text-[11px] text-muted-foreground">
                             {ch.billed}
                           </div>
@@ -235,6 +251,29 @@ export default async function PillarPricingPage({
                       <p className="mt-3 flex-1 text-sm text-muted-foreground">
                         {ch.blurb}
                       </p>
+                    </>
+                  );
+                  // An off-site link is an install path. Don't offer one for a
+                  // connector the catalog can't vouch for — the listing it
+                  // points at doesn't exist yet. Internal links stay: those
+                  // pages are real either way.
+                  if (soon && external) {
+                    return (
+                      <div key={key} className={shell}>
+                        {head}
+                      </div>
+                    );
+                  }
+                  return (
+                    <Link
+                      key={key}
+                      href={ch.href}
+                      {...(external
+                        ? { target: "_blank", rel: "noopener noreferrer" }
+                        : {})}
+                      className={`group ${shell} transition-all hover:-translate-y-1 hover:border-foreground hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2`}
+                    >
+                      {head}
                       <span className="mt-4 inline-flex items-center gap-1.5 text-xs font-bold text-brand-strong">
                         Open channel guide
                         <ArrowRight

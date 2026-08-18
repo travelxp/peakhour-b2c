@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { badgedComingSoonKeys, PILLAR_CONNECTOR_KEYS } from "./pillar-channels";
+import {
+  badgedComingSoonKeys,
+  CHANNEL_CONNECTOR_KEYS,
+  MARKETING_CONNECTOR_KEYS,
+  PILLAR_CONNECTOR_KEYS,
+} from "./pillar-channels";
 import { STATIC_FALLBACK_KEYS } from "./integrations-fallback";
 import type { ResolvedIntegration } from "./catalog";
 import { CHANNELS } from "@/app/(site)/dashboard/content/channels.config";
@@ -106,6 +111,7 @@ describe("badgedComingSoonKeys", () => {
      * claiming the six that list deliberately omits.
      */
     expect([...badgedComingSoonKeys({ published: [], all: [] })].sort()).toEqual([
+      "bigcommerce",
       "google_ads",
       "google_business_profile",
       "linkedin_ads",
@@ -118,7 +124,7 @@ describe("badgedComingSoonKeys", () => {
     // Both surfaces answer "what does this page still call live" from one
     // list, so a chip can never outlive a card.
     const badged = new Set(badgedComingSoonKeys({ published: [], all: [] }));
-    for (const key of PILLAR_CONNECTOR_KEYS) {
+    for (const key of MARKETING_CONNECTOR_KEYS) {
       expect(badged.has(key), key).toBe(!STATIC_FALLBACK_KEYS.has(key));
     }
   });
@@ -126,6 +132,9 @@ describe("badgedComingSoonKeys", () => {
   it("badges what production badges, and spares the live rows the stage is holding", () => {
     // The regression test for the global-gate bug: eleven, not zero.
     expect([...badgedComingSoonKeys({ published: PROD, all: PROD })].sort()).toEqual([
+      // Claimed by a /pricing channel card, and by nothing else anywhere —
+      // no catalog row, no Channels Hub row, no api provider.
+      "bigcommerce",
       "ghost",
       "google_ads",
       // Named by a Presence chip, absent from the catalog → fail-closed.
@@ -173,11 +182,13 @@ describe("badgedComingSoonKeys", () => {
     for (const i of PROD) expect(keys.has(i.key), i.key).toBe(wasBadgedBefore(i));
   });
 
-  it("fails CLOSED for a chip the catalog does not carry at all", () => {
-    const live = PILLAR_CONNECTOR_KEYS.filter((k) => k !== "shopify").map((k) =>
-      row(k),
+  it("fails CLOSED for anything the catalog does not carry at all", () => {
+    const live = MARKETING_CONNECTOR_KEYS.filter((k) => k !== "shopify").map(
+      (k) => row(k),
     );
-    expect(badgedComingSoonKeys({ published: live, all: live })).toEqual(["shopify"]);
+    expect(badgedComingSoonKeys({ published: live, all: live })).toEqual([
+      "shopify",
+    ]);
   });
 
   it("does not announce a RETIRING connector as an arriving one", () => {
@@ -185,8 +196,8 @@ describe("badgedComingSoonKeys", () => {
     // absent from `published` exactly like one that was never built — and the
     // fail-closed branch would read it backwards. The second argument is the
     // only thing that tells them apart.
-    const live = PILLAR_CONNECTOR_KEYS.filter((k) => k !== "beehiiv").map((k) =>
-      row(k),
+    const live = MARKETING_CONNECTOR_KEYS.filter((k) => k !== "beehiiv").map(
+      (k) => row(k),
     );
     const all = [
       ...live,
@@ -198,7 +209,7 @@ describe("badgedComingSoonKeys", () => {
   it("leaves locked and deprecated PUBLISHED rows alone", () => {
     // Only `coming_soon` was ever badged. A locked or deprecated row says
     // something else, and the refactor must not start speaking for it.
-    const rows = PILLAR_CONNECTOR_KEYS.map((k) =>
+    const rows = MARKETING_CONNECTOR_KEYS.map((k) =>
       k === "shopify"
         ? row(k, { surfacedState: "locked", isLockedByPlan: true })
         : k === "beehiiv"
@@ -206,6 +217,48 @@ describe("badgedComingSoonKeys", () => {
           : row(k),
     );
     expect(badgedComingSoonKeys({ published: rows, all: rows })).toEqual([]);
+  });
+});
+
+describe("CHANNEL_CONNECTOR_KEYS", () => {
+  it("collects every key the pricing channel cards name, once", () => {
+    // woocommerce rides the wordpress connector, and `native` has no key at
+    // all — it is the web app, not something connected to.
+    expect([...CHANNEL_CONNECTOR_KEYS].sort()).toEqual([
+      "bigcommerce",
+      "shopify",
+      "whatsapp",
+      "wordpress",
+    ]);
+  });
+
+  it("puts bigcommerce beyond anything that could vouch for it", () => {
+    /**
+     * The point of the whole change. BigCommerce is named by the Commerce
+     * pricing page and exists in no catalog, no Channels Hub row and no api
+     * provider — so there is no state of the world in which this rule calls
+     * it available.
+     */
+    const everythingLive = MARKETING_CONNECTOR_KEYS.map((k) => row(k));
+    expect(badgedComingSoonKeys({ published: everythingLive, all: everythingLive })).toEqual([]);
+    // ...but only because the fixture invents a row for it. Take that away —
+    // which is every real catalog — and it fails closed.
+    const real = everythingLive.filter((r) => r.key !== "bigcommerce");
+    expect(badgedComingSoonKeys({ published: real, all: real })).toEqual([
+      "bigcommerce",
+    ]);
+  });
+});
+
+describe("MARKETING_CONNECTOR_KEYS", () => {
+  it("is the union of both surfaces, deduped", () => {
+    expect([...MARKETING_CONNECTOR_KEYS].sort()).toEqual(
+      [...new Set([...PILLAR_CONNECTOR_KEYS, ...CHANNEL_CONNECTOR_KEYS])].sort(),
+    );
+    // shopify, wordpress and whatsapp are named by both.
+    expect(MARKETING_CONNECTOR_KEYS.length).toBeLessThan(
+      PILLAR_CONNECTOR_KEYS.length + CHANNEL_CONNECTOR_KEYS.length,
+    );
   });
 });
 
@@ -256,8 +309,12 @@ describe("PILLAR_CONNECTOR_KEYS", () => {
       // Registered in the api and seeded by migration 168, but the Channels
       // Hub is a CONTENT surface and Presence isn't content, so it has no row.
       google_business_profile: "presence connector, not a content channel",
+      // Not registered ANYWHERE — that is the finding, not an oversight. It
+      // is listed here so this test documents it rather than failing on it;
+      // delete the entry the day a real BigCommerce connector exists.
+      bigcommerce: "claimed by /pricing only; no connector exists",
     };
-    for (const key of PILLAR_CONNECTOR_KEYS) {
+    for (const key of MARKETING_CONNECTOR_KEYS) {
       expect(
         known.has(key) || key in NO_CHANNEL_ROW,
         `${key} is neither a Channels Hub providerKey nor a documented exception`,
