@@ -47,6 +47,11 @@ import { cn } from "@/lib/utils";
  * viewport: at 1024px the track is 928px and the open panel only ~419px, so
  * Content's six channel chips wrap to two rows and its detail runs ~504px.
  * Above ~1130px the panel is wide enough that they fit one row again.
+ *
+ * A badged chip carries a "soon" suffix and runs ~40px wider, so the count
+ * that matters is the badged one — at 1024px even six badged chips still land
+ * in two rows, and the floor holds. That headroom is not the guarantee
+ * though: `min-h` is, by letting the row grow rather than clip.
  */
 const ROW_HEIGHT = "lg:min-h-[34rem]";
 

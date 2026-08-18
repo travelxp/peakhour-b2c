@@ -28,9 +28,9 @@ export interface PillarFeature {
  * card a few hundred pixels below it. See lib/pillar-channels.ts.
  *
  * Omit `key` for a SURFACE — somewhere the pillar's work LANDS rather than
- * something Peakhour connects to. "Your storefront", "Email" and "Google Maps"
- * have no catalog row and never will, so there is no availability to state and
- * they are never badged.
+ * something Peakhour connects to. "Your storefront", "Email", "Google Search"
+ * and "Google Maps" have no catalog row and never will, so there is no
+ * availability to state and they are never badged.
  *
  * A key that the catalog does not publish fails CLOSED (badged). So a typo
  * here is a chip stuck reading "soon" forever rather than a false claim — and

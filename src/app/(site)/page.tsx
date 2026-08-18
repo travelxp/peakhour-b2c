@@ -155,7 +155,11 @@ export default async function Home({
   // The chips are a client component, so they receive the answer as plain
   // strings rather than the catalog that produced it.
   const comingSoonKeys = badgedComingSoonKeys(published);
-  const comingSoon = new Set(comingSoonKeys);
+  // NOT named `comingSoon`: ResolvedIntegration has a field by that name (an
+  // object carrying the CMS copy, read four lines below as i.comingSoon.copy),
+  // and two unrelated things under one name in one object literal is how a
+  // later reader ends up conflating them.
+  const badgedKeys = new Set(comingSoonKeys);
   const integrationCards = published.length
     ? published.map((i) => ({
         id: i.key,
@@ -175,7 +179,7 @@ export default async function Home({
         // badgedComingSoonKeys(), because the pillar chips have to apply the
         // same one — see the note there for why a capped platform badges
         // nothing at all.
-        comingSoon: comingSoon.has(i.key),
+        comingSoon: badgedKeys.has(i.key),
       }))
     : INTEGRATIONS.map((item) => {
         const IntIcon = item.icon;
