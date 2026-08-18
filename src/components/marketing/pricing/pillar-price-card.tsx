@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { fromMonthly, formatMonthly, type ResolvedProduct } from "@/lib/pricing";
 import { pricingPillar } from "@/lib/pricing-catalog";
+import { channelIsComingSoon } from "@/lib/pillar-channels";
 import { StatusChip } from "@/components/marketing/pricing/status-chip";
 import { ChannelChip } from "@/components/marketing/pricing/channel-chip";
 import { type PillarSlug } from "@/lib/pillars";
@@ -16,13 +17,25 @@ import { type PillarSlug } from "@/lib/pillars";
 export function PillarPriceCard({
   slug,
   product,
+  comingSoonKeys,
 }: {
   slug: PillarSlug;
   product?: ResolvedProduct;
+  /**
+   * Resolved by the page through lib/pillar-channels.ts. Required: this card
+   * NAMES channels, so it makes an availability claim whether or not it
+   * intends to, and a caller who forgets should fail to compile.
+   */
+  comingSoonKeys: readonly string[];
 }) {
   const pillar = pricingPillar(slug);
   const Icon = pillar.icon;
   const paidFrom = product ? fromMonthly(product) : null;
+  // Every channel still gets named; the ones the catalog can't vouch for are
+  // marked rather than dropped. The pillar's own StatusChip above says where
+  // the PILLAR stands — this strip answers "where does it run", and the
+  // honest answer for an unbuilt connector is "there, soon", not silence.
+  const badged = new Set(comingSoonKeys);
   const hasFree = !!product?.tiers.some((t) => t.pricing.monthly === 0);
 
   const priceLabel = !product
@@ -73,8 +86,13 @@ export function PillarPriceCard({
 
       {pillar.runsIn.length > 0 && (
         <div className="mt-4 flex flex-wrap gap-1.5 border-t border-dashed pt-4">
-          {pillar.runsIn.slice(0, 3).map((ch) => (
-            <ChannelChip key={ch} channel={ch} />
+          {/* No slice. It was capped at 3 while every pillar had at most 3,
+              so it hid nothing — and the moment WhatsApp joined commerce it
+              would have dropped a channel with no "+1" to show for it, which
+              is the same silent-hide this PR removed everywhere else. The
+              chips wrap. */}
+          {pillar.runsIn.map((ch) => (
+            <ChannelChip key={ch} channel={ch} soon={channelIsComingSoon(ch, badged)} />
           ))}
         </div>
       )}

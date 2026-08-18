@@ -11,7 +11,8 @@ import {
   formatPeaks,
   freeTier,
 } from "@/lib/pricing";
-import { getPublicCatalog, signupCta } from "@/lib/catalog";
+import { getPublicCatalog, publicMarketingIntegrations, signupCta } from "@/lib/catalog";
+import { badgedComingSoonKeys } from "@/lib/pillar-channels";
 import {
   PRICING_PILLAR_ORDER,
   PAID_PILLAR_ORDER,
@@ -54,6 +55,14 @@ export default async function PricingPage() {
     getPricing(country),
     getPublicCatalog(),
   ]);
+  // Same rule the homepage runs — the channel strip below states connector
+  // availability, so it has to answer from the same place the integrations
+  // grid does.
+  const published = catalog ? publicMarketingIntegrations(catalog.integrations) : [];
+  const comingSoonKeys = badgedComingSoonKeys({
+    published,
+    all: catalog?.integrations ?? [],
+  });
   const signupMode = catalog?.platform?.signupMode ?? "open";
   const openSignup = signupMode === "open";
   const cta = signupCta(signupMode);
@@ -304,6 +313,7 @@ export default async function PricingPage() {
                   key={slug}
                   slug={slug}
                   product={pillarProducts(pricing, slug)[0]}
+                  comingSoonKeys={comingSoonKeys}
                 />
               ))}
             </div>
@@ -323,12 +333,12 @@ export default async function PricingPage() {
                   Bring Peakhour into your stack
                 </h2>
                 <p className="mt-3 text-muted-foreground">
-                  Install our app or plugin and your pillars light up inside the
-                  tools you use every day. Tap one to see what runs there.
+                  Your pillars light up inside the tools you already use, each
+                  one the moment it opens. Each card shows what runs there.
                 </p>
               </div>
               <div className="mt-8">
-                <ChannelsStrip />
+                <ChannelsStrip comingSoonKeys={comingSoonKeys} />
               </div>
             </div>
           </div>

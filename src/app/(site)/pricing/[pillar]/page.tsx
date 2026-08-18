@@ -11,18 +11,24 @@ import {
   productTiers,
   type ResolvedProduct,
 } from "@/lib/pricing";
-import { getPublicCatalog, signupCta } from "@/lib/catalog";
+import { getPublicCatalog, publicMarketingIntegrations, signupCta } from "@/lib/catalog";
+import {
+  badgedComingSoonKeys,
+  channelIsComingSoon,
+} from "@/lib/pillar-channels";
 import {
   PRICING_PILLAR_ORDER,
   pricingPillar,
   isPillarSlug,
   CHANNELS,
+  type ChannelKey,
 } from "@/lib/pricing-catalog";
 import { type PillarSlug } from "@/lib/pillars";
 import { pageMetadata } from "@/lib/seo";
 import { PlanComparison } from "@/components/marketing/pricing/plan-comparison";
 import { StatusChip } from "@/components/marketing/pricing/status-chip";
 import { ChannelTile } from "@/components/marketing/pricing/channel-tile";
+import { shortChannelName } from "@/components/marketing/pricing/channel-chip";
 import { TeamsCtaBand } from "@/components/marketing/pricing/teams-cta";
 
 /** Pre-render the five known pillar slugs. */
@@ -78,8 +84,40 @@ export default async function PillarPricingPage({
   const openSignup = signupMode === "open";
   const cta = signupCta(signupMode);
 
+  // The channel cards below state connector availability, so they answer from
+  // the same rule the homepage's integrations grid and pillar chips do.
+  const published = catalog ? publicMarketingIntegrations(catalog.integrations) : [];
+  const badged = new Set(
+    badgedComingSoonKeys({ published, all: catalog?.integrations ?? [] }),
+  );
+  const channelSoon = (key: ChannelKey) => channelIsComingSoon(key, badged);
+  // A flat sentence has nowhere to hang a per-item state, so the VERB carries
+  // it and the pill splits in two: "Runs in …" for what ships today, "Coming
+  // to …" for what doesn't. Filtering the pill down to the live ones was the
+  // first attempt, and on Commerce — every one of whose channels is unbuilt —
+  // it deleted the line entirely, which is the wrong answer to "where does
+  // this run" from the pillar that exists to run inside your store.
+  const runsInLive = meta.runsIn.filter((key) => !channelSoon(key));
+  const runsInSoon = meta.runsIn.filter(channelSoon);
+  const channelName = (key: ChannelKey) => shortChannelName(CHANNELS[key].name);
+
   const product: ResolvedProduct | undefined = pillarProducts(pricing, slug)[0];
   const tiers = product ? productTiers(product) : [];
+
+  /**
+   * Can a visitor actually turn this on right now? BOTH halves have to hold,
+   * and gating on the channel half alone was wrong in a way that reproduced
+   * the exact bug it was added to fix: /pricing/content rendered "Content is
+   * coming soon — join the waitlist" and then, a hundred pixels below, "Turn
+   * it on where you work / install once and you're live", because ONE of its
+   * channels happened to be live.
+   *
+   * `native` doesn't count toward it either. The Peakhour web app is where a
+   * pillar runs by default; "install once and you're live" is a lie about the
+   * one channel there is nothing to install into.
+   */
+  const installableNow =
+    tiers.length > 0 && runsInLive.some((key) => key !== "native");
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -122,9 +160,14 @@ export default async function PillarPricingPage({
                   <span className="inline-flex items-center rounded-full border bg-muted/40 px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
                     One shared Peaks wallet
                   </span>
-                  {meta.runsIn.length > 0 && (
+                  {runsInLive.length > 0 && (
                     <span className="inline-flex items-center rounded-full border bg-muted/40 px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
-                      Runs in {meta.runsIn.map((c) => CHANNELS[c].name.replace(" App", "").replace(" Plugin", "")).join(", ")}
+                      Runs in {runsInLive.map(channelName).join(", ")}
+                    </span>
+                  )}
+                  {runsInSoon.length > 0 && (
+                    <span className="inline-flex items-center rounded-full border border-dashed border-muted-foreground/40 px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+                      Coming to {runsInSoon.map(channelName).join(", ")}
                     </span>
                   )}
                 </div>
@@ -174,17 +217,25 @@ export default async function PillarPricingPage({
                   {meta.name} is coming soon
                 </h2>
                 <p className="mx-auto mt-3 max-w-md text-sm text-muted-foreground">
-                  We&rsquo;re putting the finishing touches on {meta.name}. Join the
-                  waitlist and we&rsquo;ll let you know the moment it&rsquo;s live —
-                  and get you set up first.
+                  We&rsquo;re putting the finishing touches on {meta.name}. We&rsquo;ll
+                  let you know the moment it&rsquo;s live &mdash; and get you set up
+                  first.
                 </p>
-                <Link
-                  href="/auth?intent=waitlist"
-                  className="mt-6 inline-flex items-center gap-2 rounded-xl bg-brand-gradient px-6 py-3 text-sm font-bold text-brand-contrast shadow-sm transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
-                >
-                  Join the waitlist
-                  <ArrowRight className="size-4" />
-                </Link>
+                {/* Was a hardcoded /auth?intent=waitlist and the words "Join
+                    the waitlist", which agree with reality only while
+                    signupMode is waitlist_only. Every other CTA on this page
+                    already reads `cta`; this one now does too, so when
+                    signups open it stops pointing at a waitlist that isn't
+                    there. */}
+                {!cta.disabled && (
+                  <Link
+                    href={cta.href}
+                    className="mt-6 inline-flex items-center gap-2 rounded-xl bg-brand-gradient px-6 py-3 text-sm font-bold text-brand-contrast shadow-sm transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
+                  >
+                    {cta.label}
+                    <ArrowRight className="size-4" />
+                  </Link>
+                )}
               </div>
             )}
           </div>
@@ -200,33 +251,37 @@ export default async function PillarPricingPage({
                   How to use it
                 </span>
                 <h2 className="mt-4 text-2xl font-extrabold tracking-tight text-pretty sm:text-3xl">
-                  Turn it on where you work
+                  {installableNow ? "Turn it on where you work" : "Where it runs"}
                 </h2>
+                {/* F4: the heading used to say "Where it will run" and this
+                    line "Where {name} will run." — the same sentence twice in
+                    adjacent elements. The heading names the section; this line
+                    has to add something. */}
                 <p className="mt-3 text-muted-foreground">
-                  {meta.name} runs inside these — install once and you&rsquo;re live.
+                  {installableNow
+                    ? `${meta.name} runs inside these — install once and you’re live.`
+                    : `Each one lights up as it opens. The marked ones aren’t ready yet.`}
                 </p>
               </div>
               <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {meta.runsIn.map((key) => {
                   const ch = CHANNELS[key];
                   const external = ch.href.startsWith("http");
-                  return (
-                    <Link
-                      key={key}
-                      href={ch.href}
-                      {...(external
-                        ? { target: "_blank", rel: "noopener noreferrer" }
-                        : {})}
-                      className="group flex flex-col rounded-2xl border bg-background p-5 transition-all hover:-translate-y-1 hover:border-foreground hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
-                    >
+                  const soon = channelSoon(key);
+                  const shell = "flex flex-col rounded-2xl border bg-background p-5";
+                  const head = (
+                    <>
                       <div className="flex items-center gap-3">
                         <ChannelTile
                           channel={key}
                           className="size-9 rounded-lg text-xs"
                           iconClassName="size-[18px]"
                         />
-                        <div>
-                          <div className="font-bold">{ch.name}</div>
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2 font-bold">
+                            {ch.name}
+                            {soon && <StatusChip status="coming_soon" />}
+                          </div>
                           <div className="text-[11px] text-muted-foreground">
                             {ch.billed}
                           </div>
@@ -235,6 +290,29 @@ export default async function PillarPricingPage({
                       <p className="mt-3 flex-1 text-sm text-muted-foreground">
                         {ch.blurb}
                       </p>
+                    </>
+                  );
+                  // An off-site link is an install path. Don't offer one for a
+                  // connector the catalog can't vouch for — the listing it
+                  // points at doesn't exist yet. Internal links stay: those
+                  // pages are real either way.
+                  if (soon && external) {
+                    return (
+                      <div key={key} className={shell}>
+                        {head}
+                      </div>
+                    );
+                  }
+                  return (
+                    <Link
+                      key={key}
+                      href={ch.href}
+                      {...(external
+                        ? { target: "_blank", rel: "noopener noreferrer" }
+                        : {})}
+                      className={`group ${shell} transition-all hover:-translate-y-1 hover:border-foreground hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2`}
+                    >
+                      {head}
                       <span className="mt-4 inline-flex items-center gap-1.5 text-xs font-bold text-brand-strong">
                         Open channel guide
                         <ArrowRight

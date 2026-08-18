@@ -57,7 +57,13 @@ export const PRICING_PILLARS: Record<PillarSlug, PricingPillarMeta> = {
     slug: "commerce",
     promise: "An AI shop assistant that answers buyers from your real catalog — 24/7.",
     upgradeHook: "Upgrade for more stores, human handoff and analytics.",
-    runsIn: ["shopify", "woocommerce", "bigcommerce"],
+    // WhatsApp belongs here: it is the one commerce channel the catalog calls
+    // live today, and leaving it out made the page say "answers shoppers on
+    // WhatsApp" in the lede while the pill below read "Coming to Shopify,
+    // WooCommerce, BigCommerce". Keep this in step with PILLARS.commerce
+    // .channels in lib/pillars.ts — they are two hand-kept lists describing
+    // the same product, and nothing but this comment ties them together.
+    runsIn: ["shopify", "woocommerce", "whatsapp", "bigcommerce"],
   },
   content: {
     slug: "content",
@@ -108,12 +114,25 @@ export type ChannelKey =
   | "woocommerce"
   | "wordpress"
   | "bigcommerce"
-  | "magento"
   | "whatsapp"
   | "native";
 
 export interface ChannelMeta {
   key: ChannelKey;
+  /**
+   * The /v1/platform/catalog key that vouches for this channel, when one
+   * exists. Same contract as PillarChannel.key on the homepage: with a key
+   * the pricing surfaces resolve the channel through the SAME rule the
+   * integrations grid and the pillar chips use, so one connector cannot read
+   * as installable here and "Coming soon" there.
+   *
+   * Omitted only for `native` — the Peakhour web app is not a connector, it
+   * is where everything already runs.
+   *
+   * A key the catalog does not carry fails CLOSED, which is the point:
+   * BigCommerce has no row anywhere and now says so.
+   */
+  connectorKey?: string;
   name: string;
   /**
    * Two-letter tile mark. Fallback only — channels with a real brand mark
@@ -126,8 +145,6 @@ export interface ChannelMeta {
   blurb: string;
   /** Where billing happens for this channel. */
   billed: string;
-  /** Pillars that run inside this channel. */
-  pillars: PillarSlug[];
   /** Primary link for the channel's card. */
   href: string;
 }
@@ -138,73 +155,74 @@ const SHOPIFY_APP_STORE_URL =
 export const CHANNELS: Record<ChannelKey, ChannelMeta> = {
   shopify: {
     key: "shopify",
+    connectorKey: "shopify",
     name: "Shopify App",
     tag: "Sh",
     color: "#5E8E3E",
-    blurb: "Install from the Shopify App Store — your assistant is live in minutes.",
+    // A value proposition, not an instruction. "Install from the Shopify App
+    // Store" is a step a visitor cannot take while the connector is still
+    // coming_soon, and it sat directly under the chip saying so.
+    blurb: "Your catalog-grounded assistant, answering shoppers on your storefront.",
     billed: "Billed through Shopify",
-    pillars: ["commerce"],
     href: SHOPIFY_APP_STORE_URL,
   },
   wordpress: {
     key: "wordpress",
+    connectorKey: "wordpress",
     name: "WordPress Plugin",
     tag: "WP",
     color: "#21759B",
     blurb: "Publish AI content straight into your site — no copy-paste.",
     billed: "Billed on peakhour.ai",
-    pillars: ["content", "commerce"],
     href: "/content",
   },
   woocommerce: {
     key: "woocommerce",
+    // One WordPress plugin covers both, and WooCommerce has no catalog row of
+    // its own — so its availability IS the wordpress connector's. Same alias
+    // the homepage chip uses.
+    connectorKey: "wordpress",
     name: "WooCommerce",
     tag: "Wo",
     // Woo's current brand purple — matches the supplied official mark.
     color: "#873EFF",
     blurb: "Connect your WooCommerce catalog to the shop assistant.",
     billed: "Billed on peakhour.ai",
-    pillars: ["commerce"],
     href: "/commerce",
   },
   bigcommerce: {
     key: "bigcommerce",
+    // Deliberately a key nothing publishes. There is no BigCommerce connector
+    // in the catalog, in the Channels Hub registry, or in the api's provider
+    // list — so this resolves through the fail-closed branch and the card
+    // says "Coming soon" instead of quietly reading as installable.
+    connectorKey: "bigcommerce",
     name: "BigCommerce",
     tag: "BC",
     color: "#121118",
     blurb: "Bring your BigCommerce products into catalog-grounded answers.",
     billed: "Billed on peakhour.ai",
-    pillars: ["commerce"],
-    href: "/commerce",
-  },
-  magento: {
-    key: "magento",
-    name: "Magento",
-    tag: "Ma",
-    color: "#EE672F",
-    blurb: "Adobe Commerce / Magento catalog connector.",
-    billed: "Billed on peakhour.ai",
-    pillars: ["commerce"],
     href: "/commerce",
   },
   whatsapp: {
     key: "whatsapp",
+    connectorKey: "whatsapp",
     name: "WhatsApp",
     tag: "Wa",
     color: "#25D366",
     blurb: "Answer shoppers and support requests right on WhatsApp.",
     billed: "Billed on peakhour.ai",
-    pillars: ["support", "commerce"],
     href: "/support",
   },
   native: {
     key: "native",
+    // No connectorKey: the web app is where the pillars run, not something
+    // connected to. Always available, never badged.
     name: "Peakhour web app",
     tag: "Ph",
     color: "#d97a06",
     blurb: "Every pillar works in the Peakhour dashboard out of the box.",
     billed: "Billed on peakhour.ai",
-    pillars: ["presence", "content", "support", "commerce", "growth"],
     href: "/auth",
   },
 };
