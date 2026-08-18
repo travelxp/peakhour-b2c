@@ -313,6 +313,7 @@ export default async function PricingPage() {
                   key={slug}
                   slug={slug}
                   product={pillarProducts(pricing, slug)[0]}
+                  comingSoonKeys={comingSoonKeys}
                 />
               ))}
             </div>

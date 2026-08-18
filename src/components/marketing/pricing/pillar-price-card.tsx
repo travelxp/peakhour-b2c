@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { fromMonthly, formatMonthly, type ResolvedProduct } from "@/lib/pricing";
-import { pricingPillar } from "@/lib/pricing-catalog";
+import { CHANNELS, pricingPillar } from "@/lib/pricing-catalog";
 import { StatusChip } from "@/components/marketing/pricing/status-chip";
 import { ChannelChip } from "@/components/marketing/pricing/channel-chip";
 import { type PillarSlug } from "@/lib/pillars";
@@ -16,13 +16,30 @@ import { type PillarSlug } from "@/lib/pillars";
 export function PillarPriceCard({
   slug,
   product,
+  comingSoonKeys,
 }: {
   slug: PillarSlug;
   product?: ResolvedProduct;
+  /**
+   * Resolved by the page through lib/pillar-channels.ts. Required: this card
+   * NAMES channels, so it makes an availability claim whether or not it
+   * intends to, and a caller who forgets should fail to compile.
+   */
+  comingSoonKeys: readonly string[];
 }) {
   const pillar = pricingPillar(slug);
   const Icon = pillar.icon;
   const paidFrom = product ? fromMonthly(product) : null;
+  // A ChannelChip is a brand square and a word — there is nowhere on it to
+  // hang a state without doubling its width. So, like the "Runs in …" pill on
+  // /pricing/[pillar], it names only what the catalog vouches for. The
+  // pillar's own StatusChip above already says where the PILLAR stands; this
+  // strip is about where it runs, and an unbuilt connector isn't anywhere.
+  const badged = new Set(comingSoonKeys);
+  const runsInLive = pillar.runsIn.filter((key) => {
+    const connector = CHANNELS[key].connectorKey;
+    return connector === undefined || !badged.has(connector);
+  });
   const hasFree = !!product?.tiers.some((t) => t.pricing.monthly === 0);
 
   const priceLabel = !product
@@ -71,9 +88,9 @@ export function PillarPriceCard({
         {paidFrom && <span className="text-sm text-muted-foreground">/mo</span>}
       </div>
 
-      {pillar.runsIn.length > 0 && (
+      {runsInLive.length > 0 && (
         <div className="mt-4 flex flex-wrap gap-1.5 border-t border-dashed pt-4">
-          {pillar.runsIn.slice(0, 3).map((ch) => (
+          {runsInLive.slice(0, 3).map((ch) => (
             <ChannelChip key={ch} channel={ch} />
           ))}
         </div>
