@@ -14,6 +14,7 @@ import { pageMetadata } from "@/lib/seo";
 import { HERO_TRUST_POINTS } from "@/lib/pillar-console";
 import { AUDIENCE_SEGMENTS } from "@/lib/audience-segments";
 import { PILLARS } from "@/lib/pillars";
+import { badgedComingSoonKeys } from "@/lib/pillar-channels";
 import { BrandBackdrop } from "@/components/marketing/brand-backdrop";
 import { PillarOrbit } from "@/components/marketing/pillar-orbit";
 import { PillarCards } from "@/components/marketing/pillar-cards";
@@ -149,6 +150,12 @@ export default async function Home({
   // catalog that publishes nothing would otherwise render the section heading
   // over an empty grid.
   const published = catalog ? publicMarketingIntegrations(catalog.integrations) : [];
+  // Resolved ONCE, for both surfaces that state availability on this page: the
+  // grid below and the "Channels & platforms" chips inside the pillar cards.
+  // The chips are a client component, so they receive the answer as plain
+  // strings rather than the catalog that produced it.
+  const comingSoonKeys = badgedComingSoonKeys(published);
+  const comingSoon = new Set(comingSoonKeys);
   const integrationCards = published.length
     ? published.map((i) => ({
         id: i.key,
@@ -164,15 +171,11 @@ export default async function Home({
             name={i.name}
           />
         ),
-        // Per-CONNECTOR state only. `surfacedState` folds in the global
-        // platform-stage cap, so while the platform sits at coming_soon/
-        // waitlist the resolver marks EVERY row coming_soon — badging all of
-        // them would stamp "Coming soon" on WhatsApp, Shopify and X, which are
-        // live. `cappedByPlatformStage` is exactly the flag that distinguishes
-        // "pre-launch platform" from "connector isn't built"; the platform's own
-        // state is already carried by the announcement banner and the waitlist
-        // CTA and doesn't need repeating on every card.
-        comingSoon: i.surfacedState === "coming_soon" && !i.cappedByPlatformStage,
+        // The rule this used to spell out inline now lives in
+        // badgedComingSoonKeys(), because the pillar chips have to apply the
+        // same one — see the note there for why a capped platform badges
+        // nothing at all.
+        comingSoon: comingSoon.has(i.key),
       }))
     : INTEGRATIONS.map((item) => {
         const IntIcon = item.icon;
@@ -339,7 +342,7 @@ export default async function Home({
               </p>
             </div>
             <div className="mt-10">
-              <PillarCards />
+              <PillarCards comingSoonKeys={comingSoonKeys} />
             </div>
           </div>
         </section>

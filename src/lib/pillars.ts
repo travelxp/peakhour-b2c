@@ -18,6 +18,30 @@ export interface PillarFeature {
   description: string;
 }
 
+/**
+ * One chip under "Channels & platforms" on the homepage pillar card.
+ *
+ * `key` is the /v1/platform/catalog key the chip resolves to, and it is the
+ * whole point of this type: with a key, the homepage runs the chip through
+ * EXACTLY the rule the integrations grid runs its cards through, so one
+ * connector cannot read as plain availability in a chip and "Coming soon" in a
+ * card a few hundred pixels below it. See lib/pillar-channels.ts.
+ *
+ * Omit `key` for a SURFACE — somewhere the pillar's work LANDS rather than
+ * something Peakhour connects to. "Your storefront", "Email" and "Google Maps"
+ * have no catalog row and never will, so there is no availability to state and
+ * they are never badged.
+ *
+ * A key that the catalog does not publish fails CLOSED (badged). So a typo
+ * here is a chip stuck reading "soon" forever rather than a false claim — and
+ * pillar-channels.test.ts pins every key against the channel registry to catch
+ * it before that.
+ */
+export interface PillarChannel {
+  name: string;
+  key?: string;
+}
+
 export interface PillarContent {
   slug: PillarSlug;
   icon: LucideIcon;
@@ -41,26 +65,18 @@ export interface PillarContent {
    */
   valueProp: string;
   /**
-   * The channels and surfaces this pillar covers, as brand names. Rendered as
-   * chips under "Channels & platforms" on the expanded homepage card.
+   * The channels and surfaces this pillar covers. Rendered as chips under
+   * "Channels & platforms" on the expanded homepage card, and — for the ones
+   * carrying a catalog key — badged from the same source as the integrations
+   * grid, so the two surfaces cannot disagree. See PillarChannel above.
    *
-   * This is SCOPE, not status, and the two are not the same list. Some
-   * entries are surfaces rather than connectors and will never appear in the
-   * catalog at all ("Your storefront", "Email", "Google Maps"); others are
-   * real connectors that the catalog currently seeds as `coming_soon`
-   * (Shopify, WordPress, Google Ads), and WooCommerce is a registered
-   * provider with no marketing row seeded for it yet.
-   *
-   * Availability is stated in exactly ONE place on the page: the integrations
-   * grid, which reads /v1/platform/catalog and badges per-connector state.
-   * Today it badges nothing, because the platform stage caps every row — but
-   * once the stage advances, a chip here and a "Coming soon" card down the
-   * page will name the same connector. If that ever reads as a contradiction
-   * rather than as scope, the fix is to resolve these chips against the same
-   * catalog and badge them from it, NOT to quietly prune the product's scope
-   * down to whatever shipped first.
+   * The list is still SCOPE: what the pillar covers, in the order a visitor
+   * would look for it. What changed is that scope no longer has to be silent
+   * about status. Add what the pillar genuinely does; give it a key when a
+   * connector carries it, and the page will say "soon" on its own when the
+   * catalog says so.
    */
-  channels: string[];
+  channels: PillarChannel[];
   /** "What it does" — the capabilities, 3 cards. */
   features: PillarFeature[];
   /** "How it helps" — outcome-framed, plain-language jobs done. */
@@ -91,7 +107,15 @@ export const PILLARS: Record<PillarSlug, PillarContent> = {
     hubLine: "Sells while you sleep",
     valueProp:
       "Turn product questions into orders around the clock, without adding a single person to the team.",
-    channels: ["Shopify", "WooCommerce", "WhatsApp", "Your storefront"],
+    channels: [
+      { name: "Shopify", key: "shopify" },
+      // No catalog row of its own: one WordPress plugin covers both, so
+      // WooCommerce's availability IS the wordpress connector's. Same reason
+      // integration-brand.tsx keeps `woocommerce` as a forward-compat spelling.
+      { name: "WooCommerce", key: "wordpress" },
+      { name: "WhatsApp", key: "whatsapp" },
+      { name: "Your storefront" },
+    ],
     features: [
       {
         title: "Catalog always in sync",
@@ -127,7 +151,14 @@ export const PILLARS: Record<PillarSlug, PillarContent> = {
     hubLine: "Publishes in your voice",
     valueProp:
       "A full content calendar written the way your brand actually sounds, and shipped to every channel.",
-    channels: ["WordPress", "LinkedIn", "Instagram", "Facebook", "X", "Beehiiv"],
+    channels: [
+      { name: "WordPress", key: "wordpress" },
+      { name: "LinkedIn", key: "linkedin_content" },
+      { name: "Instagram", key: "instagram" },
+      { name: "Facebook", key: "facebook_pages" },
+      { name: "X", key: "x" },
+      { name: "Beehiiv", key: "beehiiv" },
+    ],
     features: [
       {
         title: "Brand-voice AI writers",
@@ -163,7 +194,15 @@ export const PILLARS: Record<PillarSlug, PillarContent> = {
     hubLine: "Runs ads and leads",
     valueProp:
       "Acquisition that keeps running — campaigns drafted, budgets tuned, every lead captured.",
-    channels: ["Meta Ads", "LinkedIn", "X Ads", "Google Ads"],
+    channels: [
+      { name: "Meta Ads", key: "meta_ads" },
+      // The growth engine is the ORGANIC connector; Lead Gen forms come from
+      // the ads one. Both are named because the pillar runs both.
+      { name: "LinkedIn", key: "linkedin_content" },
+      { name: "LinkedIn Ads", key: "linkedin_ads" },
+      { name: "X Ads", key: "x_ads" },
+      { name: "Google Ads", key: "google_ads" },
+    ],
     features: [
       {
         title: "LinkedIn growth engine",
@@ -199,7 +238,12 @@ export const PILLARS: Record<PillarSlug, PillarContent> = {
     hubLine: "Answers every message",
     valueProp:
       "One inbox where AI clears the routine questions and hands you only what genuinely needs a human.",
-    channels: ["WhatsApp", "Instagram", "Facebook", "Email"],
+    channels: [
+      { name: "WhatsApp", key: "whatsapp" },
+      { name: "Instagram", key: "instagram" },
+      { name: "Facebook", key: "facebook_pages" },
+      { name: "Email" },
+    ],
     features: [
       {
         title: "Omnichannel inbox",
@@ -235,7 +279,13 @@ export const PILLARS: Record<PillarSlug, PillarContent> = {
     hubLine: "Found first on Google",
     valueProp:
       "Show up accurate and current wherever people look for you — and never leave a review unanswered.",
-    channels: ["Google Business Profile", "Google Search", "Google Maps"],
+    channels: [
+      { name: "Google Business Profile", key: "google_business_profile" },
+      // Where the listing SHOWS UP. Neither is a connector, so neither is ever
+      // badged — Peakhour doesn't connect to Search, it appears in it.
+      { name: "Google Search" },
+      { name: "Google Maps" },
+    ],
     features: [
       {
         title: "Google Business Profile",

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Check, ChevronDown } from "lucide-react";
 import { PILLAR_ORDER, PILLARS } from "@/lib/pillars";
 import { cn } from "@/lib/utils";
@@ -50,7 +50,21 @@ import { cn } from "@/lib/utils";
  */
 const ROW_HEIGHT = "lg:min-h-[34rem]";
 
-export function PillarCards() {
+export function PillarCards({
+  /**
+   * Catalog keys to badge "soon", already resolved by the page through the
+   * same rule the integrations grid uses (lib/pillar-channels.ts). Required,
+   * not optional: a caller who forgets it should fail to compile rather than
+   * quietly ship chips that claim more than the grid does.
+   */
+  comingSoonKeys,
+}: {
+  comingSoonKeys: readonly string[];
+}) {
+  // The parent is a server component, so this prop is stable for the life of
+  // the page — but this component re-renders on every hover, and rebuilding
+  // the set five times per pointer move for nothing is just waste.
+  const comingSoon = useMemo(() => new Set(comingSoonKeys), [comingSoonKeys]);
   // Three inputs, one derived state, and the ORDER is the whole design.
   //
   // Focus first. A cursor left sitting anywhere over the row holds `hovered`
@@ -257,14 +271,37 @@ export function PillarCards() {
                       Channels &amp; platforms
                     </p>
                     <ul className="mt-2 flex flex-wrap gap-1.5">
-                      {pillar.channels.map((c) => (
-                        <li
-                          key={c}
-                          className="rounded-full border bg-muted/50 px-2.5 py-0.5 text-xs text-muted-foreground"
-                        >
-                          {c}
-                        </li>
-                      ))}
+                      {pillar.channels.map((c) => {
+                        const soon = c.key !== undefined && comingSoon.has(c.key);
+                        return (
+                          <li
+                            key={c.name}
+                            className={cn(
+                              "rounded-full border px-2.5 py-0.5 text-xs",
+                              // Dashed, not merely dimmer: the state has to
+                              // survive being read by someone who can't tell
+                              // the two greys apart. The word carries it too.
+                              soon
+                                ? "border-dashed text-muted-foreground"
+                                : "bg-muted/50 text-muted-foreground",
+                            )}
+                          >
+                            {c.name}
+                            {soon && (
+                              <>
+                                <span aria-hidden className="ml-1 opacity-70">
+                                  &middot; soon
+                                </span>
+                                {/* The grid below says "Coming soon" in full;
+                                    a chip has no room for it, so the short
+                                    form is visual and the full phrase is what
+                                    a screen reader actually hears. */}
+                                <span className="sr-only"> &mdash; coming soon</span>
+                              </>
+                            )}
+                          </li>
+                        );
+                      })}
                     </ul>
                   </div>
 
