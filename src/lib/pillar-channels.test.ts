@@ -7,8 +7,9 @@ import { CHANNELS } from "@/app/(site)/dashboard/content/channels.config";
 /**
  * The homepage states connector availability in two places — the pillar chips
  * and the integrations grid — and before this rule existed they could only
- * ever agree by accident. These pin the three ways the rule refuses to badge
- * and the two ways it insists on it.
+ * ever agree by accident. These pin every way it refuses to badge, every way
+ * it insists, and the one that matters most: that for a row the grid renders,
+ * the shared rule still answers exactly what the old inline predicate did.
  */
 
 function row(
@@ -79,6 +80,57 @@ describe("badgedComingSoonKeys", () => {
     // grid row — every card the grid renders IS a published row.
     const keys = new Set(badgedComingSoonKeys(ALL_PUBLISHED));
     for (const i of ALL_PUBLISHED) expect(keys.has(i.key)).toBe(false);
+  });
+
+  it("leaves locked and deprecated rows alone", () => {
+    // Only `coming_soon` was ever badged. A locked or deprecated row says
+    // something else entirely, and the refactor must not start speaking for
+    // it — this is the case that would break quietly, since neither state
+    // appears in production today.
+    const keys = badgedComingSoonKeys(
+      ALL_PUBLISHED.map((i) =>
+        i.key === "shopify"
+          ? row(i.key, { surfacedState: "locked", isLockedByPlan: true })
+          : i.key === "beehiiv"
+            ? row(i.key, { status: "deprecated", surfacedState: "deprecated" })
+            : i,
+      ),
+    );
+    expect(keys).toEqual([]);
+  });
+
+  it("agrees with the per-card predicate the grid used before it", () => {
+    /**
+     * The refactor's actual contract. For every row the grid renders, the
+     * shared rule has to produce what `surfacedState === "coming_soon" &&
+     * !cappedByPlatformStage` produced inline in page.tsx — otherwise this
+     * change silently re-badged the integrations section while claiming only
+     * to have moved code.
+     */
+    const grid: ResolvedIntegration[] = [
+      row("whatsapp"),
+      row("shopify", { status: "coming_soon", surfacedState: "coming_soon" }),
+      row("google_ads", { status: "coming_soon", surfacedState: "coming_soon" }),
+      row("wordpress", { surfacedState: "locked", isLockedByPlan: true }),
+      row("instagram", { status: "beta" }),
+      // Not a pillar chip key, so only the grid's own rule can reach it.
+      row("substack", { status: "coming_soon", surfacedState: "coming_soon" }),
+      row("slack"),
+    ];
+    // Every pillar key present, so nothing here comes from the fail-closed
+    // clause — this test is about the grid half of the rule alone.
+    const withChips = [
+      ...grid,
+      ...PILLAR_CONNECTOR_KEYS.filter(
+        (k) => !grid.some((g) => g.key === k),
+      ).map((k) => row(k)),
+    ];
+    const keys = new Set(badgedComingSoonKeys(withChips));
+    for (const i of withChips) {
+      expect(keys.has(i.key), i.key).toBe(
+        i.surfacedState === "coming_soon" && !i.cappedByPlatformStage,
+      );
+    }
   });
 });
 

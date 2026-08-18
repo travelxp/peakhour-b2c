@@ -21,10 +21,13 @@ import { PILLAR_ORDER, PILLARS } from "@/lib/pillars";
  */
 
 /**
- * Every catalog key the pillar chips name, deduped. Derived from the pillar
- * content itself so adding a chip cannot forget to register its key —
- * the fail-closed branch below reads this list, and a key missing from it
- * would silently opt that chip out of badging altogether.
+ * Every catalog key the pillar chips name, deduped.
+ *
+ * DERIVED from the pillar content rather than hand-listed beside it, because
+ * the fail-closed branch below reads this list to decide what to badge: a
+ * hand-listed key that someone forgot to add would opt its chip out of
+ * badging silently, which is the exact failure this whole module exists to
+ * prevent. Deriving it makes that impossible rather than merely unlikely.
  */
 export const PILLAR_CONNECTOR_KEYS: readonly string[] = [
   ...new Set(
@@ -40,7 +43,7 @@ export const PILLAR_CONNECTOR_KEYS: readonly string[] = [
  *
  * Three rules, in order:
  *
- *  1. No published catalog → badge nothing. The grid is rendering its static
+ *  1. Nothing advertisable → badge nothing. The grid is rendering its static
  *     fallback, which is restricted to connectors that are live, and a chip
  *     claiming otherwise would be the only voice on the page saying so.
  *
@@ -52,13 +55,19 @@ export const PILLAR_CONNECTOR_KEYS: readonly string[] = [
  *     deliberately the conservative reading — it suppresses badges rather than
  *     inventing them.)
  *
- *  3. Otherwise → every published row the resolver marks coming_soon, PLUS
- *     every pillar chip key the catalog does not publish at all. That last
- *     clause is the fail-closed half: a chip naming a connector we cannot
- *     prove is live gets badged, because silence is the over-claim. It cannot
- *     affect the grid, whose cards are published rows by definition.
+ *  3. Otherwise → every row the resolver marks coming_soon, PLUS every pillar
+ *     chip key that isn't in the list at all. That last clause is the
+ *     fail-closed half: a chip naming a connector we cannot prove is live
+ *     gets badged, because silence is the over-claim. It cannot affect the
+ *     grid, whose cards are exactly the rows in this list.
+ *
+ *     Note "isn't in the list", not "isn't in the catalog": the input is the
+ *     MARKETING view, so a row the catalog holds but won't advertise (hidden,
+ *     in_development, dev_only) is absent here and therefore badged. That is
+ *     the honest read — if it isn't advertisable, we can't call it live.
  */
 export function badgedComingSoonKeys(
+  /** The marketing-advertisable rows — publicMarketingIntegrations() output. */
   published: readonly ResolvedIntegration[],
 ): string[] {
   if (published.length === 0) return [];

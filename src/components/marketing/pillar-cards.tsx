@@ -287,7 +287,7 @@ export function PillarCards({
                               // survive being read by someone who can't tell
                               // the two greys apart. The word carries it too.
                               soon
-                                ? "border-dashed text-muted-foreground"
+                                ? "border-dashed border-muted-foreground/40 text-muted-foreground"
                                 : "bg-muted/50 text-muted-foreground",
                             )}
                           >
