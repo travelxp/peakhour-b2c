@@ -140,15 +140,19 @@ export function PillarOrbit() {
         </div>
 
         {/* Nodes. A list, not decoration — this is the only place on the page
-            that says what each pillar does in three words. */}
-        <ul className="absolute inset-0">
+            that says what each pillar does in three words.
+
+            The list box covers the whole figure, hub included, so it has to
+            pass pointer events through: otherwise it swallows the cursor over
+            the centre disc and the wordmark there stops being selectable. */}
+        <ul className="pointer-events-none absolute inset-0">
           {NODES.map((n) => {
             const pillar = PILLARS[n.slug];
             const Icon = pillar.icon;
             return (
               <li
                 key={n.slug}
-                className="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-[0.35rem] rounded-xl border bg-background px-2 py-2 text-center shadow-sm"
+                className="pointer-events-auto absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-[0.35rem] rounded-xl border bg-background px-2 py-2 text-center shadow-sm"
                 style={{ left: `${n.x}%`, top: `${n.y}%`, width: `${NODE_WIDTH}%` }}
               >
                 <span className="flex size-6 shrink-0 items-center justify-center rounded-lg bg-brand-gradient">

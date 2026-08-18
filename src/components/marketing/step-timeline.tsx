@@ -93,11 +93,14 @@ export function StepTimeline() {
         className="pointer-events-none absolute bottom-10 left-7 top-7 w-px overflow-hidden bg-linear-to-b from-brand/25 to-brand/5 lg:hidden"
       >
         {/* `var(--tl, 0)` — the fallback IS the initial state, which is why
-            React never renders a `--tl` of its own: the effect owns that
-            property, and a React-rendered style would be re-applied on every
-            re-render and fight it. With JS off nothing sets it, the fallback
-            holds, and the muted base track it sits inside still connects the
-            three steps on its own. */}
+            React renders no `--tl` of its own. It isn't that React would
+            clobber the effect's value (it diffs styles and skips a property
+            whose value hasn't changed between renders); it's that the
+            property would then have two owners and survive only on that
+            undocumented detail. The effect owns it outright instead.
+
+            With JS off nothing sets it, the fallback holds, and the muted
+            base track it sits inside still connects the three steps. */}
         <span
           className="absolute inset-x-0 top-0 h-full origin-top bg-linear-to-b from-brand via-brand to-brand/40"
           style={{ transform: "scaleY(var(--tl, 0))" }}

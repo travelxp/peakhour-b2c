@@ -25,9 +25,8 @@ export const PILLAR_CONSOLE_ROWS = [
 
 /**
  * The console is decorative — it's a picture of the product, not a table a
- * screen-reader user can act on — so both surfaces render it as a single
- * `role="img"` with this label. Shared for the same reason the rows are: the
- * two copies had already drifted apart once.
+ * screen-reader user can act on — so it renders as a single `role="img"`
+ * carrying this label rather than as five readable rows.
  */
 export const PILLAR_CONSOLE_LABEL =
   "Peakhour console showing five active pillars";
@@ -74,15 +73,14 @@ export const PRELAUNCH_PROMISES = [
 ] as const;
 
 /**
- * Row styling, shared so the two consoles can't diverge in appearance the way
- * they nearly did in content — during this change the rows briefly carried a
- * hover on /auth and none on the landing page, from hand-copied class strings.
+ * Row styling. It lived here first because two hand-copied class strings had
+ * already drifted (the rows briefly carried a hover on /auth and none on the
+ * landing page); with the landing page's console gone there is one consumer
+ * left, and it stays here so the styling travels with the rows it styles.
  *
- * Deliberately no hover: the console is wrapped in `role="img"` on both
- * surfaces, so it is one picture. Rows that lift and warm under the cursor
- * read as clickable, and nothing here is — there's no href, no handler and no
- * cursor change. The hover polish lives on the pillar CARDS, which are the
- * real affordance.
+ * Deliberately no hover: the console is wrapped in `role="img"`, so it is one
+ * picture. Rows that lift and warm under the cursor read as clickable, and
+ * nothing here is — no href, no handler, no cursor change.
  */
 export const PILLAR_CONSOLE_ROW_CLASS =
   "flex items-center gap-3 rounded-xl border border-white/10 bg-white/4 px-3.5 py-2.5 text-sm";

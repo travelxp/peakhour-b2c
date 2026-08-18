@@ -27,17 +27,21 @@ import { cn } from "@/lib/utils";
  */
 
 /**
- * Panel height, and it is measured rather than chosen: the track clips its
- * overflow, so a row that is too short LOSES the bottom of an open panel
- * instead of scrolling it. The tallest case is Content — a two-line value
- * proposition, three capabilities, six channel chips that wrap to two rows,
- * and a two-line outcome — which comes to roughly 510px at the open panel's
- * ~477px width. 34rem leaves that a little over 30px of headroom.
+ * Resting height of the row — a FLOOR, not a fixed height.
  *
- * If you add a line to the open detail, or a sixth pillar (which narrows the
- * open panel and so wraps more), re-measure this.
+ * The panels clip their overflow (they have to: the veil and the gold rail
+ * are drawn to the rounded corners), so a fixed height that turns out to be
+ * one line short doesn't scroll, it silently eats the bottom of the open
+ * detail — the free-plan badge and the "Explore" link. `min-h` keeps the
+ * poster proportions at rest, lets `align-items: stretch` equalise the five
+ * panels as before, and lets the row grow instead of swallowing anything.
+ *
+ * 34rem is measured against the tallest case, which is NOT the widest
+ * viewport: at 1024px the track is 928px and the open panel only ~419px, so
+ * Content's six channel chips wrap to two rows and its detail runs ~504px.
+ * Above ~1130px the panel is wide enough that they fit one row again.
  */
-const ROW_HEIGHT = "lg:h-[34rem]";
+const ROW_HEIGHT = "lg:min-h-[34rem]";
 
 export function PillarCards() {
   // Three inputs, one derived state, and the ORDER is the whole design:
@@ -49,6 +53,27 @@ export function PillarCards() {
   const [hovered, setHovered] = useState<number | null>(null);
   const [focused, setFocused] = useState<number | null>(null);
   const active = hovered ?? focused ?? pinned;
+
+  /**
+   * The trigger. Opening is just a pin; CLOSING has to release the two inputs
+   * that outrank the pin as well, because every gesture that pins also sets
+   * one of them — a tap focuses the button, a click leaves the cursor on the
+   * panel. Clearing only `pinned` would leave `active` unchanged, which made
+   * the second tap on a mobile accordion header do nothing at all.
+   *
+   * The test is `pinned === i`, not `active === i`: on a mouse the panel is
+   * already open from hover when the first click lands, and treating that as
+   * "close" would make pinning unreachable.
+   */
+  const toggle = (i: number) => {
+    if (pinned === i) {
+      setPinned(null);
+      setHovered(null);
+      setFocused(null);
+    } else {
+      setPinned(i);
+    }
+  };
 
   return (
     <div
@@ -62,6 +87,10 @@ export function PillarCards() {
       // clear when focus has actually left it — moving between the trigger and
       // the "Explore" link inside one panel must not close that panel.
       onBlur={(e) => {
+        // Alt-tabbing away fires focusout with a null relatedTarget too, and
+        // collapsing the panel the visitor was reading — behind a window they
+        // cannot see — is a change they never asked for and never saw.
+        if (!document.hasFocus()) return;
         if (!e.currentTarget.contains(e.relatedTarget)) setFocused(null);
       }}
     >
@@ -113,7 +142,7 @@ export function PillarCards() {
               type="button"
               aria-expanded={isActive}
               aria-controls={detailsId}
-              onClick={() => setPinned((p) => (p === i ? null : i))}
+              onClick={() => toggle(i)}
               className="relative flex w-full min-w-0 shrink-0 items-start gap-3 rounded-2xl p-5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-inset lg:flex-col lg:gap-3.5"
             >
               <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-brand-gradient shadow-inner">
@@ -123,7 +152,12 @@ export function PillarCards() {
                 <span className="block text-base font-bold tracking-tight">{pillar.name}</span>
                 {/* The one line a collapsed panel carries. It folds away while
                     another panel is open, because at ~110px it would wrap to
-                    six lines and stop being scannable. */}
+                    six lines and stop being scannable.
+
+                    `max-h-40` is the ceiling that fold animates from, so it
+                    also caps this line at EVERY width: 160px against a longest
+                    `valueProp` of ~120px at 320px. Grow the copy past that and
+                    it clips on phones. */}
                 <span
                   className={cn(
                     "mt-1.5 block overflow-hidden text-sm text-muted-foreground transition-[max-height,opacity,margin] duration-500 ease-brand motion-reduce:transition-none",
@@ -150,7 +184,14 @@ export function PillarCards() {
               // The collapsed detail stays in the DOM so it can transition, so
               // it also has to leave the a11y tree and the tab order —
               // `aria-expanded={false}` on the trigger promises it isn't there.
-              inert={!isActive}
+              //
+              // `focused !== i` is the exception, and it is not optional: a
+              // keyboard visitor on the "Explore" link inside this detail
+              // stops being active the moment a MOUSE wanders onto another
+              // panel, and `inert` over the active element blurs it to
+              // <body> — losing their place mid-page. Holding off for one
+              // panel is the smaller harm, and it resolves on the next Tab.
+              inert={!isActive && focused !== i}
               className={cn(
                 "relative grid shrink-0 transition-[grid-template-rows,opacity] duration-500 ease-brand motion-reduce:transition-none",
                 isActive ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
@@ -178,7 +219,7 @@ export function PillarCards() {
 
                   <div>
                     <p className="text-[0.65rem] font-bold uppercase tracking-[0.18em] text-brand-label">
-                      Works with
+                      Channels &amp; platforms
                     </p>
                     <ul className="mt-2 flex flex-wrap gap-1.5">
                       {pillar.channels.map((c) => (
@@ -194,7 +235,11 @@ export function PillarCards() {
 
                   {/* The payoff — one outcome, stated as the visitor's result
                       rather than as another product feature. */}
-                  <div className="rounded-xl border border-brand/25 bg-brand-soft/40 px-3.5 py-2.5">
+                  {/* `--brand-soft` is theme-STABLE (only --brand-label flips
+                      in .dark), so a 40% wash of it composites to a mid brown
+                      on a dark ground and drops the label to 2.7:1. The dark
+                      step is the one the pricing pages already use. */}
+                  <div className="rounded-xl border border-brand/25 bg-brand-soft/40 px-3.5 py-2.5 dark:bg-brand/5">
                     <p className="text-[0.65rem] font-bold uppercase tracking-[0.18em] text-brand-label">
                       The outcome
                     </p>

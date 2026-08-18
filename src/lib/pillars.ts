@@ -41,13 +41,24 @@ export interface PillarContent {
    */
   valueProp: string;
   /**
-   * Channels and platforms this pillar works with, as brand names. Rendered
-   * as chips on the expanded homepage card.
+   * The channels and surfaces this pillar covers, as brand names. Rendered as
+   * chips under "Channels & platforms" on the expanded homepage card.
    *
-   * Availability is NOT stated here — the catalog-driven integrations grid
-   * further down the homepage is the surface that badges what is live vs
-   * coming soon, and it reads from /v1/platform/catalog. Keep this list to
-   * connectors that actually exist in that catalog so the two can't disagree.
+   * This is SCOPE, not status, and the two are not the same list. Some
+   * entries are surfaces rather than connectors and will never appear in the
+   * catalog at all ("Your storefront", "Email", "Google Maps"); others are
+   * real connectors that the catalog currently seeds as `coming_soon`
+   * (Shopify, WordPress, Google Ads), and WooCommerce is a registered
+   * provider with no marketing row seeded for it yet.
+   *
+   * Availability is stated in exactly ONE place on the page: the integrations
+   * grid, which reads /v1/platform/catalog and badges per-connector state.
+   * Today it badges nothing, because the platform stage caps every row — but
+   * once the stage advances, a chip here and a "Coming soon" card down the
+   * page will name the same connector. If that ever reads as a contradiction
+   * rather than as scope, the fix is to resolve these chips against the same
+   * catalog and badge them from it, NOT to quietly prune the product's scope
+   * down to whatever shipped first.
    */
   channels: string[];
   /** "What it does" — the capabilities, 3 cards. */

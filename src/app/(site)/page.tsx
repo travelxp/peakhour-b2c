@@ -310,8 +310,14 @@ export default async function Home({
           </div>
         </section>
 
-        {/* The five pillars — one row of tall panels that open in place. The
-            section ids the header/footer anchor to live on the panels. */}
+        {/* The five pillars — one row of tall panels that open in place.
+
+            Each panel keeps `id={slug}` as a stable deep-link target, but note
+            that nothing in the app points at one any more: the header and
+            footer link to the /commerce … /presence ROUTES. So a visitor
+            arriving on /#commerce lands on a panel that is scrolled to but
+            still collapsed. Wire the hash to `pinned` in PillarCards if that
+            path ever matters. */}
         <section className="border-t bg-muted/30 py-12 sm:py-16">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <div className="max-w-3xl">
