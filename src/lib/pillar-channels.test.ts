@@ -107,8 +107,8 @@ describe("badgedComingSoonKeys", () => {
     /**
      * Reachable in production — getPublicCatalog() returns null on any fetch
      * failure and / is dynamic. The grid degrades to a list of connectors
-     * that are genuinely live; returning [] here would leave the chips
-     * claiming the six that list deliberately omits.
+     * that are genuinely live; returning [] here would leave the other
+     * surfaces claiming everything that list deliberately omits.
      */
     expect([...badgedComingSoonKeys({ published: [], all: [] })].sort()).toEqual([
       "bigcommerce",
@@ -130,7 +130,8 @@ describe("badgedComingSoonKeys", () => {
   });
 
   it("badges what production badges, and spares the live rows the stage is holding", () => {
-    // The regression test for the global-gate bug: eleven, not zero.
+    // The regression test for the global-gate bug: eleven published rows
+    // badged, not zero — plus the two that fail closed.
     expect([...badgedComingSoonKeys({ published: PROD, all: PROD })].sort()).toEqual([
       // Claimed by a /pricing channel card, and by nothing else anywhere —
       // no catalog row, no Channels Hub row, no api provider.
@@ -236,8 +237,8 @@ describe("CHANNEL_CONNECTOR_KEYS", () => {
     /**
      * The point of the whole change. BigCommerce is named by the Commerce
      * pricing page and exists in no catalog, no Channels Hub row and no api
-     * provider — so there is no state of the world in which this rule calls
-     * it available.
+     * provider — so no state of TODAY's catalog leaves it unbadged. (A real
+     * row would, and should: the second half of this test builds one.)
      */
     const everythingLive = MARKETING_CONNECTOR_KEYS.map((k) => row(k));
     expect(badgedComingSoonKeys({ published: everythingLive, all: everythingLive })).toEqual([]);

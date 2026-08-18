@@ -17,8 +17,8 @@ import { cn } from "@/lib/utils";
  * belonged. Channels we hold a real mark for now render it as a white glyph on
  * the same brand colour, matching the integration grid on the landing page.
  *
- * `tag` is still the fallback — BigCommerce and Magento have no mark here, and
- * a two-letter tile reads better than an empty square or a wrong logo.
+ * `tag` is still the fallback — BigCommerce has no mark here, and a two-letter
+ * tile reads better than an empty square or a wrong logo.
  */
 const CHANNEL_ICONS: Partial<Record<ChannelKey, ComponentType<{ className?: string }>>> = {
   shopify: ShopifyIcon,

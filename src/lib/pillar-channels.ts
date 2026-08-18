@@ -1,7 +1,7 @@
 import type { ResolvedIntegration } from "@/lib/catalog";
 import { STATIC_FALLBACK_KEYS } from "@/lib/integrations-fallback";
 import { PILLAR_ORDER, PILLARS } from "@/lib/pillars";
-import { CHANNELS } from "@/lib/pricing-catalog";
+import { CHANNELS, type ChannelKey } from "@/lib/pricing-catalog";
 
 /**
  * ONE availability rule, shared by every marketing surface that states it:
@@ -63,8 +63,8 @@ export const MARKETING_CONNECTOR_KEYS: readonly string[] = [
 ];
 
 /**
- * The connector keys the homepage may badge "Coming soon" — for BOTH the grid
- * and the chips.
+ * The connector keys the marketing site may badge "Coming soon" — for the
+ * homepage grid and pillar chips AND the pricing channel surfaces alike.
  *
  * Three rules, in order:
  *
@@ -95,7 +95,7 @@ export const MARKETING_CONNECTOR_KEYS: readonly string[] = [
  *     Reading the cap as a global gate — "if any row is capped, say nothing"
  *     — deletes all eleven badges production shows right now.
  *
- *  3. Plus every pillar chip key that isn't in the list at all. This is the
+ *  3. Plus every key any surface names that isn't in the list at all. This is the
  *     fail-closed half: a chip naming a connector we cannot prove is live
  *     gets badged, because silence is the over-claim. It cannot affect the
  *     grid, whose cards are exactly the rows in this list.
@@ -142,4 +142,23 @@ export function badgedComingSoonKeys({
     if (!publishedKeys.has(key) && !retiring.has(key)) badged.add(key);
   }
   return [...badged];
+}
+
+/**
+ * Does this pricing channel need marking?
+ *
+ * Exported because three surfaces ask it — the /pricing strip, the /pricing
+ * hub cards and /pricing/[pillar] — and they were each writing the same two
+ * lines, one of them negated. Three copies of a predicate agree by inspection;
+ * one agrees by construction.
+ *
+ * `native` has no connectorKey and is never badged: the Peakhour web app is
+ * where the pillars run, not something connected to.
+ */
+export function channelIsComingSoon(
+  key: ChannelKey,
+  badged: ReadonlySet<string>,
+): boolean {
+  const connector = CHANNELS[key].connectorKey;
+  return connector !== undefined && badged.has(connector);
 }

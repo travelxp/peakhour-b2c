@@ -12,7 +12,10 @@ import {
   type ResolvedProduct,
 } from "@/lib/pricing";
 import { getPublicCatalog, publicMarketingIntegrations, signupCta } from "@/lib/catalog";
-import { badgedComingSoonKeys } from "@/lib/pillar-channels";
+import {
+  badgedComingSoonKeys,
+  channelIsComingSoon,
+} from "@/lib/pillar-channels";
 import {
   PRICING_PILLAR_ORDER,
   pricingPillar,
@@ -86,15 +89,17 @@ export default async function PillarPricingPage({
   const badged = new Set(
     badgedComingSoonKeys({ published, all: catalog?.integrations ?? [] }),
   );
-  const channelSoon = (key: ChannelKey) => {
-    const connector = CHANNELS[key].connectorKey;
-    return connector !== undefined && badged.has(connector);
-  };
-  // The "Runs in …" pill is a flat sentence with nowhere to hang a state, so
-  // it names only what the catalog vouches for. The cards below carry the
-  // full set, each with its own chip — nothing is hidden, it just stops being
-  // asserted in a place that cannot qualify it.
+  const channelSoon = (key: ChannelKey) => channelIsComingSoon(key, badged);
+  // A flat sentence has nowhere to hang a per-item state, so the VERB carries
+  // it and the pill splits in two: "Runs in …" for what ships today, "Coming
+  // to …" for what doesn't. Filtering the pill down to the live ones was the
+  // first attempt, and on Commerce — every one of whose channels is unbuilt —
+  // it deleted the line entirely, which is the wrong answer to "where does
+  // this run" from the pillar that exists to run inside your store.
   const runsInLive = meta.runsIn.filter((key) => !channelSoon(key));
+  const runsInSoon = meta.runsIn.filter(channelSoon);
+  const channelName = (key: ChannelKey) =>
+    CHANNELS[key].name.replace(" App", "").replace(" Plugin", "");
 
   const product: ResolvedProduct | undefined = pillarProducts(pricing, slug)[0];
   const tiers = product ? productTiers(product) : [];
@@ -142,7 +147,12 @@ export default async function PillarPricingPage({
                   </span>
                   {runsInLive.length > 0 && (
                     <span className="inline-flex items-center rounded-full border bg-muted/40 px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
-                      Runs in {runsInLive.map((c) => CHANNELS[c].name.replace(" App", "").replace(" Plugin", "")).join(", ")}
+                      Runs in {runsInLive.map(channelName).join(", ")}
+                    </span>
+                  )}
+                  {runsInSoon.length > 0 && (
+                    <span className="inline-flex items-center rounded-full border border-dashed border-muted-foreground/40 px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+                      Coming to {runsInSoon.map(channelName).join(", ")}
                     </span>
                   )}
                 </div>
@@ -218,10 +228,15 @@ export default async function PillarPricingPage({
                   How to use it
                 </span>
                 <h2 className="mt-4 text-2xl font-extrabold tracking-tight text-pretty sm:text-3xl">
-                  Turn it on where you work
+                  {runsInLive.length > 0 ? "Turn it on where you work" : "Where it will run"}
                 </h2>
+                {/* The lede cannot promise a one-click install over a grid
+                    of "Coming soon" cards — which is exactly what it did on
+                    /pricing/commerce, where all three are unbuilt. */}
                 <p className="mt-3 text-muted-foreground">
-                  {meta.name} runs inside these — install once and you&rsquo;re live.
+                  {runsInLive.length > 0
+                    ? `${meta.name} runs inside these — install once and you're live.`
+                    : `Where ${meta.name} will run. Join the waitlist and we'll tell you the day each one opens.`}
                 </p>
               </div>
               <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

@@ -3,6 +3,7 @@ import { ArrowRight } from "lucide-react";
 import { CHANNELS, FEATURED_CHANNELS } from "@/lib/pricing-catalog";
 import { ChannelTile } from "@/components/marketing/pricing/channel-tile";
 import { StatusChip } from "@/components/marketing/pricing/status-chip";
+import { channelIsComingSoon } from "@/lib/pillar-channels";
 
 /**
  * "Works where you already run" — the channel strip. Each card explains, in one
@@ -27,7 +28,7 @@ export function ChannelsStrip({
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
       {FEATURED_CHANNELS.map((key) => {
         const ch = CHANNELS[key];
-        const soon = ch.connectorKey !== undefined && badged.has(ch.connectorKey);
+        const soon = channelIsComingSoon(key, badged);
         const external = ch.href.startsWith("http");
         const inner = (
           <>
