@@ -28,6 +28,39 @@ export interface PillarContent {
   headline: string;
   accent: string;
   lede: string;
+  /**
+   * Three-to-four words, rendered under the pillar's name in the homepage
+   * orbit diagram. Must survive being set at ~11px inside a ~140px node, so
+   * keep it to one short phrase — this is a label, not a sentence.
+   */
+  hubLine: string;
+  /**
+   * The single value proposition, in one sentence — what the visitor GETS,
+   * not what the pillar contains. Shown on the homepage pillar card (both
+   * collapsed and expanded); `lede` stays the longer version for /<slug>.
+   */
+  valueProp: string;
+  /**
+   * The channels and surfaces this pillar covers, as brand names. Rendered as
+   * chips under "Channels & platforms" on the expanded homepage card.
+   *
+   * This is SCOPE, not status, and the two are not the same list. Some
+   * entries are surfaces rather than connectors and will never appear in the
+   * catalog at all ("Your storefront", "Email", "Google Maps"); others are
+   * real connectors that the catalog currently seeds as `coming_soon`
+   * (Shopify, WordPress, Google Ads), and WooCommerce is a registered
+   * provider with no marketing row seeded for it yet.
+   *
+   * Availability is stated in exactly ONE place on the page: the integrations
+   * grid, which reads /v1/platform/catalog and badges per-connector state.
+   * Today it badges nothing, because the platform stage caps every row — but
+   * once the stage advances, a chip here and a "Coming soon" card down the
+   * page will name the same connector. If that ever reads as a contradiction
+   * rather than as scope, the fix is to resolve these chips against the same
+   * catalog and badge them from it, NOT to quietly prune the product's scope
+   * down to whatever shipped first.
+   */
+  channels: string[];
   /** "What it does" — the capabilities, 3 cards. */
   features: PillarFeature[];
   /** "How it helps" — outcome-framed, plain-language jobs done. */
@@ -55,6 +88,10 @@ export const PILLARS: Record<PillarSlug, PillarContent> = {
     headline: "An AI storefront assistant that",
     accent: "sells while you sleep.",
     lede: "It knows your whole catalog and answers shoppers on WhatsApp and your storefront in real time — accurate prices, live stock, in their language — turning questions into orders 24/7.",
+    hubLine: "Sells while you sleep",
+    valueProp:
+      "Turn product questions into orders around the clock, without adding a single person to the team.",
+    channels: ["Shopify", "WooCommerce", "WhatsApp", "Your storefront"],
     features: [
       {
         title: "Catalog always in sync",
@@ -87,6 +124,10 @@ export const PILLARS: Record<PillarSlug, PillarContent> = {
     headline: "AI writers that publish",
     accent: "in your voice.",
     lede: "From your news desk to every channel — blogs, newsletters, socials — Peakhour drafts on-brand content you approve in a tap, then publishes it. No more staring at a blank page.",
+    hubLine: "Publishes in your voice",
+    valueProp:
+      "A full content calendar written the way your brand actually sounds, and shipped to every channel.",
+    channels: ["WordPress", "LinkedIn", "Instagram", "Facebook", "X", "Beehiiv"],
     features: [
       {
         title: "Brand-voice AI writers",
@@ -119,6 +160,10 @@ export const PILLARS: Record<PillarSlug, PillarContent> = {
     headline: "Ads and LinkedIn",
     accent: "on autopilot.",
     lede: "Campaigns drafted, audiences found, leads captured, budgets optimized — around the clock. Growth runs the acquisition work a small team can't get to, and stops wasting spend on what isn't working.",
+    hubLine: "Runs ads and leads",
+    valueProp:
+      "Acquisition that keeps running — campaigns drafted, budgets tuned, every lead captured.",
+    channels: ["Meta Ads", "LinkedIn", "X Ads", "Google Ads"],
     features: [
       {
         title: "LinkedIn growth engine",
@@ -151,6 +196,10 @@ export const PILLARS: Record<PillarSlug, PillarContent> = {
     headline: "One inbox for every channel,",
     accent: "answered.",
     lede: "WhatsApp, Instagram, email — all in one place. AI answers the routine questions with full context and hands you only the ones that need a human, so support never runs your day.",
+    hubLine: "Answers every message",
+    valueProp:
+      "One inbox where AI clears the routine questions and hands you only what genuinely needs a human.",
+    channels: ["WhatsApp", "Instagram", "Facebook", "Email"],
     features: [
       {
         title: "Omnichannel inbox",
@@ -183,6 +232,10 @@ export const PILLARS: Record<PillarSlug, PillarContent> = {
     headline: "Own how you show up",
     accent: "on Google.",
     lede: "Your Google Business Profile — listings, hours, photos, and reviews — managed from one place, always current. So when someone searches nearby, you're the one they find and trust.",
+    hubLine: "Found first on Google",
+    valueProp:
+      "Show up accurate and current wherever people look for you — and never leave a review unanswered.",
+    channels: ["Google Business Profile", "Google Search", "Google Maps"],
     features: [
       {
         title: "Google Business Profile",
