@@ -10,6 +10,8 @@ import {
   pillarProducts,
   freeTier,
   proTier,
+  findBundleTier,
+  canonicalFeatureKey,
   type ResolvedProduct,
   type ResolvedProductTier,
 } from "@/lib/pricing";
@@ -103,16 +105,50 @@ export default async function PillarPricingPage({
   const channelSoon = (key: ChannelKey) => channelIsComingSoon(key, badged);
 
   const product: ResolvedProduct | undefined = pillarProducts(pricing, slug)[0];
-  const pro = product ? proTier(product) : undefined;
   const free = product ? freeTier(product) : undefined;
+
+  /**
+   * The paid slot on this page is Peakhour Suite when the catalog sells one,
+   * and this module's own paid tier otherwise.
+   *
+   * ★THIS IS THE POINT OF THE WHOLE CHANGE. The hub quotes one price for
+   * everything; a module page that then offered a different, smaller plan sent
+   * the visitor a contradiction one click after the pitch. Same card, same
+   * position, the plan that is actually on sale.
+   *
+   * `findBundleTier` reads the row the resolver surfaces under every product,
+   * so no request is added and no price is computed here.
+   */
+  const suite = findBundleTier(pricing, "suite");
+  const pro = suite ?? (product ? proTier(product) : undefined);
+  const proIsSuite = Boolean(suite);
   // Pro first everywhere — the cards, the table columns, the labels. A reader
   // who scanned the cards should find the same two columns in the same order.
   const comparisonTiers: ResolvedProductTier[] = [pro, free].filter(
     (t): t is ResolvedProductTier => Boolean(t),
   );
-  const columnLabels = [pro ? "Pro" : null, free ? "Free" : null].filter(
-    (l): l is string => Boolean(l),
-  );
+  const columnLabels = [
+    pro ? (proIsSuite ? "Peakhour Suite" : "Pro") : null,
+    free ? "Free" : null,
+  ].filter((l): l is string => Boolean(l));
+
+  /**
+   * Which rows this page's comparison is allowed to show.
+   *
+   * Suite grants all five modules' capabilities, so an unscoped table on the
+   * Content page would list WhatsApp shopping and ad campaigns. Scope is
+   * derived rather than hand-listed: what this module's free tier grants, plus
+   * the capabilities marketing already chose to lead with for this module. Both
+   * lists are per-module and already exist, so nothing new can drift.
+   */
+  const scopeKeys = proIsSuite
+    ? new Set<string>([
+        ...(free?.features ?? []).map(canonicalFeatureKey),
+        ...meta.proHighlights.flatMap((h) =>
+          h.key ? [canonicalFeatureKey(h.key)] : [],
+        ),
+      ])
+    : undefined;
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -154,6 +190,18 @@ export default async function PillarPricingPage({
             <p className="mt-4 max-w-2xl text-lg text-muted-foreground">
               {meta.priceLede}
             </p>
+            {proIsSuite && (
+              <p className="mt-3 max-w-2xl text-sm text-muted-foreground">
+                Peakhour {meta.name} is part of{" "}
+                <Link
+                  href="/pricing#suite"
+                  className="font-bold text-brand-strong underline underline-offset-2"
+                >
+                  Peakhour Suite
+                </Link>{" "}
+                — one plan that includes all five modules.
+              </p>
+            )}
           </div>
         </section>
 
@@ -168,6 +216,8 @@ export default async function PillarPricingPage({
                 freeHighlights={meta.freeHighlights}
                 cta={cta}
                 openSignup={openSignup}
+                proIsSuite={proIsSuite}
+                moduleName={meta.name}
               />
             ) : (
               <div className="rounded-3xl border border-brand/30 bg-brand-soft/40 p-10 text-center dark:bg-brand/5">
@@ -204,7 +254,10 @@ export default async function PillarPricingPage({
             env where the product is hidden, the page says the pillar is coming
             soon — and then, without this, offered four reasons to upgrade to a
             plan it had just said you cannot buy. */}
-        <ProValueBlocks blocks={pro ? meta.proValueBlocks : []} />
+        <ProValueBlocks
+          blocks={pro ? meta.proValueBlocks : []}
+          planName={proIsSuite ? "Peakhour Suite" : "Pro"}
+        />
 
         {/* ── Full comparison, folded away ─────────────────────────────── */}
         {comparisonTiers.length > 1 && (
@@ -213,6 +266,7 @@ export default async function PillarPricingPage({
               <FeatureComparison
                 tiers={comparisonTiers}
                 columnLabels={columnLabels}
+                scopeKeys={scopeKeys}
               />
             </div>
           </section>

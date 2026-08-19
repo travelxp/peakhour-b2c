@@ -196,7 +196,7 @@ export default async function Home({
 
       {/* Free-first announcement bar */}
       <div className="bg-brand-gradient px-4 py-2 text-center text-sm font-semibold text-brand-contrast">
-        Every pillar has a Free plan — no credit card required.{" "}
+        Every module has a Free plan — no credit card required.{" "}
         <span className="font-normal opacity-80">
           Start with any pillar, add the rest when you&rsquo;re ready.
         </span>
@@ -221,7 +221,7 @@ export default async function Home({
                   is the visitor's own problem stated back to them. */}
               <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand-label">
                 <span className="h-0.5 w-7 bg-brand-gradient" aria-hidden />
-                Five AI pillars. One platform. Free to start.
+                Five AI modules. One platform. Free to start.
               </span>
               {/* `block` on the accent, not a line break: the question has to
                   land on its own line at EVERY width, and a <br> would only
@@ -254,7 +254,7 @@ export default async function Home({
                     href={cta.href}
                     className="group inline-flex items-center gap-2 rounded-xl bg-brand-gradient px-6 py-3.5 text-sm font-bold text-brand-contrast shadow-sm transition-transform hover:-translate-y-0.5 focus-visible:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
                   >
-                    {cta.label} — all five pillars
+                    {cta.label} — all five modules
                     <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
                   </Link>
                 )}
@@ -307,16 +307,16 @@ export default async function Home({
             <div className="max-w-3xl">
               <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand-label">
                 <span className="h-0.5 w-7 bg-brand-gradient" aria-hidden />
-                The five pillars
+                The five modules
               </span>
               <h2 className="mt-4 text-3xl font-extrabold tracking-tight text-pretty lg:text-4xl">
                 Everything a modern business does online, run by AI you approve.
               </h2>
               <p className="mt-3 text-muted-foreground">
-                Each pillar works alone. Together they share one brain — your
+                Each module works alone. Together they share one brain — your
                 catalog, your brand voice, your customers.{" "}
                 <span className="font-medium text-foreground">
-                  Open any pillar to see what it runs.
+                  Open any module to see what it runs.
                 </span>
               </p>
             </div>

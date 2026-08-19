@@ -28,9 +28,9 @@ import { TeamsCtaBand } from "@/components/marketing/pricing/teams-cta";
 import { PricingFaq } from "@/components/marketing/pricing/pricing-faq";
 
 export const metadata = pageMetadata({
-  title: "Pricing — five pillars, one login",
+  title: "Pricing — one plan, five modules",
   description:
-    "Start free with Presence, then grow one pillar at a time. Commerce, Content, Support and Growth — each a flat monthly price with a free tier. Agency and Enterprise plans for teams.",
+    "Peakhour Suite is one plan for Commerce, Content, Growth, Support and Presence — one login, one Peaks wallet, one price. Every module has a free tier. Agency and Enterprise plans for teams.",
   path: "/pricing",
 });
 
@@ -232,7 +232,7 @@ export default async function PricingPage() {
           </section>
         )}
 
-        {/* ── Free pillar band (Presence) ──────────────────────────────── */}
+        {/* ── Free module band (Presence) ──────────────────────────────── */}
         <section id="pillars" className="scroll-mt-20 pb-4">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <div className="relative overflow-hidden rounded-3xl border border-brand/30 bg-brand-soft/50 shadow-sm dark:bg-brand/5">
@@ -295,8 +295,8 @@ export default async function PricingPage() {
                     Claim your business in 2 minutes
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    No credit card. Upgrade to a paid pillar only when you&rsquo;re
-                    ready.
+                    No credit card, ever. Upgrade to Peakhour Suite only when
+                    you&rsquo;re ready.
                   </p>
                   {!cta.disabled && (
                     <Link
@@ -328,12 +328,12 @@ export default async function PricingPage() {
                   Add as you grow
                 </span>
                 <h2 className="mt-4 text-3xl font-extrabold tracking-tight text-pretty lg:text-4xl">
-                  Four more pillars, each with a free tier
+                  Four more modules, each with a free tier
                 </h2>
                 <p className="mt-3 text-muted-foreground">
-                  Every paid pillar has a free tier to try, then one simple paid
-                  plan. Same taste, same polish — the paywall only lifts your
-                  limits.
+                  Every module has a free tier to try. One plan — Peakhour
+                  Suite — turns all five on together, so there is nothing to
+                  assemble and no per-module maths.
                 </p>
               </div>
               <p className="shrink-0 rounded-full border bg-muted/40 px-3 py-1.5 text-xs font-medium text-muted-foreground">

@@ -4,6 +4,9 @@ import {
   formatMonthly,
   formatYearly,
   formatPeaks,
+  formatFoundingMonthly,
+  formatFoundingYearly,
+  hasFoundingOffer,
   type ResolvedProductTier,
 } from "@/lib/pricing";
 import { tierGrants } from "@/lib/pricing-features";
@@ -17,14 +20,21 @@ export interface SignupCta {
 }
 
 /**
- * Display names for the two tiers a pillar sells.
+ * Display names for the two plans a module page offers.
  *
  * The catalog names them for the catalog — "Peakhour.ai Commerce: Paid" — which
  * is right in the CMS and wrong on a price card, both as a heading and inside a
- * CTA ("Get Peakhour.ai Commerce: Paid"). The public plan vocabulary is Pro and
- * Free; the API still decides what each one costs and grants.
+ * CTA ("Get Peakhour.ai Commerce: Paid"). The API still decides what each one
+ * costs and grants; these are what a buyer reads.
+ *
+ * The paid side has two identities because the catalog has two shapes. While a
+ * module sells its own paid tier it is "Pro"; once Peakhour Suite is the thing
+ * on sale, the same slot shows the Suite — same card, same position, different
+ * plan — so a visitor who arrived from the hub meets the price they were just
+ * quoted rather than a second, smaller one.
  */
 const PRO_NAME = "Pro";
+const SUITE_NAME = "Peakhour Suite";
 const FREE_NAME = "Free";
 
 /** Bullets the tier actually grants, in the order marketing listed them. */
@@ -175,6 +185,8 @@ export function PlanCards({
   freeHighlights,
   cta,
   openSignup,
+  proIsSuite = false,
+  moduleName,
 }: {
   pro?: ResolvedProductTier;
   free?: ResolvedProductTier;
@@ -182,6 +194,10 @@ export function PlanCards({
   freeHighlights: PlanHighlight[];
   cta: SignupCta;
   openSignup: boolean;
+  /** The paid slot is Peakhour Suite, not this module's own paid tier. */
+  proIsSuite?: boolean;
+  /** This page's module, for the "and the other four" line. Suite only. */
+  moduleName?: string;
 }) {
   if (!pro && !free) return null;
 
@@ -191,6 +207,7 @@ export function PlanCards({
   // wearing it.
   const proPeaks = pro?.peaksIncluded;
   const freePeaks = free?.peaksIncluded;
+  const founding = pro ? hasFoundingOffer(pro.pricing) : false;
   const ratio =
     typeof proPeaks === "number" && typeof freePeaks === "number" && freePeaks > 0
       ? Math.round(proPeaks / freePeaks)
@@ -204,15 +221,17 @@ export function PlanCards({
       {pro && (
         <div className="relative rounded-3xl border border-brand bg-card p-6 shadow-md sm:p-8">
           <span className="absolute -top-3 left-6 inline-flex items-center rounded-full bg-brand-gradient px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-brand-contrast shadow-sm">
-            Most popular
+            {proIsSuite ? "Everything, one price" : "Most popular"}
           </span>
           <div className="flex items-baseline justify-between gap-3">
             {/* h2, not h3: these are the page's first headings under the h1,
                 and an h3 arriving before any h2 is a level skip for anyone
                 navigating by heading. */}
-            <h2 className="text-lg font-extrabold tracking-tight">{PRO_NAME}</h2>
+            <h2 className="text-lg font-extrabold tracking-tight">
+              {proIsSuite ? SUITE_NAME : PRO_NAME}
+            </h2>
             <span className="text-xs font-semibold text-brand-label">
-              For growing businesses
+              {proIsSuite ? "All five modules" : "For growing businesses"}
             </span>
           </div>
           <div className="mt-4 flex items-baseline gap-1.5">
@@ -220,13 +239,23 @@ export function PlanCards({
               className="text-4xl font-extrabold tabular-nums tracking-tight"
               style={{ fontFamily: "var(--font-space-grotesk)" }}
             >
-              {formatMonthly(pro.pricing)}
+              {founding ? formatFoundingMonthly(pro.pricing) : formatMonthly(pro.pricing)}
             </span>
             <span className="text-sm text-muted-foreground">/month</span>
+            {founding && (
+              <span
+                className="text-base font-bold tabular-nums text-muted-foreground line-through decoration-2"
+                style={{ fontFamily: "var(--font-space-grotesk)" }}
+              >
+                {formatMonthly(pro.pricing)}
+              </span>
+            )}
           </div>
           <p className="mt-1 min-h-5 text-sm text-muted-foreground">
             {pro.pricing.yearly > 0
-              ? `${formatYearly(pro.pricing)} billed yearly`
+              ? founding
+                ? `${formatFoundingYearly(pro.pricing)} billed yearly · launch pricing`
+                : `${formatYearly(pro.pricing)} billed yearly`
               : ""}
           </p>
 
@@ -236,7 +265,24 @@ export function PlanCards({
 
           <HighlightList items={grantedHighlights(pro, proHighlights, 6)} />
 
-          <PlanCta cta={cta} label={openSignup ? "Get Pro" : cta.label} primary />
+          {/* The reason the price is what it is. Without this line a visitor
+              reads a module page quoting more than the module used to cost and
+              has no idea the other four arrived with it. */}
+          {proIsSuite && (
+            <p className="mt-4 rounded-xl border border-brand/30 bg-brand-soft/40 px-3.5 py-2.5 text-xs dark:bg-brand/10">
+              <span className="font-bold">
+                Plus every other module{moduleName ? ` — not just ${moduleName}` : ""}.
+              </span>{" "}
+              Commerce, Content, Growth, Support and Presence on one login, one
+              Peaks wallet, one invoice.
+            </p>
+          )}
+
+          <PlanCta
+            cta={cta}
+            label={openSignup ? (proIsSuite ? "Get Peakhour Suite" : "Get Pro") : cta.label}
+            primary
+          />
           {/* A paid trial always collects a card up front (product decision
               2026-07-28) — say so here, or the Free card's "No card needed"
               reads as if it covered trials too. */}
@@ -288,7 +334,8 @@ export function PlanCards({
           {pro && (
             <p className="mt-2.5 text-center text-[11px] text-muted-foreground">
               <span className="font-bold text-foreground">Upgrade later</span> —
-              move to Pro whenever you outgrow it. Your work comes with you.
+              move to {proIsSuite ? SUITE_NAME : PRO_NAME} whenever you outgrow
+              it. Your work comes with you.
             </p>
           )}
         </div>
