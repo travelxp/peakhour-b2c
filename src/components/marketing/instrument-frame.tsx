@@ -92,7 +92,7 @@ export function InstrumentFrame({
         <TerrainCanvas
           seed={mark.seed}
           rgb={mark.rgb}
-          options={{ alpha: 0.4, scale: 1.2, rings: 20, core: false }}
+          options={{ layers: 3, baseline: 1.05, amplitude: 0.4, alpha: 0.55 }}
         />
       </div>
 

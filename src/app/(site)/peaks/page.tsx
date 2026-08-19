@@ -5,7 +5,6 @@ import { Sparkles, Zap, RefreshCw, ArrowRight } from "lucide-react";
 import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
 import { Button } from "@/components/ui/button";
-import { PeakDial } from "@/components/marketing/peak-dial";
 import { TerrainCanvas } from "@/components/marketing/terrain-canvas";
 import { PeaksGlyph } from "@/components/peaks/peaks-glyph";
 import { Peaks } from "@/components/peaks/peaks";
@@ -52,7 +51,7 @@ export default async function PeaksPage() {
           <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 opacity-70">
             <TerrainCanvas
               seed={91}
-              options={{ alpha: 0.5, scale: 1.3, rings: 26, core: false }}
+              options={{ layers: 3, baseline: 1.02, amplitude: 0.36, alpha: 0.5 }}
             />
           </div>
           <div className="mx-auto grid max-w-6xl items-center gap-12 px-4 py-16 sm:px-6 sm:py-20 lg:grid-cols-[1.05fr_0.95fr]">
@@ -94,12 +93,18 @@ export default async function PeaksPage() {
               </p>
             </div>
 
+            {/* ★THE DIAL IS GONE. It was a 24-spoke radial bar chart: a form
+                that distorts magnitude by the area each spoke sweeps, and that
+                makes "when am I busy" something you read around a circle. It
+                also looked like a speedometer. The ridgeline is the correct
+                form for cyclical hourly data AND the brand mark at the same
+                time — the crest IS the day. */}
             <figure className="relative">
-              <PeakDial className="mx-auto aspect-square w-full max-w-sm" />
-              {/* ★The curve is a shape, not a measurement, and the page says so
-                  where someone would otherwise assume it was their data. */}
-              <figcaption className="mt-2 text-center text-xs text-on-ink-dim">
-                A typical evening peak. Illustrative, not measured.
+              <div className="h-64 w-full sm:h-72">
+                <TerrainCanvas variant="chart" seed={7} />
+              </div>
+              <figcaption className="mt-1 text-center text-xs text-on-ink-dim">
+                A typical day, midnight to midnight. Illustrative, not measured.
               </figcaption>
             </figure>
           </div>

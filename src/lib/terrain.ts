@@ -1,31 +1,33 @@
 /**
- * Peakhour's generative artwork — "topographic instruments".
+ * Peakhour's generative artwork — a ridgeline.
  *
- * The brand mark is a set of contour lines around a summit, the product is
- * named for the busiest hour of the day, and the currency is called Peaks.
- * That is a complete visual language, and until now the site drew none of it:
- * the landing page rendered zero images, every pixel on it type, a Lucide icon
- * or a CSS gradient.
+ * ── WHY THIS REPLACED THE CONTOUR RINGS ───────────────────────────────────
  *
- * So every image here is a READING OF A BUSINESS DRAWN AS TERRAIN, from one
- * seeded generator. Feed it a name and it draws that business's map — the same
- * input always yields the same picture, so a tenant's artwork is stable and
- * ownable, and a new asset costs a function call rather than a designer.
+ * The first cut drew noise-perturbed concentric rings, on the reasoning that
+ * the brand mark is a contour map. It was wrong in practice: rings at uniform
+ * radial spacing read as a RIPPLE or a target, not terrain — real contour maps
+ * are irregular and nested at varying density — and thirty of them across a
+ * hero is texture without meaning. It also failed the test the design
+ * direction set for itself: abstract atmosphere can never be evidence, and it
+ * had been promoted to the main event.
  *
- * ── Why canvas and not SVG ────────────────────────────────────────────────
+ * A ridgeline does four things at once, which is why it earns the space:
  *
- * These are hundreds of smoothly perturbed closed loops. As SVG that is a wall
- * of hand-authored path data nobody can review; as canvas it is the twenty
- * lines below that produced it. Nothing here is interactive or needs to be in
- * the accessibility tree — every caller marks its canvas `aria-hidden`.
+ *   • it is literally peaks — the mark, without illustrating it
+ *   • it is literally peak hour — the product's name, drawn
+ *   • its profile CARRIES DATA: the shape of a day's demand
+ *   • it sits low in the frame, so it never competes with the copy above it
+ *
+ * And for cyclical hourly data it is simply the correct form. The dial this
+ * replaces was a 24-spoke radial bar chart, where magnitude is distorted by
+ * the area a spoke sweeps and "when am I busy" has to be read around a circle.
  *
  * ── The one rule ──────────────────────────────────────────────────────────
  *
- * Pure drawing. No DOM lookups, no sizing, no animation loop, no React. The
- * client component owns the element and the device-pixel-ratio transform (see
- * `terrain-canvas.tsx`); this file only ever paints into a context it is
- * handed. That split is what lets the same functions render to an offscreen
- * canvas in a future OG-image route with no changes.
+ * Pure drawing. No DOM, no sizing, no animation, no React — the client
+ * component owns the element and the device-pixel-ratio transform. That split
+ * is what lets these same functions render to an offscreen canvas in an
+ * OG-image route unchanged.
  */
 
 /** Deterministic hash → [0,1). Not cryptographic; it seeds pictures. */
@@ -34,260 +36,243 @@ function hash(n: number): number {
   return s - Math.floor(s);
 }
 
-/**
- * Smooth value noise over t, PERIODIC in `period` samples.
- *
- * Periodicity is the load-bearing property: every ring below is a closed loop,
- * and noise that does not wrap leaves a visible seam where the loop rejoins
- * itself — a crease running out of every contour at the same angle, which
- * reads as a rendering fault rather than terrain.
- */
-function noise(seed: number, t: number, period = 7): number {
-  const x = (((t % 1) + 1) % 1) * period;
+/** Smooth value noise over t. `period` samples per unit, cosine-eased. */
+function noise(seed: number, t: number, period = 6): number {
+  const x = t * period;
   const i = Math.floor(x);
   const f = x - i;
   const smooth = f * f * (3 - 2 * f);
-  const a = hash(seed + (i % period));
-  const b = hash(seed + ((i + 1) % period));
-  return a + (b - a) * smooth;
-}
-
-/** A summit in a contour field. Coordinates are fractions of the canvas box. */
-export interface Peak {
-  x: number;
-  y: number;
-  /** Innermost ring radius, as a fraction of the box's shorter side. */
-  r: number;
-  seed: number;
-}
-
-export interface ContourFieldOptions {
-  /** Stable seed — a business name hashed, a pillar slug, anything. */
-  seed?: number;
-  /** `"r,g,b"`. Defaults to the brand gold. */
-  rgb?: string;
-  /** How many rings per peak. */
-  rings?: number;
-  /** Gap between rings, as a fraction of the box's shorter side. */
-  step?: number;
-  /** How hard the noise deforms each ring. 0 draws circles. */
-  amp?: number;
-  /** Peak opacity of the innermost ring. */
-  alpha?: number;
-  /** Overall size multiplier. */
-  scale?: number;
-  /** Fill the innermost rings with a faint wash. */
-  core?: boolean;
-  peaks?: Peak[];
+  return hash(seed + i) + (hash(seed + i + 1) - hash(seed + i)) * smooth;
 }
 
 /**
- * A topographic bloom: nested, noise-perturbed closed loops around one or more
- * summits, fading outward.
+ * A day's demand, 24 values 0–100, midnight first — the shape of a typical
+ * Indian D2C evening: quiet overnight, a lunchtime lift, the real peak between
+ * six and ten.
  *
- * Two peaks by default rather than one, because a single set of concentric
- * rings reads as a target or a ripple. Real contour maps have shoulders.
+ * ★ILLUSTRATIVE. Any caller that shows it to a customer must say so. It lives
+ * here so the hero and /peaks draw the same day rather than two invented ones.
  */
-export function contourField(
+export const TYPICAL_DAY = [
+  6, 4, 3, 2, 2, 3, 7, 14, 22, 28, 31, 36, 44, 41, 38, 42, 52, 63, 78, 96, 100, 88, 54, 22,
+];
+
+/** Sample a 24-point series at any t ∈ [0,1], smoothly. */
+function sampleDay(day: number[], t: number): number {
+  const x = Math.max(0, Math.min(0.9999, t)) * (day.length - 1);
+  const i = Math.floor(x);
+  const f = x - i;
+  // Cosine easing between hours: demand is continuous, and linear segments
+  // make a 24-point series look like a sawtooth at hero width.
+  const smooth = (1 - Math.cos(f * Math.PI)) / 2;
+  return day[i] + (day[Math.min(day.length - 1, i + 1)] - day[i]) * smooth;
+}
+
+export interface RidgeOptions {
+  /** Stable seed — the back ranges are generated from it. */
+  seed?: number;
+  /** Accent colour as `"r,g,b"`. Defaults to the brand gold. */
+  rgb?: string;
+  /** How many ranges, back to front. 3–5 reads as depth; more reads as noise. */
+  layers?: number;
+  /** Where the FRONT ridge's baseline sits, as a fraction of height. */
+  baseline?: number;
+  /** Front ridge height, as a fraction of height. */
+  amplitude?: number;
+  /** Rim-light opacity on the front ridge. Back ranges fade from it. */
+  alpha?: number;
+  /**
+   * The front range follows this 24-point series instead of noise. Pass it to
+   * make the artwork carry the data; omit it for pure scenery.
+   */
+  day?: number[];
+  /** Fill under each ridge. */
+  fill?: boolean;
+}
+
+/**
+ * A layered range of peaks, drawn back to front.
+ *
+ * Depth comes from three things moving together per layer: the baseline drops,
+ * the amplitude grows, and the rim light brightens. Any one alone reads flat.
+ */
+export function peakRidge(
   ctx: CanvasRenderingContext2D,
   w: number,
   h: number,
-  opts: ContourFieldOptions = {},
+  opts: RidgeOptions = {},
 ): void {
   const seed = opts.seed ?? 3;
   const rgb = opts.rgb ?? "255,201,79";
-  const rings = opts.rings ?? 26;
-  const step = opts.step ?? 0.034;
-  const amp = opts.amp ?? 0.3;
-  const alpha = opts.alpha ?? 0.5;
-  const scale = opts.scale ?? 1.9;
-  const core = opts.core ?? true;
-  const peaks = opts.peaks ?? [
-    { x: 0.72, y: 0.34, r: 0.1, seed },
-    { x: 0.3, y: 0.74, r: 0.06, seed: seed + 40 },
-  ];
+  const layers = opts.layers ?? 4;
+  const baseline = opts.baseline ?? 0.96;
+  const amplitude = opts.amplitude ?? 0.52;
+  const alpha = opts.alpha ?? 0.85;
+  const fill = opts.fill ?? true;
 
-  const base = Math.min(w, h);
   ctx.clearRect(0, 0, w, h);
 
-  for (const peak of peaks) {
-    const cx = peak.x * w;
-    const cy = peak.y * h;
-    for (let i = 0; i < rings; i++) {
-      const radius = (peak.r + i * step) * base * scale;
-      // Stop once a ring has left the box entirely — every further ring is
-      // strictly larger, so this is a break rather than a continue.
-      if (radius > base * 2.6) break;
+  for (let l = 0; l < layers; l++) {
+    const depth = layers === 1 ? 1 : l / (layers - 1); // 0 = furthest, 1 = front
+    const isFront = l === layers - 1;
+    // Back ranges sit higher and smaller — the atmospheric cue, and the reason
+    // a set of identical ridges never reads as distance.
+    const base = h * (baseline - (1 - depth) * 0.2);
+    const amp = h * amplitude * (0.42 + depth * 0.58);
 
-      const fade = Math.max(0, 1 - i / rings) * alpha;
-      ctx.beginPath();
-      const SEGMENTS = 128;
-      for (let d = 0; d <= SEGMENTS; d++) {
-        const theta = (d / SEGMENTS) * Math.PI * 2;
-        // Outer rings deform more than inner ones: a summit is tidy, the
-        // ground around it is not.
-        const wobble =
-          1 + (noise(peak.seed + i * 3.7, d / SEGMENTS, 6) - 0.5) * amp * (0.35 + i / rings);
-        const x = cx + Math.cos(theta) * radius * wobble;
-        // 0.88 flattens the rings slightly. Perfect circles read as a logo.
-        const y = cy + Math.sin(theta) * radius * wobble * 0.88;
-        if (d === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
+    const profile = (t: number): number => {
+      if (isFront && opts.day) {
+        // The data drives the front range. A little noise keeps it from looking
+        // like a chart that wandered into a picture.
+        return sampleDay(opts.day, t) / 100 + (noise(seed + 91, t, 9) - 0.5) * 0.05;
       }
-      ctx.closePath();
+      // Generated ranges: three octaves, so peaks have shoulders rather than
+      // being evenly spaced bumps.
+      return (
+        noise(seed + l * 37, t, 2.5 + l) * 0.62 +
+        noise(seed + l * 37 + 11, t, 6 + l * 2) * 0.26 +
+        noise(seed + l * 37 + 23, t, 13) * 0.12
+      );
+    };
 
-      if (core && i < 4) {
-        ctx.fillStyle = `rgba(${rgb},${(0.055 * (4 - i)).toFixed(3)})`;
-        ctx.fill();
-      }
-      ctx.strokeStyle = `rgba(${rgb},${fade.toFixed(3)})`;
-      // ★1px hairlines at 40% were the same mistake brand-backdrop.tsx makes
-      // deliberately — correct behind a band of copy, wrong when the artwork
-      // IS the picture. The innermost rings now carry real weight and the
-      // outer ones stay fine, so the summit reads at a glance instead of
-      // resolving only if you go looking for it.
-      ctx.lineWidth = i < 2 ? 2.25 : i < 8 ? 1.5 : 1;
+    const STEP = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, h);
+    for (let x = 0; x <= w; x += STEP) {
+      ctx.lineTo(x, base - profile(x / w) * amp);
+    }
+    ctx.lineTo(w, h);
+    ctx.closePath();
+
+    if (fill) {
+      // Each range is darker than the one behind it, so overlaps resolve as
+      // silhouettes instead of mud.
+      const g = ctx.createLinearGradient(0, base - amp, 0, h);
+      g.addColorStop(0, `rgba(${rgb},${(0.1 * (1 - depth) + 0.03).toFixed(3)})`);
+      g.addColorStop(0.35, "rgba(12,10,6,0.86)");
+      g.addColorStop(1, "rgba(12,10,6,0.98)");
+      ctx.fillStyle = g;
+      ctx.fill();
+    }
+
+    // Rim light along the crest — the line that makes it a ridge, not a blob.
+    ctx.beginPath();
+    for (let x = 0; x <= w; x += STEP) {
+      const y = base - profile(x / w) * amp;
+      if (x === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = `rgba(${rgb},${(alpha * (0.22 + depth * 0.78)).toFixed(3)})`;
+    ctx.lineWidth = isFront ? 2 : 1.25;
+    ctx.stroke();
+    if (isFront) {
+      // One glow pass, on the front crest only. On every layer it becomes haze.
+      ctx.shadowColor = `rgba(${rgb},0.9)`;
+      ctx.shadowBlur = 18;
       ctx.stroke();
+      ctx.shadowBlur = 0;
     }
   }
 }
 
 /**
- * A module mark: one summit in the module's own series colour, with a soft
- * bloom under it.
+ * The same range with an hour axis and the peak marked — the version that is a
+ * CHART rather than scenery.
  *
- * Deliberately the same generator as the hero ground rather than a separate
- * illustration style — five marks that share a construction read as one
- * system, which is the entire argument for generating them.
+ * A separate function rather than a flag on `peakRidge`: the labelled version
+ * reserves room at the bottom, which changes the geometry of every layer above
+ * it, and a boolean that silently reflows the whole drawing is worse than two
+ * names.
  */
-export function moduleMark(
+export function peakRidgeChart(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  opts: { day?: number[]; rgb?: string; seed?: number } = {},
+): void {
+  const day = opts.day ?? TYPICAL_DAY;
+  const rgb = opts.rgb ?? "255,201,79";
+  const AXIS = 26; // room for the hour labels
+  const plotH = Math.max(1, h - AXIS);
+  const BASELINE = 0.99;
+  const AMPLITUDE = 0.78;
+
+  peakRidge(ctx, w, plotH, {
+    seed: opts.seed ?? 7,
+    rgb,
+    layers: 3,
+    day,
+    baseline: BASELINE,
+    amplitude: AMPLITUDE,
+    alpha: 0.95,
+  });
+
+  // Peak marker. The y here must be derived the same way the front ridge's is,
+  // or the dot floats off the crest it is supposed to sit on.
+  let peak = 0;
+  for (let i = 0; i < day.length; i++) if (day[i] > day[peak]) peak = i;
+  const px = (peak / (day.length - 1)) * w;
+  const py = plotH * BASELINE - (day[peak] / 100) * plotH * AMPLITUDE;
+
+  const column = ctx.createLinearGradient(0, py, 0, plotH);
+  column.addColorStop(0, `rgba(${rgb},0.26)`);
+  column.addColorStop(1, `rgba(${rgb},0)`);
+  ctx.fillStyle = column;
+  ctx.fillRect(px - 13, py, 26, plotH - py);
+
+  ctx.beginPath();
+  ctx.arc(px, py, 4, 0, Math.PI * 2);
+  ctx.fillStyle = `rgb(${rgb})`;
+  ctx.shadowColor = `rgba(${rgb},0.9)`;
+  ctx.shadowBlur = 12;
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // Five marks, not twenty-four — the shape is the message, and a full ruler
+  // under it only competes.
+  ctx.fillStyle = "rgba(167,156,139,.9)";
+  ctx.font = "500 10px ui-monospace, monospace";
+  ctx.textAlign = "center";
+  for (const [text, hour] of [
+    ["12am", 0],
+    ["6am", 6],
+    ["12pm", 12],
+    ["6pm", 18],
+    ["11pm", 23],
+  ] as const) {
+    const x = (hour / (day.length - 1)) * w;
+    ctx.fillText(text, Math.min(w - 16, Math.max(16, x)), h - 8);
+  }
+}
+
+/**
+ * A module's mark: one peak, in that module's own colour.
+ *
+ * Same language as the hero at a fraction of the size — a single silhouette
+ * reads at 40px where a whole range does not.
+ */
+export function ridgeMark(
   ctx: CanvasRenderingContext2D,
   w: number,
   h: number,
   opts: { seed: number; rgb: string },
 ): void {
-  contourField(ctx, w, h, {
+  peakRidge(ctx, w, h, {
     seed: opts.seed,
     rgb: opts.rgb,
-    rings: 18,
-    step: 0.046,
-    amp: 0.38,
-    alpha: 0.78,
-    scale: 0.95,
-    core: false,
-    peaks: [{ x: 0.5, y: 0.56, r: 0.05, seed: opts.seed }],
+    layers: 2,
+    baseline: 1.04,
+    amplitude: 0.78,
+    alpha: 0.95,
   });
-
-  const bloom = ctx.createRadialGradient(w * 0.5, h * 0.56, 0, w * 0.5, h * 0.56, w * 0.38);
-  bloom.addColorStop(0, `rgba(${opts.rgb},0.3)`);
-  bloom.addColorStop(1, `rgba(${opts.rgb},0)`);
-  ctx.fillStyle = bloom;
-  ctx.fillRect(0, 0, w, h);
 }
 
 /**
- * The Peak Hour dial — twenty-four hours around a circle, the gold arc
- * swelling where demand does.
- *
- * This is the brand's signature graphic and the one image only Peakhour can
- * own: the product is named for the busiest hour of the day, and this draws
- * it. A contour field says "terrain"; the dial says "peak hour" specifically.
- *
- * `demand` is 24 numbers, 0–100, midnight first. The caller supplies them, so
- * the same function serves a marketing illustration and — later, unchanged —
- * a tenant's real hourly data.
- */
-export function peakDial(
-  ctx: CanvasRenderingContext2D,
-  w: number,
-  h: number,
-  opts: { demand: number[]; label?: string; sublabel?: string },
-): void {
-  const { demand } = opts;
-  ctx.clearRect(0, 0, w, h);
-
-  const cx = w / 2;
-  const cy = h / 2;
-  const R = Math.min(w, h) * 0.4;
-  const inner = R * 0.46;
-
-  ctx.strokeStyle = "rgba(246,241,231,.13)";
-  ctx.lineWidth = 1;
-  for (const radius of [inner * 0.72, R * 1.13]) {
-    ctx.beginPath();
-    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-    ctx.stroke();
-  }
-
-  // One spoke per hour, length proportional to demand. The busy hours get a
-  // brighter tip and a thicker stroke, so the peak is legible as a SHAPE
-  // before any label is read.
-  let peakHour = 0;
-  for (let i = 0; i < 24; i++) if (demand[i] > demand[peakHour]) peakHour = i;
-
-  for (let i = 0; i < 24; i++) {
-    const angle = (i / 24) * Math.PI * 2 - Math.PI / 2;
-    const value = Math.max(0, Math.min(100, demand[i])) / 100;
-    const tip = inner + (R - inner) * value;
-    const busy = value > 0.7;
-    const grad = ctx.createLinearGradient(
-      cx + Math.cos(angle) * inner,
-      cy + Math.sin(angle) * inner,
-      cx + Math.cos(angle) * tip,
-      cy + Math.sin(angle) * tip,
-    );
-    grad.addColorStop(0, "rgba(217,122,6,.55)");
-    grad.addColorStop(1, busy ? "#FFC94F" : "rgba(240,168,33,.85)");
-    ctx.strokeStyle = grad;
-    ctx.lineWidth = busy ? 7 : 5;
-    ctx.lineCap = "round";
-    ctx.beginPath();
-    ctx.moveTo(cx + Math.cos(angle) * inner, cy + Math.sin(angle) * inner);
-    ctx.lineTo(cx + Math.cos(angle) * tip, cy + Math.sin(angle) * tip);
-    ctx.stroke();
-  }
-
-  // The arc over the busy window, drawn from the data rather than hardcoded so
-  // it cannot disagree with the spokes beneath it.
-  const busyHours = demand
-    .map((v, i) => ({ v, i }))
-    .filter(({ v }) => v > 70)
-    .map(({ i }) => i);
-  if (busyHours.length > 0) {
-    const from = Math.min(...busyHours);
-    const to = Math.max(...busyHours) + 1;
-    ctx.beginPath();
-    ctx.arc(cx, cy, R * 1.13, (from / 24) * Math.PI * 2 - Math.PI / 2, (to / 24) * Math.PI * 2 - Math.PI / 2);
-    ctx.strokeStyle = "#FFC94F";
-    ctx.lineWidth = 2.5;
-    ctx.stroke();
-  }
-
-  ctx.textAlign = "center";
-  if (opts.label) {
-    ctx.fillStyle = "#F6F1E7";
-    ctx.font = "600 12px ui-monospace, monospace";
-    ctx.fillText(opts.label, cx, cy - 4);
-  }
-  if (opts.sublabel) {
-    ctx.fillStyle = "#FFC94F";
-    ctx.font = "700 17px ui-monospace, monospace";
-    ctx.fillText(opts.sublabel, cx, cy + 16);
-  }
-  ctx.fillStyle = "rgba(167,156,139,.85)";
-  ctx.font = "500 10px ui-monospace, monospace";
-  for (const [text, hour] of [["00", 0], ["06", 6], ["12", 12], ["18", 18]] as const) {
-    const angle = (hour / 24) * Math.PI * 2 - Math.PI / 2;
-    ctx.fillText(text, cx + Math.cos(angle) * R * 1.34, cy + Math.sin(angle) * R * 1.34 + 3.5);
-  }
-}
-
-/**
- * A stable seed from any string, so a business always gets its own map.
+ * A stable seed from any string, so a business always gets its own range.
  *
  * djb2. The requirement is only that the same name yields the same picture and
- * different names usually differ — collisions produce a duplicate artwork, not
- * a bug.
+ * different names usually differ — a collision is a duplicate artwork, not a
+ * bug.
  */
 export function seedFrom(value: string): number {
   let h = 5381;

@@ -100,13 +100,7 @@ export function AuthScenes() {
           key={scene.seed}
           seed={scene.seed}
           rgb={scene.rgb}
-          options={{
-            alpha: 0.5,
-            scale: 1.15,
-            rings: 22,
-            core: false,
-            peaks: [{ x: 0.68, y: 0.35, r: 0.07, seed: scene.seed }],
-          }}
+          options={{ layers: 3, baseline: 1.02, amplitude: 0.42, alpha: 0.7 }}
         />
       </div>
 

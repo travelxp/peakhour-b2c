@@ -17,6 +17,7 @@ import { PILLARS } from "@/lib/pillars";
 import { badgedComingSoonKeys } from "@/lib/pillar-channels";
 import { BrandBackdrop } from "@/components/marketing/brand-backdrop";
 import { TerrainCanvas } from "@/components/marketing/terrain-canvas";
+import { TYPICAL_DAY } from "@/lib/terrain";
 import { HeroConsole } from "@/components/marketing/hero-console";
 import { PillarOrbit } from "@/components/marketing/pillar-orbit";
 import { PillarCards } from "@/components/marketing/pillar-cards";
@@ -221,24 +222,15 @@ export default async function Home({
             the content. */}
         <section className="relative isolate overflow-hidden bg-ink pt-10 pb-14 text-on-ink sm:pt-14 sm:pb-20">
           <div aria-hidden className="pointer-events-none absolute inset-0 -z-20">
+            {/* ★A RANGE ALONG THE BOTTOM, NOT A FIELD BEHIND EVERYTHING.
+                The rings this replaced sat in the same plane as the copy and
+                had to be scrimmed into submission. A ridgeline occupies the
+                lower third by construction — the headline never competes with
+                it — and the front crest follows a real day's demand, so the
+                picture is the product's name drawn rather than texture. */}
             <TerrainCanvas
               seed={17}
-              options={{
-                alpha: 0.72,
-                scale: 1.05,
-                rings: 34,
-                step: 0.028,
-                amp: 0.34,
-                // ★BIASED RIGHT, ON PURPOSE. Both summits used to sit
-                // where the headline does, so the contour lines ran straight
-                // through the copy. The artwork now lives behind the console
-                // and off the left column entirely; the scrim below finishes
-                // the job.
-                peaks: [
-                  { x: 0.86, y: 0.26, r: 0.08, seed: 17 },
-                  { x: 0.7, y: 0.92, r: 0.05, seed: 57 },
-                ],
-              }}
+              options={{ layers: 4, baseline: 1.0, amplitude: 0.44, alpha: 0.8, day: TYPICAL_DAY }}
             />
           </div>
           <div
@@ -263,7 +255,7 @@ export default async function Home({
               copy is still in the opaque half. */}
           <div
             aria-hidden
-            className="pointer-events-none absolute inset-0 -z-[5] bg-[linear-gradient(95deg,rgba(16,13,8,.94)_0%,rgba(16,13,8,.88)_34%,rgba(16,13,8,.45)_66%,rgba(16,13,8,0)_100%)]"
+            className="pointer-events-none absolute inset-0 -z-[5] bg-[linear-gradient(180deg,rgba(16,13,8,.86)_0%,rgba(16,13,8,.55)_55%,rgba(16,13,8,0)_100%)]"
           />
           <div className="relative mx-auto grid max-w-6xl items-center gap-10 px-4 sm:gap-14 sm:px-6 lg:grid-cols-[1.1fr_0.9fr]">
             <div className="min-w-0">
@@ -527,7 +519,7 @@ export default async function Home({
           <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 opacity-60">
             <TerrainCanvas
               seed={205}
-              options={{ alpha: 0.45, scale: 1.35, rings: 24, core: false }}
+              options={{ layers: 3, baseline: 1.02, amplitude: 0.38, alpha: 0.55 }}
             />
           </div>
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
