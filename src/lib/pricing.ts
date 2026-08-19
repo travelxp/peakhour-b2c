@@ -232,6 +232,21 @@ export function freeTier(product: ResolvedProduct): ResolvedProductTier | undefi
 }
 
 /**
+ * The tier a pillar sells as "Pro" — the paid one the catalog marks as
+ * recommended, falling back to the cheapest paid tier when it marks none.
+ *
+ * Bundles are excluded by `productTiers`, which matters here for the same
+ * reason it matters in `freeTier`: Enterprise is sales-led and priced 0/0, so
+ * a naive "first tier with a price" search over the raw list would skip it —
+ * but Agency IS priced (₹24,999/mo) and would win outright, putting the
+ * account-level bundle on a single pillar's Pro card.
+ */
+export function proTier(product: ResolvedProduct): ResolvedProductTier | undefined {
+  const paid = productTiers(product).filter((t) => t.pricing.monthly > 0);
+  return paid.find((t) => t.highlightAsRecommended) ?? paid[0];
+}
+
+/**
  * The smallest monthly Peaks grant on any free plan — i.e. the amount every
  * free plan is guaranteed to include at minimum.
  *
@@ -382,6 +397,24 @@ export const FEATURE_LABELS: Record<string, string> = {
 const PLATFORM_SEGMENTS = new Set(["shopify", "woocommerce"]);
 
 /**
+ * The platform-agnostic form of a feature key —
+ * `commerce.woocommerce.assistant` → `commerce.assistant`, everything else
+ * unchanged.
+ *
+ * Exported because it is an IDENTITY, not a formatting detail: two keys that
+ * collapse to the same canonical form are the same capability wearing two
+ * connector badges, and every surface that keys a map, a set or a comparison
+ * row off a feature has to agree on that or it renders the same row twice.
+ */
+export function canonicalFeatureKey(key: string): string {
+  const parts = key.split(".");
+  if (parts.length >= 3 && PLATFORM_SEGMENTS.has(parts[1])) {
+    return [parts[0], ...parts.slice(2)].join(".");
+  }
+  return key;
+}
+
+/**
  * Resolve a cfg_feature key to a human-readable label, platform-namespace
  * agnostic. Tries an exact match, then collapses a platform segment
  * (`commerce.woocommerce.assistant` → `commerce.assistant`), and finally falls
@@ -390,12 +423,10 @@ const PLATFORM_SEGMENTS = new Set(["shopify", "woocommerce"]);
 export function featureLabel(key: string): string {
   if (FEATURE_LABELS[key]) return FEATURE_LABELS[key];
 
-  const parts = key.split(".");
-  if (parts.length >= 3 && PLATFORM_SEGMENTS.has(parts[1])) {
-    const collapsed = [parts[0], ...parts.slice(2)].join(".");
-    if (FEATURE_LABELS[collapsed]) return FEATURE_LABELS[collapsed];
-  }
+  const collapsed = canonicalFeatureKey(key);
+  if (collapsed !== key && FEATURE_LABELS[collapsed]) return FEATURE_LABELS[collapsed];
 
+  const parts = key.split(".");
   const leaf = parts[parts.length - 1] ?? key;
   return leaf
     .split("_")

@@ -1,4 +1,5 @@
 import type { ComponentType } from "react";
+import Image from "next/image";
 import {
   ShopifyIcon,
   WordPressIcon,
@@ -19,6 +20,12 @@ import { cn } from "@/lib/utils";
  *
  * `tag` is still the fallback — BigCommerce has no mark here, and a two-letter
  * tile reads better than an empty square or a wrong logo.
+ *
+ * `native` is the exception to the exception. It is not a connector with a
+ * brand colour, it is US — so it renders the actual Peakhour mark rather than
+ * the letters "Ph" on an orange square, which is what a logo placeholder looks
+ * like on a page that has the logo. The artwork is already a self-contained
+ * disc, so it needs no tile colour behind it.
  */
 const CHANNEL_ICONS: Partial<Record<ChannelKey, ComponentType<{ className?: string }>>> = {
   shopify: ShopifyIcon,
@@ -39,6 +46,18 @@ export function ChannelTile({
 }) {
   const ch = CHANNELS[channel];
   const Icon = CHANNEL_ICONS[channel];
+  if (channel === "native") {
+    return (
+      <Image
+        src="/peakhour-icon.svg"
+        alt=""
+        width={40}
+        height={40}
+        aria-hidden
+        className={cn("shrink-0 object-contain dark:invert", className)}
+      />
+    );
+  }
   return (
     <span
       className={cn(
