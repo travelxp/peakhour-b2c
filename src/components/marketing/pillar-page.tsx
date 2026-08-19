@@ -4,6 +4,7 @@ import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
 import { getPublicCatalog, signupCta } from "@/lib/catalog";
 import { PILLARS, PILLAR_ORDER, type PillarSlug } from "@/lib/pillars";
+import { InstrumentFrame } from "@/components/marketing/instrument-frame";
 
 /**
  * Shared template for the five pillar marketing pages. Server component;
@@ -118,8 +119,16 @@ export async function PillarPage({ slug }: { slug: PillarSlug }) {
                 What it does
               </span>
               <h2 className="mt-4 text-3xl font-extrabold tracking-tight text-pretty lg:text-4xl">
-                Everything the {pillar.name} pillar handles for you.
+                Everything Peakhour {pillar.name} handles for you.
               </h2>
+            </div>
+
+            {/* The screenshot slot. Every product capture on the site goes
+                through one frame — ten screens shot the same way read as one
+                product, ten raw PNGs read as a folder. Renders an explicit
+                placeholder until the image lands; see MODULE_SHOTS. */}
+            <div className="mx-auto mt-12 max-w-3xl">
+              <InstrumentFrame slug={pillar.slug} moduleName={pillar.name} />
             </div>
             <div className="mt-10 grid gap-4 md:grid-cols-3">
               {pillar.features.map((feature) => (

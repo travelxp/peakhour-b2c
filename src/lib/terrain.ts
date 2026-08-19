@@ -136,12 +136,17 @@ export function contourField(
       }
       ctx.closePath();
 
-      if (core && i < 3) {
-        ctx.fillStyle = `rgba(${rgb},${(0.05 * (3 - i)).toFixed(3)})`;
+      if (core && i < 4) {
+        ctx.fillStyle = `rgba(${rgb},${(0.055 * (4 - i)).toFixed(3)})`;
         ctx.fill();
       }
       ctx.strokeStyle = `rgba(${rgb},${fade.toFixed(3)})`;
-      ctx.lineWidth = i < 2 ? 1.5 : 1;
+      // ★1px hairlines at 40% were the same mistake brand-backdrop.tsx makes
+      // deliberately — correct behind a band of copy, wrong when the artwork
+      // IS the picture. The innermost rings now carry real weight and the
+      // outer ones stay fine, so the summit reads at a glance instead of
+      // resolving only if you go looking for it.
+      ctx.lineWidth = i < 2 ? 2.25 : i < 8 ? 1.5 : 1;
       ctx.stroke();
     }
   }

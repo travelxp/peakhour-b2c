@@ -224,10 +224,11 @@ export default async function Home({
             <TerrainCanvas
               seed={17}
               options={{
-                alpha: 0.4,
-                scale: 1.15,
-                rings: 30,
-                step: 0.03,
+                alpha: 0.72,
+                scale: 1.05,
+                rings: 34,
+                step: 0.028,
+                amp: 0.34,
                 peaks: [
                   { x: 0.78, y: 0.3, r: 0.08, seed: 17 },
                   { x: 0.16, y: 0.84, r: 0.05, seed: 57 },
@@ -237,11 +238,11 @@ export default async function Home({
           </div>
           <div
             aria-hidden
-            className="pointer-events-none absolute -inset-[20%] -z-10 opacity-55 blur-[70px]"
+            className="pointer-events-none absolute -inset-[20%] -z-10 opacity-85 blur-[64px]"
           >
-            <span className="aurora-blob absolute left-[4%] top-[2%] block size-[46vw] rounded-full bg-[radial-gradient(circle,rgba(255,201,79,.55),transparent_68%)]" />
-            <span className="aurora-blob absolute right-[2%] top-[24%] block size-[40vw] rounded-full bg-[radial-gradient(circle,rgba(217,122,6,.5),transparent_68%)]" />
-            <span className="aurora-blob absolute bottom-[-8%] left-[38%] block size-[30vw] rounded-full bg-[radial-gradient(circle,rgba(240,168,33,.42),transparent_70%)]" />
+            <span className="aurora-blob absolute left-[4%] top-[2%] block size-[46vw] rounded-full bg-[radial-gradient(circle,rgba(255,201,79,.72),transparent_66%)]" />
+            <span className="aurora-blob absolute right-[2%] top-[24%] block size-[40vw] rounded-full bg-[radial-gradient(circle,rgba(217,122,6,.68),transparent_66%)]" />
+            <span className="aurora-blob absolute bottom-[-8%] left-[38%] block size-[30vw] rounded-full bg-[radial-gradient(circle,rgba(240,168,33,.58),transparent_68%)]" />
           </div>
           {/* Both grid tracks need `min-w-0` or a grid item's automatic
               minimum is its min-content, which on a phone sizes a track wider
