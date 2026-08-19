@@ -196,16 +196,21 @@ export function formatYearly(p: PricingEntry): string {
  * this set means the per-pillar pages ignore it, which is the correct
  * behaviour for a plan the pages cannot yet describe.
  */
-export const BUNDLE_PLAN_KEYS = new Set(["agency", "enterprise", "suite"]);
+export const BUNDLE_PLAN_KEY_LIST = ["agency", "enterprise", "suite"] as const;
 
-/** True when a tier is an account-level bundle (Agency/Enterprise), not a
- *  product-specific Free/Paid tier. */
+/** A bundle plan's key, derived from the list so the two cannot drift. */
+export type BundlePlanKey = (typeof BUNDLE_PLAN_KEY_LIST)[number];
+
+export const BUNDLE_PLAN_KEYS: ReadonlySet<string> = new Set(BUNDLE_PLAN_KEY_LIST);
+
+/** True when a tier is an account-level bundle (Agency/Enterprise/Suite), not
+ *  a product-specific Free/Paid tier. */
 export function isBundleTier(tier: ResolvedProductTier): boolean {
   return BUNDLE_PLAN_KEYS.has(tier.key);
 }
 
 /**
- * The product's own Free/Paid tiers — bundle plans (Agency/Enterprise) removed —
+ * The product's own Free/Paid tiers — bundle plans (see BUNDLE_PLAN_KEYS) removed —
  * sorted cheapest-first so Free leads and the paid tier(s) follow. This is what
  * a single pillar's comparison table renders as its columns.
  */
@@ -340,14 +345,15 @@ export function formatNumber(value: number): string {
 export const formatPeaks = formatNumber;
 
 /**
- * Find a bundle tier (Agency/Enterprise) anywhere in the response. Bundle plans
- * appear as a tier under every product they compose, so the first occurrence
- * carries the canonical price + Peaks allowance (identical across products).
- * Returns undefined when the bundle isn't publicly listed in this env.
+ * Find a bundle tier (Agency/Enterprise/Suite) anywhere in the response.
+ * Bundle plans appear as a tier under every product they compose, so the first
+ * occurrence carries the canonical price + Peaks allowance (identical across
+ * products). Returns undefined when the bundle isn't publicly listed in this
+ * env — which is the normal state for `suite` until the catalog seeds it.
  */
 export function findBundleTier(
   pricing: PricingResponse | null,
-  key: "agency" | "enterprise",
+  key: BundlePlanKey,
 ): ResolvedProductTier | undefined {
   if (!pricing) return undefined;
   for (const product of pricing.products) {
