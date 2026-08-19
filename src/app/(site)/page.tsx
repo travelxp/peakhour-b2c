@@ -229,27 +229,43 @@ export default async function Home({
                 rings: 34,
                 step: 0.028,
                 amp: 0.34,
+                // ★BIASED RIGHT, ON PURPOSE. Both summits used to sit
+                // where the headline does, so the contour lines ran straight
+                // through the copy. The artwork now lives behind the console
+                // and off the left column entirely; the scrim below finishes
+                // the job.
                 peaks: [
-                  { x: 0.78, y: 0.3, r: 0.08, seed: 17 },
-                  { x: 0.16, y: 0.84, r: 0.05, seed: 57 },
+                  { x: 0.86, y: 0.26, r: 0.08, seed: 17 },
+                  { x: 0.7, y: 0.92, r: 0.05, seed: 57 },
                 ],
               }}
             />
           </div>
           <div
             aria-hidden
-            className="pointer-events-none absolute -inset-[20%] -z-10 opacity-85 blur-[64px]"
+            className="pointer-events-none absolute -inset-[20%] -z-10 opacity-70 blur-[64px]"
           >
-            <span className="aurora-blob absolute left-[4%] top-[2%] block size-[46vw] rounded-full bg-[radial-gradient(circle,rgba(255,201,79,.72),transparent_66%)]" />
-            <span className="aurora-blob absolute right-[2%] top-[24%] block size-[40vw] rounded-full bg-[radial-gradient(circle,rgba(217,122,6,.68),transparent_66%)]" />
-            <span className="aurora-blob absolute bottom-[-8%] left-[38%] block size-[30vw] rounded-full bg-[radial-gradient(circle,rgba(240,168,33,.58),transparent_68%)]" />
+            <span className="aurora-blob absolute left-[46%] top-[0%] block size-[46vw] rounded-full bg-[radial-gradient(circle,rgba(255,201,79,.72),transparent_66%)]" />
+            <span className="aurora-blob absolute right-[-4%] top-[22%] block size-[40vw] rounded-full bg-[radial-gradient(circle,rgba(217,122,6,.68),transparent_66%)]" />
+            <span className="aurora-blob absolute bottom-[-10%] left-[62%] block size-[30vw] rounded-full bg-[radial-gradient(circle,rgba(240,168,33,.58),transparent_68%)]" />
           </div>
           {/* Both grid tracks need `min-w-0` or a grid item's automatic
               minimum is its min-content, which on a phone sizes a track wider
               than the viewport and puts the whole page into a horizontal
               scroll. The copy column carries it below; the orbit's is on
               PillarOrbit's own root, which IS the second grid item. */}
-          <div className="mx-auto grid max-w-6xl items-center gap-10 px-4 sm:gap-14 sm:px-6 lg:grid-cols-[1.1fr_0.9fr]">
+          {/* ★THE SCRIM, AND IT IS NOT OPTIONAL. Text over artwork needs a
+              ground or the artwork wins — turning the aurora up without one is
+              what put the headline on a glowing gold field. Ink at 94% on the
+              left where the copy sits, fading out to nothing on the right so
+              the console keeps its glow. A single left-to-right gradient works
+              at every breakpoint: when the grid collapses to one column the
+              copy is still in the opaque half. */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 -z-[5] bg-[linear-gradient(95deg,rgba(16,13,8,.94)_0%,rgba(16,13,8,.88)_34%,rgba(16,13,8,.45)_66%,rgba(16,13,8,0)_100%)]"
+          />
+          <div className="relative mx-auto grid max-w-6xl items-center gap-10 px-4 sm:gap-14 sm:px-6 lg:grid-cols-[1.1fr_0.9fr]">
             <div className="min-w-0">
               {/* The eyebrow carries the positioning badge; the H1 under it
                   is the visitor's own problem stated back to them. */}

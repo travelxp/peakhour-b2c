@@ -6,8 +6,13 @@ import { usePathname } from "next/navigation";
 import { useAuth } from "@/providers/auth-provider";
 import { PeakhourLogo } from "@/components/shared/peakhour-logo";
 
-// The five pillars are the product — each has its own page. Pricing is a real
-// route today.
+// The five modules are the product — each has its own page. Pricing and Peaks
+// are real routes today.
+//
+// ★PEAKS WAS FOOTER-ONLY. It is the one currency behind every module and the
+// thing a buyer has to understand before a price means anything — and it was
+// reachable only from the bottom of the page. It sits next to Pricing because
+// that is the question it answers.
 const NAV_LINKS = [
   { href: "/commerce", label: "Commerce" },
   { href: "/content", label: "Content" },
@@ -15,6 +20,7 @@ const NAV_LINKS = [
   { href: "/support", label: "Support" },
   { href: "/presence", label: "Presence" },
   { href: "/pricing", label: "Pricing" },
+  { href: "/peaks", label: "Peaks" },
 ] as const;
 
 // Nav link with a gold underline that wipes in on hover/focus.
