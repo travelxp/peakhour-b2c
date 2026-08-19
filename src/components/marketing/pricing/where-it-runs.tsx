@@ -12,15 +12,18 @@ import { ChannelTile } from "@/components/marketing/pricing/channel-tile";
  * product-stage vocabulary stays one thing and this stays another.
  */
 function AvailabilityMark({ soon }: { soon: boolean }) {
+  // shrink-0 on both: the mark sits beside a channel name that can be as long
+  // as "WordPress Plugin", and a flex item allowed to shrink wraps "Coming
+  // soon" onto two lines in the three-column grid.
   if (soon) {
     return (
-      <span className="inline-flex items-center rounded-full border bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
+      <span className="inline-flex shrink-0 items-center rounded-full border bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
         Coming soon
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full border border-success/30 bg-success/10 px-2 py-0.5 text-[11px] font-semibold text-success-on-tint">
+    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-success/30 bg-success/10 px-2 py-0.5 text-[11px] font-semibold text-success-on-tint">
       <span className="size-1.5 rounded-full bg-success" aria-hidden />
       Available now
     </span>

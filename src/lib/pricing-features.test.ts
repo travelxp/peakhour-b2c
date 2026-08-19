@@ -209,6 +209,24 @@ describe("the plan-card copy stays wired to the catalog", () => {
   });
 });
 
+describe("CUSTOMER_FEATURE_LABELS", () => {
+  it("★never gives two capabilities the same words", () => {
+    // comparisonRows merges rows that resolve to the same label, OR-ing their
+    // inclusion. For the platform spellings of ONE capability that is right,
+    // and canonicalisation has already handled them by that point. So a
+    // surviving collision can only be two DIFFERENT capabilities sharing copy,
+    // where the merge would tick a column for something the tier lacks. Cheaper
+    // to make that impossible here than to detect it downstream.
+    const seen = new Map<string, string>();
+    for (const [key, label] of Object.entries(CUSTOMER_FEATURE_LABELS)) {
+      expect(seen.get(label), `"${label}" is also ${seen.get(label)}`).toBe(
+        undefined,
+      );
+      seen.set(label, key);
+    }
+  });
+});
+
 describe("HIDDEN_FEATURE_KEYS", () => {
   it("stays a short, deliberate list", () => {
     // Not a size rule for its own sake: every entry here removes a row a buyer

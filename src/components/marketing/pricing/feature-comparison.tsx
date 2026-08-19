@@ -117,16 +117,23 @@ export function FeatureComparison({
                       key={tiers[i].key}
                       className="border-b py-3.5 text-center"
                     >
+                      {/* The mark carries the answer, so the answer is text.
+                          `aria-label` on a bare <svg> has no role to attach to
+                          and goes unannounced in some screen readers — which in
+                          this table means a row of cells that read as empty. */}
+                      <span className="sr-only">
+                        {included ? "Included" : "Not included"}
+                      </span>
                       {included ? (
                         <Check
                           className="mx-auto size-4 text-brand-strong"
                           strokeWidth={2.5}
-                          aria-label="Included"
+                          aria-hidden
                         />
                       ) : (
                         <Minus
                           className="mx-auto size-4 text-muted-foreground/40"
-                          aria-label="Not included"
+                          aria-hidden
                         />
                       )}
                     </td>

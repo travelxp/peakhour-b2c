@@ -71,7 +71,13 @@ function PeaksBlock({
   return (
     <div
       className={`mt-6 rounded-2xl border px-4 py-3.5 ${
-        emphasis ? "border-brand/40 bg-brand-soft/50" : "border-border bg-muted/30"
+        emphasis
+          ? // --brand-soft is theme-stable (only --brand-label flips), so a 50%
+            // pale-gold wash over the dark card lands around L 0.58 and the
+            // light foreground on top of it misses AA. Same dark override the
+            // coming-soon panel on this page already uses.
+            "border-brand/40 bg-brand-soft/50 dark:bg-brand/10"
+          : "border-border bg-muted/30"
       }`}
     >
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
@@ -201,7 +207,10 @@ export function PlanCards({
             Most popular
           </span>
           <div className="flex items-baseline justify-between gap-3">
-            <h3 className="text-lg font-extrabold tracking-tight">{PRO_NAME}</h3>
+            {/* h2, not h3: these are the page's first headings under the h1,
+                and an h3 arriving before any h2 is a level skip for anyone
+                navigating by heading. */}
+            <h2 className="text-lg font-extrabold tracking-tight">{PRO_NAME}</h2>
             <span className="text-xs font-semibold text-brand-label">
               For growing businesses
             </span>
@@ -242,7 +251,7 @@ export function PlanCards({
       {free && (
         <div className="rounded-3xl border bg-card p-6 sm:p-8">
           <div className="flex items-baseline justify-between gap-3">
-            <h3 className="text-lg font-extrabold tracking-tight">{FREE_NAME}</h3>
+            <h2 className="text-lg font-extrabold tracking-tight">{FREE_NAME}</h2>
             <span className="text-xs font-semibold text-muted-foreground">
               {/* Presence sells one plan and always will — calling it the way
                   to "try Peakhour" frames the whole product as a trial. And
