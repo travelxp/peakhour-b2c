@@ -186,6 +186,103 @@ export function moduleMark(
 }
 
 /**
+ * The Peak Hour dial — twenty-four hours around a circle, the gold arc
+ * swelling where demand does.
+ *
+ * This is the brand's signature graphic and the one image only Peakhour can
+ * own: the product is named for the busiest hour of the day, and this draws
+ * it. A contour field says "terrain"; the dial says "peak hour" specifically.
+ *
+ * `demand` is 24 numbers, 0–100, midnight first. The caller supplies them, so
+ * the same function serves a marketing illustration and — later, unchanged —
+ * a tenant's real hourly data.
+ */
+export function peakDial(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  opts: { demand: number[]; label?: string; sublabel?: string },
+): void {
+  const { demand } = opts;
+  ctx.clearRect(0, 0, w, h);
+
+  const cx = w / 2;
+  const cy = h / 2;
+  const R = Math.min(w, h) * 0.4;
+  const inner = R * 0.46;
+
+  ctx.strokeStyle = "rgba(246,241,231,.13)";
+  ctx.lineWidth = 1;
+  for (const radius of [inner * 0.72, R * 1.13]) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  // One spoke per hour, length proportional to demand. The busy hours get a
+  // brighter tip and a thicker stroke, so the peak is legible as a SHAPE
+  // before any label is read.
+  let peakHour = 0;
+  for (let i = 0; i < 24; i++) if (demand[i] > demand[peakHour]) peakHour = i;
+
+  for (let i = 0; i < 24; i++) {
+    const angle = (i / 24) * Math.PI * 2 - Math.PI / 2;
+    const value = Math.max(0, Math.min(100, demand[i])) / 100;
+    const tip = inner + (R - inner) * value;
+    const busy = value > 0.7;
+    const grad = ctx.createLinearGradient(
+      cx + Math.cos(angle) * inner,
+      cy + Math.sin(angle) * inner,
+      cx + Math.cos(angle) * tip,
+      cy + Math.sin(angle) * tip,
+    );
+    grad.addColorStop(0, "rgba(217,122,6,.55)");
+    grad.addColorStop(1, busy ? "#FFC94F" : "rgba(240,168,33,.85)");
+    ctx.strokeStyle = grad;
+    ctx.lineWidth = busy ? 7 : 5;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(angle) * inner, cy + Math.sin(angle) * inner);
+    ctx.lineTo(cx + Math.cos(angle) * tip, cy + Math.sin(angle) * tip);
+    ctx.stroke();
+  }
+
+  // The arc over the busy window, drawn from the data rather than hardcoded so
+  // it cannot disagree with the spokes beneath it.
+  const busyHours = demand
+    .map((v, i) => ({ v, i }))
+    .filter(({ v }) => v > 70)
+    .map(({ i }) => i);
+  if (busyHours.length > 0) {
+    const from = Math.min(...busyHours);
+    const to = Math.max(...busyHours) + 1;
+    ctx.beginPath();
+    ctx.arc(cx, cy, R * 1.13, (from / 24) * Math.PI * 2 - Math.PI / 2, (to / 24) * Math.PI * 2 - Math.PI / 2);
+    ctx.strokeStyle = "#FFC94F";
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+  }
+
+  ctx.textAlign = "center";
+  if (opts.label) {
+    ctx.fillStyle = "#F6F1E7";
+    ctx.font = "600 12px ui-monospace, monospace";
+    ctx.fillText(opts.label, cx, cy - 4);
+  }
+  if (opts.sublabel) {
+    ctx.fillStyle = "#FFC94F";
+    ctx.font = "700 17px ui-monospace, monospace";
+    ctx.fillText(opts.sublabel, cx, cy + 16);
+  }
+  ctx.fillStyle = "rgba(167,156,139,.85)";
+  ctx.font = "500 10px ui-monospace, monospace";
+  for (const [text, hour] of [["00", 0], ["06", 6], ["12", 12], ["18", 18]] as const) {
+    const angle = (hour / 24) * Math.PI * 2 - Math.PI / 2;
+    ctx.fillText(text, cx + Math.cos(angle) * R * 1.34, cy + Math.sin(angle) * R * 1.34 + 3.5);
+  }
+}
+
+/**
  * A stable seed from any string, so a business always gets its own map.
  *
  * djb2. The requirement is only that the same name yields the same picture and

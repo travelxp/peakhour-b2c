@@ -5,6 +5,8 @@ import { Sparkles, Zap, RefreshCw, ArrowRight } from "lucide-react";
 import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
 import { Button } from "@/components/ui/button";
+import { PeakDial } from "@/components/marketing/peak-dial";
+import { TerrainCanvas } from "@/components/marketing/terrain-canvas";
 import { PeaksGlyph } from "@/components/peaks/peaks-glyph";
 import { Peaks } from "@/components/peaks/peaks";
 import { getPeaks, formatPackPrice, type PeakPack } from "@/lib/peaks";
@@ -41,28 +43,65 @@ export default async function PeaksPage() {
       <Header />
 
       <main>
-        {/* ── Hero ─────────────────────────────────────────────────────── */}
-        <section className="border-b">
-          <div className="mx-auto max-w-4xl px-4 py-20 text-center sm:px-6">
-            <div className="mb-6 flex justify-center">
-              <PeaksGlyph size={56} className="shadow-sm" />
+        {/* ── Hero ─────────────────────────────────────────────────────
+            ★THE SIGNATURE GRAPHIC BELONGS HERE. The product is named for the
+            busiest hour of the day and the currency is named after it; this is
+            the page that exists to explain that, and it opened with a 56px
+            glyph on white. The dial IS the name, drawn. */}
+        <section className="relative isolate overflow-hidden border-b bg-ink text-on-ink">
+          <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 opacity-70">
+            <TerrainCanvas
+              seed={91}
+              options={{ alpha: 0.5, scale: 1.3, rings: 26, core: false }}
+            />
+          </div>
+          <div className="mx-auto grid max-w-6xl items-center gap-12 px-4 py-16 sm:px-6 sm:py-20 lg:grid-cols-[1.05fr_0.95fr]">
+            <div>
+              <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand">
+                <span className="h-0.5 w-7 bg-brand-gradient" aria-hidden />
+                One currency, all five modules
+              </span>
+              <h1 className="mt-4 text-4xl font-extrabold leading-[1.05] tracking-tight text-pretty sm:text-5xl">
+                Every business has a{" "}
+                <span className="font-serif font-normal italic text-brand-gradient">
+                  peak hour.
+                </span>
+              </h1>
+              <p className="mt-5 max-w-xl text-lg text-on-ink-dim">
+                Yours is the window where the orders, the questions and the DMs
+                all arrive at once — and it is exactly when there is no one
+                spare. Peaks are what Peakhour spends to cover it: one wallet of
+                AI credits, drawn on by every module.
+              </p>
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+                <Button asChild size="lg">
+                  <Link href="/pricing">
+                    See Peakhour Suite <ArrowRight className="size-4" />
+                  </Link>
+                </Button>
+                <Button
+                  asChild
+                  size="lg"
+                  variant="outline"
+                  className="border-ink-line text-on-ink hover:border-brand hover:text-brand"
+                >
+                  <Link href="/auth">Start free</Link>
+                </Button>
+              </div>
+              <p className="mt-5 flex items-center gap-2 text-sm text-on-ink-dim">
+                <PeaksGlyph size={18} />
+                Included with every plan · topped-up Peaks never expire
+              </p>
             </div>
-            <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">Peaks</h1>
-            <p className="mx-auto mt-5 max-w-2xl text-lg text-muted-foreground">
-              Peaks are the AI credits that power every Peakhour.ai feature — writing posts,
-              generating images, scoring engagement, and more. They come with every paid plan,
-              and you can top up anytime — topped-up Peaks never expire.
-            </p>
-            <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-              <Button asChild size="lg">
-                <Link href="/pricing">
-                  View Plans <ArrowRight className="size-4" />
-                </Link>
-              </Button>
-              <Button asChild size="lg" variant="outline">
-                <Link href="/auth">Start free trial</Link>
-              </Button>
-            </div>
+
+            <figure className="relative">
+              <PeakDial className="mx-auto aspect-square w-full max-w-sm" />
+              {/* ★The curve is a shape, not a measurement, and the page says so
+                  where someone would otherwise assume it was their data. */}
+              <figcaption className="mt-2 text-center text-xs text-on-ink-dim">
+                A typical evening peak. Illustrative, not measured.
+              </figcaption>
+            </figure>
           </div>
         </section>
 
@@ -143,7 +182,7 @@ export default async function PeaksPage() {
         <section className="border-t bg-muted/30">
           <div className="mx-auto max-w-4xl px-4 py-16 text-center sm:px-6">
             <h2 className="text-2xl font-bold tracking-tight">
-              Start with a plan — Peaks are included
+              Peaks come with the plan
             </h2>
             <p className="mx-auto mt-3 max-w-xl text-muted-foreground">
               You need an active paid Peakhour plan to use Peaks. Pick a plan to get your Peaks

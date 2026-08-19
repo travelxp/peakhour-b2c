@@ -102,8 +102,25 @@ export default async function TeamsPricingPage() {
             </h1>
             <p className="mx-auto mt-5 max-w-xl text-lg text-muted-foreground">
               Whether you manage a roster of clients or run a large brand, get
-              every pillar under one roof — with the billing, credits and controls
-              that scale.
+              every module under one roof — with the billing, credits and
+              controls that scale.
+            </p>
+            {/* ★THIS PAGE SOLD THE TOP OF A LADDER WHOSE MIDDLE RUNG IT NEVER
+                MENTIONED. Peakhour Suite now sits directly below Agency, so a
+                visitor who lands here from a search and does not need many
+                businesses was being shown ₹24,999 as the entry point. Naming
+                the rung below is the difference between a price list and a
+                ladder. */}
+            <p className="mx-auto mt-4 max-w-xl text-sm text-muted-foreground">
+              Running one business?{" "}
+              <Link
+                href="/pricing#suite"
+                className="font-bold text-brand-strong underline underline-offset-2"
+              >
+                Peakhour Suite
+              </Link>{" "}
+              is the same five modules for a single business, at a fraction of
+              this. These two are for running many.
             </p>
           </div>
         </section>

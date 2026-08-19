@@ -501,15 +501,26 @@ export default async function Home({
           </div>
         </section>
 
-        {/* Integrations — catalog-driven */}
-        <section className="py-12 sm:py-16">
+        {/* Integrations — catalog-driven.
+            ★THE PAGE NEEDED A SECOND INK BAND. With only the hero on ink the
+            treatment read as a patched header rather than a design; the page
+            now alternates ivory and instrument surfaces, and this is the
+            section that earns the dark one — "where Peakhour plugs in" is
+            exactly the instrument-panel idea the system was built around. */}
+        <section className="relative isolate overflow-hidden bg-ink py-14 text-on-ink sm:py-20">
+          <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 opacity-60">
+            <TerrainCanvas
+              seed={205}
+              options={{ alpha: 0.45, scale: 1.35, rings: 24, core: false }}
+            />
+          </div>
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <div className="max-w-3xl">
-              <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand-label">
+              <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand">
                 <span className="h-0.5 w-7 bg-brand-gradient" aria-hidden />
                 Works with your stack
               </span>
-              <h2 className="mt-4 text-3xl font-extrabold tracking-tight text-pretty lg:text-4xl">
+              <h2 className="mt-4 text-3xl font-extrabold tracking-tight text-pretty text-on-ink lg:text-4xl">
                 Plugged into the tools you already use.
               </h2>
             </div>
@@ -517,7 +528,7 @@ export default async function Home({
               {integrationCards.map((item) => (
                 <div
                   key={item.id}
-                  className="flex items-center gap-3 rounded-2xl border bg-background p-4 transition-all hover:-translate-y-1 hover:border-foreground hover:shadow-md"
+                  className="flex items-center gap-3 rounded-2xl border border-ink-line bg-white/[0.04] p-4 backdrop-blur-sm transition-all hover:-translate-y-1 hover:border-brand hover:bg-white/[0.07]"
                 >
                   {/* No `text-white` here — the foreground ships with the brand
                       class (see integrationBrandColor); two same-specificity
@@ -531,13 +542,13 @@ export default async function Home({
                     <p className="flex items-center gap-2 text-sm font-bold">
                       <span className="truncate">{item.name}</span>
                       {item.comingSoon && (
-                        <span className="shrink-0 rounded-full border px-1.5 py-0 text-[10px] font-medium text-muted-foreground">
+                        <span className="shrink-0 rounded-full border border-ink-line px-1.5 py-0 text-[10px] font-medium text-on-ink-dim">
                           Coming soon
                         </span>
                       )}
                     </p>
                     {item.description && (
-                      <p className="line-clamp-1 text-xs text-muted-foreground">
+                      <p className="line-clamp-1 text-xs text-on-ink-dim">
                         {item.description}
                       </p>
                     )}
