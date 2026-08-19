@@ -49,7 +49,7 @@ export function Footer() {
               <PeakhourLogo className="h-7 w-auto" />
             </Link>
             <p className="mt-4 text-sm text-muted-foreground">
-              The AI business platform for growing brands. Five pillars, one
+              The AI business platform for growing brands. Five modules, one
               brain, free to start.
             </p>
             <span

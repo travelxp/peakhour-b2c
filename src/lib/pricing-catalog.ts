@@ -463,7 +463,7 @@ export const CHANNELS: Record<ChannelKey, ChannelMeta> = {
     name: "Peakhour web app",
     tag: "Ph",
     color: "#d97a06",
-    blurb: "Every pillar works in the Peakhour dashboard out of the box.",
+    blurb: "Every module works in the Peakhour dashboard out of the box.",
     href: "/auth",
   },
 };

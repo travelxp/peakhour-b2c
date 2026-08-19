@@ -34,7 +34,7 @@ import { STATIC_FALLBACK_INTEGRATIONS } from "@/lib/integrations-fallback";
 export const metadata = pageMetadata({
   title: "Peakhour.ai — The AI business platform for growing brands",
   description:
-    "Five AI pillars — Commerce, Content, Growth, Support, Presence — that sell, publish, advertise, answer, and get you found. A free plan on every pillar. No credit card.",
+    "Five AI modules — Commerce, Content, Growth, Support, Presence — that sell, publish, advertise, answer, and get you found. A free plan on every module. No credit card.",
   path: "/",
 });
 
@@ -198,7 +198,7 @@ export default async function Home({
       <div className="bg-brand-gradient px-4 py-2 text-center text-sm font-semibold text-brand-contrast">
         Every module has a Free plan — no credit card required.{" "}
         <span className="font-normal opacity-80">
-          Start with any pillar, add the rest when you&rsquo;re ready.
+          One plan turns on all five when you&rsquo;re ready.
         </span>
       </div>
 

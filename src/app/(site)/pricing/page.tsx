@@ -348,6 +348,7 @@ export default async function PricingPage() {
                   slug={slug}
                   product={pillarProducts(pricing, slug)[0]}
                   comingSoonKeys={comingSoonKeys}
+                    suiteIncluded={Boolean(suite)}
                 />
               ))}
             </div>
@@ -367,7 +368,7 @@ export default async function PricingPage() {
                   Bring Peakhour into your stack
                 </h2>
                 <p className="mt-3 text-muted-foreground">
-                  Your pillars light up inside the tools you already use, each
+                  Your modules light up inside the tools you already use, each
                   one the moment it opens. Each card shows what runs there.
                 </p>
               </div>

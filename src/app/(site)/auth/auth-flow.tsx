@@ -683,7 +683,7 @@ export function AuthFlow({
               </h1>
               <p className="mt-2 text-sm text-muted-foreground">
                 {SITE.name} is invite-only while we onboard launch partners.
-                Apply and you&rsquo;ll get all five pillars free, plus a setup
+                Apply and you&rsquo;ll get all five modules free, plus a setup
                 call.
               </p>
               <div className="mt-5">
