@@ -19,8 +19,12 @@ const NAV_LINKS = [
   { href: "/growth", label: "Growth" },
   { href: "/support", label: "Support" },
   { href: "/presence", label: "Presence" },
-  { href: "/pricing", label: "Pricing" },
+  // ★Peaks sits BEFORE Pricing, not after it. Last place in a nav is the
+  // weakest slot there is, and the order is also the argument: the five
+  // modules are what you get, Peaks is what powers them, Pricing is what it
+  // costs. Pricing stays rightmost because it is the rung nearest the CTA.
   { href: "/peaks", label: "Peaks" },
+  { href: "/pricing", label: "Pricing" },
 ] as const;
 
 // Nav link with a gold underline that wipes in on hover/focus.
@@ -82,9 +86,12 @@ export function HeaderNav({
 
         {!minimal && !isAuthPage && (
           <>
-            {/* Desktop nav — collapses to the mobile menu below lg so the six
-                items + auth cluster never crowd on small laptops/tablets. */}
-            <nav aria-label="Primary" className="hidden items-center gap-6 lg:flex">
+            {/* Desktop nav — collapses to the mobile menu below lg so the
+                seven items + auth cluster never crowd on small laptops and
+                tablets. Seven is one more than this was measured at, so the
+                gap tightens at lg and only opens back up at xl, where there is
+                room for it. */}
+            <nav aria-label="Primary" className="hidden items-center gap-5 lg:flex xl:gap-6">
               {NAV_LINKS.map((link) => (
                 <Link key={link.href} href={link.href} className={navLinkClass}>
                   {link.label}
