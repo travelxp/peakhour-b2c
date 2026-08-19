@@ -190,12 +190,24 @@ export function hasFoundingOffer(p: PricingEntry): boolean {
 }
 
 /**
- * The discounted amount, rounded to a whole unit of currency.
+ * The discounted amount, floored to a whole unit of currency.
  *
- * Rounding is deliberate and it rounds DOWN: every currency here is quoted in
- * whole units (₹4,999, $59) and a displayed "₹2,499.50" would be a price no
- * invoice will ever show. Down rather than nearest so the page can never
- * advertise less than the customer is charged.
+ * Every price in this catalog is quoted in whole units (₹4,999, $59), so a
+ * rendered "₹2,499.50" would be a price no invoice will ever show. Something
+ * has to round.
+ *
+ * ★AND FLOOR IS NOT THE CONSERVATIVE CHOICE — an earlier version of this
+ * comment claimed it was, which was backwards and worth correcting rather than
+ * deleting. Flooring displays the LOWEST candidate, so if the gateway ever
+ * rounds to nearest it charges ₹2,500 against a page promising ₹2,499. The
+ * safe-by-construction fix is not a rounding rule here, it is a list price
+ * that halves cleanly: ₹4,999 × 50% = 2499.5 is the only reason any of this
+ * arithmetic is load-bearing.
+ *
+ * Floor is chosen because ₹2,499 is the price the owner set out to offer and
+ * the one the catalog's 50% is reverse-engineered from. The obligation that
+ * follows is on the server: whatever computes the charge MUST floor too. See
+ * `hasFoundingOffer` for the display-only warning this pairs with.
  */
 function applyDiscount(amount: number, pct: number): number {
   return Math.floor((amount * (100 - pct)) / 100);
