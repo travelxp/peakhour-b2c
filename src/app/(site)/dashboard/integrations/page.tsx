@@ -188,6 +188,10 @@ import {
   isMetaVirtual,
   type MetaVirtualCard,
 } from "@/lib/integrations-meta";
+import {
+  isRecoverableStatus,
+  showsComingSoon,
+} from "@/lib/integration-card-state";
 
 function flattenMetaIntegration(integrations: Integration[]): Integration[] {
   return flattenMetaIntegrationBase<Integration>(integrations, (item, card) => {
@@ -298,7 +302,7 @@ function safeReturnTo(raw: string | null | undefined): string {
 }
 
 export default function IntegrationsPage() {
-  const { org } = useAuth();
+  const { org, business } = useAuth();
   const searchParams = useSearchParams();
   const returnTo = safeReturnTo(searchParams?.get("returnTo"));
   /** Provider the incoming returnTo was about, if the CTA named one.
@@ -323,10 +327,21 @@ export default function IntegrationsPage() {
   const [connectionTab, setConnectionTab] = useState<ConnectionTab>("all");
   const [activeCategory, setActiveCategory] = useState<string>("all");
 
+  // ★KEYED ON THE BUSINESS TOO, NOT JUST THE ORG. This list is per-business in
+  // two ways now: connections have always been scoped (orgId, businessId), and
+  // since the business-scoped invitation work `availability` is as well — an
+  // integration can be invited to ONE business of an org. But the page holds
+  // its list in useState behind a bare `api.get`, outside TanStack, so
+  // `switchBusiness`'s blanket `queryClient.clear()` never reaches it; and the
+  // only dependency was `org._id`, which a business switch does not change.
+  // Switching A → B therefore left business A's answer on screen: a Connect
+  // button on an integration B was never invited to, or "coming soon" on one
+  // it was. Harmless while availability was org-derived; wrong the moment it
+  // stopped being.
   useEffect(() => {
     if (!org) return;
     loadIntegrations();
-  }, [org?._id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [org?._id, business?._id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /**
    * Reload the cards AND drop the LinkedIn content caches.
@@ -1033,20 +1048,38 @@ function IntegrationCard({
   const { formatDate, formatDateTime } = useLocale();
   const Icon = PROVIDER_ICONS[integration.provider] || Plug;
   const colorClass = PROVIDER_COLORS[integration.provider] || "bg-muted";
-  const isComingSoon = integration.availability === "coming_soon";
   // A connection that already has a token but isn't `active` (stale scope /
   // revoked / errored). Reconnecting it starts a fresh OAuth which makes
   // the provider issue a NEW token and invalidate the current one — so we
   // gate it behind a confirm to stop accidental token-killing reconnects
   // (the LinkedIn reconnect loop). A truly fresh/disconnected provider gets
   // the plain one-click Connect.
-  const isRecoverable = ["needs_reauth", "expired", "error"].includes(
-    integration.status ?? "",
-  );
+  const isRecoverable = isRecoverableStatus(integration.status);
+  // Whether the card presents as a coming-soon signpost. NOT the same question
+  // as `availability === "coming_soon"`: a coming-soon provider can still hold
+  // a real connection — active or broken — and that connection outranks the
+  // signpost, so this tests the connection's EXISTENCE rather than its
+  // activeness. See lib/integration-card-state.ts for the Shopify install path
+  // that makes it reachable in production, and for the two states it broke.
+  const showComingSoon = showsComingSoon(integration.availability, integration.status);
+  // ★CAN THIS PROVIDER ACTUALLY RECONNECT RIGHT NOW? Surfacing the Reconnect
+  // button on a coming-soon provider is the point of the fix above, but the
+  // button has to lead somewhere. Only Shopify does: `handleConnect`
+  // intercepts it and opens the App Store listing, a path that ignores
+  // `availability` entirely. Every other coming-soon provider would hit a
+  // gate — oauth2 does a FULL-PAGE navigation to `/authorize`, which 400s
+  // COMING_SOON and dumps the merchant on a raw JSON error page outside the
+  // app with no way back; api_key opens a modal whose POST 400s the same way.
+  // So for those, keep the card honest (undimmed, lastError shown) but leave
+  // the static copy in place of a button that cannot work.
+  const canReconnectWhileComingSoon = resolveProvider(integration.provider) === "shopify";
+  const offerReconnect =
+    isRecoverable &&
+    (integration.availability !== "coming_soon" || canReconnectWhileComingSoon);
 
   return (
     <Card className={`group relative overflow-hidden transition-all hover:shadow-md ${
-      isComingSoon ? "opacity-50" : ""
+      showComingSoon ? "opacity-50" : ""
     } ${integration.connected ? "ring-1 ring-success/20" : ""}`}>
       {/* Connected indicator stripe */}
       {integration.connected && (
@@ -1083,7 +1116,7 @@ function IntegrationCard({
                 formatDateTime={formatDateTime}
               />
             )}
-            {isComingSoon && (
+            {showComingSoon && (
               <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">
                 Soon
               </Badge>
@@ -1205,11 +1238,11 @@ function IntegrationCard({
               onConfirm={onDisconnect}
             />
           </div>
-        ) : isComingSoon ? (
+        ) : showComingSoon ? (
           <p className="text-[11px] text-muted-foreground">Coming soon</p>
         ) : (
           <div className="space-y-1.5">
-            {isRecoverable ? (
+            {offerReconnect ? (
               <>
                 <ConfirmDialog
                   trigger={
@@ -1219,10 +1252,39 @@ function IntegrationCard({
                     </Button>
                   }
                   title={`Reconnect ${integration.name}?`}
-                  description="This starts a fresh sign-in and replaces the current access token — the provider invalidates the previous one. Only reconnect if posting is actually failing; repeated reconnects are what break the connection."
+                  // Shopify does not reconnect in place. `handleConnect`
+                  // intercepts it and opens our App Store listing, because
+                  // App Store req 2.3.1 forbids starting an install from our
+                  // own surface — the merchant finishes from Shopify admin.
+                  // The generic copy below describes an in-place OAuth
+                  // sign-in and warns about posting, neither of which applies;
+                  // it went unnoticed while this button was unreachable in
+                  // production on a coming-soon provider.
+                  description={
+                    resolveProvider(integration.provider) === "shopify"
+                      ? "This opens the Shopify App Store. Finish the reinstall from your Shopify admin and your store reconnects with a fresh access token."
+                      : "This starts a fresh sign-in and replaces the current access token — the provider invalidates the previous one. Only reconnect if posting is actually failing; repeated reconnects are what break the connection."
+                  }
                   confirmLabel="Reconnect"
                   onConfirm={onConnect}
                 />
+                {integration.lastError && (
+                  <p className="text-[10px] text-destructive truncate">{integration.lastError}</p>
+                )}
+              </>
+            ) : isRecoverable ? (
+              // Broken, on a gated provider with no working reconnect path.
+              // Falling through to the plain Connect button below would be
+              // WORSE than the bug this branch fixes: that button navigates
+              // straight to `/authorize`, which 400s COMING_SOON and strands
+              // the merchant on a raw JSON page. So say what is true and keep
+              // the error visible — the card is still undimmed and unbadged,
+              // which is what tells them this is a fault and not a signpost.
+              <>
+                <p className="text-[11px] text-muted-foreground">
+                  {integration.name} needs reconnecting, but isn&apos;t open for
+                  new connections yet. Contact support and we&apos;ll restore it.
+                </p>
                 {integration.lastError && (
                   <p className="text-[10px] text-destructive truncate">{integration.lastError}</p>
                 )}
