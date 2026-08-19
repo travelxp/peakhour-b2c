@@ -75,20 +75,31 @@ export default async function PeaksPage() {
                 spare. Peaks are what Peakhour spends to cover it: one wallet of
                 AI credits, drawn on by every module.
               </p>
+              {/* ★NOT shadcn <Button> — BOTH VARIANTS RESOLVE THEME TOKENS AND
+                  BOTH ARE WRONG ON INK. `outline` is `bg-background`, which is
+                  near-white ivory in light theme, so overriding only the text
+                  to `text-on-ink` produced a white label on a white button:
+                  invisible until hover, and then gold-on-white at about 2:1.
+                  `default` is `bg-primary`, near-black in light theme, so the
+                  primary was a dark button on a dark ground.
+
+                  Always-dark surfaces take the ink steps and the brand
+                  gradient, exactly as the landing hero does. Same markup, so
+                  the two heroes cannot drift. */}
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                <Button asChild size="lg">
-                  <Link href="/pricing">
-                    See Peakhour Suite <ArrowRight className="size-4" />
-                  </Link>
-                </Button>
-                <Button
-                  asChild
-                  size="lg"
-                  variant="outline"
-                  className="border-ink-line text-on-ink hover:border-brand hover:text-brand"
+                <Link
+                  href="/pricing"
+                  className="group inline-flex items-center justify-center gap-2 rounded-xl bg-brand-gradient px-6 py-3.5 text-sm font-bold text-brand-contrast shadow-sm transition-transform hover:-translate-y-0.5 focus-visible:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-ink"
                 >
-                  <Link href="/auth">Start free</Link>
-                </Button>
+                  See Peakhour Suite
+                  <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
+                </Link>
+                <Link
+                  href="/auth"
+                  className="inline-flex items-center justify-center rounded-xl border-2 border-ink-line px-6 py-3 text-sm font-bold text-on-ink transition-colors hover:border-brand hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-ink"
+                >
+                  Start free
+                </Link>
               </div>
               <p className="mt-5 flex items-center gap-2 text-sm text-on-ink-dim">
                 <PeaksGlyph size={18} />
