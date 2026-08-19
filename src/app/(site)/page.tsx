@@ -16,6 +16,8 @@ import { AUDIENCE_SEGMENTS } from "@/lib/audience-segments";
 import { PILLARS } from "@/lib/pillars";
 import { badgedComingSoonKeys } from "@/lib/pillar-channels";
 import { BrandBackdrop } from "@/components/marketing/brand-backdrop";
+import { TerrainCanvas } from "@/components/marketing/terrain-canvas";
+import { HeroConsole } from "@/components/marketing/hero-console";
 import { PillarOrbit } from "@/components/marketing/pillar-orbit";
 import { PillarCards } from "@/components/marketing/pillar-cards";
 import { StepTimeline } from "@/components/marketing/step-timeline";
@@ -208,8 +210,39 @@ export default async function Home({
         {/* Hero — the H1 states the visitor's problem, the orbit answers it.
             Everything down to the three trust points is sized to clear a
             laptop fold together with the header and the announcement bar. */}
-        <section className="relative isolate overflow-hidden pt-8 pb-12 sm:pt-12 sm:pb-16">
-          <BrandBackdrop />
+        {/* ★THE HERO IS AN INSTRUMENT SURFACE NOW, not an ivory band with a
+            whisper behind it. globals.css has defined --ink / --on-ink since
+            the design system was written and the marketing site almost never
+            used them; the hard ivory/ink cut is the strongest device the brand
+            owns and it was sitting switched off.
+
+            Three layers, back to front: a seeded contour field (the brand mark
+            IS a contour map — see lib/terrain.ts), drifting aurora blooms, and
+            the content. */}
+        <section className="relative isolate overflow-hidden bg-ink pt-10 pb-14 text-on-ink sm:pt-14 sm:pb-20">
+          <div aria-hidden className="pointer-events-none absolute inset-0 -z-20">
+            <TerrainCanvas
+              seed={17}
+              options={{
+                alpha: 0.4,
+                scale: 1.15,
+                rings: 30,
+                step: 0.03,
+                peaks: [
+                  { x: 0.78, y: 0.3, r: 0.08, seed: 17 },
+                  { x: 0.16, y: 0.84, r: 0.05, seed: 57 },
+                ],
+              }}
+            />
+          </div>
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -inset-[20%] -z-10 opacity-55 blur-[70px]"
+          >
+            <span className="aurora-blob absolute left-[4%] top-[2%] block size-[46vw] rounded-full bg-[radial-gradient(circle,rgba(255,201,79,.55),transparent_68%)]" />
+            <span className="aurora-blob absolute right-[2%] top-[24%] block size-[40vw] rounded-full bg-[radial-gradient(circle,rgba(217,122,6,.5),transparent_68%)]" />
+            <span className="aurora-blob absolute bottom-[-8%] left-[38%] block size-[30vw] rounded-full bg-[radial-gradient(circle,rgba(240,168,33,.42),transparent_70%)]" />
+          </div>
           {/* Both grid tracks need `min-w-0` or a grid item's automatic
               minimum is its min-content, which on a phone sizes a track wider
               than the viewport and puts the whole page into a horizontal
@@ -219,33 +252,40 @@ export default async function Home({
             <div className="min-w-0">
               {/* The eyebrow carries the positioning badge; the H1 under it
                   is the visitor's own problem stated back to them. */}
-              <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand-label">
+              {/* text-brand, not text-brand-label: the label token darkens
+                  for an ivory ground and this eyebrow now sits on ink, where
+                  the bright gold is the legible one (~9:1). */}
+              <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand">
                 <span className="h-0.5 w-7 bg-brand-gradient" aria-hidden />
-                Five AI modules. One platform. Free to start.
+                Peakhour Suite · five modules, one plan
               </span>
               {/* `block` on the accent, not a line break: the question has to
                   land on its own line at EVERY width, and a <br> would only
                   hold at the one the type was measured in. */}
-              <h1 className="mt-5 text-3xl font-extrabold leading-[1.05] tracking-tight text-pretty sm:text-4xl lg:text-5xl">
-                Still running one business across{" "}
+              {/* ★The old H1 asked "Still running one business across 10
+                  different tools?" — a question a visitor can answer "no" to,
+                  describing their mess rather than your outcome. This is the
+                  one sentence peakhour.ai is uniquely entitled to say. */}
+              <h1 className="mt-5 text-3xl font-extrabold leading-[1.05] tracking-tight text-pretty text-on-ink sm:text-4xl lg:text-5xl">
+                Every hour is peak hour.{" "}
                 <span className="block font-serif italic font-normal text-brand-gradient">
-                  10 different tools?
+                  Now you&rsquo;re staffed for it.
                 </span>
               </h1>
               {/* One block, two sentences: what Peakhour does for you, then
                   what it covers. Splitting them into two ranks made the second
                   read as a second headline. */}
-              <p className="mt-5 max-w-xl text-lg text-muted-foreground">
-                <span className="font-medium text-foreground">
-                  Peakhour runs the work your growing business can&rsquo;t hire a
-                  team for yet.
+              <p className="mt-5 max-w-xl text-lg text-on-ink-dim">
+                <span className="font-medium text-on-ink">
+                  Five AI modules that sell, publish, advertise, answer and get
+                  you found
                 </span>{" "}
-                One unified AI platform for commerce, content, marketing,
-                customer support and online presence.
+                — working your catalogue, in your voice, on one login and one
+                Peaks wallet. You approve what ships.
               </p>
               <div className="mt-7 flex flex-wrap items-center gap-4">
                 {cta.disabled ? (
-                  <span className="inline-flex items-center gap-2 rounded-full border bg-muted/40 px-5 py-3 text-sm font-medium text-muted-foreground">
+                  <span className="inline-flex items-center gap-2 rounded-full border border-ink-line bg-white/5 px-5 py-3 text-sm font-medium text-on-ink-dim">
                     <Zap className="size-4" aria-hidden />
                     {cta.label}
                   </span>
@@ -263,7 +303,7 @@ export default async function Home({
                     how this works, not how the AI currency is metered. */}
                 <Link
                   href="/how-it-works"
-                  className="inline-flex items-center gap-2 rounded-xl border-2 px-6 py-3 text-sm font-bold transition-colors hover:border-brand hover:text-brand"
+                  className="inline-flex items-center gap-2 rounded-xl border-2 border-ink-line px-6 py-3 text-sm font-bold text-on-ink transition-colors hover:border-brand hover:text-brand"
                 >
                   See how Peakhour works
                 </Link>
@@ -271,7 +311,7 @@ export default async function Home({
               {/* The three trust points. Kept directly under the CTA so they
                   clear the fold with it — they are the answer to "what does
                   clicking this cost me". */}
-              <p className="mt-5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+              <p className="mt-5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-on-ink-dim">
                 {HERO_TRUST_POINTS.map((promise, i) => (
                   <span key={promise} className="flex items-center gap-x-2">
                     {i > 0 && (
@@ -279,7 +319,7 @@ export default async function Home({
                         ·
                       </span>
                     )}
-                    <span aria-hidden className="font-bold text-brand-label">
+                    <span aria-hidden className="font-bold text-brand">
                       ✓
                     </span>
                     {promise}
@@ -288,9 +328,14 @@ export default async function Home({
               </p>
             </div>
 
-            {/* Peakhour at the centre, the five pillars around it, every one
-                of them wired to the hub and to its neighbours. */}
-            <PillarOrbit />
+            {/* ★The proof, where the diagram used to be. A page that
+                describes software asks to be believed; a page that shows it
+                running does not. PillarOrbit is not deleted — it moves to the
+                modules section below, which is where a diagram of the five
+                actually belongs. */}
+            <div className="min-w-0">
+              <HeroConsole />
+            </div>
           </div>
         </section>
 
@@ -319,6 +364,12 @@ export default async function Home({
                   Open any module to see what it runs.
                 </span>
               </p>
+            </div>
+            {/* The orbit lands here, where it was always the better fit: a
+                diagram of how the five relate belongs above the five, not in a
+                hero whose job is to show the product working. */}
+            <div className="mt-10 flex justify-center">
+              <PillarOrbit />
             </div>
             <div className="mt-10">
               <PillarCards comingSoonKeys={comingSoonKeys} />
