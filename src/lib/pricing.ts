@@ -171,6 +171,53 @@ export function formatYearly(p: PricingEntry): string {
   return `${p.displayPrefix ?? ""}${formatNumber(p.yearly)}`;
 }
 
+/* ── The founding offer ─────────────────────────────────────────────────── */
+
+/**
+ * `foundingDiscountPct` has been on every pricing entry since the catalog was
+ * built, is carried through the resolver into this type — and until now was
+ * read by nothing. It is the launch mechanism the platform already has, which
+ * is why the Suite's launch price needs no promotions engine.
+ *
+ * ⚠ DISPLAY ONLY. Nothing in this repo charges anyone. When checkout goes
+ * live, the amount collected must come from the same field server-side — a
+ * marketing page that advertises half price while the gateway bills full price
+ * is the worst possible version of this feature. The schema's own comment
+ * ("waitlist members get this when checkout flips on") is the contract.
+ */
+export function hasFoundingOffer(p: PricingEntry): boolean {
+  return p.foundingDiscountPct > 0 && p.foundingDiscountPct < 100 && p.monthly > 0;
+}
+
+/**
+ * The discounted amount, rounded to a whole unit of currency.
+ *
+ * Rounding is deliberate and it rounds DOWN: every currency here is quoted in
+ * whole units (₹4,999, $59) and a displayed "₹2,499.50" would be a price no
+ * invoice will ever show. Down rather than nearest so the page can never
+ * advertise less than the customer is charged.
+ */
+function applyDiscount(amount: number, pct: number): number {
+  return Math.floor((amount * (100 - pct)) / 100);
+}
+
+export function foundingMonthly(p: PricingEntry): number {
+  return applyDiscount(p.monthly, p.foundingDiscountPct);
+}
+
+export function foundingYearly(p: PricingEntry): number {
+  return applyDiscount(p.yearly, p.foundingDiscountPct);
+}
+
+/** "₹2,499" — the founding monthly price, formatted like every other price. */
+export function formatFoundingMonthly(p: PricingEntry): string {
+  return `${p.displayPrefix ?? ""}${formatNumber(foundingMonthly(p))}`;
+}
+
+export function formatFoundingYearly(p: PricingEntry): string {
+  return `${p.displayPrefix ?? ""}${formatNumber(foundingYearly(p))}`;
+}
+
 /**
  * Account-level bundle plans (`cfg_plans` rows that compose every product).
  * The resolver surfaces these as a tier *under each product* they list, keyed
