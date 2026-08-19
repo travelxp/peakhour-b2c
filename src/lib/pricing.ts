@@ -201,7 +201,8 @@ export const BUNDLE_PLAN_KEY_LIST = ["agency", "enterprise", "suite"] as const;
 /** A bundle plan's key, derived from the list so the two cannot drift. */
 export type BundlePlanKey = (typeof BUNDLE_PLAN_KEY_LIST)[number];
 
-export const BUNDLE_PLAN_KEYS: ReadonlySet<string> = new Set(BUNDLE_PLAN_KEY_LIST);
+export const BUNDLE_PLAN_KEYS: ReadonlySet<string> =
+  new Set(BUNDLE_PLAN_KEY_LIST);
 
 /** True when a tier is an account-level bundle (Agency/Enterprise/Suite), not
  *  a product-specific Free/Paid tier. */
@@ -210,7 +211,7 @@ export function isBundleTier(tier: ResolvedProductTier): boolean {
 }
 
 /**
- * The product's own Free/Paid tiers — bundle plans (see BUNDLE_PLAN_KEYS) removed —
+ * The product's own Free/Paid tiers — bundle plans removed (BUNDLE_PLAN_KEYS) —
  * sorted cheapest-first so Free leads and the paid tier(s) follow. This is what
  * a single pillar's comparison table renders as its columns.
  */
