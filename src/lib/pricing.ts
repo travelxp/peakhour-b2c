@@ -174,11 +174,29 @@ export function formatYearly(p: PricingEntry): string {
 /**
  * Account-level bundle plans (`cfg_plans` rows that compose every product).
  * The resolver surfaces these as a tier *under each product* they list, keyed
- * by the bare plan key (`agency`/`enterprise`) rather than a `<product>.<tier>`
- * key. The pricing surface separates them out: they never belong in a single
- * pillar's Free-vs-Paid table — they get their own Agency & Enterprise page.
+ * by the bare plan key (`agency`/`enterprise`/`suite`) rather than a
+ * `<product>.<tier>` key. The pricing surface separates them out: they never
+ * belong in a single pillar's Free-vs-Paid table.
+ *
+ * `suite` is listed AHEAD of the plan existing, and that ordering is the whole
+ * point. A cross-product plan appears as a tier under every product it lists,
+ * so an unfiltered Suite row becomes a column in every pillar's tier list.
+ *
+ * Today the damage is bounded by luck: `proTier()` prefers a tier carrying
+ * `highlightAsRecommended`, both the module tier and Suite would carry it, and
+ * cheapest-first sorting hands back the module tier. That stops holding the
+ * moment the per-module tiers are retired in favour of Suite — drop the flag on
+ * `commerce_assistant.paid` and the Commerce page starts quoting the Suite
+ * price for Commerce. Filtering before the plan exists means the catalog change
+ * and the pricing change land as separate, deliberate decisions rather than as
+ * one deploy order.
+ *
+ * Agency and Enterprise route to /pricing/teams. Suite will get its own
+ * treatment on the hub and on each module page; until that ships, being in
+ * this set means the per-pillar pages ignore it, which is the correct
+ * behaviour for a plan the pages cannot yet describe.
  */
-export const BUNDLE_PLAN_KEYS = new Set(["agency", "enterprise"]);
+export const BUNDLE_PLAN_KEYS = new Set(["agency", "enterprise", "suite"]);
 
 /** True when a tier is an account-level bundle (Agency/Enterprise), not a
  *  product-specific Free/Paid tier. */
