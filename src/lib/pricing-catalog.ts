@@ -2,9 +2,14 @@ import { PILLARS, type PillarSlug } from "@/lib/pillars";
 
 /**
  * Presentational metadata for the pricing surface — the bits marketing tunes
- * without a DB write (order, one-line promise, which channels a pillar runs in,
- * the upgrade hook). It layers ON TOP of the live catalog: prices, tiers,
- * features and Peaks allowances all come from the pricing API — never from here.
+ * without a DB write: pillar order, the one-line promise, the pricing page's
+ * headline and standfirst, which capabilities lead on each plan card, the four
+ * "what changes on Pro" blocks, and which channels a pillar runs in.
+ *
+ * It layers ON TOP of the live catalog: prices, tiers, features and Peaks
+ * allowances all come from the pricing API — never from here. Card bullets name
+ * a cfg_feature key precisely so the catalog keeps the final say over whether
+ * one is true (see PlanHighlight).
  *
  * Pillar identity (icon, name, lede) is reused from `@/lib/pillars` so the
  * pricing pages and the pillar marketing pages can never drift apart.
@@ -56,8 +61,6 @@ export interface PricingPillarMeta {
   slug: PillarSlug;
   /** One plain sentence a browsing buyer instantly gets. */
   promise: string;
-  /** The single reason to move from Free to Paid. */
-  upgradeHook: string;
   /**
    * The pricing page's own headline and standfirst — value-led, and about
    * what Pro buys rather than what the pillar is. `/{slug}` already sells the
@@ -95,7 +98,6 @@ export const PRICING_PILLARS: Record<PillarSlug, PricingPillarMeta> = {
   presence: {
     slug: "presence",
     promise: "Get found on Google, Maps and AI search — and keep every listing right.",
-    upgradeHook: "Go Pro for multiple locations and competitor insights.",
     priceHeadline: "Get found everywhere — free, forever.",
     priceLede:
       "Claim your business, keep every listing right, and reply to reviews with AI drafts. There is no plan to pick and no card to enter.",
@@ -115,7 +117,6 @@ export const PRICING_PILLARS: Record<PillarSlug, PricingPillarMeta> = {
   commerce: {
     slug: "commerce",
     promise: "An AI shop assistant that answers buyers from your real catalog — 24/7.",
-    upgradeHook: "Upgrade for more stores, human handoff and analytics.",
     priceHeadline: "Sell on every channel, in every language, around the clock.",
     priceLede:
       "Pro puts your shop assistant on every connected channel — multilingual, on autopilot, with a far bigger monthly Peaks allowance behind it.",
@@ -162,7 +163,6 @@ export const PRICING_PILLARS: Record<PillarSlug, PricingPillarMeta> = {
   content: {
     slug: "content",
     promise: "AI content for social, blog and newsletters — drafted in your voice, on schedule.",
-    upgradeHook: "Upgrade for scheduling, newsletters and brand-voice training.",
     priceHeadline: "Publish more, in more places, with far less work.",
     priceLede:
       "Pro adds advanced writers, trusted sources and recurring schedules — with the Peaks to keep your calendar full without you filling it.",
@@ -202,7 +202,6 @@ export const PRICING_PILLARS: Record<PillarSlug, PricingPillarMeta> = {
   support: {
     slug: "support",
     promise: "Every support message — email, chat, WhatsApp, DMs — in one inbox.",
-    upgradeHook: "Upgrade for WhatsApp, social DMs and auto-routing.",
     priceHeadline: "Answer everyone, everywhere, faster.",
     priceLede:
       "Pro adds WhatsApp and social DMs, AI-drafted replies, routing and SLA timers — with the Peaks to keep up with all of it.",
@@ -244,7 +243,6 @@ export const PRICING_PILLARS: Record<PillarSlug, PricingPillarMeta> = {
   growth: {
     slug: "growth",
     promise: "Ads and LinkedIn on autopilot — campaigns, audiences and leads, handled.",
-    upgradeHook: "Upgrade for the full optimizer and lead inbox.",
     // Growth's Free and Pro tiers grant the SAME capability set in the live
     // catalog — the whole difference is the Peaks allowance. So the copy here
     // sells capacity rather than unlocked features, and the comparison table

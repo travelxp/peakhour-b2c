@@ -43,90 +43,99 @@ export function FeatureComparison({
 
   return (
     <details className="group rounded-3xl border bg-card">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-3xl px-5 py-4 text-sm font-bold transition-colors hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 sm:px-6">
+      {/* `list-none` hides the disclosure triangle everywhere except Safari,
+          which draws its own ::-webkit-details-marker and ignores list-style. */}
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-3xl px-5 py-4 text-sm font-bold transition-colors hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 sm:px-6 [&::-webkit-details-marker]:hidden">
         View full feature comparison
         <ChevronDown
           className="size-4 shrink-0 transition-transform group-open:rotate-180"
           aria-hidden
         />
       </summary>
-      <div className="overflow-x-auto border-t px-5 pb-5 sm:px-6 sm:pb-6">
+      <div className="border-t px-5 pb-5 sm:px-6 sm:pb-6">
+        {/* Outside the scroll container on purpose: a note that slides out of
+            view when someone pans a wide table has stopped being a note. */}
         {capabilitiesMatch && (
           <p className="pt-4 text-sm text-muted-foreground">
             Both plans include the same capabilities here — what changes is your
             monthly Peaks, and so how much of it you can run.
           </p>
         )}
-        <table className="w-full min-w-120 border-separate border-spacing-0">
-          <caption className="sr-only">
-            Feature comparison across the {columnLabels.join(" and ")} plans
-          </caption>
-          <thead>
-            <tr>
-              <th className="w-[46%] p-0" />
-              {tiers.map((tier, i) => (
-                <th
-                  key={tier.key}
-                  scope="col"
-                  className={`border-b py-4 text-sm font-bold ${
-                    i === 0 ? "text-brand-strong" : ""
-                  }`}
-                >
-                  {columnLabels[i] ?? tier.name}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {showPeaksRow && (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-120 border-separate border-spacing-0">
+            <caption className="sr-only">
+              Feature comparison across the {columnLabels.join(" and ")} plans
+            </caption>
+            <thead>
               <tr>
-                <th
-                  scope="row"
-                  className="border-b py-3.5 pr-4 text-left text-sm font-medium"
-                >
-                  Peaks a month
-                </th>
-                {tiers.map((tier) => (
-                  <td
+                <th className="w-[46%] p-0" />
+                {tiers.map((tier, i) => (
+                  <th
                     key={tier.key}
-                    className="border-b py-3.5 text-center text-sm font-bold tabular-nums"
-                    style={{ fontFamily: "var(--font-space-grotesk)" }}
+                    scope="col"
+                    className={`border-b py-4 text-sm font-bold ${
+                      i === 0 ? "text-brand-strong" : ""
+                    }`}
                   >
-                    {typeof tier.peaksIncluded === "number"
-                      ? formatPeaks(tier.peaksIncluded)
-                      : "—"}
-                  </td>
+                    {columnLabels[i] ?? tier.name}
+                  </th>
                 ))}
               </tr>
-            )}
-            {rows.map((row) => (
-              <tr key={row.key}>
-                <th
-                  scope="row"
-                  className="border-b py-3.5 pr-4 text-left text-sm font-medium"
-                >
-                  {row.label}
-                </th>
-                {row.included.map((included, i) => (
-                  <td key={tiers[i].key} className="border-b py-3.5 text-center">
-                    {included ? (
-                      <Check
-                        className="mx-auto size-4 text-brand-strong"
-                        strokeWidth={2.5}
-                        aria-label="Included"
-                      />
-                    ) : (
-                      <Minus
-                        className="mx-auto size-4 text-muted-foreground/40"
-                        aria-label="Not included"
-                      />
-                    )}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {showPeaksRow && (
+                <tr>
+                  <th
+                    scope="row"
+                    className="border-b py-3.5 pr-4 text-left text-sm font-medium"
+                  >
+                    Peaks a month
+                  </th>
+                  {tiers.map((tier) => (
+                    <td
+                      key={tier.key}
+                      className="border-b py-3.5 text-center text-sm font-bold tabular-nums"
+                      style={{ fontFamily: "var(--font-space-grotesk)" }}
+                    >
+                      {typeof tier.peaksIncluded === "number"
+                        ? formatPeaks(tier.peaksIncluded)
+                        : "—"}
+                    </td>
+                  ))}
+                </tr>
+              )}
+              {rows.map((row) => (
+                <tr key={row.key}>
+                  <th
+                    scope="row"
+                    className="border-b py-3.5 pr-4 text-left text-sm font-medium"
+                  >
+                    {row.label}
+                  </th>
+                  {row.included.map((included, i) => (
+                    <td
+                      key={tiers[i].key}
+                      className="border-b py-3.5 text-center"
+                    >
+                      {included ? (
+                        <Check
+                          className="mx-auto size-4 text-brand-strong"
+                          strokeWidth={2.5}
+                          aria-label="Included"
+                        />
+                      ) : (
+                        <Minus
+                          className="mx-auto size-4 text-muted-foreground/40"
+                          aria-label="Not included"
+                        />
+                      )}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </details>
   );

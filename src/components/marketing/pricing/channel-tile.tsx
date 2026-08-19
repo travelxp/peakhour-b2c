@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * The brand tile on a channel card — "Works where you already run" on /pricing
- * and "Turn it on where you work" on /pricing/[pillar].
+ * and "Use Peakhour <Pillar> where you already work." on /pricing/[pillar].
  *
  * Both surfaces used to render `ChannelMeta.tag`, a two-letter mark ("Sh",
  * "WP", "Wo", "Wa"), on a brand-coloured square: a boxed word where a logo

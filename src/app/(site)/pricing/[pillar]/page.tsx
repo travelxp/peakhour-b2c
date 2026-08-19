@@ -200,10 +200,14 @@ export default async function PillarPricingPage({
         </section>
 
         {/* ── What changes on Pro ──────────────────────────────────────── */}
-        <ProValueBlocks blocks={meta.proValueBlocks} />
+        {/* Gated on a Pro tier being SOLD here, not merely written about. In an
+            env where the product is hidden, the page says the pillar is coming
+            soon — and then, without this, offered four reasons to upgrade to a
+            plan it had just said you cannot buy. */}
+        <ProValueBlocks blocks={pro ? meta.proValueBlocks : []} />
 
         {/* ── Full comparison, folded away ─────────────────────────────── */}
-        {comparisonTiers.length > 0 && (
+        {comparisonTiers.length > 1 && (
           <section className="pt-10">
             <div className="mx-auto max-w-6xl px-4 sm:px-6">
               <FeatureComparison

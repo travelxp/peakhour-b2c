@@ -179,14 +179,17 @@ export function PlanCards({
 }) {
   if (!pro && !free) return null;
 
-  // Only claim a multiple when both grants are real numbers and Pro is
-  // genuinely larger — "1× Free" is noise and a missing allowance is not a 0.
+  // Only claim a multiple when both grants are real numbers AND Pro is
+  // genuinely larger. A missing allowance is not a 0, and "1× Free" — which is
+  // what equal grants would print — is a badge that argues against the plan
+  // wearing it.
   const proPeaks = pro?.peaksIncluded;
   const freePeaks = free?.peaksIncluded;
-  const multiple =
+  const ratio =
     typeof proPeaks === "number" && typeof freePeaks === "number" && freePeaks > 0
       ? Math.round(proPeaks / freePeaks)
-      : undefined;
+      : 0;
+  const multiple = ratio >= 2 ? ratio : undefined;
 
   return (
     <div
