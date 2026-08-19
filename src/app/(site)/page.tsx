@@ -16,8 +16,6 @@ import { AUDIENCE_SEGMENTS } from "@/lib/audience-segments";
 import { PILLARS } from "@/lib/pillars";
 import { badgedComingSoonKeys } from "@/lib/pillar-channels";
 import { BrandBackdrop } from "@/components/marketing/brand-backdrop";
-import { TerrainCanvas } from "@/components/marketing/terrain-canvas";
-import { TYPICAL_DAY } from "@/lib/terrain";
 import { HeroConsole } from "@/components/marketing/hero-console";
 import { PillarOrbit } from "@/components/marketing/pillar-orbit";
 import { PillarCards } from "@/components/marketing/pillar-cards";
@@ -221,21 +219,21 @@ export default async function Home({
             IS a contour map — see lib/terrain.ts), drifting aurora blooms, and
             the content. */}
         <section className="relative isolate overflow-hidden bg-ink pt-10 pb-14 text-on-ink sm:pt-14 sm:pb-20">
-          <div aria-hidden className="pointer-events-none absolute inset-0 -z-20">
-            {/* ★A RANGE ALONG THE BOTTOM, NOT A FIELD BEHIND EVERYTHING.
-                The rings this replaced sat in the same plane as the copy and
-                had to be scrimmed into submission. A ridgeline occupies the
-                lower third by construction — the headline never competes with
-                it — and the front crest follows a real day's demand, so the
-                picture is the product's name drawn rather than texture. */}
-            <TerrainCanvas
-              seed={17}
-              options={{ layers: 4, baseline: 1.0, amplitude: 0.44, alpha: 0.8, day: TYPICAL_DAY }}
-            />
-          </div>
+          {/* ★NO GENERATED ARTWORK HERE, AND THAT IS THE DECISION.
+              Three versions shipped — faint contour rings, loud contour rings,
+              a ridgeline — and each read as programmer art, because that is
+              what procedural canvas drawing is. The argument for it was
+              production economics (one generator, infinite assets, no
+              designer), which is not the same argument as looking good, and
+              optimising the first at the cost of the second was the mistake.
+
+              What is left is what actually carries a hero: type, a product
+              that is visibly working, and a ground that stays out of their
+              way. When there is a real hero image, it goes in HERO_IMAGE —
+              until then the absence is deliberate, not a gap. */}
           <div
             aria-hidden
-            className="pointer-events-none absolute -inset-[20%] -z-10 opacity-70 blur-[64px]"
+            className="pointer-events-none absolute -inset-[20%] -z-10 opacity-40 blur-[80px]"
           >
             <span className="aurora-blob absolute left-[46%] top-[0%] block size-[46vw] rounded-full bg-[radial-gradient(circle,rgba(255,201,79,.72),transparent_66%)]" />
             <span className="aurora-blob absolute right-[-4%] top-[22%] block size-[40vw] rounded-full bg-[radial-gradient(circle,rgba(217,122,6,.68),transparent_66%)]" />
@@ -255,7 +253,7 @@ export default async function Home({
               copy is still in the opaque half. */}
           <div
             aria-hidden
-            className="pointer-events-none absolute inset-0 -z-[5] bg-[linear-gradient(180deg,rgba(16,13,8,.86)_0%,rgba(16,13,8,.55)_55%,rgba(16,13,8,0)_100%)]"
+            className="pointer-events-none absolute inset-0 -z-[5] bg-[radial-gradient(120%_90%_at_78%_18%,transparent_0%,rgba(16,13,8,.55)_58%,rgba(16,13,8,.82)_100%)]"
           />
           <div className="relative mx-auto grid max-w-6xl items-center gap-10 px-4 sm:gap-14 sm:px-6 lg:grid-cols-[1.1fr_0.9fr]">
             <div className="min-w-0">
@@ -516,12 +514,8 @@ export default async function Home({
             section that earns the dark one — "where Peakhour plugs in" is
             exactly the instrument-panel idea the system was built around. */}
         <section className="relative isolate overflow-hidden bg-ink py-14 text-on-ink sm:py-20">
-          <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 opacity-60">
-            <TerrainCanvas
-              seed={205}
-              options={{ layers: 3, baseline: 1.02, amplitude: 0.38, alpha: 0.55 }}
-            />
-          </div>
+          {/* Ink alone. The band does not need a picture behind it; the
+              logos ARE the picture. */}
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <div className="max-w-3xl">
               <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand">

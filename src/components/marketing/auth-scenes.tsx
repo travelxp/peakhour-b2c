@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { TerrainCanvas } from "@/components/marketing/terrain-canvas";
 
 /**
  * The changing half of /auth.
@@ -89,20 +88,15 @@ export function AuthScenes() {
 
   return (
     <div className="relative z-10">
+      {/* A soft wash in the scene's own colour, keyed so it changes with the
+          scene. This was a generated ridge; a single gradient does the same job
+          without looking hand-rolled. */}
       <div
         aria-hidden
-        className="pointer-events-none absolute -inset-x-14 -inset-y-10 -z-10 opacity-70"
-      >
-        {/* Keyed on the scene so the canvas remounts and repaints in the new
-            module's colour — TerrainCanvas paints on size change, not on prop
-            change, because every other caller is static. */}
-        <TerrainCanvas
-          key={scene.seed}
-          seed={scene.seed}
-          rgb={scene.rgb}
-          options={{ layers: 3, baseline: 1.02, amplitude: 0.42, alpha: 0.7 }}
-        />
-      </div>
+        key={scene.seed}
+        className="pointer-events-none absolute -inset-x-16 -inset-y-12 -z-10 rounded-full opacity-40 blur-[70px] transition-colors duration-700"
+        style={{ background: `radial-gradient(circle at 60% 40%, rgba(${scene.rgb},.55), transparent 68%)` }}
+      />
 
       {/* aria-live so a screen-reader user is told the panel changed under
           them rather than finding different words on the next tab stop. */}

@@ -1,6 +1,5 @@
 import Image from "next/image";
 import { Camera } from "lucide-react";
-import { TerrainCanvas } from "@/components/marketing/terrain-canvas";
 import type { PillarSlug } from "@/lib/pillars";
 
 /**
@@ -82,19 +81,13 @@ export function InstrumentFrame({
 
   return (
     <figure className="relative isolate">
-      {/* Contour bleed — the frame sits ON the module's terrain rather than on
-          the page's ground, so the screenshot reads as an instrument on a map
-          instead of a rectangle pasted onto a band. */}
+      {/* A glow in the module's colour under the frame, so the screenshot
+          sits on something rather than floating. Was a generated ridge. */}
       <div
         aria-hidden
-        className="pointer-events-none absolute -inset-x-6 -inset-y-8 -z-10 opacity-60 sm:-inset-x-12"
-      >
-        <TerrainCanvas
-          seed={mark.seed}
-          rgb={mark.rgb}
-          options={{ layers: 3, baseline: 1.05, amplitude: 0.4, alpha: 0.55 }}
-        />
-      </div>
+        className="pointer-events-none absolute -inset-x-6 -inset-y-8 -z-10 rounded-[2rem] opacity-45 blur-[60px] sm:-inset-x-12"
+        style={{ background: `radial-gradient(circle at 50% 45%, rgba(${mark.rgb},.6), transparent 70%)` }}
+      />
 
       {/* The rim light is a gradient border: a 1px inset ring of gold that
           catches the frame's top-left, the way a lit object would. */}

@@ -10,26 +10,8 @@ import { pricingPillar } from "@/lib/pricing-catalog";
 import { channelIsComingSoon } from "@/lib/pillar-channels";
 import { StatusChip } from "@/components/marketing/pricing/status-chip";
 import { ChannelChip } from "@/components/marketing/pricing/channel-chip";
-import { TerrainCanvas } from "@/components/marketing/terrain-canvas";
 import { type PillarSlug } from "@/lib/pillars";
 
-/**
- * Each module's own mark: a summit from the same generator as the hero ground,
- * in that module's chart-series colour. Seeded per slug so a module's terrain
- * never changes shape between renders or between pages.
- *
- * The colours are the DARK-theme steps and are hardcoded rather than read from
- * the CSS token, because the tile behind them is always ink — the series is
- * pinned to the entity, not to the theme (see the note above --chart-1), so
- * the value that reads on ink is the right one in both themes.
- */
-const MODULE_MARK: Record<PillarSlug, { seed: number; rgb: string }> = {
-  commerce: { seed: 11, rgb: "201,130,12" },
-  content: { seed: 27, rgb: "142,118,232" },
-  growth: { seed: 43, rgb: "16,156,135" },
-  support: { seed: 61, rgb: "74,143,224" },
-  presence: { seed: 79, rgb: "224,90,147" },
-};
 
 /**
  * A pillar card on the pricing hub's "add as you grow" grid. Identity (icon,
@@ -98,17 +80,9 @@ export function PillarPriceCard({
       className="group flex flex-col rounded-2xl border bg-background p-6 transition-all hover:-translate-y-1 hover:border-foreground hover:shadow-xl focus-visible:-translate-y-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
     >
       <div className="flex items-start justify-between gap-3">
-        {/* The icon sits ON the module's own mark rather than on a flat
-            tint. Same generator as the hero, one summit, the module's series
-            colour — five cards that share a construction read as one system,
-            which is the whole argument for generating them instead of
-            commissioning five illustrations. */}
-        <span className="relative flex size-11 items-center justify-center overflow-hidden rounded-xl bg-ink">
-          <span aria-hidden className="absolute inset-0">
-            <TerrainCanvas variant="mark" {...MODULE_MARK[slug]} />
-          </span>
+        <span className="flex size-11 items-center justify-center rounded-xl bg-brand-soft transition-colors group-hover:bg-brand-gradient">
           <Icon
-            className="relative size-5 text-on-ink transition-transform group-hover:scale-110"
+            className="size-5 text-brand-ink transition-colors group-hover:text-brand-contrast"
             strokeWidth={2}
             aria-hidden
           />

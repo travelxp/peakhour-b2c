@@ -5,7 +5,7 @@ import { Sparkles, Zap, RefreshCw, ArrowRight } from "lucide-react";
 import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
 import { Button } from "@/components/ui/button";
-import { TerrainCanvas } from "@/components/marketing/terrain-canvas";
+import { DayCurveCanvas } from "@/components/marketing/day-curve-canvas";
 import { PeaksGlyph } from "@/components/peaks/peaks-glyph";
 import { Peaks } from "@/components/peaks/peaks";
 import { getPeaks, formatPackPrice, type PeakPack } from "@/lib/peaks";
@@ -48,12 +48,15 @@ export default async function PeaksPage() {
             the page that exists to explain that, and it opened with a 56px
             glyph on white. The dial IS the name, drawn. */}
         <section className="relative isolate overflow-hidden border-b bg-ink text-on-ink">
-          <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 opacity-70">
-            <TerrainCanvas
-              seed={91}
-              options={{ layers: 3, baseline: 1.02, amplitude: 0.36, alpha: 0.5 }}
-            />
-          </div>
+          {/* Ink and a soft warm bloom. The generated ridge that used to sit
+              here was the third rejected attempt at brand artwork; the page
+              does not need a picture behind it when the chart beside the copy
+              IS the picture. */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -right-32 -top-40 -z-10 size-[38rem] rounded-full opacity-50 blur-[90px]"
+            style={{ background: "radial-gradient(circle, rgba(255,201,79,.45), transparent 70%)" }}
+          />
           <div className="mx-auto grid max-w-6xl items-center gap-12 px-4 py-16 sm:px-6 sm:py-20 lg:grid-cols-[1.05fr_0.95fr]">
             <div>
               <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand">
@@ -100,9 +103,7 @@ export default async function PeaksPage() {
                 form for cyclical hourly data AND the brand mark at the same
                 time — the crest IS the day. */}
             <figure className="relative">
-              <div className="h-64 w-full sm:h-72">
-                <TerrainCanvas variant="chart" seed={7} />
-              </div>
+              <DayCurveCanvas className="h-64 w-full sm:h-72" />
               <figcaption className="mt-1 text-center text-xs text-on-ink-dim">
                 A typical day, midnight to midnight. Illustrative, not measured.
               </figcaption>

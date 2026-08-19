@@ -3,20 +3,7 @@
 import { useMemo, useState } from "react";
 import { Check, ChevronDown } from "lucide-react";
 import { PILLAR_ORDER, PILLARS, type PillarSlug } from "@/lib/pillars";
-import { TerrainCanvas } from "@/components/marketing/terrain-canvas";
 
-/**
- * Each module's mark, from the same generator as the hero ground and the
- * pricing cards. Dark-theme series steps, hardcoded, because the tile behind
- * them is always ink — the chart series is pinned to the entity, not the theme.
- */
-const MODULE_MARK: Record<PillarSlug, { seed: number; rgb: string }> = {
-  commerce: { seed: 11, rgb: "201,130,12" },
-  content: { seed: 27, rgb: "142,118,232" },
-  growth: { seed: 43, rgb: "16,156,135" },
-  support: { seed: 61, rgb: "74,143,224" },
-  presence: { seed: 79, rgb: "224,90,147" },
-};
 import { cn } from "@/lib/utils";
 
 /**
@@ -213,14 +200,11 @@ export function PillarCards({
                 onClick={() => toggle(i)}
                 className="flex w-full min-w-0 items-start gap-3 rounded-2xl p-5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-inset lg:flex-col lg:gap-3.5"
               >
-                {/* The module's own summit, not a flat gold tile. Five cards
-                    sharing one construction is what makes them read as a
-                    system rather than five icons. */}
-                <span className="relative flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-ink">
-                  <span aria-hidden className="absolute inset-0">
-                    <TerrainCanvas variant="mark" {...MODULE_MARK[slug]} />
-                  </span>
-                  <Icon className="relative size-5 text-on-ink" strokeWidth={2} aria-hidden />
+                {/* A generated "summit" behind each icon was tried and read
+                    as noise at 40px. The flat brand tile was never the problem;
+                    the icon is the mark at this size. */}
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-brand-gradient shadow-inner">
+                  <Icon className="size-5 text-brand-contrast" strokeWidth={2} aria-hidden />
                 </span>
                 <span className="min-w-0 flex-1">
                   <span id={labelId} className="block text-base font-bold tracking-tight">
