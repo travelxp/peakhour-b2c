@@ -302,7 +302,7 @@ function safeReturnTo(raw: string | null | undefined): string {
 }
 
 export default function IntegrationsPage() {
-  const { org } = useAuth();
+  const { org, business } = useAuth();
   const searchParams = useSearchParams();
   const returnTo = safeReturnTo(searchParams?.get("returnTo"));
   /** Provider the incoming returnTo was about, if the CTA named one.
@@ -327,10 +327,21 @@ export default function IntegrationsPage() {
   const [connectionTab, setConnectionTab] = useState<ConnectionTab>("all");
   const [activeCategory, setActiveCategory] = useState<string>("all");
 
+  // ★KEYED ON THE BUSINESS TOO, NOT JUST THE ORG. This list is per-business in
+  // two ways now: connections have always been scoped (orgId, businessId), and
+  // since the business-scoped invitation work `availability` is as well — an
+  // integration can be invited to ONE business of an org. But the page holds
+  // its list in useState behind a bare `api.get`, outside TanStack, so
+  // `switchBusiness`'s blanket `queryClient.clear()` never reaches it; and the
+  // only dependency was `org._id`, which a business switch does not change.
+  // Switching A → B therefore left business A's answer on screen: a Connect
+  // button on an integration B was never invited to, or "coming soon" on one
+  // it was. Harmless while availability was org-derived; wrong the moment it
+  // stopped being.
   useEffect(() => {
     if (!org) return;
     loadIntegrations();
-  }, [org?._id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [org?._id, business?._id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /**
    * Reload the cards AND drop the LinkedIn content caches.
