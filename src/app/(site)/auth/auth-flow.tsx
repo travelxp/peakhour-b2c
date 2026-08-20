@@ -12,6 +12,7 @@ import { api, ApiError } from "@/lib/api";
 import { SITE, cn } from "@/lib/utils";
 import type { PlatformSignupMode } from "@/lib/catalog";
 import { PeaksGlyph } from "@/components/peaks/peaks-glyph";
+import { AuthScenes } from "@/components/marketing/auth-scenes";
 import {
   PILLAR_CONSOLE_ROWS,
   PILLAR_CONSOLE_LABEL,
@@ -66,7 +67,7 @@ const RESEND_COOLDOWN_SECONDS = 60;
 // server-side (see page.tsx), not a number kept in sync by hand.
 function signupStats(freePeaks: string) {
   return [
-    { value: "5", label: "pillars, one login" },
+    { value: "5", label: "modules, one login" },
     { value: "0", label: "credit cards required" },
     // "+" and "free plan": the figure is the floor across free plans, and
     // paid/Agency/Enterprise carry far more. Without both, this reads as a cap.
@@ -552,20 +553,18 @@ export function AuthFlow({
           }}
         />
 
+        {/* ★THE PANEL CHANGES NOW. It held one promise for as long as someone
+            took to type an email — the right layout, standing still. Five
+            scenes, one per module, each on its own generated ground.
+
+            Deliberately not headings: this panel disappears below lg, so an h1
+            here would leave small screens with no h1 at all. The state heading
+            in the form column is the h1 at every breakpoint. */}
+        <AuthScenes />
+
         <div className="relative z-10">
-          {/* text-brand, not the theme-aware text-brand-label — see Eyebrow. */}
-          <Eyebrow className="text-brand">Five pillars · one account</Eyebrow>
-          {/* Deliberately not a heading: this panel disappears below lg, so an
-              h1 here would leave small screens with no h1 at all. The state
-              heading in the form column is the h1 at every breakpoint. */}
-          <p className="mt-4 max-w-xl text-3xl font-extrabold leading-[1.06] tracking-tight text-pretty xl:text-4xl">
-            Your whole business, waiting on the other side.{" "}
-            <span className="font-serif font-normal italic text-brand-gradient">
-              Free to start.
-            </span>
-          </p>
-          <p className="mt-4 max-w-md text-on-ink-dim">
-            Commerce, Content, Growth, Support and Presence — five pillars on
+          <p className="max-w-md text-on-ink-dim">
+            Commerce, Content, Growth, Support and Presence — five modules on
             one account, each with a free plan.
           </p>
         </div>
@@ -683,7 +682,7 @@ export function AuthFlow({
               </h1>
               <p className="mt-2 text-sm text-muted-foreground">
                 {SITE.name} is invite-only while we onboard launch partners.
-                Apply and you&rsquo;ll get all five pillars free, plus a setup
+                Apply and you&rsquo;ll get all five modules free, plus a setup
                 call.
               </p>
               <div className="mt-5">

@@ -21,25 +21,45 @@ import { comparisonRows } from "@/lib/pricing-features";
  * Renders nothing below two columns: a "comparison" of one plan against itself
  * is a feature list, and Presence — which sells a single plan — already has
  * that on its card.
+ *
+ * `scopeKeys` exists because one of the columns can be Peakhour Suite, which
+ * grants every module's capabilities. Unscoped, the Content page's table would
+ * list WhatsApp shopping and ad campaigns — true of the plan, irrelevant to the
+ * page, and enough rows to bury what the reader came for. The caller passes the
+ * keys this page is about; omit it and nothing is filtered.
  */
 export function FeatureComparison({
   tiers,
   columnLabels,
+  scopeKeys,
 }: {
   tiers: ResolvedProductTier[];
-  /** Public plan names ("Pro", "Free") — index-aligned with `tiers`. */
+  /** Public plan names ("Peakhour Suite", "Free") — index-aligned with `tiers`. */
   columnLabels: string[];
+  /** Canonical feature keys this page is about. Omit to show every row. */
+  scopeKeys?: ReadonlySet<string>;
 }) {
   if (tiers.length < 2) return null;
-  const rows = comparisonRows(tiers);
+  const allRows = comparisonRows(tiers);
+  const rows = scopeKeys
+    ? // ★`r.keys`, NOT `r.key`. Rows merge by label and keep the FIRST key,
+      // which is Suite's — so scoping on `key` alone dropped rows whose other
+      // key is exactly the module capability this page is about.
+      allRows.filter((r) => r.keys.some((k) => scopeKeys.has(k)))
+    : allRows;
   const showPeaksRow = tiers.some((t) => typeof t.peaksIncluded === "number");
   if (rows.length === 0 && !showPeaksRow) return null;
 
   // Growth's plans grant exactly the same capabilities today — the whole
   // difference is the allowance. A grid of matched ticks looks like a rendering
   // fault unless the page says out loud that it isn't one.
+  // ★AND NOT WHEN THE SCOPE FILTER IS WHAT MADE THEM MATCH. On a scoped Suite
+  // table the differing rows are frequently the ones removed — they belong to
+  // the other four modules — so this sentence could appear precisely because
+  // the page had just hidden the differences it claims are absent.
+  const scopeDroppedRows = Boolean(scopeKeys) && allRows.length !== rows.length;
   const capabilitiesMatch =
-    rows.length > 0 && rows.every((row) => row.included.every(Boolean));
+    !scopeDroppedRows && rows.length > 0 && rows.every((row) => row.included.every(Boolean));
 
   return (
     <details className="group rounded-3xl border bg-card">

@@ -628,7 +628,7 @@ export default async function HowItWorks() {
                   href={cta.href}
                   className="group mt-8 inline-flex items-center gap-2 rounded-xl bg-brand-gradient px-7 py-3.5 text-sm font-bold text-brand-contrast shadow-sm transition-transform hover:-translate-y-0.5 focus-visible:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900 motion-reduce:transition-none"
                 >
-                  {cta.label} — all five pillars
+                  {cta.label} — all five modules
                   <ArrowRight
                     className="size-4 transition-transform group-hover:translate-x-1 motion-reduce:transition-none"
                     aria-hidden
@@ -636,7 +636,7 @@ export default async function HowItWorks() {
                 </Link>
               )}
               <p className="mt-5 text-sm text-on-ink-dim">
-                A free plan on every pillar. No credit card.
+                A free plan on every module. No credit card.
               </p>
             </Reveal>
           </div>

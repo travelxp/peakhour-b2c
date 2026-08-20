@@ -25,7 +25,7 @@ export const HOW_IT_WORKS_STEPS = [
     step: "3",
     title: "Let it run, watch it learn",
     description:
-      "Pillars work daily and report in plain language. Every approval teaches the AI your taste; autonomy grows as trust does.",
+      "Modules work daily and report in plain language. Every approval teaches the AI your taste; autonomy grows as trust does.",
     detail:
       "Week one it drafts and asks. By month three it knows your bestsellers, your voice, and your customers' questions — and needs you less.",
   },

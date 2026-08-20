@@ -8,19 +8,19 @@ import {
 const FAQS: { q: string; a: string }[] = [
   {
     q: "What are Peaks?",
-    a: "Peaks are your AI credits — one shared wallet across every pillar. Free tiers include an allowance each month; paid pillars include more. You'll never hit a surprise paywall mid-task; we warn you before you run low.",
+    a: "Peaks are your AI credits — one shared wallet across all five modules. Free includes an allowance each month; Peakhour Suite includes a much larger one — the cards above show both. You'll never hit a surprise paywall mid-task; we warn you before you run low.",
   },
   {
-    q: "Do I have to buy everything?",
-    a: "No. Start free with Presence, then switch on only the pillars you want. Each is billed on its own — turn one off any time.",
+    q: "Do I have to buy every module?",
+    a: "There is nothing to assemble. Peakhour Suite is one plan and one price for all five modules — Commerce, Content, Growth, Support and Presence — so you are never picking which parts of your business to leave out. Use the ones you need; the rest are there when you want them.",
   },
   {
     q: "Can I use it inside Shopify or WordPress?",
-    a: "Yes. Install the Shopify App or WordPress plugin and the relevant pillar runs right there. Shopify billing goes through Shopify; everywhere else you're billed on peakhour.ai.",
+    a: "Yes. Install the Shopify App or WordPress plugin and the relevant module runs right there. Shopify billing goes through Shopify; everywhere else you're billed on peakhour.ai.",
   },
   {
-    q: "What's the difference between Free and Paid?",
-    a: "Same product, same polish. Paid simply lifts your monthly limits, unlocks more channels, and adds pro features like scheduling, routing and analytics.",
+    q: "What's the difference between Free and Suite?",
+    a: "Free is a real product, not a demo — and the quality of anything it writes, answers or publishes is identical to Suite's. What Suite adds is room and reach: ten times the monthly Peaks, every channel, and the automations that let it run without you — scheduling, routing, autopilot and the analytics behind them.",
   },
   {
     q: "Which prices will I see?",

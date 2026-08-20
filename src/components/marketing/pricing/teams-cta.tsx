@@ -26,7 +26,7 @@ export function TeamsCtaBand({ pillarName }: { pillarName?: string }) {
             Looking for an Agency or Enterprise plan?
           </h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            Get {pillarName ? `${pillarName} and every other pillar` : "every pillar"}{" "}
+            Get {pillarName ? `${pillarName} and every other module` : "every module"}{" "}
             across many businesses, with volume Peaks, one unit per client and
             central billing.
           </p>

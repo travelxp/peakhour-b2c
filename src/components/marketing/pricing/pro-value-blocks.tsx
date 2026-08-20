@@ -15,13 +15,20 @@ import type { ProValueBlock } from "@/lib/pricing-catalog";
  * blocks list is empty), and any env can hide a product that has one (the page
  * passes no blocks — see /pricing/[pillar]).
  */
-export function ProValueBlocks({ blocks }: { blocks: ProValueBlock[] }) {
+export function ProValueBlocks({
+  blocks,
+  planName = "Pro",
+}: {
+  blocks: ProValueBlock[];
+  /** What the reader is upgrading TO — "Pro", or "Peakhour Suite". */
+  planName?: string;
+}) {
   if (blocks.length === 0) return null;
   return (
     <section className="pt-16">
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
         <h2 className="text-2xl font-extrabold tracking-tight text-pretty">
-          What changes when you go Pro?
+          What changes when you upgrade to {planName}?
         </h2>
         <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {blocks.map((block) => (

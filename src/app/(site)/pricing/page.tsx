@@ -10,6 +10,8 @@ import {
   formatMonthly,
   formatPeaks,
   freeTier,
+  findBundleTier,
+  productBundleTier,
 } from "@/lib/pricing";
 import { getPublicCatalog, publicMarketingIntegrations, signupCta } from "@/lib/catalog";
 import { badgedComingSoonKeys } from "@/lib/pillar-channels";
@@ -21,14 +23,15 @@ import {
 import { PILLARS } from "@/lib/pillars";
 import { pageMetadata } from "@/lib/seo";
 import { PillarPriceCard } from "@/components/marketing/pricing/pillar-price-card";
+import { SuiteCard } from "@/components/marketing/pricing/suite-card";
 import { ChannelsStrip } from "@/components/marketing/pricing/channels-strip";
 import { TeamsCtaBand } from "@/components/marketing/pricing/teams-cta";
 import { PricingFaq } from "@/components/marketing/pricing/pricing-faq";
 
 export const metadata = pageMetadata({
-  title: "Pricing — five pillars, one login",
+  title: "Pricing — one plan, five modules",
   description:
-    "Start free with Presence, then grow one pillar at a time. Commerce, Content, Support and Growth — each a flat monthly price with a free tier. Agency and Enterprise plans for teams.",
+    "Peakhour Suite is one plan for Commerce, Content, Growth, Support and Presence — one login, one Peaks wallet, one price. Every module has a free tier. Agency and Enterprise plans for teams.",
   path: "/pricing",
 });
 
@@ -69,6 +72,15 @@ export default async function PricingPage() {
 
   const presence = pillarProducts(pricing, "presence")[0];
   const presenceFree = presence ? freeTier(presence) : undefined;
+  /**
+   * Peakhour Suite — the one plan that sells all five modules.
+   *
+   * Absent until the catalog seeds it (migration 258), and the page has to read
+   * correctly either way: with a Suite it leads with the Suite, without one it
+   * falls back to the per-module ladder this page has always shown. Nothing
+   * here invents a price for a plan the environment does not serve.
+   */
+  const suite = findBundleTier(pricing, "suite");
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -84,16 +96,29 @@ export default async function PricingPage() {
                 Pricing
               </span>
               <h1 className="mt-4 text-4xl font-extrabold leading-[1.05] tracking-tight text-pretty sm:text-5xl">
-                Get found for free.
-                <br />
-                Then grow,{" "}
-                <span className="font-serif font-normal italic text-brand-gradient">
-                  one pillar at a time.
-                </span>
+                {suite ? (
+                  <>
+                    Everything a business does online.
+                    <br />
+                    <span className="font-serif font-normal italic text-brand-gradient">
+                      One plan.
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    Get found for free.
+                    <br />
+                    Then grow,{" "}
+                    <span className="font-serif font-normal italic text-brand-gradient">
+                      one module at a time.
+                    </span>
+                  </>
+                )}
               </h1>
               <p className="mt-5 max-w-xl text-lg text-muted-foreground">
-                Five products, one login. Start on the free Presence pillar, add
-                what you need, and pay only for the pillars you switch on.
+                {suite
+                  ? "Commerce, Content, Growth, Support and Presence — five products, one login, one Peaks wallet, one price. Start free and upgrade when you outgrow it."
+                  : "Five products, one login. Start free, add what you need, and pay only for the modules you switch on."}
               </p>
               <div className="mt-8 flex flex-wrap items-center gap-4">
                 {!cta.disabled && (
@@ -106,10 +131,10 @@ export default async function PricingPage() {
                   </Link>
                 )}
                 <Link
-                  href="#pillars"
+                  href={suite ? "#suite" : "#pillars"}
                   className="inline-flex items-center rounded-xl border-2 px-6 py-3 text-sm font-bold transition-colors hover:border-brand hover:text-brand"
                 >
-                  See all pillars
+                  {suite ? "See what's included" : "See all modules"}
                 </Link>
               </div>
               <p className="mt-4 text-sm text-muted-foreground">
@@ -120,7 +145,10 @@ export default async function PricingPage() {
               </p>
             </div>
 
-            {/* Value ladder — the five pillars, cheapest first, in a dark panel */}
+            {/* The five modules, in a dark panel. With a Suite on sale the
+                right-hand column stops being a price list — every module is
+                included, and quoting five separate prices beside a single-price
+                headline is the contradiction the Suite exists to remove. */}
             <div className="overflow-hidden rounded-2xl border border-ink-line bg-ink p-3 text-on-ink shadow-2xl">
               <ul className="flex flex-col gap-1.5">
                 {PRICING_PILLAR_ORDER.map((slug) => {
@@ -139,6 +167,26 @@ export default async function PricingPage() {
                         ? "Free"
                         : "Soon";
                   const isFree = price === "Free";
+                  // ★ASKED OF THIS PRODUCT. `Boolean(suite)` alone printed
+                  // "Included" on the same row whose price this ladder had just
+                  // computed as "Soon"; `&& Boolean(product)` fixed that and
+                  // still claimed a module Suite does not compose. The bundle's
+                  // presence in `product.tiers` is the catalog SAYING it is
+                  // included, which is the only thing that licenses the word.
+                  // ★NOT `!isFree` — THAT GUARD SILENCED THE WHOLE LADDER.
+                  // Once migration 260 retires the module `.paid` tiers,
+                  // `fromMonthly` returns null for every module and `price`
+                  // falls through to "Free" — so `!isFree` made "Included"
+                  // unreachable on all five rows, while the card grid further
+                  // down (which has no such guard) went on printing "Included ·
+                  // in Peakhour Suite" for the same modules on the same page.
+                  //
+                  // The thing that actually distinguishes Presence is Presence:
+                  // it has no paid tier and is not getting one, which is why
+                  // this very expression already special-cases it two lines
+                  // above. Same test, so the two cannot drift apart.
+                  const included =
+                    slug !== "presence" && Boolean(productBundleTier(product, "suite"));
                   return (
                     <li key={slug}>
                       <Link
@@ -174,16 +222,12 @@ export default async function PricingPage() {
                         </span>
                         <span
                           className={`ml-auto shrink-0 text-sm font-bold tabular-nums ${
-                            slug === "presence"
-                              ? ""
-                              : isFree
-                                ? "text-success"
-                                : "text-brand"
+                            slug === "presence" ? "" : included || isFree ? "text-success" : "text-brand"
                           }`}
                           style={{ fontFamily: "var(--font-space-grotesk)" }}
                         >
-                          {price}
-                          {paid && (
+                          {included ? "Included" : price}
+                          {!included && paid && (
                             <span className="text-[10px] font-medium opacity-70">
                               /mo
                             </span>
@@ -198,7 +242,30 @@ export default async function PricingPage() {
           </div>
         </section>
 
-        {/* ── Free pillar band (Presence) ──────────────────────────────── */}
+        {/* ── Peakhour Suite ───────────────────────────────────────────── */}
+        {suite && (
+          // ★`scroll-mt` BECAUSE THE HEADER IS `sticky top-0`. Both
+          // `/pricing/[pillar]` and `/pricing/teams` link to `#suite`, and
+          // without this every one of them lands with the card's badge and the
+          // top of its heading behind the header — the same reason `#pillars`
+          // below already carries it.
+          <section id="suite" className="scroll-mt-20 pb-16 sm:pb-20">
+            <div className="mx-auto max-w-6xl px-4 sm:px-6">
+              <SuiteCard
+                tier={suite}
+                // What the plan composes AND this site renders — the same
+                // per-product question the ladder above asks.
+                includedSlugs={PRICING_PILLAR_ORDER.filter((slug) =>
+                  Boolean(productBundleTier(pillarProducts(pricing, slug)[0], "suite")),
+                )}
+                cta={cta}
+                openSignup={openSignup}
+              />
+            </div>
+          </section>
+        )}
+
+        {/* ── Free module band (Presence) ──────────────────────────────── */}
         <section id="pillars" className="scroll-mt-20 pb-4">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <div className="relative overflow-hidden rounded-3xl border border-brand/30 bg-brand-soft/50 shadow-sm dark:bg-brand/5">
@@ -261,8 +328,8 @@ export default async function PricingPage() {
                     Claim your business in 2 minutes
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    No credit card. Upgrade to a paid pillar only when you&rsquo;re
-                    ready.
+                    No credit card, ever. Upgrade to Peakhour Suite only when
+                    you&rsquo;re ready.
                   </p>
                   {!cta.disabled && (
                     <Link
@@ -294,12 +361,12 @@ export default async function PricingPage() {
                   Add as you grow
                 </span>
                 <h2 className="mt-4 text-3xl font-extrabold tracking-tight text-pretty lg:text-4xl">
-                  Four more pillars, each with a free tier
+                  Four more modules, each with a free tier
                 </h2>
                 <p className="mt-3 text-muted-foreground">
-                  Every paid pillar has a free tier to try, then one simple paid
-                  plan. Same taste, same polish — the paywall only lifts your
-                  limits.
+                  Every module has a free tier to try. One plan — Peakhour
+                  Suite — turns all five on together, so there is nothing to
+                  assemble and no per-module maths.
                 </p>
               </div>
               <p className="shrink-0 rounded-full border bg-muted/40 px-3 py-1.5 text-xs font-medium text-muted-foreground">
@@ -308,14 +375,21 @@ export default async function PricingPage() {
             </div>
 
             <div className="mt-10 grid gap-5 sm:grid-cols-2">
-              {PAID_PILLAR_ORDER.map((slug) => (
-                <PillarPriceCard
-                  key={slug}
-                  slug={slug}
-                  product={pillarProducts(pricing, slug)[0]}
-                  comingSoonKeys={comingSoonKeys}
-                />
-              ))}
+              {PAID_PILLAR_ORDER.map((slug) => {
+                const cardProduct = pillarProducts(pricing, slug)[0];
+                return (
+                  <PillarPriceCard
+                    key={slug}
+                    slug={slug}
+                    product={cardProduct}
+                    comingSoonKeys={comingSoonKeys}
+                    // Same rule as the ladder above, and asked of the same
+                    // per-product tier list: a card must not point at a plan
+                    // that will not grant it.
+                    suiteIncluded={Boolean(productBundleTier(cardProduct, "suite"))}
+                  />
+                );
+              })}
             </div>
           </div>
         </section>
@@ -333,7 +407,7 @@ export default async function PricingPage() {
                   Bring Peakhour into your stack
                 </h2>
                 <p className="mt-3 text-muted-foreground">
-                  Your pillars light up inside the tools you already use, each
+                  Your modules light up inside the tools you already use, each
                   one the moment it opens. Each card shows what runs there.
                 </p>
               </div>

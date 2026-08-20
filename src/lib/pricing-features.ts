@@ -135,6 +135,17 @@ export function tierGrants(tier: ResolvedProductTier, key: string): boolean {
 export interface ComparisonRow {
   /** Canonical key — stable React key, and what the row is really about. */
   key: string;
+  /**
+   * EVERY canonical key that merged into this row, `key` included.
+   *
+   * ★ROWS MERGE BY LABEL, SO ONE ROW CAN BE SEVERAL KEYS — and a caller that
+   * filters by scope has to ask about all of them. `/pricing/[pillar]` narrows
+   * a Suite comparison to the module's own keys; with only `key` to go on, a
+   * label collision between Suite's key and the free tier's silently DROPPED a
+   * capability the module genuinely grants, because the first key seen wins and
+   * the first tier is Suite.
+   */
+  keys: string[];
   label: string;
   included: boolean[];
 }
@@ -184,9 +195,10 @@ export function comparisonRows(tiers: ResolvedProductTier[]): ComparisonRow[] {
       if (existing) {
         // Same words, different key — merge rather than print the line twice.
         existing.included = existing.included.map((was, i) => was || included[i]);
+        if (!existing.keys.includes(key)) existing.keys.push(key);
         continue;
       }
-      const row: ComparisonRow = { key, label, included };
+      const row: ComparisonRow = { key, keys: [key], label, included };
       rowsByLabel.set(label, row);
       rows.push(row);
     }

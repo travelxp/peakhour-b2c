@@ -63,7 +63,12 @@ export interface PricingPillarMeta {
   promise: string;
   /**
    * The pricing page's own headline and standfirst — value-led, and about
-   * what Pro buys rather than what the pillar is. `/{slug}` already sells the
+   * what UPGRADING buys rather than what the module is.
+   *
+   * Deliberately does not name the plan. The paid slot on a module page is
+   * "Pro" while a module sells its own tier and "Peakhour Suite" once the Suite
+   * does; a standfirst that hardcoded either went stale the day the other
+   * shipped. The card names the plan; this names the benefit. `/{slug}` already sells the
    * pillar; someone on `/pricing/{slug}` has decided they want it and is
    * choosing a plan.
    *
@@ -99,19 +104,66 @@ export const PRICING_PILLARS: Record<PillarSlug, PricingPillarMeta> = {
     slug: "presence",
     promise: "Get found on Google, Maps and AI search — and keep every listing right.",
     priceHeadline: "Get found everywhere — free, forever.",
+    // ★NO PLAN NAMED HERE. This string is static catalog copy and renders on
+    // every environment, including one that has not run migration 258 — where
+    // it pitched Peakhour Suite on a page that shows no Suite anywhere. The
+    // module page already says "part of Peakhour Suite" from the resolved
+    // catalog, gated, which is the place that can know.
     priceLede:
-      "Claim your business, keep every listing right, and reply to reviews with AI drafts. There is no plan to pick and no card to enter.",
-    // Presence ships no paid tier. Empty rather than aspirational: the page
-    // renders its free-only view, and the day a Pro tier lands the copy gets
-    // written against what it actually grants.
-    proHighlights: [],
+      "Claim your business, keep every listing right, and reply to reviews with AI drafts — free, with no card.",
+    /**
+     * ★PRESENCE IS THE ONE MODULE WHOSE UPGRADE IS NOT ABOUT ITSELF.
+     *
+     * It has no paid tier and is not getting one — everything it does is free.
+     * So the capabilities that lead on its Suite card belong to the OTHER four
+     * modules, which is the honest pitch: you already have Presence; Suite is
+     * what happens when being found is not the only thing you need.
+     *
+     * Every key still passes the same grant check as anywhere else — Suite
+     * grants all five modules, so none of these is a claim the catalog cannot
+     * back. On an environment with no Suite the paid card does not render and
+     * these are simply unused.
+     */
+    proHighlights: [
+      { key: "commerce.assistant", label: "AI shopping assistant on your storefront" },
+      { key: "content.scheduler", label: "Content calendar with scheduled publishing" },
+      { key: "support.inbox", label: "One inbox for every conversation" },
+      { key: "growth.ads", label: "Ad campaigns across platforms" },
+      // ★NOT `presence.control_plane`, WHICH THIS PAGE ALREADY GIVES AWAY.
+      // It sits in `freeHighlights` directly below with the SAME label, so the
+      // Suite card was selling, as its fifth reason, a capability the free card
+      // beside it already listed. Replaced rather than dropped: the card holds
+      // five and a test pins that.
+      //
+      // Suite grants all five modules, so this passes the same grant check as
+      // the rest — and it keeps the docblock true, since every reason here
+      // belongs to a module Presence is not.
+      { key: "growth.performance_analytics", label: "See which channels actually bring customers" },
+    ],
     freeHighlights: [
       { key: "presence.listings", label: "One business listing, synced everywhere" },
       { key: "presence.reviews", label: "Every review in one inbox, with AI drafts" },
       { key: "presence.insights", label: "See views, calls and directions" },
       { key: "presence.control_plane", label: "Update your listing over WhatsApp" },
     ],
-    proValueBlocks: [],
+    proValueBlocks: [
+      {
+        title: "Sell, not just appear",
+        body: "Commerce answers buyers from your live catalogue, on your storefront and on WhatsApp.",
+      },
+      {
+        title: "Say something",
+        body: "Content writes and schedules in your voice, so the listing people find leads somewhere.",
+      },
+      {
+        title: "Bring people in",
+        body: "Growth runs the ads, the SEO and the creator campaigns that put you in front of them.",
+      },
+      {
+        title: "Answer everyone",
+        body: "Support puts email, chat, WhatsApp and DMs in one queue, with replies drafted for you.",
+      },
+    ],
     runsIn: ["native"],
   },
   commerce: {
@@ -119,7 +171,7 @@ export const PRICING_PILLARS: Record<PillarSlug, PricingPillarMeta> = {
     promise: "An AI shop assistant that answers buyers from your real catalog — 24/7.",
     priceHeadline: "Sell on every channel, in every language, around the clock.",
     priceLede:
-      "Pro puts your shop assistant on every connected channel — multilingual, on autopilot, with a far bigger monthly Peaks allowance behind it.",
+      "Your shop assistant on every connected channel — multilingual, on autopilot, with a far bigger monthly Peaks allowance behind it.",
     proHighlights: [
       { key: "commerce.channels_all", label: "Every connected sales channel" },
       { key: "commerce.assistant", label: "AI shopping assistant on your storefront" },
@@ -165,7 +217,7 @@ export const PRICING_PILLARS: Record<PillarSlug, PricingPillarMeta> = {
     promise: "AI content for social, blog and newsletters — drafted in your voice, on schedule.",
     priceHeadline: "Publish more, in more places, with far less work.",
     priceLede:
-      "Pro adds advanced writers, trusted sources and recurring schedules — with the Peaks to keep your calendar full without you filling it.",
+      "Advanced writers, trusted sources and recurring schedules — with the Peaks to keep your calendar full without you filling it.",
     proHighlights: [
       { key: "content.multi_format", label: "Blogs, newsletters, social posts and more" },
       { key: "content.scheduler", label: "Content calendar with scheduled publishing" },
@@ -204,7 +256,7 @@ export const PRICING_PILLARS: Record<PillarSlug, PricingPillarMeta> = {
     promise: "Every support message — email, chat, WhatsApp, DMs — in one inbox.",
     priceHeadline: "Answer everyone, everywhere, faster.",
     priceLede:
-      "Pro adds WhatsApp and social DMs, AI-drafted replies, routing and SLA timers — with the Peaks to keep up with all of it.",
+      "WhatsApp and social DMs, AI-drafted replies, routing and SLA timers — with the Peaks to keep up with all of it.",
     proHighlights: [
       { key: "support.channels_all", label: "WhatsApp and social DMs too" },
       { key: "support.ai_replies", label: "AI-drafted replies, ready to send" },
@@ -249,7 +301,7 @@ export const PRICING_PILLARS: Record<PillarSlug, PricingPillarMeta> = {
     // honestly shows two matching columns rather than inventing a gap.
     priceHeadline: "Run growth every day, not just the first week of the month.",
     priceLede:
-      "Pro is the same engine with the capacity to keep it running — ads, SEO, creator campaigns and nurture flows, all month long.",
+      "The same engine, with the capacity to keep it running — ads, SEO, creator campaigns and nurture flows, all month long.",
     proHighlights: [
       { key: "growth.ads", label: "Ad campaigns across platforms" },
       { key: "growth.seo", label: "SEO and answer-engine optimisation" },
@@ -425,7 +477,7 @@ export const CHANNELS: Record<ChannelKey, ChannelMeta> = {
     name: "Peakhour web app",
     tag: "Ph",
     color: "#d97a06",
-    blurb: "Every pillar works in the Peakhour dashboard out of the box.",
+    blurb: "Every module works in the Peakhour dashboard out of the box.",
     href: "/auth",
   },
 };

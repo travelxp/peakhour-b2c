@@ -61,7 +61,7 @@ export const AUDIENCE_SEGMENTS: AudienceSegment[] = [
     name: "Growing Teams & Enterprise",
     problem:
       "Five tools, five logins and five versions of the truth — and the handoffs between them are somebody's whole week.",
-    fit: "One intelligence layer across all five pillars, sharing one catalog and one brand voice, with approvals before anything reaches a customer.",
+    fit: "One intelligence layer across all five modules, sharing one catalog and one brand voice, with approvals before anything reaches a customer.",
     pillars: ["commerce", "content", "growth", "support", "presence"],
   },
 ];

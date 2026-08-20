@@ -39,7 +39,7 @@ export const PILLAR_CONSOLE_LABEL =
  */
 export const SIGNUP_PROMISES = [
   "No credit card",
-  "Free plan on every pillar",
+  "Free plan on every module",
   "Live the same day",
 ] as const;
 
@@ -58,7 +58,7 @@ export const SIGNUP_PROMISES = [
 export const HERO_TRUST_POINTS = [
   SIGNUP_PROMISES[0],
   SIGNUP_PROMISES[1],
-  "All five pillars, one platform",
+  "All five modules, one platform",
 ] as const;
 
 /**
@@ -68,7 +68,7 @@ export const HERO_TRUST_POINTS = [
  */
 export const PRELAUNCH_PROMISES = [
   "No credit card",
-  "Free plan on every pillar",
+  "Free plan on every module",
   "We’ll email your link",
 ] as const;
 

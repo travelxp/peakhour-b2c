@@ -1,11 +1,17 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { fromMonthly, formatMonthly, type ResolvedProduct } from "@/lib/pricing";
+import {
+  fromMonthly,
+  formatMonthly,
+  freeTier,
+  type ResolvedProduct,
+} from "@/lib/pricing";
 import { pricingPillar } from "@/lib/pricing-catalog";
 import { channelIsComingSoon } from "@/lib/pillar-channels";
 import { StatusChip } from "@/components/marketing/pricing/status-chip";
 import { ChannelChip } from "@/components/marketing/pricing/channel-chip";
 import { type PillarSlug } from "@/lib/pillars";
+
 
 /**
  * A pillar card on the pricing hub's "add as you grow" grid. Identity (icon,
@@ -18,6 +24,7 @@ export function PillarPriceCard({
   slug,
   product,
   comingSoonKeys,
+  suiteIncluded = false,
 }: {
   slug: PillarSlug;
   product?: ResolvedProduct;
@@ -27,6 +34,16 @@ export function PillarPriceCard({
    * intends to, and a caller who forgets should fail to compile.
    */
   comingSoonKeys: readonly string[];
+  /**
+   * Peakhour Suite is on sale, so this module is included in it.
+   *
+   * The card then stops quoting a per-module price. It is not that ₹1,499 has
+   * become untrue — the tier still exists until it retires — it is that a grid
+   * of five separate prices under a headline promising one price is the
+   * contradiction the Suite exists to remove, and a visitor doing the five-way
+   * arithmetic is doing the wrong sum.
+   */
+  suiteIncluded?: boolean;
 }) {
   const pillar = pricingPillar(slug);
   const Icon = pillar.icon;
@@ -36,15 +53,26 @@ export function PillarPriceCard({
   // the PILLAR stands — this strip answers "where does it run", and the
   // honest answer for an unbuilt connector is "there, soon", not silence.
   const badged = new Set(comingSoonKeys);
-  const hasFree = !!product?.tiers.some((t) => t.pricing.monthly === 0);
+  // ★`freeTier`, NOT `tiers.some(t => t.pricing.monthly === 0)`. The naive
+  // check searches the RAW tier list, which carries the account-level bundles —
+  // and Enterprise is sales-led, priced 0/0, so it matches. Every product would
+  // read as having a free tier whether or not it does, which is latent today
+  // only because they all happen to have one. `freeTier` excludes bundles by
+  // key and requires both intervals to be zero; its docblock documents this
+  // exact trap.
+  const hasFree = !!(product && freeTier(product));
 
   const priceLabel = !product
     ? "Coming soon"
-    : paidFrom
-      ? formatMonthly(paidFrom.pricing)
-      : hasFree
-        ? "Free"
-        : "Coming soon";
+    : suiteIncluded
+      ? "Included"
+      : paidFrom
+        ? formatMonthly(paidFrom.pricing)
+        : hasFree
+          ? "Free"
+          : "Coming soon";
+  // "from ₹1,499 /mo" only reads as a price when a price is what is shown.
+  const showPriceAffixes = !!paidFrom && !suiteIncluded;
 
   return (
     <Link
@@ -68,20 +96,25 @@ export function PillarPriceCard({
       </p>
 
       <div className="mt-4 flex items-baseline gap-1.5">
-        {paidFrom && (
+        {showPriceAffixes && (
           <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
             from
           </span>
         )}
         <span
           className={`text-2xl font-extrabold tracking-tight ${
-            priceLabel === "Free" ? "text-success-on-tint" : ""
+            priceLabel === "Free" || priceLabel === "Included"
+              ? "text-success-on-tint"
+              : ""
           }`}
           style={{ fontFamily: "var(--font-space-grotesk)" }}
         >
           {priceLabel}
         </span>
-        {paidFrom && <span className="text-sm text-muted-foreground">/mo</span>}
+        {showPriceAffixes && <span className="text-sm text-muted-foreground">/mo</span>}
+        {suiteIncluded && (
+          <span className="text-sm text-muted-foreground">in Peakhour Suite</span>
+        )}
       </div>
 
       {pillar.runsIn.length > 0 && (
@@ -99,7 +132,20 @@ export function PillarPriceCard({
 
       <div className="mt-5 flex items-center justify-between pt-1">
         <span className="text-sm text-muted-foreground">
-          {hasFree ? "Free & Paid" : product ? "Plans" : "Join the waitlist"}
+          {/* ★ORDER MATTERS, AND IT WAS WRONG. `suiteIncluded` short-circuited
+              ahead of the `product` test, so a card whose heading read "Coming
+              soon" could say "Free tier available" underneath it. A module the
+              environment does not serve has no tiers at all — the waitlist line
+              is the true one, and it has to be reachable. */}
+          {!product
+            ? "Join the waitlist"
+            : suiteIncluded
+              ? hasFree
+                ? "Free & Suite"
+                : "In Peakhour Suite"
+              : hasFree
+                ? "Free & Paid"
+                : "Plans"}
         </span>
         <span className="inline-flex items-center gap-1.5 text-sm font-bold text-brand-strong">
           {product ? "Compare plans" : "Learn more"}

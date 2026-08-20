@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { Check, ChevronDown } from "lucide-react";
 import { PILLAR_ORDER, PILLARS } from "@/lib/pillars";
+
 import { cn } from "@/lib/utils";
 
 /**
@@ -199,6 +200,9 @@ export function PillarCards({
                 onClick={() => toggle(i)}
                 className="flex w-full min-w-0 items-start gap-3 rounded-2xl p-5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-inset lg:flex-col lg:gap-3.5"
               >
+                {/* A generated "summit" behind each icon was tried and read
+                    as noise at 40px. The flat brand tile was never the problem;
+                    the icon is the mark at this size. */}
                 <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-brand-gradient shadow-inner">
                   <Icon className="size-5 text-brand-contrast" strokeWidth={2} aria-hidden />
                 </span>

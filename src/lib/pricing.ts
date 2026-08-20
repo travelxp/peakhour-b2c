@@ -171,6 +171,65 @@ export function formatYearly(p: PricingEntry): string {
   return `${p.displayPrefix ?? ""}${formatNumber(p.yearly)}`;
 }
 
+/* ── The founding offer ─────────────────────────────────────────────────── */
+
+/**
+ * `foundingDiscountPct` has been on every pricing entry since the catalog was
+ * built, is carried through the resolver into this type — and until now was
+ * read by nothing. It is the launch mechanism the platform already has, which
+ * is why the Suite's launch price needs no promotions engine.
+ *
+ * ⚠ DISPLAY ONLY. Nothing in this repo charges anyone. When checkout goes
+ * live, the amount collected must come from the same field server-side — a
+ * marketing page that advertises half price while the gateway bills full price
+ * is the worst possible version of this feature. The schema's own comment
+ * ("waitlist members get this when checkout flips on") is the contract.
+ */
+export function hasFoundingOffer(p: PricingEntry): boolean {
+  return p.foundingDiscountPct > 0 && p.foundingDiscountPct < 100 && p.monthly > 0;
+}
+
+/**
+ * The discounted amount, floored to a whole unit of currency.
+ *
+ * Every price in this catalog is quoted in whole units (₹4,999, $59), so a
+ * rendered "₹2,499.50" would be a price no invoice will ever show. Something
+ * has to round.
+ *
+ * ★AND FLOOR IS NOT THE CONSERVATIVE CHOICE — an earlier version of this
+ * comment claimed it was, which was backwards and worth correcting rather than
+ * deleting. Flooring displays the LOWEST candidate, so if the gateway ever
+ * rounds to nearest it charges ₹2,500 against a page promising ₹2,499. The
+ * safe-by-construction fix is not a rounding rule here, it is a list price
+ * that halves cleanly: ₹4,999 × 50% = 2499.5 is the only reason any of this
+ * arithmetic is load-bearing.
+ *
+ * Floor is chosen because ₹2,499 is the price the owner set out to offer and
+ * the one the catalog's 50% is reverse-engineered from. The obligation that
+ * follows is on the server: whatever computes the charge MUST floor too. See
+ * `hasFoundingOffer` for the display-only warning this pairs with.
+ */
+function applyDiscount(amount: number, pct: number): number {
+  return Math.floor((amount * (100 - pct)) / 100);
+}
+
+export function foundingMonthly(p: PricingEntry): number {
+  return applyDiscount(p.monthly, p.foundingDiscountPct);
+}
+
+export function foundingYearly(p: PricingEntry): number {
+  return applyDiscount(p.yearly, p.foundingDiscountPct);
+}
+
+/** "₹2,499" — the founding monthly price, formatted like every other price. */
+export function formatFoundingMonthly(p: PricingEntry): string {
+  return `${p.displayPrefix ?? ""}${formatNumber(foundingMonthly(p))}`;
+}
+
+export function formatFoundingYearly(p: PricingEntry): string {
+  return `${p.displayPrefix ?? ""}${formatNumber(foundingYearly(p))}`;
+}
+
 /**
  * Account-level bundle plans (`cfg_plans` rows that compose every product).
  * The resolver surfaces these as a tier *under each product* they list, keyed
@@ -352,6 +411,33 @@ export const formatPeaks = formatNumber;
  * products). Returns undefined when the bundle isn't publicly listed in this
  * env — which is the normal state for `suite` until the catalog seeds it.
  */
+/** Find a bundle tier ANYWHERE in the response — the first product that
+ *  composes it wins. Use it to answer "does this environment sell Suite at
+ *  all"; for "does Suite include THIS module", use `productBundleTier`. */
+/**
+ * The bundle tier as it is offered FOR ONE PRODUCT — or undefined.
+ *
+ * ★★THE PER-PRODUCT ANSWER, NOT THE GLOBAL ONE, AND THE DIFFERENCE IS WHETHER
+ * THE PLAN ACTUALLY GRANTS THE MODULE. The resolver groups a bundle under every
+ * product its `products[]` composes, so its presence in `product.tiers` IS the
+ * statement "this plan includes this module". `findBundleTier` answers a
+ * different question — "does a Suite row exist anywhere in this response" — and
+ * gating that on the module being SERVED still conflates the two: Suite's
+ * `products` was copied from the Agency row (mongodb migration 258) and that
+ * list has drifted from the served set before.
+ *
+ * A served-but-not-composed module rendered "Peakhour X is part of Peakhour
+ * Suite" above a Suite price card with zero bullets, every highlight having
+ * been filtered out as not-granted. peakhour-api's equivalent surface uses
+ * exactly this lookup (`feature-matrix.ts`), and so should this one.
+ */
+export function productBundleTier(
+  product: ResolvedProduct | undefined,
+  key: BundlePlanKey,
+): ResolvedProductTier | undefined {
+  return product?.tiers.find((t) => t.key === key);
+}
+
 export function findBundleTier(
   pricing: PricingResponse | null,
   key: BundlePlanKey,
