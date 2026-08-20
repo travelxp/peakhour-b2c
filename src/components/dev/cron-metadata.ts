@@ -228,7 +228,7 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
     // "Sync LinkedIn posts" — twice daily, not hourly, because every
     // LinkedIn call spends the app-wide ~500/day request budget.
     description:
-      "Pulls the latest numbers from Google Search Console, Google Analytics, and Google Business Profile. LinkedIn engagement is refreshed by \"Sync LinkedIn posts\", not by this.",
+      "Pulls the latest numbers from Google Search Console, Google Analytics, and Google Business Profile. LinkedIn engagement is refreshed by “Sync LinkedIn posts”, not by this.",
     summarize: (data) => {
       const overall = asRecord(asRecord(data)?.overall);
       if (!overall) return "Performance refreshed.";
@@ -385,6 +385,11 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       // scariest possible message. `seed.scanned` (active linkedin_content
       // connections examined) is what actually distinguishes them.
       if (armed === 0 && renewed === 0 && num(d.checked) === 0) {
+        // ★App-wide, like every other counter in this payload — the cron
+        // handler sweeps all orgs and takes no org filter. So `scanned: 0`
+        // is a safe signal (nobody anywhere has connected) but a non-zero
+        // one does not prove THIS org has; it only stops us telling a
+        // customer who plainly has connected to go and connect.
         const scanned = seed ? num(seed.scanned) : 0;
         if (scanned === 0) {
           return {
@@ -406,11 +411,26 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
             } no subscribed Page — enable a Page for it, or reconnect LinkedIn if the grant lapsed.`,
           };
         }
-        return "LinkedIn alerts checked — every Page is subscribed and current.";
+        // ★States what the run DID, and claims nothing about health. The
+        // payload cannot support a health claim: `markStatus` stamps
+        // `lastReconciledAt`, so a row that just went `revoked` or
+        // `forbidden` is skipped for 20h and reappears here as `checked: 0`
+        // — and the seeder's `known` lookup has no status filter, so it is
+        // not `missing` either. Clicking twice would have turned "1 lost
+        // admin rights" into "everything is current". An unconfigured
+        // subscription env (`resolveSubscriptionEnv` → null) lands in the
+        // same all-zeros shape from the other direction.
+        return "LinkedIn alerts checked — nothing was due for renewal.";
       }
       const parts: string[] = [];
       if (armed > 0) parts.push(`${armed} ${plural(armed, "Page")} newly subscribed`);
       if (renewed > 0) parts.push(`${renewed} renewed`);
+      // The seeder's own failures (its `failed` folds in revoked + forbidden
+      // from the arming call). Counted apart from the sweep's `revoked` /
+      // `forbidden` below, which come from a different pass — without this,
+      // 1 armed out of 5 attempted read as a clean "1 Page newly subscribed".
+      const seedFailed = seed ? num(seed.failed) : 0;
+      if (seedFailed > 0) parts.push(`${seedFailed} could not be subscribed`);
       if (num(d.revoked) > 0) parts.push(`${num(d.revoked)} need a reconnect`);
       // Kept distinct from `revoked`: a member who is no longer a Page
       // admin CANNOT fix this by reconnecting, and telling them to is a

@@ -305,8 +305,23 @@ describe("linkedin-subscription-reconcile summary", () => {
       resubscribed: 0,
       seed: { scanned: 2, missing: 0, processed: 0, subscribed: 0, failed: 0 },
     };
-    expect(msg(healthy)).toBe("LinkedIn alerts checked — every Page is subscribed and current.");
+    expect(msg(healthy)).toBe("LinkedIn alerts checked — nothing was due for renewal.");
     expect(level(healthy)).toBe("success");
+  });
+
+  // ★And it must not claim health it cannot see. `markStatus` stamps
+  // `lastReconciledAt`, so a row that just went revoked/forbidden is skipped
+  // for 20h and comes back as `checked: 0` — with the seeder counting it as
+  // known, not missing. Clicking twice used to turn "1 lost admin rights"
+  // into "everything is current".
+  it("does not assert that every Page is healthy from an idle tick", () => {
+    const idle = {
+      checked: 0,
+      resubscribed: 0,
+      seed: { scanned: 2, missing: 0, processed: 0, subscribed: 0, failed: 0 },
+    };
+    expect(msg(idle)).not.toContain("current.");
+    expect(msg(idle)).not.toContain("subscribed and");
   });
 
   it("still warns — with accurate copy — when nothing is connected at all", () => {
@@ -334,6 +349,17 @@ describe("linkedin-subscription-reconcile summary", () => {
       seed: { scanned: 3, missing: 2, processed: 2, subscribed: 0, failed: 2 },
     };
     expect(msg(two)).toContain("2 LinkedIn connections have no subscribed Page");
+  });
+
+  // ★1 armed out of 5 attempted read as a clean "1 Page newly subscribed".
+  it("surfaces the seeder's failures alongside what it managed to arm", () => {
+    expect(
+      msg({
+        checked: 0,
+        resubscribed: 0,
+        seed: { scanned: 5, missing: 5, processed: 5, subscribed: 1, failed: 4 },
+      }),
+    ).toBe("LinkedIn alerts: 1 Page newly subscribed, 4 could not be subscribed.");
   });
 
   it("reports real work when the run actually did some", () => {

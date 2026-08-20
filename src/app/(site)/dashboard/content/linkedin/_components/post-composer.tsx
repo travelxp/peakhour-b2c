@@ -1169,13 +1169,21 @@ function aiOpToastMessage(op: RewriteOp, before?: string, after?: string): strin
       return "Draft rewritten.";
     case "shorten":
     case "lengthen": {
-      const base = op === "shorten" ? "Draft shortened" : "Draft expanded";
       const from = before?.trim().length ?? 0;
       const to = after?.trim().length ?? 0;
-      if (from === 0 || to === 0) return `${base}.`;
+      if (from === 0 || to === 0) {
+        return op === "shorten" ? "Draft shortened." : "Draft expanded.";
+      }
+      if (to === from) return `Draft rewritten — still ${to} characters.`;
+      // ★The verb follows the MEASUREMENT, not the button that was pressed.
+      // When both attempts miss the length band the api returns the closer
+      // one rather than failing, so a Shorten can legitimately come back
+      // longer — and "Draft shortened … (+30%)" is a sentence that argues
+      // with the number beside it.
+      const grew = to > from;
+      const base = grew ? "Draft expanded" : "Draft shortened";
       const pct = Math.round((Math.abs(to - from) / from) * 100);
-      const sign = to < from ? "−" : "+";
-      return `${base} — ${from} → ${to} characters (${sign}${pct}%).`;
+      return `${base} — ${from} → ${to} characters (${grew ? "+" : "−"}${pct}%).`;
     }
     case "tone":
       return "Tone updated.";
