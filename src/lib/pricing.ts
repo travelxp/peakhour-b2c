@@ -411,6 +411,30 @@ export const formatPeaks = formatNumber;
  * products). Returns undefined when the bundle isn't publicly listed in this
  * env — which is the normal state for `suite` until the catalog seeds it.
  */
+/**
+ * The bundle tier as it is offered FOR ONE PRODUCT — or undefined.
+ *
+ * ★★THE PER-PRODUCT ANSWER, NOT THE GLOBAL ONE, AND THE DIFFERENCE IS WHETHER
+ * THE PLAN ACTUALLY GRANTS THE MODULE. The resolver groups a bundle under every
+ * product its `products[]` composes, so its presence in `product.tiers` IS the
+ * statement "this plan includes this module". `findBundleTier` answers a
+ * different question — "does a Suite row exist anywhere in this response" — and
+ * gating that on the module being SERVED still conflates the two: Suite's
+ * `products` was copied from the Agency row (mongodb migration 258) and that
+ * list has drifted from the served set before.
+ *
+ * A served-but-not-composed module rendered "Peakhour X is part of Peakhour
+ * Suite" above a Suite price card with zero bullets, every highlight having
+ * been filtered out as not-granted. peakhour-api's equivalent surface uses
+ * exactly this lookup (`feature-matrix.ts`), and so should this one.
+ */
+export function productBundleTier(
+  product: ResolvedProduct | undefined,
+  key: BundlePlanKey,
+): ResolvedProductTier | undefined {
+  return product?.tiers.find((t) => t.key === key);
+}
+
 export function findBundleTier(
   pricing: PricingResponse | null,
   key: BundlePlanKey,

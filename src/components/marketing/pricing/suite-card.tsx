@@ -10,7 +10,8 @@ import {
   type ResolvedProductTier,
 } from "@/lib/pricing";
 import type { SignupCta } from "@/components/marketing/pricing/plan-cards";
-import { PRICING_PILLAR_ORDER, pricingPillar } from "@/lib/pricing-catalog";
+import { pricingPillar } from "@/lib/pricing-catalog";
+import type { PillarSlug } from "@/lib/pillars";
 
 /**
  * Peakhour Suite — one plan, all five modules.
@@ -29,10 +30,17 @@ import { PRICING_PILLAR_ORDER, pricingPillar } from "@/lib/pricing-catalog";
  */
 export function SuiteCard({
   tier,
+  includedSlugs,
   cta,
   openSignup,
 }: {
   tier: ResolvedProductTier;
+  /** ★THE MODULES THIS PLAN ACTUALLY COMPOSES, resolved by the caller from the
+   *  catalog. Passed in rather than read from the static order constant here:
+   *  that constant is what the site KNOWS ABOUT, and the plan's products are
+   *  what it GRANTS. Rendering the constant put a module in this list that the
+   *  hub ladder, six inches above, had just marked "Soon". */
+  includedSlugs: PillarSlug[];
   cta: SignupCta;
   openSignup: boolean;
 }) {
@@ -144,11 +152,21 @@ export function SuiteCard({
 
         {/* ── What's in it ──────────────────────────────────────────── */}
         <div className="lg:border-l lg:pl-12">
+          {/* ★WHAT SUITE COMPOSES, NOT A STATIC FIVE. `PRICING_PILLAR_ORDER`
+              is a constant; the plan's `products` is the catalog. Ungated, the
+              hub ladder said "Soon" for a hidden module and this list, directly
+              below it, said the same module was included — the contradiction
+              this PR removed from the ladder and the price cards.
+
+              The count is counted for the same reason: "All five" is a fact
+              about today's catalog, not about this component. */}
           <p className="text-xs font-bold uppercase tracking-[0.18em] text-brand-label">
-            All five modules included
+            {includedSlugs.length > 0
+              ? `All ${includedSlugs.length} modules included`
+              : "What's included"}
           </p>
           <ul className="mt-4 space-y-3.5">
-            {PRICING_PILLAR_ORDER.map((slug) => {
+            {includedSlugs.map((slug) => {
               const meta = pricingPillar(slug);
               const Icon = meta.icon;
               return (

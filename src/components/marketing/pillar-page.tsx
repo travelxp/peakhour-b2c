@@ -4,7 +4,7 @@ import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
 import { getPublicCatalog, signupCta } from "@/lib/catalog";
 import { PILLARS, PILLAR_ORDER, type PillarSlug } from "@/lib/pillars";
-import { InstrumentFrame } from "@/components/marketing/instrument-frame";
+import { InstrumentFrame, MODULE_SHOTS } from "@/components/marketing/instrument-frame";
 
 /**
  * Shared template for the five pillar marketing pages. Server component;
@@ -125,11 +125,20 @@ export async function PillarPage({ slug }: { slug: PillarSlug }) {
 
             {/* The screenshot slot. Every product capture on the site goes
                 through one frame — ten screens shot the same way read as one
-                product, ten raw PNGs read as a folder. Renders an explicit
-                placeholder until the image lands; see MODULE_SHOTS. */}
-            <div className="mx-auto mt-12 max-w-3xl">
-              <InstrumentFrame slug={pillar.slug} moduleName={pillar.name} />
-            </div>
+                product, ten raw PNGs read as a folder.
+
+                ★AND NOTHING RENDERS UNTIL THERE IS A SCREENSHOT. Every
+                `MODULE_SHOTS` entry is still `src: null`, so this shipped an
+                empty frame — with the intended file path in a code block and
+                the words "Placeholder — the frame is final, the image is
+                pending" — onto all five public module pages. A placeholder is
+                a note to ourselves; a visitor reads it as the product. The
+                frame is ready for the moment the captures land. */}
+            {MODULE_SHOTS[pillar.slug].src && (
+              <div className="mx-auto mt-12 max-w-3xl">
+                <InstrumentFrame slug={pillar.slug} moduleName={pillar.name} />
+              </div>
+            )}
             <div className="mt-10 grid gap-4 md:grid-cols-3">
               {pillar.features.map((feature) => (
                 <div

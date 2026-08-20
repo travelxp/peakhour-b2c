@@ -10,7 +10,7 @@ import {
   pillarProducts,
   freeTier,
   proTier,
-  findBundleTier,
+  productBundleTier,
   canonicalFeatureKey,
   type ResolvedProduct,
   type ResolvedProductTier,
@@ -119,19 +119,21 @@ export default async function PillarPricingPage({
    * `findBundleTier` reads the row the resolver surfaces under every product,
    * so no request is added and no price is computed here.
    *
-   * ★★AND IT IS GATED ON `product`, WHICH IS THE WHOLE DIFFERENCE BETWEEN
-   * "Suite exists" AND "this module is sold here". `findBundleTier` resolves
-   * GLOBALLY — it scans every product's tier list — while everything else on
-   * this page keys off `pillarProducts(pricing, slug)[0]`, which is undefined
-   * exactly when the environment does not serve this module.
+   * ★★AND IT IS ASKED OF THIS PRODUCT, NOT OF THE RESPONSE. Three questions
+   * look alike and are not: "does a Suite row exist", "is this module served
+   * here", and "does Suite include this module". `productBundleTier` answers
+   * the third, which is the only one that licenses the words on this page —
+   * the resolver groups a bundle under every product it composes, so its
+   * presence in `product.tiers` IS that statement.
    *
-   * Ungated, `pro` was truthy for a module the catalog hides, so the
+   * Asked globally, `pro` was truthy for a module the catalog hides: the
    * "coming soon" branch below became unreachable and the page offered a full
-   * Suite purchase card — and four reasons to upgrade — for something it had
-   * been built to say you cannot buy yet. The ProValueBlocks comment further
-   * down describes that exact failure; this is what keeps it true.
+   * Suite purchase card, and four reasons to upgrade, for something it had been
+   * built to say you cannot buy yet. Gating that on `product` fixed the hidden
+   * case and left the served-but-not-composed one, which renders the same card
+   * with ZERO bullets — every highlight filtered out as not-granted.
    */
-  const suite = product ? findBundleTier(pricing, "suite") : undefined;
+  const suite = productBundleTier(product, "suite");
   const pro = suite ?? (product ? proTier(product) : undefined);
   const proIsSuite = Boolean(suite);
   // Pro first everywhere — the cards, the table columns, the labels. A reader

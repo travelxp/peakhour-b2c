@@ -104,8 +104,13 @@ export const PRICING_PILLARS: Record<PillarSlug, PricingPillarMeta> = {
     slug: "presence",
     promise: "Get found on Google, Maps and AI search — and keep every listing right.",
     priceHeadline: "Get found everywhere — free, forever.",
+    // ★NO PLAN NAMED HERE. This string is static catalog copy and renders on
+    // every environment, including one that has not run migration 258 — where
+    // it pitched Peakhour Suite on a page that shows no Suite anywhere. The
+    // module page already says "part of Peakhour Suite" from the resolved
+    // catalog, gated, which is the place that can know.
     priceLede:
-      "Claim your business, keep every listing right, and reply to reviews with AI drafts — free, with no card. Peakhour Suite adds the other four modules for when getting found is not the only job.",
+      "Claim your business, keep every listing right, and reply to reviews with AI drafts — free, with no card.",
     /**
      * ★PRESENCE IS THE ONE MODULE WHOSE UPGRADE IS NOT ABOUT ITSELF.
      *

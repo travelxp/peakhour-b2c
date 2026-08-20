@@ -19,7 +19,7 @@ function countryFrom(header: string | null): string {
 }
 
 const AGENCY_FEATURES = [
-  "All five pillars, fully unlocked",
+  "All five modules, fully unlocked",
   "One unit = one client business",
   "Central billing across every client",
   "Priority support & onboarding",

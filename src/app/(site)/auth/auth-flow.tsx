@@ -564,7 +564,7 @@ export function AuthFlow({
 
         <div className="relative z-10">
           <p className="max-w-md text-on-ink-dim">
-            Commerce, Content, Growth, Support and Presence — five pillars on
+            Commerce, Content, Growth, Support and Presence — five modules on
             one account, each with a free plan.
           </p>
         </div>

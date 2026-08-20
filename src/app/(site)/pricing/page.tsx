@@ -11,6 +11,7 @@ import {
   formatPeaks,
   freeTier,
   findBundleTier,
+  productBundleTier,
 } from "@/lib/pricing";
 import { getPublicCatalog, publicMarketingIntegrations, signupCta } from "@/lib/catalog";
 import { badgedComingSoonKeys } from "@/lib/pillar-channels";
@@ -166,12 +167,18 @@ export default async function PricingPage() {
                         ? "Free"
                         : "Soon";
                   const isFree = price === "Free";
-                  // ★SUITE COVERS EVERY MODULE IT SELLS — NOT EVERY MODULE
-                  // THIS ENVIRONMENT HIDES. `suite` is resolved globally, so
-                  // `Boolean(suite)` alone printed "Included" on the same row
-                  // whose price this ladder had just computed as "Soon", one
-                  // line above, from the very `product` it ignored.
-                  const included = Boolean(suite) && Boolean(product);
+                  // ★ASKED OF THIS PRODUCT. `Boolean(suite)` alone printed
+                  // "Included" on the same row whose price this ladder had just
+                  // computed as "Soon"; `&& Boolean(product)` fixed that and
+                  // still claimed a module Suite does not compose. The bundle's
+                  // presence in `product.tiers` is the catalog SAYING it is
+                  // included, which is the only thing that licenses the word.
+                  // ★AND NEVER FOR A MODULE WHOSE PRICE IS "Free". Presence
+                  // has no paid tier and is not getting one; "Included" beside
+                  // a "Start free with Presence" CTA, above a band promising
+                  // "free, forever / no credit card, ever", answers a question
+                  // nobody asked and replaces the one word that mattered.
+                  const included = !isFree && Boolean(productBundleTier(product, "suite"));
                   return (
                     <li key={slug}>
                       <Link
@@ -236,7 +243,16 @@ export default async function PricingPage() {
           // below already carries it.
           <section id="suite" className="scroll-mt-20 pb-16 sm:pb-20">
             <div className="mx-auto max-w-6xl px-4 sm:px-6">
-              <SuiteCard tier={suite} cta={cta} openSignup={openSignup} />
+              <SuiteCard
+                tier={suite}
+                // What the plan composes AND this site renders — the same
+                // per-product question the ladder above asks.
+                includedSlugs={PRICING_PILLAR_ORDER.filter((slug) =>
+                  Boolean(productBundleTier(pillarProducts(pricing, slug)[0], "suite")),
+                )}
+                cta={cta}
+                openSignup={openSignup}
+              />
             </div>
           </section>
         )}
@@ -359,10 +375,10 @@ export default async function PricingPage() {
                     slug={slug}
                     product={cardProduct}
                     comingSoonKeys={comingSoonKeys}
-                    // Same rule as the ladder above: covered by Suite AND
-                    // served here. A card for a hidden module must not claim
-                    // to be in a plan that cannot include it.
-                    suiteIncluded={Boolean(suite) && Boolean(cardProduct)}
+                    // Same rule as the ladder above, and asked of the same
+                    // per-product tier list: a card must not point at a plan
+                    // that will not grant it.
+                    suiteIncluded={Boolean(productBundleTier(cardProduct, "suite"))}
                   />
                 );
               })}

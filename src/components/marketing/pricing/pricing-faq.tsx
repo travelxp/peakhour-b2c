@@ -8,7 +8,7 @@ import {
 const FAQS: { q: string; a: string }[] = [
   {
     q: "What are Peaks?",
-    a: "Peaks are your AI credits — one shared wallet across all five modules. Free includes an allowance each month; Peakhour Suite includes ten times as many. You'll never hit a surprise paywall mid-task; we warn you before you run low.",
+    a: "Peaks are your AI credits — one shared wallet across all five modules. Free includes an allowance each month; Peakhour Suite includes a much larger one — the cards above show both. You'll never hit a surprise paywall mid-task; we warn you before you run low.",
   },
   {
     q: "Do I have to buy every module?",
