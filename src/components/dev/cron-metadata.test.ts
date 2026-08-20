@@ -334,13 +334,13 @@ describe("linkedin-subscription-reconcile summary", () => {
     expect(level(empty)).toBe("warning");
   });
 
-  it("warns about connections that carry no subscribed Page, and singularises", () => {
+  it("warns when the run tried to arm connections and armed none, and singularises", () => {
     const one = {
       checked: 0,
       resubscribed: 0,
       seed: { scanned: 3, missing: 1, processed: 1, subscribed: 0, failed: 1 },
     };
-    expect(msg(one)).toContain("1 LinkedIn connection has no subscribed Page");
+    expect(msg(one)).toContain("Tried 1 LinkedIn connection and subscribed none");
     expect(level(one)).toBe("warning");
 
     const two = {
@@ -348,7 +348,34 @@ describe("linkedin-subscription-reconcile summary", () => {
       resubscribed: 0,
       seed: { scanned: 3, missing: 2, processed: 2, subscribed: 0, failed: 2 },
     };
-    expect(msg(two)).toContain("2 LinkedIn connections have no subscribed Page");
+    expect(msg(two)).toContain("Tried 2 LinkedIn connections and subscribed none");
+  });
+
+  // ★An unconfigured subscription env makes the sweep return all zeros and
+  // the seeder skip every connection without failing one, which is otherwise
+  // indistinguishable from a quiet, healthy tick.
+  it("warns when nothing could be attempted rather than reading as quiet", () => {
+    const unconfigured = {
+      checked: 0,
+      resubscribed: 0,
+      seed: { scanned: 2, missing: 2, processed: 2, subscribed: 0, failed: 0 },
+    };
+    expect(level(unconfigured)).toBe("warning");
+  });
+
+  // ★`seed.missing` is documented as permanently non-zero for a connection
+  // with every Page disabled, and the counters are app-wide — so warning on
+  // it would show an orange toast to a healthy customer over somebody else's
+  // disabled Page. Exactly the bug this entry is fixing, one field along.
+  it("does not warn on `missing` alone when nothing was attempted", () => {
+    const capped = {
+      checked: 0,
+      resubscribed: 0,
+      // 12 missing, but the seeder's per-run cap meant none was processed.
+      seed: { scanned: 12, missing: 12, processed: 0, subscribed: 0, failed: 0 },
+    };
+    expect(level(capped)).toBe("success");
+    expect(msg(capped)).toBe("LinkedIn alerts checked — nothing was due for renewal.");
   });
 
   // ★1 armed out of 5 attempted read as a clean "1 Page newly subscribed".
@@ -363,16 +390,46 @@ describe("linkedin-subscription-reconcile summary", () => {
   });
 
   it("reports real work when the run actually did some", () => {
-    expect(
-      msg({
-        checked: 4,
-        resubscribed: 1,
-        revoked: 0,
-        forbidden: 0,
-        interactionsWritten: 7,
-        seed: { scanned: 2, missing: 1, processed: 1, subscribed: 1, failed: 0 },
-      }),
-    ).toBe("LinkedIn alerts: 1 Page newly subscribed, 1 renewed, 7 missed events replayed.");
+    const good = {
+      checked: 4,
+      resubscribed: 1,
+      revoked: 0,
+      forbidden: 0,
+      interactionsWritten: 7,
+      seed: { scanned: 2, missing: 1, processed: 1, subscribed: 1, failed: 0 },
+    };
+    expect(msg(good)).toBe(
+      "LinkedIn alerts: 1 Page newly subscribed, 1 renewed, 7 missed events replayed.",
+    );
+    expect(level(good)).toBe("success");
+  });
+
+  // ★A tick that examined 5 subscriptions and failed on all 5 came out as
+  // "everything already up to date", in green.
+  it("surfaces the sweep's own failures instead of calling the tick up to date", () => {
+    const allFailed = { checked: 5, resubscribed: 0, failed: 5 };
+    expect(msg(allFailed)).toContain("5 failed to renew");
+    expect(level(allFailed)).toBe("warning");
+  });
+
+  it("never lists a broken Page inside a green toast", () => {
+    const revoked = { checked: 3, resubscribed: 1, revoked: 2 };
+    expect(msg(revoked)).toContain("2 need a reconnect");
+    expect(level(revoked)).toBe("warning");
+
+    const forbidden = { checked: 3, resubscribed: 0, forbidden: 1 };
+    expect(level(forbidden)).toBe("warning");
+
+    const backfillFailed = { checked: 3, resubscribed: 0, backfillFailed: 1 };
+    expect(msg(backfillFailed)).toContain("could not be back-filled");
+    expect(level(backfillFailed)).toBe("warning");
+  });
+
+  // A capped backfill resumes next run — worth stating, not worth alarming.
+  it("mentions an unfinished backfill without turning the tick orange", () => {
+    const capped = { checked: 3, resubscribed: 1, backfillIncomplete: 2 };
+    expect(msg(capped)).toContain("2 still to back-fill");
+    expect(level(capped)).toBe("success");
   });
 
   it("defers to the generic toast on a shape it does not recognise", () => {
@@ -392,15 +449,19 @@ describe("performance-sync summary", () => {
     const { description } = CRON_METADATA["performance-sync"];
     expect(description).toContain("Search Console");
     expect(description).toContain("Google Analytics");
-    expect(description).toContain("Business Profile");
     expect(description).toContain("Sync LinkedIn posts");
     expect(description).not.toContain("every connected publishing platform");
+    // ★Business Profile is in the api's provider list but `coming_soon`
+    // with no connection form, so it is named as pending — never as
+    // something the reader could go and connect.
+    expect(description).toContain("Google Business Profile joins them once it opens");
   });
 
-  it("says WHICH connection is missing when there are none", () => {
+  it("says WHICH connection is missing when there are none, and none that cannot be made", () => {
     const r = summarize({ overall: { connectionsTotal: 0, connectionsRun: 0, errors: 0 } });
     const message = typeof r === "string" ? r : r?.message;
     expect(message).toContain("Search Console");
     expect(message).not.toContain("no connected platforms yet");
+    expect(message).not.toContain("Business Profile");
   });
 });
