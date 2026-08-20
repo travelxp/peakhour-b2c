@@ -40,20 +40,26 @@ export function FeatureComparison({
   scopeKeys?: ReadonlySet<string>;
 }) {
   if (tiers.length < 2) return null;
+  const allRows = comparisonRows(tiers);
   const rows = scopeKeys
     ? // ★`r.keys`, NOT `r.key`. Rows merge by label and keep the FIRST key,
       // which is Suite's — so scoping on `key` alone dropped rows whose other
       // key is exactly the module capability this page is about.
-      comparisonRows(tiers).filter((r) => r.keys.some((k) => scopeKeys.has(k)))
-    : comparisonRows(tiers);
+      allRows.filter((r) => r.keys.some((k) => scopeKeys.has(k)))
+    : allRows;
   const showPeaksRow = tiers.some((t) => typeof t.peaksIncluded === "number");
   if (rows.length === 0 && !showPeaksRow) return null;
 
   // Growth's plans grant exactly the same capabilities today — the whole
   // difference is the allowance. A grid of matched ticks looks like a rendering
   // fault unless the page says out loud that it isn't one.
+  // ★AND NOT WHEN THE SCOPE FILTER IS WHAT MADE THEM MATCH. On a scoped Suite
+  // table the differing rows are frequently the ones removed — they belong to
+  // the other four modules — so this sentence could appear precisely because
+  // the page had just hidden the differences it claims are absent.
+  const scopeDroppedRows = Boolean(scopeKeys) && allRows.length !== rows.length;
   const capabilitiesMatch =
-    rows.length > 0 && rows.every((row) => row.included.every(Boolean));
+    !scopeDroppedRows && rows.length > 0 && rows.every((row) => row.included.every(Boolean));
 
   return (
     <details className="group rounded-3xl border bg-card">

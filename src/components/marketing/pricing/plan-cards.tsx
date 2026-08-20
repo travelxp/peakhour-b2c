@@ -302,8 +302,17 @@ export function PlanCards({
               {/* Presence sells one plan and always will — calling it the way
                   to "try Peakhour" frames the whole product as a trial. And
                   "Free forever" beside a heading and a price that both already
-                  read "Free" is the word three times in one corner. */}
-              {pro ? "To try Peakhour" : "No card, no expiry"}
+                  read "Free" is the word three times in one corner.
+
+                  ★KEYED ON `proIsSuite`, NOT ON `pro`. This read `pro` when
+                  `pro` meant "this module's own paid tier", where "to try" was
+                  fair. The paid column is now Peakhour Suite — five modules —
+                  and a free module inside a larger plan is not a trial of it.
+                  Presence made that obvious (Suite composes it, so its free
+                  card flipped to trial framing on a page whose whole promise is
+                  "free, forever"), but it was equally wrong for the other four
+                  the moment 260 landed. */}
+              {pro && !proIsSuite ? "To try Peakhour" : "No card, no expiry"}
             </span>
           </div>
           <div className="mt-4 flex items-baseline gap-1.5">
@@ -311,9 +320,13 @@ export function PlanCards({
               className="text-4xl font-extrabold tabular-nums tracking-tight"
               style={{ fontFamily: "var(--font-space-grotesk)" }}
             >
-              {zeroPrice(pro)}
+              {zeroPrice(pro && !proIsSuite ? pro : undefined)}
             </span>
-            {pro && <span className="text-sm text-muted-foreground">/month</span>}
+            {/* Same rule as the label above: "₹0 /month" is the shape of a
+                subscription. A free module is not one. */}
+            {pro && !proIsSuite && (
+              <span className="text-sm text-muted-foreground">/month</span>
+            )}
           </div>
           <p className="mt-1 min-h-5 text-sm text-muted-foreground">No card needed</p>
 

@@ -103,7 +103,15 @@ export function HeroConsole() {
 
     timer.current = setInterval(() => {
       setCursor((c) => c + 1);
-      setPeaks((p) => Math.min(PEAKS_CAP, p + 120 + Math.round(Math.random() * 160)));
+      // ★WRAPS RATHER THAN CLAMPS. `Math.min(PEAKS_CAP, …)` meant the meter
+      // climbed for about a minute and then sat at "5,000 / 5,000" with a full
+      // bar for as long as the tab stayed open — a live console whose one live
+      // number is pinned at its limit reads as a product that has run out, on
+      // the landing page.
+      setPeaks((p) => {
+        const next = p + 120 + Math.round(Math.random() * 160);
+        return next >= PEAKS_CAP ? next - PEAKS_CAP : next;
+      });
     }, TICK_MS);
     return () => {
       if (timer.current) clearInterval(timer.current);

@@ -411,6 +411,9 @@ export const formatPeaks = formatNumber;
  * products). Returns undefined when the bundle isn't publicly listed in this
  * env — which is the normal state for `suite` until the catalog seeds it.
  */
+/** Find a bundle tier ANYWHERE in the response — the first product that
+ *  composes it wins. Use it to answer "does this environment sell Suite at
+ *  all"; for "does Suite include THIS module", use `productBundleTier`. */
 /**
  * The bundle tier as it is offered FOR ONE PRODUCT — or undefined.
  *

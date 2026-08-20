@@ -173,12 +173,20 @@ export default async function PricingPage() {
                   // still claimed a module Suite does not compose. The bundle's
                   // presence in `product.tiers` is the catalog SAYING it is
                   // included, which is the only thing that licenses the word.
-                  // ★AND NEVER FOR A MODULE WHOSE PRICE IS "Free". Presence
-                  // has no paid tier and is not getting one; "Included" beside
-                  // a "Start free with Presence" CTA, above a band promising
-                  // "free, forever / no credit card, ever", answers a question
-                  // nobody asked and replaces the one word that mattered.
-                  const included = !isFree && Boolean(productBundleTier(product, "suite"));
+                  // ★NOT `!isFree` — THAT GUARD SILENCED THE WHOLE LADDER.
+                  // Once migration 260 retires the module `.paid` tiers,
+                  // `fromMonthly` returns null for every module and `price`
+                  // falls through to "Free" — so `!isFree` made "Included"
+                  // unreachable on all five rows, while the card grid further
+                  // down (which has no such guard) went on printing "Included ·
+                  // in Peakhour Suite" for the same modules on the same page.
+                  //
+                  // The thing that actually distinguishes Presence is Presence:
+                  // it has no paid tier and is not getting one, which is why
+                  // this very expression already special-cases it two lines
+                  // above. Same test, so the two cannot drift apart.
+                  const included =
+                    slug !== "presence" && Boolean(productBundleTier(product, "suite"));
                   return (
                     <li key={slug}>
                       <Link

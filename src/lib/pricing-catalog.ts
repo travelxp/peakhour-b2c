@@ -129,7 +129,16 @@ export const PRICING_PILLARS: Record<PillarSlug, PricingPillarMeta> = {
       { key: "content.scheduler", label: "Content calendar with scheduled publishing" },
       { key: "support.inbox", label: "One inbox for every conversation" },
       { key: "growth.ads", label: "Ad campaigns across platforms" },
-      { key: "presence.control_plane", label: "Update your listing over WhatsApp" },
+      // ★NOT `presence.control_plane`, WHICH THIS PAGE ALREADY GIVES AWAY.
+      // It sits in `freeHighlights` directly below with the SAME label, so the
+      // Suite card was selling, as its fifth reason, a capability the free card
+      // beside it already listed. Replaced rather than dropped: the card holds
+      // five and a test pins that.
+      //
+      // Suite grants all five modules, so this passes the same grant check as
+      // the rest — and it keeps the docblock true, since every reason here
+      // belongs to a module Presence is not.
+      { key: "growth.performance_analytics", label: "See which channels actually bring customers" },
     ],
     freeHighlights: [
       { key: "presence.listings", label: "One business listing, synced everywhere" },

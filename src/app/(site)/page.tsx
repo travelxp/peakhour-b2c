@@ -215,9 +215,12 @@ export default async function Home({
             used them; the hard ivory/ink cut is the strongest device the brand
             owns and it was sitting switched off.
 
-            Three layers, back to front: a seeded contour field (the brand mark
-            IS a contour map — see lib/terrain.ts), drifting aurora blooms, and
-            the content. */}
+            ★AND IT IS A GROUND, NOT A GENERATOR. This paragraph used to
+            describe "three layers, back to front: a seeded contour field (see
+            lib/terrain.ts)" — a file this branch deletes, and a decision the
+            comment eight lines below reverses in the same breath. A stale
+            comment beside the note that supersedes it is worse than none: the
+            next reader has to work out which of the two is current. */}
         <section className="relative isolate overflow-hidden bg-ink pt-10 pb-14 text-on-ink sm:pt-14 sm:pb-20">
           {/* ★NO GENERATED ARTWORK HERE, AND THAT IS THE DECISION.
               Three versions shipped — faint contour rings, loud contour rings,
