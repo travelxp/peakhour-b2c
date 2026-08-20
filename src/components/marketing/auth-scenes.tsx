@@ -98,9 +98,19 @@ export function AuthScenes() {
         style={{ background: `radial-gradient(circle at 60% 40%, rgba(${scene.rgb},.55), transparent 68%)` }}
       />
 
-      {/* aria-live so a screen-reader user is told the panel changed under
-          them rather than finding different words on the next tab stop. */}
-      <div aria-live="polite" aria-atomic="true">
+      {/* ★NO `aria-live`, AND THAT IS THE ACCESSIBLE CHOICE HERE.
+          It was added so a screen-reader user would be told the panel changed
+          rather than finding different words on the next tab stop — reasonable
+          for a panel someone advances, and wrong for one that advances itself
+          every five seconds beside a sign-in form. A polite live region with no
+          pause control queues an interruption twelve times a minute, on top of
+          the form's OWN status messages ("check your email", validation
+          errors), which is the announcement that actually matters.
+
+          The rotation is decoration: the same five modules are named, priced
+          and linked on /pricing. It reads statically at whatever scene is
+          current, and `prefers-reduced-motion` already stops it moving at all. */}
+      <div>
         <p
           className="text-xs font-bold uppercase tracking-[0.18em]"
           style={{ color: `rgb(${scene.rgb})` }}

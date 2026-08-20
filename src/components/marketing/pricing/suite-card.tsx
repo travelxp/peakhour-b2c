@@ -83,6 +83,11 @@ export function SuiteCard({
               </span>
             )}
           </div>
+          {/* ★GUARDED ON A YEARLY PRICE EXISTING, as the identical line in
+              PlanCards is. Every seeded Suite row carries one today, so this is
+              latent — until a monthly-only supersede makes the card announce
+              "₹0 billed yearly" beside a real monthly price. */}
+          {p.yearly > 0 && (
           <p className="mt-1.5 text-sm text-muted-foreground">
             {founding ? (
               <>
@@ -94,6 +99,7 @@ export function SuiteCard({
               <>{formatYearly(p)} billed yearly</>
             )}
           </p>
+          )}
 
           {typeof peaks === "number" && (
             <div className="mt-6 rounded-2xl border border-brand/40 bg-brand-soft/50 px-4 py-3.5 dark:bg-brand/10">

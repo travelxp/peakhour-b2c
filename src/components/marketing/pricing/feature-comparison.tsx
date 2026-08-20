@@ -41,7 +41,10 @@ export function FeatureComparison({
 }) {
   if (tiers.length < 2) return null;
   const rows = scopeKeys
-    ? comparisonRows(tiers).filter((r) => scopeKeys.has(r.key))
+    ? // ★`r.keys`, NOT `r.key`. Rows merge by label and keep the FIRST key,
+      // which is Suite's — so scoping on `key` alone dropped rows whose other
+      // key is exactly the module capability this page is about.
+      comparisonRows(tiers).filter((r) => r.keys.some((k) => scopeKeys.has(k)))
     : comparisonRows(tiers);
   const showPeaksRow = tiers.some((t) => typeof t.peaksIncluded === "number");
   if (rows.length === 0 && !showPeaksRow) return null;

@@ -49,8 +49,8 @@ export async function generateMetadata({
   if (!isPillarSlug(pillar)) return { title: "Pricing — Peakhour.ai" };
   const p = pricingPillar(pillar);
   return pageMetadata({
-    title: `${p.name} pricing — Pro & Free plans`,
-    description: `${p.promise} Compare Pro and Free, see what runs where, and start free.`,
+    title: `${p.name} pricing — plans and what they include`,
+    description: `${p.promise} Compare what you get free with what Peakhour Suite adds, see what runs where, and start free.`,
     path: `/pricing/${pillar}`,
   });
 }
@@ -118,8 +118,20 @@ export default async function PillarPricingPage({
    *
    * `findBundleTier` reads the row the resolver surfaces under every product,
    * so no request is added and no price is computed here.
+   *
+   * ★★AND IT IS GATED ON `product`, WHICH IS THE WHOLE DIFFERENCE BETWEEN
+   * "Suite exists" AND "this module is sold here". `findBundleTier` resolves
+   * GLOBALLY — it scans every product's tier list — while everything else on
+   * this page keys off `pillarProducts(pricing, slug)[0]`, which is undefined
+   * exactly when the environment does not serve this module.
+   *
+   * Ungated, `pro` was truthy for a module the catalog hides, so the
+   * "coming soon" branch below became unreachable and the page offered a full
+   * Suite purchase card — and four reasons to upgrade — for something it had
+   * been built to say you cannot buy yet. The ProValueBlocks comment further
+   * down describes that exact failure; this is what keeps it true.
    */
-  const suite = findBundleTier(pricing, "suite");
+  const suite = product ? findBundleTier(pricing, "suite") : undefined;
   const pro = suite ?? (product ? proTier(product) : undefined);
   const proIsSuite = Boolean(suite);
   // Pro first everywhere — the cards, the table columns, the labels. A reader

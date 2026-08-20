@@ -51,6 +51,7 @@ export default async function TeamsPricingPage() {
   const openSignup = signupMode === "open";
   const cta = signupCta(signupMode);
 
+  const suite = findBundleTier(pricing, "suite");
   const agency = findBundleTier(pricing, "agency");
   const enterprise = findBundleTier(pricing, "enterprise");
 
@@ -111,17 +112,24 @@ export default async function TeamsPricingPage() {
                 businesses was being shown ₹24,999 as the entry point. Naming
                 the rung below is the difference between a price list and a
                 ladder. */}
-            <p className="mx-auto mt-4 max-w-xl text-sm text-muted-foreground">
-              Running one business?{" "}
-              <Link
-                href="/pricing#suite"
-                className="font-bold text-brand-strong underline underline-offset-2"
-              >
-                Peakhour Suite
-              </Link>{" "}
-              is the same five modules for a single business, at a fraction of
-              this. These two are for running many.
-            </p>
+            {/* ★AND ONLY WHEN THE CATALOG SELLS IT. This file already degrades
+                through `findBundleTier` everywhere else; an unconditional
+                paragraph names a plan that does not exist on an environment
+                that has not run migration 258, and links to an `#suite` anchor
+                the hub does not render there. */}
+            {suite && (
+              <p className="mx-auto mt-4 max-w-xl text-sm text-muted-foreground">
+                Running one business?{" "}
+                <Link
+                  href="/pricing#suite"
+                  className="font-bold text-brand-strong underline underline-offset-2"
+                >
+                  Peakhour Suite
+                </Link>{" "}
+                is the same five modules for a single business, at a fraction of
+                this. These two are for running many.
+              </p>
+            )}
           </div>
         </section>
 

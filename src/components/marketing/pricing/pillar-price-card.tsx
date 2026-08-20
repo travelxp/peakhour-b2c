@@ -132,13 +132,20 @@ export function PillarPriceCard({
 
       <div className="mt-5 flex items-center justify-between pt-1">
         <span className="text-sm text-muted-foreground">
-          {suiteIncluded
-            ? "Free tier available"
-            : hasFree
-              ? "Free & Paid"
-              : product
-                ? "Plans"
-                : "Join the waitlist"}
+          {/* ★ORDER MATTERS, AND IT WAS WRONG. `suiteIncluded` short-circuited
+              ahead of the `product` test, so a card whose heading read "Coming
+              soon" could say "Free tier available" underneath it. A module the
+              environment does not serve has no tiers at all — the waitlist line
+              is the true one, and it has to be reachable. */}
+          {!product
+            ? "Join the waitlist"
+            : suiteIncluded
+              ? hasFree
+                ? "Free & Suite"
+                : "In Peakhour Suite"
+              : hasFree
+                ? "Free & Paid"
+                : "Plans"}
         </span>
         <span className="inline-flex items-center gap-1.5 text-sm font-bold text-brand-strong">
           {product ? "Compare plans" : "Learn more"}

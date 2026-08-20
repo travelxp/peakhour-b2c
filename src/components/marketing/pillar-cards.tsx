@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Check, ChevronDown } from "lucide-react";
-import { PILLAR_ORDER, PILLARS, type PillarSlug } from "@/lib/pillars";
+import { PILLAR_ORDER, PILLARS } from "@/lib/pillars";
 
 import { cn } from "@/lib/utils";
 

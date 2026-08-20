@@ -67,7 +67,7 @@ const RESEND_COOLDOWN_SECONDS = 60;
 // server-side (see page.tsx), not a number kept in sync by hand.
 function signupStats(freePeaks: string) {
   return [
-    { value: "5", label: "pillars, one login" },
+    { value: "5", label: "modules, one login" },
     { value: "0", label: "credit cards required" },
     // "+" and "free plan": the figure is the floor across free plans, and
     // paid/Agency/Enterprise carry far more. Without both, this reads as a cap.

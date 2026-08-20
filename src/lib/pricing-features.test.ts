@@ -8,6 +8,7 @@ import {
   tierGrants,
 } from "./pricing-features";
 import { PRICING_PILLARS } from "./pricing-catalog";
+import { canonicalFeatureKey } from "./pricing";
 import type { PricingEntry, ResolvedProductTier } from "./pricing";
 
 /**
@@ -137,6 +138,41 @@ describe("comparisonRows", () => {
     expect(descriptions).toHaveLength(1);
     // …and the tick lands in BOTH columns, which is the bug a duplicate row hides.
     expect(descriptions[0].included).toEqual([true, true]);
+  });
+
+  it("★★ a merged row remembers EVERY key, so a scoped filter cannot drop it", () => {
+    // ★LATENT TODAY, NOT LIVE — and worth saying so. No two DIFFERENT canonical
+    // keys currently share a customer label (checked: zero), so the merge path
+    // below is only reachable through the CATALOG-NAME fallback, where two
+    // cfg_features rows carry the same free-text `name`. That is one CMS edit
+    // away, which is why the merge path exists at all.
+    //
+    // When it happens, `/pricing/[pillar]` is the caller that breaks: it narrows a
+    // Suite comparison to the module's own keys, rows merge by LABEL and keep
+    // the FIRST key — and the first tier is Suite. Filtering on `key` alone drops
+    // a capability the free tier genuinely grants.
+    // Keys deliberately OUTSIDE CUSTOMER_FEATURE_LABELS, so the label comes
+    // from the catalog name — which is the free-text field two rows can share.
+    const suiteish = tier("suite", ["growth.audience_pulse", "content.audience_pulse"], {
+      featureDetails: [
+        { key: "growth.audience_pulse", name: "Audience pulse" },
+        { key: "content.audience_pulse", name: "Audience pulse" },
+      ],
+    });
+    const moduleFree = tier("content.free", ["content.audience_pulse"], {
+      featureDetails: [{ key: "content.audience_pulse", name: "Audience pulse" }],
+    });
+    const rows = comparisonRows([suiteish, moduleFree]);
+    const merged = rows.find((r) => r.label === "Audience pulse");
+    expect(merged).toBeDefined();
+
+    // Suite's key won the row, and it is NOT in this module's scope…
+    const scope = new Set(moduleFree.features.map(canonicalFeatureKey));
+    expect(scope.has(merged!.key)).toBe(false);
+    // …so the old `scopeKeys.has(r.key)` filter dropped it entirely. Every
+    // contributing key is reachable now, and the row survives.
+    expect(merged!.keys).toContain(merged!.key);
+    expect(merged!.keys.some((k) => scope.has(k))).toBe(true);
   });
 
   it("drops plumbing rather than printing a row of ticks that decides nothing", () => {
