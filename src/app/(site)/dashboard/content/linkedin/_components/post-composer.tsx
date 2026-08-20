@@ -524,11 +524,21 @@ export function PostComposer({ identity, seedText }: Props) {
         newText = insertSnippet(res.text);
       } else {
         newText = res.text;
+        // ★A replace op that hands back the draft it was given is a no-op,
+        // and a green "Draft shortened." over a box the user cannot see
+        // move is exactly what was reported as "it says it's working and
+        // it doesn't do anything". Name it, and leave the draft alone —
+        // swapping identical text would still drop the user's @mentions
+        // and hook variants for nothing.
+        if (newText.trim() === ctx.text.trim()) {
+          toast.message(aiOpNoChangeMessage(ctx.op));
+          return newText;
+        }
         setText(newText);
         pruneMentions(newText); // a full-body replace can drop @mention tokens
         setVariants(null); // stale once the body changed
       }
-      toast.success(aiOpToastMessage(ctx.op));
+      toast.success(aiOpToastMessage(ctx.op, ctx.text, newText));
       return newText;
     },
     [insertSnippet, pruneMentions],
@@ -1143,23 +1153,50 @@ function mapVoiceCardSummary(card: LinkedInVoiceCard | undefined): VoiceCardSumm
   };
 }
 
-/** Human toast copy per AI op. */
-function aiOpToastMessage(op: RewriteOp): string {
+/**
+ * Human toast copy per AI op.
+ *
+ * ★The two length ops carry their numbers. Their whole promise is a change
+ * the user is supposed to SEE, and a bare "Draft shortened." is unfalsifiable
+ * — it reads identically whether 40% came off or nothing did. "412 → 268
+ * characters (−35%)" is checkable against the box in front of them.
+ */
+function aiOpToastMessage(op: RewriteOp, before?: string, after?: string): string {
   switch (op) {
     case "compose":
       return "Draft composed.";
     case "redraft":
       return "Draft rewritten.";
     case "shorten":
-      return "Draft shortened.";
-    case "lengthen":
-      return "Draft expanded.";
+    case "lengthen": {
+      const base = op === "shorten" ? "Draft shortened" : "Draft expanded";
+      const from = before?.trim().length ?? 0;
+      const to = after?.trim().length ?? 0;
+      if (from === 0 || to === 0) return `${base}.`;
+      const pct = Math.round((Math.abs(to - from) / from) * 100);
+      const sign = to < from ? "−" : "+";
+      return `${base} — ${from} → ${to} characters (${sign}${pct}%).`;
+    }
     case "tone":
       return "Tone updated.";
     case "quote":
       return "Pull-quote added.";
     case "disclosure":
       return "Disclosure added.";
+  }
+}
+
+/** What we say when a replace op returned the draft it was handed. Neutral
+ *  (`toast.message`), not success and not an error: the call worked, the
+ *  model just produced nothing worth applying. */
+function aiOpNoChangeMessage(op: RewriteOp): string {
+  switch (op) {
+    case "shorten":
+      return "Shorten returned the same draft — nothing changed. Try again, or trim it yourself.";
+    case "lengthen":
+      return "Lengthen returned the same draft — nothing changed. Try again, or add the detail yourself.";
+    default:
+      return "That returned the same draft — nothing changed. Try again.";
   }
 }
 

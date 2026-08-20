@@ -280,3 +280,101 @@ describe("ad-campaign-monitor summary", () => {
     expect(summarize("nonsense")).toBeNull();
   });
 });
+
+describe("linkedin-subscription-reconcile summary", () => {
+  const summarize = (data: unknown) =>
+    CRON_METADATA["linkedin-subscription-reconcile"].summarize?.(data) ?? null;
+
+  const msg = (data: unknown) => {
+    const r = summarize(data);
+    return typeof r === "string" ? r : r?.message;
+  };
+  const level = (data: unknown) => {
+    const r = summarize(data);
+    return typeof r === "string" ? "success" : r?.level;
+  };
+
+  // ★The reported bug. A customer with LinkedIn connected and a Page enabled
+  // clicked this and was told to go connect LinkedIn. Creating a subscription
+  // stamps `lastReconciledAt`, so it sits outside the sweep's staleness window
+  // and `checked` is 0 on the very next run — the healthiest state produced
+  // the scariest message.
+  it("does NOT say 'connect LinkedIn' when connections exist and are current", () => {
+    const healthy = {
+      checked: 0,
+      resubscribed: 0,
+      seed: { scanned: 2, missing: 0, processed: 0, subscribed: 0, failed: 0 },
+    };
+    expect(msg(healthy)).toBe("LinkedIn alerts checked — every Page is subscribed and current.");
+    expect(level(healthy)).toBe("success");
+  });
+
+  it("still warns — with accurate copy — when nothing is connected at all", () => {
+    const empty = {
+      checked: 0,
+      resubscribed: 0,
+      seed: { scanned: 0, missing: 0, processed: 0, subscribed: 0, failed: 0 },
+    };
+    expect(msg(empty)).toContain("No LinkedIn account connected yet");
+    expect(level(empty)).toBe("warning");
+  });
+
+  it("warns about connections that carry no subscribed Page, and singularises", () => {
+    const one = {
+      checked: 0,
+      resubscribed: 0,
+      seed: { scanned: 3, missing: 1, processed: 1, subscribed: 0, failed: 1 },
+    };
+    expect(msg(one)).toContain("1 LinkedIn connection has no subscribed Page");
+    expect(level(one)).toBe("warning");
+
+    const two = {
+      checked: 0,
+      resubscribed: 0,
+      seed: { scanned: 3, missing: 2, processed: 2, subscribed: 0, failed: 2 },
+    };
+    expect(msg(two)).toContain("2 LinkedIn connections have no subscribed Page");
+  });
+
+  it("reports real work when the run actually did some", () => {
+    expect(
+      msg({
+        checked: 4,
+        resubscribed: 1,
+        revoked: 0,
+        forbidden: 0,
+        interactionsWritten: 7,
+        seed: { scanned: 2, missing: 1, processed: 1, subscribed: 1, failed: 0 },
+      }),
+    ).toBe("LinkedIn alerts: 1 Page newly subscribed, 1 renewed, 7 missed events replayed.");
+  });
+
+  it("defers to the generic toast on a shape it does not recognise", () => {
+    expect(summarize(null)).toBe("LinkedIn alerts reconnected.");
+  });
+});
+
+describe("performance-sync summary", () => {
+  const summarize = (data: unknown) =>
+    CRON_METADATA["performance-sync"].summarize?.(data) ?? null;
+
+  // ★The description used to say "every connected publishing platform", so
+  // this was the obvious button for LinkedIn engagement. The api's provider
+  // list is the three Google sources and nothing else — a run that touches
+  // no LinkedIn connection must not imply that it did.
+  it("names the three sources it actually covers, and disclaims LinkedIn", () => {
+    const { description } = CRON_METADATA["performance-sync"];
+    expect(description).toContain("Search Console");
+    expect(description).toContain("Google Analytics");
+    expect(description).toContain("Business Profile");
+    expect(description).toContain("Sync LinkedIn posts");
+    expect(description).not.toContain("every connected publishing platform");
+  });
+
+  it("says WHICH connection is missing when there are none", () => {
+    const r = summarize({ overall: { connectionsTotal: 0, connectionsRun: 0, errors: 0 } });
+    const message = typeof r === "string" ? r : r?.message;
+    expect(message).toContain("Search Console");
+    expect(message).not.toContain("no connected platforms yet");
+  });
+});

@@ -219,13 +219,22 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
   "performance-sync": {
     label: "Refresh performance",
     frequency: "Runs every hour",
+    // ★NAMES THE THREE PROVIDERS IT ACTUALLY RUNS. The api's
+    // ANALYTICS_PROVIDERS list is Search Console, Analytics and Business
+    // Profile — nothing else. The old copy said "every connected
+    // publishing platform", so this button was the obvious place to click
+    // for LinkedIn engagement; it ran green, touched no LinkedIn
+    // connection, and the numbers never moved. LinkedIn is refreshed by
+    // "Sync LinkedIn posts" — twice daily, not hourly, because every
+    // LinkedIn call spends the app-wide ~500/day request budget.
     description:
-      "Pulls the latest engagement and impression numbers from every connected publishing platform.",
+      "Pulls the latest numbers from Google Search Console, Google Analytics, and Google Business Profile. LinkedIn engagement is refreshed by \"Sync LinkedIn posts\", not by this.",
     summarize: (data) => {
       const overall = asRecord(asRecord(data)?.overall);
       if (!overall) return "Performance refreshed.";
       const total = num(overall.connectionsTotal);
-      if (total === 0) return "Performance refreshed — no connected platforms yet.";
+      if (total === 0)
+        return "Performance refreshed — no Search Console, Analytics, or Business Profile connection yet.";
       if (num(overall.errors) > 0)
         return {
           message: "Performance refreshed, but some platforms reported errors.",
@@ -366,12 +375,38 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       // created at all, so "0 checked, 0 armed" is the state someone is
       // trying to leave — and a green toast for it is how you conclude
       // the pipeline works when nothing has been connected.
+      //
+      // ★BUT "nothing to do" IS NOT "nothing exists", and reading them as
+      // the same thing is why a customer with LinkedIn connected and a
+      // Page enabled was told to go connect LinkedIn. A subscription
+      // stamps `lastReconciledAt` when it is created, so it sits outside
+      // the sweep's 20-hour staleness window and `checked` is 0 on the
+      // very next run — the HEALTHIEST possible state produced the
+      // scariest possible message. `seed.scanned` (active linkedin_content
+      // connections examined) is what actually distinguishes them.
       if (armed === 0 && renewed === 0 && num(d.checked) === 0) {
-        return {
-          level: "warning",
-          message:
-            "No LinkedIn Pages to reconnect — connect LinkedIn and enable a Page first.",
-        };
+        const scanned = seed ? num(seed.scanned) : 0;
+        if (scanned === 0) {
+          return {
+            level: "warning",
+            message:
+              "No LinkedIn account connected yet — connect LinkedIn and enable a Page first.",
+          };
+        }
+        // Connections exist but carry no subscription row at all. The
+        // seeder re-counts these every run: either every Page is disabled
+        // (nothing to subscribe), or arming failed (grant lapsed, no
+        // longer a Page admin). Both need a human, so neither is green.
+        const missing = seed ? num(seed.missing) : 0;
+        if (missing > 0) {
+          return {
+            level: "warning",
+            message: `${missing} LinkedIn ${plural(missing, "connection")} ${
+              missing === 1 ? "has" : "have"
+            } no subscribed Page — enable a Page for it, or reconnect LinkedIn if the grant lapsed.`,
+          };
+        }
+        return "LinkedIn alerts checked — every Page is subscribed and current.";
       }
       const parts: string[] = [];
       if (armed > 0) parts.push(`${armed} ${plural(armed, "Page")} newly subscribed`);
