@@ -39,13 +39,11 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ConfirmDialog } from "@/components/molecules";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   linkedInContentApi,
-  type LinkedInActorProfile,
   type LinkedInAuthor,
   type LinkedInCommentDetail,
   type LinkedInReaction,
@@ -53,7 +51,13 @@ import {
 } from "@/lib/api/linkedin-content";
 import { ApiError } from "@/lib/api";
 import { useLocale } from "@/hooks/use-locale";
-import { COMMENT_MAX_LEN, ReplyBox, engageErrorMessage } from "./engage-shared";
+import {
+  COMMENT_MAX_LEN,
+  ReplyBox,
+  engageErrorMessage,
+  ActorAvatar,
+  actorDisplayName,
+} from "./engage-shared";
 
 /** Reaction types we may WRITE. `MAYBE` is deprecated by LinkedIn and 400s
  *  on create, so it is absent here even though a read can surface it. */
@@ -262,7 +266,7 @@ function CommentRow({
         <div className="min-w-0 flex-1 space-y-1.5">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
             <span className="text-sm font-medium">
-              {comment.actorProfile?.displayName ?? "A member"}
+              {actorDisplayName(comment.actorProfile)}
             </span>
             {comment.actorProfile?.headline && (
               <span className="truncate text-xs text-muted-foreground">
@@ -664,7 +668,7 @@ export function ReactionsTab({ postUrn, open }: { postUrn: string; open: boolean
               <li key={r.id} className="flex items-center gap-2.5">
                 <ActorAvatar profile={r.actorProfile} />
                 <span className="text-sm">
-                  {r.actorProfile?.displayName ?? "A member"}
+                  {actorDisplayName(r.actorProfile)}
                 </span>
                 {r.actorProfile?.vanityName && (
                   <a
@@ -704,27 +708,6 @@ export function ReactionsTab({ postUrn, open }: { postUrn: string; open: boolean
 }
 
 // ── Shared ────────────────────────────────────────────────
-
-function ActorAvatar({ profile }: { profile?: LinkedInActorProfile }) {
-  const name = profile?.displayName ?? "";
-  const initials =
-    name
-      .split(" ")
-      .map((p) => p[0])
-      .filter(Boolean)
-      .slice(0, 2)
-      .join("")
-      .toUpperCase() || "—";
-  return (
-    <Avatar className="size-8 shrink-0">
-      {/* LinkedIn's image URLs carry their own expiry, often shorter than
-          our cache — a broken image is normal, and AvatarFallback covers
-          it without a retry. */}
-      {profile?.pictureUrl && <AvatarImage src={profile.pictureUrl} alt="" />}
-      <AvatarFallback className="text-[10px]">{initials}</AvatarFallback>
-    </Avatar>
-  );
-}
 
 function ErrorBody({ error }: { error: unknown }) {
   return (

@@ -44,7 +44,7 @@ import {
 import { useLocale } from "@/hooks/use-locale";
 import { CommentsTab, ReactionsTab } from "./thread-panel";
 import { RetentionFootnote } from "./retention-footnote";
-import { engageErrorMessage } from "./engage-shared";
+import { engageErrorMessage, actorDisplayName } from "./engage-shared";
 
 /** One dialog frame, so the three below cannot drift in size, scroll
  *  behaviour or footnote placement. */
@@ -298,7 +298,7 @@ export function RepostsDialog({
  *  is. Rendering the raw URN instead would be worse than anonymous: it is
  *  unreadable AND it looks like a bug. */
 function repostActorLabel(row: LinkedInInteraction): string {
-  return row.actorProfile?.displayName ?? "A member";
+  return actorDisplayName(row.actorProfile);
 }
 
 function RepostSkeleton() {
