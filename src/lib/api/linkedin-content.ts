@@ -915,6 +915,20 @@ export interface LinkedInFeedPost {
   authorUrn: string | null;
   /** ISO publish time; null only on malformed legacy rows. */
   publishedAt: string | null;
+  /**
+   * The post is gone from LinkedIn — deleted there, or through us.
+   *
+   * ★THE ROW IS STILL SERVED, DELIBERATELY. The engagement beside it is
+   * already folded into the daily rollups and the per-actor aggregates, so
+   * a card that silently vanished would take away the only explanation for
+   * numbers that remain. Render it badged and inert; do not hide it, and
+   * do not offer an action that can only 404.
+   *
+   * ★A boolean, not a date. The server knows when it NOTICED, which is not
+   * when the post was deleted, and the two must never be conflated on a
+   * screen. Optional because b2c and api deploy independently.
+   */
+  deletedFromLinkedIn?: boolean;
   performance: {
     impressions: number;
     likes: number;
