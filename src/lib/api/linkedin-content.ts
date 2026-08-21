@@ -216,6 +216,15 @@ export interface LinkedInVoiceCard {
 export interface EngagerScore {
   actorUrn: string;
   actorType: "person" | "org";
+  /** Name, headline and photo, when the server still had this actor in its
+   *  24-hour decoration cache.
+   *
+   *  ★ABSENT IS ORDINARY, AND MORE OFTEN THAN ANYWHERE ELSE IN THIS FILE.
+   *  Engagers are ranked over a 48-hour window while decorations expire at
+   *  24, so the older half of a ranking has no name by construction.
+   *  Render "A member" — never an error, never a retry, and never anything
+   *  implying the person chose to be anonymous. */
+  actorProfile?: LinkedInActorProfile;
   score: number;
   tier: "rules" | "enriched";
   breakdown: {
@@ -253,6 +262,20 @@ export interface EngagersResponse {
   /** Echo of the lookback window the server actually used (after
    *  clamping the ?days query param). */
   lookbackDays: number;
+  /** Whether the server is showing names AT ALL — the kill switch, not a
+   *  statement about these particular engagers. False means the feature is
+   *  off; true beside a nameless row means that row's decoration expired.
+   *
+   *  ★OPTIONAL, and that is not defensive padding: b2c and api deploy
+   *  independently, so a b2c release can be live against an api that
+   *  predates the field. Callers must test `=== false` rather than
+   *  falsiness — reading "absent" as "off" would announce that names are
+   *  switched off on a deployment where they simply are not implemented
+   *  yet. */
+  identityEnabled?: boolean;
+  /** Always true. Names come from a 24-hour cache over a 48-hour ranking
+   *  window, so a fully-named list is the exception, not the target. */
+  namesAreBestEffort?: boolean;
 }
 
 /** Shared TanStack Query cache key for the LinkedIn suggested-drafts
@@ -892,6 +915,20 @@ export interface LinkedInFeedPost {
   authorUrn: string | null;
   /** ISO publish time; null only on malformed legacy rows. */
   publishedAt: string | null;
+  /**
+   * The post is gone from LinkedIn — deleted there, or through us.
+   *
+   * ★THE ROW IS STILL SERVED, DELIBERATELY. The engagement beside it is
+   * already folded into the daily rollups and the per-actor aggregates, so
+   * a card that silently vanished would take away the only explanation for
+   * numbers that remain. Render it badged and inert; do not hide it, and
+   * do not offer an action that can only 404.
+   *
+   * ★A boolean, not a date. The server knows when it NOTICED, which is not
+   * when the post was deleted, and the two must never be conflated on a
+   * screen. Optional because b2c and api deploy independently.
+   */
+  deletedFromLinkedIn?: boolean;
   performance: {
     impressions: number;
     likes: number;

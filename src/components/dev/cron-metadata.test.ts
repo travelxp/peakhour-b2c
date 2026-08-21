@@ -280,3 +280,282 @@ describe("ad-campaign-monitor summary", () => {
     expect(summarize("nonsense")).toBeNull();
   });
 });
+
+describe("linkedin-subscription-reconcile summary", () => {
+  const summarize = (data: unknown) =>
+    CRON_METADATA["linkedin-subscription-reconcile"].summarize?.(data) ?? null;
+
+  const msg = (data: unknown) => {
+    const r = summarize(data);
+    return typeof r === "string" ? r : r?.message;
+  };
+  const level = (data: unknown) => {
+    const r = summarize(data);
+    return typeof r === "string" ? "success" : r?.level;
+  };
+
+  // ★The reported bug. A customer with LinkedIn connected and a Page enabled
+  // clicked this and was told to go connect LinkedIn. Creating a subscription
+  // stamps `lastReconciledAt`, so it sits outside the sweep's staleness window
+  // and `checked` is 0 on the very next run — the healthiest state produced
+  // the scariest message.
+  it("does NOT say 'connect LinkedIn' when connections exist and are current", () => {
+    const healthy = {
+      checked: 0,
+      resubscribed: 0,
+      seed: { scanned: 2, missing: 0, processed: 0, subscribed: 0, failed: 0 },
+    };
+    expect(msg(healthy)).toBe("LinkedIn alerts checked — nothing was due for renewal.");
+    expect(level(healthy)).toBe("success");
+  });
+
+  // ★And it must not claim health it cannot see. `markStatus` stamps
+  // `lastReconciledAt`, so a row that just went revoked/forbidden is skipped
+  // for 20h and comes back as `checked: 0` — with the seeder counting it as
+  // known, not missing. Clicking twice used to turn "1 lost admin rights"
+  // into "everything is current".
+  it("does not assert that every Page is healthy from an idle tick", () => {
+    const idle = {
+      checked: 0,
+      resubscribed: 0,
+      seed: { scanned: 2, missing: 0, processed: 0, subscribed: 0, failed: 0 },
+    };
+    expect(msg(idle)).not.toContain("current.");
+    expect(msg(idle)).not.toContain("subscribed and");
+  });
+
+  it("still warns — with accurate copy — when nothing is connected at all", () => {
+    const empty = {
+      checked: 0,
+      resubscribed: 0,
+      seed: { scanned: 0, missing: 0, processed: 0, subscribed: 0, failed: 0 },
+    };
+    expect(msg(empty)).toContain("No LinkedIn account connected yet");
+    expect(level(empty)).toBe("warning");
+  });
+
+  it("warns when the run tried to arm connections and armed none, and singularises", () => {
+    const one = {
+      checked: 0,
+      resubscribed: 0,
+      seed: { scanned: 3, missing: 1, processed: 1, subscribed: 0, failed: 1 },
+    };
+    expect(msg(one)).toContain("Tried 1 LinkedIn connection and subscribed none");
+    expect(level(one)).toBe("warning");
+
+    const two = {
+      checked: 0,
+      resubscribed: 0,
+      seed: { scanned: 3, missing: 2, processed: 2, subscribed: 0, failed: 2 },
+    };
+    expect(msg(two)).toContain("Tried 2 LinkedIn connections and subscribed none");
+  });
+
+  // ★An unconfigured subscription env makes the sweep return all zeros and
+  // the seeder skip every connection without failing one, which is otherwise
+  // indistinguishable from a quiet, healthy tick.
+  it("warns when nothing could be attempted rather than reading as quiet", () => {
+    const unconfigured = {
+      checked: 0,
+      resubscribed: 0,
+      seed: { scanned: 2, missing: 2, processed: 2, subscribed: 0, failed: 0 },
+    };
+    expect(level(unconfigured)).toBe("warning");
+  });
+
+  // ★`seed.missing` is documented as permanently non-zero for a connection
+  // with every Page disabled, and the counters are app-wide — so warning on
+  // it would show an orange toast to a healthy customer over somebody else's
+  // disabled Page. Exactly the bug this entry is fixing, one field along.
+  it("does not warn on `missing` alone when nothing was attempted", () => {
+    const capped = {
+      checked: 0,
+      resubscribed: 0,
+      // 12 missing, but the seeder's per-run cap meant none was processed.
+      seed: { scanned: 12, missing: 12, processed: 0, subscribed: 0, failed: 0 },
+    };
+    expect(level(capped)).toBe("success");
+    expect(msg(capped)).toBe("LinkedIn alerts checked — nothing was due for renewal.");
+  });
+
+  // ★1 armed out of 5 attempted read as a clean "1 Page newly subscribed".
+  it("surfaces the seeder's failures alongside what it managed to arm", () => {
+    expect(
+      msg({
+        checked: 0,
+        resubscribed: 0,
+        seed: { scanned: 5, missing: 5, processed: 5, subscribed: 1, failed: 4 },
+      }),
+    ).toBe("LinkedIn alerts: 1 Page newly subscribed, 4 could not be subscribed.");
+  });
+
+  it("reports real work when the run actually did some", () => {
+    const good = {
+      checked: 4,
+      resubscribed: 1,
+      revoked: 0,
+      forbidden: 0,
+      interactionsWritten: 7,
+      seed: { scanned: 2, missing: 1, processed: 1, subscribed: 1, failed: 0 },
+    };
+    expect(msg(good)).toBe(
+      "LinkedIn alerts: 1 Page newly subscribed, 1 renewed, 7 missed events replayed.",
+    );
+    expect(level(good)).toBe("success");
+  });
+
+  // ★A tick that examined 5 subscriptions and failed on all 5 came out as
+  // "everything already up to date", in green.
+  it("surfaces the sweep's own failures instead of calling the tick up to date", () => {
+    const allFailed = { checked: 5, resubscribed: 0, failed: 5 };
+    expect(msg(allFailed)).toContain("5 failed to renew");
+    expect(level(allFailed)).toBe("warning");
+  });
+
+  it("never lists a broken Page inside a green toast", () => {
+    const revoked = { checked: 3, resubscribed: 1, revoked: 2 };
+    expect(msg(revoked)).toContain("2 need a reconnect");
+    expect(level(revoked)).toBe("warning");
+
+    const forbidden = { checked: 3, resubscribed: 0, forbidden: 1 };
+    expect(level(forbidden)).toBe("warning");
+
+    const backfillFailed = { checked: 3, resubscribed: 0, backfillFailed: 1 };
+    expect(msg(backfillFailed)).toContain("could not be back-filled");
+    expect(level(backfillFailed)).toBe("warning");
+  });
+
+  // A capped backfill resumes next run — worth stating, not worth alarming.
+  it("mentions an unfinished backfill without turning the tick orange", () => {
+    const capped = { checked: 3, resubscribed: 1, backfillIncomplete: 2 };
+    expect(msg(capped)).toContain("2 still to back-fill");
+    expect(level(capped)).toBe("success");
+  });
+
+  it("defers to the generic toast on a shape it does not recognise", () => {
+    expect(summarize(null)).toBe("LinkedIn alerts reconnected.");
+  });
+});
+
+describe("performance-sync summary", () => {
+  const summarize = (data: unknown) =>
+    CRON_METADATA["performance-sync"].summarize?.(data) ?? null;
+
+  // ★The description used to say "every connected publishing platform", so
+  // this was the obvious button for LinkedIn engagement. The api's provider
+  // list is the three Google sources and nothing else — a run that touches
+  // no LinkedIn connection must not imply that it did.
+  it("names the three sources it actually covers, and disclaims LinkedIn", () => {
+    const { description } = CRON_METADATA["performance-sync"];
+    expect(description).toContain("Search Console");
+    expect(description).toContain("Google Analytics");
+    expect(description).toContain("Sync LinkedIn posts");
+    expect(description).not.toContain("every connected publishing platform");
+    // ★Business Profile is in the api's provider list but `coming_soon`
+    // with no connection form, so it is named as pending — never as
+    // something the reader could go and connect.
+    expect(description).toContain("Google Business Profile joins them once it opens");
+  });
+
+  it("says WHICH connection is missing when there are none, and none that cannot be made", () => {
+    const r = summarize({ overall: { connectionsTotal: 0, connectionsRun: 0, errors: 0 } });
+    const message = typeof r === "string" ? r : r?.message;
+    expect(message).toContain("Search Console");
+    expect(message).not.toContain("no connected platforms yet");
+    expect(message).not.toContain("Business Profile");
+  });
+});
+
+/**
+ * ★The LinkedIn sync toast, which used to congratulate the user on a run
+ * that had done nothing.
+ *
+ * LinkedIn's Community Management quota is app-wide (~500 requests/day
+ * across every customer). When it runs out the posts LISTING has usually
+ * already succeeded — so the payload carries a healthy `postsUpserted`
+ * while engagement, comments, commenter names and every Community Feed row
+ * were skipped entirely. Observed on dev 2026-08-21: "51 posts synced
+ * successfully", and not one dashboard number moved.
+ */
+describe("linkedin-post-sync summary", () => {
+  const body = (over: Record<string, unknown> = {}, result: Record<string, unknown> = {}) =>
+    JSON.stringify({
+      ok: true,
+      data: {
+        scanned: 1,
+        synced: 1,
+        skipped: 0,
+        failed: 0,
+        ...over,
+        results: [
+          {
+            businessId: "b1",
+            status: "synced",
+            postsFetched: 51,
+            postsUpserted: 51,
+            commentsFetched: 0,
+            actorProfilesCached: 0,
+            interactionsUpserted: 0,
+            postsTombstoned: 0,
+            ...result,
+          },
+        ],
+      },
+    });
+
+  it("★warns, and does not claim success, when LinkedIn rate-limited us", () => {
+    const s = summarizeCronBody("linkedin-post-sync", body({ rateLimited: true }));
+    expect(s?.level).toBe("warning");
+    expect(s?.message).toMatch(/rate-limit/i);
+    // The number that made this look fine must not be the headline.
+    expect(s?.message).not.toMatch(/51 posts synced/);
+    // And it must steer away from the reflex that makes it worse — while
+    // naming the reason (a shared quota) rather than asserting a reset
+    // window we have not actually measured.
+    expect(s?.message).toMatch(/again/i);
+    expect(s?.message).toMatch(/shared across the whole app/i);
+  });
+
+  it("★reports what the LinkedIn tabs actually render, not just posts", () => {
+    // Posts sync fine even when the whole comment pipeline is dead, so
+    // "51 posts synced" was compatible with Top Engagers, the Feed and
+    // Community Pulse all staying empty.
+    const s = summarizeCronBody(
+      "linkedin-post-sync",
+      body({}, {
+        commentsFetched: 3,
+        actorProfilesCached: 4,
+        interactionsUpserted: 5,
+        postsTombstoned: 1,
+      }),
+    );
+    expect(s?.message).toMatch(/3 comment threads read/);
+    expect(s?.message).toMatch(/5 Feed rows written/);
+    expect(s?.message).toMatch(/1 deleted post marked/);
+    // ★"name refreshes", not "names" — the counter is WRITES, and one
+    // commenter active on four posts refreshes their own row four times.
+    // Saying "4 names" would assert four people from a payload that proves
+    // four writes.
+    expect(s?.message).toMatch(/4 name refreshes/);
+  });
+
+  it("singularises the awkward one correctly", () => {
+    // `plural` only appends "s", which turns "refresh" into "refreshs".
+    const s = summarizeCronBody("linkedin-post-sync", body({}, { actorProfilesCached: 1 }));
+    expect(s?.message).toContain("(1 name refresh)");
+    expect(s?.message).not.toMatch(/refreshs/);
+  });
+
+  it("idle is not empty — a quiet Page reports no extras rather than a problem", () => {
+    const s = summarizeCronBody("linkedin-post-sync", body());
+    expect(s?.level ?? "success").toBe("success");
+    expect(s?.message).toMatch(/51 posts synced/);
+    // No parenthetical claiming zero of everything.
+    expect(s?.message).not.toMatch(/0 /);
+  });
+
+  it("still surfaces an account that needs reconnecting", () => {
+    const s = summarizeCronBody("linkedin-post-sync", body({ failed: 1 }));
+    expect(s?.message).toMatch(/reconnect/i);
+  });
+});

@@ -219,13 +219,27 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
   "performance-sync": {
     label: "Refresh performance",
     frequency: "Runs every hour",
+    // ★NAMES WHAT IT ACTUALLY RUNS. The api's ANALYTICS_PROVIDERS list is
+    // Search Console, Analytics and Business Profile — nothing else. The
+    // old copy said "every connected publishing platform", so this button
+    // was the obvious place to click for LinkedIn engagement; it ran
+    // green, touched no LinkedIn connection, and the numbers never moved.
+    // LinkedIn is refreshed by "Sync LinkedIn posts" — twice daily, not
+    // hourly, because every LinkedIn call spends the app-wide ~500/day
+    // request budget.
+    //
+    // Business Profile is named as pending rather than as a source: it is
+    // in the api's list but `coming_soon`, with no connection form until
+    // Google approves API access — so telling someone to go and connect it
+    // is the same species of dead end this entry is being fixed for.
     description:
-      "Pulls the latest engagement and impression numbers from every connected publishing platform.",
+      "Pulls the latest numbers from Google Search Console and Google Analytics (Google Business Profile joins them once it opens). LinkedIn engagement is refreshed by “Sync LinkedIn posts”, not by this.",
     summarize: (data) => {
       const overall = asRecord(asRecord(data)?.overall);
       if (!overall) return "Performance refreshed.";
       const total = num(overall.connectionsTotal);
-      if (total === 0) return "Performance refreshed — no connected platforms yet.";
+      if (total === 0)
+        return "Performance refreshed — no Search Console or Analytics connection yet.";
       if (num(overall.errors) > 0)
         return {
           message: "Performance refreshed, but some platforms reported errors.",
@@ -272,25 +286,81 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       const results = Array.isArray(d.results) ? d.results : [];
       let upserted = 0;
       let fetched = 0;
+      let comments = 0;
+      let names = 0;
+      let feedRows = 0;
+      let tombstoned = 0;
       for (const r of results) {
         const rr = asRecord(r);
         if (!rr) continue;
         upserted += num(rr.postsUpserted);
         fetched += num(rr.postsFetched);
+        comments += num(rr.commentsFetched);
+        names += num(rr.actorProfilesCached);
+        feedRows += num(rr.interactionsUpserted);
+        tombstoned += num(rr.postsTombstoned);
       }
       const failed = num(d.failed);
       if (num(d.synced) === 0 && failed > 0)
         return "LinkedIn sync didn't complete — please reconnect and try again.";
+
+      // ★THE CASE THAT USED TO READ AS A CLEAN SUCCESS.
+      //
+      // LinkedIn's quota is app-wide (~500 requests/day across every
+      // customer). When it runs out, the posts LISTING has usually already
+      // succeeded — so the payload carries a healthy `postsUpserted` while
+      // engagement, comments, commenter names and every Feed row were
+      // skipped entirely. This toast said "51 posts synced successfully"
+      // and the dashboard did not move, with nothing linking the two.
+      //
+      // Warning, not success: the run did not do the thing it was pressed
+      // for, and pressing it again immediately makes the wait longer.
+      if (d.rateLimited === true) {
+        return {
+          message:
+            "LinkedIn is rate-limiting us, so engagement, comments and names were skipped. " +
+            "The quota is shared across the whole app — pressing again now spends more of " +
+            "it for nothing.",
+          level: "warning" as const,
+        };
+      }
       // A failed business among healthy ones (e.g. its token was
       // revoked) must not read as all-good.
       const failedSuffix =
         failed > 0
           ? ` ${failed} ${plural(failed, "account")} need${failed === 1 ? "s" : ""} reconnecting.`
           : "";
+
+      // ★What the LinkedIn tabs actually render, said out loud. Posts were
+      // the only thing reported here, and posts are the one part that
+      // works even when the comment pipeline is completely dead — so a
+      // green "51 posts synced" was compatible with Top Engagers, the Feed
+      // and Community Pulse all staying empty. These are the numbers that
+      // tell you whether the page you are looking at will change.
+      //
+      // ★Worded as WRITES, not as people or items. `actorProfilesCached`
+      // and `interactionsUpserted` count operations — one commenter active
+      // on three posts refreshes their own row three times — so "4 names"
+      // would assert four people from a payload that proves four writes.
+      // Any non-zero is the signal a reader needs ("did that pipeline run
+      // at all"); the exact figure must not claim more than it knows.
+      const extras: string[] = [];
+      if (comments > 0) extras.push(`${comments} ${plural(comments, "comment thread")} read`);
+      // `plural` only appends "s", so "refresh" needs its own -es form.
+      if (names > 0) extras.push(`${names} name ${names === 1 ? "refresh" : "refreshes"}`);
+      if (feedRows > 0) extras.push(`${feedRows} Feed ${plural(feedRows, "row")} written`);
+      if (tombstoned > 0)
+        extras.push(`${tombstoned} deleted ${plural(tombstoned, "post")} marked`);
+      const detail = extras.length ? ` (${extras.join(", ")})` : "";
+
+      // ★Idle is not empty. A sync that read posts but found no comments is
+      // working correctly on a quiet Page — say that rather than implying
+      // something went wrong, and rather than claiming activity the payload
+      // does not show.
       if (upserted > 0)
-        return `${upserted} ${plural(upserted, "post")} synced successfully.${failedSuffix}`;
+        return `${upserted} ${plural(upserted, "post")} synced${detail}.${failedSuffix}`;
       if (fetched > 0)
-        return `LinkedIn synced — your posts are already up to date.${failedSuffix}`;
+        return `LinkedIn synced — your posts are already up to date${detail}.${failedSuffix}`;
       return `LinkedIn synced — no new posts in range yet.${failedSuffix}`;
     },
   },
@@ -366,16 +436,78 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       // created at all, so "0 checked, 0 armed" is the state someone is
       // trying to leave — and a green toast for it is how you conclude
       // the pipeline works when nothing has been connected.
+      //
+      // ★BUT "nothing to do" IS NOT "nothing exists", and reading them as
+      // the same thing is why a customer with LinkedIn connected and a
+      // Page enabled was told to go connect LinkedIn. A subscription
+      // stamps `lastReconciledAt` when it is created, so it sits outside
+      // the sweep's 20-hour staleness window and `checked` is 0 on the
+      // very next run — the HEALTHIEST possible state produced the
+      // scariest possible message. `seed.scanned` (active linkedin_content
+      // connections examined) is what actually distinguishes them.
       if (armed === 0 && renewed === 0 && num(d.checked) === 0) {
-        return {
-          level: "warning",
-          message:
-            "No LinkedIn Pages to reconnect — connect LinkedIn and enable a Page first.",
-        };
+        // ★App-wide, like every other counter in this payload — the cron
+        // handler sweeps all orgs and takes no org filter. So `scanned: 0`
+        // is a safe signal (nobody anywhere has connected) but a non-zero
+        // one does not prove THIS org has; it only stops us telling a
+        // customer who plainly has connected to go and connect.
+        const scanned = seed ? num(seed.scanned) : 0;
+        if (scanned === 0) {
+          return {
+            level: "warning",
+            message:
+              "No LinkedIn account connected yet — connect LinkedIn and enable a Page first.",
+          };
+        }
+        // ★`seed.missing` deliberately NOT used here. The api documents it
+        // as permanently non-zero for any connection whose Pages are all
+        // disabled — "intentional and free" — so warning on it would put
+        // an orange toast in front of a perfectly healthy customer over
+        // somebody else's disabled Page. That is the bug this entry is
+        // being fixed for, one field along.
+        //
+        // What IS worth saying is that the run TRIED and armed nothing:
+        // `processed` counts the connections it attempted this tick, so
+        // `processed > 0` with `subscribed === 0` means every attempt came
+        // back empty — an unconfigured subscription env
+        // (`resolveSubscriptionEnv` → null, which otherwise returns the
+        // same all-zeros as a quiet tick), a token it could not refresh, a
+        // lapsed grant, or nothing enabled to subscribe. Phrased as what
+        // the run did, because the counters are app-wide and cannot be
+        // attributed to the person reading the toast.
+        const attempted = seed ? num(seed.processed) : 0;
+        if (attempted > 0) {
+          return {
+            level: "warning",
+            message: `Tried ${attempted} LinkedIn ${plural(
+              attempted,
+              "connection",
+            )} and subscribed none — check a Page is enabled and the LinkedIn grant is still valid.`,
+          };
+        }
+        // ★States what the run DID, and claims nothing about health. The
+        // payload cannot support a health claim: `markStatus` stamps
+        // `lastReconciledAt`, so a row that just went `revoked` or
+        // `forbidden` is skipped for 20h and reappears here as `checked: 0`
+        // — and the seeder's `known` lookup has no status filter, so it is
+        // not `missing` either. Clicking twice would have turned "1 lost
+        // admin rights" into "everything is current".
+        return "LinkedIn alerts checked — nothing was due for renewal.";
       }
       const parts: string[] = [];
       if (armed > 0) parts.push(`${armed} ${plural(armed, "Page")} newly subscribed`);
       if (renewed > 0) parts.push(`${renewed} renewed`);
+      // The seeder's own failures (its `failed` folds in revoked + forbidden
+      // from the arming call). Counted apart from the sweep's `revoked` /
+      // `forbidden` below, which come from a different pass — without this,
+      // 1 armed out of 5 attempted read as a clean "1 Page newly subscribed".
+      const seedFailed = seed ? num(seed.failed) : 0;
+      if (seedFailed > 0) parts.push(`${seedFailed} could not be subscribed`);
+      // ★The sweep's OWN failures, which nothing rendered. A tick that
+      // examined 5 subscriptions and failed on all 5 (LinkedIn 5xx) came
+      // out as "everything already up to date", in green.
+      const swept = num(d.failed);
+      if (swept > 0) parts.push(`${swept} failed to renew`);
       if (num(d.revoked) > 0) parts.push(`${num(d.revoked)} need a reconnect`);
       // Kept distinct from `revoked`: a member who is no longer a Page
       // admin CANNOT fix this by reconnecting, and telling them to is a
@@ -383,10 +515,25 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       if (num(d.forbidden) > 0) {
         parts.push(`${num(d.forbidden)} lost admin rights`);
       }
+      // A pull failure says nothing about whether push still works, so it is
+      // its own clause — but it is still a gap in the Feed, not a detail.
+      if (num(d.backfillFailed) > 0) {
+        parts.push(`${num(d.backfillFailed)} could not be back-filled`);
+      }
       if (replayed > 0) parts.push(`${replayed} missed ${plural(replayed, "event")} replayed`);
-      return parts.length
-        ? `LinkedIn alerts: ${parts.join(", ")}.`
-        : "LinkedIn alerts checked — everything already up to date.";
+      // The cap was hit and the cursor deliberately did not advance, so the
+      // next run resumes. Worth stating, not worth alarming over.
+      if (num(d.backfillIncomplete) > 0) {
+        parts.push(`${num(d.backfillIncomplete)} still to back-fill`);
+      }
+      if (!parts.length) return "LinkedIn alerts checked — everything already up to date.";
+      // ★Any of these five is a Page whose alerts are not flowing. Listing
+      // them inside a green toast is how "3 need a reconnect" reads as good
+      // news.
+      const problems =
+        seedFailed + swept + num(d.revoked) + num(d.forbidden) + num(d.backfillFailed);
+      const message = `LinkedIn alerts: ${parts.join(", ")}.`;
+      return problems > 0 ? { level: "warning", message } : message;
     },
   },
   "voice-card-refresh": {
