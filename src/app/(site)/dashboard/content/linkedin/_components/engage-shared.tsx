@@ -16,12 +16,66 @@ import { Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { linkedInContentApi, type LinkedInAuthor } from "@/lib/api/linkedin-content";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  linkedInContentApi,
+  type LinkedInAuthor,
+  type LinkedInActorProfile,
+} from "@/lib/api/linkedin-content";
 import { ApiError } from "@/lib/api";
 import { SavedReplyPicker, appendReply } from "@/components/inbox/saved-reply-picker";
 
 /** LinkedIn's own cap on comment text. */
 export const COMMENT_MAX_LEN = 1250;
+
+/**
+ * The commenter, as every LinkedIn surface should show them.
+ *
+ * ★ONE COMPONENT BECAUSE THE FALLBACK IS THE HARD PART. A decoration is
+ * absent far more often than it is present — it expires at 24 hours while
+ * the things it decorates live 48 (engagers) or indefinitely
+ * (interactions) — so "no name" is the common case, not the edge, and
+ * every surface has to get the same wording for it. Three copies would
+ * mean three different ways of telling a user we do not know who this is.
+ *
+ * ★AND "A member" IS NOT A PLACEHOLDER TO IMPROVE ON. It is deliberately
+ * neutral: it must not imply the person chose anonymity, and it must not
+ * read as a loading state that will resolve. It will not — for members
+ * other than the authenticated one LinkedIn exposes no profile lookup, so
+ * there is nothing to retry.
+ */
+export function ActorAvatar({
+  profile,
+  className = "size-8",
+}: {
+  profile?: LinkedInActorProfile;
+  className?: string;
+}) {
+  const name = profile?.displayName ?? "";
+  const initials =
+    name
+      .split(" ")
+      .map((p) => p[0])
+      .filter(Boolean)
+      .slice(0, 2)
+      .join("")
+      .toUpperCase() || "—";
+  return (
+    <Avatar className={`${className} shrink-0`}>
+      {/* LinkedIn's image URLs carry their own expiry, often shorter than
+          our cache — a broken image is normal, and AvatarFallback covers
+          it without a retry. */}
+      {profile?.pictureUrl && <AvatarImage src={profile.pictureUrl} alt="" />}
+      <AvatarFallback className="text-[10px]">{initials}</AvatarFallback>
+    </Avatar>
+  );
+}
+
+/** The name to print beside {@link ActorAvatar}. Single source so the
+ *  neutral fallback cannot drift between surfaces. */
+export function actorDisplayName(profile?: LinkedInActorProfile): string {
+  return profile?.displayName ?? "A member";
+}
 
 /**
  * Turn an engagement failure into something a person can act on.

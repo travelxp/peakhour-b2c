@@ -17,7 +17,15 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { Building2, Loader2, MessageSquare, SmilePlus, Users, X } from "lucide-react";
+import {
+  Building2,
+  ExternalLink,
+  Loader2,
+  MessageSquare,
+  SmilePlus,
+  Users,
+  X,
+} from "lucide-react";
 import {
   linkedInContentApi,
   type EngagerScore,
@@ -25,6 +33,7 @@ import {
   type LinkedInIdentity,
   type LinkedInReactionType,
 } from "@/lib/api/linkedin-content";
+import { ActorAvatar, actorDisplayName } from "./engage-shared";
 import { useLinkedInIdentity } from "./post-composer";
 import { RetentionFootnote } from "./retention-footnote";
 import {
@@ -286,6 +295,15 @@ function TopEngagersBlock() {
     <PanelShell
       summary={`${data.totalComments} comment${data.totalComments === 1 ? "" : "s"} across ${data.distinctActors} engager${data.distinctActors === 1 ? "" : "s"} in the last ${formatLookback(data.lookbackDays)}`}
     >
+      {/* The kill switch, said once at the top rather than implied by a
+          list of "A member" rows. Off is a different fact from expired,
+          and only the server knows which — see EngagersResponse. */}
+      {data.identityEnabled === false && (
+        <p className="mb-3 rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+          Commenter names are turned off right now, so everyone shows as
+          &ldquo;A member&rdquo;. Replies and reactions still work.
+        </p>
+      )}
       <ol className="divide-y">
         {data.engagers.map((engager, i) => (
           <EngagerRow key={engager.actorUrn} engager={engager} rank={i + 1} identity={identity} />
@@ -293,7 +311,8 @@ function TopEngagersBlock() {
       </ol>
       <RetentionFootnote>
         Comments are scored over the lookback window LinkedIn permits (48
-        hours by default).
+        hours by default). Names are held for 24 hours, so the older half of
+        this list shows as &ldquo;A member&rdquo;.
       </RetentionFootnote>
     </PanelShell>
   );
@@ -363,12 +382,16 @@ function EngagerRow({
   const ActorIcon = engager.actorType === "org" ? Building2 : Users;
   const actorLabel =
     engager.actorType === "org" ? "Company page" : "Person";
-  // URN tail is the LinkedIn-internal member/org id. Not a vanity
-  // handle and not displayable as a name today — but a short suffix
-  // gives the user something to distinguish duplicate "Person" rows
-  // until Tier B enrichment lands with real names.
+  // ★THE SHORT ID IS NOW THE FALLBACK, NOT THE HEADLINE.
+  //
+  // It used to BE the identity: every row read "Person · 4bcd…wxyz",
+  // because nothing on the server had ever fetched a name for the people
+  // this panel ranks. It stays only for the rows that still have no
+  // decoration, where two anonymous engagers otherwise look like one.
   const urnTail = engager.actorUrn.split(":").pop() ?? "";
   const shortId = urnTail.length > 12 ? `${urnTail.slice(0, 4)}…${urnTail.slice(-4)}` : urnTail;
+  const profile = engager.actorProfile;
+  const named = Boolean(profile?.displayName);
 
   const recencyLabel = formatRecency(engager.signals.daysSinceLastComment);
 
@@ -434,14 +457,44 @@ function EngagerRow({
       <span className="w-6 shrink-0 pt-0.5 text-xs tabular-nums text-muted-foreground">
         {rank}.
       </span>
+      <ActorAvatar profile={profile} className="size-7" />
       <div className="min-w-0 flex-1 space-y-1">
-        <div className="flex items-center gap-2">
-          <ActorIcon className="size-3.5 shrink-0 text-muted-foreground" />
-          <span className="text-sm font-medium">{actorLabel}</span>
-          <span className="font-mono text-[10px] text-muted-foreground">
-            · {shortId}
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
+          <span className="truncate text-sm font-medium">
+            {actorDisplayName(profile)}
           </span>
+          {profile?.vanityName ? (
+            <a
+              href={`https://www.linkedin.com/in/${profile.vanityName}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-muted-foreground hover:text-foreground"
+              aria-label={`View ${actorDisplayName(profile)} on LinkedIn`}
+            >
+              <ExternalLink className="size-3" />
+            </a>
+          ) : null}
+          {/* The kind stays visible either way — "Company page" changes how
+              you read a comment, and it is knowable from the URN even when
+              the name is not. */}
+          <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+            <ActorIcon className="size-3 shrink-0" />
+            {actorLabel}
+          </span>
+          {/* Only while nameless: beside a real name the internal id is
+              noise, and two rows for the same person are no longer a risk
+              worth spending a line on. */}
+          {named ? null : (
+            <span className="font-mono text-[10px] text-muted-foreground">
+              · {shortId}
+            </span>
+          )}
         </div>
+        {profile?.headline ? (
+          <p className="truncate text-xs text-muted-foreground" title={profile.headline}>
+            {profile.headline}
+          </p>
+        ) : null}
         {engager.signals.lastCommentText ? (
           <p
             className="line-clamp-2 text-xs text-muted-foreground"

@@ -216,6 +216,15 @@ export interface LinkedInVoiceCard {
 export interface EngagerScore {
   actorUrn: string;
   actorType: "person" | "org";
+  /** Name, headline and photo, when the server still had this actor in its
+   *  24-hour decoration cache.
+   *
+   *  ★ABSENT IS ORDINARY, AND MORE OFTEN THAN ANYWHERE ELSE IN THIS FILE.
+   *  Engagers are ranked over a 48-hour window while decorations expire at
+   *  24, so the older half of a ranking has no name by construction.
+   *  Render "A member" — never an error, never a retry, and never anything
+   *  implying the person chose to be anonymous. */
+  actorProfile?: LinkedInActorProfile;
   score: number;
   tier: "rules" | "enriched";
   breakdown: {
@@ -253,6 +262,13 @@ export interface EngagersResponse {
   /** Echo of the lookback window the server actually used (after
    *  clamping the ?days query param). */
   lookbackDays: number;
+  /** Whether the server is showing names AT ALL — the kill switch, not a
+   *  statement about these particular engagers. False means the feature is
+   *  off; true beside a nameless row means that row's decoration expired. */
+  identityEnabled: boolean;
+  /** Always true. Names come from a 24-hour cache over a 48-hour ranking
+   *  window, so a fully-named list is the exception, not the target. */
+  namesAreBestEffort?: boolean;
 }
 
 /** Shared TanStack Query cache key for the LinkedIn suggested-drafts

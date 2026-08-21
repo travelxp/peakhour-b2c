@@ -45,6 +45,8 @@ import {
   ReplyBox,
   engageErrorMessage,
   linkedInPostUrl,
+  ActorAvatar,
+  actorDisplayName,
 } from "./engage-shared";
 
 const FILTERS = [
@@ -331,12 +333,37 @@ function InteractionRow({
   return (
     <Card ref={ref}>
       <CardContent className="space-y-2 p-4">
+        {/* ★WHO, not just WHAT. The queue asks "is anyone waiting on us"
+            and answered it with a kind badge and a body of text — no
+            person attached to either, so deciding whether a comment was
+            worth answering meant opening the post. The name comes from the
+            24-hour cache the api already attaches; absent is ordinary (a
+            reposter's notification carries a URN and nothing else) and
+            `actorDisplayName` gives it the same neutral wording every
+            other LinkedIn surface uses. */}
+        <div className="flex items-center gap-2">
+          <ActorAvatar profile={row.actorProfile} className="size-7" />
+          <div className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-medium">
+              {actorDisplayName(row.actorProfile)}
+            </span>
+            {row.actorProfile?.headline ? (
+              <span
+                className="block truncate text-xs text-muted-foreground"
+                title={row.actorProfile.headline}
+              >
+                {row.actorProfile.headline}
+              </span>
+            ) : null}
+          </div>
+          <span className="shrink-0 text-xs text-muted-foreground">
+            {formatRelativeTime(row.occurredAt ?? row.receivedAt)}
+          </span>
+        </div>
+
         <div className="flex flex-wrap items-center gap-1.5">
           <KindBadge kind={row.kind} />
           <StatusBadges row={row} />
-          <span className="ml-auto text-xs text-muted-foreground">
-            {formatRelativeTime(row.occurredAt ?? row.receivedAt)}
-          </span>
         </div>
 
         {row.redacted ? (
