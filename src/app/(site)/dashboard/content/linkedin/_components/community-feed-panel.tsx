@@ -344,7 +344,7 @@ function InteractionRow({
         <div className="flex items-center gap-2">
           <ActorAvatar profile={row.actorProfile} className="size-7" />
           <div className="min-w-0 flex-1">
-            <span className="block truncate text-sm font-medium">
+            <span className="block min-w-0 truncate text-sm font-medium">
               {actorDisplayName(row.actorProfile)}
             </span>
             {row.actorProfile?.headline ? (

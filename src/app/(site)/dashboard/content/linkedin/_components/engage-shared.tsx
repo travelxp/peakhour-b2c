@@ -23,6 +23,7 @@ import {
   type LinkedInActorProfile,
 } from "@/lib/api/linkedin-content";
 import { ApiError } from "@/lib/api";
+import { cn } from "@/lib/utils";
 import { SavedReplyPicker, appendReply } from "@/components/inbox/saved-reply-picker";
 
 /** LinkedIn's own cap on comment text. */
@@ -61,7 +62,7 @@ export function ActorAvatar({
       .join("")
       .toUpperCase() || "—";
   return (
-    <Avatar className={`${className} shrink-0`}>
+    <Avatar className={cn("shrink-0", className)}>
       {/* LinkedIn's image URLs carry their own expiry, often shorter than
           our cache — a broken image is normal, and AvatarFallback covers
           it without a retry. */}

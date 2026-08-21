@@ -297,8 +297,11 @@ function TopEngagersBlock() {
     >
       {/* The kill switch, said once at the top rather than implied by a
           list of "A member" rows. Off is a different fact from expired,
-          and only the server knows which — see EngagersResponse. */}
-      {data.identityEnabled === false && (
+          and only the server knows which — see EngagersResponse.
+          `?? true` matches the thread panel: b2c and api deploy
+          independently, and a response predating the field must not be
+          reported to the user as "names are switched off". */}
+      {(data.identityEnabled ?? true) === false && (
         <p className="mb-3 rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
           Commenter names are turned off right now, so everyone shows as
           &ldquo;A member&rdquo;. Replies and reactions still work.
@@ -457,10 +460,10 @@ function EngagerRow({
       <span className="w-6 shrink-0 pt-0.5 text-xs tabular-nums text-muted-foreground">
         {rank}.
       </span>
-      <ActorAvatar profile={profile} className="size-7" />
+      <ActorAvatar profile={profile} className="mt-0.5 size-7" />
       <div className="min-w-0 flex-1 space-y-1">
         <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
-          <span className="truncate text-sm font-medium">
+          <span className="min-w-0 truncate text-sm font-medium">
             {actorDisplayName(profile)}
           </span>
           {profile?.vanityName ? (
@@ -469,18 +472,22 @@ function EngagerRow({
               target="_blank"
               rel="noopener noreferrer"
               className="text-muted-foreground hover:text-foreground"
-              aria-label={`View ${actorDisplayName(profile)} on LinkedIn`}
+              aria-label="View profile on LinkedIn"
             >
               <ExternalLink className="size-3" />
             </a>
           ) : null}
-          {/* The kind stays visible either way — "Company page" changes how
-              you read a comment, and it is knowable from the URN even when
-              the name is not. */}
-          <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
-            <ActorIcon className="size-3 shrink-0" />
-            {actorLabel}
-          </span>
+          {/* ★NOT ON EVERY ROW. "Company page" changes how a comment reads
+              and is knowable from the URN even when the name is not, so it
+              always earns its place. "Person" beside a real name and a
+              headline says nothing — it is only worth showing while the row
+              is anonymous, where it is the one thing we do know. */}
+          {engager.actorType === "org" || !named ? (
+            <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+              <ActorIcon className="size-3 shrink-0" />
+              {actorLabel}
+            </span>
+          ) : null}
           {/* Only while nameless: beside a real name the internal id is
               noise, and two rows for the same person are no longer a risk
               worth spending a line on. */}
