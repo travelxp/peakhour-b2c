@@ -22,6 +22,7 @@ import {
   Loader2,
   MessageSquarePlus,
   Send,
+  Trash2,
   User,
   X,
 } from "lucide-react";
@@ -183,7 +184,13 @@ function FeedRow({ post }: { post: LinkedInFeedPost }) {
   // post's authorType (+ the page id for org posts), so the action is gated
   // on a resolvable author AND a real post URN.
   const author = postAuthor(post);
-  const canComment = author !== null && !!post.linkedInPostId && post.linkedInPostId.includes("urn:li:");
+  // ★EVERY ACTION IS OFF ONCE THE POST IS GONE. Commenting, resharing and
+  // opening a thread all end at a LinkedIn 404 — an error that reads as
+  // our bug, arriving after the click, for something we already knew
+  // before rendering the card.
+  const deleted = post.deletedFromLinkedIn === true;
+  const canComment =
+    !deleted && author !== null && !!post.linkedInPostId && post.linkedInPostId.includes("urn:li:");
   // One piece of state per dialog rather than one "which tab" value: the
   // metric you clicked decides what opens, and there is no tab strip left
   // to re-ask the question.
@@ -192,13 +199,13 @@ function FeedRow({ post }: { post: LinkedInFeedPost }) {
   const [repostsOpen, setRepostsOpen] = useState(false);
   // Reading engagement needs a real URN but NOT a resolvable author — you
   // can look at a post you cannot currently comment as.
-  const canEngage = !!post.linkedInPostId && post.linkedInPostId.includes("urn:li:");
+  const canEngage = !deleted && !!post.linkedInPostId && post.linkedInPostId.includes("urn:li:");
 
   return (
     <li>
-      <Card>
+      <Card className={deleted ? "border-dashed bg-muted/30" : undefined}>
         <CardContent className="space-y-3 p-4">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {post.authorType === "org" ? (
               <Badge variant="outline" className="gap-1 text-[10px]">
                 <Building2 className="size-3" /> Company page
@@ -211,7 +218,15 @@ function FeedRow({ post }: { post: LinkedInFeedPost }) {
             {post.publishedAt && (
               <span className="text-xs text-muted-foreground">{formatRelativeTime(post.publishedAt)}</span>
             )}
-            {url && (
+            {deleted && (
+              <Badge variant="outline" className="gap-1 border-dashed text-[10px]">
+                <Trash2 className="size-3" /> Deleted on LinkedIn
+              </Badge>
+            )}
+            {/* ★No deep link once it is gone — that URL is a 404 on
+                linkedin.com, and offering it invites the user to go and
+                confirm our own staleness. */}
+            {url && !deleted && (
               <a
                 href={url}
                 target="_blank"
@@ -243,6 +258,20 @@ function FeedRow({ post }: { post: LinkedInFeedPost }) {
             onOpenComments={() => setCommentsOpen(true)}
             onOpenReposts={() => setRepostsOpen(true)}
           />
+
+          {/* ★SAID ONCE, PLAINLY, AND AFTER THE NUMBERS — because the
+              numbers are the reason the card is still here.
+              Dropping the row would leave this month's reporting with no
+              explanation for engagement it still counts. But a card whose
+              controls have all quietly gone reads as broken, so the reason
+              sits exactly where the "Add a comment" button would be. */}
+          {deleted && (
+            <p className="border-t pt-2 text-xs text-muted-foreground">
+              This post is no longer on LinkedIn. We still show it because its
+              engagement counts toward your reporting &mdash; but there is
+              nothing left to reply to or reshare.
+            </p>
+          )}
 
           {canComment && (
             <div className="border-t pt-2">
