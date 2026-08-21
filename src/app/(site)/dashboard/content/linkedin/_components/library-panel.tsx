@@ -267,8 +267,8 @@ function FeedRow({ post }: { post: LinkedInFeedPost }) {
               sits exactly where the "Add a comment" button would be. */}
           {deleted && (
             <p className="border-t pt-2 text-xs text-muted-foreground">
-              This post is no longer on LinkedIn. Its engagement still counts
-              toward your reporting, so we keep the record — but there is
+              This post is no longer on LinkedIn. We still show it because its
+              engagement counts toward your reporting &mdash; but there is
               nothing left to reply to or reshare.
             </p>
           )}
