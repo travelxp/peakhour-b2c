@@ -286,25 +286,81 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       const results = Array.isArray(d.results) ? d.results : [];
       let upserted = 0;
       let fetched = 0;
+      let comments = 0;
+      let names = 0;
+      let feedRows = 0;
+      let tombstoned = 0;
       for (const r of results) {
         const rr = asRecord(r);
         if (!rr) continue;
         upserted += num(rr.postsUpserted);
         fetched += num(rr.postsFetched);
+        comments += num(rr.commentsFetched);
+        names += num(rr.actorProfilesCached);
+        feedRows += num(rr.interactionsUpserted);
+        tombstoned += num(rr.postsTombstoned);
       }
       const failed = num(d.failed);
       if (num(d.synced) === 0 && failed > 0)
         return "LinkedIn sync didn't complete — please reconnect and try again.";
+
+      // ★THE CASE THAT USED TO READ AS A CLEAN SUCCESS.
+      //
+      // LinkedIn's quota is app-wide (~500 requests/day across every
+      // customer). When it runs out, the posts LISTING has usually already
+      // succeeded — so the payload carries a healthy `postsUpserted` while
+      // engagement, comments, commenter names and every Feed row were
+      // skipped entirely. This toast said "51 posts synced successfully"
+      // and the dashboard did not move, with nothing linking the two.
+      //
+      // Warning, not success: the run did not do the thing it was pressed
+      // for, and pressing it again immediately makes the wait longer.
+      if (d.rateLimited === true) {
+        return {
+          message:
+            "LinkedIn is rate-limiting us, so engagement, comments and names were skipped. " +
+            "The quota is shared across the whole app — pressing again now spends more of " +
+            "it for nothing.",
+          level: "warning" as const,
+        };
+      }
       // A failed business among healthy ones (e.g. its token was
       // revoked) must not read as all-good.
       const failedSuffix =
         failed > 0
           ? ` ${failed} ${plural(failed, "account")} need${failed === 1 ? "s" : ""} reconnecting.`
           : "";
+
+      // ★What the LinkedIn tabs actually render, said out loud. Posts were
+      // the only thing reported here, and posts are the one part that
+      // works even when the comment pipeline is completely dead — so a
+      // green "51 posts synced" was compatible with Top Engagers, the Feed
+      // and Community Pulse all staying empty. These are the numbers that
+      // tell you whether the page you are looking at will change.
+      //
+      // ★Worded as WRITES, not as people or items. `actorProfilesCached`
+      // and `interactionsUpserted` count operations — one commenter active
+      // on three posts refreshes their own row three times — so "4 names"
+      // would assert four people from a payload that proves four writes.
+      // Any non-zero is the signal a reader needs ("did that pipeline run
+      // at all"); the exact figure must not claim more than it knows.
+      const extras: string[] = [];
+      if (comments > 0) extras.push(`${comments} ${plural(comments, "comment thread")} read`);
+      // `plural` only appends "s", so "refresh" needs its own -es form.
+      if (names > 0) extras.push(`${names} name ${names === 1 ? "refresh" : "refreshes"}`);
+      if (feedRows > 0) extras.push(`${feedRows} Feed ${plural(feedRows, "row")} written`);
+      if (tombstoned > 0)
+        extras.push(`${tombstoned} deleted ${plural(tombstoned, "post")} marked`);
+      const detail = extras.length ? ` (${extras.join(", ")})` : "";
+
+      // ★Idle is not empty. A sync that read posts but found no comments is
+      // working correctly on a quiet Page — say that rather than implying
+      // something went wrong, and rather than claiming activity the payload
+      // does not show.
       if (upserted > 0)
-        return `${upserted} ${plural(upserted, "post")} synced successfully.${failedSuffix}`;
+        return `${upserted} ${plural(upserted, "post")} synced${detail}.${failedSuffix}`;
       if (fetched > 0)
-        return `LinkedIn synced — your posts are already up to date.${failedSuffix}`;
+        return `LinkedIn synced — your posts are already up to date${detail}.${failedSuffix}`;
       return `LinkedIn synced — no new posts in range yet.${failedSuffix}`;
     },
   },
