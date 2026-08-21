@@ -298,10 +298,11 @@ function TopEngagersBlock() {
       {/* The kill switch, said once at the top rather than implied by a
           list of "A member" rows. Off is a different fact from expired,
           and only the server knows which — see EngagersResponse.
-          `?? true` matches the thread panel: b2c and api deploy
-          independently, and a response predating the field must not be
-          reported to the user as "names are switched off". */}
-      {(data.identityEnabled ?? true) === false && (
+          ★`=== false`, never falsiness: the field is absent on an api that
+          predates it, and b2c deploys independently — announcing "names
+          are switched off" on a deployment where they are merely not
+          implemented yet would be a confident lie. */}
+      {data.identityEnabled === false && (
         <p className="mb-3 rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
           Commenter names are turned off right now, so everyone shows as
           &ldquo;A member&rdquo;. Replies and reactions still work.

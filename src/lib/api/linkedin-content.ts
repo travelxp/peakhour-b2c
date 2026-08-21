@@ -264,8 +264,15 @@ export interface EngagersResponse {
   lookbackDays: number;
   /** Whether the server is showing names AT ALL — the kill switch, not a
    *  statement about these particular engagers. False means the feature is
-   *  off; true beside a nameless row means that row's decoration expired. */
-  identityEnabled: boolean;
+   *  off; true beside a nameless row means that row's decoration expired.
+   *
+   *  ★OPTIONAL, and that is not defensive padding: b2c and api deploy
+   *  independently, so a b2c release can be live against an api that
+   *  predates the field. Callers must test `=== false` rather than
+   *  falsiness — reading "absent" as "off" would announce that names are
+   *  switched off on a deployment where they simply are not implemented
+   *  yet. */
+  identityEnabled?: boolean;
   /** Always true. Names come from a 24-hour cache over a 48-hour ranking
    *  window, so a fully-named list is the exception, not the target. */
   namesAreBestEffort?: boolean;
