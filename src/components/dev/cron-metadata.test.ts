@@ -465,3 +465,86 @@ describe("performance-sync summary", () => {
     expect(message).not.toContain("Business Profile");
   });
 });
+
+/**
+ * ★The LinkedIn sync toast, which used to congratulate the user on a run
+ * that had done nothing.
+ *
+ * LinkedIn's Community Management quota is app-wide (~500 requests/day
+ * across every customer). When it runs out the posts LISTING has usually
+ * already succeeded — so the payload carries a healthy `postsUpserted`
+ * while engagement, comments, commenter names and every Community Feed row
+ * were skipped entirely. Observed on dev 2026-08-21: "51 posts synced
+ * successfully", and not one dashboard number moved.
+ */
+describe("linkedin-post-sync summary", () => {
+  const body = (over: Record<string, unknown> = {}, result: Record<string, unknown> = {}) =>
+    JSON.stringify({
+      ok: true,
+      data: {
+        scanned: 1,
+        synced: 1,
+        skipped: 0,
+        failed: 0,
+        ...over,
+        results: [
+          {
+            businessId: "b1",
+            status: "synced",
+            postsFetched: 51,
+            postsUpserted: 51,
+            commentsFetched: 0,
+            actorProfilesCached: 0,
+            interactionsUpserted: 0,
+            postsTombstoned: 0,
+            ...result,
+          },
+        ],
+      },
+    });
+
+  it("★warns, and does not claim success, when LinkedIn rate-limited us", () => {
+    const s = summarizeCronBody("linkedin-post-sync", body({ rateLimited: true }));
+    expect(s?.level).toBe("warning");
+    expect(s?.message).toMatch(/rate-limit/i);
+    // The number that made this look fine must not be the headline.
+    expect(s?.message).not.toMatch(/51 posts synced/);
+    // And it must steer away from the reflex that makes it worse — while
+    // naming the reason (a shared quota) rather than asserting a reset
+    // window we have not actually measured.
+    expect(s?.message).toMatch(/again/i);
+    expect(s?.message).toMatch(/shared across the whole app/i);
+  });
+
+  it("★reports what the LinkedIn tabs actually render, not just posts", () => {
+    // Posts sync fine even when the whole comment pipeline is dead, so
+    // "51 posts synced" was compatible with Top Engagers, the Feed and
+    // Community Pulse all staying empty.
+    const s = summarizeCronBody(
+      "linkedin-post-sync",
+      body({}, {
+        commentsFetched: 3,
+        actorProfilesCached: 4,
+        interactionsUpserted: 5,
+        postsTombstoned: 1,
+      }),
+    );
+    expect(s?.message).toMatch(/3 comment threads read/);
+    expect(s?.message).toMatch(/4 names cached/);
+    expect(s?.message).toMatch(/5 Feed items/);
+    expect(s?.message).toMatch(/1 deleted post marked/);
+  });
+
+  it("idle is not empty — a quiet Page reports no extras rather than a problem", () => {
+    const s = summarizeCronBody("linkedin-post-sync", body());
+    expect(s?.level ?? "success").toBe("success");
+    expect(s?.message).toMatch(/51 posts synced/);
+    // No parenthetical claiming zero of everything.
+    expect(s?.message).not.toMatch(/0 /);
+  });
+
+  it("still surfaces an account that needs reconnecting", () => {
+    const s = summarizeCronBody("linkedin-post-sync", body({ failed: 1 }));
+    expect(s?.message).toMatch(/reconnect/i);
+  });
+});
