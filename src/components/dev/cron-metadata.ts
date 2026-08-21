@@ -337,10 +337,18 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       // green "51 posts synced" was compatible with Top Engagers, the Feed
       // and Community Pulse all staying empty. These are the numbers that
       // tell you whether the page you are looking at will change.
+      //
+      // ★Worded as WRITES, not as people or items. `actorProfilesCached`
+      // and `interactionsUpserted` count operations — one commenter active
+      // on three posts refreshes their own row three times — so "4 names"
+      // would assert four people from a payload that proves four writes.
+      // Any non-zero is the signal a reader needs ("did that pipeline run
+      // at all"); the exact figure must not claim more than it knows.
       const extras: string[] = [];
       if (comments > 0) extras.push(`${comments} ${plural(comments, "comment thread")} read`);
-      if (names > 0) extras.push(`${names} ${plural(names, "name")} cached`);
-      if (feedRows > 0) extras.push(`${feedRows} Feed ${plural(feedRows, "item")}`);
+      // `plural` only appends "s", so "refresh" needs its own -es form.
+      if (names > 0) extras.push(`${names} name ${names === 1 ? "refresh" : "refreshes"}`);
+      if (feedRows > 0) extras.push(`${feedRows} Feed ${plural(feedRows, "row")} written`);
       if (tombstoned > 0)
         extras.push(`${tombstoned} deleted ${plural(tombstoned, "post")} marked`);
       const detail = extras.length ? ` (${extras.join(", ")})` : "";

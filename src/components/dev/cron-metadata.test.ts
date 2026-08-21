@@ -530,9 +530,20 @@ describe("linkedin-post-sync summary", () => {
       }),
     );
     expect(s?.message).toMatch(/3 comment threads read/);
-    expect(s?.message).toMatch(/4 names cached/);
-    expect(s?.message).toMatch(/5 Feed items/);
+    expect(s?.message).toMatch(/5 Feed rows written/);
     expect(s?.message).toMatch(/1 deleted post marked/);
+    // ★"name refreshes", not "names" — the counter is WRITES, and one
+    // commenter active on four posts refreshes their own row four times.
+    // Saying "4 names" would assert four people from a payload that proves
+    // four writes.
+    expect(s?.message).toMatch(/4 name refreshes/);
+  });
+
+  it("singularises the awkward one correctly", () => {
+    // `plural` only appends "s", which turns "refresh" into "refreshs".
+    const s = summarizeCronBody("linkedin-post-sync", body({}, { actorProfilesCached: 1 }));
+    expect(s?.message).toContain("(1 name refresh)");
+    expect(s?.message).not.toMatch(/refreshs/);
   });
 
   it("idle is not empty — a quiet Page reports no extras rather than a problem", () => {
