@@ -242,20 +242,6 @@ function FeedRow({ post }: { post: LinkedInFeedPost }) {
             {post.content}
           </p>
 
-          {/* ★SAID ONCE, PLAINLY, WHERE THE MISSING BUTTONS WERE.
-              The card stays because the engagement below it is real and
-              still counts toward this month's numbers — dropping the row
-              would leave those numbers with no explanation. But a card with
-              no controls and no reason given reads as broken, so the reason
-              goes where the controls used to be. */}
-          {deleted && (
-            <p className="rounded-md border border-dashed bg-background/60 px-3 py-2 text-xs text-muted-foreground">
-              This post is no longer on LinkedIn. Its engagement still counts
-              toward your reporting, so we keep the record — but there is
-              nothing left to reply to or reshare.
-            </p>
-          )}
-
 {/* ★ONE ROW, AND THE COUNTS ARE THE CONTROLS. These six were split
               across two lines under a reach/engagement taxonomy the viewer
               had to learn before comparing anything — and the wrap moved
@@ -272,6 +258,20 @@ function FeedRow({ post }: { post: LinkedInFeedPost }) {
             onOpenComments={() => setCommentsOpen(true)}
             onOpenReposts={() => setRepostsOpen(true)}
           />
+
+          {/* ★SAID ONCE, PLAINLY, AND AFTER THE NUMBERS — because the
+              numbers are the reason the card is still here.
+              Dropping the row would leave this month's reporting with no
+              explanation for engagement it still counts. But a card whose
+              controls have all quietly gone reads as broken, so the reason
+              sits exactly where the "Add a comment" button would be. */}
+          {deleted && (
+            <p className="border-t pt-2 text-xs text-muted-foreground">
+              This post is no longer on LinkedIn. Its engagement still counts
+              toward your reporting, so we keep the record — but there is
+              nothing left to reply to or reshare.
+            </p>
+          )}
 
           {canComment && (
             <div className="border-t pt-2">
