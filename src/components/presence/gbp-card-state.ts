@@ -93,6 +93,12 @@ export function gbpCardState(
     return { kind: "sync_failing", canPick: true, action: "Change listing" };
   }
 
+  // ★PICKABLE, DELIBERATELY, EVEN THOUGH ONE ROUTE TO THIS STATE IS AN API TOO
+  // OLD TO HAVE THE PICKER. The other routes are a capabilities read that
+  // failed or is stale — a merchant who genuinely has no listing chosen, and
+  // for whom hiding the picker means no way to finish setup at all. An
+  // unavailable route surfaces as an error with a retry inside the picker;
+  // a missing button surfaces as nothing. The louder failure is the right one.
   if (locationName === undefined) {
     return { kind: "connected_unknown", canPick: true, action: "Choose your listing" };
   }

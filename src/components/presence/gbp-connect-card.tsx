@@ -91,6 +91,9 @@ export function GbpConnectCard() {
   });
 
   const isConnected = statusQ.data?.status === "active" || statusQ.data?.status === "error";
+  // Computed before the queries because the locations query is gated on it;
+  // the full card state needs `selected`, which needs the capabilities read.
+  const pickable = gbpCardState(statusQ.data?.status, undefined).canPick;
 
   const capQ = useQuery({
     queryKey: CAP_KEY,
@@ -106,7 +109,11 @@ export function GbpConnectCard() {
   const locationsQ = useQuery({
     queryKey: LOCATIONS_KEY,
     queryFn: () => api.get<LocationsResponse>(`/v1/integrations/${PROVIDER}/gbp-locations`),
-    enabled: pickerOpen,
+    // ★`canPick` TOO, NOT JUST `pickerOpen`. Nothing resets `pickerOpen` when
+    // the connection goes to `needs_reauth` under an open picker — so the
+    // query stayed enabled behind a hidden panel and went on requesting a
+    // route that answers 409, with no UI to show for it.
+    enabled: pickerOpen && pickable,
     refetchOnWindowFocus: false,
   });
 
@@ -128,17 +135,29 @@ export function GbpConnectCard() {
       );
       qc.invalidateQueries({ queryKey: CAP_KEY });
       qc.invalidateQueries({ queryKey: STATUS_KEY });
+      // ★AND KICK A SYNC, WHICH IS WHAT MAKES THE TOAST TRUE. Without it
+      // nothing lands until the hourly cron, so "will start arriving" meant
+      // "within the hour". The GA4 picker does the same thing for the same
+      // reason (`setPropertyMut.onSuccess` → `syncMut.mutate()`).
+      syncMut.mutate();
     },
-    onError: (e: Error) => toast.error(e.message ?? "Could not select that listing"),
+    // ★`||`, NOT `??`. `Error.message` is always a string, so the fallback was
+    // unreachable and a bare "Failed to fetch" — or an empty toast — reached
+    // the merchant.
+    onError: (e: Error) => toast.error(e.message || "Could not select that listing"),
   });
 
   const syncMut = useMutation({
     mutationFn: () => api.post(`/v1/integrations/${PROVIDER}/sync`, {}),
+    // ★NO IMMEDIATE INVALIDATE, AND THE COPY SAYS WHY. `/sync` ENQUEUES a job;
+    // re-reading the status a millisecond later returns exactly what it said
+    // before, so the card went on reading "isn't being retried automatically"
+    // directly under a "Sync started" toast. Promising a live update this page
+    // does not poll for would be the same lie one step later.
     onSuccess: () => {
-      toast.success("Sync started");
-      qc.invalidateQueries({ queryKey: STATUS_KEY });
+      toast.success("Sync started — reload in a minute to see the result");
     },
-    onError: (e: Error) => toast.error(e.message ?? "Sync failed"),
+    onError: (e: Error) => toast.error(e.message || "Sync failed"),
   });
 
   // ★★THE PICKER'S ANSWER IS FRESHER THAN THE CAPABILITIES READ, so it wins once
@@ -175,7 +194,11 @@ export function GbpConnectCard() {
   // the same unknown-collapsed-into-negative this card fixed for
   // `locationName`, and it belongs here rather than in the state machine
   // because a fetch failure is not a product state.
-  if (statusQ.isError) {
+  // ★AND ONLY WHEN THERE IS NOTHING TO SHOW INSTEAD. react-query keeps the last
+  // good response on a failed refetch, so replacing the whole card on
+  // `isError` wiped out the card a merchant had just configured whenever the
+  // post-save status refetch hit a transient 502. Stale data beats no data.
+  if (statusQ.isError && !statusQ.data) {
     return (
       <div className="rounded-xl border bg-card p-6 shadow-sm">
         <PickerNotice onRetry={() => statusQ.refetch()}>
@@ -283,6 +306,19 @@ export function GbpConnectCard() {
         </div>
       </div>
 
+      {/* ★★A RETIRED PICK IS EXPLAINED, NOT JUST APPLIED. The api clears a
+          selection Google no longer lists; without this the card simply drops
+          from "Syncing Bandra" to "Nothing syncs until you choose" and reads as
+          an unexplained regression the merchant did not cause. */}
+      {locationsQ.data?.selectionRetired ? (
+        <div className="mt-5 border-t pt-5">
+          <PickerNotice>
+            The listing you had selected is no longer in your Google account, so
+            we&rsquo;ve cleared it. Choose another to resume.
+          </PickerNotice>
+        </div>
+      ) : null}
+
       {pickerOpen && card.canPick ? (
         <LocationPicker
           query={locationsQ}
@@ -382,7 +418,11 @@ function LocationPicker({
   return (
     <div className="mt-5 space-y-3 border-t pt-5">
       <div className="flex flex-wrap items-center gap-2">
-        <Select value={chosen ?? undefined} onValueChange={setDraft}>
+        {/* ★`""`, NOT `undefined`. An undefined `value` makes Radix's Select
+            UNCONTROLLED — which logs a controlled/uncontrolled warning on the
+            ordinary first pick, and, worse, leaves Radix showing the old label
+            after `effectiveDraft` blanks a retired one. */}
+        <Select value={chosen ?? ""} onValueChange={setDraft}>
           <SelectTrigger className="w-full max-w-sm">
             <SelectValue placeholder="Choose a listing" />
           </SelectTrigger>
