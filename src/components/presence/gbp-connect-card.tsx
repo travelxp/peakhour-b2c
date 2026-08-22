@@ -21,6 +21,7 @@ import {
   canSaveLocation,
   locationLabel,
   emptyListingReason,
+  effectiveDraft,
   type GbpConnectionStatus,
 } from "@/components/presence/gbp-card-state";
 
@@ -77,6 +78,7 @@ interface LocationsResponse {
 const PROVIDER = "google_business_profile";
 const STATUS_KEY = ["integration-status", PROVIDER];
 const CAP_KEY = ["integration-cap", PROVIDER];
+const LOCATIONS_KEY = ["gbp-locations", PROVIDER];
 
 export function GbpConnectCard() {
   const qc = useQueryClient();
@@ -102,7 +104,7 @@ export function GbpConnectCard() {
   // token. The card renders from the cheap capabilities read; only choosing
   // costs a call.
   const locationsQ = useQuery({
-    queryKey: ["gbp-locations", PROVIDER],
+    queryKey: LOCATIONS_KEY,
     queryFn: () => api.get<LocationsResponse>(`/v1/integrations/${PROVIDER}/gbp-locations`),
     enabled: pickerOpen,
     refetchOnWindowFocus: false,
@@ -111,9 +113,19 @@ export function GbpConnectCard() {
   const setLocationMut = useMutation({
     mutationFn: (locationName: string) =>
       api.put(`/v1/integrations/${PROVIDER}/gbp-location`, { locationName }),
-    onSuccess: () => {
+    // ★★THE LOCATIONS CACHE HAS TO MOVE TOO, OR THE SAVE APPEARS TO UNDO ITSELF.
+    // `selected` prefers this query over the capabilities read, and a disabled
+    // query keeps its cache — so invalidating only CAP_KEY left the stale
+    // `selected: null` winning, and the card reverted to "Nothing syncs until
+    // you choose" the instant after the success toast. Written directly rather
+    // than invalidated: the query is disabled once the picker closes, so an
+    // invalidation would not re-fetch it.
+    onSuccess: (_data, locationName) => {
       toast.success("Listing selected — insights and reviews will start arriving");
       setPickerOpen(false);
+      qc.setQueryData<LocationsResponse>(LOCATIONS_KEY, (old) =>
+        old ? { ...old, selected: locationName, selectionRetired: false } : old,
+      );
       qc.invalidateQueries({ queryKey: CAP_KEY });
       qc.invalidateQueries({ queryKey: STATUS_KEY });
     },
@@ -153,6 +165,22 @@ export function GbpConnectCard() {
     return (
       <div className="rounded-xl border bg-card p-6 shadow-sm">
         <Skeleton className="h-11 w-full" />
+      </div>
+    );
+  }
+
+  // ★★A FAILED STATUS READ IS NOT A DISCONNECTED MERCHANT. `statusQ.data` is
+  // `undefined` on error, which `gbpCardState` reads as "not connected" — so a
+  // connected, syncing store would have been shown a Connect button. That is
+  // the same unknown-collapsed-into-negative this card fixed for
+  // `locationName`, and it belongs here rather than in the state machine
+  // because a fetch failure is not a product state.
+  if (statusQ.isError) {
+    return (
+      <div className="rounded-xl border bg-card p-6 shadow-sm">
+        <PickerNotice onRetry={() => statusQ.refetch()}>
+          We couldn&rsquo;t check your Google Business Profile connection just now.
+        </PickerNotice>
       </div>
     );
   }
@@ -301,6 +329,10 @@ function LocationPicker({
   onChoose: (locationName: string) => void;
 }) {
   const [draft, setDraft] = useState<string | null>(selected);
+  // ★DERIVED, NOT STORED. `draft` is seeded once — before the listing loads —
+  // and a retired pick means the fresh list contains neither it nor a
+  // replacement. See `effectiveDraft`.
+  const chosen = effectiveDraft(draft, selected, query.data?.locations ?? []);
 
   if (query.isLoading) {
     return (
@@ -350,7 +382,7 @@ function LocationPicker({
   return (
     <div className="mt-5 space-y-3 border-t pt-5">
       <div className="flex flex-wrap items-center gap-2">
-        <Select value={draft ?? undefined} onValueChange={setDraft}>
+        <Select value={chosen ?? undefined} onValueChange={setDraft}>
           <SelectTrigger className="w-full max-w-sm">
             <SelectValue placeholder="Choose a listing" />
           </SelectTrigger>
@@ -366,8 +398,8 @@ function LocationPicker({
         </Select>
 
         <Button
-          disabled={!canSaveLocation(draft, selected, saving)}
-          onClick={() => draft && onChoose(draft)}
+          disabled={!canSaveLocation(chosen, selected, saving)}
+          onClick={() => chosen && onChoose(chosen)}
         >
           {saving ? <RefreshCw className="h-4 w-4 animate-spin" /> : null}
           Save

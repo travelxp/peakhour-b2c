@@ -67,22 +67,59 @@ export function gbpCardState(
   if (status === "expired" || status === "needs_reauth") {
     return { kind: "needs_reconnect", canPick: false, action: "Reconnect" };
   }
+  // ★`undefined` HERE MEANS "READ, AND NOT CONNECTED" — never "not read". The
+  //  component early-returns while the status query is loading or failed, so a
+  //  fetch problem cannot arrive as a claim that the merchant has no
+  //  connection. Same rule as `locationName`, enforced one level up because a
+  //  failed read is a fetch state rather than a product state.
   if (status !== "active" && status !== "error") {
     return { kind: "disconnected", canPick: false, action: "Connect" };
   }
+
+  // ★★NO LISTING OUTRANKS A FAILING SYNC, and the order used to be the other
+  // way round. An errored connection with nothing picked was told "Change
+  // listing" over copy blaming the last sync — while its "Try again" enqueues a
+  // sync the provider answers `skipped: not_configured`, because the thing
+  // actually missing is the pick. Choosing is the fix; say so.
+  if (locationName === null) {
+    return { kind: "needs_location", canPick: true, action: "Choose your listing" };
+  }
+
   if (status === "error") {
     // Still pickable: pointing at a different listing is one of the few things
     // a merchant can do about a failing sync, and the api restores `active`
-    // when they do.
+    // when they do. ★A KNOWN-BAD STATUS BEATS AN UNREAD PICK — we are certain
+    // the sync failed, so this outranks `connected_unknown`.
     return { kind: "sync_failing", canPick: true, action: "Change listing" };
   }
+
   if (locationName === undefined) {
     return { kind: "connected_unknown", canPick: true, action: "Choose your listing" };
   }
-  if (locationName) {
-    return { kind: "ready", canPick: true, action: "Change listing" };
-  }
-  return { kind: "needs_location", canPick: true, action: "Choose your listing" };
+
+  return { kind: "ready", canPick: true, action: "Change listing" };
+}
+
+/**
+ * The listing the picker should show as chosen.
+ *
+ * ★★A DRAFT THAT IS NOT IN THE LIST IS NOT A DRAFT. `draft` is seeded once from
+ * the stored pick, before the listing has loaded — and when the api RETIRES a
+ * selection Google no longer lists, the fresh list contains neither the draft
+ * nor a replacement. The Select then rendered blank while Save stayed enabled,
+ * and pressing it 400s `UNAVAILABLE_LOCATION`: a button offering to save a
+ * value the server has already refused.
+ */
+export function effectiveDraft(
+  draft: string | null | undefined,
+  selected: string | null | undefined,
+  locations: ReadonlyArray<{ locationName?: string }>,
+): string | null {
+  const has = (v: string | null | undefined) =>
+    !!v && locations.some((l) => l.locationName === v);
+  if (has(draft)) return draft as string;
+  if (has(selected)) return selected as string;
+  return null;
 }
 
 /**
