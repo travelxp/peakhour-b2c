@@ -1,17 +1,26 @@
 "use client";
 
-import Link from "next/link";
-import { MapPin, Star, BarChart3, MessageSquareText, ArrowRight } from "lucide-react";
+import { MapPin, Star, BarChart3, MessageSquareText } from "lucide-react";
 import { FeatureGate } from "@/components/upgrade/feature-gate";
+import { GbpConnectCard } from "@/components/presence/gbp-connect-card";
 
 /**
  * Presence pillar home. The local-presence cockpit — keep a business found,
  * accurate, and well-reviewed everywhere, anchored on Google Business Profile.
  *
- * Gated on `presence.nav` (free pillar). The live surfaces (listing editor,
- * insights charts, reviews inbox) light up once Google approves API access and
- * the GBP connector flips live; until then this renders an honest coming_soon
- * state with the value proposition + a link to connect.
+ * Gated on `presence.nav` (free pillar).
+ *
+ * ★★THE COMING_SOON STATE IS GONE, BECAUSE IT STOPPED BEING HONEST. Google
+ * approved Business Profile API access on 2026-08-21 and the provider is
+ * `available` — this page was telling merchants to wait for something they
+ * could already do. The connect card is now real (see `GbpConnectCard`), and
+ * it carries the step that actually blocks a multi-location merchant: choosing
+ * WHICH listing this business is.
+ *
+ * ★THE THREE SURFACES BELOW ARE STILL UNBUILT and are labelled as such. The
+ * listing editor, the reviews inbox and the insights charts land with the
+ * storage and read PRs; describing them in the present tense here while
+ * nothing renders them is the same mistake in a different place.
  */
 export function PresenceHome() {
   return (
@@ -32,61 +41,37 @@ export function PresenceHome() {
           </p>
         </header>
 
-        {/* Connect card — coming_soon until Google API access lands. */}
-        <div className="rounded-xl border bg-card p-6 shadow-sm">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div className="flex items-start gap-4">
-              <span
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-white"
-                style={{ backgroundColor: "#34A853" }}
-              >
-                <MapPin className="h-6 w-6" />
-              </span>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="font-semibold">Google Business Profile</h2>
-                  <span className="rounded-full bg-warning/15 px-2 py-0.5 text-xs font-medium text-warning-on-tint">
-                    Coming soon
-                  </span>
-                </div>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Connecting your Business Profile is almost here — available as
-                  soon as Google approves our Business Profile API access.
-                </p>
-              </div>
-            </div>
-            <Link
-              href="/dashboard/integrations"
-              className="inline-flex items-center justify-center gap-1.5 rounded-md border px-4 py-2 text-sm font-medium transition-colors hover:bg-accent"
-            >
-              View in Integrations
-              <ArrowRight className="h-4 w-4" />
-            </Link>
-          </div>
-        </div>
+        <GbpConnectCard />
 
-        {/* What's coming — the three surfaces. */}
-        <section className="grid gap-4 md:grid-cols-3">
-          <FeatureCard
-            icon={<MapPin className="h-5 w-5" />}
-            title="Listings"
-            body="Edit your name, hours, categories, and photos once — we keep them in sync across every network and flag drift."
-          />
-          <FeatureCard
-            icon={<Star className="h-5 w-5" />}
-            title="Reviews"
-            body="Every review lands in one inbox with an AI-drafted reply a tap away — negative reviews jump the queue."
-          />
-          <FeatureCard
-            icon={<BarChart3 className="h-5 w-5" />}
-            title="Insights"
-            body="Calls, direction requests, website clicks, and profile views — day by day, with 'Explain this' narration."
-          />
+        {/* ★STILL COMING, AND LABELLED. Moving "coming soon" off the connect
+            card and onto the things that genuinely are not built is the point:
+            the badge was on the one part that works. */}
+        <section className="space-y-3">
+          <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+            Coming with Presence
+          </h2>
+          <div className="grid gap-4 md:grid-cols-3">
+            <FeatureCard
+              icon={<MapPin className="h-5 w-5" />}
+              title="Listings"
+              body="Edit your name, hours, categories, and photos once — we keep them in sync across every network and flag drift."
+            />
+            <FeatureCard
+              icon={<Star className="h-5 w-5" />}
+              title="Reviews"
+              body="Every review lands in one inbox with an AI-drafted reply a tap away — negative reviews jump the queue."
+            />
+            <FeatureCard
+              icon={<BarChart3 className="h-5 w-5" />}
+              title="Insights"
+              body="Calls, direction requests, website clicks, and profile views — day by day, with 'Explain this' narration."
+            />
+          </div>
         </section>
 
         <p className="flex items-center gap-2 text-sm text-muted-foreground">
           <MessageSquareText className="h-4 w-4" />
-          Coming with Presence: update your listing from WhatsApp — even by voice note.
+          Later: update your listing from WhatsApp — even by voice note.
         </p>
       </div>
     </FeatureGate>
