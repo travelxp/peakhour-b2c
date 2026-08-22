@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { MapPin, ArrowRight, RefreshCw, AlertTriangle, Check } from "lucide-react";
 import { api } from "@/lib/api";
@@ -20,6 +20,7 @@ import {
   gbpCardState,
   canSaveLocation,
   locationLabel,
+  emptyListingReason,
   type GbpConnectionStatus,
 } from "@/components/presence/gbp-card-state";
 
@@ -32,11 +33,16 @@ import {
  *
  * ★★AND CONNECTING IS NOT THE END OF SETUP, WHICH IS THE WHOLE REASON THIS
  * EXISTS. `onConnect` auto-picks a location only when the merchant manages
- * EXACTLY ONE. Everyone else connected successfully and then received nothing —
- * no metrics, no reviews, silently, for ever: the hourly sync returns
- * `not_configured` without `config.locationName`, and the review receiver
- * resolves each notification by that same field. A merchant with two shops had
- * no way to say which one, anywhere in the product.
+ * EXACTLY ONE and the listing came back complete. Everyone else connected
+ * successfully and then received nothing — no metrics, no reviews, silently,
+ * for ever: the hourly sync returns `not_configured` without
+ * `config.locationName`, and the review receiver resolves each notification by
+ * that same field. A merchant with two shops had no way to say which one,
+ * anywhere in the product.
+ *
+ * ★THE BRANCHES LIVE IN `gbp-card-state.ts`, WHICH HAS TESTS. This file has
+ * none — b2c renders nothing in vitest — so anything that decides what a
+ * merchant is TOLD belongs there rather than inline here.
  */
 
 interface ConnectionStatus {
@@ -50,6 +56,7 @@ interface CapabilitiesResponse {
   provider: string;
   /** ★NOT where a Google selection lives — see the api route's note. */
   capabilities: Record<string, unknown> | null;
+  /** Absent entirely on an api that predates the field. See `gbpCardState`. */
   locationName?: string | null;
   account?: {
     extra?: {
@@ -64,6 +71,7 @@ interface LocationsResponse {
   locations: Array<{ locationName: string; title?: string }>;
   complete: boolean;
   selected: string | null;
+  selectionRetired?: boolean;
 }
 
 const PROVIDER = "google_business_profile";
@@ -80,13 +88,12 @@ export function GbpConnectCard() {
     refetchOnWindowFocus: false,
   });
 
-  // ★THE BRANCHES LIVE IN `gbp-card-state.ts`, WHICH HAS TESTS. This file has
-  // none — b2c renders nothing in vitest — so anything that decides what a
-  // merchant is told belongs there rather than inline here.
+  const isConnected = statusQ.data?.status === "active" || statusQ.data?.status === "error";
+
   const capQ = useQuery({
     queryKey: CAP_KEY,
     queryFn: () => api.get<CapabilitiesResponse>(`/v1/integrations/${PROVIDER}/capabilities`),
-    enabled: statusQ.data?.status === "active" || statusQ.data?.status === "error",
+    enabled: isConnected,
     refetchOnWindowFocus: false,
   });
 
@@ -113,14 +120,36 @@ export function GbpConnectCard() {
     onError: (e: Error) => toast.error(e.message ?? "Could not select that listing"),
   });
 
-  const selected = capQ.data?.locationName ?? null;
+  const syncMut = useMutation({
+    mutationFn: () => api.post(`/v1/integrations/${PROVIDER}/sync`, {}),
+    onSuccess: () => {
+      toast.success("Sync started");
+      qc.invalidateQueries({ queryKey: STATUS_KEY });
+    },
+    onError: (e: Error) => toast.error(e.message ?? "Sync failed"),
+  });
+
+  // ★★THE PICKER'S ANSWER IS FRESHER THAN THE CAPABILITIES READ, so it wins once
+  // it exists. That is also how a RETIRED pick reaches the card: when a complete
+  // listing shows the selected listing is gone, the api clears it and returns
+  // `selected: null` — without this the card would go on saying "Syncing X" for
+  // the rest of the session.
+  //
+  // ★`undefined` MEANS NOT READ, and must not collapse into `null`. See
+  // `gbpCardState`: on an api that predates the field the key is absent
+  // entirely, and treating that as "nothing selected" nags every configured
+  // merchant on every deployment that has not shipped it yet.
+  const selected = locationsQ.data ? locationsQ.data.selected : capQ.data?.locationName;
   const card = gbpCardState(statusQ.data?.status, selected);
   // The picker's list once it has loaded, else what connect captured — so the
   // selected listing has a name to show without a Google call.
   const known = locationsQ.data?.locations ?? capQ.data?.account?.extra?.locations ?? [];
   const selectedLabel = locationLabel(selected, known);
 
-  if (statusQ.isLoading) {
+  // ★THE CAPABILITIES READ IS PART OF THE ANSWER, so its loading state is part
+  // of the skeleton. Rendering the card first showed "Finish setup" for a
+  // moment on every configured merchant's page load.
+  if (statusQ.isLoading || (isConnected && capQ.isLoading)) {
     return (
       <div className="rounded-xl border bg-card p-6 shadow-sm">
         <Skeleton className="h-11 w-full" />
@@ -146,8 +175,12 @@ export function GbpConnectCard() {
                   <Check className="h-3 w-3" />
                   Connected
                 </Badge>
+              ) : card.kind === "connected_unknown" ? (
+                <Badge variant="secondary">Connected</Badge>
               ) : card.kind === "needs_location" ? (
                 <Badge variant="outline">Finish setup</Badge>
+              ) : card.kind === "sync_failing" ? (
+                <Badge variant="destructive">Not syncing</Badge>
               ) : card.kind === "needs_reconnect" ? (
                 <Badge variant="destructive">Reconnect</Badge>
               ) : null}
@@ -156,14 +189,30 @@ export function GbpConnectCard() {
             <p className="mt-1 text-sm text-muted-foreground">
               {card.kind === "ready" ? (
                 <>
-                  Syncing{" "}
-                  <span className="font-medium text-foreground">{selectedLabel}</span>.
+                  Syncing <span className="font-medium text-foreground">{selectedLabel}</span>.
                 </>
+              ) : card.kind === "connected_unknown" ? (
+                "Connected. Choose which listing this business is if you haven't already."
               ) : card.kind === "needs_location" ? (
-                // ★THE SPECIFIC SENTENCE, NOT A GENERIC ONE. This state is
-                // reached only by a merchant who manages more than one listing,
-                // and it is the state in which nothing arrives.
-                "You manage more than one listing, so we need to know which one this business is. Nothing syncs until you choose."
+                // ★NOT "you manage more than one listing" — that is asserted as
+                // fact and is not always true. Auto-pick also declines when the
+                // listing came back partial, so a single-location merchant who
+                // connected during a Google throttle lands here too.
+                "We need to know which listing this business is. Nothing syncs until you choose."
+              ) : card.kind === "sync_failing" ? (
+                // ★★THE ONE STATE THAT USED TO RENDER AS "Connected · Syncing".
+                // The hourly sync and the review receiver both select
+                // `status: "active"`, so this connection is in neither: it is
+                // not retried, and it is not receiving.
+                <>
+                  The last sync failed and this connection isn&rsquo;t being retried
+                  automatically.
+                  {statusQ.data?.lastError ? (
+                    <span className="mt-1 block wrap-break-word text-xs">
+                      {statusQ.data.lastError}
+                    </span>
+                  ) : null}
+                </>
               ) : card.kind === "needs_reconnect" ? (
                 "Google stopped accepting our access. Reconnect to resume insights and reviews."
               ) : (
@@ -174,6 +223,20 @@ export function GbpConnectCard() {
         </div>
 
         <div className="flex shrink-0 gap-2">
+          {/* ★A STATE THAT SAYS "not syncing" MUST OFFER A WAY OUT. The cron
+              never revisits an errored connection, so without this the merchant
+              is told it is broken and given nothing to press. */}
+          {card.kind === "sync_failing" ? (
+            <Button
+              variant="outline"
+              disabled={syncMut.isPending}
+              onClick={() => syncMut.mutate()}
+            >
+              {syncMut.isPending ? <RefreshCw className="h-4 w-4 animate-spin" /> : null}
+              Try again
+            </Button>
+          ) : null}
+
           {card.canPick ? (
             <Button
               variant={card.kind === "ready" ? "outline" : "default"}
@@ -195,12 +258,34 @@ export function GbpConnectCard() {
       {pickerOpen && card.canPick ? (
         <LocationPicker
           query={locationsQ}
-          selected={selected}
+          selected={selected ?? null}
           saving={setLocationMut.isPending}
           onChoose={(name) => setLocationMut.mutate(name)}
         />
       ) : null}
     </div>
+  );
+}
+
+/** A warning line with an optional retry — the picker's three failure states
+ *  all render this rather than three near-identical blocks. */
+function PickerNotice({ children, onRetry }: { children: React.ReactNode; onRetry?: () => void }) {
+  return (
+    <p className="flex items-start gap-2 text-sm text-muted-foreground">
+      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+      <span>
+        {children}
+        {onRetry ? (
+          <>
+            {" "}
+            <button type="button" className="underline underline-offset-2" onClick={onRetry}>
+              Try again
+            </button>
+            .
+          </>
+        ) : null}
+      </span>
+    </p>
   );
 }
 
@@ -210,7 +295,7 @@ function LocationPicker({
   saving,
   onChoose,
 }: {
-  query: ReturnType<typeof useQuery<LocationsResponse>>;
+  query: UseQueryResult<LocationsResponse, Error>;
   selected: string | null;
   saving: boolean;
   onChoose: (locationName: string) => void;
@@ -227,13 +312,12 @@ function LocationPicker({
 
   if (query.isError) {
     return (
-      <div className="mt-5 flex items-start gap-2 border-t pt-5 text-sm text-muted-foreground">
-        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
-        <span>
+      <div className="mt-5 border-t pt-5">
+        <PickerNotice onRetry={() => query.refetch()}>
           {query.error instanceof Error
             ? query.error.message
             : "Could not read your listings from Google."}
-        </span>
+        </PickerNotice>
       </div>
     );
   }
@@ -241,13 +325,24 @@ function LocationPicker({
   const locations = query.data?.locations ?? [];
 
   if (locations.length === 0) {
+    // ★★"WE READ NOTHING" IS NOT "YOU HAVE NOTHING". A throttled per-account
+    // listing comes back as an empty set, and the api distinguishes the two —
+    // this used to assert the merchant owns no listings either way, with no
+    // retry, which is a claim we are frequently not entitled to make.
+    const reason = emptyListingReason(query.data?.complete);
     return (
-      <div className="mt-5 flex items-start gap-2 border-t pt-5 text-sm text-muted-foreground">
-        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
-        <span>
-          This Google account manages no Business Profile listings. Create one in
-          Google Business Profile, then refresh.
-        </span>
+      <div className="mt-5 border-t pt-5">
+        {reason === "none" ? (
+          <PickerNotice>
+            This Google account manages no Business Profile listings. Create one in
+            Google Business Profile, then refresh.
+          </PickerNotice>
+        ) : (
+          <PickerNotice onRetry={() => query.refetch()}>
+            Google didn&rsquo;t return any of your listings just now, so we can&rsquo;t
+            show the choices yet.
+          </PickerNotice>
+        )}
       </div>
     );
   }
@@ -262,7 +357,9 @@ function LocationPicker({
           <SelectContent>
             {locations.map((l) => (
               <SelectItem key={l.locationName} value={l.locationName}>
-                {l.title ?? l.locationName}
+                {/* ★THE SAME FALLBACK AS THE HEADLINE. `title ?? locationName`
+                    rendered a BLANK ROW for a whitespace-only title. */}
+                {locationLabel(l.locationName, locations)}
               </SelectItem>
             ))}
           </SelectContent>
@@ -282,21 +379,10 @@ function LocationPicker({
           a merchant who cannot find their shop here would otherwise conclude it
           is not connectable. */}
       {query.data && !query.data.complete ? (
-        <p className="flex items-start gap-2 text-sm text-muted-foreground">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
-          <span>
-            Google didn&rsquo;t return all of your listings just now, so this
-            list may be short.{" "}
-            <button
-              type="button"
-              className="underline underline-offset-2"
-              onClick={() => query.refetch()}
-            >
-              Try again
-            </button>
-            .
-          </span>
-        </p>
+        <PickerNotice onRetry={() => query.refetch()}>
+          Google didn&rsquo;t return all of your listings just now, so this list may
+          be short.
+        </PickerNotice>
       ) : null}
     </div>
   );

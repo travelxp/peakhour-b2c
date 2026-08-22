@@ -3,23 +3,25 @@ import {
   gbpCardState,
   canSaveLocation,
   locationLabel,
+  emptyListingReason,
   type GbpConnectionStatus,
 } from "./gbp-card-state";
 
 /**
  * The Presence card's branches.
  *
- * ★★THE STATE THIS FILE EXISTS FOR IS `needs_location`. A merchant managing two
- * listings connected successfully, saw a connected card, and received nothing —
- * no metrics, no reviews, silently, for ever. "Connected" and "connected but
- * useless" look identical unless something decides they do not.
+ * ★★THREE OF THESE STATES LOOK LIKE "WORKING" UNLESS SOMETHING DECIDES THEY DO
+ * NOT — a merchant with no listing chosen, a connection the cron stamped
+ * `error`, and a capabilities read we never got. Each renders a card that says
+ * the product is fine while nothing arrives, which is the defect this whole
+ * feature exists to remove; the first draft of this file reproduced two of them.
  */
 
 describe("gbpCardState", () => {
   const cases: Array<{
     what: string;
     status: GbpConnectionStatus;
-    location: string | null;
+    location: string | null | undefined;
     kind: string;
     canPick: boolean;
   }> = [
@@ -27,13 +29,12 @@ describe("gbpCardState", () => {
     { what: "disconnected", status: "disconnected", location: null, kind: "disconnected", canPick: false },
     { what: "active with a listing", status: "active", location: "locations/1", kind: "ready", canPick: true },
     { what: "active with NO listing", status: "active", location: null, kind: "needs_location", canPick: true },
+    { what: "active, listing UNKNOWN", status: "active", location: undefined, kind: "connected_unknown", canPick: true },
     { what: "expired", status: "expired", location: "locations/1", kind: "needs_reconnect", canPick: false },
     { what: "needs_reauth", status: "needs_reauth", location: "locations/1", kind: "needs_reconnect", canPick: false },
-    // ★`error` is a sync failure, not an auth one — changing the listing may be
-    // the fix, so the picker stays reachable. Same split as the analytics and
-    // search-console pages.
-    { what: "error with a listing", status: "error", location: "locations/1", kind: "ready", canPick: true },
-    { what: "error with no listing", status: "error", location: null, kind: "needs_location", canPick: true },
+    { what: "error with a listing", status: "error", location: "locations/1", kind: "sync_failing", canPick: true },
+    { what: "error with no listing", status: "error", location: null, kind: "sync_failing", canPick: true },
+    { what: "error, listing unknown", status: "error", location: undefined, kind: "sync_failing", canPick: true },
   ];
 
   for (const c of cases) {
@@ -44,10 +45,25 @@ describe("gbpCardState", () => {
     });
   }
 
+  it("★★an `error` connection is NEVER 'ready', whatever listing it points at", () => {
+    // Both the hourly performance-sync and the review receiver select
+    // `status: "active"`, so this row is in neither: it is not retried and it
+    // is not receiving. Rendering "Connected · Syncing Bandra" over that is the
+    // healthy-looking dead connection this card exists to remove — and the
+    // first version of this file did exactly that.
+    expect(gbpCardState("error", "locations/1").kind).not.toBe("ready");
+    expect(gbpCardState("error", "locations/1").kind).toBe("sync_failing");
+  });
+
+  it("★★`undefined` is 'we have not read it', not 'nothing is selected'", () => {
+    // The capabilities read is in flight, failed, or the api predates the
+    // field — which is EVERY deployment until it ships. Collapsing that into
+    // `null` told a fully configured merchant "Nothing syncs until you choose".
+    expect(gbpCardState("active", undefined).kind).toBe("connected_unknown");
+    expect(gbpCardState("active", null).kind).toBe("needs_location");
+  });
+
   it("★★a dead token never offers the picker — that route 409s", () => {
-    // Offering "Choose your listing" on an expired connection sends the
-    // merchant at `GET /gbp-locations`, which cannot refresh the token and
-    // answers REAUTH_REQUIRED. The card must ask for the reconnect instead.
     for (const status of ["expired", "needs_reauth"] as const) {
       expect(gbpCardState(status, null).canPick).toBe(false);
       expect(gbpCardState(status, null).action).toBe("Reconnect");
@@ -56,7 +72,13 @@ describe("gbpCardState", () => {
 
   it("★the action label distinguishes first choice from a change", () => {
     expect(gbpCardState("active", null).action).toBe("Choose your listing");
+    expect(gbpCardState("active", undefined).action).toBe("Choose your listing");
     expect(gbpCardState("active", "locations/1").action).toBe("Change listing");
+  });
+
+  it("★and a failing sync is still pickable — the pick is one of the few fixes", () => {
+    // The api restores `active` when a pick lands on an errored connection.
+    expect(gbpCardState("error", "locations/1").canPick).toBe(true);
   });
 });
 
@@ -73,6 +95,7 @@ describe("canSaveLocation", () => {
 
   it("allows the first choice, when nothing is stored", () => {
     expect(canSaveLocation("locations/1", null, false)).toBe(true);
+    expect(canSaveLocation("locations/1", undefined, false)).toBe(true);
   });
 
   it("refuses with nothing chosen", () => {
@@ -98,7 +121,8 @@ describe("locationLabel", () => {
 
   it("★falls back to the resource name rather than to nothing", () => {
     // "Syncing ___" with an empty span reads as a bug; `locations/2` is ugly
-    // and true.
+    // and true. The dropdown uses this for the same reason — `title ?? name`
+    // rendered a blank, unpickable-looking row.
     expect(locationLabel("locations/2", known)).toBe("locations/2");
   });
 
@@ -107,13 +131,23 @@ describe("locationLabel", () => {
   });
 
   it("★and a listing missing from the list still gets a label", () => {
-    // The captured set can be short, or the picker may not have loaded yet —
-    // neither is a reason to render nothing where a name belongs.
     expect(locationLabel("locations/9", known)).toBe("locations/9");
   });
 
   it("nothing selected is nothing to label", () => {
     expect(locationLabel(null, known)).toBeNull();
     expect(locationLabel(undefined, known)).toBeNull();
+  });
+});
+
+describe("★★emptyListingReason", () => {
+  it("only a COMPLETE listing may claim the merchant owns nothing", () => {
+    // `resolveLocations` swallows a throttled per-account listing as [], so
+    // "this Google account manages no listings" is a claim we are frequently
+    // not entitled to — and the api makes exactly this distinction
+    // (NO_LOCATIONS vs LOCATIONS_INCOMPLETE) while the card made neither.
+    expect(emptyListingReason(true)).toBe("none");
+    expect(emptyListingReason(false)).toBe("unreadable");
+    expect(emptyListingReason(undefined)).toBe("unreadable");
   });
 });

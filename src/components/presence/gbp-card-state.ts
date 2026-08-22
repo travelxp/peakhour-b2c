@@ -5,8 +5,8 @@
  * card exists to fix was itself a branch nobody could see: a merchant who
  * managed two listings connected successfully, the product said "Connected",
  * and nothing ever arrived. Every state below is one somebody can be stuck in,
- * and "connected but useless" is the one that has no visual difference from
- * "connected" unless this decides it does.
+ * and each of the three failing ones has no visual difference from "working"
+ * unless this decides it does.
  */
 
 export type GbpConnectionStatus =
@@ -20,12 +20,16 @@ export type GbpConnectionStatus =
 export type GbpCardKind =
   /** Not connected at all. */
   | "disconnected"
+  /** Google stopped accepting our credentials. */
+  | "needs_reconnect"
+  /** The last sync failed. The cron will not retry it — see below. */
+  | "sync_failing"
   /** Connected, a listing chosen — the only state that syncs. */
   | "ready"
   /** Connected, no listing chosen. Nothing arrives until one is. */
   | "needs_location"
-  /** Google stopped accepting our credentials. */
-  | "needs_reconnect";
+  /** Connected; we have not been able to read WHETHER a listing is chosen. */
+  | "connected_unknown";
 
 export interface GbpCardState {
   kind: GbpCardKind;
@@ -36,11 +40,25 @@ export interface GbpCardState {
 }
 
 /**
- * ★`error` COUNTS AS CONNECTED, `expired` AND `needs_reauth` DO NOT — the same
- * split the analytics and search-console pages use. A transient sync error must
- * still show the card and let the merchant change their listing (that may BE
- * the fix); a dead token can only be repaired by reconnecting, and offering a
- * picker there sends them to a route that will 409.
+ * `locationName` is deliberately three-valued:
+ *   a string  — this listing is selected
+ *   `null`    — read successfully, nothing selected
+ *   `undefined` — NOT READ. In flight, failed, or an api old enough not to
+ *                 return the field at all.
+ *
+ * ★★THE THIRD VALUE IS THE POINT. Collapsing "unknown" into "not selected" told
+ * a fully configured merchant "Nothing syncs until you choose" for as long as
+ * the capabilities read was in flight — and PERMANENTLY on any deployment whose
+ * api predates the field, which is every production deployment until the api
+ * ships. The route returns `locationName: … ?? null`, so the key is always
+ * present on a new api and always absent on an old one: `undefined` is a
+ * reliable "we do not know", not a guess.
+ *
+ * ★AND `error` IS ITS OWN STATE, NOT A KIND OF "READY". A connection the cron
+ * stamped `error` is skipped by BOTH the hourly performance-sync and the review
+ * receiver — each selects `status: "active"` — so it is not syncing whatever
+ * listing it points at. Rendering it as "Connected · Syncing Bandra" is exactly
+ * the healthy-looking dead connection this card exists to remove.
  */
 export function gbpCardState(
   status: GbpConnectionStatus,
@@ -51,6 +69,15 @@ export function gbpCardState(
   }
   if (status !== "active" && status !== "error") {
     return { kind: "disconnected", canPick: false, action: "Connect" };
+  }
+  if (status === "error") {
+    // Still pickable: pointing at a different listing is one of the few things
+    // a merchant can do about a failing sync, and the api restores `active`
+    // when they do.
+    return { kind: "sync_failing", canPick: true, action: "Change listing" };
+  }
+  if (locationName === undefined) {
+    return { kind: "connected_unknown", canPick: true, action: "Choose your listing" };
   }
   if (locationName) {
     return { kind: "ready", canPick: true, action: "Change listing" };
@@ -76,12 +103,12 @@ export function canSaveLocation(
 }
 
 /**
- * The human name for a chosen listing.
+ * The human name for a listing.
  *
  * ★FALLS BACK TO THE RESOURCE NAME, NEVER TO NOTHING. `locations/12345` is ugly
- * and it is also the truth; an empty span in "Syncing ___" reads as a bug, and
- * the title is only absent when Google's listing omitted it or the picker has
- * not been opened on this page load.
+ * and it is also the truth; an empty span in "Syncing ___" — or a blank row in
+ * the dropdown — reads as a bug, and the title is absent whenever Google's
+ * listing omitted it.
  */
 export function locationLabel(
   locationName: string | null | undefined,
@@ -90,4 +117,17 @@ export function locationLabel(
   if (!locationName) return null;
   const match = known.find((l) => l.locationName === locationName);
   return match?.title?.trim() || locationName;
+}
+
+/**
+ * What the picker says when it has no listings to offer.
+ *
+ * ★★"WE READ NOTHING" AND "YOU HAVE NOTHING" ARE DIFFERENT ANSWERS — the same
+ * distinction the api makes between LOCATIONS_INCOMPLETE and NO_LOCATIONS, and
+ * the card was making neither. `resolveLocations` swallows a throttled
+ * per-account listing as `[]`, so "this Google account manages no listings" is
+ * a claim we are frequently not entitled to.
+ */
+export function emptyListingReason(complete: boolean | undefined): "none" | "unreadable" {
+  return complete === true ? "none" : "unreadable";
 }
