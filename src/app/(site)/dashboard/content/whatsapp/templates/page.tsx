@@ -281,7 +281,13 @@ export default function WhatsAppTemplatesPage() {
       // ★AND AN ANSWER FOR A BUSINESS WE HAVE LEFT PINS NOTHING. Its warning
       //  would name a row that is not in the list on screen — the very state
       //  the business-switch retirement exists to prevent, arriving after it.
-      if (vars.businessId && vars.businessId !== noticeBusiness) {
+      // ★★AND IT COMPARES THE LIVE `business`, NOT THE MODULE VARIABLE THE
+      //  PINNED-NOTICE EFFECT MAINTAINS. That one is updated by an effect, so
+      //  it lags the switch — and this callback already closes over the current
+      //  render's props. The variable's job is retiring toasts; deciding
+      //  whether an in-flight answer still applies is a different question and
+      //  reading it here made the guard trail the thing it guards against.
+      if (vars.businessId && vars.businessId !== business?._id) {
         refresh();
         return;
       }
@@ -351,7 +357,13 @@ export default function WhatsAppTemplatesPage() {
       //  template id under C's scope: a 404 "Template not found" immediately
       //  after a deliberate confirmation. ★The refresh still runs, because the
       //  row it wrote to is real either way.
-      if (vars.businessId && vars.businessId !== noticeBusiness) {
+      // ★★AND IT COMPARES THE LIVE `business`, NOT THE MODULE VARIABLE THE
+      //  PINNED-NOTICE EFFECT MAINTAINS. That one is updated by an effect, so
+      //  it lags the switch — and this callback already closes over the current
+      //  render's props. The variable's job is retiring toasts; deciding
+      //  whether an in-flight answer still applies is a different question and
+      //  reading it here made the guard trail the thing it guards against.
+      if (vars.businessId && vars.businessId !== business?._id) {
         refresh();
         return;
       }
@@ -382,6 +394,11 @@ export default function WhatsAppTemplatesPage() {
         e.code === "SUBMIT_WOULD_UNPUBLISH" &&
         !vars.confirmReplaceApproved
       ) {
+        // ⏸★AND A MERCHANT WHO NAVIGATED AWAY MID-SUBMIT SEES NOTHING, which is
+        //  not a silent failure: this refusal happens BEFORE any write, so
+        //  nothing was changed, the refreshed list is already correct, and the
+        //  next submit asks the same question again. A toast alongside the
+        //  dialog would double-report it for everyone who stayed.
         setUnpublishWarning({ id: vars.id, message: e.message });
         // ★CLEARED AS THE QUESTION IS ASKED, not as it closes — see the
         //  `onOpenChange` handler.
