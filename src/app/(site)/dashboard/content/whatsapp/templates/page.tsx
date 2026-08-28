@@ -129,9 +129,7 @@ export default function WhatsAppTemplatesPage() {
   //  specific moment is whether the dialog is OPEN — the text is just what it
   //  last said, and nothing acts on it.
   const [unpublishOpen, setUnpublishOpen] = useState(false);
-  const [unpublishWarning, setUnpublishWarning] = useState<{ id: string; message: string } | null>(
-    null
-  );
+  const [unpublishWarning, setUnpublishWarning] = useState<string | null>(null);
 
   const listKey = useMemo(() => ["wa-templates", business?._id ?? "none"], [business?._id]);
   const { data, isLoading } = useQuery({
@@ -205,7 +203,7 @@ export default function WhatsAppTemplatesPage() {
       else toast.success("Submitted to WhatsApp for review.");
       refresh();
     },
-    onError: (e: Error, vars) => {
+    onError: (e: Error) => {
       // ── 🚫★★AND A FAILED SUBMIT USUALLY *DID* CHANGE THE ROW ───────────────
       //
       // 🚫★★`refresh()` ONLY ON SUCCESS LEFT THE LIST LYING. The api's adopt
@@ -221,7 +219,7 @@ export default function WhatsAppTemplatesPage() {
       //  with that cost, rather than doing it silently. Answering is the whole
       //  point of the refusal, so it opens a dialog instead of a red toast.
       if (e instanceof ApiError && e.code === "SUBMIT_WOULD_UNPUBLISH") {
-        setUnpublishWarning({ id: vars.id, message: e.message });
+        setUnpublishWarning(e.message);
         setUnpublishOpen(true);
         return;
       }
@@ -442,21 +440,32 @@ export default function WhatsAppTemplatesPage() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>This will take a live template off the air</AlertDialogTitle>
-            <AlertDialogDescription>{unpublishWarning?.message}</AlertDialogDescription>
+            <AlertDialogDescription>{unpublishWarning}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Keep the approved version</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => {
-                // ★THE ID IS READ FIRST, because `mutate` is not synchronous and
-                //  the id is the one thing here that must not be read from state
-                //  a moment later. ★Closing sets only the OPEN flag: the message
-                //  has to survive the exit animation it is being read during.
-                //  ★Radix's `AlertDialogAction` is a `Dialog.Close` and would
-                //  close it anyway — this is explicit rather than required.
-                const id = unpublishWarning?.id;
-                setUnpublishOpen(false);
-                if (id) submit.mutate({ id, confirmReplaceApproved: true });
+              onClick={async () => {
+                // 🚫★★AND IT SAVES FIRST, EXACTLY AS THE SUBMIT BUTTON DOES.
+                //  The editor inputs are not disabled while a submit is in
+                //  flight — only the buttons are — and that flight makes two
+                //  Graph round trips before the 409 comes back. A merchant who
+                //  tweaks the body while the dialog is opening and then
+                //  confirms would otherwise send the PREVIOUSLY SAVED wording
+                //  to Meta while the screen shows the newer text, which is the
+                //  one invariant the Submit button's save-first exists for.
+                //
+                // ★AND THE ID COMES FROM THE SAVE, not from the held 409. They
+                //  are the same row, but reading the fresh one is what makes
+                //  that a fact rather than an assumption.
+                // ★Radix's `AlertDialogAction` is a `Dialog.Close`, so the
+                //  dialog closes on click regardless of what this does.
+                try {
+                  const r = await saveDraft.mutateAsync();
+                  submit.mutate({ id: r.template._id, confirmReplaceApproved: true });
+                } catch {
+                  /* saveDraft surfaces its own error toast */
+                }
               }}
             >
               Replace it and submit
