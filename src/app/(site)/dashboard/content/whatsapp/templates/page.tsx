@@ -139,7 +139,14 @@ export default function WhatsAppTemplatesPage() {
   //  the only piece of its state not scoped to the business — `switchBusiness`
   //  clears the query cache without remounting, so one would sit beside another
   //  business's list naming a row that is not in it.
-  const pinnedNotices = useRef(new Set<string>());
+  // ★KEYED BY TEMPLATE, VALUED BY THE TOAST'S OWN ID — the two differ because
+  //  each raising gets a fresh toast id, which is what stops a dismissal of the
+  //  old one landing on the new one.
+  const pinnedNotices = useRef(new Map<string, string>());
+  const noticeSeq = useRef(0);
+  // ★THE BUSINESS THOSE WARNINGS BELONG TO, so the effect can tell a SWITCH
+  //  from a first render.
+  const noticeBusiness = useRef(business?._id);
   const [unpublishWarning, setUnpublishWarning] = useState<{ id: string; message: string } | null>(
     null
   );
@@ -159,12 +166,19 @@ export default function WhatsAppTemplatesPage() {
   //  would otherwise sit beside another business's list describing a template
   //  that is not in it. ★Only the ids this page raised — `toast.dismiss()` with
   //  no argument would take down everybody else's toasts too.
+  //
+  // 🚫★★AND IT IS THE EFFECT BODY COMPARING THE PREVIOUS ID, NOT A CLEANUP. A
+  //  cleanup also runs on UNMOUNT, so navigating to any other dashboard page
+  //  dismissed the warning — and the `Toaster` lives in the site layout
+  //  precisely so toasts survive a route change. The thing that invalidates
+  //  this warning is a different business, not a different page.
   useEffect(() => {
     const raised = pinnedNotices.current;
-    return () => {
-      for (const id of raised) toast.dismiss(id);
+    if (noticeBusiness.current !== business?._id) {
+      for (const id of raised.values()) toast.dismiss(id);
       raised.clear();
-    };
+      noticeBusiness.current = business?._id;
+    }
   }, [business?._id]);
 
   // ★THE NAME OF THE ROW THE REFUSAL WAS ABOUT — read from the list rather
@@ -239,23 +253,33 @@ export default function WhatsAppTemplatesPage() {
       //  ★The `id` makes a resubmit REPLACE the standing warning rather than
       //  stack a second one saying the same thing about the same template.
       if (r.notice) {
-        const noticeId = `wa-template-notice-${r.template._id}`;
-        // 🚫★★AND IT IS DISMISSED BEFORE IT IS RAISED. Sonner MERGES a repeat
-        //  id into the toast already on screen — no animation, no re-surface —
-        //  so a resubmit that hit the same category refusal changed nothing
-        //  visible, and the success toast is skipped on this branch: the
-        //  merchant got no feedback at all for a submit that did happen.
-        //  Retiring it first makes the new one a new toast.
-        toast.dismiss(noticeId);
+        // ── 🚫★★A REPEAT NOTICE IS A NEW TOAST WITH A NEW ID ────────────────
+        //
+        // 🚫★★REUSING THE ID AND DISMISSING IT FIRST DESTROYS THE ONE IT IS
+        //  ABOUT TO RAISE. Sonner's `dismiss` adds the id to `dismissedToasts`
+        //  SYNCHRONOUSLY and publishes on a `requestAnimationFrame`, while
+        //  `create` publishes immediately — so the deferred dismissal lands on
+        //  the toast that has since been created under the same id, and the
+        //  never-expiring warning fades after a couple of frames. That was a
+        //  fix for the merge-in-place problem which broke the feature it was
+        //  protecting, on the FIRST notice as well as a repeat.
+        //
+        // ★★SO THE PREVIOUS ONE IS RETIRED BY ITS OWN ID AND THE NEW ONE GETS A
+        //  FRESH ONE. The dismissal targets a toast that is genuinely going
+        //  away, the new toast animates in as a new toast, and only one warning
+        //  per template is ever on screen.
+        const previous = pinnedNotices.current.get(r.template._id);
+        if (previous) toast.dismiss(previous);
+        const noticeId = `wa-template-notice-${r.template._id}-${(noticeSeq.current += 1)}`;
         toast.warning(r.template.name, {
           description: r.notice,
           id: noticeId,
           duration: Infinity,
         });
-        // ★AND IT IS REMEMBERED, so switching business can retire it — see the
-        //  effect below. A pinned warning naming a row that is no longer in the
-        //  list is the one piece of this page's state that does not reset.
-        pinnedNotices.current.add(noticeId);
+        // ★AND IT IS REMEMBERED, so a clean resubmit and a business switch can
+        //  both retire it. A pinned warning naming a row that is no longer in
+        //  the list is the one piece of this page's state that does not reset.
+        pinnedNotices.current.set(r.template._id, noticeId);
       } else {
         // 🚫★★AND A CLEAN RESUBMIT TAKES THE OLD WARNING DOWN WITH IT. The
         //  pinned notice never expires, so without this a merchant who fixed
@@ -263,9 +287,11 @@ export default function WhatsAppTemplatesPage() {
         //  appear ABOVE a still-pinned warning contradicting it. Dismissing by
         //  the same id is the only thing that can retire a `duration: Infinity`
         //  toast we raised ourselves.
-        const noticeId = `wa-template-notice-${r.template._id}`;
-        toast.dismiss(noticeId);
-        pinnedNotices.current.delete(noticeId);
+        const standing = pinnedNotices.current.get(r.template._id);
+        if (standing) {
+          toast.dismiss(standing);
+          pinnedNotices.current.delete(r.template._id);
+        }
         toast.success("Submitted to WhatsApp for review.");
       }
       refresh();
