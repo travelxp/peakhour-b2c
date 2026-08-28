@@ -109,6 +109,23 @@ function dismissPinnedNotices() {
   pinnedNotices.clear();
 }
 
+// ⏸★★AND THE RETIREMENT ONLY RUNS WHILE THIS PAGE IS MOUNTED, which is a
+//  residual rather than an oversight. The `Toaster` is in the `(site)` layout
+//  and never unmounts, so switching business — or signing out — from ANOTHER
+//  route leaves a pinned warning naming a template that is not in the list any
+//  more.
+//
+// 🚫★★DRIVING IT FROM THE AUTH PROVIDER IS NOT THE ANSWER: it would put one
+//  page's toast bookkeeping into the thing every page depends on, and the next
+//  page with a pinned toast would add a second entry to it.
+//
+// ⏸★THE ANSWER IS THAT A FACT THIS DURABLE DOES NOT BELONG IN A TOAST AT ALL.
+//  It is a property of the ROW — Meta holds a category this template's record
+//  disagrees with — and the api already reports it per submit as
+//  `categoryApplied`. Surfacing it on the card retires the pinned toast, the
+//  bookkeeping and this residual together. ★The toast has a close button in the
+//  meantime.
+
 function StatusBadge({ status }: { status: TemplateStatus }) {
   const v = STATUS_VARIANT[status] ?? STATUS_VARIANT.draft;
   return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${v.className}`}>{v.label}</span>;
@@ -327,6 +344,17 @@ export default function WhatsAppTemplatesPage() {
       refresh();
     },
     onError: (e: Error, vars) => {
+      // 🚫★★AND A LATE ANSWER FOR A BUSINESS WE HAVE LEFT OPENS NOTHING — the
+      //  same guard `onSuccess` carries, for the same race. A 409 for business
+      //  B arriving after a switch to C would open the confirm over C's list
+      //  with the unnamed fallback title, and confirming would post B's
+      //  template id under C's scope: a 404 "Template not found" immediately
+      //  after a deliberate confirmation. ★The refresh still runs, because the
+      //  row it wrote to is real either way.
+      if (vars.businessId && vars.businessId !== noticeBusiness) {
+        refresh();
+        return;
+      }
       // ── 🚫★★AND A FAILED SUBMIT USUALLY *DID* CHANGE THE ROW ───────────────
       //
       // 🚫★★`refresh()` ONLY ON SUCCESS LEFT THE LIST LYING. The api's adopt
