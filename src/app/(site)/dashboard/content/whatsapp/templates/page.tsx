@@ -129,7 +129,9 @@ export default function WhatsAppTemplatesPage() {
   //  specific moment is whether the dialog is OPEN — the text is just what it
   //  last said, and nothing acts on it.
   const [unpublishOpen, setUnpublishOpen] = useState(false);
-  const [unpublishWarning, setUnpublishWarning] = useState<string | null>(null);
+  const [unpublishWarning, setUnpublishWarning] = useState<{ id: string; message: string } | null>(
+    null
+  );
 
   const listKey = useMemo(() => ["wa-templates", business?._id ?? "none"], [business?._id]);
   const { data, isLoading } = useQuery({
@@ -203,7 +205,7 @@ export default function WhatsAppTemplatesPage() {
       else toast.success("Submitted to WhatsApp for review.");
       refresh();
     },
-    onError: (e: Error) => {
+    onError: (e: Error, vars) => {
       // ── 🚫★★AND A FAILED SUBMIT USUALLY *DID* CHANGE THE ROW ───────────────
       //
       // 🚫★★`refresh()` ONLY ON SUCCESS LEFT THE LIST LYING. The api's adopt
@@ -219,7 +221,7 @@ export default function WhatsAppTemplatesPage() {
       //  with that cost, rather than doing it silently. Answering is the whole
       //  point of the refusal, so it opens a dialog instead of a red toast.
       if (e instanceof ApiError && e.code === "SUBMIT_WOULD_UNPUBLISH") {
-        setUnpublishWarning(e.message);
+        setUnpublishWarning({ id: vars.id, message: e.message });
         setUnpublishOpen(true);
         return;
       }
@@ -440,31 +442,39 @@ export default function WhatsAppTemplatesPage() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>This will take a live template off the air</AlertDialogTitle>
-            <AlertDialogDescription>{unpublishWarning}</AlertDialogDescription>
+            <AlertDialogDescription>{unpublishWarning?.message}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Keep the approved version</AlertDialogCancel>
             <AlertDialogAction
-              onClick={async () => {
-                // 🚫★★AND IT SAVES FIRST, EXACTLY AS THE SUBMIT BUTTON DOES.
-                //  The editor inputs are not disabled while a submit is in
-                //  flight — only the buttons are — and that flight makes two
-                //  Graph round trips before the 409 comes back. A merchant who
-                //  tweaks the body while the dialog is opening and then
-                //  confirms would otherwise send the PREVIOUSLY SAVED wording
-                //  to Meta while the screen shows the newer text, which is the
-                //  one invariant the Submit button's save-first exists for.
+              onClick={() => {
+                // ── 🚫★★AND IT DOES **NOT** SAVE FIRST, WHICH A ROUND OF
+                //    REVIEW TALKED IT INTO AND THREE FINDINGS TALKED IT OUT OF ─
                 //
-                // ★AND THE ID COMES FROM THE SAVE, not from the held 409. They
-                //  are the same row, but reading the fresh one is what makes
-                //  that a fact rather than an assumption.
-                // ★Radix's `AlertDialogAction` is a `Dialog.Close`, so the
-                //  dialog closes on click regardless of what this does.
-                try {
-                  const r = await saveDraft.mutateAsync();
-                  submit.mutate({ id: r.template._id, confirmReplaceApproved: true });
-                } catch {
-                  /* saveDraft surfaces its own error toast */
+                // ★★THE SUBMIT BUTTON SAVES BECAUSE THE MERCHANT IS STARTING
+                //  SOMETHING; THIS BUTTON IS ANSWERING A QUESTION ABOUT
+                //  SOMETHING THAT ALREADY HAPPENED. That submit saved the
+                //  editor and sent the row, the api refused it BEFORE any
+                //  write, and the question is "replace Meta's approved copy
+                //  with the version you just submitted?" — which is the version
+                //  already on the row. There is nothing to save.
+                //
+                // 🚫★★AND SAVING HERE MADE THE ANSWER ACT ON THE WRONG THINGS.
+                //  It re-derived the target from live `editor` state, so a
+                //  merchant who clicked another template while the 409 was in
+                //  flight would force-submit THAT one with
+                //  `confirmReplaceApproved` — past a guard they were never
+                //  asked about. It also put an awaited call behind a Radix
+                //  `Dialog.Close`, so a save that failed swallowed the
+                //  confirmation with it, and it skipped the Submit button's
+                //  `canSave`/`errorCount` gate on an editor that stays live.
+                //
+                // ★SO THE IDENTITY IS HELD FROM THE REFUSAL, the way
+                //  `integrations/page.tsx`'s `pendingToggle` holds the page it
+                //  asked about. ★Whatever the merchant has typed since is still
+                //  unsaved on screen, exactly as it would be during any submit.
+                if (unpublishWarning) {
+                  submit.mutate({ id: unpublishWarning.id, confirmReplaceApproved: true });
                 }
               }}
             >
