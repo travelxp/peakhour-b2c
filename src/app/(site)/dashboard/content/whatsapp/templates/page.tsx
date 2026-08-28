@@ -194,7 +194,14 @@ export default function WhatsAppTemplatesPage() {
         confirmReplaceApproved ? { confirmReplaceApproved: true } : undefined
       ),
     onSuccess: (r) => {
-      if (r.notice) toast.warning(r.notice, { duration: 10000 });
+      // 🚫★★AND IT DOES NOT AUTO-DISMISS. This is the only channel the fact has
+      //  — nothing on the card shows it, a reload never brings it back, and the
+      //  list goes on rendering the category our row stores rather than the one
+      //  Meta holds. A ten-second toast for a state that outlives the session is
+      //  a warning nobody who looked away ever saw. ★`duration: Infinity` is
+      //  what `linkedin-ads-panel.tsx` uses for the same shape of fact: the
+      //  platform did something our record does not match.
+      if (r.notice) toast.warning(r.notice, { duration: Infinity });
       else toast.success("Submitted to WhatsApp for review.");
       refresh();
     },
@@ -445,6 +452,8 @@ export default function WhatsAppTemplatesPage() {
                 //  the id is the one thing here that must not be read from state
                 //  a moment later. ★Closing sets only the OPEN flag: the message
                 //  has to survive the exit animation it is being read during.
+                //  ★Radix's `AlertDialogAction` is a `Dialog.Close` and would
+                //  close it anyway — this is explicit rather than required.
                 const id = unpublishWarning?.id;
                 setUnpublishOpen(false);
                 if (id) submit.mutate({ id, confirmReplaceApproved: true });
