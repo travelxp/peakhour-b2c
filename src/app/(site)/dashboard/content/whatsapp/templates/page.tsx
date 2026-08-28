@@ -226,7 +226,16 @@ export default function WhatsAppTemplatesPage() {
           id: `wa-template-notice-${r.template._id}`,
           duration: Infinity,
         });
-      } else toast.success("Submitted to WhatsApp for review.");
+      } else {
+        // 🚫★★AND A CLEAN RESUBMIT TAKES THE OLD WARNING DOWN WITH IT. The
+        //  pinned notice never expires, so without this a merchant who fixed
+        //  the category and resubmitted saw "Submitted to WhatsApp for review"
+        //  appear ABOVE a still-pinned warning contradicting it. Dismissing by
+        //  the same id is the only thing that can retire a `duration: Infinity`
+        //  toast we raised ourselves.
+        toast.dismiss(`wa-template-notice-${r.template._id}`);
+        toast.success("Submitted to WhatsApp for review.");
+      }
       refresh();
     },
     onError: (e: Error, vars) => {
@@ -259,6 +268,17 @@ export default function WhatsAppTemplatesPage() {
       ) {
         setUnpublishWarning({ id: vars.id, message: e.message });
         setUnpublishOpen(true);
+        return;
+      }
+      // 🚫★★AND THE ASKED-TWICE CASE NEEDS ITS OWN COPY. The api's sentence for
+      //  this code ends "Confirm to go ahead" — an instruction the guard above
+      //  has just made unreachable, so replaying it tells a merchant to press a
+      //  button that is gone. Reachable in exactly the b2c-before-api
+      //  sequencing this change ships for.
+      if (e instanceof ApiError && e.code === "SUBMIT_WOULD_UNPUBLISH") {
+        toast.error(
+          "We sent your confirmation but WhatsApp refused it again, so nothing was changed. Try again in a moment — or publish this version under a new name instead."
+        );
         return;
       }
       toast.error(e?.message || "Submission failed");
