@@ -143,6 +143,12 @@ export default function WhatsAppTemplatesPage() {
 
   const refresh = () => qc.invalidateQueries({ queryKey: listKey });
 
+  // ★THE NAME OF THE ROW THE REFUSAL WAS ABOUT — read from the list rather
+  //  than from the editor, which may have moved on while the 409 travelled.
+  const unpublishTemplateName = unpublishWarning
+    ? templates.find((t) => t._id === unpublishWarning.id)?.name
+    : undefined;
+
   const suggest = useMutation({
     mutationFn: () => api.post<{ suggestion: Editor & { rationale?: string } }>(`${STUDIO}/templates/suggest`, { goal, language: editor.language }),
     onSuccess: (r) => {
@@ -441,12 +447,32 @@ export default function WhatsAppTemplatesPage() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>This will take a live template off the air</AlertDialogTitle>
+            {/* 🚫★★AND IT NAMES THE TEMPLATE, because the editor may no longer
+              * be showing it. The list buttons stay enabled through a submit
+              * that makes several round trips, so a merchant who clicked
+              * another row while the 409 was travelling gets a dialog saying
+              * "this template" beside an editor holding a different one — and
+              * the thing it is about is the row the refusal named, not what is
+              * on screen. ★The name falls back to nothing rather than to the
+              * editor's: an unnamed dialog is better than a wrong name. */}
+            <AlertDialogTitle>
+              {unpublishTemplateName
+                ? `Replacing “${unpublishTemplateName}” takes a live template off the air`
+                : "This will take a live template off the air"}
+            </AlertDialogTitle>
             <AlertDialogDescription>{unpublishWarning?.message}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Keep the approved version</AlertDialogCancel>
             <AlertDialogAction
+              // 🚫★★AND IT CANNOT FIRE TWICE. The content stays mounted through
+              //  its exit animation — the very fact the open/message split
+              //  above exists for — so an ordinary double-click sent two
+              //  concurrent confirmed edits: an extra attempt spent, and a red
+              //  SUBMIT_RACED_EDIT or SUBMIT_IN_REVIEW toast after a submit
+              //  that had succeeded. The editor's own Submit button has had
+              //  this guard all along.
+              disabled={submit.isPending}
               onClick={() => {
                 // ── 🚫★★AND IT DOES **NOT** SAVE FIRST, WHICH A ROUND OF
                 //    REVIEW TALKED IT INTO AND THREE FINDINGS TALKED IT OUT OF ─
