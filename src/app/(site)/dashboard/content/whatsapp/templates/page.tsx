@@ -267,6 +267,9 @@ export default function WhatsAppTemplatesPage() {
         !vars.confirmReplaceApproved
       ) {
         setUnpublishWarning({ id: vars.id, message: e.message });
+        // ★CLEARED AS THE QUESTION IS ASKED, not as it closes — see the
+        //  `onOpenChange` handler.
+        unpublishConfirmed.current = false;
         setUnpublishOpen(true);
         return;
       }
@@ -505,7 +508,13 @@ export default function WhatsAppTemplatesPage() {
           if (!open && !unpublishConfirmed.current) {
             toast.info("Not submitted — the approved version is still live.");
           }
-          unpublishConfirmed.current = false;
+          // 🚫★★AND IT IS **NOT** RESET HERE. `AlertDialogContent` stays mounted
+          //  and interactive through its exit fade — the fact this whole
+          //  open/message split exists for — so Escape or a click on the still
+          //  live Cancel during that fade fires this a second time with the ref
+          //  already cleared, toasting "not submitted" over a confirmed submit
+          //  that is in flight. It is cleared where the dialog OPENS, which is
+          //  the one moment that starts a new question.
         }}
       >
         <AlertDialogContent>
