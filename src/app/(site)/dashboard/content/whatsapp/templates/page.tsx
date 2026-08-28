@@ -226,7 +226,19 @@ export default function WhatsAppTemplatesPage() {
       //  off the air until Meta approves it again — and the api refuses once,
       //  with that cost, rather than doing it silently. Answering is the whole
       //  point of the refusal, so it opens a dialog instead of a red toast.
-      if (e instanceof ApiError && e.code === "SUBMIT_WOULD_UNPUBLISH") {
+      //
+      // 🚫★★AND A CONFIRMATION IS ANSWERED ONCE. Without reading the flag back,
+      //  a confirmed submit that is STILL refused re-opens the identical
+      //  dialog — no toast, no explanation, and no way out but Cancel, which
+      //  looks like the button doing nothing. That is reachable during the
+      //  deliberate b2c-before-api sequencing (an api that does not yet read
+      //  the flag), and it is exactly the shape of dead end this whole change
+      //  exists to remove. ★Asking twice is a failure, and it is shown as one.
+      if (
+        e instanceof ApiError &&
+        e.code === "SUBMIT_WOULD_UNPUBLISH" &&
+        !vars.confirmReplaceApproved
+      ) {
         setUnpublishWarning({ id: vars.id, message: e.message });
         setUnpublishOpen(true);
         return;
