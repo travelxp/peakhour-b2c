@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api, ApiError } from "@/lib/api";
@@ -129,6 +129,12 @@ export default function WhatsAppTemplatesPage() {
   //  specific moment is whether the dialog is OPEN — the text is just what it
   //  last said, and nothing acts on it.
   const [unpublishOpen, setUnpublishOpen] = useState(false);
+  // ★★WHETHER THE DIALOG WAS ANSWERED OR DISMISSED, which its `open` flag
+  //  cannot say: Radix closes it the same way for the confirm, for Cancel and
+  //  for Escape. A dismissal needs to leave something on screen — a clicked
+  //  Submit with no toast, no status change and no recoverable sentence reads
+  //  as the button having done nothing at all.
+  const unpublishConfirmed = useRef(false);
   const [unpublishWarning, setUnpublishWarning] = useState<{ id: string; message: string } | null>(
     null
   );
@@ -207,8 +213,20 @@ export default function WhatsAppTemplatesPage() {
       //  a warning nobody who looked away ever saw. ★`duration: Infinity` is
       //  what `linkedin-ads-panel.tsx` uses for the same shape of fact: the
       //  platform did something our record does not match.
-      if (r.notice) toast.warning(r.notice, { duration: Infinity });
-      else toast.success("Submitted to WhatsApp for review.");
+      //
+      // 🚫★★AND IT NAMES ITS TEMPLATE AND REPLACES ITS OWN PREDECESSOR. Two
+      //  submits that both hit this outcome pinned two identical
+      //  never-expiring warnings with nothing to tell them apart — the same
+      //  ambiguity the dialog's title had before it started naming the row.
+      //  ★The `id` makes a resubmit REPLACE the standing warning rather than
+      //  stack a second one saying the same thing about the same template.
+      if (r.notice) {
+        toast.warning(r.template.name, {
+          description: r.notice,
+          id: `wa-template-notice-${r.template._id}`,
+          duration: Infinity,
+        });
+      } else toast.success("Submitted to WhatsApp for review.");
       refresh();
     },
     onError: (e: Error, vars) => {
@@ -455,7 +473,20 @@ export default function WhatsAppTemplatesPage() {
         */}
       <AlertDialog
         open={unpublishOpen}
-        onOpenChange={setUnpublishOpen}
+        onOpenChange={(open) => {
+          setUnpublishOpen(open);
+          // 🚫★★AND A DISMISSAL LEAVES SOMETHING ON SCREEN. Escape closes this
+          //  dialog, and the error branch returned before any toast — so a
+          //  merchant who pressed Submit and then Escape got nothing at all:
+          //  no toast, no status change, and the api's sentence gone. The
+          //  button looked broken. ★Cancel is deliberate and gets the same
+          //  line, because it is the same outcome: nothing was submitted and
+          //  the approved version is still live.
+          if (!open && !unpublishConfirmed.current) {
+            toast.info("Not submitted — the approved version is still live.");
+          }
+          unpublishConfirmed.current = false;
+        }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -512,6 +543,10 @@ export default function WhatsAppTemplatesPage() {
                 //  asked about. ★Whatever the merchant has typed since is still
                 //  unsaved on screen, exactly as it would be during any submit.
                 if (unpublishWarning) {
+                  // ★MARKED BEFORE THE CLOSE FIRES, because Radix closes the
+                  //  dialog for the confirm exactly as it does for Cancel and
+                  //  Escape — and only this path has an answer to report.
+                  unpublishConfirmed.current = true;
                   submit.mutate({ id: unpublishWarning.id, confirmReplaceApproved: true });
                 }
               }}
