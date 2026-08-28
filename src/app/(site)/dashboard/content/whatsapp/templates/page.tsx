@@ -121,6 +121,14 @@ export default function WhatsAppTemplatesPage() {
   // ★THE api's OWN SENTENCE IS KEPT, not a copy of it. It names Meta's status
   //  and what replacing the template costs, and a second wording here would be
   //  a second place for that reasoning to drift from the code that knows it.
+  //
+  // 🚫★★AND THE MESSAGE OUTLIVES THE `open` FLAG, WHICH IS NOT A TIDINESS
+  //  CHOICE. `AlertDialogContent` stays mounted through its exit animation, so
+  //  clearing the two together blanked the sentence and reflowed the dialog
+  //  around an orphaned title for the whole fade. ★What is a question about a
+  //  specific moment is whether the dialog is OPEN — the text is just what it
+  //  last said, and nothing acts on it.
+  const [unpublishOpen, setUnpublishOpen] = useState(false);
   const [unpublishWarning, setUnpublishWarning] = useState<{ id: string; message: string } | null>(
     null
   );
@@ -207,6 +215,7 @@ export default function WhatsAppTemplatesPage() {
       //  point of the refusal, so it opens a dialog instead of a red toast.
       if (e instanceof ApiError && e.code === "SUBMIT_WOULD_UNPUBLISH") {
         setUnpublishWarning({ id: vars.id, message: e.message });
+        setUnpublishOpen(true);
         return;
       }
       toast.error(e?.message || "Submission failed");
@@ -420,10 +429,8 @@ export default function WhatsAppTemplatesPage() {
         * cost. A second wording here is a second place for that to drift.
         */}
       <AlertDialog
-        open={unpublishWarning !== null}
-        onOpenChange={(open) => {
-          if (!open) setUnpublishWarning(null);
-        }}
+        open={unpublishOpen}
+        onOpenChange={setUnpublishOpen}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -434,10 +441,12 @@ export default function WhatsAppTemplatesPage() {
             <AlertDialogCancel>Keep the approved version</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
-                // ★THE ID IS READ BEFORE THE STATE CLEARS, because closing the
-                //  dialog is what clears it and `mutate` is not synchronous.
+                // ★THE ID IS READ FIRST, because `mutate` is not synchronous and
+                //  the id is the one thing here that must not be read from state
+                //  a moment later. ★Closing sets only the OPEN flag: the message
+                //  has to survive the exit animation it is being read during.
                 const id = unpublishWarning?.id;
-                setUnpublishWarning(null);
+                setUnpublishOpen(false);
                 if (id) submit.mutate({ id, confirmReplaceApproved: true });
               }}
             >
