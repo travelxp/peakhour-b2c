@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api, ApiError } from "@/lib/api";
@@ -135,6 +135,11 @@ export default function WhatsAppTemplatesPage() {
   //  Submit with no toast, no status change and no recoverable sentence reads
   //  as the button having done nothing at all.
   const unpublishConfirmed = useRef(false);
+  // ★★THE PINNED WARNINGS THIS PAGE HAS RAISED. They never expire, and they are
+  //  the only piece of its state not scoped to the business — `switchBusiness`
+  //  clears the query cache without remounting, so one would sit beside another
+  //  business's list naming a row that is not in it.
+  const pinnedNotices = useRef(new Set<string>());
   const [unpublishWarning, setUnpublishWarning] = useState<{ id: string; message: string } | null>(
     null
   );
@@ -148,6 +153,19 @@ export default function WhatsAppTemplatesPage() {
   const templates = data?.templates ?? [];
 
   const refresh = () => qc.invalidateQueries({ queryKey: listKey });
+
+  // ★AND THEY ARE RETIRED WHEN THE BUSINESS CHANGES. `switchBusiness` clears
+  //  the query cache without remounting this page, so a never-expiring warning
+  //  would otherwise sit beside another business's list describing a template
+  //  that is not in it. ★Only the ids this page raised — `toast.dismiss()` with
+  //  no argument would take down everybody else's toasts too.
+  useEffect(() => {
+    const raised = pinnedNotices.current;
+    return () => {
+      for (const id of raised) toast.dismiss(id);
+      raised.clear();
+    };
+  }, [business?._id]);
 
   // ★THE NAME OF THE ROW THE REFUSAL WAS ABOUT — read from the list rather
   //  than from the editor, which may have moved on while the 409 travelled.
@@ -221,11 +239,23 @@ export default function WhatsAppTemplatesPage() {
       //  ★The `id` makes a resubmit REPLACE the standing warning rather than
       //  stack a second one saying the same thing about the same template.
       if (r.notice) {
+        const noticeId = `wa-template-notice-${r.template._id}`;
+        // 🚫★★AND IT IS DISMISSED BEFORE IT IS RAISED. Sonner MERGES a repeat
+        //  id into the toast already on screen — no animation, no re-surface —
+        //  so a resubmit that hit the same category refusal changed nothing
+        //  visible, and the success toast is skipped on this branch: the
+        //  merchant got no feedback at all for a submit that did happen.
+        //  Retiring it first makes the new one a new toast.
+        toast.dismiss(noticeId);
         toast.warning(r.template.name, {
           description: r.notice,
-          id: `wa-template-notice-${r.template._id}`,
+          id: noticeId,
           duration: Infinity,
         });
+        // ★AND IT IS REMEMBERED, so switching business can retire it — see the
+        //  effect below. A pinned warning naming a row that is no longer in the
+        //  list is the one piece of this page's state that does not reset.
+        pinnedNotices.current.add(noticeId);
       } else {
         // 🚫★★AND A CLEAN RESUBMIT TAKES THE OLD WARNING DOWN WITH IT. The
         //  pinned notice never expires, so without this a merchant who fixed
@@ -233,7 +263,9 @@ export default function WhatsAppTemplatesPage() {
         //  appear ABOVE a still-pinned warning contradicting it. Dismissing by
         //  the same id is the only thing that can retire a `duration: Infinity`
         //  toast we raised ourselves.
-        toast.dismiss(`wa-template-notice-${r.template._id}`);
+        const noticeId = `wa-template-notice-${r.template._id}`;
+        toast.dismiss(noticeId);
+        pinnedNotices.current.delete(noticeId);
         toast.success("Submitted to WhatsApp for review.");
       }
       refresh();
@@ -571,7 +603,14 @@ export default function WhatsAppTemplatesPage() {
                 //  `integrations/page.tsx`'s `pendingToggle` holds the page it
                 //  asked about. ★Whatever the merchant has typed since is still
                 //  unsaved on screen, exactly as it would be during any submit.
-                if (unpublishWarning) {
+                //
+                // 🚫★★AND IT DOES NOT FIRE AFTER A DISMISSAL. The content stays
+                //  interactive through its exit fade, so a click landing here
+                //  just after Escape or Cancel sent the destructive confirmed
+                //  submit — `submit.isPending` is false and the warning is
+                //  deliberately still populated — moments after the merchant
+                //  was told "Not submitted".
+                if (unpublishOpen && unpublishWarning) {
                   // ★MARKED BEFORE THE CLOSE FIRES, because Radix closes the
                   //  dialog for the confirm exactly as it does for Cancel and
                   //  Escape — and only this path has an answer to report.
