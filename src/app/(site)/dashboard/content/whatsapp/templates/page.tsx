@@ -84,6 +84,31 @@ const STATUS_VARIANT: Record<TemplateStatus, { label: string; className: string 
   disabled: { label: "Disabled", className: "bg-muted text-muted-foreground" },
 };
 
+// ── ★★THE PINNED WARNINGS THIS PAGE HAS RAISED — MODULE STATE, NOT COMPONENT
+//    STATE ──────────────────────────────────────────────────────────────────
+//
+// 🚫★★A `duration: Infinity` TOAST OUTLIVES THE COMPONENT THAT RAISED IT. The
+//  `Toaster` lives in the site layout, so these survive a route change — while
+//  refs inside the page do not. Navigating away and back reset the bookkeeping
+//  and left the warning on screen with nothing tracking it: a later clean
+//  resubmit no longer retired it, and a later business switch no longer
+//  dismissed it. The tracking has to have the same lifetime as the thing it
+//  tracks, which is the page load.
+//
+// ★KEYED BY TEMPLATE, VALUED BY THE TOAST'S OWN ID — the two differ because
+//  each raising gets a fresh toast id, which is what stops a dismissal of the
+//  old one landing on the new one.
+const pinnedNotices = new Map<string, string>();
+let noticeSeq = 0;
+/** The business those warnings belong to, so a SWITCH is distinguishable. */
+let noticeBusiness: string | undefined;
+
+/** Retire every pinned warning this page raised, and forget them. */
+function dismissPinnedNotices() {
+  for (const id of pinnedNotices.values()) toast.dismiss(id);
+  pinnedNotices.clear();
+}
+
 function StatusBadge({ status }: { status: TemplateStatus }) {
   const v = STATUS_VARIANT[status] ?? STATUS_VARIANT.draft;
   return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${v.className}`}>{v.label}</span>;
@@ -135,18 +160,6 @@ export default function WhatsAppTemplatesPage() {
   //  Submit with no toast, no status change and no recoverable sentence reads
   //  as the button having done nothing at all.
   const unpublishConfirmed = useRef(false);
-  // ★★THE PINNED WARNINGS THIS PAGE HAS RAISED. They never expire, and they are
-  //  the only piece of its state not scoped to the business — `switchBusiness`
-  //  clears the query cache without remounting, so one would sit beside another
-  //  business's list naming a row that is not in it.
-  // ★KEYED BY TEMPLATE, VALUED BY THE TOAST'S OWN ID — the two differ because
-  //  each raising gets a fresh toast id, which is what stops a dismissal of the
-  //  old one landing on the new one.
-  const pinnedNotices = useRef(new Map<string, string>());
-  const noticeSeq = useRef(0);
-  // ★THE BUSINESS THOSE WARNINGS BELONG TO, so the effect can tell a SWITCH
-  //  from a first render.
-  const noticeBusiness = useRef(business?._id);
   const [unpublishWarning, setUnpublishWarning] = useState<{ id: string; message: string } | null>(
     null
   );
@@ -173,11 +186,9 @@ export default function WhatsAppTemplatesPage() {
   //  precisely so toasts survive a route change. The thing that invalidates
   //  this warning is a different business, not a different page.
   useEffect(() => {
-    const raised = pinnedNotices.current;
-    if (noticeBusiness.current !== business?._id) {
-      for (const id of raised.values()) toast.dismiss(id);
-      raised.clear();
-      noticeBusiness.current = business?._id;
+    if (noticeBusiness !== business?._id) {
+      dismissPinnedNotices();
+      noticeBusiness = business?._id;
     }
   }, [business?._id]);
 
@@ -232,12 +243,31 @@ export default function WhatsAppTemplatesPage() {
   //  reports status and quality, never category. Toasting the generic success
   //  line over it is how that fact reaches nobody.
   const submit = useMutation({
-    mutationFn: ({ id, confirmReplaceApproved }: { id: string; confirmReplaceApproved?: boolean }) =>
+    mutationFn: ({
+      id,
+      confirmReplaceApproved,
+    }: {
+      id: string;
+      // ★★THE BUSINESS THE SUBMIT WAS STARTED UNDER, carried so `onSuccess` can
+      //  refuse to pin a warning about it over somebody else's list.
+      //  `switchBusiness` cancels QUERIES, not mutations, and the switcher is
+      //  not gated on `submit.isPending` — so a late answer can arrive after
+      //  the effect has already re-attributed the pinned set to business B.
+      businessId?: string;
+      confirmReplaceApproved?: boolean;
+    }) =>
       api.post<{ template: BizTemplate; notice?: string }>(
         `${STUDIO}/templates/${id}/submit`,
         confirmReplaceApproved ? { confirmReplaceApproved: true } : undefined
       ),
-    onSuccess: (r) => {
+    onSuccess: (r, vars) => {
+      // ★AND AN ANSWER FOR A BUSINESS WE HAVE LEFT PINS NOTHING. Its warning
+      //  would name a row that is not in the list on screen — the very state
+      //  the business-switch retirement exists to prevent, arriving after it.
+      if (vars.businessId && vars.businessId !== noticeBusiness) {
+        refresh();
+        return;
+      }
       // 🚫★★AND IT DOES NOT AUTO-DISMISS. This is the only channel the fact has
       //  — nothing on the card shows it, a reload never brings it back, and the
       //  list goes on rendering the category our row stores rather than the one
@@ -268,9 +298,9 @@ export default function WhatsAppTemplatesPage() {
         //  FRESH ONE. The dismissal targets a toast that is genuinely going
         //  away, the new toast animates in as a new toast, and only one warning
         //  per template is ever on screen.
-        const previous = pinnedNotices.current.get(r.template._id);
+        const previous = pinnedNotices.get(r.template._id);
         if (previous) toast.dismiss(previous);
-        const noticeId = `wa-template-notice-${r.template._id}-${(noticeSeq.current += 1)}`;
+        const noticeId = `wa-template-notice-${r.template._id}-${(noticeSeq += 1)}`;
         toast.warning(r.template.name, {
           description: r.notice,
           id: noticeId,
@@ -279,7 +309,7 @@ export default function WhatsAppTemplatesPage() {
         // ★AND IT IS REMEMBERED, so a clean resubmit and a business switch can
         //  both retire it. A pinned warning naming a row that is no longer in
         //  the list is the one piece of this page's state that does not reset.
-        pinnedNotices.current.set(r.template._id, noticeId);
+        pinnedNotices.set(r.template._id, noticeId);
       } else {
         // 🚫★★AND A CLEAN RESUBMIT TAKES THE OLD WARNING DOWN WITH IT. The
         //  pinned notice never expires, so without this a merchant who fixed
@@ -287,10 +317,10 @@ export default function WhatsAppTemplatesPage() {
         //  appear ABOVE a still-pinned warning contradicting it. Dismissing by
         //  the same id is the only thing that can retire a `duration: Infinity`
         //  toast we raised ourselves.
-        const standing = pinnedNotices.current.get(r.template._id);
+        const standing = pinnedNotices.get(r.template._id);
         if (standing) {
           toast.dismiss(standing);
-          pinnedNotices.current.delete(r.template._id);
+          pinnedNotices.delete(r.template._id);
         }
         toast.success("Submitted to WhatsApp for review.");
       }
@@ -479,7 +509,7 @@ export default function WhatsAppTemplatesPage() {
                   // exactly what's on screen (not the last-saved version).
                   try {
                     const r = await saveDraft.mutateAsync();
-                    submit.mutate({ id: r.template._id });
+                    submit.mutate({ id: r.template._id, businessId: business?._id });
                   } catch {
                     /* saveDraft surfaces its own error toast */
                   }
@@ -563,7 +593,14 @@ export default function WhatsAppTemplatesPage() {
           //  button looked broken. ★Cancel is deliberate and gets the same
           //  line, because it is the same outcome: nothing was submitted and
           //  the approved version is still live.
-          if (!open && !unpublishConfirmed.current) {
+          // 🚫★★AND IT CANNOT TOAST TWICE. The content stays mounted and
+          //  interactive through its exit fade, so a second Escape or a
+          //  double-click on Cancel re-fires this with the flag still `false`.
+          //  ★`unpublishOpen` is the state from THIS render, so after the first
+          //  close it reads `false` — which is exactly "there is no open
+          //  question to dismiss". The confirm path has had this guard; the
+          //  dismissal path had not.
+          if (!open && unpublishOpen && !unpublishConfirmed.current) {
             toast.info("Not submitted — the approved version is still live.");
           }
           // 🚫★★AND IT IS **NOT** RESET HERE. `AlertDialogContent` stays mounted
@@ -641,7 +678,11 @@ export default function WhatsAppTemplatesPage() {
                   //  dialog for the confirm exactly as it does for Cancel and
                   //  Escape — and only this path has an answer to report.
                   unpublishConfirmed.current = true;
-                  submit.mutate({ id: unpublishWarning.id, confirmReplaceApproved: true });
+                  submit.mutate({
+                    id: unpublishWarning.id,
+                    businessId: business?._id,
+                    confirmReplaceApproved: true,
+                  });
                 }
               }}
             >
