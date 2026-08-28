@@ -3,9 +3,19 @@
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -108,6 +118,12 @@ export default function WhatsAppTemplatesPage() {
   const [editor, setEditor] = useState<Editor>(EMPTY_EDITOR);
   const [goal, setGoal] = useState("");
   const [issues, setIssues] = useState<LintIssue[] | null>(null);
+  // ★THE api's OWN SENTENCE IS KEPT, not a copy of it. It names Meta's status
+  //  and what replacing the template costs, and a second wording here would be
+  //  a second place for that reasoning to drift from the code that knows it.
+  const [unpublishWarning, setUnpublishWarning] = useState<{ id: string; message: string } | null>(
+    null
+  );
 
   const listKey = useMemo(() => ["wa-templates", business?._id ?? "none"], [business?._id]);
   const { data, isLoading } = useQuery({
@@ -156,13 +172,45 @@ export default function WhatsAppTemplatesPage() {
     onError: (e: Error) => toast.error(e?.message || "Couldn't save the draft"),
   });
 
+  // ── ★★THE SUBMIT ANSWER CARRIES MORE THAN A TEMPLATE NOW ──────────────────
+  //
+  // ★`notice` IS THE ONLY WAY A MERCHANT LEARNS THEIR CATEGORY CHANGE DID NOT
+  //  LAND. The api sends it when Meta took the wording and not the category —
+  //  our row then records a category Meta does not hold, and the webhook
+  //  reports status and quality, never category. Toasting the generic success
+  //  line over it is how that fact reaches nobody.
   const submit = useMutation({
-    mutationFn: (id: string) => api.post<{ template: BizTemplate }>(`${STUDIO}/templates/${id}/submit`),
-    onSuccess: () => {
-      toast.success("Submitted to WhatsApp for review.");
+    mutationFn: ({ id, confirmReplaceApproved }: { id: string; confirmReplaceApproved?: boolean }) =>
+      api.post<{ template: BizTemplate; notice?: string }>(
+        `${STUDIO}/templates/${id}/submit`,
+        confirmReplaceApproved ? { confirmReplaceApproved: true } : undefined
+      ),
+    onSuccess: (r) => {
+      if (r.notice) toast.warning(r.notice, { duration: 10000 });
+      else toast.success("Submitted to WhatsApp for review.");
       refresh();
     },
-    onError: (e: Error) => toast.error(e?.message || "Submission failed"),
+    onError: (e: Error, vars) => {
+      // ── 🚫★★AND A FAILED SUBMIT USUALLY *DID* CHANGE THE ROW ───────────────
+      //
+      // 🚫★★`refresh()` ONLY ON SUCCESS LEFT THE LIST LYING. The api's adopt
+      //  409 writes `metaTemplateId` and a status, and both mutating 502s write
+      //  `rejected` with a reason — so the card still read "Draft", with no
+      //  rejection text and no Suggest-a-fix button, until the merchant
+      //  reloaded. The row moved; only the screen did not.
+      refresh();
+
+      // ★★AND ONE 409 IS A QUESTION, NOT A FAILURE. Meta puts an edited
+      //  template back into review, so submitting over an APPROVED one takes it
+      //  off the air until Meta approves it again — and the api refuses once,
+      //  with that cost, rather than doing it silently. Answering is the whole
+      //  point of the refusal, so it opens a dialog instead of a red toast.
+      if (e instanceof ApiError && e.code === "SUBMIT_WOULD_UNPUBLISH") {
+        setUnpublishWarning({ id: vars.id, message: e.message });
+        return;
+      }
+      toast.error(e?.message || "Submission failed");
+    },
   });
 
   const repair = useMutation({
@@ -298,7 +346,7 @@ export default function WhatsAppTemplatesPage() {
                   // exactly what's on screen (not the last-saved version).
                   try {
                     const r = await saveDraft.mutateAsync();
-                    submit.mutate(r.template._id);
+                    submit.mutate({ id: r.template._id });
                   } catch {
                     /* saveDraft surfaces its own error toast */
                   }
@@ -358,6 +406,46 @@ export default function WhatsAppTemplatesPage() {
           </Card>
         </div>
       </div>
+
+      {/* ── ★★THE ONE REFUSAL THAT IS A QUESTION ───────────────────────────
+        *
+        * ★★META PUTS AN EDITED TEMPLATE BACK INTO REVIEW, so replacing one it
+        * has APPROVED takes it off the air until Meta approves it again. The
+        * api refuses that submit once rather than doing it silently, and the
+        * only thing that turns the refusal into an action is a confirmation —
+        * so a red toast would leave the merchant with a dead end where they
+        * had a choice.
+        *
+        * ★AND IT RENDERS THE api's SENTENCE, which names Meta's status and the
+        * cost. A second wording here is a second place for that to drift.
+        */}
+      <AlertDialog
+        open={unpublishWarning !== null}
+        onOpenChange={(open) => {
+          if (!open) setUnpublishWarning(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>This will take a live template off the air</AlertDialogTitle>
+            <AlertDialogDescription>{unpublishWarning?.message}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep the approved version</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                // ★THE ID IS READ BEFORE THE STATE CLEARS, because closing the
+                //  dialog is what clears it and `mutate` is not synchronous.
+                const id = unpublishWarning?.id;
+                setUnpublishWarning(null);
+                if (id) submit.mutate({ id, confirmReplaceApproved: true });
+              }}
+            >
+              Replace it and submit
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </PageShell>
   );
 }
