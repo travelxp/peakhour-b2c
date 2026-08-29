@@ -48,9 +48,10 @@ export interface HeaderCta {
 
 /**
  * @param minimal When true, renders only the brand lockup — no marketing nav
- *   (the five pillars + Pricing), no auth CTAs, no mobile menu. Used on the
- *   public legal pages, which are reachable pre-launch (through the coming-soon
- *   gate allowlist) where those links would point at gated/non-existent routes.
+ *   (the five modules, Peaks and Pricing), no auth CTAs, no mobile menu. Used
+ *   on the public legal pages, which are reachable pre-launch (through the
+ *   coming-soon gate allowlist) where those links would point at gated or
+ *   non-existent routes.
  * @param cta The signup CTA resolved from the platform stage.
  */
 export function HeaderNav({
