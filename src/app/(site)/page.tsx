@@ -16,7 +16,6 @@ import { AUDIENCE_SEGMENTS } from "@/lib/audience-segments";
 import { PILLARS } from "@/lib/pillars";
 import { badgedComingSoonKeys } from "@/lib/pillar-channels";
 import { BrandBackdrop } from "@/components/marketing/brand-backdrop";
-import { HeroConsole } from "@/components/marketing/hero-console";
 import { PillarOrbit } from "@/components/marketing/pillar-orbit";
 import { PillarCards } from "@/components/marketing/pillar-cards";
 import { StepTimeline } from "@/components/marketing/step-timeline";
@@ -209,93 +208,44 @@ export default async function Home({
         {/* Hero — the H1 states the visitor's problem, the orbit answers it.
             Everything down to the three trust points is sized to clear a
             laptop fold together with the header and the announcement bar. */}
-        {/* ★THE HERO IS AN INSTRUMENT SURFACE NOW, not an ivory band with a
-            whisper behind it. globals.css has defined --ink / --on-ink since
-            the design system was written and the marketing site almost never
-            used them; the hard ivory/ink cut is the strongest device the brand
-            owns and it was sitting switched off.
-
-            ★AND IT IS A GROUND, NOT A GENERATOR. This paragraph used to
-            describe "three layers, back to front: a seeded contour field (see
-            lib/terrain.ts)" — a file this branch deletes, and a decision the
-            comment eight lines below reverses in the same breath. A stale
-            comment beside the note that supersedes it is worse than none: the
-            next reader has to work out which of the two is current. */}
-        <section className="relative isolate overflow-hidden bg-ink pt-10 pb-14 text-on-ink sm:pt-14 sm:pb-20">
-          {/* ★NO GENERATED ARTWORK HERE, AND THAT IS THE DECISION.
-              Three versions shipped — faint contour rings, loud contour rings,
-              a ridgeline — and each read as programmer art, because that is
-              what procedural canvas drawing is. The argument for it was
-              production economics (one generator, infinite assets, no
-              designer), which is not the same argument as looking good, and
-              optimising the first at the cost of the second was the mistake.
-
-              What is left is what actually carries a hero: type, a product
-              that is visibly working, and a ground that stays out of their
-              way. When there is a real hero image, it goes in HERO_IMAGE —
-              until then the absence is deliberate, not a gap. */}
-          <div
-            aria-hidden
-            className="pointer-events-none absolute -inset-[20%] -z-10 opacity-40 blur-[80px]"
-          >
-            <span className="aurora-blob absolute left-[46%] top-[0%] block size-[46vw] rounded-full bg-[radial-gradient(circle,rgba(255,201,79,.72),transparent_66%)]" />
-            <span className="aurora-blob absolute right-[-4%] top-[22%] block size-[40vw] rounded-full bg-[radial-gradient(circle,rgba(217,122,6,.68),transparent_66%)]" />
-            <span className="aurora-blob absolute bottom-[-10%] left-[62%] block size-[30vw] rounded-full bg-[radial-gradient(circle,rgba(240,168,33,.58),transparent_68%)]" />
-          </div>
+        <section className="relative isolate overflow-hidden pt-8 pb-12 sm:pt-12 sm:pb-16">
+          <BrandBackdrop />
           {/* Both grid tracks need `min-w-0` or a grid item's automatic
               minimum is its min-content, which on a phone sizes a track wider
               than the viewport and puts the whole page into a horizontal
               scroll. The copy column carries it below; the orbit's is on
               PillarOrbit's own root, which IS the second grid item. */}
-          {/* ★THE SCRIM, AND IT IS NOT OPTIONAL. Text over artwork needs a
-              ground or the artwork wins — turning the aurora up without one is
-              what put the headline on a glowing gold field. Ink at 94% on the
-              left where the copy sits, fading out to nothing on the right so
-              the console keeps its glow. A single left-to-right gradient works
-              at every breakpoint: when the grid collapses to one column the
-              copy is still in the opaque half. */}
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-0 -z-[5] bg-[radial-gradient(120%_90%_at_78%_18%,transparent_0%,rgba(16,13,8,.55)_58%,rgba(16,13,8,.82)_100%)]"
-          />
-          <div className="relative mx-auto grid max-w-6xl items-center gap-10 px-4 sm:gap-14 sm:px-6 lg:grid-cols-[1.1fr_0.9fr]">
+          <div className="mx-auto grid max-w-6xl items-center gap-10 px-4 sm:gap-14 sm:px-6 lg:grid-cols-[1.1fr_0.9fr]">
             <div className="min-w-0">
               {/* The eyebrow carries the positioning badge; the H1 under it
                   is the visitor's own problem stated back to them. */}
-              {/* text-brand, not text-brand-label: the label token darkens
-                  for an ivory ground and this eyebrow now sits on ink, where
-                  the bright gold is the legible one (~9:1). */}
-              <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand">
+              <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand-label">
                 <span className="h-0.5 w-7 bg-brand-gradient" aria-hidden />
-                Peakhour Suite · five modules, one plan
+                Five AI modules. One platform. Free to start.
               </span>
               {/* `block` on the accent, not a line break: the question has to
                   land on its own line at EVERY width, and a <br> would only
                   hold at the one the type was measured in. */}
-              {/* ★The old H1 asked "Still running one business across 10
-                  different tools?" — a question a visitor can answer "no" to,
-                  describing their mess rather than your outcome. This is the
-                  one sentence peakhour.ai is uniquely entitled to say. */}
-              <h1 className="mt-5 text-3xl font-extrabold leading-[1.05] tracking-tight text-pretty text-on-ink sm:text-4xl lg:text-5xl">
-                Every hour is peak hour.{" "}
+              <h1 className="mt-5 text-3xl font-extrabold leading-[1.05] tracking-tight text-pretty sm:text-4xl lg:text-5xl">
+                Still running one business across{" "}
                 <span className="block font-serif italic font-normal text-brand-gradient">
-                  Now you&rsquo;re staffed for it.
+                  10 different tools?
                 </span>
               </h1>
               {/* One block, two sentences: what Peakhour does for you, then
                   what it covers. Splitting them into two ranks made the second
                   read as a second headline. */}
-              <p className="mt-5 max-w-xl text-lg text-on-ink-dim">
-                <span className="font-medium text-on-ink">
-                  Five AI modules that sell, publish, advertise, answer and get
-                  you found
+              <p className="mt-5 max-w-xl text-lg text-muted-foreground">
+                <span className="font-medium text-foreground">
+                  Peakhour runs the work your growing business can&rsquo;t hire a
+                  team for yet.
                 </span>{" "}
-                — working your catalogue, in your voice, on one login and one
-                Peaks wallet. You approve what ships.
+                One unified AI platform for commerce, content, marketing,
+                customer support and online presence.
               </p>
               <div className="mt-7 flex flex-wrap items-center gap-4">
                 {cta.disabled ? (
-                  <span className="inline-flex items-center gap-2 rounded-full border border-ink-line bg-white/5 px-5 py-3 text-sm font-medium text-on-ink-dim">
+                  <span className="inline-flex items-center gap-2 rounded-full border bg-muted/40 px-5 py-3 text-sm font-medium text-muted-foreground">
                     <Zap className="size-4" aria-hidden />
                     {cta.label}
                   </span>
@@ -313,7 +263,7 @@ export default async function Home({
                     how this works, not how the AI currency is metered. */}
                 <Link
                   href="/how-it-works"
-                  className="inline-flex items-center gap-2 rounded-xl border-2 border-ink-line px-6 py-3 text-sm font-bold text-on-ink transition-colors hover:border-brand hover:text-brand"
+                  className="inline-flex items-center gap-2 rounded-xl border-2 px-6 py-3 text-sm font-bold transition-colors hover:border-brand hover:text-brand"
                 >
                   See how Peakhour works
                 </Link>
@@ -321,7 +271,7 @@ export default async function Home({
               {/* The three trust points. Kept directly under the CTA so they
                   clear the fold with it — they are the answer to "what does
                   clicking this cost me". */}
-              <p className="mt-5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-on-ink-dim">
+              <p className="mt-5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
                 {HERO_TRUST_POINTS.map((promise, i) => (
                   <span key={promise} className="flex items-center gap-x-2">
                     {i > 0 && (
@@ -329,7 +279,7 @@ export default async function Home({
                         ·
                       </span>
                     )}
-                    <span aria-hidden className="font-bold text-brand">
+                    <span aria-hidden className="font-bold text-brand-label">
                       ✓
                     </span>
                     {promise}
@@ -338,14 +288,9 @@ export default async function Home({
               </p>
             </div>
 
-            {/* ★The proof, where the diagram used to be. A page that
-                describes software asks to be believed; a page that shows it
-                running does not. PillarOrbit is not deleted — it moves to the
-                modules section below, which is where a diagram of the five
-                actually belongs. */}
-            <div className="min-w-0">
-              <HeroConsole />
-            </div>
+            {/* Peakhour at the centre, the five pillars around it, every one
+                of them wired to the hub and to its neighbours. */}
+            <PillarOrbit />
           </div>
         </section>
 
@@ -374,12 +319,6 @@ export default async function Home({
                   Open any module to see what it runs.
                 </span>
               </p>
-            </div>
-            {/* The orbit lands here, where it was always the better fit: a
-                diagram of how the five relate belongs above the five, not in a
-                hero whose job is to show the product working. */}
-            <div className="mt-10 flex justify-center">
-              <PillarOrbit />
             </div>
             <div className="mt-10">
               <PillarCards comingSoonKeys={comingSoonKeys} />
@@ -510,22 +449,15 @@ export default async function Home({
           </div>
         </section>
 
-        {/* Integrations — catalog-driven.
-            ★THE PAGE NEEDED A SECOND INK BAND. With only the hero on ink the
-            treatment read as a patched header rather than a design; the page
-            now alternates ivory and instrument surfaces, and this is the
-            section that earns the dark one — "where Peakhour plugs in" is
-            exactly the instrument-panel idea the system was built around. */}
-        <section className="relative isolate overflow-hidden bg-ink py-14 text-on-ink sm:py-20">
-          {/* Ink alone. The band does not need a picture behind it; the
-              logos ARE the picture. */}
+        {/* Integrations — catalog-driven */}
+        <section className="py-12 sm:py-16">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <div className="max-w-3xl">
-              <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand">
+              <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand-label">
                 <span className="h-0.5 w-7 bg-brand-gradient" aria-hidden />
                 Works with your stack
               </span>
-              <h2 className="mt-4 text-3xl font-extrabold tracking-tight text-pretty text-on-ink lg:text-4xl">
+              <h2 className="mt-4 text-3xl font-extrabold tracking-tight text-pretty lg:text-4xl">
                 Plugged into the tools you already use.
               </h2>
             </div>
@@ -533,7 +465,7 @@ export default async function Home({
               {integrationCards.map((item) => (
                 <div
                   key={item.id}
-                  className="flex items-center gap-3 rounded-2xl border border-ink-line bg-white/[0.04] p-4 backdrop-blur-sm transition-all hover:-translate-y-1 hover:border-brand hover:bg-white/[0.07]"
+                  className="flex items-center gap-3 rounded-2xl border bg-background p-4 transition-all hover:-translate-y-1 hover:border-foreground hover:shadow-md"
                 >
                   {/* No `text-white` here — the foreground ships with the brand
                       class (see integrationBrandColor); two same-specificity
@@ -547,13 +479,13 @@ export default async function Home({
                     <p className="flex items-center gap-2 text-sm font-bold">
                       <span className="truncate">{item.name}</span>
                       {item.comingSoon && (
-                        <span className="shrink-0 rounded-full border border-ink-line px-1.5 py-0 text-[10px] font-medium text-on-ink-dim">
+                        <span className="shrink-0 rounded-full border px-1.5 py-0 text-[10px] font-medium text-muted-foreground">
                           Coming soon
                         </span>
                       )}
                     </p>
                     {item.description && (
-                      <p className="line-clamp-1 text-xs text-on-ink-dim">
+                      <p className="line-clamp-1 text-xs text-muted-foreground">
                         {item.description}
                       </p>
                     )}
