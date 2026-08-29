@@ -915,6 +915,47 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
     description:
       "Refreshes long-lived Meta tokens for connections nothing has touched recently, so a dormant account doesn't quietly expire and need reconnecting.",
   },
+  /**
+   * ★★THESE THREE WERE THE RED TEST ON MASTER, and the test was right.
+   * `cron-metadata.test.ts` reads peakhour-api's cron directory OFF DISK and
+   * asserts every scheduled cron has a friendly label here — so the api adding
+   * three crons made this repo's suite fail, in a repo that had not changed.
+   * ★It is the cross-repo coupling the 08-24 trap file warns about, working
+   * exactly as designed: the failure IS the notification, and it had been
+   * ignored long enough that three crons accumulated behind it.
+   */
+  "commerce-cod-sweep": {
+    label: "Close out unanswered COD confirmations",
+    frequency: "Runs hourly at 48 past",
+    description:
+      "Ends the cash-on-delivery lane. A shopper who was asked and did not answer within their window becomes 'unconfirmed' — the queue a merchant checks before shipping. A claim that never got a verdict becomes 'unreachable', because nobody can tell whether that message was ever sent.",
+    /**
+     * ★★"0 expired" IS A NORMAL HOUR, NOT A FAILURE, so this stays a plain
+     * string. The lane is quiet by design most of the time.
+     * ★AND `abandoned` IS REPORTED SEPARATELY rather than summed in, because
+     * the two mean opposite things: one is a shopper who went quiet, the other
+     * is a send that may never have happened.
+     */
+    summarize: (data) => {
+      const d = data as { expired?: number; abandoned?: number } | null;
+      if (!d || typeof d.expired !== "number") return null;
+      const parts = [`${d.expired} order${d.expired === 1 ? "" : "s"} now unconfirmed`];
+      if (d.abandoned) parts.push(`${d.abandoned} claim${d.abandoned === 1 ? "" : "s"} abandoned`);
+      return parts.join(" · ");
+    },
+  },
+  "commerce-campaign-expiry": {
+    label: "Take finished promotions back down",
+    frequency: "Runs hourly at 25 past",
+    description:
+      "Ends promotions that have reached their deadline and puts the prices back. A campaign whose teardown fails is left marked so somebody can see the discount may still be live on the store.",
+  },
+  "commerce-stop-loss": {
+    label: "Watch running promotions for trouble",
+    frequency: "Runs hourly at 40 past",
+    description:
+      "Checks live promotions against their stop-loss rule and alerts the merchant once — not once an hour — when one is going badly. It does not stop the campaign itself; that stays the merchant's decision.",
+  },
   "commerce-order-pii-sweep": {
     label: "Erase expired shopper details",
     frequency: "Runs daily at 3:40am UTC",
