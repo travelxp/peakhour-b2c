@@ -5,7 +5,6 @@ import { Sparkles, Zap, RefreshCw, ArrowRight } from "lucide-react";
 import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
 import { Button } from "@/components/ui/button";
-import { DayCurveCanvas } from "@/components/marketing/day-curve-canvas";
 import { PeaksGlyph } from "@/components/peaks/peaks-glyph";
 import { Peaks } from "@/components/peaks/peaks";
 import { getPeaks, formatPackPrice, type PeakPack } from "@/lib/peaks";
@@ -42,83 +41,28 @@ export default async function PeaksPage() {
       <Header />
 
       <main>
-        {/* ── Hero ─────────────────────────────────────────────────────
-            ★THE SIGNATURE GRAPHIC BELONGS HERE. The product is named for the
-            busiest hour of the day and the currency is named after it; this is
-            the page that exists to explain that, and it opened with a 56px
-            glyph on white. The dial IS the name, drawn. */}
-        <section className="relative isolate overflow-hidden border-b bg-ink text-on-ink">
-          {/* Ink and a soft warm bloom. The generated ridge that used to sit
-              here was the third rejected attempt at brand artwork; the page
-              does not need a picture behind it when the chart beside the copy
-              IS the picture. */}
-          <div
-            aria-hidden
-            className="pointer-events-none absolute -right-32 -top-40 -z-10 size-[38rem] rounded-full opacity-50 blur-[90px]"
-            style={{ background: "radial-gradient(circle, rgba(255,201,79,.45), transparent 70%)" }}
-          />
-          <div className="mx-auto grid max-w-6xl items-center gap-12 px-4 py-16 sm:px-6 sm:py-20 lg:grid-cols-[1.05fr_0.95fr]">
-            <div>
-              <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand">
-                <span className="h-0.5 w-7 bg-brand-gradient" aria-hidden />
-                One currency, all five modules
-              </span>
-              <h1 className="mt-4 text-4xl font-extrabold leading-[1.05] tracking-tight text-pretty sm:text-5xl">
-                Every business has a{" "}
-                <span className="font-serif font-normal italic text-brand-gradient">
-                  peak hour.
-                </span>
-              </h1>
-              <p className="mt-5 max-w-xl text-lg text-on-ink-dim">
-                Yours is the window where the orders, the questions and the DMs
-                all arrive at once — and it is exactly when there is no one
-                spare. Peaks are what Peakhour spends to cover it: one wallet of
-                AI credits, drawn on by every module.
-              </p>
-              {/* ★NOT shadcn <Button> — BOTH VARIANTS RESOLVE THEME TOKENS AND
-                  BOTH ARE WRONG ON INK. `outline` is `bg-background`, which is
-                  near-white ivory in light theme, so overriding only the text
-                  to `text-on-ink` produced a white label on a white button:
-                  invisible until hover, and then gold-on-white at about 2:1.
-                  `default` is `bg-primary`, near-black in light theme, so the
-                  primary was a dark button on a dark ground.
-
-                  Always-dark surfaces take the ink steps and the brand
-                  gradient, exactly as the landing hero does. Same markup, so
-                  the two heroes cannot drift. */}
-              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                <Link
-                  href="/pricing"
-                  className="group inline-flex items-center justify-center gap-2 rounded-xl bg-brand-gradient px-6 py-3.5 text-sm font-bold text-brand-contrast shadow-sm transition-transform hover:-translate-y-0.5 focus-visible:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-ink"
-                >
-                  See Peakhour Suite
-                  <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
-                </Link>
-                <Link
-                  href="/auth"
-                  className="inline-flex items-center justify-center rounded-xl border-2 border-ink-line px-6 py-3 text-sm font-bold text-on-ink transition-colors hover:border-brand hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-ink"
-                >
-                  Start free
-                </Link>
-              </div>
-              <p className="mt-5 flex items-center gap-2 text-sm text-on-ink-dim">
-                <PeaksGlyph size={18} />
-                Included with every plan · topped-up Peaks never expire
-              </p>
+        {/* ── Hero ─────────────────────────────────────────────────────── */}
+        <section className="border-b">
+          <div className="mx-auto max-w-4xl px-4 py-20 text-center sm:px-6">
+            <div className="mb-6 flex justify-center">
+              <PeaksGlyph size={56} className="shadow-sm" />
             </div>
-
-            {/* ★THE DIAL IS GONE. It was a 24-spoke radial bar chart: a form
-                that distorts magnitude by the area each spoke sweeps, and that
-                makes "when am I busy" something you read around a circle. It
-                also looked like a speedometer. The ridgeline is the correct
-                form for cyclical hourly data AND the brand mark at the same
-                time — the crest IS the day. */}
-            <figure className="relative">
-              <DayCurveCanvas className="h-64 w-full sm:h-72" />
-              <figcaption className="mt-1 text-center text-xs text-on-ink-dim">
-                A typical day, midnight to midnight. Illustrative, not measured.
-              </figcaption>
-            </figure>
+            <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">Peaks</h1>
+            <p className="mx-auto mt-5 max-w-2xl text-lg text-muted-foreground">
+              Peaks are the AI credits that power every Peakhour.ai feature — writing posts,
+              generating images, scoring engagement, and more. They come with every paid plan,
+              and you can top up anytime — topped-up Peaks never expire.
+            </p>
+            <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+              <Button asChild size="lg">
+                <Link href="/pricing">
+                  View Plans <ArrowRight className="size-4" />
+                </Link>
+              </Button>
+              <Button asChild size="lg" variant="outline">
+                <Link href="/auth">Start free trial</Link>
+              </Button>
+            </div>
           </div>
         </section>
 
@@ -199,7 +143,7 @@ export default async function PeaksPage() {
         <section className="border-t bg-muted/30">
           <div className="mx-auto max-w-4xl px-4 py-16 text-center sm:px-6">
             <h2 className="text-2xl font-bold tracking-tight">
-              Peaks come with the plan
+              Start with a plan — Peaks are included
             </h2>
             <p className="mx-auto mt-3 max-w-xl text-muted-foreground">
               You need an active paid Peakhour plan to use Peaks. Pick a plan to get your Peaks

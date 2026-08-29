@@ -12,7 +12,6 @@ import { StatusChip } from "@/components/marketing/pricing/status-chip";
 import { ChannelChip } from "@/components/marketing/pricing/channel-chip";
 import { type PillarSlug } from "@/lib/pillars";
 
-
 /**
  * A pillar card on the pricing hub's "add as you grow" grid. Identity (icon,
  * name, promise) is static; price, status and whether it's purchasable are read

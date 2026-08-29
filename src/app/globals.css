@@ -362,40 +362,6 @@
   .bg-brand-gradient {
     background-image: var(--brand-gradient);
   }
-
-  /* Aurora — the hero's ambient layer.
-     `brand-backdrop.tsx` deliberately whispers ("anything strong enough to
-     notice on its own is too strong"), which is right behind a band of copy
-     and wrong behind the hero, where the page's only job is to look like
-     something. These blooms sit on an always-dark ground at real opacity and
-     drift, so the hero has depth before a word is read.
-     Long, offset, alternating durations: three layers on the same clock read
-     as one object sliding. */
-  .aurora-blob {
-    animation: aurora-drift 26s ease-in-out infinite alternate;
-    will-change: transform;
-  }
-  .aurora-blob:nth-child(2) {
-    animation-duration: 34s;
-    animation-delay: -8s;
-  }
-  .aurora-blob:nth-child(3) {
-    animation-duration: 30s;
-    animation-delay: -16s;
-  }
-  @keyframes aurora-drift {
-    from {
-      transform: translate3d(-4%, -3%, 0) scale(1);
-    }
-    to {
-      transform: translate3d(6%, 5%, 0) scale(1.14);
-    }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .aurora-blob {
-      animation: none;
-    }
-  }
   .text-brand-gradient {
     background-image: var(--brand-gradient);
     -webkit-background-clip: text;
