@@ -161,6 +161,14 @@ export function middleware(req: NextRequest) {
     "/launch-partner",
     "/auth",
     "/pricing",
+    // ★★`/peaks` RIDES WITH `/pricing`, BECAUSE THE HEADER NOW OFFERS BOTH AND
+    // A NAV WHOSE LINKS DISAGREE ABOUT WHETHER THE SITE IS LIVE IS WORSE THAN
+    // ONE THAT HIDES BOTH. `/pricing` is on this list so a prospect can
+    // evaluate us before launch; Peaks is the currency every price on that page
+    // is quoted in, so a visitor who clicks Pricing, reads "500 Peaks", clicks
+    // Peaks and lands on the teaser has been stopped exactly where the
+    // allowlist exists to let them through.
+    "/peaks",
     "/shopify/connect",
     "/claim",
     "/reconnect",
