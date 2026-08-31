@@ -50,6 +50,8 @@ import {
   codeCountdown,
   contactHolders,
   contactsFor,
+  describeQuietHours,
+  hasLiveNumber,
   formatWaId,
   isPlausibleWaId,
   memberLabel,
@@ -149,15 +151,23 @@ export function VerifiedNumbers({
    * `userId`. ★That is not a cosmetic slip: only the person a row names can
    * verify it, so the number becomes one **nobody who has it can confirm.**
    */
-  function openAddDialog(forUserId?: string) {
-    // ⚠️★★DEFAULTS TO THE VIEWER, AND NEVER TO NOTHING. `POST /contacts`
-    //  omits `userId` when we do, and the api then defaults it to the
-    //  CALLER — so "Add a teammate" with nothing selected registered a
-    //  teammate's handset against **the Owner's** `userId`. 🚫That is not
-    //  merely a wrong row: only the person a row names can verify it, so
-    //  either the number is unconfirmable, or the Owner confirms it and
-    //  **a teammate's phone is now authorised as the Owner.**
-    setSubjectId(forUserId ?? currentUserId ?? "");
+  function openAddDialog(forUserId = "") {
+    // ── ⚠️★★BLANK, AND THAT BLANK IS THE POINT ───────────────────────────
+    //
+    //  `POST /contacts` DEFAULTS `userId` TO THE CALLER when it is omitted,
+    //  so a subject this form did not ask for becomes the person holding the
+    //  screen. Only the person a row NAMES can verify it, so a teammate's
+    //  handset filed under the Owner is either unconfirmable — or confirmed
+    //  by the Owner, **authorising that handset as the Owner.**
+    //
+    //  🚫★I "FIXED" THAT ONCE BY DEFAULTING TO THE VIEWER, WHICH IS THE SAME
+    //  BUG WITH A NAME ON IT. "Add a teammate" then opened pre-selected on
+    //  the Owner: type a teammate's number, press Send, and it lands under
+    //  the Owner exactly as before. **The empty state was the forcing
+    //  function** — with `Send` disabled until somebody chooses, the
+    //  question cannot be skipped. The per-row button still pre-fills, and
+    //  registering your own number means picking yourself.
+    setSubjectId(forUserId);
     setWaIdInput("");
     setAddOpen(true);
   }
@@ -284,21 +294,27 @@ export function VerifiedNumbers({
                     </p>
                   )}
                 </div>
-                {rows.length === 0 && isAdmin && m.isMember && (
+                {/* ★★"HAS NO LIVE NUMBER", NOT "HAS NO ROWS". 🚫Gating on
+                    `rows.length === 0` left somebody whose only number was
+                    REVOKED with no control at all — the dropdown is hidden for
+                    a revoked row too, so the row became a dead end for the one
+                    person most likely to need a new number. */}
+                {!hasLiveNumber(rows) && isAdmin && m.isMember && (
                   <Button
                     size="sm"
                     variant="outline"
                     onClick={() => openAddDialog(m.userId)}
                   >
-                    Register a number
+                    Register {rows.length > 0 ? "another" : "a"} number
                   </Button>
                 )}
               </div>
 
-              {rows.length === 0 && (
+              {!hasLiveNumber(rows) && (
                 <p className="text-xs text-muted-foreground">
-                  No number registered — Peakhour cannot take an instruction
-                  from them.
+                  {rows.length === 0
+                    ? "No number registered — Peakhour cannot take an instruction from them."
+                    : "No live number — Peakhour cannot take an instruction from them."}
                 </p>
               )}
 
@@ -319,6 +335,15 @@ export function VerifiedNumbers({
                       {contact.register === "casual"
                         ? "plainer register"
                         : "comfortable with detail"}
+                    </Badge>
+                  )}
+                  {contact.quietHours && (
+                    // ★★A SETTING NOBODY CAN SEE IS ONE THEY WILL SET TWICE.
+                    //  §02 does not draw quiet hours on the row, and it should:
+                    //  the zone is what makes the window mean anything, and it
+                    //  is the half most likely to be wrong.
+                    <Badge variant="outline">
+                      {describeQuietHours(contact.quietHours)}
                     </Badge>
                   )}
 
@@ -350,7 +375,15 @@ export function VerifiedNumbers({
                           : "Only the person this number belongs to can confirm it"}
                       </span>
                     )}
-                    {(contact.status === "verified" || isSelf) && (
+                    {/* ⚠️★★GATED ON THE CALLER, NOT ON THE ROW'S STATUS. The
+                        api's `PATCH` rule is **self, or Owner/Admin** — so 🚫a
+                        first version reading `status === "verified" || isSelf`
+                        offered an EDITOR the control on everybody's verified
+                        number (403 on save) and denied an ADMIN it on a
+                        teammate's pending row, which is exactly the row an
+                        Admin has to fix when somebody sets a language and
+                        then leaves. */}
+                    {(isSelf || isAdmin) && contact.status !== "revoked" && (
                       <Button
                         size="sm"
                         variant="ghost"
@@ -412,7 +445,11 @@ export function VerifiedNumbers({
                     )}
                   </div>
 
-                  {codeFor === contact.id && (
+                  {/* ★AND STILL PENDING. 🚫Without the second half the box
+                      stayed on screen after the row was verified or revoked
+                      from another device — inviting somebody to type a code
+                      into a row that no longer accepts one. */}
+                  {codeFor === contact.id && contact.status === "pending" && (
                     <div className="flex w-full items-center gap-2 pt-2">
                       <Input
                         value={code}
@@ -493,6 +530,15 @@ export function VerifiedNumbers({
                   ? "That does not look like a full international number yet."
                   : ""}
               </p>
+              {!subjectId && (
+                // ★SAYS WHY `Send` IS DISABLED. A disabled button with no
+                //  reason reads as a broken page, and the reason here is the
+                //  whole safeguard.
+                <p className="text-xs text-muted-foreground">
+                  Choose whose number it is first — Peakhour will only take an
+                  instruction from a number the right person has confirmed.
+                </p>
+              )}
             </div>
           </div>
           <div className="flex justify-end gap-2">

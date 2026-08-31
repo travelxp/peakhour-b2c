@@ -224,7 +224,15 @@ export function RoutingMatrix({
     startBusy(cell.id);
     try {
       await clear.mutateAsync(cell.assignment.id);
-      toast.success(`${cell.label} falls back to the Owner again.`);
+      // ⚠️★★A CHANNEL CELL DOES NOT FALL BACK TO THE OWNER — it falls back to
+      //  the DOMAIN owner, which is what makes a channel row an override
+      //  rather than a second assignment. 🚫The toast said "the Owner" for
+      //  both axes, two lines from a row whose own copy says otherwise.
+      toast.success(
+        cell.axis === "domain"
+          ? `${cell.label} falls back to the Owner again.`
+          : `${cell.label} follows the domain owner again.`,
+      );
     } catch (err) {
       say(err, "Could not clear that assignment.");
     } finally {

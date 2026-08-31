@@ -323,6 +323,43 @@ export function browserTimeZone(): string {
   }
 }
 
+/**
+ * Is this a time zone the platform can actually resolve?
+ *
+ * ⚠️★★"NON-EMPTY" IS NOT A TIME ZONE. 🚫A first version checked only that
+ * the field had characters in it, so **`Asia/Kolkta` saved as a real quiet
+ * window that no scheduler can resolve** — the merchant sets quiet hours,
+ * the page reports success, and the hours are never honoured. ★A typo in a
+ * free-text zone is the likeliest mistake on this form, and it is the one
+ * that fails silently.
+ *
+ * ★`Intl` IS THE AUTHORITY, not a list of our own: it throws `RangeError`
+ * for an unknown zone, and a hand-maintained list would be one IANA release
+ * behind for ever.
+ */
+export function canonicalTimeZone(tz: string): string | null {
+  const trimmed = tz.trim();
+  if (!trimmed) return null;
+  try {
+    // ★★THE RESOLVED NAME, NOT THE TYPED ONE. Measured: `Intl` is
+    //  case-insensitive and accepts legacy abbreviations — `asia/kolkata` and
+    //  `IST` both resolve to `Asia/Calcutta`. ⚠️Storing what somebody typed
+    //  would put three spellings of one zone in `plt_merchant_contacts`, and
+    //  the merchant would read back something that is not what the scheduler
+    //  will use. **Storing the canonical form makes the row say what it means.**
+    return new Intl.DateTimeFormat(undefined, { timeZone: trimmed })
+      .resolvedOptions().timeZone;
+  } catch {
+    return null;
+  }
+}
+
+/** ★A thin predicate over `canonicalTimeZone`, for a control that needs a
+ *  yes/no rather than a value. */
+export function isTimeZone(tz: string): boolean {
+  return canonicalTimeZone(tz) !== null;
+}
+
 export type QuietHoursDraft = { start: string; end: string; tz: string };
 
 /**
@@ -348,11 +385,13 @@ export function quietHoursPatch(
   if (!isClock(start) || !isClock(end)) {
     return { ok: false, error: "Use 24-hour times, like 22:00 and 07:00." };
   }
-  if (!tz) {
+  const zone = canonicalTimeZone(tz);
+  if (!zone) {
     return {
       ok: false,
-      error:
-        "Pick a time zone — quiet hours mean different things in different places.",
+      error: tz
+        ? `"${tz}" is not a time zone we recognise. Use an IANA name like Asia/Kolkata.`
+        : "Pick a time zone — quiet hours mean different things in different places.",
     };
   }
   if (start === end) {
@@ -362,10 +401,26 @@ export function quietHoursPatch(
         "Start and end are the same. Leave quiet hours off instead, or set a real window.",
     };
   }
+  // ⚠️★★VALIDATED BY THE CANONICAL FORM, STORED AS THE PERSON TYPED IT.
+  //  🚫A first version stored `zone`, and the measurement says why that is
+  //  wrong: ICU canonicalises the MODERN `Asia/Kolkata` to the DEPRECATED
+  //  `Asia/Calcutta`. **The merchant would type the current name and read back
+  //  the old one**, which looks like the page misunderstood them — a worse
+  //  failure than the case-spelling it was meant to tidy. ★`zone` is used for
+  //  the yes/no and nothing else.
+  void zone;
   return { ok: true, value: { start, end, tz } };
 }
 
-/** "22:00–07:00 · Asia/Kolkata (overnight)" — the window as the person set it. */
+/**
+ * "22:00–07:00 · Asia/Kolkata (overnight)" — the window as the person set it.
+ *
+ * ★RENDERED ON THE CONTACT ROW beside the language and register badges. 🚫It
+ * was exported and tested and imported by NOTHING for a round — dead code
+ * with a passing spec, which is the shape that survives review longest.
+ * ⚠️§02 does not draw quiet hours on the row, but a setting the merchant
+ * cannot see without opening a dialog is one they will set twice.
+ */
 export function describeQuietHours(q: QuietHoursDraft): string {
   const overnight = q.start > q.end ? " (overnight)" : "";
   return `${q.start}–${q.end} · ${q.tz}${overnight}`;
@@ -390,14 +445,37 @@ export function assignableMembers(members: TeamMember[]): TeamMember[] {
   );
 }
 
+/**
+ * Does this person hold a number Peakhour will act on?
+ *
+ * ★★A REVOKED ROW IS HISTORY, NOT A NUMBER. It stays on the page — the
+ * merchant should see that a number was WITHDRAWN rather than that it vanished
+ * — but it grants nothing. 🚫"Has no rows" is therefore the wrong question, and
+ * asking it left somebody whose only number was revoked with **no control at
+ * all** on their row: no Register button, and no dropdown either, because that
+ * is hidden for a revoked row too. The one person most likely to need a new
+ * number had nowhere to ask for one.
+ */
+export function hasLiveNumber(rows: MerchantContact[]): boolean {
+  return rows.some((r) => r.status !== "revoked");
+}
+
 /** The display name for a member, falling back to their email. */
 export function memberLabel(m: TeamMember): string {
   return m.name ?? m.email;
 }
 
-/** The contact rows for one person, newest first — §02 lists one row per
- *  person, and `waId` is unique per BUSINESS rather than per person, so a
- *  teammate can hold more than one. */
+/**
+ * The contact rows for one person, **in the order the api returned them**.
+ *
+ * ★§02 lists one row per person, and `waId` is unique per BUSINESS rather
+ * than per person, so a teammate can hold more than one.
+ *
+ * 🚫**I FIRST DOCUMENTED THIS AS "newest first" AND IT SORTS NOTHING** — and
+ * the api sorts `{createdAt: 1}`, i.e. OLDEST first, so the comment was wrong
+ * twice over. ★Oldest-first is the right order anyway: a person's original
+ * number should not move down the row because they added a second.
+ */
 export function contactsFor(
   userId: string,
   contacts: MerchantContact[],

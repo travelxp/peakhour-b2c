@@ -7,12 +7,15 @@ import {
   buildDomainRows,
   codeCountdown,
   contactHolders,
+  canonicalTimeZone,
   contactsFor,
   localeOptions,
   describeQuietHours,
   formatWaId,
   isClock,
+  hasLiveNumber,
   isPlausibleWaId,
+  isTimeZone,
   memberLabel,
   normaliseWaIdInput,
   orphanedDomainRows,
@@ -847,5 +850,105 @@ describe("registrationInputFor — the api defaults userId to the CALLER", () =>
     expect(registrationInputFor("(+91) 98204-11207", ASHA)?.waId).toBe(
       "919820411207",
     );
+  });
+});
+
+describe("isTimeZone — \"non-empty\" is not a time zone", () => {
+  it("⚠️★★REFUSES A TYPO'D ZONE, which is the likeliest mistake on this form", () => {
+    // ★★AND THE ONE THAT FAILS SILENTLY. 🚫A first version checked only that
+    //  the field had characters in it, so `Asia/Kolkta` saved as a REAL quiet
+    //  window that no scheduler can resolve: the merchant sets quiet hours,
+    //  the page reports success, and the hours are never honoured.
+    expect(isTimeZone("Asia/Kolkta")).toBe(false);
+    expect(isTimeZone("GMT+5:30")).toBe(false);
+    expect(isTimeZone("Kolkata")).toBe(false);
+    // ⚠️★★AND `IST` IS **ACCEPTED**, WHICH I GUESSED WRONG FIRST. Measured:
+    //  `Intl` resolves the legacy abbreviations — `IST` → `Asia/Calcutta`,
+    //  `EST` → `America/Panama` — and is case-insensitive besides. Rejecting
+    //  them would refuse zones the platform can resolve perfectly well.
+    //  ★**They are CANONICALISED rather than refused**, so the row stores what
+    //  the scheduler will actually use.
+    expect(isTimeZone("IST")).toBe(true);
+    expect(canonicalTimeZone("IST")).toBe("Asia/Calcutta");
+    expect(canonicalTimeZone("asia/kolkata")).toBe("Asia/Calcutta");
+  });
+
+  it("🚫★★STORES WHAT THE PERSON TYPED, not the canonical form", () => {
+    // ⚠★★ICU CANONICALISES THE MODERN NAME TO THE DEPRECATED ONE:
+    //  `Asia/Kolkata` → `Asia/Calcutta`. 🚫A first version stored the resolved
+    //  value, so **the merchant would type the current name and read back the
+    //  old one** — which looks like the page misunderstood them, a worse
+    //  failure than the case-spelling it was meant to tidy. The canonical form
+    //  decides YES or NO and nothing else.
+    const r = quietHoursPatch({
+      start: "22:00",
+      end: "07:00",
+      tz: "Asia/Kolkata",
+    });
+    expect(r.ok === true && r.value.tz).toBe("Asia/Kolkata");
+  });
+
+  it("accepts the real ones, including the odd-looking ones", () => {
+    // ★`Intl` IS THE AUTHORITY, not a list of our own — a hand-maintained one
+    //  would be an IANA release behind for ever, and these are exactly the
+    //  entries such a list gets wrong.
+    for (const tz of [
+      "Asia/Kolkata",
+      "Europe/London",
+      "UTC",
+      "America/Argentina/Buenos_Aires",
+      "Australia/Eucla",
+    ]) {
+      expect(isTimeZone(tz)).toBe(true);
+    }
+  });
+
+  it("refuses an empty or blank field", () => {
+    expect(isTimeZone("")).toBe(false);
+    expect(isTimeZone("   ")).toBe(false);
+  });
+
+  it("★★and quietHoursPatch refuses the whole window over it", () => {
+    // ★All three or none: a window with an unresolvable zone is not a partial
+    //  setting, it is one that will never fire.
+    const r = quietHoursPatch({
+      start: "22:00",
+      end: "07:00",
+      tz: "Asia/Kolkta",
+    });
+    expect(r.ok).toBe(false);
+    // ★AND THE MESSAGE NAMES THE ZONE IT REFUSED, because a typo is invisible
+    //  to the person who made it until somebody spells it back to them.
+    expect(r.ok === false && r.error).toContain("Asia/Kolkta");
+  });
+});
+
+describe("hasLiveNumber — a revoked row is history, not a number", () => {
+  it("⚠️★★IS FALSE WHEN EVERY ROW IS REVOKED", () => {
+    // ★★"HAS NO ROWS" IS THE WRONG QUESTION, and asking it left somebody whose
+    //  only number was revoked with **no control at all** on their row: no
+    //  Register button, and no dropdown either, because that is hidden for a
+    //  revoked row too. **The one person most likely to need a new number had
+    //  nowhere to ask for one.**
+    expect(hasLiveNumber([contact({ status: "revoked" })])).toBe(false);
+  });
+
+  it("★is TRUE for a pending row — it is on its way to being live", () => {
+    // ★Offering Register beside a code somebody is waiting on would invite a
+    //  second number nobody asked for.
+    expect(hasLiveNumber([contact({ status: "pending" })])).toBe(true);
+  });
+
+  it("★is true when ONE of several rows is live", () => {
+    expect(
+      hasLiveNumber([
+        contact({ id: "c1", status: "revoked" }),
+        contact({ id: "c2", status: "verified" }),
+      ]),
+    ).toBe(true);
+  });
+
+  it("is false for somebody with no rows at all", () => {
+    expect(hasLiveNumber([])).toBe(false);
   });
 });
