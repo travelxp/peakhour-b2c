@@ -22,7 +22,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { ContactRegister, MerchantContact } from "@/lib/api/control-plane";
-import { browserTimeZone, quietHoursPatch } from "@/lib/control-plane";
+import {
+  browserTimeZone,
+  localeOptions,
+  quietHoursPatch,
+} from "@/lib/control-plane";
 import { useUpdatePreferences } from "@/hooks/use-control-plane";
 
 /**
@@ -137,7 +141,12 @@ export function PreferencesDialog({
                 <SelectItem value={NONE}>
                   Infer it from how they write
                 </SelectItem>
-                {LOCALE_SUGGESTIONS.map((l) => (
+                {/* ★★A STORED VALUE OUTSIDE THE SUGGESTIONS BECOMES AN
+                    OPTION. `locale` is a free BCP-47-ish string, not an enum,
+                    and 🚫a `Select` limited to the eight suggestions renders
+                    BLANK for anything else — indistinguishable from "infer it
+                    from how they write", **the opposite setting**. */}
+                {localeOptions(LOCALE_SUGGESTIONS, contact.locale).map((l) => (
                   <SelectItem key={l.value} value={l.value}>
                     {l.label}
                   </SelectItem>

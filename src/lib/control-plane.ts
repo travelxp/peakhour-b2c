@@ -378,3 +378,109 @@ export function contactsFor(
 ): MerchantContact[] {
   return contacts.filter((c) => c.userId === userId);
 }
+
+// ── People who left ───────────────────────────────────────────────────────
+
+/** One person the page has to draw, whether or not they are still on the team. */
+export interface ContactHolder {
+  userId: string;
+  label: string;
+  /** The org role, or null for somebody no longer in `members[]`. */
+  role: string | null;
+  /** ⚠️False means they have LEFT THE ORG and their rows are still here. */
+  isMember: boolean;
+}
+
+/**
+ * Everybody with a row to draw: every org member, plus **anybody holding a
+ * contact row who is no longer one.**
+ *
+ * ── ⚠️★★A NUMBER OUTLIVES THE MEMBERSHIP THAT REGISTERED IT ──────────────
+ *
+ * `plt_merchant_contacts` is not touched when somebody is removed from
+ * `org_organizations.members[]`, and **`resolveRecipients` does not join the
+ * member list either** — it asks for `status: "verified"`. So a teammate who
+ * left still holds a number Peakhour will take an instruction from.
+ *
+ * 🚫**A first version iterated the MEMBER list**, so that row was invisible:
+ * not shown, not revocable, and still able to command. **The one control that
+ * could close it was the one thing the page did not draw.** This is the same
+ * shape as `orphanedDomainRows` and it is here for the same reason — a live
+ * thing the obvious list does not contain.
+ */
+export function contactHolders(
+  members: TeamMember[],
+  contacts: MerchantContact[],
+): ContactHolder[] {
+  const holders: ContactHolder[] = assignableMembers(members).map((m) => ({
+    userId: m.userId,
+    label: memberLabel(m),
+    role: m.role,
+    isMember: true,
+  }));
+  const known = new Set(holders.map((h) => h.userId));
+  for (const c of contacts) {
+    if (known.has(c.userId)) continue;
+    known.add(c.userId);
+    holders.push({
+      userId: c.userId,
+      // ★THE NUMBER IS THE ONLY LABEL LEFT. `GET /contacts` carries no name —
+      //  it never needed one while every holder was a member — so the row is
+      //  identified by the thing that still matters: the number that can
+      //  command Peakhour.
+      label: formatWaId(c.waId),
+      role: null,
+      isMember: false,
+    });
+  }
+  return holders;
+}
+
+/**
+ * The options an assignee picker must offer for one cell.
+ *
+ * ★★THE CURRENT ASSIGNEE IS ALWAYS AMONG THEM, EVEN IF THEY LEFT. A `Select`
+ * whose value is not in its options renders **blank** — so an Admin would see
+ * an empty control on a cell that is assigned, while a viewer reading the same
+ * row sees the name. ⚠️Blank reads as "not assigned", which is the opposite of
+ * what is stored, and the remedy (reassign it) is the one thing the blank
+ * control makes hard.
+ */
+export function pickerOptions(
+  members: TeamMember[],
+  assignment: RoutingAssignment | null,
+): Array<{ userId: string; label: string; isMember: boolean }> {
+  const options = assignableMembers(members).map((m) => ({
+    userId: m.userId,
+    label: memberLabel(m),
+    isMember: true,
+  }));
+  const current = assignment?.assignee;
+  if (current && !options.some((o) => o.userId === current.userId)) {
+    options.unshift({
+      userId: current.userId,
+      label: current.name ?? current.email ?? "Someone who has left",
+      isMember: false,
+    });
+  }
+  return options;
+}
+
+/**
+ * The options a locale picker must offer, given what is stored.
+ *
+ * ★★`locale` IS A FREE STRING, NOT AN ENUM — a BCP-47-ish value capped at 32,
+ * the same type the shopper plane uses. The suggestions are a starting point,
+ * and 🚫a `Select` limited to them renders **blank** for anything else — which
+ * is indistinguishable from "infer it from how they write", **the opposite
+ * setting.** So a stored value outside the list becomes an option.
+ */
+export function localeOptions(
+  suggestions: ReadonlyArray<{ value: string; label: string }>,
+  stored: string | null,
+): Array<{ value: string; label: string }> {
+  if (!stored || suggestions.some((s) => s.value === stored)) {
+    return [...suggestions];
+  }
+  return [{ value: stored, label: stored }, ...suggestions];
+}

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { toast } from "sonner";
 import { AlertTriangle, Network } from "lucide-react";
 import { ApiError } from "@/lib/api";
@@ -26,12 +27,11 @@ import type {
 } from "@/lib/api/control-plane";
 import type { TeamMember } from "@/lib/auth";
 import {
-  assignableMembers,
   assignmentInputFor,
   buildChannelRows,
   buildDomainRows,
-  memberLabel,
   orphanedDomainRows,
+  pickerOptions,
   type MatrixCell,
 } from "@/lib/control-plane";
 import { useAssignCell, useClearCell } from "@/hooks/use-control-plane";
@@ -66,6 +66,7 @@ function CellRow({
   members,
   fallbackLabel,
   canEdit,
+  busy,
   onAssign,
   onClear,
 }: {
@@ -73,9 +74,21 @@ function CellRow({
   members: TeamMember[];
   fallbackLabel: string;
   canEdit: boolean;
+  /** ★★A WRITE ON THIS CELL IS IN FLIGHT. Until the refetch lands the select
+   *  still shows the OLD value, so a second click fires an overlapping `PUT`
+   *  on the same cell — two upserts racing the unique index, which is the
+   *  exact collision the api's E11000 retry exists to survive. **Not causing
+   *  it is better than surviving it.** */
+  busy: boolean;
   onAssign: (cell: MatrixCell, userId: string) => void;
   onClear: (cell: MatrixCell) => void;
 }) {
+  // ★★THE CURRENT ASSIGNEE IS ALWAYS AN OPTION, EVEN IF THEY HAVE LEFT. A
+  //  `Select` whose value is absent from its options renders BLANK — so an
+  //  Admin would see an empty control on a cell that IS assigned, while the
+  //  read-only branch beside it shows the name. Blank reads as "not
+  //  assigned", the opposite of what is stored.
+  const options = pickerOptions(members, cell.assignment);
   return (
     <div className="flex flex-wrap items-center gap-3 border-t py-3 first:border-t-0">
       <div className="min-w-40 flex-1">
@@ -109,6 +122,7 @@ function CellRow({
         {canEdit ? (
           <Select
             value={cell.assignment?.assignee.userId ?? NONE}
+            disabled={busy}
             onValueChange={(v) =>
               v === NONE ? onClear(cell) : onAssign(cell, v)
             }
@@ -117,13 +131,14 @@ function CellRow({
               className="w-56"
               aria-label={`Who hears about ${cell.label}`}
             >
-              <SelectValue />
+              <SelectValue placeholder="Not assigned" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={NONE}>Not assigned</SelectItem>
-              {members.map((m) => (
-                <SelectItem key={m.userId} value={m.userId}>
-                  {memberLabel(m)}
+              {options.map((o) => (
+                <SelectItem key={o.userId} value={o.userId}>
+                  {o.label}
+                  {o.isMember ? "" : " — no longer on the team"}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -155,8 +170,12 @@ export function RoutingMatrix({
 }) {
   const assign = useAssignCell();
   const clear = useClearCell();
+  // ★PER CELL, not one flag for the table: assigning Support must not freeze
+  //  the Ads row, and a shared flag would make the matrix feel broken every
+  //  time anybody changed anything.
+  const [busyCell, setBusyCell] = useState<string | null>(null);
 
-  const people = assignableMembers(members);
+  const people = members;
   const domainRows = buildDomainRows(domains, matrix.byDomain, contacts);
   const orphans = orphanedDomainRows(domains, matrix.byDomain, contacts);
   const channelRows = buildChannelRows(matrix.byChannel, contacts);
@@ -165,6 +184,8 @@ export function RoutingMatrix({
     toast.error(err instanceof ApiError ? err.message : fallback);
 
   async function onAssign(cell: MatrixCell, userId: string) {
+    if (busyCell) return;
+    setBusyCell(cell.id);
     try {
       await assign.mutateAsync(assignmentInputFor(cell, userId));
       toast.success(`${cell.label} now goes to the person you chose.`);
@@ -174,16 +195,23 @@ export function RoutingMatrix({
       //  says retrying will not clear it. Substituting our own copy would lose
       //  the half of the sentence that says what to do.
       say(err, "Could not save that assignment.");
+    } finally {
+      // ★`finally`, so a refusal does not leave the row locked. The commonest
+      //  failure here is one the merchant can fix and retry immediately.
+      setBusyCell(null);
     }
   }
 
   async function onClear(cell: MatrixCell) {
-    if (!cell.assignment) return;
+    if (!cell.assignment || busyCell) return;
+    setBusyCell(cell.id);
     try {
       await clear.mutateAsync(cell.assignment.id);
       toast.success(`${cell.label} falls back to the Owner again.`);
     } catch (err) {
       say(err, "Could not clear that assignment.");
+    } finally {
+      setBusyCell(null);
     }
   }
 
@@ -215,6 +243,7 @@ export function RoutingMatrix({
                 members={people}
                 fallbackLabel={ownerLabel}
                 canEdit={isAdmin}
+                busy={busyCell === cell.id}
                 onAssign={onAssign}
                 onClear={onClear}
               />
@@ -246,6 +275,7 @@ export function RoutingMatrix({
                 members={people}
                 fallbackLabel={ownerLabel}
                 canEdit={isAdmin}
+                busy={busyCell === cell.id}
                 onAssign={onAssign}
                 onClear={onClear}
               />
@@ -262,6 +292,7 @@ export function RoutingMatrix({
               members={people}
               fallbackLabel="the domain owner"
               canEdit={isAdmin}
+              busy={busyCell === cell.id}
               onAssign={onAssign}
               onClear={onClear}
             />

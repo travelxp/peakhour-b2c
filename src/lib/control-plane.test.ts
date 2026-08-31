@@ -6,7 +6,9 @@ import {
   buildChannelRows,
   buildDomainRows,
   codeCountdown,
+  contactHolders,
   contactsFor,
+  localeOptions,
   describeQuietHours,
   formatWaId,
   isClock,
@@ -14,6 +16,7 @@ import {
   memberLabel,
   normaliseWaIdInput,
   orphanedDomainRows,
+  pickerOptions,
   quietHoursPatch,
 } from "./control-plane";
 import type {
@@ -626,5 +629,185 @@ describe("contactsFor", () => {
 
   it("is empty for somebody who has registered nothing", () => {
     expect(contactsFor("000000000000000000000009", [contact()])).toEqual([]);
+  });
+});
+
+describe("contactHolders — a number outlives the membership that registered it", () => {
+  const members: TeamMember[] = [
+    {
+      userId: ASHA,
+      email: "asha@shop.test",
+      name: "Asha Sundaram",
+      role: "admin",
+      lastLoginAt: null,
+      isOwner: false,
+    },
+  ];
+
+  it("⚠️★★DRAWS A CONTACT WHOSE HOLDER HAS LEFT THE ORG", async () => {
+    // ★★`plt_merchant_contacts` IS NOT TOUCHED WHEN SOMEBODY IS REMOVED FROM
+    //  `members[]`, and `resolveRecipients` does not join the member list
+    //  either — it asks for `status: "verified"`. **So a teammate who left
+    //  still holds a number Peakhour will take an instruction from.**
+    //
+    //  🚫A first version of the page iterated the MEMBER list, so that row was
+    //  invisible: not shown, not revocable, and still able to command. **The
+    //  one control that could close it was the one thing the page did not
+    //  draw.**
+    const holders = contactHolders(members, [
+      contact(),
+      contact({ id: "c9", userId: ROHIT, waId: "919872400031" }),
+    ]);
+    expect(holders.map((h) => h.userId)).toEqual([ASHA, ROHIT]);
+    expect(holders.find((h) => h.userId === ROHIT)?.isMember).toBe(false);
+  });
+
+  it("★★labels the departed holder by their NUMBER — it is the only label left", () => {
+    // ★`GET /contacts` carries no name: it never needed one while every holder
+    //  was a member. So the row is identified by the thing that still matters,
+    //  which is the number that can command Peakhour.
+    const holders = contactHolders(members, [
+      contact({ id: "c9", userId: ROHIT, waId: "919872400031" }),
+    ]);
+    const gone = holders.find((h) => h.userId === ROHIT);
+    expect(gone?.label).toBe("+91 98724 00031");
+    expect(gone?.role).toBeNull();
+  });
+
+  it("★★still lists a member who has registered NOTHING", () => {
+    // ★They are the ones who need the Register control, so dropping people
+    //  without contacts would hide the only path to giving them one.
+    const holders = contactHolders(members, []);
+    expect(holders).toHaveLength(1);
+    expect(holders[0].isMember).toBe(true);
+    expect(holders[0].role).toBe("admin");
+  });
+
+  it("🚫★does not list a member TWICE when they hold two numbers", () => {
+    // ★`waId` is unique per BUSINESS, not per person, so two rows for one
+    //  member is ordinary — and a holder list that appended per CONTACT rather
+    //  than per PERSON would draw them twice, each showing both numbers.
+    const holders = contactHolders(members, [
+      contact({ id: "c1", waId: "919820411207" }),
+      contact({ id: "c2", waId: "919820411208" }),
+    ]);
+    expect(holders).toHaveLength(1);
+  });
+
+  it("🚫★and does not list a DEPARTED holder twice either", () => {
+    const holders = contactHolders(members, [
+      contact({ id: "c8", userId: ROHIT, waId: "919872400031" }),
+      contact({ id: "c9", userId: ROHIT, waId: "919872400032" }),
+    ]);
+    expect(holders.filter((h) => h.userId === ROHIT)).toHaveLength(1);
+  });
+});
+
+describe("pickerOptions — a Select whose value is missing renders blank", () => {
+  const members: TeamMember[] = [
+    {
+      userId: ASHA,
+      email: "asha@shop.test",
+      name: "Asha Sundaram",
+      role: "admin",
+      lastLoginAt: null,
+      isOwner: false,
+    },
+  ];
+
+  it("⚠️★★KEEPS THE CURRENT ASSIGNEE AS AN OPTION EVEN AFTER THEY LEAVE", () => {
+    // ★★A `Select` whose value is not among its options renders BLANK. So an
+    //  Admin would see an empty control on a cell that IS assigned, while the
+    //  read-only branch beside it shows the name. **Blank reads as "not
+    //  assigned" — the opposite of what is stored** — and the remedy
+    //  (reassign it) is the one thing a blank control makes hard.
+    const options = pickerOptions(
+      members,
+      assignment({
+        id: "r1",
+        domain: "ads",
+        assignee: { userId: ROHIT, name: "Rohit Mehta", email: null },
+      }),
+    );
+    expect(options.map((o) => o.userId)).toContain(ROHIT);
+    expect(options.find((o) => o.userId === ROHIT)?.isMember).toBe(false);
+  });
+
+  it("★does not duplicate an assignee who IS still a member", () => {
+    const options = pickerOptions(
+      members,
+      assignment({ id: "r1", domain: "ads" }),
+    );
+    expect(options.filter((o) => o.userId === ASHA)).toHaveLength(1);
+    expect(options[0].isMember).toBe(true);
+  });
+
+  it("★offers the members alone when the cell is unassigned", () => {
+    const options = pickerOptions(members, null);
+    expect(options.map((o) => o.userId)).toEqual([ASHA]);
+  });
+
+  it("★★labels a departed assignee with no name and no email rather than blank", () => {
+    // ★An option with an empty label is one nobody can choose deliberately,
+    //  and this is exactly the row somebody needs to click to fix.
+    const options = pickerOptions(
+      members,
+      assignment({
+        id: "r1",
+        domain: "ads",
+        assignee: { userId: ROHIT, name: null, email: null },
+      }),
+    );
+    expect(options.find((o) => o.userId === ROHIT)?.label).toBe(
+      "Someone who has left",
+    );
+  });
+});
+
+describe("localeOptions — locale is a free string, not an enum", () => {
+  const SUGGESTIONS = [
+    { value: "en-IN", label: "English (India)" },
+    { value: "ta", label: "Tamil" },
+  ];
+
+  it("⚠️★★ADDS A STORED VALUE THAT IS NOT AMONG THE SUGGESTIONS", () => {
+    // ★★`plt_merchant_contacts.locale` IS A BCP-47-ish STRING CAPPED AT 32 —
+    //  the same type the shopper plane uses — and the suggestions are a
+    //  starting point. 🚫A `Select` limited to them renders BLANK for anything
+    //  else, which is **indistinguishable from "infer it from how they
+    //  write"**: the opposite setting.
+    expect(localeOptions(SUGGESTIONS, "fr-CA").map((o) => o.value)).toEqual([
+      "fr-CA",
+      "en-IN",
+      "ta",
+    ]);
+  });
+
+  it("★does not duplicate one that IS among them", () => {
+    expect(localeOptions(SUGGESTIONS, "ta").map((o) => o.value)).toEqual([
+      "en-IN",
+      "ta",
+    ]);
+  });
+
+  it("★returns the suggestions unchanged when nothing is stored", () => {
+    expect(localeOptions(SUGGESTIONS, null)).toHaveLength(2);
+  });
+
+  it("🚫★does not copy the caller's array in place", () => {
+    // ★The suggestions are a module-level constant in the dialog. Unshifting
+    //  into it would make every subsequent contact inherit the previous one's
+    //  locale as an option.
+    //
+    //  ⚠️★★A FRESH ARRAY AND AN UNSEEN VALUE, because the shared fixture makes
+    //  this case order-dependent: the first case in this block already asks
+    //  for `fr-CA`, so under a MUTATING implementation the constant would
+    //  already contain it by the time this ran — the early return fires, no
+    //  mutation happens, **and the spec passes on the exact defect it exists
+    //  to catch.** The harness found that; nothing else would have.
+    const own = [{ value: "en-IN", label: "English (India)" }];
+    const result = localeOptions(own, "de-AT");
+    expect(own).toHaveLength(1);
+    expect(result).toHaveLength(2);
   });
 });

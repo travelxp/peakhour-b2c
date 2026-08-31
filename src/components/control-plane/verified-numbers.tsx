@@ -48,6 +48,7 @@ import type { TeamMember } from "@/lib/auth";
 import {
   assignableMembers,
   codeCountdown,
+  contactHolders,
   contactsFor,
   formatWaId,
   isPlausibleWaId,
@@ -136,6 +137,27 @@ export function VerifiedNumbers({
   const [addOpen, setAddOpen] = useState(false);
   const [waIdInput, setWaIdInput] = useState("");
   const [subjectId, setSubjectId] = useState<string>("");
+
+  /**
+   * ⚠️★★OPENING THE DIALOG CLEARS IT, and CANCELLING clears it too.
+   *
+   * 🚫A first version cleared only on SUCCESS. The per-row "Register a
+   * number" button pre-selects a teammate, so: press it on Asha's row,
+   * cancel, then press "Add a teammate" — **the dialog reopens with Asha
+   * still selected**, and the number gets registered against the wrong
+   * `userId`. ★That is not a cosmetic slip: only the person a row names can
+   * verify it, so the number becomes one **nobody who has it can confirm.**
+   */
+  function openAddDialog(forUserId = "") {
+    setSubjectId(forUserId);
+    setWaIdInput("");
+    setAddOpen(true);
+  }
+  function closeAddDialog() {
+    setAddOpen(false);
+    setSubjectId("");
+    setWaIdInput("");
+  }
   const [codeFor, setCodeFor] = useState<string | null>(null);
   const [code, setCode] = useState("");
   const [prefsFor, setPrefsFor] = useState<MerchantContact | null>(null);
@@ -145,6 +167,14 @@ export function VerifiedNumbers({
   const verify = useVerifyContact();
   const revoke = useRevokeContact();
 
+  // ⚠️★★HOLDERS, NOT MEMBERS. A number outlives the membership that
+  //  registered it: `plt_merchant_contacts` is untouched when somebody is
+  //  removed from `members[]`, and `resolveRecipients` asks only for
+  //  `status: "verified"`. 🚫Iterating members made that row INVISIBLE — not
+  //  shown, not revocable, and still able to command Peakhour.
+  const holders = contactHolders(members, contacts);
+  // ★The REGISTER dialog still offers members only: you cannot register a
+  //  new number for somebody who has left, and the api would refuse it.
   const people = assignableMembers(members);
   const digits = normaliseWaIdInput(waIdInput);
 
@@ -162,9 +192,7 @@ export function VerifiedNumbers({
         waId: digits,
         ...(subjectId ? { userId: subjectId } : {}),
       });
-      setAddOpen(false);
-      setWaIdInput("");
-      setSubjectId("");
+      closeAddDialog();
       toast.success(
         // ★★THE MESSAGE NAMES WHO HAS TO ACT, because it is usually not the
         //  person reading it.
@@ -203,7 +231,7 @@ export function VerifiedNumbers({
             </CardDescription>
           </div>
           {isAdmin && (
-            <Button size="sm" onClick={() => setAddOpen(true)}>
+            <Button size="sm" onClick={() => openAddDialog()}>
               <Plus className="size-4" aria-hidden />
               Add a teammate
             </Button>
@@ -212,13 +240,13 @@ export function VerifiedNumbers({
       </CardHeader>
 
       <CardContent className="space-y-3">
-        {people.length === 0 && (
+        {holders.length === 0 && (
           <p className="text-sm text-muted-foreground">
             No teammates yet. Invite somebody from Settings → Team first.
           </p>
         )}
 
-        {people.map((m) => {
+        {holders.map((m) => {
           const rows = contactsFor(m.userId, contacts);
           const isSelf = m.userId === currentUserId;
           return (
@@ -228,21 +256,27 @@ export function VerifiedNumbers({
             >
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-sm font-medium truncate">
-                    {memberLabel(m)}
-                  </p>
-                  <p className="text-xs text-muted-foreground capitalize">
-                    {m.role}
-                  </p>
+                  <p className="text-sm font-medium truncate">{m.label}</p>
+                  {m.isMember ? (
+                    <p className="text-xs text-muted-foreground capitalize">
+                      {m.role}
+                    </p>
+                  ) : (
+                    // ⚠️★★NO LONGER ON THE TEAM, AND STILL ABLE TO COMMAND.
+                    //  Removing somebody from the org does not revoke their
+                    //  number — nothing joins the two — so this row is the only
+                    //  place the merchant can find out, and Revoke is the only
+                    //  control that closes it.
+                    <p className="text-xs text-destructive">
+                      No longer on the team — revoke this number
+                    </p>
+                  )}
                 </div>
-                {rows.length === 0 && isAdmin && (
+                {rows.length === 0 && isAdmin && m.isMember && (
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => {
-                      setSubjectId(m.userId);
-                      setAddOpen(true);
-                    }}
+                    onClick={() => openAddDialog(m.userId)}
                   >
                     Register a number
                   </Button>
@@ -294,7 +328,7 @@ export function VerifiedNumbers({
                     )}
                     {contact.status === "pending" && !isSelf && (
                       <span className="text-xs text-muted-foreground">
-                        {memberLabel(m).split(" ")[0]} enters this code
+                        {m.label.split(" ")[0]} enters this code
                         themselves
                       </span>
                     )}
@@ -395,7 +429,10 @@ export function VerifiedNumbers({
         })}
       </CardContent>
 
-      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+      <Dialog
+        open={addOpen}
+        onOpenChange={(v) => (v ? setAddOpen(true) : closeAddDialog())}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Register a WhatsApp number</DialogTitle>
@@ -441,7 +478,7 @@ export function VerifiedNumbers({
             </div>
           </div>
           <div className="flex justify-end gap-2">
-            <Button variant="ghost" onClick={() => setAddOpen(false)}>
+            <Button variant="ghost" onClick={closeAddDialog}>
               Cancel
             </Button>
             <Button
