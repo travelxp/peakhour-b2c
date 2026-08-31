@@ -229,6 +229,11 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/dashboard/settings", label: "General" },
           { href: "/dashboard/settings/preferences", label: "Preferences" },
           { href: "/dashboard/settings/team", label: "Team" },
+          // ★"Peakhour on WhatsApp" — Flow A, and the label says whose side it
+          //  is on. /dashboard/content/whatsapp is the OTHER plane, the
+          //  merchant's own shoppers, and a bare "WhatsApp" entry here would
+          //  read as a second copy of it.
+          { href: "/dashboard/settings/whatsapp", label: "Peakhour on WhatsApp" },
           { href: "/dashboard/settings/billing", label: "Billing" },
           { href: "/dashboard/settings/tickets", label: "Tickets", badge: () => <OpenTicketBadge /> },
         ],
