@@ -244,6 +244,32 @@ export function isPlausibleWaId(digits: string): boolean {
   return /^[1-9][0-9]{7,14}$/.test(digits);
 }
 
+
+/**
+ * The `POST /contacts` body, or `null` when the form is not answerable yet.
+ *
+ * ── ⚠️★★`userId` IS ALWAYS SENT, AND THE API'S DEFAULT IS WHY ────────────
+ *
+ * `POST /contacts` defaults `userId` to the CALLER when it is omitted — right
+ * for a script, and wrong for a form whose first question is *"whose number is
+ * it?"*. 🚫A first version omitted it whenever nothing was selected, so "Add a
+ * teammate" registered **a teammate's handset against the Owner's `userId`**.
+ *
+ * ★That is not merely a wrong row. Only the person a row NAMES can verify it,
+ * so either the number is unconfirmable — or the Owner confirms it and **a
+ * teammate's phone is now authorised as the Owner**, which is the precise
+ * failure `plt_merchant_contacts` exists to prevent.
+ */
+export function registrationInputFor(
+  rawWaId: string,
+  subjectUserId: string | null,
+): { waId: string; userId: string } | null {
+  const waId = normaliseWaIdInput(rawWaId);
+  if (!isPlausibleWaId(waId)) return null;
+  if (!subjectUserId) return null;
+  return { waId, userId: subjectUserId };
+}
+
 // ── The countdown ─────────────────────────────────────────────────────────
 
 /**

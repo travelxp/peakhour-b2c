@@ -18,6 +18,7 @@ import {
   orphanedDomainRows,
   pickerOptions,
   quietHoursPatch,
+  registrationInputFor,
 } from "./control-plane";
 import type {
   MerchantContact,
@@ -809,5 +810,42 @@ describe("localeOptions — locale is a free string, not an enum", () => {
     const result = localeOptions(own, "de-AT");
     expect(own).toHaveLength(1);
     expect(result).toHaveLength(2);
+  });
+});
+
+describe("registrationInputFor — the api defaults userId to the CALLER", () => {
+  it("⚠️★★REFUSES to send a number with no subject", () => {
+    // ★★`POST /contacts` DEFAULTS `userId` TO THE CALLER WHEN IT IS OMITTED —
+    //  right for a script, wrong for a form whose first question is "whose
+    //  number is it?". 🚫A first version omitted it whenever nothing was
+    //  selected, so "Add a teammate" registered **a teammate's handset against
+    //  the Owner's `userId`**.
+    //
+    //  ★And that is not merely a wrong row: only the person a row NAMES can
+    //  verify it, so either the number is unconfirmable — or the Owner
+    //  confirms it and **a teammate's phone is authorised as the Owner**,
+    //  which is the precise failure `plt_merchant_contacts` exists to prevent.
+    expect(registrationInputFor("+91 98204 11207", null)).toBeNull();
+    expect(registrationInputFor("+91 98204 11207", "")).toBeNull();
+  });
+
+  it("★★always NAMES the subject — never omits the key", () => {
+    // ★An input that merely left `userId` off when it had one would be the
+    //  same defect wearing a builder.
+    const input = registrationInputFor("+91 98204 11207", ASHA);
+    expect(input).toEqual({ waId: "919820411207", userId: ASHA });
+    expect(input && "userId" in input).toBe(true);
+  });
+
+  it("★refuses a number the api would refuse anyway", () => {
+    expect(registrationInputFor("12345", ASHA)).toBeNull();
+    expect(registrationInputFor("", ASHA)).toBeNull();
+    expect(registrationInputFor("0919820411207", ASHA)).toBeNull();
+  });
+
+  it("★normalises what somebody pasted", () => {
+    expect(registrationInputFor("(+91) 98204-11207", ASHA)?.waId).toBe(
+      "919820411207",
+    );
   });
 });

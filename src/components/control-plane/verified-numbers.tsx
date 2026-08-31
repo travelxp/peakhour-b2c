@@ -54,6 +54,7 @@ import {
   isPlausibleWaId,
   memberLabel,
   normaliseWaIdInput,
+  registrationInputFor,
 } from "@/lib/control-plane";
 import {
   useRegisterContact,
@@ -148,8 +149,15 @@ export function VerifiedNumbers({
    * `userId`. ★That is not a cosmetic slip: only the person a row names can
    * verify it, so the number becomes one **nobody who has it can confirm.**
    */
-  function openAddDialog(forUserId = "") {
-    setSubjectId(forUserId);
+  function openAddDialog(forUserId?: string) {
+    // ⚠️★★DEFAULTS TO THE VIEWER, AND NEVER TO NOTHING. `POST /contacts`
+    //  omits `userId` when we do, and the api then defaults it to the
+    //  CALLER — so "Add a teammate" with nothing selected registered a
+    //  teammate's handset against **the Owner's** `userId`. 🚫That is not
+    //  merely a wrong row: only the person a row names can verify it, so
+    //  either the number is unconfirmable, or the Owner confirms it and
+    //  **a teammate's phone is now authorised as the Owner.**
+    setSubjectId(forUserId ?? currentUserId ?? "");
     setWaIdInput("");
     setAddOpen(true);
   }
@@ -186,12 +194,16 @@ export function VerifiedNumbers({
     toast.error(err instanceof ApiError ? err.message : fallback);
 
   async function onRegister() {
-    if (!isPlausibleWaId(digits)) return;
+    // ★★BOTH HALVES, AND `subjectId` IS THE ONE THAT MATTERED. Sending the
+    //  number without a subject is not "register it for nobody" — it is
+    //  "register it for whoever is signed in", which is the one answer this
+    //  dialog must never guess at.
+    // ★★BOTH HALVES THROUGH ONE BUILDER, so the rule lives where a test can
+    //  reach it rather than in a condition nothing exercises.
+    const input = registrationInputFor(waIdInput, subjectId || null);
+    if (!input) return;
     try {
-      await register.mutateAsync({
-        waId: digits,
-        ...(subjectId ? { userId: subjectId } : {}),
-      });
+      await register.mutateAsync(input);
       closeAddDialog();
       toast.success(
         // ★★THE MESSAGE NAMES WHO HAS TO ACT, because it is usually not the
@@ -327,9 +339,15 @@ export function VerifiedNumbers({
                       </Button>
                     )}
                     {contact.status === "pending" && !isSelf && (
+                      // ★A DEPARTED HOLDER IS LABELLED BY THEIR NUMBER, because
+                      //  `GET /contacts` carries no name — so 🚫splitting the
+                      //  label on a space rendered "+91 enters this code
+                      //  themselves". They also cannot sign in to enter it, which
+                      //  is the more useful thing to say.
                       <span className="text-xs text-muted-foreground">
-                        {m.label.split(" ")[0]} enters this code
-                        themselves
+                        {m.isMember
+                          ? `${m.label.split(" ")[0]} enters this code themselves`
+                          : "Only the person this number belongs to can confirm it"}
                       </span>
                     )}
                     {(contact.status === "verified" || isSelf) && (
@@ -482,7 +500,7 @@ export function VerifiedNumbers({
               Cancel
             </Button>
             <Button
-              disabled={!isPlausibleWaId(digits) || register.isPending}
+              disabled={!isPlausibleWaId(digits) || !subjectId || register.isPending}
               onClick={onRegister}
             >
               Send the code

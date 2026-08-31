@@ -170,10 +170,26 @@ export function RoutingMatrix({
 }) {
   const assign = useAssignCell();
   const clear = useClearCell();
-  // ★PER CELL, not one flag for the table: assigning Support must not freeze
-  //  the Ads row, and a shared flag would make the matrix feel broken every
-  //  time anybody changed anything.
-  const [busyCell, setBusyCell] = useState<string | null>(null);
+  /**
+   * ★PER CELL, not one flag for the table: assigning Support must not freeze
+   * the Ads row.
+   *
+   * ⚠️🚫**A FIRST VERSION SAID EXACTLY THAT AND DID THE OPPOSITE** — a single
+   * `busyCell` string, guarded by `if (busyCell) return`. Editing a second
+   * row while the first was in flight was **silently discarded**: no request,
+   * no toast, and the select snapping back. ★And a single string cannot hold
+   * two writes anyway — the first `finally` would have cleared the second
+   * row's lock. A set says what the comment always claimed.
+   */
+  const [busy, setBusy] = useState<ReadonlySet<string>>(() => new Set());
+  const startBusy = (id: string) =>
+    setBusy((prev) => new Set(prev).add(id));
+  const endBusy = (id: string) =>
+    setBusy((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
 
   const people = members;
   const domainRows = buildDomainRows(domains, matrix.byDomain, contacts);
@@ -184,8 +200,9 @@ export function RoutingMatrix({
     toast.error(err instanceof ApiError ? err.message : fallback);
 
   async function onAssign(cell: MatrixCell, userId: string) {
-    if (busyCell) return;
-    setBusyCell(cell.id);
+    // ★THIS CELL ONLY. Another row's write is somebody else's business.
+    if (busy.has(cell.id)) return;
+    startBusy(cell.id);
     try {
       await assign.mutateAsync(assignmentInputFor(cell, userId));
       toast.success(`${cell.label} now goes to the person you chose.`);
@@ -198,20 +215,20 @@ export function RoutingMatrix({
     } finally {
       // ★`finally`, so a refusal does not leave the row locked. The commonest
       //  failure here is one the merchant can fix and retry immediately.
-      setBusyCell(null);
+      endBusy(cell.id);
     }
   }
 
   async function onClear(cell: MatrixCell) {
-    if (!cell.assignment || busyCell) return;
-    setBusyCell(cell.id);
+    if (!cell.assignment || busy.has(cell.id)) return;
+    startBusy(cell.id);
     try {
       await clear.mutateAsync(cell.assignment.id);
       toast.success(`${cell.label} falls back to the Owner again.`);
     } catch (err) {
       say(err, "Could not clear that assignment.");
     } finally {
-      setBusyCell(null);
+      endBusy(cell.id);
     }
   }
 
@@ -243,7 +260,7 @@ export function RoutingMatrix({
                 members={people}
                 fallbackLabel={ownerLabel}
                 canEdit={isAdmin}
-                busy={busyCell === cell.id}
+                busy={busy.has(cell.id)}
                 onAssign={onAssign}
                 onClear={onClear}
               />
@@ -275,7 +292,7 @@ export function RoutingMatrix({
                 members={people}
                 fallbackLabel={ownerLabel}
                 canEdit={isAdmin}
-                busy={busyCell === cell.id}
+                busy={busy.has(cell.id)}
                 onAssign={onAssign}
                 onClear={onClear}
               />
@@ -292,7 +309,7 @@ export function RoutingMatrix({
               members={people}
               fallbackLabel="the domain owner"
               canEdit={isAdmin}
-              busy={busyCell === cell.id}
+              busy={busy.has(cell.id)}
               onAssign={onAssign}
               onClear={onClear}
             />
@@ -333,12 +350,23 @@ export function RoutingMatrix({
                   <Button
                     size="sm"
                     variant="outline"
+                    // ⚠️★★GUARDED LIKE EVERY OTHER WRITE ON THIS PAGE, and 🚫a
+                    //  first version was not. A double-click fires two DELETEs;
+                    //  the second matches nothing and answers 404, so the
+                    //  merchant gets an error toast for **an operation that
+                    //  succeeded** — and is left believing a row they have just
+                    //  cleared is still there.
+                    disabled={busy.has(a.id)}
                     onClick={async () => {
+                      if (busy.has(a.id)) return;
+                      startBusy(a.id);
                       try {
                         await clear.mutateAsync(a.id);
                         toast.success("Cleared.");
                       } catch (err) {
                         say(err, "Could not clear that row.");
+                      } finally {
+                        endBusy(a.id);
                       }
                     }}
                   >
