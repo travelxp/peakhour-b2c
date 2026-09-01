@@ -117,10 +117,14 @@ export function useMerchantContacts() {
  * per business** even though the filter does not, and a shared cache entry
  * would show one business's tab on another.
  *
- * ⚠️★A `staleTime` OF ZERO AND NO INTERVAL. A refusal arrives when a stranger
- * or a lapsed teammate types something, which is not a clock the page can
- * predict — so it refetches when the merchant comes back to it, and does not
- * poll a collection that is quiet for days at a time.
+ * ⚠️★A `staleTime` OF ZERO AND NO INTERVAL, SET RATHER THAN ASSUMED — a first
+ * version of this docblock claimed the zero while setting nothing, so the query
+ * inherited `query-provider`'s 30-second default and the comment described a
+ * page that did not exist. **A refusal arrives when a stranger or a lapsed
+ * teammate types something**, which is not a clock the page can predict — so it
+ * refetches whenever the merchant comes back to the tab, and does not poll a
+ * collection that is quiet for days at a time. ★Every sibling here sets one
+ * explicitly for the same reason.
  */
 export function useActivityLedger() {
   const { business, isAuthenticated } = useAuth();
@@ -143,6 +147,7 @@ export function useActivityLedger() {
         ? { before: last.nextBefore, beforeId: last.nextBeforeId }
         : null,
     enabled: isAuthenticated && !!business?._id,
+    staleTime: 0,
   });
 }
 

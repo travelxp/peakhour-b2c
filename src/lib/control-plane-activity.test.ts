@@ -319,6 +319,22 @@ describe("displayTimeZone", () => {
     expect(displayTimeZone("Asia/Kolkata")).toBe("Asia/Kolkata");
   });
 
+  it("ignores a stored zone Intl cannot resolve, rather than throwing in render", () => {
+    // ⚠️`preferences.timezone` is free text. `Asia/Kolkta` is the likeliest
+    // mistake on the form that writes it, and `Intl` answers a RangeError —
+    // which, thrown from a render, takes the whole page to an error boundary.
+    const tz = displayTimeZone("Asia/Kolkta");
+    expect(tz).not.toBe("Asia/Kolkta");
+    expect(() => new Intl.DateTimeFormat("en-GB", { timeZone: tz })).not.toThrow();
+  });
+
+  it("keeps the zone the merchant TYPED, not its canonical spelling", () => {
+    // ★Validating with `Intl` and storing its answer would rewrite the modern
+    //  `Asia/Kolkata` into the deprecated `Asia/Calcutta` — the rule
+    //  `quietHoursPatch` already records.
+    expect(displayTimeZone("Asia/Kolkata")).toBe("Asia/Kolkata");
+  });
+
   it("falls back to a resolvable zone when they have set none", () => {
     // ★It must be a zone `Intl` accepts, whatever the host is — the callers
     //  pass it straight into `DateTimeFormat`.

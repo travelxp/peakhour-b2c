@@ -1,4 +1,5 @@
 import type { ActivityRow, NotificationDomain } from "@/lib/api/control-plane";
+import { isTimeZone } from "@/lib/control-plane";
 
 /**
  * The rendering rules behind §07's tab — PR-2.5d.
@@ -415,9 +416,23 @@ export function activityScopeNote(row: ActivityRow): string | null {
   return row.businessId === null ? "Concerns more than one of your businesses" : null;
 }
 
-/** The merchant's zone if they have set one, else the browser's. */
+/**
+ * The merchant's zone if they have set a resolvable one, else the browser's.
+ *
+ * ⚠️🚫★★AND IT IS VALIDATED, BECAUSE A STORED ZONE IS FREE TEXT. A first
+ * version passed `preferences.timezone` straight through — and `Intl` throws
+ * `RangeError` for a zone it does not know, **inside the render**, which takes
+ * the whole page to an error boundary. ★`Asia/Kolkta` is the likeliest mistake
+ * on a form somebody types a zone into, and `control-plane.ts` already answers
+ * this exact question for quiet hours: *"a typo in a free-text zone is the one
+ * that fails silently."*
+ *
+ * ★IT VALIDATES WITH `canonicalTimeZone` AND RETURNS WHAT WAS TYPED. Same rule
+ * `quietHoursPatch` follows, and for the reason recorded there: canonicalising
+ * rewrites the modern `Asia/Kolkata` into the deprecated `Asia/Calcutta`.
+ */
 export function displayTimeZone(preferred: string | null | undefined): string {
-  if (preferred) return preferred;
+  if (preferred && isTimeZone(preferred)) return preferred;
   try {
     return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
   } catch {

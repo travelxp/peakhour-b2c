@@ -80,8 +80,21 @@ import { useActivityLedger } from "@/hooks/use-control-plane";
  *
  * ★ONE `now` FOR THE WHOLE LIST, so two rows a second apart cannot land in
  * different buckets because the clock moved between them.
+ *
+ * ⚠️★★AND "NOW" IS WHEN THE LIST WAS FETCHED, WHICH IS WHAT MAKES IT REFRESH.
+ * A clock captured once at hydration goes stale on a page somebody leaves open:
+ * **after midnight yesterday's rows still render as a bare time and today's
+ * render as a date**, which is precisely backwards. `dataUpdatedAt` moves on
+ * every refetch — window focus included — so coming back to the tab re-dates
+ * the list. ★It is READ as the instant rather than used as a trigger, because
+ * *"18:03"* beside a row means "as of this list", and a list and its dates
+ * drawn from two different moments can disagree. 🚫Not a timer: a ledger
+ * nobody is looking at does not need a re-render a minute.
  */
-function useClientClock(timeZonePreference: string | null | undefined) {
+function useClientClock(
+  timeZonePreference: string | null | undefined,
+  dataUpdatedAt: number,
+) {
   const mounted = useSyncExternalStore(
     // ★NOTHING TO SUBSCRIBE TO: the value changes once, at hydration, and React
     //  re-reads it then. The unsubscribe is what the contract requires back.
@@ -92,9 +105,15 @@ function useClientClock(timeZonePreference: string | null | undefined) {
   return useMemo(
     () =>
       mounted
-        ? { now: new Date(), timeZone: displayTimeZone(timeZonePreference) }
+        ? {
+            // ★`dataUpdatedAt` IS 0 UNTIL THE FIRST ANSWER, and a 1970 clock
+            //  would date every row as years old. The caller renders a skeleton
+            //  in that window, but the fallback is here rather than relying on it.
+            now: dataUpdatedAt > 0 ? new Date(dataUpdatedAt) : new Date(),
+            timeZone: displayTimeZone(timeZonePreference),
+          }
         : null,
-    [mounted, timeZonePreference],
+    [mounted, timeZonePreference, dataUpdatedAt],
   );
 }
 
@@ -186,7 +205,7 @@ export function ActivityLedger({
 }) {
   const ledger = useActivityLedger();
 
-  const clock = useClientClock(timeZonePreference);
+  const clock = useClientClock(timeZonePreference, ledger.dataUpdatedAt);
 
   const rows = ledger.data?.pages.flatMap((p) => p.rows) ?? [];
 
@@ -203,11 +222,18 @@ export function ActivityLedger({
     </CardHeader>
   );
 
-  // ⚠️★★A FAILED READ AND AN EMPTY ONE MUST NOT SHARE A BODY, and the error is
-  //  asked about FIRST: "nothing has happened yet" is reassurance, and showing
-  //  it after a request that failed tells a merchant the wall was never tested
-  //  when in fact nobody asked.
-  if (ledger.isError) {
+  // ⚠️★★A FAILED READ AND AN EMPTY ONE MUST NOT SHARE A BODY: "nothing has
+  //  happened yet" is reassurance, and showing it after a request that failed
+  //  tells a merchant the wall was never tested when in fact nobody asked.
+  //
+  // ⚠️🚫★★BUT ONLY WHEN THERE IS NOTHING TO SHOW — A FIRST VERSION ASKED
+  //  `isError` BEFORE LOOKING AT THE DATA. On an infinite query `isError` goes
+  //  true when the SECOND page fails, while the pages already fetched are still
+  //  in the cache — so one failed "Show older", or one refetch on window focus,
+  //  **replaced the whole ledger with an error card** and threw away rows the
+  //  merchant was reading. ★A failure to extend a list is a failure of the
+  //  pager, and it is reported there.
+  if (ledger.isError && rows.length === 0) {
     return (
       <Card>
         {header}
@@ -262,6 +288,14 @@ export function ActivityLedger({
               />
             ))}
           </ul>
+        )}
+
+        {/* ★THE PAGER REPORTS ITS OWN FAILURE, beside the button that caused
+            it, and the rows above stay on the screen. */}
+        {ledger.isError && rows.length > 0 && (
+          <p role="alert" className="text-sm text-destructive">
+            Could not load more of the ledger. Try again in a moment.
+          </p>
         )}
 
         {ledger.hasNextPage && (

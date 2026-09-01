@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, MessageCircle } from "lucide-react";
@@ -137,16 +137,31 @@ function WhatsAppSettings() {
   //  written must land where it did — and an unrecognised `?tab=` value is a
   //  typo, not a third tab. 🚫Defaulting to the ledger for an unknown value
   //  would take a merchant following an old link to a page they did not ask for.
-  const tab =
+  const urlTab =
     params.get(WHATSAPP_TAB_PARAM) === WHATSAPP_ACTIVITY_TAB
       ? WHATSAPP_ACTIVITY_TAB
       : WHATSAPP_SETTINGS_TAB;
+
+  // ⚠️★★THE TAB THE MERCHANT JUST CLICKED, HELD UNTIL THE URL CATCHES UP.
+  //  `router.replace` commits in a transition, during which `useSearchParams`
+  //  still returns the OLD params — so a `value` read only from the URL leaves
+  //  the tab visibly unchanged for a beat after the click. ★`dashboard/ads`
+  //  carries the same held value for the same reason.
+  const [pendingTab, setPendingTab] = useState<string | null>(null);
+  // ★CLEARED DURING RENDER the moment the URL agrees, which is React's
+  //  documented pattern for state derived from a changing input — a `setState`
+  //  in an effect body cascades an extra render and the lint rejects it.
+  //  ★Equality is the only rule needed: by the time Back is reachable the
+  //  navigation has long since committed.
+  if (pendingTab !== null && urlTab === pendingTab) setPendingTab(null);
+  const tab = pendingTab ?? urlTab;
 
   // ★`replace`, NOT `push`. A tab is not a place: pushing would make Back walk
   //  a merchant through every tab they clicked before leaving the page.
   //  ★And the settings tab DROPS the parameter rather than writing
   //  `?tab=settings`, so the canonical URL is the one that has always existed.
   function selectTab(next: string) {
+    setPendingTab(next);
     const q = new URLSearchParams(params.toString());
     if (next === WHATSAPP_ACTIVITY_TAB) q.set(WHATSAPP_TAB_PARAM, next);
     else q.delete(WHATSAPP_TAB_PARAM);
@@ -216,7 +231,16 @@ function WhatsAppSettings() {
         </CardHeader>
       </Card>
 
-      <Tabs value={tab} onValueChange={selectTab}>
+      <Tabs
+        value={tab}
+        onValueChange={selectTab}
+        // ⚠️★MANUAL ACTIVATION. With Radix's default "automatic", arrowing
+        //  across the tab list selects on every focus move — and each selection
+        //  here is a `router.replace`, so an arrow-key user would fire a
+        //  navigation per keypress. Focus moves freely; Enter or Space commits.
+        //  ★`dashboard/ads` sets it for exactly this reason.
+        activationMode="manual"
+      >
         <TabsList>
           <TabsTrigger value={WHATSAPP_SETTINGS_TAB}>
             Numbers &amp; routing
