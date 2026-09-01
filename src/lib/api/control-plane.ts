@@ -128,6 +128,94 @@ export type RoutingAssignmentInput =
   | { domain: string; channel?: null; assigneeUserId: string }
   | { domain?: null; channel: RoutingChannel; assigneeUserId: string };
 
+// ── Activity — §07's second tab ───────────────────────────────────────────
+
+/**
+ * One line of `plt_activity`, as `GET /control-plane/activity` returns it.
+ *
+ * 🚫★★TWO FIELDS OF THE DOCUMENT ARE NOT HERE AND CANNOT BE ASKED FOR. The api
+ * omits `threadId` and `msgId` **by PROJECTION rather than by its shaper**:
+ * `threadId` is `whatsapp:<phoneNumberId>:<number>` and contains a whole phone
+ * number, and `msgId` holds a hash of a `wamid`, which decodes to one. ★Neither
+ * answers a question §07 asks, and there is nothing for this client to leave
+ * out because the values never reach the process.
+ */
+export interface ActivityRow {
+  id: string;
+  /** ISO. ★META's stamp, not ours — when it happened, not when it was written. */
+  occurredAt: string;
+  /** `plt_activity.outcome`. See `control-plane-activity.ts` for the copy. */
+  outcome: string;
+  /** A `cfg_notification_domains` key, or null. ★Resolve it through
+   *  `GET /domains` — never through a list in this repo. */
+  domain: string | null;
+  /** The normalised trigger — `"LAUNCH"`, `"STOP"`. */
+  command: string | null;
+  /** The router's handler slug. ⚠️Absence means the command did not RUN, not
+   *  that the router was skipped. */
+  action: string | null;
+  /**
+   * The teammate who sent it, when one could be named.
+   *
+   * ★★EXACTLY ONE OF `actor` AND `actorMasked` IS NON-NULL — the collection's
+   * own invariant, installed in its validator. `name` and `email` are BOTH null
+   * when the account no longer exists, and the line still belongs on the page.
+   */
+  actor: { userId: string; name: string | null; email: string | null } | null;
+  /**
+   * The sender as a mask, when no verified person could be named —
+   * `"+9198XXXXXX07"`.
+   *
+   * ★★MASKED AT WRITE TIME AND NEVER STORED WHOLE. An unverified sender's
+   * number is a third party's PII on a merchant's screen, so *"a field that
+   * cannot leak is better than a field that must not"*.
+   */
+  actorMasked: string | null;
+  /** `true`, or null. ★NULL MEANS "NEEDED NO CONFIRMATION", not "was not
+   *  confirmed" — the collection stores `true` or nothing, never `false`. */
+  confirmed: true | null;
+  /** ⚠️★NULL MEANS THE EVENT CONCERNED NO SINGLE BUSINESS, and such rows appear
+   *  on every business of the org. The page must say so rather than attribute
+   *  it to whichever tab is open. */
+  businessId: string | null;
+}
+
+/**
+ * One page of the ledger, and the cursor for the next.
+ *
+ * ⚠️★★THE CURSOR IS COMPOUND AND ITS HALVES TRAVEL TOGETHER. `occurredAt` is
+ * Meta's timestamp in **whole seconds**, so two commands in one second share an
+ * instant — and a cursor on the instant alone puts the second of them on NO
+ * page. The api refuses one half without the other for that reason: **half a
+ * cursor is worse than none, because it looks like it works.**
+ */
+export interface ActivityPage {
+  rows: ActivityRow[];
+  /** ISO, or null when this is the last page. */
+  nextBefore: string | null;
+  nextBeforeId: string | null;
+}
+
+/** The pair, or null for the first page. ★ONE TYPE so a caller cannot hold one
+ *  half of it. */
+export type ActivityCursor = { before: string; beforeId: string };
+
+/** Business-scoped by the session, like the matrix. ★No role gate: the
+ *  assignee who was refused is exactly who needs to see the refusal. */
+export async function getActivity(
+  cursor: ActivityCursor | null,
+  limit?: number,
+): Promise<ActivityPage> {
+  const qs = new URLSearchParams();
+  if (cursor) {
+    qs.set("before", cursor.before);
+    qs.set("beforeId", cursor.beforeId);
+  }
+  if (limit) qs.set("limit", String(limit));
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return api.get<ActivityPage>(`/v1/control-plane/activity${suffix}`);
+}
+
 // ── Calls ─────────────────────────────────────────────────────────────────
 
 /** ★NOT business-scoped, and the api agrees: the registry is global. This

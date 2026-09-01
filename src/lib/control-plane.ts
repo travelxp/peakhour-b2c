@@ -20,6 +20,26 @@ import type { TeamMember } from "@/lib/auth";
  * what a `PUT` body looks like, and what a pending row's countdown says.
  */
 
+// ── The page's two tabs ───────────────────────────────────────────────────
+
+/**
+ * `?tab=` on `/dashboard/settings/whatsapp` — §02's settings and §07's ledger.
+ *
+ * ★★THE VALUE IS §07's OWN. The interface specification names the URL —
+ * `peakhour.ai/dashboard/settings/whatsapp?tab=activity` — and it is a link
+ * somebody may already have written down, so it is a constant rather than a
+ * string typed in three files.
+ *
+ * ★THE SETTINGS TAB IS THE ABSENCE OF THE PARAMETER, not a second value. The
+ * page had no tabs until 2.5d, so every existing link to it must go on landing
+ * where it did — and `?tab=settings` is then a synonym nobody needs.
+ */
+export const WHATSAPP_TAB_PARAM = "tab";
+export const WHATSAPP_ACTIVITY_TAB = "activity";
+export const WHATSAPP_SETTINGS_TAB = "settings";
+/** Where the ledger's footnote sends a merchant to fix a pending number. */
+export const WHATSAPP_SETTINGS_HREF = "/dashboard/settings/whatsapp";
+
 // ── The channel axis ──────────────────────────────────────────────────────
 
 /**

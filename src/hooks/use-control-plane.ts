@@ -1,10 +1,16 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useAuth } from "@/providers/auth-provider";
 import { getTeamMembers, type TeamMember } from "@/lib/auth";
 import {
   deleteRoutingAssignment,
+  getActivity,
   getMerchantContacts,
   getNotificationDomains,
   getRoutingMatrix,
@@ -14,6 +20,8 @@ import {
   resendContactCode,
   revokeContact,
   verifyContact,
+  type ActivityCursor,
+  type ActivityPage,
   type ContactRegister,
   type MerchantContact,
   type NotificationDomain,
@@ -23,18 +31,26 @@ import {
 } from "@/lib/api/control-plane";
 
 /**
- * The four reads and six writes behind `/dashboard/settings/whatsapp`.
+ * The five reads and six writes behind `/dashboard/settings/whatsapp`.
  *
  * ★★EVERY MUTATION INVALIDATES THE READS IT CHANGES, EXPLICITLY, and one of
  * them invalidates a read it does not obviously touch: registering or revoking
  * a NUMBER changes what the ROUTING MATRIX means, because a cell assigned to
  * somebody with no verified number falls through to the Owner. **The matrix
  * would otherwise go on naming a person the notifications had stopped reaching.**
+ *
+ * 🚫★★AND NOTHING INVALIDATES THE ACTIVITY LEDGER, DELIBERATELY. It is a
+ * record of what arrived over WhatsApp, and **no control on this page writes
+ * to it** — registering a number changes who MAY command Peakhour tomorrow, not
+ * what was refused yesterday. ⚠️A mutation that invalidated it would refetch a
+ * paginated list and silently collapse it back to page one under a merchant who
+ * had scrolled.
  */
 
 export const CONTROL_PLANE_DOMAINS_KEY = "/v1/control-plane/domains";
 export const CONTROL_PLANE_ROUTING_KEY = "/v1/control-plane/routing";
 export const CONTROL_PLANE_CONTACTS_KEY = "/v1/control-plane/contacts";
+export const CONTROL_PLANE_ACTIVITY_KEY = "/v1/control-plane/activity";
 export const CONTROL_PLANE_MEMBERS_KEY = "/v1/auth/team/members";
 
 /**
@@ -80,6 +96,53 @@ export function useMerchantContacts() {
     //  waiting for a teammate to enter a code, and the row's status changes
     //  from another device.
     staleTime: 10_000,
+  });
+}
+
+/**
+ * §07's ledger — PR-2.5d.
+ *
+ * ── ⚠️★★KEYSET, SO IT IS AN INFINITE QUERY AND NOT A PAGE NUMBER ─────────
+ *
+ * `GET /activity` returns `nextBefore` + `nextBeforeId` and refuses one without
+ * the other, because `occurredAt` is Meta's timestamp in **whole seconds**: two
+ * commands in the same second share an instant, and a cursor on the instant
+ * alone puts the second of them on no page at all. ★So the cursor is passed
+ * back as the PAIR the api handed over — this hook never constructs one, which
+ * is the only way to be sure it never constructs half of one.
+ *
+ * ★BUSINESS-SCOPED IN THE KEY THOUGH THE QUERY IS ORG-SCOPED. The api reads
+ * `{orgId}` and narrows to the business in the same pass — the org-level rows
+ * are the refusals that belong to no single business — so **the RESULT differs
+ * per business** even though the filter does not, and a shared cache entry
+ * would show one business's tab on another.
+ *
+ * ⚠️★A `staleTime` OF ZERO AND NO INTERVAL. A refusal arrives when a stranger
+ * or a lapsed teammate types something, which is not a clock the page can
+ * predict — so it refetches when the merchant comes back to it, and does not
+ * poll a collection that is quiet for days at a time.
+ */
+export function useActivityLedger() {
+  const { business, isAuthenticated } = useAuth();
+  return useInfiniteQuery<
+    ActivityPage,
+    Error,
+    { pages: ActivityPage[] },
+    (string | null)[],
+    ActivityCursor | null
+  >({
+    queryKey: [CONTROL_PLANE_ACTIVITY_KEY, business?._id ?? null],
+    queryFn: ({ pageParam }) => getActivity(pageParam),
+    initialPageParam: null,
+    // ★★BOTH HALVES OR NO PAGE. `nextBefore` is null on the last page, and
+    //  returning a cursor with one half filled would be a 400 from the refine
+    //  the api added for exactly this — the client that persists only the
+    //  instant is the bug that refine exists to make unreachable.
+    getNextPageParam: (last) =>
+      last.nextBefore && last.nextBeforeId
+        ? { before: last.nextBefore, beforeId: last.nextBeforeId }
+        : null,
+    enabled: isAuthenticated && !!business?._id,
   });
 }
 
