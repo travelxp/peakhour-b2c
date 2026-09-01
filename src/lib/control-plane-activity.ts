@@ -430,9 +430,17 @@ function dayAndMonth(d: Date, timeZone: string, withYear: boolean): string {
  *
  * ★NULL RATHER THAN A SENTENCE FOR THE ORDINARY CASE: a note on every row is a
  * note nobody reads.
+ *
+ * ⚠️🚫★★AND IT SAYS WHAT THE ABSENCE MEANS, NOT WHAT IT IMPLIES. A first
+ * version read *"Concerns more than one of your businesses"* — a COUNT, and the
+ * field does not carry one. The api omits `businessId` whenever no **single**
+ * business resolved, which is not the same claim: `actorFor` drops the field
+ * when the sender's contact rows disagree, and *"they disagree"* is all anybody
+ * knows. ★A ledger is evidence, and **a sentence a merchant cannot check
+ * against anything is the one kind of line it must not carry.**
  */
 export function activityScopeNote(row: ActivityRow): string | null {
-  return row.businessId === null ? "Concerns more than one of your businesses" : null;
+  return row.businessId === null ? "Not tied to a single business" : null;
 }
 
 /**

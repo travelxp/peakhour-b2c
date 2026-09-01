@@ -133,6 +133,14 @@ export function useMerchantContacts() {
  * ledger is fetched when the merchant opens the tab and left alone while they
  * read it. ⚠️A stale ledger is a ledger that is missing the newest line; a
  * ledger that reloads under the reader loses their place.
+ *
+ * ⚠️★AND "OPENS THE TAB" IS LITERAL: Radix UNMOUNTS the inactive tab, so
+ * flipping back remounts this hook and — past `staleTime` — refetches every
+ * loaded page after all. **That is the same cost, paid on an action the
+ * merchant took**, which is the distinction being drawn: a window regaining
+ * focus is not somebody asking for the ledger. ⏸And after `gcTime` the cache is
+ * dropped entirely, so a long detour returns them to page one. Both are named
+ * rather than discovered; neither is worth `forceMount`ing a tab over.
  */
 export function useActivityLedger() {
   const { business, isAuthenticated } = useAuth();

@@ -84,12 +84,18 @@ import { useActivityLedger } from "@/hooks/use-control-plane";
  * ⚠️★★AND "NOW" IS WHEN THE LIST WAS FETCHED, WHICH IS WHAT MAKES IT REFRESH.
  * A clock captured once at hydration goes stale on a page somebody leaves open:
  * **after midnight yesterday's rows still render as a bare time and today's
- * render as a date**, which is precisely backwards. `dataUpdatedAt` moves on
- * every refetch — window focus included — so coming back to the tab re-dates
- * the list. ★It is READ as the instant rather than used as a trigger, because
- * *"18:03"* beside a row means "as of this list", and a list and its dates
- * drawn from two different moments can disagree. 🚫Not a timer: a ledger
- * nobody is looking at does not need a re-render a minute.
+ * render as a date**, which is precisely backwards. ★It is READ as the instant
+ * rather than used as a trigger, because *"18:03"* beside a row means "as of
+ * this list", and a list and its dates drawn from two different moments can
+ * disagree.
+ *
+ * ⚠️🚫★AND WHAT MOVES IT IS OPENING THE TAB OR PAGING, NOT WINDOW FOCUS — a
+ * first version of this line said *"window focus included"*, which
+ * `useActivityLedger` had turned OFF one file away, for a reason it states.
+ * ★Radix unmounts the inactive tab, so returning to it remounts and refetches;
+ * `fetchNextPage` moves it too. **A tab left open all night through midnight
+ * keeps its old dates until one of those happens** — which is the honest
+ * boundary and worth naming rather than a claim that reads better.
  */
 function useClientClock(
   timeZonePreference: string | null | undefined,

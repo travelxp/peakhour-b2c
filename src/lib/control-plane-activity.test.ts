@@ -353,7 +353,7 @@ describe("activityScopeNote", () => {
     // appear on every business's tab — attributing one to whichever tab is open
     // would be the wrong label §07 exists to avoid.
     expect(activityScopeNote(row({ businessId: null }))).toBe(
-      "Concerns more than one of your businesses",
+      "Not tied to a single business",
     );
   });
 
