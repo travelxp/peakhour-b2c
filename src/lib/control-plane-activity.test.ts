@@ -146,17 +146,65 @@ describe("activityCopy — §07's left column and 'what'", () => {
   });
 
   it("still reads when the row carries no trigger", () => {
-    // `plt_activity.command` is optional on every outcome, so the placeholder
-    // has to take its surrounding space with it.
+    // ⚠️★★AND THIS IS THE COMMON CASE, NOT THE EDGE. `platform-inbound.ts` sets
+    //  no `command` on `ambiguous_business` or `no_longer_a_member` — the two
+    //  refusals that most need a sentence — so deleting the placeholder left
+    //  "Ignored — the person…" and "which business was meant for" on the page.
     const c = activityCopy(
       row({ outcome: "no_longer_a_member", command: null }),
       DOMAINS,
     );
     expect(c.what).toBe(
-      "Ignored — the person this number belongs to is no longer on the team",
+      "Ignored an instruction — the person this number belongs to is no longer on the team",
     );
     expect(c.what).not.toContain("{command}");
     expect(c.what).not.toContain("  ");
+  });
+
+  it("reads as a sentence on EVERY template, with a trigger and without one", () => {
+    // ★A template is only correct if both readings are. This is the whole map,
+    //  checked mechanically rather than by whichever two somebody remembered.
+    const outcomes = [
+      "unknown_sender",
+      "no_longer_a_member",
+      "ambiguous_business",
+      "command_denied",
+      "not_a_command",
+      "command_handled",
+      "command_silent",
+      "confirmation_requested",
+      "nothing_to_confirm",
+      "consent_opted_out",
+      "consent_opted_in",
+    ];
+    for (const outcome of outcomes) {
+      const withTrigger = activityCopy(row({ outcome, command: "LAUNCH" }), DOMAINS).what;
+      const without = activityCopy(row({ outcome, command: null }), DOMAINS).what;
+      for (const [label, what] of [
+        ["LAUNCH", withTrigger],
+        ["none", without],
+      ] as const) {
+        expect(what, `${outcome}/${label}`).not.toContain("{command}");
+        expect(what, `${outcome}/${label}`).not.toContain("  ");
+        expect(what.trim(), `${outcome}/${label}`).toBe(what);
+        // 🚫NO SECOND PERSON. The ledger is org-wide — a reader sees their
+        //  colleagues' rows — so "you" contradicts the name beside it.
+        expect(what, `${outcome}/${label}`).not.toMatch(/\byou\b/i);
+      }
+      // ⚠️★★AND THE PLACEHOLDER IS SUBSTITUTED, NOT DELETED — the structural
+      //  checks above cannot see the difference. "Ignored — the person…" is
+      //  trimmed, single-spaced and second-person-free, and it is still a
+      //  broken sentence. **The triggerless reading must be the trigger one
+      //  with a noun in place of the trigger, and nothing else.**
+      expect(without, outcome).toBe(withTrigger.replace("LAUNCH", "an instruction"));
+    }
+  });
+
+  it("names no single reader on a confirmation, because the ledger is org-wide", () => {
+    expect(
+      activityCopy(row({ outcome: "confirmation_requested", command: "LAUNCH" }), DOMAINS)
+        .what,
+    ).toBe("Asked for confirmation before running LAUNCH");
   });
 
   it("never repeats an unverified sender's text, because the row does not carry it", () => {
@@ -325,6 +373,16 @@ describe("displayTimeZone", () => {
     // which, thrown from a render, takes the whole page to an error boundary.
     const tz = displayTimeZone("Asia/Kolkta");
     expect(tz).not.toBe("Asia/Kolkta");
+    expect(() => new Intl.DateTimeFormat("en-GB", { timeZone: tz })).not.toThrow();
+  });
+
+  it("TRIMS the zone it hands back, having trimmed the one it validated", () => {
+    // ⚠️🚫`canonicalTimeZone` trims before asking `Intl`, so a padded value
+    //  PASSES the check — and `Intl.DateTimeFormat` then throws `RangeError`
+    //  for the untrimmed string. **A guard that validates one value and returns
+    //  another is not a guard.**
+    const tz = displayTimeZone(" Asia/Kolkata ");
+    expect(tz).toBe("Asia/Kolkata");
     expect(() => new Intl.DateTimeFormat("en-GB", { timeZone: tz })).not.toThrow();
   });
 

@@ -117,14 +117,22 @@ export function useMerchantContacts() {
  * per business** even though the filter does not, and a shared cache entry
  * would show one business's tab on another.
  *
- * ⚠️★A `staleTime` OF ZERO AND NO INTERVAL, SET RATHER THAN ASSUMED — a first
- * version of this docblock claimed the zero while setting nothing, so the query
- * inherited `query-provider`'s 30-second default and the comment described a
- * page that did not exist. **A refusal arrives when a stranger or a lapsed
- * teammate types something**, which is not a clock the page can predict — so it
- * refetches whenever the merchant comes back to the tab, and does not poll a
- * collection that is quiet for days at a time. ★Every sibling here sets one
- * explicitly for the same reason.
+ * ── ⚠️🚫★★AND REFETCHING AN INFINITE QUERY REFETCHES *EVERY LOADED PAGE* ──
+ *
+ * A first version set `staleTime: 0` and left `refetchOnWindowFocus` at its
+ * default, on the reasoning that a refusal can arrive at any moment. **That
+ * reasoning ignored what a refetch costs here**: TanStack refetches all loaded
+ * pages, and `GET /activity`'s own docblock says the business narrowing is an
+ * `$or` the index cannot serve — *"for a quiet business inside a busy org,
+ * returning fifty rows means walking every NEWER row of the whole org first"*.
+ * ★So a merchant three pages down, alt-tabbing between windows, re-walked the
+ * org's whole stream three times per return, on a collection with no TTL.
+ *
+ * ★THE FRESHNESS THIS PAGE NEEDS IS AT ARRIVAL, NOT AT FOCUS. Rows are written
+ * when somebody types on a phone, which is not a clock worth polling — so the
+ * ledger is fetched when the merchant opens the tab and left alone while they
+ * read it. ⚠️A stale ledger is a ledger that is missing the newest line; a
+ * ledger that reloads under the reader loses their place.
  */
 export function useActivityLedger() {
   const { business, isAuthenticated } = useAuth();
@@ -147,7 +155,8 @@ export function useActivityLedger() {
         ? { before: last.nextBefore, beforeId: last.nextBeforeId }
         : null,
     enabled: isAuthenticated && !!business?._id,
-    staleTime: 0,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
   });
 }
 

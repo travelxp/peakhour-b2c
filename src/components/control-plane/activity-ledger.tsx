@@ -290,11 +290,26 @@ export function ActivityLedger({
           </ul>
         )}
 
-        {/* ★THE PAGER REPORTS ITS OWN FAILURE, beside the button that caused
-            it, and the rows above stay on the screen. */}
-        {ledger.isError && rows.length > 0 && (
+        {/* ★★THE PAGER REPORTS ITS OWN FAILURE AND ONLY ITS OWN, beside the
+            button that caused it, and the rows above stay on the screen.
+            ⚠️🚫A first version keyed this on plain `isError`, which is also true
+            when a BACKGROUND refetch fails — so a merchant who had pressed
+            nothing was told "could not load more". `isFetchNextPageError` is
+            the one that means what this sentence says. */}
+        {ledger.isFetchNextPageError && (
           <p role="alert" className="text-sm text-destructive">
             Could not load more of the ledger. Try again in a moment.
+          </p>
+        )}
+
+        {/* ★A FAILED REFRESH IS A DIFFERENT SENTENCE, because what the merchant
+            is looking at is still true — it is just not the newest. 🚫Saying
+            nothing would let a ledger silently stop updating, on the one
+            surface whose value is that it is complete. */}
+        {ledger.isError && !ledger.isFetchNextPageError && rows.length > 0 && (
+          <p role="status" className="text-xs text-muted-foreground">
+            Could not check for newer activity — showing the ledger as it was
+            last loaded.
           </p>
         )}
 

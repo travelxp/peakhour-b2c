@@ -147,7 +147,12 @@ const OUTCOME_COPY: Record<string, OutcomeCopy> = {
   },
   confirmation_requested: {
     group: "Instruction",
-    what: "Asked you to confirm {command}",
+    // 🚫★NOT "Asked YOU to confirm". This ledger is ORG-wide — every business
+    //  of the org sees the rows that resolved no single one, and every reader
+    //  sees their colleagues' lines — so the second person contradicts the
+    //  actor's name rendered beside it. **The row says who; the sentence says
+    //  what.**
+    what: "Asked for confirmation before running {command}",
     refused: false,
   },
   nothing_to_confirm: {
@@ -226,15 +231,29 @@ export function activityCopy(
 /**
  * `"Refused {command}"` → `"Refused LAUNCH"`.
  *
- * ⚠️★★AND WITHOUT A TRIGGER THE SENTENCE MUST STILL READ. `plt_activity.command`
- * is optional on every outcome — a `no_longer_a_member` on a message that never
- * reached the router has none — so a template dropping the placeholder must not
- * leave *"Ignored  — the person…"* with a hole in it. **The placeholder takes
- * its surrounding space with it.**
+ * ── ⚠️🚫★★AND THE TRIGGERLESS FORM IS THE COMMON ONE, NOT THE EDGE ───────
+ *
+ * A first version simply DELETED the placeholder, on the assumption that a row
+ * without a trigger was rare. Measured in `platform-inbound.ts`: **it does not
+ * set `command` on `ambiguous_business` or `no_longer_a_member` at all**, though
+ * it has the trigger in hand at both — so the two refusals that most need a
+ * sentence rendered *"Could not tell which business was meant for"* and
+ * *"Ignored — the person this number belongs to…"*. ★A merchant reading a
+ * broken sentence on a ledger stops trusting the ledger.
+ *
+ * ★SO THE PLACEHOLDER FALLS BACK TO A NOUN RATHER THAN TO NOTHING. Every
+ * template reads with it — *"Refused an instruction"*, *"Could not tell which
+ * business an instruction was meant for"* — and none of them claims to know
+ * which one it was.
+ *
+ * ⏸★THE api COULD SUPPLY IT ON BOTH, and that is a `PlatformInboundResult` gap
+ * rather than a rendering one. Recorded in the plan; this file must read
+ * correctly either way.
  */
+const UNNAMED_COMMAND = "an instruction";
+
 function fillCommand(template: string, command: string | null): string {
-  if (command) return template.replace("{command}", command);
-  return template.replace(/ ?\{command\} ?/, " ").replace(/\s+/g, " ").trim();
+  return template.replace("{command}", command || UNNAMED_COMMAND);
 }
 
 /**
@@ -430,9 +449,17 @@ export function activityScopeNote(row: ActivityRow): string | null {
  * ★IT VALIDATES WITH `canonicalTimeZone` AND RETURNS WHAT WAS TYPED. Same rule
  * `quietHoursPatch` follows, and for the reason recorded there: canonicalising
  * rewrites the modern `Asia/Kolkata` into the deprecated `Asia/Calcutta`.
+ *
+ * ⚠️🚫★★AND IT RETURNS THE **TRIMMED** STRING, WHICH A FIRST VERSION DID NOT.
+ * `canonicalTimeZone` trims before asking `Intl`, so `" Asia/Kolkata "` passed
+ * the check — and then the untrimmed value went to `Intl.DateTimeFormat`, which
+ * throws `RangeError` for it. **The guard validated one string and handed back
+ * another**, which is the exact crash this function exists to prevent, reached
+ * through the function added to prevent it.
  */
 export function displayTimeZone(preferred: string | null | undefined): string {
-  if (preferred && isTimeZone(preferred)) return preferred;
+  const trimmed = preferred?.trim();
+  if (trimmed && isTimeZone(trimmed)) return trimmed;
   try {
     return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
   } catch {
