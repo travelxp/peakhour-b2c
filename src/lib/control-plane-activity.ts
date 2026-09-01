@@ -235,20 +235,25 @@ export function activityCopy(
  *
  * A first version simply DELETED the placeholder, on the assumption that a row
  * without a trigger was rare. Measured in `platform-inbound.ts`: **it does not
- * set `command` on `ambiguous_business` or `no_longer_a_member` at all**, though
- * it has the trigger in hand at both — so the two refusals that most need a
- * sentence rendered *"Could not tell which business was meant for"* and
- * *"Ignored — the person this number belongs to…"*. ★A merchant reading a
- * broken sentence on a ledger stops trusting the ledger.
+ * set `command` on `ambiguous_business` or `no_longer_a_member` at all** — so
+ * the two refusals that most need a sentence rendered *"Could not tell which
+ * business was meant for"* and *"Ignored — the person this number belongs
+ * to…"*. ★A merchant reading a broken sentence on a ledger stops trusting the
+ * ledger.
  *
  * ★SO THE PLACEHOLDER FALLS BACK TO A NOUN RATHER THAN TO NOTHING. Every
  * template reads with it — *"Refused an instruction"*, *"Could not tell which
  * business an instruction was meant for"* — and none of them claims to know
  * which one it was.
  *
- * ⏸★THE api COULD SUPPLY IT ON BOTH, and that is a `PlatformInboundResult` gap
- * rather than a rendering one. Recorded in the plan; this file must read
- * correctly either way.
+ * ⏸★THE api COULD SUPPLY IT, and that is a `PlatformInboundResult` gap rather
+ * than a rendering one. 🚫**But it is not the one-line field-set this docblock
+ * first called it** — the retraction is here because the claim was: *"it has
+ * the trigger in hand at both"* is true on an ORDINARY turn and false on a
+ * `CONFIRM` one, where `trigger` is `null` by construction and the command
+ * being confirmed sits in the stored `pendingCommand.command`, **read only
+ * after both refusal returns**. ★Recorded in the rollout plan's §2.5; this file
+ * must read correctly either way, and does.
  */
 const UNNAMED_COMMAND = "an instruction";
 
