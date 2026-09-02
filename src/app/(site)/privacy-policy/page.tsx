@@ -101,10 +101,14 @@ export default function PrivacyPolicyPage() {
                 X Developer Agreement and Policy.
               </li>
               <li>
-                <strong>LinkedIn:</strong> basic profile information, organization/company
-                page information, ad account details, campaign performance metrics, and lead
-                generation form responses, as authorized through OAuth and subject to the
-                LinkedIn API Terms of Use.
+                <strong>LinkedIn:</strong> basic profile information; organization/company
+                page information; the Company Pages you are authorized to administer,
+                including their posts and the comments, reactions and other engagement on
+                those posts; Page and post analytics such as impressions, engagement,
+                follower and demographic metrics; ad account details, campaign performance
+                metrics, and lead generation form responses — each only as authorized
+                through LinkedIn&apos;s OAuth consent screen and subject to the LinkedIn API
+                Terms of Use. See Section 12.4 for how this data is used and retained.
               </li>
               <li>
                 <strong>Google:</strong> where you connect Google services (e.g., analytics
@@ -118,7 +122,9 @@ export default function PrivacyPolicyPage() {
                 content. If you additionally enable order-based features and grant the
                 permission they need, we also receive order records, which can include your
                 shopper&apos;s name and phone number — processed on your behalf and described
-                in Section 12.5.
+                in Section 12.5. Where you enable those features, the order record also
+                includes the order&apos;s delivery/billing address, which we use for the
+                geographic analysis described in Section 12.5.
               </li>
               <li>
                 <strong>Beehiiv and other publishing tools:</strong> newsletter content,
@@ -179,6 +185,17 @@ export default function PrivacyPolicyPage() {
               </li>
               <li>AI-generated outputs (tags, creatives, recommendations) are stored in your account.</li>
               <li>You retain ownership of your original content and AI-generated outputs.</li>
+              <li>
+                <strong>LinkedIn member data is never used to train or improve any AI
+                model.</strong> Data obtained through the LinkedIn APIs — including LinkedIn
+                member profiles, Company Page content, comments, reactions, engagement and
+                analytics — is processed only to deliver the LinkedIn features you enabled,
+                in your account and for your organization. It is never used to train,
+                fine-tune, evaluate or otherwise improve our proprietary models or any
+                shared platform model, and it is never submitted to a third-party AI
+                provider for training purposes. This applies on every plan tier, including
+                Community and free trial accounts.
+              </li>
             </ul>
 
             <h3 className="mt-6 font-medium text-foreground">
@@ -223,6 +240,16 @@ export default function PrivacyPolicyPage() {
                 PII, or organization-identifiable data is never used to train any model.
                 Your individual content is never shown to other customers, used in
                 outputs for other accounts, or made publicly available.
+              </li>
+              <li>
+                <strong>LinkedIn data is excluded entirely.</strong> Data obtained through
+                the LinkedIn APIs is out of scope for everything described in this section.
+                It does not enter the training pipeline in any form — not raw, not
+                aggregated, and not anonymized or de-identified — and it does not contribute
+                to the shared platform model on any plan tier. Nothing in this section, and
+                nothing in the plan-tier terms in Section 4.2, permits LinkedIn member or
+                Company Page data to be used to train or improve our models. See Section
+                12.4.
               </li>
             </ul>
 
@@ -432,6 +459,14 @@ export default function PrivacyPolicyPage() {
               <li>
                 Data required for legal compliance may be retained for the legally required period.
               </li>
+              <li>
+                <strong>Platform Data may be subject to shorter retention periods</strong>{" "}
+                required by the applicable platform&apos;s developer terms. Where a
+                platform&apos;s terms impose a shorter retention or a faster deletion
+                obligation than the periods above, that shorter period applies to data
+                obtained from that platform&apos;s APIs. See Section 12 — and, for LinkedIn
+                specifically, Section 12.4.
+              </li>
             </ul>
           </section>
 
@@ -559,8 +594,88 @@ export default function PrivacyPolicyPage() {
 
             <h3 className="mt-4 font-medium text-foreground">12.4 LinkedIn</h3>
             <p className="mt-2">
-              Our use of LinkedIn data complies with the LinkedIn API Terms of Use and is
-              limited to the authorized purposes for which you connected your LinkedIn account.
+              Our use of LinkedIn data complies with the{" "}
+              <a href="https://legal.linkedin.com/api-terms-of-use" className="text-foreground underline" target="_blank" rel="noopener noreferrer">
+                LinkedIn API Terms of Use
+              </a>{" "}
+              and the LinkedIn Developer Program policies, and is limited to the authorized
+              purposes for which you connected your LinkedIn account.
+            </p>
+            <p className="mt-2">
+              <strong>Community management.</strong> Where you connect LinkedIn, the Service
+              lets an authorized business manage the LinkedIn <strong>Company Pages it
+              administers</strong> from within {SITE.name}. Specifically, and only for Pages
+              on which the connecting member holds an administrator role granted by your
+              organization, we use the LinkedIn APIs on your instruction to:
+            </p>
+            <ul className="mt-2 list-disc space-y-1 pl-6">
+              <li>publish, schedule, edit and delete posts on your Company Page;</li>
+              <li>
+                read Page and post analytics — impressions, engagement, clicks, follower
+                counts and the aggregate follower/viewer demographics LinkedIn provides — and
+                present them to you in reports and dashboards;
+              </li>
+              <li>
+                monitor the comments and reactions on your Page&apos;s posts, so that your
+                team sees new activity in one place; and
+              </li>
+              <li>
+                reply to, moderate and delete comments on your own Page&apos;s posts, as your
+                organization&apos;s authorized representative.
+              </li>
+            </ul>
+            <p className="mt-2">
+              To do this we receive and store the LinkedIn content and engagement data
+              described in Section 2.2 — including your Page&apos;s posts and the comments
+              and reactions on them, which contain the commenting member&apos;s name, public
+              profile headline, profile picture and profile link. That data is shown only to
+              the users of your {SITE.name} account who are authorized to manage that Page.
+            </p>
+            <p className="mt-2">
+              <strong>What we do not do with LinkedIn data.</strong> LinkedIn member and
+              community data is used solely to deliver the community management features
+              above. We do <strong>not</strong>:
+            </p>
+            <ul className="mt-2 list-disc space-y-1 pl-6">
+              <li>sell, rent, license or otherwise share it with any third party;</li>
+              <li>
+                use it for advertising or ad targeting — including creating, enriching or
+                syncing custom, matched or lookalike audiences;
+              </li>
+              <li>
+                treat members who engage with your Page as leads, or add them to lead lists,
+                outreach sequences or prospecting tools;
+              </li>
+              <li>
+                export it into, or use it to enrich, a CRM or any other contact, marketing or
+                data-broker database;
+              </li>
+              <li>
+                build independent profiles of LinkedIn members, or combine LinkedIn data with
+                data from other sources to profile, score, segment or track individuals for
+                any purpose unrelated to managing your Page; or
+              </li>
+              <li>
+                use it to train, fine-tune or improve any AI model, whether ours or a third
+                party&apos;s — see Sections 4 and 4.1.
+              </li>
+            </ul>
+            <p className="mt-2">
+              <strong>Retention and deletion.</strong> We keep LinkedIn Platform Data only for
+              as long as it is needed to provide the features you enabled, and no longer than
+              the LinkedIn API Terms of Use and Developer Program policies permit; where those
+              terms require a shorter retention period than the general periods in Section 8,
+              the shorter period applies. We refresh stored LinkedIn content and engagement
+              data against LinkedIn so that our copy reflects the current state, and where
+              content is edited or deleted on LinkedIn we reflect that change or delete our
+              copy. We delete the LinkedIn data we hold — and revoke the stored access tokens
+              — when you disconnect the LinkedIn integration, when you close your{" "}
+              {SITE.name} account, when LinkedIn instructs us to, or when you ask us to at{" "}
+              <a href={`mailto:${SITE.contactPrivacy}`} className="text-foreground underline">
+                {SITE.contactPrivacy}
+              </a>
+              . You can revoke our access at any time from your LinkedIn account&apos;s
+              permitted-services settings.
             </p>
 
             <h3 className="mt-4 font-medium text-foreground">12.5 Shopify</h3>
@@ -574,23 +689,29 @@ export default function PrivacyPolicyPage() {
               and the Shopify Protected Customer Data requirements.
             </p>
             <p className="mt-2">
-              <strong>What we access today.</strong> Your store profile, product catalog,
-              inventory, and published storefront content such as pages and blog posts. The app
-              currently requests <strong>catalog permissions only</strong>. It does{" "}
-              <strong>not</strong> request access to your orders or to your customer list, so
-              today we hold no personal data about your shoppers from Shopify at all.
+              <strong>What we access.</strong> Your store profile, product catalog,
+              inventory, and published storefront content such as pages and blog posts. Those
+              catalog permissions contain no personal data about your shoppers. Separately,
+              the app requests the <strong>protected customer data</strong> permissions that
+              order-based features need — order records, and the customer name, phone number
+              and order address on them. Shopify reviews and approves those permissions, and
+              you grant them at install; we access shopper data only where you have granted
+              them and switched the relevant features on.
             </p>
             <p className="mt-2">
               <strong>What changes if you enable order-based features.</strong> Features such as
-              cash-on-delivery confirmation need your <strong>order records</strong> — line
-              items, quantities, totals, currency, dates, and whether the order is
-              cash-on-delivery. Those features require you to grant order access, and Shopify
-              asks you to approve that separately. Everything in the rest of this section
-              describes what happens once you do; until then it does not apply to your store.
+              cash-on-delivery confirmation and geographic analysis need your{" "}
+              <strong>order records</strong> — line items, quantities, totals, currency,
+              dates, whether the order is cash-on-delivery, the order&apos;s status including
+              returns and cancellations, and the delivery/billing address. Those features
+              require you to grant order and customer access, and Shopify asks you to approve
+              that separately. Everything in the rest of this section describes what happens
+              once you do; until then it does not apply to your store.
             </p>
             <p className="mt-2">
               <strong>Your customers&apos; data, and our role.</strong> An order record can
-              include your customer&apos;s <strong>name and phone number</strong>. We process
+              include your customer&apos;s <strong>name, phone number and delivery/billing
+              address</strong>. We process
               those <strong>on your behalf and on your instructions</strong>: for your
               shoppers&apos; personal data you are the controller / Data Fiduciary and we act
               as your processor. We use it only to deliver the features you switched on — for
@@ -602,17 +723,34 @@ export default function PrivacyPolicyPage() {
               customer contact details.
             </p>
             <p className="mt-2">
-              <strong>What we deliberately do not take.</strong> We do not request or store
-              shopper <strong>email addresses</strong>, and we do not request shipping
-              addresses. We ask for the narrowest permissions the features need.
+              <strong>Why we need the address, and what we do with it.</strong> We use the
+              address on an order for <strong>geographic analysis</strong>: aggregating your
+              orders, returns and cancellations by city, region/state and country so that you
+              can see where your demand and your returns are concentrated, and use those
+              location patterns to plan your marketing, targeting and merchandising. The
+              analysis is about <strong>places, not people</strong> — it is presented to you
+              as counts and trends per location, never as a list of shoppers. The address is
+              also used, where a feature you enabled needs it, to deliver that feature for the
+              order it belongs to. We do not use shopper addresses for our own advertising, we
+              do not sell or share them, and we do not use them to train AI models.
             </p>
             <p className="mt-2">
-              <strong>How long we keep it.</strong> The copy of a shopper&apos;s name and phone
-              number that sits <strong>on each order</strong> is <strong>erased after 90
-              days</strong> — the purpose it serves, such as confirming that order, is measured
-              in days rather than years. The rest of the order record is retained as your
-              business data, because it is what makes inventory, seasonality and merchandising
-              analysis work; it carries no shopper contact details once that window has passed.
+              <strong>What we deliberately do not take.</strong> We do not request or store
+              shopper <strong>email addresses</strong>. We ask for the narrowest permissions
+              the features need, and we request protected customer data only for the features
+              described here.
+            </p>
+            <p className="mt-2">
+              <strong>How long we keep it.</strong> The copy of a shopper&apos;s name, phone
+              number and street address that sits <strong>on each order</strong> is{" "}
+              <strong>erased after 90 days</strong> — the purpose it serves, such as confirming
+              that order, is measured in days rather than years. What survives that window from
+              the address is only its <strong>coarse geography</strong> — city, region/state and
+              country — which is what the geographic analysis above runs on and which does not
+              identify a shopper. The rest of the order record is retained as your business
+              data, because it is what makes inventory, seasonality, geographic and
+              merchandising analysis work; it carries no shopper contact details once that
+              window has passed.
             </p>
             <p className="mt-2">
               Separately, we keep one <strong>customer record per shopper</strong> holding their
@@ -626,8 +764,8 @@ export default function PrivacyPolicyPage() {
             <p className="mt-2">
               <strong>Deletion requests.</strong> We support Shopify&apos;s mandatory privacy
               webhooks. When a shopper asks you to delete their data, Shopify notifies us and we
-              erase the personal details we received from Shopify about them — the name and phone
-              on their orders, and the customer record described above. If you uninstall the app,
+              erase the personal details we received from Shopify about them — the name, phone
+              and address on their orders, and the customer record described above. If you uninstall the app,
               Shopify sends us a shop-redaction notice about <strong>48 hours later</strong>, and
               that is when we erase the store data we hold; the delay is Shopify&apos;s, and it
               exists so that reinstalling within that window does not cost you your history. Data
