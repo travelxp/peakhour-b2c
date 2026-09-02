@@ -15,7 +15,7 @@ export const SITE = {
   /** Date stamped on Terms, Privacy and Cookie Policy. Privacy §17 and Cookie §7
    *  define this as the signal of a material change, so bump it ONLY when one of
    *  those three actually changes. */
-  legalLastUpdated: "August 9, 2026",
+  legalLastUpdated: "September 2, 2026",
   /** Separate stamp for the Data Deletion and Data Retention pages. They are
    *  informational, change on their own cadence, and the Data Deletion page is
    *  read by Meta app review — sharing `legalLastUpdated` made an unrelated
