@@ -23,6 +23,12 @@ import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { PageShell } from "@/components/dashboard/page-shell";
 import {
+  addLanguageProblem,
+  groupByName,
+  unanimousStatus,
+  type TemplateGroup,
+} from "./_components/template-groups";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -431,6 +437,48 @@ export default function WhatsAppTemplatesPage() {
     },
     onError: (e: Error) => toast.error(e?.message || "Couldn't propose a repair"),
   });
+
+  // ── ★★§3.5's FLOW: "ADD A LANGUAGE" IS AN ACTION, NOT A RETYPE ─────────
+  //
+  // ★The api has supported per-language rows all along — `POST /templates/draft`
+  //  takes a `language` and refuses a duplicate on the NORMALISED pair. What was
+  //  missing is the only way a merchant could reach it: retyping the name
+  //  EXACTLY into a free-text box, with nothing saying the English one exists.
+  //
+  // ⚠️★★THE NAME IS CARRIED, NOT RE-ENTERED, because Meta keys a template by
+  //  (name, language) — one typo and the merchant has made a second template
+  //  rather than a second language, and nothing on this page would say so.
+  const [addingTo, setAddingTo] = useState<TemplateGroup | null>(null);
+  const [addLanguage, setAddLanguage] = useState("");
+  const addProblem = addingTo ? addLanguageProblem(addingTo, addLanguage) : null;
+
+  /**
+   * Seed the editor with a new language of an existing template.
+   *
+   * ⚠️🚫★★IT COPIES THE COMPONENTS AS A STARTING POINT AND **DROPS THE `id`**.
+   * Keeping the id would make the save an EDIT of the language it was copied
+   * from — Meta's id names a (name, language) pair, so the merchant would
+   * overwrite their English copy with a half-translated one and take it off the
+   * air. ★The copy is a convenience; the identity is not copied with it.
+   *
+   * ★AND THE CATEGORY COMES WITH IT, because a template's category is a
+   * property of what it says, not of which language it says it in — a merchant
+   * translating a UTILITY notice has not written a marketing one.
+   */
+  function startLanguage(group: TemplateGroup, language: string) {
+    const from = group.variants[0];
+    setEditor({
+      name: group.name,
+      language: language.trim(),
+      category: (from?.category as Category) ?? "UTILITY",
+      components: from?.components
+        ? { ...from.components, body: from.components.body ?? { text: "" } }
+        : { body: { text: "" } },
+    });
+    setIssues(null);
+    setAddingTo(null);
+    setAddLanguage("");
+  }
 
   function loadTemplate(t: BizTemplate) {
     setEditor({
