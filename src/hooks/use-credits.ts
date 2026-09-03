@@ -6,20 +6,37 @@ import { useAuth } from "@/providers/auth-provider";
 
 // ── Response types ─────────────────────────────────────────────────────────
 
-export type CreditsBalance =
-  | { unlimited: true; plan: string }
-  | {
-      unlimited: false;
-      plan: string;
-      metric: string;
-      hardCap: number;
-      softCap: number;
-      used: number;
-      remaining: number;
-      windowStartAt: string;
-      resetAt: string;
-      boostAddonKey: string | null;
-    };
+export type MeteredBalance = {
+  unlimited: false;
+  plan: string;
+  metric: string;
+  hardCap: number;
+  softCap: number;
+  /** Peaks consumed this window: the charging ledger PLUS consumption the
+   *  rollup has not charged yet. Deliberately LEADS the gate by that tail —
+   *  which is why it must never be the basis for saying AI is paused. */
+  used: number;
+  /** `used` without that tail — the ledger alone, which is what the gate
+   *  enforces on. Shown nowhere; kept so the two figures can be compared. */
+  chargedUsed: number;
+  /** ⚠️★THE API'S OWN ANSWER to "would the next AI call be refused?" — the
+   *  fair-use gate's predicate, on the gate's input, computed server-side.
+   *  Read this to render a pause; never re-derive it from the numbers. */
+  blocked: boolean;
+  remaining: number;
+  windowStartAt: string;
+  resetAt: string;
+  boostAddonKey: string | null;
+  /** Depleting Peaks bought as a top-up pack. Durable — NOT part of the
+   *  rolling window, and consumed only once the window allowance is spent. */
+  topUpBalance: number;
+  /** Whether that balance is actually spendable: true when any tier the org
+   *  holds costs money. Free tiers may HOLD top-up Peaks and not spend them,
+   *  so the flag is not `topUpBalance > 0`. */
+  topUpUsable: boolean;
+};
+
+export type CreditsBalance = { unlimited: true; plan: string } | MeteredBalance;
 
 export interface RateCardUseCase {
   useCase: string;
@@ -35,12 +52,70 @@ export interface CreditsHistoryDay {
 
 // ── Cap status helper ──────────────────────────────────────────────────────
 
-/** Returns "hard" | "soft" | "none". Unlimited plans always return "none". */
+/**
+ * Every Peak the org may still spend before the api refuses a call: the plan's
+ * window allowance PLUS any purchased top-up it is allowed to draw on.
+ *
+ * The DENOMINATOR for what this client displays — the percentage, the "X of Y"
+ * tooltip, the soft nudge. 🚫Reading `hardCap` alone is what produced "you've
+ * used 102% of your monthly Peaks" and "7,000 of 5,000 Peaks remaining" for a
+ * customer holding a top-up pack.
+ *
+ * ⚠️★IT IS NOT WHAT DECIDES A PAUSE — `balance.blocked` is. See `getCapStatus`.
+ *
+ * 🚫KNOWN DEFECT, inherited from the api and not fixable here: a depleting pack
+ * is counted twice against the same spend — the rollup meters over-cap calls into
+ * `used` AND debits them from `topUpBalance`, so this denominator shrinks as the
+ * pack is spent. At hardCap 5,000 with a 2,000 pack, 6,000 spent reads as
+ * "0 of 6,000" while 1,000 purchased Peaks remain. The soft band narrows with it.
+ * Tracked at `overFairUseCap` in peakhour-api, where the fix has to live.
+ */
+export function spendableCap(balance: MeteredBalance): number {
+  return balance.hardCap + (balance.topUpUsable ? balance.topUpBalance : 0);
+}
+
+/**
+ * Returns "hard" | "soft" | "none". Unlimited plans always return "none".
+ *
+ * ⚠️★★"hard" IS THE SERVER'S `blocked`, NOT A COMPARISON MADE HERE. This used
+ * to be `used >= hardCap`, which was wrong twice over: it had no top-up term,
+ * and `used` deliberately leads the gate by the un-charged tail. Together those
+ * told a Peakhour Suite customer "Monthly Peaks limit reached. AI features are
+ * paused until Sep 12. Upgrade to resume immediately." the day after they bought
+ * a 2,000-Peak pack — while `remaining` on that same response read 1,900 and the
+ * api refused nothing. 🚫Whether a customer can work is the api's answer to
+ * give; this client's job is to render it, not to recompute it.
+ *
+ * "soft" stays local and stays on the LEADING `used`, which is right for a
+ * nudge: it is a statement about the customer's own spend, not a claim about
+ * what the api will do.
+ */
 export function getCapStatus(balance: CreditsBalance | undefined): "hard" | "soft" | "none" {
   if (!balance || balance.unlimited) return "none";
-  if (balance.used >= balance.hardCap) return "hard";
-  if (balance.used >= balance.softCap) return "soft";
+  if (balance.blocked) return "hard";
+  // The plan's own warning band (hardCap − softCap), carried up to sit just
+  // below the REAL wall. Warning at the bare `softCap` would tell a merchant
+  // holding thousands of purchased Peaks that "AI will pause when the limit is
+  // reached" while none of them had been touched.
+  const cap = spendableCap(balance);
+  if (balance.used >= cap - (balance.hardCap - balance.softCap)) return "soft";
   return "none";
+}
+
+/**
+ * Where a capped org should be sent to get moving again.
+ *
+ * ⚠️🚫★"Upgrade" is a DEAD END on a paid plan. Peakhour Suite is the top
+ * self-serve tier and the api's escalation for it is `boost_or_wait` — the
+ * action that actually resumes AI is buying Peaks, not changing plan. Only a
+ * free tier has an upgrade to make, and `topUpUsable` is precisely the api's
+ * own "this org is on something that costs money" answer, so the CTA and the
+ * gate that honours the purchase cannot drift apart.
+ */
+export function capRecoveryCta(balance: MeteredBalance): { href: string; label: string; verb: string } {
+  return balance.topUpUsable
+    ? { href: "/dashboard/peaks", label: "Buy Peaks", verb: "Buy Peaks" }
+    : { href: "/dashboard/settings/billing", label: "Upgrade plan", verb: "Upgrade" };
 }
 
 // ── Cache keys ─────────────────────────────────────────────────────────────

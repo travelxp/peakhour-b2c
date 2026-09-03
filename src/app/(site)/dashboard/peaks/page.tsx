@@ -23,7 +23,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import Link from "next/link";
-import { useCreditsBalance, useCreditsRateCard, useCreditsHistory } from "@/hooks/use-credits";
+import {
+  useCreditsBalance,
+  useCreditsRateCard,
+  useCreditsHistory,
+  getCapStatus,
+  spendableCap,
+  capRecoveryCta,
+} from "@/hooks/use-credits";
 import {
   usePeaksPacks,
   buyPack,
@@ -439,14 +446,22 @@ export default function PeaksPage() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const pageQc = useQueryClient();
 
+  // ⚠️★AGAINST THE SPENDABLE CAP, AND THE PAUSE COMES FROM THE SERVER. This page
+  //  is where every cap CTA now lands, and it was the last surface still deriving
+  //  both from `used / hardCap`: a paid, unblocked org clicked "Buy Peaks" and
+  //  arrived at "AI features are paused" beside an "Upgrade" button — the exact
+  //  false pause and dead-end CTA fixed in the banner and the chip. See
+  //  `getCapStatus` for why `used` cannot answer this question.
+  const cap = balance && !balance.unlimited ? spendableCap(balance) : 0;
   const pct =
-    balance && !balance.unlimited && balance.hardCap > 0
-      ? Math.min(100, Math.round((balance.used / balance.hardCap) * 100))
+    balance && !balance.unlimited && cap > 0
+      ? Math.min(100, Math.round((balance.used / cap) * 100))
       : 0;
+  const capStatus = getCapStatus(balance);
 
   const capColor =
     balance && !balance.unlimited
-      ? pct >= 100
+      ? capStatus === "hard"
         ? "bg-destructive"
         : pct >= 80
           ? "bg-warning"
@@ -523,7 +538,11 @@ export default function PeaksPage() {
                       {fmtPeaks(balance.remaining)}
                     </span>
                     <span className="ml-2 text-muted-foreground">
-                      / {fmtPeaks(balance.hardCap)} remaining
+                      {/* `remaining` already counts purchased Peaks, so the
+                          denominator must too — against `hardCap` this card read
+                          "7,000 / 5,000 remaining" for a top-up holder while the
+                          chip in the top bar showed the other denominator. */}
+                      / {fmtPeaks(cap)} remaining
                     </span>
                   </div>
                   <span className="text-sm tabular-nums text-muted-foreground">
@@ -537,18 +556,27 @@ export default function PeaksPage() {
                     style={{ width: `${pct}%` }}
                   />
                 </div>
-                {pct >= 80 && (
+                {capStatus !== "none" && (
                   <div className="flex items-center justify-between">
                     <p className="text-sm text-muted-foreground">
-                      {pct >= 100
+                      {capStatus === "hard"
                         ? "AI features are paused until your Peaks reset."
                         : "Getting close — AI features pause when you hit the limit."}
                     </p>
-                    <Button size="sm" variant="outline" asChild className="gap-1">
-                      <Link href="/dashboard/settings/billing">
-                        Upgrade <ArrowUpRight className="size-3" />
-                      </Link>
-                    </Button>
+                    {/* ⚠️★NO BUTTON ON THE PAID PATH, because the action IS this
+                        page: "Buy more Peaks" renders directly below. The old
+                        hardcoded "Upgrade" sent a Suite customer to billing with
+                        nothing above them to buy; a Buy-Peaks button here would
+                        just link to the page they are already on. Only a free
+                        tier has somewhere else to go. */}
+                    {!balance.topUpUsable && (
+                      <Button size="sm" variant="outline" asChild className="gap-1">
+                        <Link href={capRecoveryCta(balance).href}>
+                          {capRecoveryCta(balance).label}
+                          <ArrowUpRight className="size-3" />
+                        </Link>
+                      </Button>
+                    )}
                   </div>
                 )}
               </div>
