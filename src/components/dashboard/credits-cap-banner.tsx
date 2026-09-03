@@ -10,13 +10,14 @@ import { useCreditsBalance, getCapStatus, spendableCap, capRecoveryCta } from "@
  * Dismissible banner that surfaces when an org approaches or hits its
  * monthly Peaks limit.
  *
- *   - soft cap (used ≥ softCap): amber — "You've used 80%+ of your Peaks"
- *   - hard cap (used ≥ hardCap): red   — "Peaks limit reached, AI paused"
+ *   - soft: amber — "You've used N% of your Peaks", when own spend is inside the
+ *     plan's warning band measured against the SPENDABLE cap (`spendableCap`)
+ *   - hard: red — "Peaks limit reached, AI paused", when the api says `blocked`
  *
- * ⚠️★BOTH THRESHOLDS AND THE PERCENTAGE COUNT PURCHASED PEAKS, via
- * `spendableCap` — see the hook for what reading `hardCap` alone did to a
- * customer who had just bought a pack. The CTA follows `capRecoveryCta` for
- * the same reason: on a paid plan the way back is a purchase, not an upgrade.
+ * ⚠️★NEITHER THRESHOLD IS `used ≥ hardCap` ANY MORE, and the bullets above used
+ * to say it was. The pause is the server's verdict (see `getCapStatus`) and the
+ * percentage counts purchased Peaks. The CTA follows `capRecoveryCta` for the
+ * same reason: on a paid plan the way back is a purchase, not an upgrade.
  *
  * Dismissal is session-scoped (component state). Persisting it across
  * reloads via localStorage is deliberately deferred — the hard-cap banner

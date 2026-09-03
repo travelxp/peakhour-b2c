@@ -10,9 +10,9 @@ import { useCreditsBalance, getCapStatus, spendableCap } from "@/hooks/use-credi
  *
  * Colour-codes by cap state:
  *   - none  : muted (healthy)
- *   - soft  : amber (≥80% of monthly cap — warning)
- *   - hard  : red   (≥100% of the SPENDABLE cap — plan allowance plus any
- *             purchased Peaks — which is when the api actually refuses a call)
+ *   - soft  : amber (inside the plan's warning band, measured against the
+ *             SPENDABLE cap — plan allowance plus any purchased Peaks)
+ *   - hard  : red   (the api reports `blocked` — it would refuse the next call)
  *   - unlimited: muted with "∞" glyph
  *
  * Clicking navigates to /dashboard/peaks for the full rate card + history.

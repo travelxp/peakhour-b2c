@@ -62,6 +62,13 @@ export interface CreditsHistoryDay {
  * customer holding a top-up pack.
  *
  * ⚠️★IT IS NOT WHAT DECIDES A PAUSE — `balance.blocked` is. See `getCapStatus`.
+ *
+ * 🚫KNOWN DEFECT, inherited from the api and not fixable here: a depleting pack
+ * is counted twice against the same spend — the rollup meters over-cap calls into
+ * `used` AND debits them from `topUpBalance`, so this denominator shrinks as the
+ * pack is spent. At hardCap 5,000 with a 2,000 pack, 6,000 spent reads as
+ * "0 of 6,000" while 1,000 purchased Peaks remain. The soft band narrows with it.
+ * Tracked at `overFairUseCap` in peakhour-api, where the fix has to live.
  */
 export function spendableCap(balance: MeteredBalance): number {
   return balance.hardCap + (balance.topUpUsable ? balance.topUpBalance : 0);
