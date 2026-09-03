@@ -27,15 +27,21 @@
  * exact screen.
  */
 
-/** One stored template, as `GET /studio/templates` returns it. */
+/**
+ * The least this module needs of a stored template.
+ *
+ * ★★EVERY FUNCTION HERE IS GENERIC OVER IT, so the page keeps its OWN precise
+ * types — `category` as its `Category` union, `status` as `TemplateStatus`,
+ * `components` as the editor's shape — and a grouped variant can still be
+ * handed straight back to `loadTemplate`. 🚫Widening the page's types to match a
+ * helper is the wrong direction: the helper needs less, not the page more.
+ */
 export interface StudioTemplate {
   _id: string;
   name: string;
   language: string;
   category: string;
   status: string;
-  quality?: string;
-  rejectionReason?: string;
   updatedAt?: string;
 }
 
@@ -57,10 +63,10 @@ export function normaliseLanguage(language: string | undefined): string {
 }
 
 /** One template name, and every language stored under it. */
-export interface TemplateGroup {
+export interface TemplateGroup<T extends StudioTemplate = StudioTemplate> {
   /** The name as stored — Meta keys by it EXACTLY, so it is never folded. */
   name: string;
-  variants: StudioTemplate[];
+  variants: T[];
   /**
    * The categories the group's languages carry, deduped.
    *
@@ -86,8 +92,8 @@ export interface TemplateGroup {
  * for it. ⚠️★Rows with no `updatedAt` sort last rather than first: an absent
  * date is not a recent one.
  */
-export function groupByName(templates: StudioTemplate[]): TemplateGroup[] {
-  const byName = new Map<string, StudioTemplate[]>();
+export function groupByName<T extends StudioTemplate>(templates: T[]): TemplateGroup<T>[] {
+  const byName = new Map<string, T[]>();
   for (const t of templates) {
     if (!t || typeof t.name !== "string") continue;
     const list = byName.get(t.name);
@@ -95,7 +101,7 @@ export function groupByName(templates: StudioTemplate[]): TemplateGroup[] {
     else byName.set(t.name, [t]);
   }
 
-  const stamp = (t: StudioTemplate) => {
+  const stamp = (t: T) => {
     const ms = t.updatedAt ? Date.parse(t.updatedAt) : NaN;
     return Number.isNaN(ms) ? -Infinity : ms;
   };
@@ -127,7 +133,7 @@ export function groupByName(templates: StudioTemplate[]): TemplateGroup[] {
  * ★Used to refuse an "add a language" the api would 409 — and to refuse it
  * BEFORE the merchant writes a body, rather than after.
  */
-export function heldLanguages(group: TemplateGroup): Set<string> {
+export function heldLanguages(group: TemplateGroup<StudioTemplate>): Set<string> {
   return new Set(group.variants.map((v) => normaliseLanguage(v.language)));
 }
 
@@ -141,7 +147,7 @@ export function heldLanguages(group: TemplateGroup): Set<string> {
  * has and probably wants to OPEN.
  */
 export function addLanguageProblem(
-  group: TemplateGroup,
+  group: TemplateGroup<StudioTemplate>,
   language: string,
 ): { code: "EMPTY" | "DUPLICATE"; message: string } | null {
   const wanted = normaliseLanguage(language);
@@ -179,7 +185,7 @@ export function addLanguageProblem(
  * summary is a convenience for the common single-language case, never a
  * substitute for the row beneath it.
  */
-export function unanimousStatus(group: TemplateGroup): string | null {
+export function unanimousStatus(group: TemplateGroup<StudioTemplate>): string | null {
   const statuses = new Set(group.variants.map((v) => v.status));
   return statuses.size === 1 ? [...statuses][0]! : null;
 }

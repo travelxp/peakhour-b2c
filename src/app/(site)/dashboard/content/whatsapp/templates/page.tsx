@@ -193,7 +193,11 @@ export default function WhatsAppTemplatesPage() {
     queryFn: () => api.get<{ templates: BizTemplate[] }>(`${STUDIO}/templates`),
     enabled: Boolean(business?._id),
   });
-  const templates = data?.templates ?? [];
+  // ⚠️★`?? []` IS A NEW ARRAY ON EVERY RENDER, so a memo keyed on it never
+  //  holds — the grouping below would re-sort every variant of every group on
+  //  each keystroke in the editor. ★The lint says so; the fix is to memo the
+  //  fallback rather than to silence it.
+  const templates = useMemo(() => data?.templates ?? [], [data?.templates]);
 
   const refresh = () => qc.invalidateQueries({ queryKey: listKey });
 
@@ -448,9 +452,20 @@ export default function WhatsAppTemplatesPage() {
   // ⚠️★★THE NAME IS CARRIED, NOT RE-ENTERED, because Meta keys a template by
   //  (name, language) — one typo and the merchant has made a second template
   //  rather than a second language, and nothing on this page would say so.
-  const [addingTo, setAddingTo] = useState<TemplateGroup | null>(null);
+  const [addingTo, setAddingTo] = useState<TemplateGroup<BizTemplate> | null>(null);
   const [addLanguage, setAddLanguage] = useState("");
   const addProblem = addingTo ? addLanguageProblem(addingTo, addLanguage) : null;
+
+  // ★GROUPED ONCE PER LIST CHANGE, not per render — the sort walks every
+  //  variant of every group.
+  const groups = useMemo(() => groupByName(templates), [templates]);
+
+  // ★TYPED THROUGH `StatusBadge`'s OWN UNION, so a group verdict and a variant
+  //  verdict cannot render differently. `unanimousStatus` returns the shared
+  //  string or null; the cast is safe because every value in it came from a
+  //  variant this component already renders a badge for.
+  const groupStatus = (g: TemplateGroup<BizTemplate>) =>
+    unanimousStatus(g) as TemplateStatus | null;
 
   /**
    * Seed the editor with a new language of an existing template.
@@ -465,12 +480,12 @@ export default function WhatsAppTemplatesPage() {
    * property of what it says, not of which language it says it in — a merchant
    * translating a UTILITY notice has not written a marketing one.
    */
-  function startLanguage(group: TemplateGroup, language: string) {
+  function startLanguage(group: TemplateGroup<BizTemplate>, language: string) {
     const from = group.variants[0];
     setEditor({
       name: group.name,
       language: language.trim(),
-      category: (from?.category as Category) ?? "UTILITY",
+      category: from?.category ?? "UTILITY",
       components: from?.components
         ? { ...from.components, body: from.components.body ?? { text: "" } }
         : { body: { text: "" } },
@@ -635,26 +650,118 @@ export default function WhatsAppTemplatesPage() {
               {!isLoading && templates.length === 0 && (
                 <p className="text-sm text-muted-foreground">No templates yet. Draft your first one on the left.</p>
               )}
-              {templates.map((t) => (
-                <div key={t._id} className="rounded-lg border p-2.5">
+              {/* ── ★★§3.5: ONE CARD PER TEMPLATE, ONE ROW PER LANGUAGE ────────
+                *
+                * ★The plan's own words: *"`biz_templates` is already unique on
+                * `(businessId, name, language)` so variants are expressible —
+                * **there is just no flow for them**"*. 🚫The flat list rendered one
+                * entry per stored document, so `order_update` in English and in
+                * Hindi read as two unrelated templates with the same name.
+                *
+                * ⚠️🚫★★AND THE GROUP HEADER CARRIES **NO STATUS**. Meta approves
+                * `(name, language)`, so a template can be APPROVED in English and
+                * REJECTED in Hindi at the same moment — one badge over the group
+                * would tell a merchant their Hindi copy is live when it is not.
+                * ★That is exactly why ✅3.4a's CMS list draws a per-language MATRIX
+                * on the platform plane, and this is the merchant-plane version of
+                * the same refusal. */}
+              {groups.map((g) => (
+                <div key={g.name} className="rounded-lg border p-2.5">
                   <div className="flex items-center justify-between gap-2">
-                    <button className="truncate text-left text-sm font-medium hover:underline" onClick={() => loadTemplate(t)}>
-                      {t.name}
-                    </button>
-                    <StatusBadge status={t.status} />
-                  </div>
-                  <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
-                    <span>{t.language}</span>
-                    <span>·</span>
-                    <span className="capitalize">{t.category.toLowerCase()}</span>
-                  </div>
-                  {t.status === "rejected" && (
-                    <div className="mt-1.5">
-                      {t.rejectionReason && <p className="text-xs text-destructive-on-tint">{t.rejectionReason}</p>}
-                      <Button size="sm" variant="outline" className="mt-1.5" onClick={() => repair.mutate(t._id)} disabled={repair.isPending}>
-                        {repair.isPending ? "Fixing…" : "Suggest a fix"}
-                      </Button>
+                    <span className="truncate text-sm font-medium">{g.name}</span>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <span className="text-xs text-muted-foreground">
+                        {g.variants.length === 1 ? "1 language" : `${g.variants.length} languages`}
+                      </span>
+                      {/* ★★A GROUP BADGE ONLY WHERE EVERY LANGUAGE AGREES.
+                          `unanimousStatus` returns null the moment they do not — so
+                          a template APPROVED in English and REJECTED in Hindi gets
+                          NO header verdict, and the per-language rows below are the
+                          only answer. 🚫One badge over a mixed group would tell a
+                          merchant their Hindi copy is live when it is not. */}
+                      {groupStatus(g) ? <StatusBadge status={groupStatus(g)!} /> : null}
                     </div>
+                  </div>
+                  {/* ⚠️★EVERY CATEGORY THE GROUP CARRIES, not the first one.
+                      Nothing ties a second language's category to the first's, and
+                      Meta bills marketing differently — so showing one would hide
+                      the more expensive half. */}
+                  <div className="mt-0.5 text-xs capitalize text-muted-foreground">
+                    {g.categories.map((c) => c.toLowerCase()).join(" · ")}
+                  </div>
+
+                  <div className="mt-2 space-y-1.5">
+                    {g.variants.map((t) => (
+                      <div key={t._id} className="rounded-md bg-muted/40 p-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <button className="truncate text-left text-sm hover:underline" onClick={() => loadTemplate(t)}>
+                            {t.language}
+                          </button>
+                          <StatusBadge status={t.status} />
+                        </div>
+                        {t.status === "rejected" && (
+                          <div className="mt-1.5">
+                            {t.rejectionReason && <p className="text-xs text-destructive-on-tint">{t.rejectionReason}</p>}
+                            <Button size="sm" variant="outline" className="mt-1.5" onClick={() => repair.mutate(t._id)} disabled={repair.isPending}>
+                              {repair.isPending ? "Fixing…" : "Suggest a fix"}
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* ★★THE FLOW THE ROW SAYS IS MISSING. Adding a language used to
+                      mean retyping the name EXACTLY into a free-text box, with
+                      nothing saying the English one existed — one typo and the
+                      merchant has a second TEMPLATE rather than a second language. */}
+                  {addingTo?.name === g.name ? (
+                    <div className="mt-2 space-y-1.5">
+                      <div className="flex items-center gap-2">
+                        <Input
+                          aria-label={`Language to add to ${g.name}`}
+                          placeholder="hi"
+                          value={addLanguage}
+                          onChange={(e) => setAddLanguage(e.target.value)}
+                          className="h-8"
+                        />
+                        <Button
+                          size="sm"
+                          disabled={!!addProblem}
+                          onClick={() => startLanguage(g, addLanguage)}
+                        >
+                          Add
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            setAddingTo(null);
+                            setAddLanguage("");
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                      {/* ★A REFUSAL SAYS WHICH REFUSAL IT IS. An empty box is
+                          something to fill in; a duplicate is a template they
+                          already have and probably want to open. */}
+                      {addProblem && addLanguage.trim() !== "" ? (
+                        <p className="text-xs text-destructive-on-tint">{addProblem.message}</p>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="mt-2"
+                      onClick={() => {
+                        setAddingTo(g);
+                        setAddLanguage("");
+                      }}
+                    >
+                      Add a language
+                    </Button>
                   )}
                 </div>
               ))}
