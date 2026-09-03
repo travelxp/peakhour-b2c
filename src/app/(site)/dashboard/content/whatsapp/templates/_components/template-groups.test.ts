@@ -34,15 +34,25 @@ describe("normaliseLanguage — the comparison folds, the stored value does not"
     //  for a duplicate: "en_US and en-US are ONE template to Meta". A surface
     //  comparing raw strings would offer a language the api answers 409 to.
     expect(normaliseLanguage("en-US")).toBe(normaliseLanguage("en_US"));
-    expect(normaliseLanguage("  EN  ")).toBe("en");
+    expect(normaliseLanguage("EN")).toBe("en");
   });
 
-  it("★an absent language folds to the empty string, not to `en`", () => {
-    // 🚫★DEFAULTING HERE WOULD INVENT A LOCALE. The api's own default lives on
-    //  the DRAFT body; a row with no language is a broken row, and calling it
-    //  English would hide it inside the English group.
-    expect(normaliseLanguage(undefined)).toBe("");
-    expect(normaliseLanguage("")).toBe("");
+  it("⚠️★★★an absent language folds to `en`, BECAUSE THAT IS WHAT THE API DOES", () => {
+    // ⚠️🚫★★A ROUND FOUND THIS DIVERGING. The api's fold is
+    //  `String(language || "en")…`, so a row with no language is **English to
+    //  the SAVE**. 🚫A first version folded it to `""` and argued that defaulting
+    //  "would invent a locale" — the wrong argument for a function whose whole
+    //  job is to predict the api's duplicate answer. It let the UI offer
+    //  "add en" on a group the api then refused with **409 DUPLICATE**, after
+    //  the merchant had written a body.
+    expect(normaliseLanguage(undefined)).toBe("en");
+    expect(normaliseLanguage("")).toBe("en");
+  });
+
+  it("⚠★AND IT DOES NOT TRIM, because the api does not either", () => {
+    // ★The trim belongs to the CALLER — it is what the SEND does, so it happens
+    //  before the fold rather than inside it.
+    expect(normaliseLanguage(" en")).toBe(" en");
   });
 });
 
@@ -123,6 +133,14 @@ describe("addLanguageProblem — refuse before the body is written, and say whic
     //  offering a 409 — after the merchant has written a paragraph.
     expect(addLanguageProblem(group, "pt_BR")?.code).toBe("DUPLICATE");
     expect(addLanguageProblem(group, "EN")?.code).toBe("DUPLICATE");
+  });
+
+  it("⚠★★a group holding a LANGUAGE-LESS row already holds `en`", () => {
+    // ★Because the api folds an absent language to `en`, that row IS the
+    //  English one as far as a save is concerned. Offering "add en" would be
+    //  offering a 409.
+    const orphan = groupByName([tpl({ language: "" })])[0]!;
+    expect(addLanguageProblem(orphan, "en")?.code).toBe("DUPLICATE");
   });
 
   it("★an empty language is a DIFFERENT refusal from a duplicate", () => {

@@ -29,15 +29,15 @@ const VITEST = "node_modules/vitest/vitest.mjs";
 const MUTANTS = [
   {
     name: "compare languages raw, so `en-US` and `en_US` are two locales",
-    anchor: '  return (language ?? "").trim().toLowerCase().replace(/-/g, "_");',
-    mutated: '  return (language ?? "").trim().toLowerCase();',
+    anchor: '  return String(language || "en").toLowerCase().replace(/-/g, "_");',
+    mutated: '  return String(language || "en").toLowerCase();',
     killer: "★★`en-US` and `en_US` are ONE locale, because the api says so",
   },
   {
-    name: "default an absent language to `en`, hiding a broken row in the English group",
-    anchor: '  return (language ?? "").trim()',
-    mutated: '  return (language || "en").trim()',
-    killer: "★an absent language folds to the empty string, not to `en`",
+    name: "fold an absent language to something the api does not (the round-1 finding)",
+    anchor: '  return String(language || "en").toLowerCase()',
+    mutated: '  return String(language ?? "").toLowerCase()',
+    killer: "⚠️★★★an absent language folds to `en`, BECAUSE THAT IS WHAT THE API DOES",
   },
   {
     name: "fold the NAME the way the language is folded",
@@ -81,14 +81,22 @@ const MUTANTS = [
   },
   {
     name: "compare the added language raw, so a duplicate spelling slips through",
-    anchor: "  const wanted = normaliseLanguage(language);\n  if (wanted === \"\") {",
-    mutated: "  const wanted = language;\n  if (wanted === \"\") {",
+    anchor: "  const wanted = normaliseLanguage(typed);",
+    mutated: "  const wanted = typed;",
     killer: "★★a language the group already holds is refused, folded",
   },
   {
     name: "give an empty language the duplicate message",
-    anchor: '  if (wanted === "") {\n    return {\n      code: "EMPTY",',
+    anchor: '  if (typed === "") {\n    return {\n      code: "EMPTY",',
     mutated: '  if (false) {\n    return {\n      code: "EMPTY",',
+    killer: "★an empty language is a DIFFERENT refusal from a duplicate",
+  },
+  {
+    name: "ask the FOLD whether the box is empty (the round-1 trap)",
+    // ⚠️★Once an absent language folds to `en`, an empty box folds to `en` too
+    //  — so asking the fold reads a blank field as "add English".
+    anchor: "  const typed = language.trim();",
+    mutated: '  const typed = normaliseLanguage(language);',
     killer: "★an empty language is a DIFFERENT refusal from a duplicate",
   },
   {

@@ -59,7 +59,20 @@ export interface StudioTemplate {
  * stored value does not.*
  */
 export function normaliseLanguage(language: string | undefined): string {
-  return (language ?? "").trim().toLowerCase().replace(/-/g, "_");
+  // ⚠️🚫★★★TRANSCRIBED CHARACTER FOR CHARACTER, AND A ROUND FOUND WHY THAT
+  //  MATTERS. The api's is `String(language || "en").toLowerCase().replace(
+  //  /-/g, "_")` — it folds an ABSENT language to `"en"` and it does NOT trim.
+  //
+  // 🚫★A first version folded an absent one to `""` and argued that defaulting
+  //  "would invent a locale". **That is the wrong argument for this function.**
+  //  Its whole job is to predict what the api will call a duplicate — so a row
+  //  with no language is `en` to the SAVE, and calling it something else here
+  //  let the UI offer "add en" on a group the api answers **409 DUPLICATE**
+  //  for, after the merchant had written a body.
+  //
+  // ★THE TRIM MOVED TO THE CALLER, where it belongs: the input is trimmed
+  //  BEFORE it is folded, because trimming is what the SEND does.
+  return String(language || "en").toLowerCase().replace(/-/g, "_");
 }
 
 /** One template name, and every language stored under it. */
@@ -150,13 +163,17 @@ export function addLanguageProblem(
   group: TemplateGroup<StudioTemplate>,
   language: string,
 ): { code: "EMPTY" | "DUPLICATE"; message: string } | null {
-  const wanted = normaliseLanguage(language);
-  if (wanted === "") {
+  // ★THE TYPED STRING DECIDES 'EMPTY', and the FOLDED one decides 'DUPLICATE'.
+  //  🚫Asking the fold whether it is empty cannot work now that an absent
+  //  language folds to `"en"` — an empty box would read as "add English".
+  const typed = language.trim();
+  if (typed === "") {
     return {
       code: "EMPTY",
       message: "Name the language first — Meta keys a template by its name AND its language.",
     };
   }
+  const wanted = normaliseLanguage(typed);
   if (heldLanguages(group).has(wanted)) {
     return {
       code: "DUPLICATE",

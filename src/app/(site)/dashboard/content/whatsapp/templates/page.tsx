@@ -74,6 +74,9 @@ interface Editor {
 }
 
 const STUDIO = "/v1/meta/whatsapp/studio";
+/** ★THE API'S OWN `.limit(200)` ON `GET /templates`, transcribed so the page can
+ *  say when it is showing a truncated list rather than miscount a group. */
+const TEMPLATE_LIST_CAP = 200;
 const EMPTY_EDITOR: Editor = {
   name: "",
   language: "en",
@@ -452,9 +455,11 @@ export default function WhatsAppTemplatesPage() {
   // ⚠️★★THE NAME IS CARRIED, NOT RE-ENTERED, because Meta keys a template by
   //  (name, language) — one typo and the merchant has made a second template
   //  rather than a second language, and nothing on this page would say so.
+  const editorRef = useRef<HTMLDivElement | null>(null);
   const [addingTo, setAddingTo] = useState<TemplateGroup<BizTemplate> | null>(null);
   const [addLanguage, setAddLanguage] = useState("");
-  const addProblem = addingTo ? addLanguageProblem(addingTo, addLanguage) : null;
+  // ⚠️★NO MEMOISED `addProblem`: a round found the snapshot going stale, so the
+  //  refusal is computed against the LIVE group at the point it is rendered.
 
   // ★GROUPED ONCE PER LIST CHANGE, not per render — the sort walks every
   //  variant of every group.
@@ -481,7 +486,14 @@ export default function WhatsAppTemplatesPage() {
    * translating a UTILITY notice has not written a marketing one.
    */
   function startLanguage(group: TemplateGroup<BizTemplate>, language: string) {
-    const from = group.variants[0];
+    // ⚠️🚫★★SEEDED FROM THE MOST RECENTLY EDITED VARIANT, NOT `variants[0]`.
+    //  The variants are sorted by LANGUAGE for a stable list, so index 0 is
+    //  the alphabetically-first locale — a merchant working in `en` on an
+    //  `ar`+`en` template got the ARABIC copy pre-filled. ★What they were last
+    //  editing is the copy they are translating FROM.
+    const from = [...group.variants].sort(
+      (a, b) => Date.parse(b.updatedAt ?? "") - Date.parse(a.updatedAt ?? ""),
+    )[0] ?? group.variants[0];
     setEditor({
       name: group.name,
       language: language.trim(),
@@ -493,6 +505,10 @@ export default function WhatsAppTemplatesPage() {
     setIssues(null);
     setAddingTo(null);
     setAddLanguage("");
+    // ⚠★AND IT TAKES THEM TO THE EDITOR. Below `lg` the editor is a full
+    //  screen ABOVE this list, so seeding it looked like the button doing
+    //  nothing. 🚫A toast would say something happened without showing where.
+    editorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   function loadTemplate(t: BizTemplate) {
@@ -537,7 +553,7 @@ export default function WhatsAppTemplatesPage() {
 
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
         {/* Editor */}
-        <div className="space-y-5">
+        <div ref={editorRef} className="space-y-5 scroll-mt-20">
           <Card className="space-y-3 p-4">
             <Label htmlFor="goal">Describe what you want to send</Label>
             <div className="flex gap-2">
@@ -645,6 +661,19 @@ export default function WhatsAppTemplatesPage() {
 
           <Card className="p-4">
             <Label className="text-xs uppercase text-muted-foreground">Your templates</Label>
+            {/* ⚠️🚫★★THE LIST IS CAPPED AT 200 BY THE API, sorted by
+                `updatedAt` desc — so a template's variants can be SPLIT across the
+                boundary, and this card would then say "1 language" and show a
+                green badge over a group whose rejected Hindi row was truncated
+                away. ★Nothing here can detect which group lost a row, so it says
+                the list is incomplete rather than letting a count assert
+                something it cannot know. */}
+            {templates.length >= TEMPLATE_LIST_CAP ? (
+              <p className="mt-1 text-xs text-warning-on-tint">
+                Showing the {TEMPLATE_LIST_CAP} most recently updated templates. Older ones are
+                not listed, so a language count here may be short.
+              </p>
+            ) : null}
             <div className="mt-3 space-y-2">
               {isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
               {!isLoading && templates.length === 0 && (
@@ -682,22 +711,46 @@ export default function WhatsAppTemplatesPage() {
                       {groupStatus(g) ? <StatusBadge status={groupStatus(g)!} /> : null}
                     </div>
                   </div>
-                  {/* ⚠️★EVERY CATEGORY THE GROUP CARRIES, not the first one.
-                      Nothing ties a second language's category to the first's, and
-                      Meta bills marketing differently — so showing one would hide
-                      the more expensive half. */}
-                  <div className="mt-0.5 text-xs capitalize text-muted-foreground">
-                    {g.categories.map((c) => c.toLowerCase()).join(" · ")}
-                  </div>
+                  {/* ⚠️🚫★★THE CATEGORY IS ON THE HEADER ONLY WHERE EVERY LANGUAGE
+                      AGREES — the same rule as the status badge, and a round found
+                      it missing here. A deduped, alphabetised list read
+                      "marketing · utility" with **nothing saying which language is
+                      billed as marketing**: the collapse this module exists to
+                      prevent, applied to a different field. ★When they disagree the
+                      per-language rows carry it instead. */}
+                  {g.categories.length === 1 ? (
+                    <div className="mt-0.5 text-xs capitalize text-muted-foreground">
+                      {g.categories[0]!.toLowerCase()}
+                    </div>
+                  ) : null}
 
                   <div className="mt-2 space-y-1.5">
                     {g.variants.map((t) => (
                       <div key={t._id} className="rounded-md bg-muted/40 p-2">
                         <div className="flex items-center justify-between gap-2">
-                          <button className="truncate text-left text-sm hover:underline" onClick={() => loadTemplate(t)}>
-                            {t.language}
+                          {/* ⚠️🚫★A BLANK LANGUAGE STILL NEEDS A LABEL. The control
+                              moved from the template NAME to the language, and a row
+                              whose language is empty — which `groupByName` keeps on
+                              purpose — became an unlabelled, unreachable button.
+                              ★The api reads that row as `en`; the row says so rather
+                              than pretending it has a language of its own. */}
+                          <button
+                            className="truncate text-left text-sm hover:underline"
+                            aria-label={`Edit ${g.name} in ${t.language || "no language (sent as en)"}`}
+                            onClick={() => loadTemplate(t)}
+                          >
+                            {t.language || "— no language"}
                           </button>
-                          <StatusBadge status={t.status} />
+                          <div className="flex shrink-0 items-center gap-2">
+                            {/* ★THE PER-LANGUAGE CATEGORY, which is where it belongs
+                                when a group's languages disagree about it. */}
+                            {g.categories.length > 1 ? (
+                              <span className="text-xs capitalize text-muted-foreground">
+                                {t.category.toLowerCase()}
+                              </span>
+                            ) : null}
+                            <StatusBadge status={t.status} />
+                          </div>
                         </div>
                         {t.status === "rejected" && (
                           <div className="mt-1.5">
@@ -727,7 +780,7 @@ export default function WhatsAppTemplatesPage() {
                         />
                         <Button
                           size="sm"
-                          disabled={!!addProblem}
+                          disabled={!!addLanguageProblem(g, addLanguage)}
                           onClick={() => startLanguage(g, addLanguage)}
                         >
                           Add
@@ -746,8 +799,16 @@ export default function WhatsAppTemplatesPage() {
                       {/* ★A REFUSAL SAYS WHICH REFUSAL IT IS. An empty box is
                           something to fill in; a duplicate is a template they
                           already have and probably want to open. */}
-                      {addProblem && addLanguage.trim() !== "" ? (
-                        <p className="text-xs text-destructive-on-tint">{addProblem.message}</p>
+                      {/* ⚠️🚫★★EVALUATED AGAINST THE **LIVE** GROUP, not the
+                          `addingTo` snapshot. A round found the snapshot going stale
+                          across a refetch — and across a BUSINESS SWITCH, since only
+                          the group NAME is compared — so the guard read variants that
+                          were no longer there and let a merchant write a body before
+                          the api answered 409. */}
+                      {addLanguage.trim() !== "" && addLanguageProblem(g, addLanguage) ? (
+                        <p className="text-xs text-destructive-on-tint">
+                          {addLanguageProblem(g, addLanguage)!.message}
+                        </p>
                       ) : null}
                     </div>
                   ) : (
