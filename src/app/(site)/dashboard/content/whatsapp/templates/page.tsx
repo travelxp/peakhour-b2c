@@ -23,6 +23,13 @@ import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { PageShell } from "@/components/dashboard/page-shell";
 import {
+  addLanguageProblem,
+  groupByName,
+  mostRecentVariant,
+  unanimousStatus,
+  type TemplateGroup,
+} from "./_components/template-groups";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -68,6 +75,9 @@ interface Editor {
 }
 
 const STUDIO = "/v1/meta/whatsapp/studio";
+/** ★THE API'S OWN `.limit(200)` ON `GET /templates`, transcribed so the page can
+ *  say when it is showing a truncated list rather than miscount a group. */
+const TEMPLATE_LIST_CAP = 200;
 const EMPTY_EDITOR: Editor = {
   name: "",
   language: "en",
@@ -187,9 +197,69 @@ export default function WhatsAppTemplatesPage() {
     queryFn: () => api.get<{ templates: BizTemplate[] }>(`${STUDIO}/templates`),
     enabled: Boolean(business?._id),
   });
-  const templates = data?.templates ?? [];
+  // ⚠️★`?? []` IS A NEW ARRAY ON EVERY RENDER, so a memo keyed on it never
+  //  holds — the grouping below would re-sort every variant of every group on
+  //  each keystroke in the editor. ★The lint says so; the fix is to memo the
+  //  fallback rather than to silence it.
+  const templates = useMemo(() => data?.templates ?? [], [data?.templates]);
 
   const refresh = () => qc.invalidateQueries({ queryKey: listKey });
+
+  // ── ⚠️🚫★★THE LOCAL GUARD CANNOT SEE PAST THE API'S 200-ROW CAP ───────
+  //
+  // ★`heldLanguages` reads the list this page HOLDS, and the list route
+  //  `.limit(200)`s by `updatedAt` desc — so a variant outside that window is
+  //  invisible here and the language reads as free. The merchant then writes a
+  //  translation and collects the **409 this whole flow exists to pre-empt**.
+  //
+  // ★`GET /templates/check-existing?name=&language=` answers exactly this
+  //  question against the database, and was already there. 🚫The local guard is
+  //  kept in front of it: it is instant, it covers the common case, and it is
+  //  what disables the button before a request is worth making.
+  const checkExisting = useMutation({
+    // ⚠️🚫★★THE BUSINESS TRAVELS WITH THE REQUEST, as it does on `submit`. A
+    //  round found a late answer after a business SWITCH seeding the editor
+    //  with the previous business's name, category and components — and a save
+    //  would then create that copy under the new one.
+    mutationFn: async (v: {
+      group: TemplateGroup<BizTemplate>;
+      language: string;
+      businessId: string | undefined;
+    }) =>
+      api.get<{ exists: boolean; status?: string }>(`${STUDIO}/templates/check-existing`, {
+        name: v.group.name,
+        language: v.language.trim(),
+      }),
+    onSuccess: (r, v) => {
+      // ★A LATE ANSWER FOR A BUSINESS NOBODY IS LOOKING AT IS DISCARDED.
+      if (v.businessId !== business?._id) return;
+      if (r?.exists) {
+        // ★IT NAMES WHAT TO DO ABOUT IT. The row is out of the listed window,
+        //  so there is nothing on this page to click through to — saying only
+        //  "already exists" would leave the merchant looking for it.
+        toast.error(`A ${v.language.trim()} version of ${v.group.name} already exists`, {
+          description:
+            "It is not in the list above because only the 200 most recently updated " +
+            "templates are shown. Edit it rather than adding a second one.",
+        });
+        return;
+      }
+      startLanguage(v.group, v.language);
+    },
+    // ⚠️🚫★★A FAILED CHECK DOES NOT BLOCK THE ADD — AND A ROUND FOUND THIS
+    //  COMMENT LYING. `onError: () => {}` **aborted the add silently**: no
+    //  editor, no toast, so "Add" was a dead button on any network blip. ★The
+    //  endpoint is a courtesy ahead of the api's own refusal, not a gate, so
+    //  the merchant proceeds — and is told the check did not run, because a
+    //  duplicate would then surface as a 409 on save instead of here.
+    onError: (_e, v) => {
+      if (v.businessId !== business?._id) return;
+      toast.warning("Could not check for an existing version", {
+        description: "Carrying on — if one already exists, the save will say so.",
+      });
+      startLanguage(v.group, v.language);
+    },
+  });
 
   // ★AND THEY ARE RETIRED WHEN THE BUSINESS CHANGES. `switchBusiness` clears
   //  the query cache without remounting this page, so a never-expiring warning
@@ -432,11 +502,94 @@ export default function WhatsAppTemplatesPage() {
     onError: (e: Error) => toast.error(e?.message || "Couldn't propose a repair"),
   });
 
+  // ── ★★§3.5's FLOW: "ADD A LANGUAGE" IS AN ACTION, NOT A RETYPE ─────────
+  //
+  // ★The api has supported per-language rows all along — `POST /templates/draft`
+  //  takes a `language` and refuses a duplicate on the NORMALISED pair. What was
+  //  missing is the only way a merchant could reach it: retyping the name
+  //  EXACTLY into a free-text box, with nothing saying the English one exists.
+  //
+  // ⚠️★★THE NAME IS CARRIED, NOT RE-ENTERED, because Meta keys a template by
+  //  (name, language) — one typo and the merchant has made a second template
+  //  rather than a second language, and nothing on this page would say so.
+  const editorRef = useRef<HTMLDivElement | null>(null);
+  // ⚠️🚫★A HALF-TYPED 'ADD A LANGUAGE' MUST NOT SURVIVE A BUSINESS SWITCH. The
+  //  panel opens on a NAME match, so an add started on business A's
+  //  `order_update` re-appeared over business B's same-named template — with a
+  //  duplicate guard reading B's variants and a name that means something else.
+  //  ★DERIVED, NOT RESET IN AN EFFECT: the business is recorded when the panel
+  //  opens and compared when it renders, so there is no state to clear and no
+  //  `set-state-in-effect` to explain away.
+  const [addingTo, setAddingTo] = useState<
+    { businessId: string | undefined; name: string } | null
+  >(null);
+  const [addLanguage, setAddLanguage] = useState("");
+  // ⚠️★NO MEMOISED `addProblem`: a round found the snapshot going stale, so the
+  //  refusal is computed against the LIVE group at the point it is rendered.
+
+  // ★GROUPED ONCE PER LIST CHANGE, not per render — the sort walks every
+  //  variant of every group.
+  const groups = useMemo(() => groupByName(templates), [templates]);
+
+  // ★TYPED THROUGH `StatusBadge`'s OWN UNION, so a group verdict and a variant
+  //  verdict cannot render differently. `unanimousStatus` returns the shared
+  //  string or null; the cast is safe because every value in it came from a
+  //  variant this component already renders a badge for.
+  const groupStatus = (g: TemplateGroup<BizTemplate>) =>
+    unanimousStatus(g) as TemplateStatus | null;
+
+  /**
+   * Seed the editor with a new language of an existing template.
+   *
+   * ⚠️🚫★★IT COPIES THE COMPONENTS AS A STARTING POINT AND **DROPS THE `id`**.
+   * Keeping the id would make the save an EDIT of the language it was copied
+   * from — Meta's id names a (name, language) pair, so the merchant would
+   * overwrite their English copy with a half-translated one and take it off the
+   * air. ★The copy is a convenience; the identity is not copied with it.
+   *
+   * ★AND THE CATEGORY COMES WITH IT, because a template's category is a
+   * property of what it says, not of which language it says it in — a merchant
+   * translating a UTILITY notice has not written a marketing one.
+   */
+  function startLanguage(group: TemplateGroup<BizTemplate>, language: string) {
+    // ⚠️🚫★★SEEDED FROM THE MOST RECENTLY EDITED VARIANT, NOT `variants[0]`.
+    //  The variants are sorted by LANGUAGE for a stable list, so index 0 is
+    //  the alphabetically-first locale — a merchant working in `en` on an
+    //  `ar`+`en` template got the ARABIC copy pre-filled.
+    //
+    // ⚠️🚫★★AND THE FIRST FIX FOR THAT DID NOT WORK. It sorted on
+    //  `Date.parse(x ?? "")`, which is **NaN** for an undated row — and a
+    //  comparator returning NaN leaves V8's sort untouched, so the seed fell
+    //  straight back to `variants[0]`: the same regression, under a comment
+    //  saying it was fixed. ★`mostRecentVariant` is the module's own rule, with
+    //  the `-Infinity` stamp `groupByName` already uses.
+    const from = mostRecentVariant(group);
+    setEditor({
+      name: group.name,
+      language: language.trim(),
+      category: from?.category ?? "UTILITY",
+      components: from?.components
+        ? { ...from.components, body: from.components.body ?? { text: "" } }
+        : { body: { text: "" } },
+    });
+    setIssues(null);
+    setAddingTo(null);
+    setAddLanguage("");
+    // ⚠★AND IT TAKES THEM TO THE EDITOR. Below `lg` the editor is a full
+    //  screen ABOVE this list, so seeding it looked like the button doing
+    //  nothing. 🚫A toast would say something happened without showing where.
+    editorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   function loadTemplate(t: BizTemplate) {
     setEditor({
       id: t._id,
       name: t.name,
-      language: t.language,
+      // ⚠️★A ROW WITH NO LANGUAGE OPENS AS `en`, WHICH IS WHAT THE API ALREADY
+      //  CALLS IT — `normaliseLanguage` folds an absent one to English, so this
+      //  states the row's effective language rather than inventing one. 🚫Leaving
+      //  it blank made the editor unsaveable on a row the merchant can see.
+      language: t.language || "en",
       category: t.category,
       // Guard a present-but-body-less components blob (legacy/partial data) —
       // body is required by the editor + preview.
@@ -460,7 +613,15 @@ export default function WhatsAppTemplatesPage() {
     setIssues(null);
   }
 
-  const canSave = editor.name.trim().length > 0 && editor.components.body.text.trim().length > 0;
+  // ⚠️🚫★★THE LANGUAGE IS PART OF `canSave` NOW, AND A ROUND FOUND WHY. The
+  //  "— no language" row is newly clickable, and loading it left the box empty
+  //  — so Save and Submit dead-ended in the api's `min(2)` 400, **whose message
+  //  blames the components**. ★Meta keys a template by name AND language; a
+  //  save without one cannot succeed, so the button says so instead.
+  const canSave =
+    editor.name.trim().length > 0 &&
+    editor.language.trim().length >= 2 &&
+    editor.components.body.text.trim().length > 0;
   const errorCount = issues?.filter((i) => i.severity === "error").length ?? 0;
 
   return (
@@ -474,7 +635,7 @@ export default function WhatsAppTemplatesPage() {
 
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
         {/* Editor */}
-        <div className="space-y-5">
+        <div ref={editorRef} className="space-y-5 scroll-mt-20">
           <Card className="space-y-3 p-4">
             <Label htmlFor="goal">Describe what you want to send</Label>
             <div className="flex gap-2">
@@ -582,31 +743,176 @@ export default function WhatsAppTemplatesPage() {
 
           <Card className="p-4">
             <Label className="text-xs uppercase text-muted-foreground">Your templates</Label>
+            {/* ⚠️🚫★★THE LIST IS CAPPED AT 200 BY THE API, sorted by
+                `updatedAt` desc — so a template's variants can be SPLIT across the
+                boundary, and this card would then say "1 language" and show a
+                green badge over a group whose rejected Hindi row was truncated
+                away. ★Nothing here can detect which group lost a row, so it says
+                the list is incomplete rather than letting a count assert
+                something it cannot know. */}
+            {templates.length >= TEMPLATE_LIST_CAP ? (
+              <p className="mt-1 text-xs text-warning-on-tint">
+                Showing the {TEMPLATE_LIST_CAP} most recently updated templates. Older ones are
+                not listed, so a language count here may be short.
+              </p>
+            ) : null}
             <div className="mt-3 space-y-2">
               {isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
               {!isLoading && templates.length === 0 && (
                 <p className="text-sm text-muted-foreground">No templates yet. Draft your first one on the left.</p>
               )}
-              {templates.map((t) => (
-                <div key={t._id} className="rounded-lg border p-2.5">
+              {/* ── ★★§3.5: ONE CARD PER TEMPLATE, ONE ROW PER LANGUAGE ────────
+                *
+                * ★The plan's own words: *"`biz_templates` is already unique on
+                * `(businessId, name, language)` so variants are expressible —
+                * **there is just no flow for them**"*. 🚫The flat list rendered one
+                * entry per stored document, so `order_update` in English and in
+                * Hindi read as two unrelated templates with the same name.
+                *
+                * ⚠️🚫★★AND THE GROUP HEADER CARRIES **NO STATUS**. Meta approves
+                * `(name, language)`, so a template can be APPROVED in English and
+                * REJECTED in Hindi at the same moment — one badge over the group
+                * would tell a merchant their Hindi copy is live when it is not.
+                * ★That is exactly why ✅3.4a's CMS list draws a per-language MATRIX
+                * on the platform plane, and this is the merchant-plane version of
+                * the same refusal. */}
+              {groups.map((g) => (
+                <div key={g.name} className="rounded-lg border p-2.5">
                   <div className="flex items-center justify-between gap-2">
-                    <button className="truncate text-left text-sm font-medium hover:underline" onClick={() => loadTemplate(t)}>
-                      {t.name}
-                    </button>
-                    <StatusBadge status={t.status} />
-                  </div>
-                  <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
-                    <span>{t.language}</span>
-                    <span>·</span>
-                    <span className="capitalize">{t.category.toLowerCase()}</span>
-                  </div>
-                  {t.status === "rejected" && (
-                    <div className="mt-1.5">
-                      {t.rejectionReason && <p className="text-xs text-destructive-on-tint">{t.rejectionReason}</p>}
-                      <Button size="sm" variant="outline" className="mt-1.5" onClick={() => repair.mutate(t._id)} disabled={repair.isPending}>
-                        {repair.isPending ? "Fixing…" : "Suggest a fix"}
-                      </Button>
+                    <span className="truncate text-sm font-medium">{g.name}</span>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <span className="text-xs text-muted-foreground">
+                        {g.variants.length === 1 ? "1 language" : `${g.variants.length} languages`}
+                      </span>
+                      {/* ★★A GROUP BADGE ONLY WHERE EVERY LANGUAGE AGREES.
+                          `unanimousStatus` returns null the moment they do not — so
+                          a template APPROVED in English and REJECTED in Hindi gets
+                          NO header verdict, and the per-language rows below are the
+                          only answer. 🚫One badge over a mixed group would tell a
+                          merchant their Hindi copy is live when it is not. */}
+                      {groupStatus(g) ? <StatusBadge status={groupStatus(g)!} /> : null}
                     </div>
+                  </div>
+                  {/* ⚠️🚫★★THE CATEGORY IS ON THE HEADER ONLY WHERE EVERY LANGUAGE
+                      AGREES — the same rule as the status badge, and a round found
+                      it missing here. A deduped, alphabetised list read
+                      "marketing · utility" with **nothing saying which language is
+                      billed as marketing**: the collapse this module exists to
+                      prevent, applied to a different field. ★When they disagree the
+                      per-language rows carry it instead. */}
+                  {g.categories.length === 1 ? (
+                    <div className="mt-0.5 text-xs capitalize text-muted-foreground">
+                      {g.categories[0]!.toLowerCase()}
+                    </div>
+                  ) : null}
+
+                  <div className="mt-2 space-y-1.5">
+                    {g.variants.map((t) => (
+                      <div key={t._id} className="rounded-md bg-muted/40 p-2">
+                        <div className="flex items-center justify-between gap-2">
+                          {/* ⚠️🚫★A BLANK LANGUAGE STILL NEEDS A LABEL. The control
+                              moved from the template NAME to the language, and a row
+                              whose language is empty — which `groupByName` keeps on
+                              purpose — became an unlabelled, unreachable button.
+                              ★The api reads that row as `en`; the row says so rather
+                              than pretending it has a language of its own. */}
+                          <button
+                            className="truncate text-left text-sm hover:underline"
+                            aria-label={`Edit ${g.name} in ${t.language || "no language (sent as en)"}`}
+                            onClick={() => loadTemplate(t)}
+                          >
+                            {t.language || "— no language"}
+                          </button>
+                          <div className="flex shrink-0 items-center gap-2">
+                            {/* ★THE PER-LANGUAGE CATEGORY, which is where it belongs
+                                when a group's languages disagree about it. */}
+                            {g.categories.length > 1 ? (
+                              <span className="text-xs capitalize text-muted-foreground">
+                                {t.category.toLowerCase()}
+                              </span>
+                            ) : null}
+                            <StatusBadge status={t.status} />
+                          </div>
+                        </div>
+                        {t.status === "rejected" && (
+                          <div className="mt-1.5">
+                            {t.rejectionReason && <p className="text-xs text-destructive-on-tint">{t.rejectionReason}</p>}
+                            <Button size="sm" variant="outline" className="mt-1.5" onClick={() => repair.mutate(t._id)} disabled={repair.isPending}>
+                              {repair.isPending ? "Fixing…" : "Suggest a fix"}
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* ★★THE FLOW THE ROW SAYS IS MISSING. Adding a language used to
+                      mean retyping the name EXACTLY into a free-text box, with
+                      nothing saying the English one existed — one typo and the
+                      merchant has a second TEMPLATE rather than a second language. */}
+                  {addingTo?.name === g.name && addingTo.businessId === business?._id ? (
+                    <div className="mt-2 space-y-1.5">
+                      <div className="flex items-center gap-2">
+                        <Input
+                          aria-label={`Language to add to ${g.name}`}
+                          placeholder="hi"
+                          value={addLanguage}
+                          onChange={(e) => setAddLanguage(e.target.value)}
+                          className="h-8"
+                        />
+                        <Button
+                          size="sm"
+                          disabled={
+                            !!addLanguageProblem(g, addLanguage) || checkExisting.isPending
+                          }
+                          onClick={() =>
+                            checkExisting.mutate({
+                              group: g,
+                              language: addLanguage,
+                              businessId: business?._id,
+                            })
+                          }
+                        >
+                          {checkExisting.isPending ? "Checking…" : "Add"}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            setAddingTo(null);
+                            setAddLanguage("");
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                      {/* ★A REFUSAL SAYS WHICH REFUSAL IT IS. An empty box is
+                          something to fill in; a duplicate is a template they
+                          already have and probably want to open. */}
+                      {/* ⚠️🚫★★EVALUATED AGAINST THE **LIVE** GROUP, not the
+                          `addingTo` snapshot. A round found the snapshot going stale
+                          across a refetch — and across a BUSINESS SWITCH, since only
+                          the group NAME is compared — so the guard read variants that
+                          were no longer there and let a merchant write a body before
+                          the api answered 409. */}
+                      {addLanguage.trim() !== "" && addLanguageProblem(g, addLanguage) ? (
+                        <p className="text-xs text-destructive-on-tint">
+                          {addLanguageProblem(g, addLanguage)!.message}
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="mt-2"
+                      onClick={() => {
+                        setAddingTo({ businessId: business?._id, name: g.name });
+                        setAddLanguage("");
+                      }}
+                    >
+                      Add a language
+                    </Button>
                   )}
                 </div>
               ))}
