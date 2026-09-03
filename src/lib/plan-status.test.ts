@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  holdsPaidProduct,
   isConvertedProduct,
   isFreeTier,
   isPaidProduct,
+  namesAProduct,
   planDisplayName,
   showUpgradeCta,
   type PlanSummaryish,
@@ -142,13 +142,17 @@ describe("isPaidProduct / isConvertedProduct / holdsPaidProduct", () => {
     expect(isConvertedProduct(freeGrant)).toBe(false);
   });
 
-  it("★one paid product among free ones is enough", () => {
-    expect(holdsPaidProduct(summary({ products: [freeGrant, suite] }))).toBe(true);
-  });
-
-  it("★and no products at all is not a purchase", () => {
-    expect(holdsPaidProduct(summary())).toBe(false);
-    expect(holdsPaidProduct(undefined)).toBe(false);
+  it("★★the CHIP is styled as what it says, not as the base tier", () => {
+    // ⚠️🚫★A round found a paying org reading "Peakhour Suite" in the MUTED
+    //  free-tier chip. A label and its colour disagreeing is the same wrong
+    //  answer in two channels.
+    expect(namesAProduct(summary({ products: [suite] }))).toBe(true);
+    expect(namesAProduct(summary({ products: [freeGrant] }))).toBe(false);
+    expect(namesAProduct(summary())).toBe(false);
+    // ★A REAL tier keeps its own accent, matching what the label says.
+    expect(
+      namesAProduct(summary({ subscription: { plan: "growth" }, products: [suite] })),
+    ).toBe(false);
   });
 });
 
@@ -212,12 +216,14 @@ describe("planDisplayName — the second half of the same report", () => {
     ).toBe("Peakhour Suite");
   });
 
-  it("⚠️★★a product whose NAME is really its tier key is refused", () => {
+  it("⚠️★★★a product whose NAME is its tier key falls back to a COUNT, never to \"Free\"", () => {
     // ⚠️🚫★The endpoint falls back to the raw key when no `cfg_plans` row
-    //  resolves, so this would print **"Peakhour_suite.pro"** under the badge’s
-    //  `capitalize` — the same failure the module exists to prevent. ★Falling
-    //  through to `planName` is the honest answer.
-    expect(planDisplayName(summary({ products: [unnamed] }))).toBe("Free");
+    //  resolves, so using it would print **"Peakhour_suite.pro"** under the
+    //  badge's `capitalize`. 🚫★★But a round found the fix for THAT worse than
+    //  the problem: dropping through to `planName` labelled a Suite-holding org
+    //  **"Free"** with the CTA also suppressed — the reported symptom, and now
+    //  with nothing to click. ★"1 product" is short of ideal and it is TRUE.
+    expect(planDisplayName(summary({ products: [unnamed] }))).toBe("1 product");
   });
   it("★and an unloaded summary names nothing rather than guessing", () => {
     expect(planDisplayName(undefined)).toBeNull();

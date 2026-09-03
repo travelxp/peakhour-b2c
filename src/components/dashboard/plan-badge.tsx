@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowUpRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useDashboardOrg } from "@/hooks/use-dashboard-org";
-import { planDisplayName, showUpgradeCta } from "@/lib/plan-status";
+import { namesAProduct, planDisplayName, showUpgradeCta } from "@/lib/plan-status";
 
 /** Plan-tier accent colors. Tailwind class strings only — kept narrow
  *  so a designer can tune without touching component logic. */
@@ -53,7 +53,13 @@ export function PlanBadge() {
   if (!summary?.subscription?.plan) return null;
 
   const plan = summary.subscription.plan;
-  const planClass = PLAN_STYLES[plan] ?? PLAN_STYLES.free;
+  // ⚠️🚫★★THE ACCENT FOLLOWS THE LABEL, NOT THE BASE TIER. A round found a
+  //  paying org reading "Peakhour Suite" in the MUTED free-tier chip, because
+  //  the colour was still keyed on `subscription.plan`. ★A label and its colour
+  //  disagreeing is the same wrong answer in two channels.
+  const planClass = namesAProduct(summary)
+    ? PLAN_STYLES.growth
+    : (PLAN_STYLES[plan] ?? PLAN_STYLES.free);
   const trialActive = summary.subscription.trialActive === true;
   const trialDays = summary.subscription.trialDaysRemaining ?? 0;
 
@@ -87,10 +93,13 @@ export function PlanBadge() {
           viewport. ★The full name stays reachable as a `title`. */}
       <Badge
         variant="secondary"
-        className={cn("max-w-[10rem] truncate font-medium capitalize", planClass)}
+        className={cn("max-w-[10rem] font-medium capitalize", planClass)}
         title={label ?? undefined}
       >
-        {label}
+        {/* ⚠️★THE TRUNCATE LIVES ON AN INNER BLOCK. `Badge` is `inline-flex`, and
+            `truncate` on a flex container clips without an ellipsis — the width
+            was protected and the reader got no sign that a word had been cut. */}
+        <span className="block truncate">{label}</span>
       </Badge>
       {/* Trial countdown + Upgrade CTA collapse on narrow viewports —
           below sm the header would otherwise wrap (badge + countdown +

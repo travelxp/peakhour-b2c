@@ -40,7 +40,10 @@ export interface PlanSummaryish {
  * Plans where an upgrade is meaningful ON THE BASE LADDER.
  *
  * ★`agency` and `enterprise` are at or near the top, so the CTA is noise there.
- * ⚠️★This set is NOT the whole answer and never was — see `holdsPaidProduct`.
+ * ⚠️★This set is NOT the whole answer and never was — the second half is
+ * `baseTierMisrepresents`, which `showUpgradeCta` ANDs with it. 🚫A first version
+ * of this line pointed at a predicate `showUpgradeCta` does not use, and
+ * following it re-introduces the trial regression the tests guard.
  */
 const UPGRADABLE_BASE = new Set(["free", "starter", "growth"]);
 
@@ -62,13 +65,11 @@ const UPGRADABLE_BASE = new Set(["free", "starter", "growth"]);
  */
 
 /**
- * Is this a product the org PAID for?
+ * Is this tier key one that costs nothing?
  *
- * ⚠️★A `.free` TIER IS A GRANT, NOT A PURCHASE — the Shopify claim hands an org
- * a free floor product, and counting it as paid would silence the upgrade CTA
- * for exactly the orgs it is meant for. ★This is the billing page's own
- * `paidCount` rule, moved here rather than copied, so the two cannot disagree
- * about what "paid" means.
+ * ★THE VOCABULARY IS `peakhour-api`'s, NOT INVENTED HERE: bare `free`, and the
+ * `.free` / `.lens` suffixes. Everything else — `.paid`, `.pro`, `.studio`,
+ * `.commerce` — is on the paid side of the same split the Peaks buy gate uses.
  */
 export function isFreeTier(key: string | undefined): boolean {
   if (typeof key !== "string" || key === "") return false;
@@ -81,6 +82,18 @@ export function isFreeTier(key: string | undefined): boolean {
   return key === "free" || key.endsWith(".free") || key.endsWith(".lens");
 }
 
+/**
+ * Is this a product the org HOLDS on a paid tier — trials included?
+ *
+ * ⚠️★A FREE TIER IS A GRANT, NOT A PURCHASE. The Shopify claim hands an org a
+ * free floor product, and counting it as paid would silence the upgrade CTA for
+ * exactly the orgs it is meant for. ★This is the billing page's own `paidCount`
+ * rule, moved here rather than copied, so the two cannot disagree about what
+ * "paid" means.
+ *
+ * 🚫**It says nothing about `state`** — see `isConvertedProduct` for the
+ * question the CTA asks.
+ */
 export function isPaidProduct(product: HeldProduct | undefined): boolean {
   return !!product && typeof product.tier === "string" && !isFreeTier(product.tier);
 }
@@ -105,16 +118,22 @@ export function isConvertedProduct(product: HeldProduct | undefined): boolean {
 }
 
 /**
- * Does the org hold at least one paid product, trials included?
+ * Does the badge name a PRODUCT rather than the base tier?
  *
- * 🚫It does not re-filter the endpoint's own `active`/`trial` scope — a second
- * copy of that rule is the thing this module exists to prevent. ★What it does
- * guard is the SHAPE: a malformed entry must not throw in a top-bar component
- * that renders on every dashboard page.
+ * ★Exported so the chip can be STYLED as what it says. ⚠️🚫★A round found the
+ * accent still keyed on the base tier while the label named a product — so a
+ * paying org read "Peakhour Suite" in the muted FREE-tier chip. **A label and
+ * its colour disagreeing is the same wrong answer in two channels.**
+ *
+ * 🚫★AND `holdsPaidProduct` WAS REMOVED RATHER THAN LEFT. It had no caller, and
+ * its name invited exactly the substitution the tests guard against: the CTA
+ * asks `isConvertedProduct` (a trial has paid nothing), not "holds anything
+ * paid". **An uncalled helper that reads like the one you want is worse than
+ * no helper.**
  */
-export function holdsPaidProduct(summary: PlanSummaryish | undefined): boolean {
-  const products = summary?.products;
-  return Array.isArray(products) && products.some(isPaidProduct);
+export function namesAProduct(summary: PlanSummaryish | undefined): boolean {
+  if (!isFreeTier(summary?.subscription?.plan)) return false;
+  return (summary?.products ?? []).some(isPaidProduct);
 }
 
 /**
@@ -211,7 +230,13 @@ export function planDisplayName(summary: PlanSummaryish | undefined): string | n
     //  the honest answer: a wrong-looking name is worse than a plain one.
     const named = held.filter((p) => p.name && p.name !== p.tier);
     if (held.length === 1 && named.length === 1) return named[0]!.name!;
-    if (held.length > 1) return `${held.length} products`;
+    // ⚠️🚫★★AND AN UNUSABLE NAME FALLS BACK TO A **COUNT**, NEVER TO `planName`.
+    //  A round found the worse combination: with the CTA suppressed AND the
+    //  label dropping through, a Suite-holding org read **"Free"** with no
+    //  upgrade affordance left — the reported symptom, and now with nothing to
+    //  click. ★"1 product" is short of ideal and it is TRUE, which the
+    //  alternative is not.
+    if (held.length > 0) return `${held.length} product${held.length === 1 ? "" : "s"}`;
   }
 
   if (base?.planName) return base.planName;
