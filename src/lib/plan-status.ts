@@ -45,6 +45,23 @@ export interface PlanSummaryish {
 const UPGRADABLE_BASE = new Set(["free", "starter", "growth"]);
 
 /**
+ * ⏸⚠️★★AND THIS SET IS DELIBERATELY **NOT** WIDENED TO DOTTED FREE TIERS.
+ *
+ * An org on `commerce_assistant.free` matches nothing here, so it has never seen
+ * this CTA — and adding one would turn a prompt ON for a whole population that
+ * has never had it, which is a product decision and not what was reported. ★It
+ * is recorded rather than silently left: `plan-keys.ts` warns that a table keyed
+ * by bare account plans *"finds nothing"* for a held tier, and this is that
+ * shape, kept on purpose. ⏸Worth deciding separately.
+ *
+ * ★The consequence is that the suppression below only ever applies to a BARE
+ * `free`, which is the tier the reported org is on. `isFreeTier` is still the
+ * right question to ask — it keeps this function and `planDisplayName` agreeing
+ * about what "free" means — but it cannot currently be reached with a dotted
+ * key, and saying so is better than leaving a reader to work it out.
+ */
+
+/**
  * Is this a product the org PAID for?
  *
  * ⚠️★A `.free` TIER IS A GRANT, NOT A PURCHASE — the Shopify claim hands an org
@@ -53,8 +70,19 @@ const UPGRADABLE_BASE = new Set(["free", "starter", "growth"]);
  * `paidCount` rule, moved here rather than copied, so the two cannot disagree
  * about what "paid" means.
  */
+export function isFreeTier(key: string | undefined): boolean {
+  if (typeof key !== "string" || key === "") return false;
+  // ⚠️🚫★★`.lens` IS A FREE SUFFIX AND A FIRST VERSION MISSED IT.
+  //  `peakhour-api`'s `credits.ts` states it twice — *"the free tiers (free,
+  //  `*.lens`) cost nothing"* — and it is the rule the Peaks buy gate applies.
+  //  🚫Counting a grandfathered `content_studio.lens` org as PAID would suppress
+  //  their upgrade prompt permanently: the inverted form of the reported bug,
+  //  introduced by the fix for it.
+  return key === "free" || key.endsWith(".free") || key.endsWith(".lens");
+}
+
 export function isPaidProduct(product: HeldProduct | undefined): boolean {
-  return !!product && typeof product.tier === "string" && !product.tier.endsWith(".free");
+  return !!product && typeof product.tier === "string" && !isFreeTier(product.tier);
 }
 
 /**
@@ -104,7 +132,14 @@ export function holdsPaidProduct(summary: PlanSummaryish | undefined): boolean {
  * check disambiguates `free` and nothing else.
  */
 function baseTierMisrepresents(summary: PlanSummaryish | undefined): boolean {
-  if (summary?.subscription?.plan !== "free") return false;
+  // ⚠️🚫★★AND IT ASKS `isFreeTier`, NOT `=== "free"`. `plan-keys.ts` says it in
+  //  as many words: *"`org.subscription.plan` holds a TIER key, which since
+  //  migration 106 is normally the DOTTED kind"* — Shopify autoprovision writes
+  //  `commerce_assistant.free` — and it records `planToPriority` making exactly
+  //  this mistake and silently charging every such org the free tier's
+  //  priority. 🚫A first version compared the bare string, so the orgs the
+  //  report is about would still have been named "Free".
+  if (!isFreeTier(summary?.subscription?.plan)) return false;
   const products = summary?.products;
   return Array.isArray(products) && products.some(isConvertedProduct);
 }
@@ -159,7 +194,7 @@ export function planDisplayName(summary: PlanSummaryish | undefined): string | n
   // ★SO: a `free` base beside something the org holds is named by what they
   //  hold; every other tier is named by `planName`, which is the summary's own
   //  instruction and is right for a real tier.
-  if (base?.plan === "free") {
+  if (isFreeTier(base?.plan)) {
     // ★TRIALS COUNT HERE and not in the CTA — see `isConvertedProduct`.
     //  Somebody trialing the Suite is not on a free plan in any sense they
     //  would recognise, even though they have paid nothing yet.
@@ -167,7 +202,15 @@ export function planDisplayName(summary: PlanSummaryish | undefined): string | n
     // ★ONE PRODUCT NAMES ITSELF; SEVERAL ARE COUNTED RATHER THAN LISTED,
     //  because a top-bar chip has room for one phrase. 🚫Naming only the first
     //  would hide the rest behind a label that looks complete.
-    if (held.length === 1 && held[0]?.name) return held[0].name;
+    //
+    // ⚠️🚫★AND A `name` THAT IS REALLY THE TIER KEY IS REFUSED. The endpoint
+    //  falls back to the raw key when no `cfg_plans` row resolves, so a
+    //  not-yet-effective row would print **"Peakhour_suite.pro"** under this
+    //  badge's `capitalize` — the same failure the docblock above cites as the
+    //  reason for preferring a name at all. ★Falling through to `planName` is
+    //  the honest answer: a wrong-looking name is worse than a plain one.
+    const named = held.filter((p) => p.name && p.name !== p.tier);
+    if (held.length === 1 && named.length === 1) return named[0]!.name!;
     if (held.length > 1) return `${held.length} products`;
   }
 

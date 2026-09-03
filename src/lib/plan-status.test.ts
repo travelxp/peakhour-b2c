@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   holdsPaidProduct,
   isConvertedProduct,
+  isFreeTier,
   isPaidProduct,
   planDisplayName,
   showUpgradeCta,
@@ -19,6 +20,9 @@ const suite = { tier: "peakhour_suite.pro", state: "active", name: "Peakhour Sui
 const peaks = { tier: "peaks.pro", state: "active", name: "Peaks" };
 const suiteTrial = { tier: "peakhour_suite.pro", state: "trial", name: "Peakhour Suite" };
 const freeGrant = { tier: "commerce_assistant.free", state: "active", name: "Commerce Assistant" };
+const lens = { tier: "content_studio.lens", state: "active", name: "Content Studio Lens" };
+/** ⚠️A product whose `name` fell back to the raw tier key server-side. */
+const unnamed = { tier: "peakhour_suite.pro", state: "active", name: "peakhour_suite.pro" };
 
 /**
  * ⚠️★★★THE FIXTURE CARRIES `planName`, BECAUSE THE SERVER ALWAYS DOES.
@@ -89,6 +93,25 @@ describe("showUpgradeCta — the reported bug", () => {
     expect(showUpgradeCta(summary({ subscription: { plan: "peakhour_suite" } }))).toBe(false);
   });
 
+
+  it("⚠️★★★a `.lens` TIER IS FREE TOO, so it does not suppress the prompt", () => {
+    // ⚠️🚫★`credits.ts` STATES IT TWICE: "the free tiers (free, `*.lens`) cost
+    //  nothing". A first version counted `.lens` as paid, which would silence a
+    //  grandfathered lens-only org's prompt permanently — **the inverted form
+    //  of the reported bug, introduced by the fix for it.**
+    expect(showUpgradeCta(summary({ products: [lens] }))).toBe(true);
+  });
+
+  it("★and a DOTTED free tier is recognised as free", () => {
+    // ⚠️★`plan-keys.ts`: "org.subscription.plan holds a TIER key, which since
+    //  migration 106 is normally the DOTTED kind". 🚫Comparing the bare string is
+    //  the mistake `planToPriority` already made once.
+    expect(isFreeTier("commerce_assistant.free")).toBe(true);
+    expect(isFreeTier("content_studio.lens")).toBe(true);
+    expect(isFreeTier("free")).toBe(true);
+    expect(isFreeTier("peakhour_suite.pro")).toBe(false);
+    expect(isFreeTier(undefined)).toBe(false);
+  });
   it("★and a summary that has not loaded shows nothing", () => {
     // ★NO FLASH. A CTA that appears for one frame before the products arrive is
     //  the same wrong claim, briefly.
@@ -103,9 +126,10 @@ describe("showUpgradeCta — the reported bug", () => {
 });
 
 describe("isPaidProduct / isConvertedProduct / holdsPaidProduct", () => {
-  it("★a `.free` tier is not paid; anything else is", () => {
+  it("★a `.free` or `.lens` tier is not paid; anything else is", () => {
     expect(isPaidProduct(suite)).toBe(true);
     expect(isPaidProduct(freeGrant)).toBe(false);
+    expect(isPaidProduct(lens)).toBe(false);
     expect(isPaidProduct(undefined)).toBe(false);
   });
 
@@ -172,6 +196,29 @@ describe("planDisplayName — the second half of the same report", () => {
     expect(planDisplayName(summary())).toBe("Free");
   });
 
+
+  it("⚠️★★★a DOTTED free base is named by what the org holds", () => {
+    // ⚠️🚫★★THE ORGS THE REPORT IS ABOUT. Shopify autoprovision writes
+    //  `commerce_assistant.free`, and a first version compared the BARE string —
+    //  so those orgs would still have read "Peakhour.ai Commerce: Free" while
+    //  holding the Suite.
+    expect(
+      planDisplayName(
+        summary({
+          subscription: { plan: "commerce_assistant.free", planName: "Peakhour.ai Commerce: Free" },
+          products: [suite],
+        }),
+      ),
+    ).toBe("Peakhour Suite");
+  });
+
+  it("⚠️★★a product whose NAME is really its tier key is refused", () => {
+    // ⚠️🚫★The endpoint falls back to the raw key when no `cfg_plans` row
+    //  resolves, so this would print **"Peakhour_suite.pro"** under the badge’s
+    //  `capitalize` — the same failure the module exists to prevent. ★Falling
+    //  through to `planName` is the honest answer.
+    expect(planDisplayName(summary({ products: [unnamed] }))).toBe("Free");
+  });
   it("★and an unloaded summary names nothing rather than guessing", () => {
     expect(planDisplayName(undefined)).toBeNull();
     expect(planDisplayName({ subscription: {} })).toBeNull();

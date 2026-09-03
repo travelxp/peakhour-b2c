@@ -79,9 +79,16 @@ export function PlanBadge() {
 
   return (
     <div className="flex items-center gap-2">
+      {/* ⚠️★★IT TRUNCATES NOW, BECAUSE THE LABEL STOPPED BEING SHORT. It used
+          to be a capitalised tier key — "Free", "Growth" — and is now the
+          server's own name, which runs to things like "Peakhour.ai Commerce:
+          Free". 🚫This header is a non-wrapping `h-14` row shared with three
+          other controls, so an untruncated chip pushes them off a narrow
+          viewport. ★The full name stays reachable as a `title`. */}
       <Badge
         variant="secondary"
-        className={cn("font-medium capitalize", planClass)}
+        className={cn("max-w-[10rem] truncate font-medium capitalize", planClass)}
+        title={label ?? undefined}
       >
         {label}
       </Badge>
