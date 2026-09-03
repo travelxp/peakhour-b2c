@@ -217,12 +217,22 @@ export default function WhatsAppTemplatesPage() {
   //  kept in front of it: it is instant, it covers the common case, and it is
   //  what disables the button before a request is worth making.
   const checkExisting = useMutation({
-    mutationFn: async (v: { group: TemplateGroup<BizTemplate>; language: string }) =>
+    // ⚠️🚫★★THE BUSINESS TRAVELS WITH THE REQUEST, as it does on `submit`. A
+    //  round found a late answer after a business SWITCH seeding the editor
+    //  with the previous business's name, category and components — and a save
+    //  would then create that copy under the new one.
+    mutationFn: async (v: {
+      group: TemplateGroup<BizTemplate>;
+      language: string;
+      businessId: string | undefined;
+    }) =>
       api.get<{ exists: boolean; status?: string }>(`${STUDIO}/templates/check-existing`, {
         name: v.group.name,
         language: v.language.trim(),
       }),
     onSuccess: (r, v) => {
+      // ★A LATE ANSWER FOR A BUSINESS NOBODY IS LOOKING AT IS DISCARDED.
+      if (v.businessId !== business?._id) return;
       if (r?.exists) {
         // ★IT NAMES WHAT TO DO ABOUT IT. The row is out of the listed window,
         //  so there is nothing on this page to click through to — saying only
@@ -236,10 +246,19 @@ export default function WhatsAppTemplatesPage() {
       }
       startLanguage(v.group, v.language);
     },
-    // ⚠️★A FAILED CHECK DOES NOT BLOCK THE ADD. The endpoint is a courtesy
-    //  ahead of the api's own refusal, not a gate: if it cannot answer, the
-    //  merchant proceeds and the save still refuses a duplicate.
-    onError: () => {},
+    // ⚠️🚫★★A FAILED CHECK DOES NOT BLOCK THE ADD — AND A ROUND FOUND THIS
+    //  COMMENT LYING. `onError: () => {}` **aborted the add silently**: no
+    //  editor, no toast, so "Add" was a dead button on any network blip. ★The
+    //  endpoint is a courtesy ahead of the api's own refusal, not a gate, so
+    //  the merchant proceeds — and is told the check did not run, because a
+    //  duplicate would then surface as a 409 on save instead of here.
+    onError: (_e, v) => {
+      if (v.businessId !== business?._id) return;
+      toast.warning("Could not check for an existing version", {
+        description: "Carrying on — if one already exists, the save will say so.",
+      });
+      startLanguage(v.group, v.language);
+    },
   });
 
   // ★AND THEY ARE RETIRED WHEN THE BUSINESS CHANGES. `switchBusiness` clears
@@ -566,7 +585,11 @@ export default function WhatsAppTemplatesPage() {
     setEditor({
       id: t._id,
       name: t.name,
-      language: t.language,
+      // ⚠️★A ROW WITH NO LANGUAGE OPENS AS `en`, WHICH IS WHAT THE API ALREADY
+      //  CALLS IT — `normaliseLanguage` folds an absent one to English, so this
+      //  states the row's effective language rather than inventing one. 🚫Leaving
+      //  it blank made the editor unsaveable on a row the merchant can see.
+      language: t.language || "en",
       category: t.category,
       // Guard a present-but-body-less components blob (legacy/partial data) —
       // body is required by the editor + preview.
@@ -590,7 +613,15 @@ export default function WhatsAppTemplatesPage() {
     setIssues(null);
   }
 
-  const canSave = editor.name.trim().length > 0 && editor.components.body.text.trim().length > 0;
+  // ⚠️🚫★★THE LANGUAGE IS PART OF `canSave` NOW, AND A ROUND FOUND WHY. The
+  //  "— no language" row is newly clickable, and loading it left the box empty
+  //  — so Save and Submit dead-ended in the api's `min(2)` 400, **whose message
+  //  blames the components**. ★Meta keys a template by name AND language; a
+  //  save without one cannot succeed, so the button says so instead.
+  const canSave =
+    editor.name.trim().length > 0 &&
+    editor.language.trim().length >= 2 &&
+    editor.components.body.text.trim().length > 0;
   const errorCount = issues?.filter((i) => i.severity === "error").length ?? 0;
 
   return (
@@ -834,7 +865,13 @@ export default function WhatsAppTemplatesPage() {
                           disabled={
                             !!addLanguageProblem(g, addLanguage) || checkExisting.isPending
                           }
-                          onClick={() => checkExisting.mutate({ group: g, language: addLanguage })}
+                          onClick={() =>
+                            checkExisting.mutate({
+                              group: g,
+                              language: addLanguage,
+                              businessId: business?._id,
+                            })
+                          }
                         >
                           {checkExisting.isPending ? "Checking…" : "Add"}
                         </Button>
