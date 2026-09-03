@@ -423,7 +423,7 @@ export default function BillingPage() {
                     {/* A FREE tier upgrades rather than cancels — offering
                         "Cancel" on something that costs nothing is noise, and the
                         server would refuse it anyway. */}
-                    {p.tier.endsWith(".free") ? (
+                    {!isPaidProduct(p) ? (
                       <Button
                         variant="outline"
                         size="sm"

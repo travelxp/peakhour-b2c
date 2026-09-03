@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   holdsPaidProduct,
+  isConvertedProduct,
   isPaidProduct,
   planDisplayName,
   showUpgradeCta,
@@ -16,15 +17,28 @@ import {
 
 const suite = { tier: "peakhour_suite.pro", state: "active", name: "Peakhour Suite" };
 const peaks = { tier: "peaks.pro", state: "active", name: "Peaks" };
+const suiteTrial = { tier: "peakhour_suite.pro", state: "trial", name: "Peakhour Suite" };
 const freeGrant = { tier: "commerce_assistant.free", state: "active", name: "Commerce Assistant" };
 
+/**
+ * ⚠️★★★THE FIXTURE CARRIES `planName`, BECAUSE THE SERVER ALWAYS DOES.
+ *
+ * `resolvePlanName` ends `return name || key`, so it is **never** absent. 🚫A
+ * first version of this file omitted it — and every naming case passed while the
+ * shipped function returned "Free" for an org holding the Suite, which is the
+ * outcome the module exists to prevent. **A fixture that does not match what the
+ * server produces will agree with any implementation you like.**
+ */
 function summary(over: Partial<PlanSummaryish> = {}): PlanSummaryish {
-  return { subscription: { plan: "free" }, products: [], ...over };
+  return {
+    subscription: { plan: "free", planName: "Free", ...(over.subscription ?? {}) },
+    products: over.products ?? [],
+  };
 }
 
 describe("showUpgradeCta — the reported bug", () => {
   it("⚠️★★★an org holding a PAID product is NOT told to upgrade", () => {
-    // ⚠️🚫★★THE BUG. `subscription.plan` can stay `free` while the org owns a
+    // ⚠️🚫★★THE BUG. `subscription.plan` stays `free` while the org owns a
     //  purchased product — the billing page's own comment says so and guards
     //  against it; the top-bar badge did not, so the CTA showed forever on
     //  every dashboard page.
@@ -41,6 +55,24 @@ describe("showUpgradeCta — the reported bug", () => {
     // ★The Shopify claim hands an org a free floor product. Counting it as paid
     //  would silence the CTA for exactly the orgs it is meant for.
     expect(showUpgradeCta(summary({ products: [freeGrant] }))).toBe(true);
+  });
+
+  it("⚠️★★★a TRIALING product does not suppress it — converting is what it is for", () => {
+    // ⚠️🚫★A ROUND FOUND `state` DECLARED AND NEVER READ. The endpoint returns
+    //  `trial` rows alongside `active` ones, so an org merely trialing the Suite
+    //  — having paid nothing — lost the prompt for the whole trial, which is the
+    //  one moment it is the right prompt.
+    expect(showUpgradeCta(summary({ products: [suiteTrial] }))).toBe(true);
+  });
+
+  it("⚠️★★★a paid product does NOT silence the base ladder on starter or growth", () => {
+    // ⚠️🚫★A FIRST VERSION ANDed "holds no paid product" onto EVERY upgradable
+    //  tier, so an org on `starter` that bought anything permanently lost its
+    //  base-ladder prompt — and starter → growth is a real upgrade whatever
+    //  products they own. ★The product check disambiguates `free` and nothing
+    //  else, because `free` is the only tier that can be lying.
+    expect(showUpgradeCta(summary({ subscription: { plan: "starter" }, products: [suite] }))).toBe(true);
+    expect(showUpgradeCta(summary({ subscription: { plan: "growth" }, products: [suite] }))).toBe(true);
   });
 
   it("★an org already at the top of the base ladder is not nagged", () => {
@@ -70,11 +102,20 @@ describe("showUpgradeCta — the reported bug", () => {
   });
 });
 
-describe("isPaidProduct / holdsPaidProduct", () => {
+describe("isPaidProduct / isConvertedProduct / holdsPaidProduct", () => {
   it("★a `.free` tier is not paid; anything else is", () => {
     expect(isPaidProduct(suite)).toBe(true);
     expect(isPaidProduct(freeGrant)).toBe(false);
     expect(isPaidProduct(undefined)).toBe(false);
+  });
+
+  it("★★a trial is PAID by tier and NOT CONVERTED by state", () => {
+    // ★The two questions the module keeps apart: what they hold, and what they
+    //  have paid for.
+    expect(isPaidProduct(suiteTrial)).toBe(true);
+    expect(isConvertedProduct(suiteTrial)).toBe(false);
+    expect(isConvertedProduct(suite)).toBe(true);
+    expect(isConvertedProduct(freeGrant)).toBe(false);
   });
 
   it("★one paid product among free ones is enough", () => {
@@ -88,28 +129,46 @@ describe("isPaidProduct / holdsPaidProduct", () => {
 });
 
 describe("planDisplayName — the second half of the same report", () => {
-  it("⚠️★★the server's `planName` wins, because a tier key is not a name", () => {
+  it("⚠️★★★a paid product names a `free` base plan, EVEN THOUGH `planName` is set", () => {
+    // ⚠️🚫★★THE ROUND-1 DEFECT: `planName` was checked first and the server
+    //  always populates it (`return name || key`), so this returned **"Free"**
+    //  for an org holding the Suite — the outcome the module was written to
+    //  prevent, shipped inside the fix. ★The fixture carries `planName: "Free"`
+    //  precisely because production does.
+    expect(planDisplayName(summary({ products: [suite] }))).toBe("Peakhour Suite");
+  });
+
+  it("★a TRIALING product names it too — they are not on a free plan", () => {
+    // ★The other side of the trial split: naming counts a trial, the CTA does
+    //  not.
+    expect(planDisplayName(summary({ products: [suiteTrial] }))).toBe("Peakhour Suite");
+  });
+
+  it("★several products are COUNTED, not listed", () => {
+    expect(planDisplayName(summary({ products: [suite, peaks] }))).toBe("2 products");
+  });
+
+  it("⚠️★★a REAL tier is named by `planName`, not by a product it also holds", () => {
+    // ★A `growth` org's plan is Growth; the products are additions to it, and a
+    //  top-bar chip has room for the primary identity only. ★This is what keeps
+    //  the free-tier override from becoming a rule about every tier.
+    expect(
+      planDisplayName(summary({ subscription: { plan: "growth", planName: "Growth" }, products: [suite] })),
+    ).toBe("Growth");
+  });
+
+  it("★★and `planName` still wins over a machine tier key", () => {
     // ⚠️🚫★THE SUMMARY'S OWN TYPE SAYS "ALWAYS PREFER planName", and records
     //  what rendering the key did last time: customers were shown
     //  "Commerce_assistant.Free" as their plan name.
     expect(
-      planDisplayName(summary({ subscription: { plan: "commerce_assistant.free", planName: "Commerce Assistant" } })),
+      planDisplayName(
+        summary({ subscription: { plan: "commerce_assistant.free", planName: "Commerce Assistant" } }),
+      ),
     ).toBe("Commerce Assistant");
   });
 
-  it("★★a paid product names a `free` base plan, because the customer is not on one", () => {
-    // ★An org whose base tier is `free` and who has bought the Suite is not on
-    //  a free plan in any sense they would recognise.
-    expect(planDisplayName(summary({ products: [suite] }))).toBe("Peakhour Suite");
-  });
-
-  it("★several paid products are COUNTED, not listed", () => {
-    // ★A top-bar chip has room for one phrase, and naming only the first hides
-    //  the rest behind a label that looks complete.
-    expect(planDisplayName(summary({ products: [suite, peaks] }))).toBe("2 products");
-  });
-
-  it("★a free base with nothing bought still reads as its tier", () => {
+  it("★a free base with nothing bought still reads as its name", () => {
     expect(planDisplayName(summary())).toBe("Free");
   });
 

@@ -58,12 +58,31 @@ export function isPaidProduct(product: HeldProduct | undefined): boolean {
 }
 
 /**
- * Does the org hold at least one paid product?
+ * Paid AND actually being paid for.
  *
- * ★THE ENDPOINT ALREADY FILTERS TO `active`/`trial`, and this does not re-filter:
- * a second copy of that rule is the thing this module exists to prevent. 🚫What
- * it does guard is the SHAPE — a malformed entry must not throw in a top-bar
- * component that renders on every dashboard page.
+ * ── ⚠️🚫★★A TRIAL IS NOT A PURCHASE, AND THE TWO QUESTIONS WANT DIFFERENT
+ *    ANSWERS ─────────────────────────────────────────────────────────────────
+ *
+ * The endpoint returns `active` and `trial` rows together. ★For **naming** what
+ * an org holds, a trial counts — somebody trialing the Suite is not on a free
+ * plan in any sense they would recognise. 🚫For **suppressing the upgrade CTA**
+ * it must not: they have paid nothing, and converting a trial is exactly what
+ * that control is for. **Hiding it for the length of a trial removes the prompt
+ * at the only moment it is the right prompt.**
+ *
+ * ★A round found this: `state` was declared on the type and never read.
+ */
+export function isConvertedProduct(product: HeldProduct | undefined): boolean {
+  return isPaidProduct(product) && product?.state === "active";
+}
+
+/**
+ * Does the org hold at least one paid product, trials included?
+ *
+ * 🚫It does not re-filter the endpoint's own `active`/`trial` scope — a second
+ * copy of that rule is the thing this module exists to prevent. ★What it does
+ * guard is the SHAPE: a malformed entry must not throw in a top-bar component
+ * that renders on every dashboard page.
  */
 export function holdsPaidProduct(summary: PlanSummaryish | undefined): boolean {
   const products = summary?.products;
@@ -71,17 +90,37 @@ export function holdsPaidProduct(summary: PlanSummaryish | undefined): boolean {
 }
 
 /**
+ * Does the base tier MISREPRESENT what this org has?
+ *
+ * ★★THAT IS THE ACTUAL DEFECT, AND NAMING IT IS WHAT KEEPS THE TWO FIXES IN
+ * STEP. `free` beside a converted purchase is a false statement — about the
+ * plan's NAME and about whether an upgrade is owed — and both surfaces need the
+ * same answer.
+ *
+ * ⚠️🚫★AND IT IS ONLY THE `free` TIER, WHICH A FIRST VERSION GOT WRONG. It ANDed
+ * "holds no paid product" onto **every** upgradable tier, so an org on `starter`
+ * that bought anything permanently lost its base-ladder prompt — and
+ * starter → growth is a real upgrade whatever products they own. ★The product
+ * check disambiguates `free` and nothing else.
+ */
+function baseTierMisrepresents(summary: PlanSummaryish | undefined): boolean {
+  if (summary?.subscription?.plan !== "free") return false;
+  const products = summary?.products;
+  return Array.isArray(products) && products.some(isConvertedProduct);
+}
+
+/**
  * Should the dashboard tell this org to upgrade?
  *
  * ★★TWO CONDITIONS, AND THE SECOND IS THE ONE THAT WAS MISSING: the base tier
- * has to be one an upgrade means something for, **and** the org must not
- * already have bought something. 🚫Either alone is wrong — dropping the first
- * would nag an enterprise org, and dropping the second is the reported bug.
+ * has to be one an upgrade means something for, **and** it must not be a `free`
+ * that is lying about a converted purchase. 🚫Either alone is wrong — dropping
+ * the first nags an enterprise org, and dropping the second is the reported bug.
  */
 export function showUpgradeCta(summary: PlanSummaryish | undefined): boolean {
   const plan = summary?.subscription?.plan;
   if (typeof plan !== "string" || !UPGRADABLE_BASE.has(plan)) return false;
-  return !holdsPaidProduct(summary);
+  return !baseTierMisrepresents(summary);
 }
 
 /**
@@ -103,16 +142,36 @@ export function showUpgradeCta(summary: PlanSummaryish | undefined): boolean {
  * same wrong answer the CTA was giving.
  */
 export function planDisplayName(summary: PlanSummaryish | undefined): string | null {
-  const paid = (summary?.products ?? []).filter(isPaidProduct);
   const base = summary?.subscription;
-  if (base?.planName) return base.planName;
 
-  // ★ONE PAID PRODUCT NAMES ITSELF; SEVERAL ARE COUNTED RATHER THAN LISTED,
-  //  because a top-bar chip has room for one phrase and *"Suite + 2 more"* is
-  //  a promise the billing page keeps. 🚫Naming only the first would hide the
-  //  rest behind a label that looks complete.
-  if (paid.length === 1 && paid[0]?.name) return paid[0].name;
-  if (paid.length > 1) return `${paid.length} products`;
+  // ── ⚠️🚫★★★THE PRODUCT CHECK COMES **FIRST**, AND A ROUND PROVED WHY ───────
+  //
+  // 🚫★A FIRST VERSION RETURNED `planName` BEFORE LOOKING AT THE PRODUCTS, AND
+  //  THAT BRANCH IS UNREACHABLE IN PRODUCTION: the server's `resolvePlanName`
+  //  ends `return name || key`, so `planName` is **always** a non-empty string.
+  //  An org on a `free` base holding the Suite therefore came back **"Free"** —
+  //  *the exact outcome this module was written to fix*, shipped inside the fix.
+  //
+  // ⚠️★★AND THE TESTS PASSED, because their fixture omitted `planName` — a
+  //  field the server always sends. **A fixture that does not match what the
+  //  server produces will agree with any implementation you like.**
+  //
+  // ★SO: a `free` base beside something the org holds is named by what they
+  //  hold; every other tier is named by `planName`, which is the summary's own
+  //  instruction and is right for a real tier.
+  if (base?.plan === "free") {
+    // ★TRIALS COUNT HERE and not in the CTA — see `isConvertedProduct`.
+    //  Somebody trialing the Suite is not on a free plan in any sense they
+    //  would recognise, even though they have paid nothing yet.
+    const held = (summary?.products ?? []).filter(isPaidProduct);
+    // ★ONE PRODUCT NAMES ITSELF; SEVERAL ARE COUNTED RATHER THAN LISTED,
+    //  because a top-bar chip has room for one phrase. 🚫Naming only the first
+    //  would hide the rest behind a label that looks complete.
+    if (held.length === 1 && held[0]?.name) return held[0].name;
+    if (held.length > 1) return `${held.length} products`;
+  }
+
+  if (base?.planName) return base.planName;
 
   const plan = base?.plan;
   if (typeof plan !== "string" || plan === "") return null;
