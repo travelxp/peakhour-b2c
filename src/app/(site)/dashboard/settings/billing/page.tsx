@@ -20,6 +20,7 @@ import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
 import { TaxAndInvoices } from "@/components/settings-tax-invoices";
 import { UpgradePlanDialog } from "@/components/upgrade/upgrade-plan-dialog";
+import { isPaidProduct } from "@/lib/plan-status";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   useBillingSummary,
@@ -174,7 +175,10 @@ export default function BillingPage() {
   const hasProducts = products.length > 0;
   // Paid vs free matters for the headline: an org can hold a free floor product
   // (the Shopify claim grant) without having bought anything.
-  const paidCount = products.filter((p) => !p.tier.endsWith(".free")).length;
+  // ★SHARED WITH THE TOP-BAR BADGE rather than re-stated here — the two
+  //  disagreeing about what "paid" means is what produced a permanent
+  //  "Upgrade" CTA over an org holding Peakhour Suite.
+  const paidCount = products.filter(isPaidProduct).length;
   // Per-product price / renewal, keyed by tier, so each row can show what it
   // costs rather than just that it exists.
   // WHICH product is cancelling. One mutation instance is shared by every row, so
@@ -419,7 +423,7 @@ export default function BillingPage() {
                     {/* A FREE tier upgrades rather than cancels — offering
                         "Cancel" on something that costs nothing is noise, and the
                         server would refuse it anyway. */}
-                    {p.tier.endsWith(".free") ? (
+                    {!isPaidProduct(p) ? (
                       <Button
                         variant="outline"
                         size="sm"
