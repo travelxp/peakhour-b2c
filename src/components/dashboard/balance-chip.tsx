@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useCreditsBalance, getCapStatus } from "@/hooks/use-credits";
+import { useCreditsBalance, getCapStatus, spendableCap } from "@/hooks/use-credits";
 
 /**
  * Compact Peaks balance chip for the dashboard top bar.
@@ -11,7 +11,8 @@ import { useCreditsBalance, getCapStatus } from "@/hooks/use-credits";
  * Colour-codes by cap state:
  *   - none  : muted (healthy)
  *   - soft  : amber (≥80% of monthly cap — warning)
- *   - hard  : red   (≥100% — AI features paused)
+ *   - hard  : red   (≥100% of the SPENDABLE cap — plan allowance plus any
+ *             purchased Peaks — which is when the api actually refuses a call)
  *   - unlimited: muted with "∞" glyph
  *
  * Clicking navigates to /dashboard/peaks for the full rate card + history.
@@ -52,7 +53,11 @@ export function BalanceChip() {
       title={
         balance.unlimited
           ? "Unlimited Peaks — click for rate card"
-          : `${balance.remaining.toLocaleString()} of ${balance.hardCap.toLocaleString()} Peaks remaining`
+          : // ⚠️★AGAINST THE SPENDABLE CAP, NOT `hardCap`. `remaining` already
+            // counts purchased Peaks, so pairing it with the plan allowance
+            // alone rendered "7,000 of 5,000 Peaks remaining" for anyone
+            // holding a top-up pack — a tooltip contradicting itself.
+            `${balance.remaining.toLocaleString()} of ${spendableCap(balance).toLocaleString()} Peaks remaining`
       }
     >
       <Zap className="size-3.5" />
