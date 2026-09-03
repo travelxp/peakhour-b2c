@@ -128,6 +128,17 @@ export function CommentsTab({
   // "nobody has a name" — worth saying rather than leaving people to guess
   // why every row says "A member".
   const identityEnabled = pages[0]?.identityEnabled ?? true;
+  // ★A SEPARATE FACT: names are switched ON and LinkedIn still expanded
+  // nobody on this page. That happens for a reason nobody could guess from
+  // the screen — the profile expansion is resolved by a service with its
+  // own daily cap, and once it is spent the comments keep arriving with no
+  // names attached until it resets. Saying so is the difference between a
+  // user thinking the feature is broken and knowing it will come back.
+  //
+  // Only claimed when the page HAS comments: `decorated` is false for an
+  // empty page too, and there is nothing to explain about a quiet thread.
+  const decorationRefused =
+    identityEnabled && comments.length > 0 && pages[0]?.decorated === false;
 
   if (!comments.length) {
     return (
@@ -144,6 +155,14 @@ export function CommentsTab({
         <p className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
           Commenter names are turned off right now, so everyone shows as
           &ldquo;A member&rdquo;. Replies and reactions still work.
+        </p>
+      )}
+
+      {decorationRefused && (
+        <p className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+          LinkedIn didn&rsquo;t return commenter names for this thread, so
+          everyone shows as &ldquo;A member&rdquo;. It usually clears on its
+          own. Replies and reactions still work.
         </p>
       )}
 

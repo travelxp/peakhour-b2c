@@ -750,9 +750,25 @@ export interface LinkedInCommentPage {
   total?: number;
   /** Pass as `start` for the next page; absent = end of thread. */
   nextStart?: number;
-  /** Whether names were actually fetched. False means "we are not showing
-   *  names", which is different from "nobody has one". */
+  /** The kill switch: is commenter identity switched on at all? False means
+   *  "we are not showing names", which is different from "nobody has one". */
   identityEnabled: boolean;
+  /**
+   * Whether LinkedIn actually expanded any actor on THIS page.
+   *
+   * ★FALSE IS NOT AN ERROR AND NOT THE SWITCH. LinkedIn resolves the
+   * profile expansion through a service with its own per-day cap; when
+   * that is spent the comments still arrive, each one carrying a refusal
+   * marker instead of a profile. It is also false for a thread whose only
+   * commenter is an organization, whose profile fields we deliberately do
+   * not request — asking for them made LinkedIn refuse the expansion for
+   * every human on the page too.
+   *
+   * Optional for the same reason as `identityEnabled` on
+   * {@link EngagersResponse}: b2c and api deploy independently, so test
+   * `=== false` rather than falsiness.
+   */
+  decorated?: boolean;
 }
 
 export interface LinkedInReaction {
