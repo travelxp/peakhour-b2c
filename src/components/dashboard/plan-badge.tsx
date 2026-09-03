@@ -6,11 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowUpRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useDashboardOrg } from "@/hooks/use-dashboard-org";
-
-/** Plans where an upgrade is meaningful. agency + enterprise hide the
- *  CTA (they're already at/near the top of the price ladder; surfacing
- *  "Upgrade" to those users is noise). */
-const UPGRADABLE = new Set(["free", "starter", "growth"]);
+import { planDisplayName, showUpgradeCta } from "@/lib/plan-status";
 
 /** Plan-tier accent colors. Tailwind class strings only — kept narrow
  *  so a designer can tune without touching component logic. */
@@ -26,20 +22,22 @@ const PLAN_STYLES: Record<string, string> = {
     "bg-warning/15 text-warning-on-tint",
 };
 
-function planLabel(key: string): string {
-  return key.charAt(0).toUpperCase() + key.slice(1);
-}
-
 /**
  * Compact plan/trial indicator for the dashboard top bar.
  *
- * Reads `/v1/dashboard/org` which derives the plan from the canonical
- * `subscription.plan` (see peakhour-api dashboard/index.ts). Renders:
- *   - a colored badge with the plan name
+ * Reads `/v1/dashboard/org`. Renders:
+ *   - a colored badge naming the plan — `planName` where the server has one,
+ *     else a paid product's own name, else the base tier
  *   - "Xd trial" subtle text when a trial is active
- *   - a small "Upgrade" CTA linking to /dashboard/settings/billing when
- *     the plan is upgradable (free/starter/growth); hidden for
- *     agency/enterprise
+ *   - a small "Upgrade" CTA linking to /dashboard/settings/billing when the
+ *     base tier is upgradable **and the org holds no paid product**
+ *
+ * ⚠️🚫★★AND THAT SECOND CONDITION IS WHY THIS DOCBLOCK CHANGED. It used to read
+ * *"when the plan is upgradable (free/starter/growth)"*, which is what the code
+ * did — and `subscription.plan` stays `free` while purchases live in
+ * `products[]`, so an org that had bought Peakhour Suite was told to upgrade on
+ * every dashboard page. ★The rule lives in `lib/plan-status.ts` now, shared with
+ * the billing page, which had already fixed this for itself.
  *
  * No fetch fires until the user is authenticated and has an active org
  * — guards prevent the cold-render flash on the auth page and dodge a
@@ -58,7 +56,26 @@ export function PlanBadge() {
   const planClass = PLAN_STYLES[plan] ?? PLAN_STYLES.free;
   const trialActive = summary.subscription.trialActive === true;
   const trialDays = summary.subscription.trialDaysRemaining ?? 0;
-  const showUpgrade = UPGRADABLE.has(plan);
+
+  // ── ⚠️🚫★★THE CTA ASKS ABOUT WHAT THE ORG **HOLDS**, NOT ONLY ITS BASE TIER
+  //
+  // 🚫★★A REPORTED BUG: an org that had bought Peakhour Suite (and Peaks) was
+  //  told to *"Upgrade"* on **every dashboard page, permanently** — because
+  //  `subscription.plan` stays `free` while purchases live in `products[]`, and
+  //  this badge read only the first. ★The billing page it links to already
+  //  guarded exactly that, and says so in its own comment: *"without this, the
+  //  page reads 'Free' and prompts a re-purchase."* **A guard written in one
+  //  file and dropped in the next** — so the rule now lives in one place both
+  //  of them read.
+  const showUpgrade = showUpgradeCta(summary);
+
+  // ⚠️★AND THE LABEL FOLLOWS THE SUMMARY'S OWN INSTRUCTION. Its type says
+  //  *"ALWAYS prefer `planName` — `plan` is a machine tier key"*, and records
+  //  what ignoring it did last time: customers were shown
+  //  *"Commerce_assistant.Free"* as their plan name. 🚫This badge capitalised
+  //  the key while the billing page preferred the name, so the two could call
+  //  one plan two different things on two screens.
+  const label = planDisplayName(summary);
 
   return (
     <div className="flex items-center gap-2">
@@ -66,7 +83,7 @@ export function PlanBadge() {
         variant="secondary"
         className={cn("font-medium capitalize", planClass)}
       >
-        {planLabel(plan)}
+        {label}
       </Badge>
       {/* Trial countdown + Upgrade CTA collapse on narrow viewports —
           below sm the header would otherwise wrap (badge + countdown +
@@ -85,7 +102,11 @@ export function PlanBadge() {
           asChild
           className="hidden h-7 gap-1 px-2 text-xs sm:inline-flex"
         >
-          <Link href="/dashboard/settings/billing">
+          {/* ★IT NAMES WHAT IT WOULD DO. A bare "Upgrade" beside a plan chip
+              does not say whether something is WRONG or something is merely
+              available — and the report that produced this change asked for a
+              control that explains what is needed. */}
+          <Link href="/dashboard/settings/billing" title="See plans and add a product">
             Upgrade
             <ArrowUpRight className="size-3" />
           </Link>
