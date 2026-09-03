@@ -36,6 +36,7 @@ function suite(over: Partial<MeteredBalance> = {}): MeteredBalance {
     resetAt: "2026-09-12T06:19:00.179Z",
     boostAddonKey: "addon.peaks.value",
     topUpBalance: 0,
+    topUpDrawn: 0,
     topUpUsable: true,
     ...over,
   };
@@ -46,11 +47,23 @@ describe("spendableCap — the denominator for what this client DISPLAYS", () =>
     expect(spendableCap(suite({ topUpBalance: 2000 }))).toBe(7000);
   });
 
+  it("★holds still while a pack is spent — it does not walk down", () => {
+    // The api debits the pack as over-cap spend is charged, so `topUpBalance`
+    // has already fallen by `topUpDrawn`. Counting only the balance made the
+    // denominator sag with the customer's own spending: "0 of 6,000" with 1,000
+    // purchased Peaks still to go, and the soft band narrowing to match.
+    expect(spendableCap(suite({ topUpBalance: 2000, topUpDrawn: 0 }))).toBe(7000);
+    expect(spendableCap(suite({ topUpBalance: 1000, topUpDrawn: 1000 }))).toBe(7000);
+    expect(spendableCap(suite({ topUpBalance: 0, topUpDrawn: 2000 }))).toBe(7000);
+  });
+
   it("★ignores a held balance the plan may NOT spend", () => {
     // A free tier can hold top-up Peaks and not draw on them — the api gates on
     // `topUpUsable`, not on the balance being non-zero, so counting them here
     // would promise headroom the gate then refuses.
     expect(spendableCap(suite({ topUpBalance: 2000, topUpUsable: false }))).toBe(5000);
+    // …nor draws such a wallet could not have made.
+    expect(spendableCap(suite({ topUpDrawn: 2000, topUpUsable: false }))).toBe(5000);
   });
 });
 

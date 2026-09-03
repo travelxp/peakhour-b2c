@@ -28,8 +28,14 @@ export type MeteredBalance = {
   resetAt: string;
   boostAddonKey: string | null;
   /** Depleting Peaks bought as a top-up pack. Durable — NOT part of the
-   *  rolling window, and consumed only once the window allowance is spent. */
+   *  rolling window, and consumed only once the window allowance is spent.
+   *  ⚠️Half the pack's story: the api DEBITS this as over-cap spend is charged,
+   *  so it shrinks as the customer spends. Always pair it with `topUpDrawn`. */
   topUpBalance: number;
+  /** ★The other half: purchased Peaks ALREADY SPENT this window, and therefore
+   *  already gone from `topUpBalance`. Added back to the denominator so a pack
+   *  is not counted twice — once in `used`, once by the debit. */
+  topUpDrawn: number;
   /** Whether that balance is actually spendable: true when any tier the org
    *  holds costs money. Free tiers may HOLD top-up Peaks and not spend them,
    *  so the flag is not `topUpBalance > 0`. */
@@ -63,15 +69,19 @@ export interface CreditsHistoryDay {
  *
  * ⚠️★IT IS NOT WHAT DECIDES A PAUSE — `balance.blocked` is. See `getCapStatus`.
  *
- * 🚫KNOWN DEFECT, inherited from the api and not fixable here: a depleting pack
- * is counted twice against the same spend — the rollup meters over-cap calls into
- * `used` AND debits them from `topUpBalance`, so this denominator shrinks as the
- * pack is spent. At hardCap 5,000 with a 2,000 pack, 6,000 spent reads as
- * "0 of 6,000" while 1,000 purchased Peaks remain. The soft band narrows with it.
- * Tracked at `overFairUseCap` in peakhour-api, where the fix has to live.
+ * ★AND `topUpDrawn` IS WHY IT NO LONGER WALKS DOWNWARD. The rollup meters
+ * over-cap calls into `used` AND debits them from `topUpBalance`, so the balance
+ * alone sags by exactly what has been spent: at hardCap 5,000 with a 2,000 pack,
+ * 6,000 spent used to read "0 of 6,000" while 1,000 purchased Peaks remained, and
+ * the soft band narrowed with it. Adding back what was drawn holds the
+ * denominator at 7,000 for the life of the pack. Mirrors the api's own
+ * `spendableCap` — the figure `remaining` and `blocked` are computed from.
  */
 export function spendableCap(balance: MeteredBalance): number {
-  return balance.hardCap + (balance.topUpUsable ? balance.topUpBalance : 0);
+  return (
+    balance.hardCap +
+    (balance.topUpUsable ? balance.topUpBalance + balance.topUpDrawn : 0)
+  );
 }
 
 /**
