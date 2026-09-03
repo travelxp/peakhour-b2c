@@ -47,8 +47,8 @@ const MUTANTS = [
   },
   {
     name: "sort a group with no date FIRST",
-    anchor: "    return Number.isNaN(ms) ? -Infinity : ms;",
-    mutated: "    return Number.isNaN(ms) ? Infinity : ms;",
+    anchor: "  return Number.isNaN(ms) ? -Infinity : ms;",
+    mutated: "  return Number.isNaN(ms) ? Infinity : ms;",
     killer: "⚠️★a group with NO date sorts last — an absent date is not a recent one",
   },
   {
@@ -98,6 +98,36 @@ const MUTANTS = [
     anchor: "  const typed = language.trim();",
     mutated: '  const typed = normaliseLanguage(language);',
     killer: "★an empty language is a DIFFERENT refusal from a duplicate",
+  },
+  {
+    name: "skip the api's own length bounds (the round-2 finding)",
+    anchor: "  if (typed.length < 2 || typed.length > 16) {",
+    mutated: "  if (false) {",
+    killer: "⚠️★★a ONE-CHARACTER locale is refused here, not by a 400 after translating",
+  },
+  {
+    name: "refuse every length, so no language can be added",
+    anchor: '  if (typed.length < 2 || typed.length > 16) {\n    return {\n      code: "LENGTH",',
+    mutated: '  if (true) {\n    return {\n      code: "LENGTH",',
+    killer: "★and a two-character one is fine",
+  },
+  {
+    name: "sort the seed with a NaN comparator (the round-2 finding)",
+    anchor: "    (best, v) => (best === undefined || updatedAtMs(v) > updatedAtMs(best) ? v : best),",
+    mutated: "    (best, v) => (best === undefined || Date.parse(v.updatedAt ?? \"\") > Date.parse(best.updatedAt ?? \"\") ? v : best),",
+    killer: "⚠️★★★AN UNDATED VARIANT DOES NOT WEDGE THE COMPARISON",
+  },
+  {
+    name: "seed from the alphabetically first variant",
+    anchor: "  return group.variants.reduce<T | undefined>(",
+    mutated: "  return group.variants.slice(0, 1).reduce<T | undefined>(",
+    killer: "⚠️★★★it is the LAST EDITED one, not the alphabetically first",
+  },
+  {
+    name: "let updatedAtMs return NaN",
+    anchor: "  return Number.isNaN(ms) ? -Infinity : ms;\n}",
+    mutated: "  return ms;\n}",
+    killer: "★`updatedAtMs` never returns NaN",
   },
   {
     name: "refuse every language, so `Add a language` can only fail",
@@ -180,11 +210,23 @@ function runKiller(title) {
     encoding: "utf8",
     maxBuffer: 64 * 1024 * 1024,
   });
+  // ⚠️🚫★★★A DEAD RUNNER IS NOT A KILL, AND A ROUND FOUND THIS SCORING ONE.
+  //  The catch below returned `killed: true` for ANY unparseable output — so if
+  //  vitest failed to spawn, or died mid-sweep, **every mutant including SMOKE**
+  //  was recorded as killed and the script exited 0 claiming a clean sweep.
+  //  ★The one-shot baseline cannot catch a failure that starts later, which is
+  //  exactly the case that matters.
+  if (r.error || typeof r.status !== "number") {
+    return { killed: false, how: `the runner did not run (${r.error?.message ?? "no exit code"})` };
+  }
   let parsed;
   try {
     parsed = JSON.parse(r.stdout.slice(r.stdout.indexOf("{")));
   } catch {
-    return { killed: true, how: "the file did not load" };
+    // ★A mutant that breaks the FILE fails everything, and vitest still prints
+    //  JSON for that. Reaching here means it printed none — which is a harness
+    //  problem, not a kill.
+    return { killed: false, how: "vitest produced no JSON report" };
   }
   const all = parsed.testResults.flatMap((f) => f.assertionResults);
   const mine = all.filter((a) => a.title === title);

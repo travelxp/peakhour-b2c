@@ -4,8 +4,10 @@ import {
   addLanguageProblem,
   groupByName,
   heldLanguages,
+  mostRecentVariant,
   normaliseLanguage,
   unanimousStatus,
+  updatedAtMs,
   type StudioTemplate,
 } from "./template-groups";
 
@@ -125,6 +127,44 @@ describe("groupByName — the flow the row says is missing", () => {
   });
 });
 
+
+describe("mostRecentVariant — what a merchant is translating FROM", () => {
+  it("⚠️★★★it is the LAST EDITED one, not the alphabetically first", () => {
+    // ⚠️🚫★★THE LIST IS SORTED BY LANGUAGE on purpose — so it does not reshuffle
+    //  on a refetch — which makes index 0 useless for this question. A merchant
+    //  working in `en` on an `ar`+`en` template got the ARABIC copy pre-filled.
+    const g = groupByName([
+      tpl({ language: "ar", updatedAt: "2026-01-01T00:00:00.000Z" }),
+      tpl({ language: "en", updatedAt: "2026-09-01T00:00:00.000Z" }),
+    ])[0]!;
+    expect(mostRecentVariant(g)?.language).toBe("en");
+  });
+
+  it("⚠️★★★AN UNDATED VARIANT DOES NOT WEDGE THE COMPARISON", () => {
+    // ⚠️🚫★★THE FIRST FIX FOR THE CASE ABOVE DID NOT WORK. It sorted on
+    //  `Date.parse(x ?? "")`, which is **NaN** for an undated row — and a
+    //  comparator returning NaN leaves V8's sort UNTOUCHED, so the seed fell
+    //  straight back to `variants[0]`: the same regression, under a comment
+    //  saying it was fixed. ★`updatedAtMs` stamps `-Infinity` instead.
+    const g = groupByName([
+      tpl({ language: "ar" }),
+      tpl({ language: "en", updatedAt: "2026-09-01T00:00:00.000Z" }),
+    ])[0]!;
+    expect(mostRecentVariant(g)?.language).toBe("en");
+  });
+
+  it("★and an all-undated group still answers with one of them", () => {
+    const g = groupByName([tpl({ language: "en" }), tpl({ language: "hi" })])[0]!;
+    expect(mostRecentVariant(g)).toBeDefined();
+  });
+
+  it("★`updatedAtMs` never returns NaN", () => {
+    expect(updatedAtMs({})).toBe(-Infinity);
+    expect(updatedAtMs({ updatedAt: "not a date" })).toBe(-Infinity);
+    expect(updatedAtMs({ updatedAt: "2026-09-01T00:00:00.000Z" })).toBeGreaterThan(0);
+  });
+});
+
 describe("addLanguageProblem — refuse before the body is written, and say which", () => {
   const group = groupByName([tpl({ language: "en" }), tpl({ language: "pt-BR" })])[0]!;
 
@@ -153,6 +193,20 @@ describe("addLanguageProblem — refuse before the body is written, and say whic
   it("★★and a language it does not hold is allowed", () => {
     // ★THE PAIR EVERY REFUSAL NEEDS: a rule that refuses everything satisfies
     //  both assertions above.
+    expect(addLanguageProblem(group, "hi")).toBeNull();
+  });
+
+
+  it("⚠️★★a ONE-CHARACTER locale is refused here, not by a 400 after translating", () => {
+    // ⚠️★THE API’S OWN BOUNDS: `z.string().min(2).max(16)` on the draft body.
+    //  🚫Without them a single letter sailed past this guard and 400ed **after**
+    //  the merchant had written the body — the failure this function exists to
+    //  move earlier.
+    expect(addLanguageProblem(group, "e")?.code).toBe("LENGTH");
+    expect(addLanguageProblem(group, "x".repeat(17))?.code).toBe("LENGTH");
+  });
+
+  it("★and a two-character one is fine", () => {
     expect(addLanguageProblem(group, "hi")).toBeNull();
   });
 

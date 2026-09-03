@@ -75,6 +75,40 @@ export function normaliseLanguage(language: string | undefined): string {
   return String(language || "en").toLowerCase().replace(/-/g, "_");
 }
 
+/**
+ * A row's `updatedAt` as a comparable number, with **no NaN**.
+ *
+ * ⚠️🚫★★★EXPORTED AFTER A ROUND FOUND THE PAGE RE-DERIVING IT WRONG.
+ * `Date.parse(x ?? "")` is `NaN` for an undated row, and a comparator that
+ * returns NaN leaves V8's sort **untouched** — so "seed from the most recently
+ * edited variant" silently fell back to `variants[0]`, the alphabetically-first
+ * language, which is the exact regression its own comment claimed to fix.
+ *
+ * ★`-Infinity` sorts an undated row LAST under a descending compare, which is
+ * the same choice `groupByName` makes about a whole group: an absent date is
+ * not a recent one. **One rule, one export, no second derivation.**
+ */
+export function updatedAtMs(t: { updatedAt?: string }): number {
+  const ms = t.updatedAt ? Date.parse(t.updatedAt) : NaN;
+  return Number.isNaN(ms) ? -Infinity : ms;
+}
+
+/**
+ * The variant a merchant is most likely translating FROM.
+ *
+ * ★What they last edited, not what sorts first alphabetically. 🚫The list's own
+ * order is by LANGUAGE — deliberately, so it does not reshuffle on a refetch —
+ * which makes index 0 useless for this question.
+ */
+export function mostRecentVariant<T extends StudioTemplate>(
+  group: TemplateGroup<T>,
+): T | undefined {
+  return group.variants.reduce<T | undefined>(
+    (best, v) => (best === undefined || updatedAtMs(v) > updatedAtMs(best) ? v : best),
+    undefined,
+  );
+}
+
 /** One template name, and every language stored under it. */
 export interface TemplateGroup<T extends StudioTemplate = StudioTemplate> {
   /** The name as stored — Meta keys by it EXACTLY, so it is never folded. */
@@ -114,10 +148,7 @@ export function groupByName<T extends StudioTemplate>(templates: T[]): TemplateG
     else byName.set(t.name, [t]);
   }
 
-  const stamp = (t: T) => {
-    const ms = t.updatedAt ? Date.parse(t.updatedAt) : NaN;
-    return Number.isNaN(ms) ? -Infinity : ms;
-  };
+  const stamp = updatedAtMs;
 
   return [...byName.entries()]
     .map(([name, variants]) => ({
@@ -162,7 +193,7 @@ export function heldLanguages(group: TemplateGroup<StudioTemplate>): Set<string>
 export function addLanguageProblem(
   group: TemplateGroup<StudioTemplate>,
   language: string,
-): { code: "EMPTY" | "DUPLICATE"; message: string } | null {
+): { code: "EMPTY" | "LENGTH" | "DUPLICATE"; message: string } | null {
   // ★THE TYPED STRING DECIDES 'EMPTY', and the FOLDED one decides 'DUPLICATE'.
   //  🚫Asking the fold whether it is empty cannot work now that an absent
   //  language folds to `"en"` — an empty box would read as "add English".
@@ -171,6 +202,18 @@ export function addLanguageProblem(
     return {
       code: "EMPTY",
       message: "Name the language first — Meta keys a template by its name AND its language.",
+    };
+  }
+  // ⚠️★THE API'S OWN BOUNDS, TRANSCRIBED: `z.string().min(2).max(16)` on the
+  //  draft body. 🚫Without them a one-character locale sailed past this guard and
+  //  400ed **after** the merchant had translated a body — which is the whole
+  //  failure this function exists to move earlier.
+  if (typed.length < 2 || typed.length > 16) {
+    return {
+      code: "LENGTH",
+      message:
+        "A language code is 2 to 16 characters — `en`, `hi`, `pt-BR`. Meta keys a template " +
+        "by one, so it cannot be a single letter.",
     };
   }
   const wanted = normaliseLanguage(typed);

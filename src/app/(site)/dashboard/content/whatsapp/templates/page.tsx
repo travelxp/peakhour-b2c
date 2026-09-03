@@ -25,6 +25,7 @@ import { PageShell } from "@/components/dashboard/page-shell";
 import {
   addLanguageProblem,
   groupByName,
+  mostRecentVariant,
   unanimousStatus,
   type TemplateGroup,
 } from "./_components/template-groups";
@@ -203,6 +204,43 @@ export default function WhatsAppTemplatesPage() {
   const templates = useMemo(() => data?.templates ?? [], [data?.templates]);
 
   const refresh = () => qc.invalidateQueries({ queryKey: listKey });
+
+  // ── ⚠️🚫★★THE LOCAL GUARD CANNOT SEE PAST THE API'S 200-ROW CAP ───────
+  //
+  // ★`heldLanguages` reads the list this page HOLDS, and the list route
+  //  `.limit(200)`s by `updatedAt` desc — so a variant outside that window is
+  //  invisible here and the language reads as free. The merchant then writes a
+  //  translation and collects the **409 this whole flow exists to pre-empt**.
+  //
+  // ★`GET /templates/check-existing?name=&language=` answers exactly this
+  //  question against the database, and was already there. 🚫The local guard is
+  //  kept in front of it: it is instant, it covers the common case, and it is
+  //  what disables the button before a request is worth making.
+  const checkExisting = useMutation({
+    mutationFn: async (v: { group: TemplateGroup<BizTemplate>; language: string }) =>
+      api.get<{ exists: boolean; status?: string }>(`${STUDIO}/templates/check-existing`, {
+        name: v.group.name,
+        language: v.language.trim(),
+      }),
+    onSuccess: (r, v) => {
+      if (r?.exists) {
+        // ★IT NAMES WHAT TO DO ABOUT IT. The row is out of the listed window,
+        //  so there is nothing on this page to click through to — saying only
+        //  "already exists" would leave the merchant looking for it.
+        toast.error(`A ${v.language.trim()} version of ${v.group.name} already exists`, {
+          description:
+            "It is not in the list above because only the 200 most recently updated " +
+            "templates are shown. Edit it rather than adding a second one.",
+        });
+        return;
+      }
+      startLanguage(v.group, v.language);
+    },
+    // ⚠️★A FAILED CHECK DOES NOT BLOCK THE ADD. The endpoint is a courtesy
+    //  ahead of the api's own refusal, not a gate: if it cannot answer, the
+    //  merchant proceeds and the save still refuses a duplicate.
+    onError: () => {},
+  });
 
   // ★AND THEY ARE RETIRED WHEN THE BUSINESS CHANGES. `switchBusiness` clears
   //  the query cache without remounting this page, so a never-expiring warning
@@ -456,7 +494,16 @@ export default function WhatsAppTemplatesPage() {
   //  (name, language) — one typo and the merchant has made a second template
   //  rather than a second language, and nothing on this page would say so.
   const editorRef = useRef<HTMLDivElement | null>(null);
-  const [addingTo, setAddingTo] = useState<TemplateGroup<BizTemplate> | null>(null);
+  // ⚠️🚫★A HALF-TYPED 'ADD A LANGUAGE' MUST NOT SURVIVE A BUSINESS SWITCH. The
+  //  panel opens on a NAME match, so an add started on business A's
+  //  `order_update` re-appeared over business B's same-named template — with a
+  //  duplicate guard reading B's variants and a name that means something else.
+  //  ★DERIVED, NOT RESET IN AN EFFECT: the business is recorded when the panel
+  //  opens and compared when it renders, so there is no state to clear and no
+  //  `set-state-in-effect` to explain away.
+  const [addingTo, setAddingTo] = useState<
+    { businessId: string | undefined; name: string } | null
+  >(null);
   const [addLanguage, setAddLanguage] = useState("");
   // ⚠️★NO MEMOISED `addProblem`: a round found the snapshot going stale, so the
   //  refusal is computed against the LIVE group at the point it is rendered.
@@ -489,11 +536,15 @@ export default function WhatsAppTemplatesPage() {
     // ⚠️🚫★★SEEDED FROM THE MOST RECENTLY EDITED VARIANT, NOT `variants[0]`.
     //  The variants are sorted by LANGUAGE for a stable list, so index 0 is
     //  the alphabetically-first locale — a merchant working in `en` on an
-    //  `ar`+`en` template got the ARABIC copy pre-filled. ★What they were last
-    //  editing is the copy they are translating FROM.
-    const from = [...group.variants].sort(
-      (a, b) => Date.parse(b.updatedAt ?? "") - Date.parse(a.updatedAt ?? ""),
-    )[0] ?? group.variants[0];
+    //  `ar`+`en` template got the ARABIC copy pre-filled.
+    //
+    // ⚠️🚫★★AND THE FIRST FIX FOR THAT DID NOT WORK. It sorted on
+    //  `Date.parse(x ?? "")`, which is **NaN** for an undated row — and a
+    //  comparator returning NaN leaves V8's sort untouched, so the seed fell
+    //  straight back to `variants[0]`: the same regression, under a comment
+    //  saying it was fixed. ★`mostRecentVariant` is the module's own rule, with
+    //  the `-Infinity` stamp `groupByName` already uses.
+    const from = mostRecentVariant(group);
     setEditor({
       name: group.name,
       language: language.trim(),
@@ -768,7 +819,7 @@ export default function WhatsAppTemplatesPage() {
                       mean retyping the name EXACTLY into a free-text box, with
                       nothing saying the English one existed — one typo and the
                       merchant has a second TEMPLATE rather than a second language. */}
-                  {addingTo?.name === g.name ? (
+                  {addingTo?.name === g.name && addingTo.businessId === business?._id ? (
                     <div className="mt-2 space-y-1.5">
                       <div className="flex items-center gap-2">
                         <Input
@@ -780,10 +831,12 @@ export default function WhatsAppTemplatesPage() {
                         />
                         <Button
                           size="sm"
-                          disabled={!!addLanguageProblem(g, addLanguage)}
-                          onClick={() => startLanguage(g, addLanguage)}
+                          disabled={
+                            !!addLanguageProblem(g, addLanguage) || checkExisting.isPending
+                          }
+                          onClick={() => checkExisting.mutate({ group: g, language: addLanguage })}
                         >
-                          Add
+                          {checkExisting.isPending ? "Checking…" : "Add"}
                         </Button>
                         <Button
                           size="sm"
@@ -817,7 +870,7 @@ export default function WhatsAppTemplatesPage() {
                       variant="outline"
                       className="mt-2"
                       onClick={() => {
-                        setAddingTo(g);
+                        setAddingTo({ businessId: business?._id, name: g.name });
                         setAddLanguage("");
                       }}
                     >
