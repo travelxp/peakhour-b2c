@@ -92,10 +92,40 @@ export function describeActionPage(url?: string, property?: string): ActionPage 
   const path = `${u.pathname}${u.search}`;
   const label = elide(path === "" ? "/" : path);
 
-  const propertyHost = propertyToHost(property);
-  const foreign = propertyHost && propertyHost !== u.host ? u.host : undefined;
+  const foreign = property && !hostMatchesProperty(u.host, property) ? u.host : undefined;
 
   return { href: u.toString(), label, ...(foreign ? { foreignHost: foreign } : {}) };
+}
+
+/**
+ * Does this page's host belong to the property?
+ *
+ * ★★A DOMAIN PROPERTY COVERS ITS SUBDOMAINS — that is the whole difference
+ * between the two property kinds, and strict host equality gets it exactly
+ * backwards. `sc-domain:example.com` includes `www.example.com`, which is the
+ * COMMON setup, so equality marked the normal case foreign and stamped a
+ * redundant `www.example.com` on every card — the precise outcome the flag
+ * exists to prevent. And since a URL-prefix property only ever reports pages on
+ * its own host, the domain branch is the only one where this can fire at all:
+ * equality made the feature a pure false-positive generator.
+ *
+ * ★THE SUBDOMAIN TEST IS ON A DOT BOUNDARY. `endsWith(host)` alone would treat
+ * `notexample.com` as part of `example.com`.
+ *
+ * A URL-prefix property stays EXACT: it is scoped to one origin, so a page on
+ * another host really is from somewhere else.
+ */
+export function hostMatchesProperty(host: string, property: string): boolean {
+  const p = property.trim();
+  const h = host.toLowerCase();
+  if (p.toLowerCase().startsWith("sc-domain:")) {
+    const domain = p.slice("sc-domain:".length).trim().toLowerCase();
+    if (!domain) return true; // nothing to compare against — make no claim
+    return h === domain || h.endsWith(`.${domain}`);
+  }
+  const propertyHost = propertyToHost(p);
+  // Unresolvable property → no claim, rather than "everything is foreign".
+  return propertyHost === null || propertyHost === h;
 }
 
 /**
@@ -110,8 +140,13 @@ export function describeActionPage(url?: string, property?: string): ActionPage 
 export function propertyToHost(property?: string): string | null {
   if (!property) return null;
   const p = property.trim();
-  if (p.startsWith("sc-domain:")) {
-    const host = p.slice("sc-domain:".length).trim();
+  // ★LOWERCASED, because the other branch is. `new URL()` lowercases the host
+  // for us, so returning the sc-domain suffix verbatim made the two branches
+  // disagree for the same site: a property stored as `sc-domain:Example.com`
+  // (the api trims but never case-normalises) matched no page at all, which is
+  // the redundant-host-on-every-card result again, arrived at differently.
+  if (p.toLowerCase().startsWith("sc-domain:")) {
+    const host = p.slice("sc-domain:".length).trim().toLowerCase();
     return host || null;
   }
   const u = safeUrl(p);

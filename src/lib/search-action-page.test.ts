@@ -104,27 +104,65 @@ describe("the label a person reads", () => {
 });
 
 describe("a page on a different host than the property", () => {
-  it("is flagged, so it does not silently look local", () => {
-    const page = describeActionPage("https://blog.x.com/post", "sc-domain:x.com");
-    expect(page?.foreignHost).toBe("blog.x.com");
+  it("is flagged when it really is another domain", () => {
+    const page = describeActionPage("https://elsewhere.com/post", "sc-domain:x.com");
+    expect(page?.foreignHost).toBe("elsewhere.com");
   });
 
-  it("is not flagged when it matches a domain property", () => {
+  it("does NOT flag a subdomain under a domain property", () => {
+    // ★★A `sc-domain:` PROPERTY COVERS ITS SUBDOMAINS BY DEFINITION, and
+    // `www.` is the common setup. A first version compared hosts strictly and
+    // asserted the opposite of this — so it stamped a redundant
+    // `www.example.com` on every card of a normal site, which is the exact
+    // outcome the flag exists to prevent, and the test agreed with it.
+    expect(describeActionPage("https://www.x.com/a", "sc-domain:x.com")?.foreignHost).toBeUndefined();
+    expect(describeActionPage("https://blog.x.com/a", "sc-domain:x.com")?.foreignHost).toBeUndefined();
+    expect(
+      describeActionPage("https://deep.blog.x.com/a", "sc-domain:x.com")?.foreignHost,
+    ).toBeUndefined();
+  });
+
+  it("matches subdomains on a DOT BOUNDARY, not a suffix", () => {
+    // `notx.com` merely ends with `x.com`.
+    expect(describeActionPage("https://notx.com/a", "sc-domain:x.com")?.foreignHost).toBe("notx.com");
+    expect(
+      describeActionPage("https://evil-x.com/a", "sc-domain:x.com")?.foreignHost,
+    ).toBe("evil-x.com");
+  });
+
+  it("is case-insensitive about the property", () => {
+    // The api trims a property but never case-normalises it, and `new URL()`
+    // lowercases a host — so a mixed-case property matched nothing at all.
+    expect(describeActionPage("https://x.com/a", "sc-domain:X.com")?.foreignHost).toBeUndefined();
+    expect(describeActionPage("https://www.x.com/a", "SC-DOMAIN:X.COM")?.foreignHost).toBeUndefined();
+  });
+
+  it("is not flagged when it matches a domain property exactly", () => {
     expect(describeActionPage("https://x.com/a", "sc-domain:x.com")?.foreignHost).toBeUndefined();
   });
 
-  it("is not flagged when it matches a URL-prefix property", () => {
+  it("keeps a URL-prefix property EXACT — it is scoped to one origin", () => {
     expect(describeActionPage("https://x.com/a", "https://x.com/shop/")?.foreignHost).toBeUndefined();
+    // A subdomain is NOT covered by a URL-prefix property.
+    expect(describeActionPage("https://www.x.com/a", "https://x.com/shop/")?.foreignHost).toBe(
+      "www.x.com",
+    );
   });
 
   it("is not flagged when we do not know the property", () => {
     // ★NO PROPERTY MEANS NO CLAIM. Marking everything foreign because we could
     // not resolve the property would put a redundant hostname on every card.
     expect(describeActionPage("https://x.com/a")?.foreignHost).toBeUndefined();
+    expect(describeActionPage("https://x.com/a", "not a property")?.foreignHost).toBeUndefined();
+    expect(describeActionPage("https://x.com/a", "sc-domain:")?.foreignHost).toBeUndefined();
   });
 });
 
 describe("propertyToHost — two property shapes, one of them not a URL", () => {
+  it("lowercases a mixed-case domain property, matching the URL branch", () => {
+    expect(propertyToHost("sc-domain:Example.COM")).toBe("example.com");
+  });
+
   it("reads a domain property", () => {
     // ★`sc-domain:example.com` DOES NOT PARSE AS A URL. Treating it as one
     // returns null and marks every page foreign.
