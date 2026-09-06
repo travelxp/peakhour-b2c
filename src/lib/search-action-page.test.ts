@@ -3,6 +3,7 @@ import {
   describeActionPage,
   propertyToHost,
   readablePath,
+  stripUnsafeText,
   MAX_LABEL,
 } from "./search-action-page";
 
@@ -243,5 +244,104 @@ describe("a label a person can actually read", () => {
     expect(readablePath("/collections/winter-boots?sort=price")).toBe(
       "/collections/winter-boots?sort=price",
     );
+  });
+});
+
+describe("stripUnsafeText — the invisibles, not just the overrides", () => {
+  it("removes the zero-width family, which hides differences between addresses", () => {
+    // ★TWO DIFFERENT STRINGS THAT RENDER IDENTICALLY is the whole problem:
+    // U+200B–200D and U+FEFF are invisible, so `/pay​pal` and `/paypal`
+    // look the same in a link label.
+    expect(stripUnsafeText("/pay​pal")).toBe("/paypal");
+    expect(stripUnsafeText("/a‌b‍c﻿d")).toBe("/abcd");
+  });
+
+  it("removes U+061C, a bidi control a U+202x-shaped class misses", () => {
+    expect(stripUnsafeText("/a؜b")).toBe("/ab");
+  });
+
+  it("removes the line separators, which break a one-line label", () => {
+    expect(stripUnsafeText("/a b c")).toBe("/abc");
+  });
+
+  it("removes the isolates as well as the overrides", () => {
+    expect(stripUnsafeText("/a⁦b⁩c‪d")).toBe("/abcd");
+  });
+
+  it("leaves ordinary non-Latin text alone", () => {
+    // The strip must not eat legitimate scripts — it targets formatting
+    // characters, not anything that merely is not ASCII.
+    expect(stripUnsafeText("/冬のブーツ")).toBe("/冬のブーツ");
+    expect(stripUnsafeText("/café-münchen")).toBe("/café-münchen");
+  });
+});
+
+describe("elide works in code points, not UTF-16 units", () => {
+  it("never leaves a lone surrogate where an emoji was cut", () => {
+    // ★`.slice()` CUTS A SURROGATE PAIR IN HALF, and the orphaned half renders
+    // as U+FFFD — a black diamond in the middle of an address.
+    const label = describeActionPage(`https://x.com/${"🎄".repeat(40)}`)!.label;
+    expect(label).not.toContain("�");
+    // No unpaired surrogate anywhere in the result.
+    expect(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/.test(label)).toBe(
+      false,
+    );
+  });
+
+  it("counts astral characters as one each when deciding to elide", () => {
+    // 10 emoji is 20 UTF-16 units but 10 code points — well inside the budget.
+    const label = describeActionPage(`https://x.com/${"🎄".repeat(10)}`)!.label;
+    expect(label).not.toContain("…");
+  });
+});
+
+describe("an internationalised domain property", () => {
+  it("matches its own pages, which arrive punycoded", () => {
+    // ★`new URL().host` RETURNS THE A-LABEL. A property stored as
+    // `sc-domain:münchen.de` compared as plain lowercase matches NONE of its own
+    // pages (`xn--mnchen-3ya.de`) — the redundant-host-on-every-card result for
+    // the third distinct reason, after strict equality and after case.
+    expect(
+      describeActionPage("https://münchen.de/a", "sc-domain:münchen.de")?.foreignHost,
+    ).toBeUndefined();
+    expect(
+      describeActionPage("https://www.münchen.de/a", "sc-domain:münchen.de")?.foreignHost,
+    ).toBeUndefined();
+  });
+
+  it("normalises both spellings to the same host", () => {
+    expect(propertyToHost("sc-domain:münchen.de")).toBe("xn--mnchen-3ya.de");
+    expect(propertyToHost("sc-domain:xn--mnchen-3ya.de")).toBe("xn--mnchen-3ya.de");
+  });
+
+  it("still refuses a genuinely different domain", () => {
+    expect(describeActionPage("https://köln.de/a", "sc-domain:münchen.de")?.foreignHost).toBe(
+      "xn--kln-sna.de",
+    );
+  });
+});
+
+describe("a foreign host spends the same label budget", () => {
+  it("shortens the path so host + label still fit", () => {
+    // ★THE CARD RENDERS host AND label IN ONE TRUNCATING SPAN. A label elided to
+    // the full MAX_LABEL beside a long host overflows, and the CSS clips the
+    // TAIL — removing the slug, which is the half the middle-elide exists to
+    // protect.
+    const host = "a-very-long-foreign-hostname-indeed.example.com";
+    const page = describeActionPage(`https://${host}/${"b".repeat(80)}`, "sc-domain:x.com")!;
+    expect(page.foreignHost).toBe(host);
+    expect(page.foreignHost!.length + page.label.length).toBeLessThanOrEqual(MAX_LABEL + 12);
+  });
+
+  it("keeps a floor, so a pathological host cannot reduce the path to nothing", () => {
+    const host = `${"z".repeat(60)}.example.com`;
+    const page = describeActionPage(`https://${host}/${"b".repeat(80)}`, "sc-domain:x.com")!;
+    expect(page.label.length).toBeGreaterThanOrEqual(12);
+  });
+
+  it("spends the full budget when the host is not shown", () => {
+    const page = describeActionPage(`https://x.com/${"b".repeat(80)}`, "sc-domain:x.com")!;
+    expect(page.foreignHost).toBeUndefined();
+    expect(page.label.length).toBe(MAX_LABEL);
   });
 });

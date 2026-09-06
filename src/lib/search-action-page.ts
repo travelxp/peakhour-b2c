@@ -62,6 +62,24 @@ function safeUrl(raw: string): URL | null {
 }
 
 /**
+ * Remove characters that can make displayed text lie about itself.
+ *
+ * ★CONTROLS, BIDI, AND THE INVISIBLES. A right-to-left override reorders the
+ * text after it — `/gnp.eciovni` displayed as `/invoice.png` — and the
+ * zero-width family (U+200B–200D, U+FEFF) hides differences between two
+ * strings entirely, so two addresses can render identically. U+2028/2029 are
+ * line separators, which break a one-line label. U+061C is the Arabic letter
+ * mark, a bidi control that a class built around U+202x misses.
+ *
+ * ★EXPORTED BECAUSE IT IS NOT ONLY FOR PATHS. Any untrusted string rendered
+ * as, or beside, a link needs it — a page TITLE reorders a label just as well
+ * as a path does, and sanitising the href while printing the title raw leaves
+ * exactly the attack this was written to stop.
+ */
+export function stripUnsafeText(s: string): string {
+  return s.replace(/[\u0000-\u001F\u007F-\u009F\u061C\u200B-\u200F\u202A-\u202E\u2028\u2029\u2066-\u2069\uFEFF]/g, "");
+}
+/**
  * Turn a percent-encoded path into something a person can read.
  *
  * ★`u.pathname` IS ALWAYS PERCENT-ENCODED, which makes a non-Latin slug
@@ -87,18 +105,21 @@ export function readablePath(path: string): string {
     decoded = path;
   }
   // C0/C1 controls, plus the bidi overrides and isolates.
-  return decoded.replace(/[\u0000-\u001F\u007F-\u009F\u200E\u200F\u202A-\u202E\u2066-\u2069]/g, "");
+  return stripUnsafeText(decoded);
 }
 
 /** Middle-elide, so the beginning AND the end of a path both stay readable —
  *  the end is usually the slug, which is the part a person recognises. */
 function elide(s: string, max = MAX_LABEL): string {
-  if (s.length <= max) return s;
-  // −1 for the ellipsis itself; bias the extra character to the head.
-  const keep = max - 1;
+  // ★BY CODE POINT, NOT BY UTF-16 INDEX. `.slice()` cuts a surrogate pair in
+  // half, and an emoji or any astral character in a slug then renders as a lone
+  // surrogate — U+FFFD, a black diamond, in the middle of an address.
+  const chars = Array.from(s);
+  if (chars.length <= max) return s;
+  const keep = max - 1; // −1 for the ellipsis itself
   const head = Math.ceil(keep / 2);
   const tail = keep - head;
-  return `${s.slice(0, head)}…${s.slice(s.length - tail)}`;
+  return `${chars.slice(0, head).join("")}…${chars.slice(chars.length - tail).join("")}`;
 }
 
 /**
@@ -119,11 +140,45 @@ export function describeActionPage(url?: string, property?: string): ActionPage 
   // is dropped: Search Console reports canonical pages, and a fragment would be
   // noise in a label that is already tight.
   const path = `${u.pathname}${u.search}`;
-  const label = elide(readablePath(path === "" ? "/" : path));
 
   const foreign = property && !hostMatchesProperty(u.host, property) ? u.host : undefined;
 
+  // ★THE HOST IS PART OF THE ADDRESS, SO IT SPENDS THE SAME BUDGET. The card
+  // renders `foreignHost` immediately before `label` inside one truncating
+  // span, so a label elided to the full MAX_LABEL beside a 30-character host
+  // overflows and the CSS truncation clips the tail — removing the slug, which
+  // is the half the middle-elide exists to protect. Budgeting here keeps the
+  // elision the thing that decides what is dropped.
+  // A floor of 12 so a pathological host cannot reduce the path to an ellipsis.
+  const budget = foreign ? Math.max(12, MAX_LABEL - foreign.length) : MAX_LABEL;
+  const label = elide(readablePath(path === "" ? "/" : path), budget);
+
   return { href: u.toString(), label, ...(foreign ? { foreignHost: foreign } : {}) };
+}
+
+/**
+ * A bare hostname, in the form `new URL().host` would give it.
+ *
+ * ★★LOWERCASE IS NOT ENOUGH — IT ALSO HAS TO PUNYCODE. `new URL().host` returns
+ * the A-label, so a page on `münchen.de` reports as `xn--mnchen-3ya.de`. A
+ * property stored as `sc-domain:münchen.de` compared as plain lowercase matches
+ * NONE of its own pages, which is the redundant-host-on-every-card result once
+ * more — the third distinct route to it in this file, after strict equality and
+ * after case. Running the value through the URL parser makes both sides the
+ * same normalisation by construction rather than by a chain of string fixes.
+ *
+ * Returns null for anything that will not resolve to a host.
+ */
+function normaliseHost(raw: string): string | null {
+  const v = raw.trim();
+  if (!v) return null;
+  try {
+    // The scheme is only a vehicle for the parser; the host is what we keep.
+    const host = new URL(`https://${v}`).host;
+    return host || null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -148,7 +203,7 @@ export function hostMatchesProperty(host: string, property: string): boolean {
   const p = property.trim();
   const h = host.toLowerCase();
   if (p.toLowerCase().startsWith("sc-domain:")) {
-    const domain = p.slice("sc-domain:".length).trim().toLowerCase();
+    const domain = normaliseHost(p.slice("sc-domain:".length));
     if (!domain) return true; // nothing to compare against — make no claim
     return h === domain || h.endsWith(`.${domain}`);
   }
@@ -169,14 +224,8 @@ export function hostMatchesProperty(host: string, property: string): boolean {
 export function propertyToHost(property?: string): string | null {
   if (!property) return null;
   const p = property.trim();
-  // ★LOWERCASED, because the other branch is. `new URL()` lowercases the host
-  // for us, so returning the sc-domain suffix verbatim made the two branches
-  // disagree for the same site: a property stored as `sc-domain:Example.com`
-  // (the api trims but never case-normalises) matched no page at all, which is
-  // the redundant-host-on-every-card result again, arrived at differently.
   if (p.toLowerCase().startsWith("sc-domain:")) {
-    const host = p.slice("sc-domain:".length).trim().toLowerCase();
-    return host || null;
+    return normaliseHost(p.slice("sc-domain:".length));
   }
   const u = safeUrl(p);
   return u ? u.host : null;

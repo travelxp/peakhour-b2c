@@ -39,7 +39,7 @@ import { TrendChart } from "@/components/viz/trend-chart";
 import { ExplainCard } from "@/components/dashboard/explain-card";
 import { useSetAskEntityIds } from "@/providers/ask-context-provider";
 import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
-import { describeActionPage } from "@/lib/search-action-page";
+import { describeActionPage, stripUnsafeText } from "@/lib/search-action-page";
 
 // ── Types (mirror peakhour-api search-insights service) ─────────────────────
 interface ConnectionStatus {
@@ -719,7 +719,13 @@ function PositionTile({ now, delta }: { now: number; delta: number | null }) {
  */
 function HealthIssueLink({ url, title }: { url: string; title?: string }) {
   const page = describeActionPage(url);
-  const text = title || url;
+  // ★THE TEXT IS SANITISED TOO, NOT ONLY THE href. A first version of this
+  // component checked the URL and then printed `title || url` raw — so a
+  // right-to-left override in a page TITLE reordered the visible label over a
+  // link pointing somewhere else, which is precisely the attack readablePath
+  // exists to stop, left open on the very link added to close the gap.
+  // A title is not a path, so it is stripped but never percent-decoded.
+  const text = title ? stripUnsafeText(title) : (page?.label ?? stripUnsafeText(url));
   if (!page) {
     return <span className="truncate font-mono text-xs text-muted-foreground">{text}</span>;
   }
