@@ -39,6 +39,7 @@ import { TrendChart } from "@/components/viz/trend-chart";
 import { ExplainCard } from "@/components/dashboard/explain-card";
 import { useSetAskEntityIds } from "@/providers/ask-context-provider";
 import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
+import { describeActionPage } from "@/lib/search-action-page";
 
 // ── Types (mirror peakhour-api search-insights service) ─────────────────────
 interface ConnectionStatus {
@@ -71,6 +72,16 @@ interface SearchAction {
   headline: string;
   detail: string;
   recommendation: string;
+  /**
+   * The page this action applies to.
+   *
+   * ★OPTIONAL, AND ABSENT IS ORDINARY. The api pairs only the top ~30 terms by
+   * upside and refreshes them about daily, so a freshly connected property has
+   * a full worklist and no addresses for up to a day, and the tail of a long
+   * worklist legitimately has none. A card without one is the card we shipped
+   * before this existed — never an error state.
+   */
+  url?: string;
 }
 
 type MovementKind = "new_winner" | "slipped" | "dropped" | "rising" | "falling";
@@ -517,7 +528,13 @@ export default function SearchConsoleInsightsPage() {
                     body="Once your pages gather enough search impressions, we'll surface the highest-impact things to do here."
                   />
                 ) : (
-                  data.actions.map((a, i) => <ActionCard key={`${a.query}-${i}`} action={a} />)
+                  data.actions.map((a, i) => (
+                    <ActionCard
+                      key={`${a.query}-${i}`}
+                      action={a}
+                      property={data.siteUrl ?? property}
+                    />
+                  ))
                 )}
 
                 {data.locked > 0 && (
@@ -693,7 +710,10 @@ function PositionTile({ now, delta }: { now: number; delta: number | null }) {
   );
 }
 
-function ActionCard({ action: a }: { action: SearchAction }) {
+function ActionCard({ action: a, property }: { action: SearchAction; property?: string }) {
+  // Safety and readability both live in the lib — see its header. The card
+  // renders what it returns and decides nothing.
+  const page = describeActionPage(a.url, property);
   return (
     <Card>
       <CardContent className="space-y-2 py-4">
@@ -714,6 +734,29 @@ function ActionCard({ action: a }: { action: SearchAction }) {
           <span className="font-medium">Do this: </span>
           {a.recommendation}
         </p>
+        {/* ── The page this applies to ──
+            ★DIRECTLY UNDER "Do this", because it is part of the instruction
+            rather than another statistic — "rewrite the title" and "on THIS
+            page" are one thought. Absent, the card is exactly what it was. */}
+        {page && (
+          <p className="flex flex-wrap items-center gap-1.5 text-sm">
+            <span className="font-medium">On this page: </span>
+            <a
+              href={page.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 rounded-sm font-mono text-xs text-[#458CF7] underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#458CF7]"
+              title={page.href}
+            >
+              {page.foreignHost && (
+                <span className="text-muted-foreground">{page.foreignHost}</span>
+              )}
+              {page.label}
+              <ExternalLink className="h-3 w-3 shrink-0" aria-hidden="true" />
+              <span className="sr-only">(opens in a new tab)</span>
+            </a>
+          </p>
+        )}
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
           <span>Position {a.position}</span>
           <span>{num(a.impressions)} impressions</span>
