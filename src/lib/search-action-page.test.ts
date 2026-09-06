@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { describeActionPage, propertyToHost, MAX_LABEL } from "./search-action-page";
+import {
+  describeActionPage,
+  propertyToHost,
+  readablePath,
+  MAX_LABEL,
+} from "./search-action-page";
 
 /**
  * The two decisions in search-action-page.ts: what is safe to put in an href,
@@ -182,5 +187,61 @@ describe("propertyToHost — two property shapes, one of them not a URL", () => 
     expect(propertyToHost("")).toBeNull();
     expect(propertyToHost("sc-domain:")).toBeNull();
     expect(propertyToHost("not a property")).toBeNull();
+  });
+});
+
+describe("a label a person can actually read", () => {
+  it("decodes a non-Latin slug instead of showing escape sequences", () => {
+    // ★`u.pathname` IS ALWAYS PERCENT-ENCODED. A short Japanese path arrives as
+    // ~139 characters of `%E5%86%AC…` — unreadable, and long enough to trip an
+    // elision it never needed, which then cuts an escape sequence in half.
+    const page = describeActionPage("https://x.com/冬のブーツ")!;
+    expect(page.label).toBe("/冬のブーツ");
+    expect(page.label).not.toContain("%");
+    expect(page.label.length).toBeLessThanOrEqual(MAX_LABEL);
+  });
+
+  it("keeps the href encoded — only the label is decoded", () => {
+    const page = describeActionPage("https://x.com/冬のブーツ")!;
+    expect(page.href).toContain("%E5%86%AC");
+    expect(page.href).not.toContain("冬");
+  });
+
+  it("does not elide a decoded path that fits, though its encoding would not", () => {
+    // Encoded this is well past MAX_LABEL; decoded it is nine characters.
+    const page = describeActionPage("https://x.com/冬のブーツアウター")!;
+    expect(page.label).not.toContain("…");
+  });
+
+  it("falls back to the raw path on a malformed escape rather than showing nothing", () => {
+    // A lone `%` throws inside decodeURIComponent.
+    expect(readablePath("/100%")).toBe("/100%");
+    expect(readablePath("/a%zz")).toBe("/a%zz");
+  });
+
+  it("strips a right-to-left override, which reverses what the reader sees", () => {
+    // ★DECODING RE-ANIMATES WHAT THE ENCODING MADE INERT. U+202E inside a link
+    // label reorders the text after it — `/gnp.eciovni` displayed as
+    // `/invoice.png`, over an href that goes somewhere else entirely.
+    const stripped = readablePath("/a‮b");
+    expect(stripped).toBe("/ab");
+    expect(stripped).not.toContain("‮");
+  });
+
+  it("strips control characters", () => {
+    expect(readablePath("/a bcd")).toBe("/abcd");
+  });
+
+  it("strips them AFTER decoding, which is the only point they exist", () => {
+    // Percent-encoded, U+202E is inert; decoded, it is not. A strip that ran
+    // before the decode would miss every one that arrived encoded — which is
+    // how it would actually arrive.
+    expect(describeActionPage("https://x.com/a%E2%80%AEb")?.label).toBe("/ab");
+  });
+
+  it("leaves ordinary text alone", () => {
+    expect(readablePath("/collections/winter-boots?sort=price")).toBe(
+      "/collections/winter-boots?sort=price",
+    );
   });
 });

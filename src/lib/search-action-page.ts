@@ -61,6 +61,35 @@ function safeUrl(raw: string): URL | null {
   return u.protocol === "https:" || u.protocol === "http:" ? u : null;
 }
 
+/**
+ * Turn a percent-encoded path into something a person can read.
+ *
+ * ★`u.pathname` IS ALWAYS PERCENT-ENCODED, which makes a non-Latin slug
+ * unreadable AND much longer: a 22-character Japanese path arrives as 139
+ * characters of `%E5%86%AC…`, which then trips a 48-character elision it never
+ * needed — and the elision cuts an escape sequence in half, so the result is
+ * both meaningless and mangled. Decoding is for the LABEL only; `href` keeps
+ * the encoded form the browser needs.
+ *
+ * ★AND THE DECODED TEXT IS STRIPPED OF CONTROL AND BIDI CHARACTERS. Decoding
+ * re-animates anything the encoding had made inert, and a right-to-left
+ * override (U+202E) inside a link label can reorder what the reader sees —
+ * `/gnp.eciovni` displayed as `/invoice.png`. The href is unaffected, so this
+ * costs nothing real.
+ */
+export function readablePath(path: string): string {
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(path);
+  } catch {
+    // A lone `%` or a truncated escape throws. Show the raw path rather than
+    // nothing — it is still the address, just uglier.
+    decoded = path;
+  }
+  // C0/C1 controls, plus the bidi overrides and isolates.
+  return decoded.replace(/[\u0000-\u001F\u007F-\u009F\u200E\u200F\u202A-\u202E\u2066-\u2069]/g, "");
+}
+
 /** Middle-elide, so the beginning AND the end of a path both stay readable —
  *  the end is usually the slug, which is the part a person recognises. */
 function elide(s: string, max = MAX_LABEL): string {
@@ -90,7 +119,7 @@ export function describeActionPage(url?: string, property?: string): ActionPage 
   // is dropped: Search Console reports canonical pages, and a fragment would be
   // noise in a label that is already tight.
   const path = `${u.pathname}${u.search}`;
-  const label = elide(path === "" ? "/" : path);
+  const label = elide(readablePath(path === "" ? "/" : path));
 
   const foreign = property && !hostMatchesProperty(u.host, property) ? u.host : undefined;
 

@@ -487,15 +487,15 @@ export default function SearchConsoleInsightsPage() {
                         {data.health.issues.map((iss, i) => (
                           <li key={`${iss.kind}-${iss.url}-${i}`} className="rounded-md border p-3">
                             <div className="flex items-start justify-between gap-3">
-                              <a
-                                href={iss.url}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="truncate font-mono text-xs underline"
-                                title={iss.url}
-                              >
-                                {iss.title || iss.url}
-                              </a>
+                              {/* ★SANITISED THROUGH THE SAME LIB AS THE WORKLIST LINK.
+                                  Pre-existing, and untouched by this feature — but
+                                  `cnt_site_graph.health.index` is written by the same
+                                  raw-insert path from the same unvalidated source, so
+                                  once one link on this page is documented as defended
+                                  and the one above it is not, the defence is decorative.
+                                  A URL we cannot vouch for renders as plain text, which
+                                  still tells the customer which page has the problem. */}
+                              <HealthIssueLink url={iss.url} title={iss.title} />
                               <Badge variant="outline" className="shrink-0 text-xs">
                                 {HEALTH_ISSUE_LABEL[iss.kind]}
                               </Badge>
@@ -710,6 +710,32 @@ function PositionTile({ now, delta }: { now: number; delta: number | null }) {
   );
 }
 
+/**
+ * A health-issue URL, linked only when it is safe to link.
+ *
+ * Same rule as the worklist's page link: an href we did not author, from a
+ * collection with no validator, must be an http(s) URL or it is not an href at
+ * all. Unlinkable, the title or the raw string still identifies the page.
+ */
+function HealthIssueLink({ url, title }: { url: string; title?: string }) {
+  const page = describeActionPage(url);
+  const text = title || url;
+  if (!page) {
+    return <span className="truncate font-mono text-xs text-muted-foreground">{text}</span>;
+  }
+  return (
+    <a
+      href={page.href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="truncate font-mono text-xs underline"
+      title={page.href}
+    >
+      {text}
+    </a>
+  );
+}
+
 function ActionCard({ action: a, property }: { action: SearchAction; property?: string }) {
   // Safety and readability both live in the lib — see its header. The card
   // renders what it returns and decides nothing.
@@ -739,19 +765,28 @@ function ActionCard({ action: a, property }: { action: SearchAction; property?: 
             rather than another statistic — "rewrite the title" and "on THIS
             page" are one thought. Absent, the card is exactly what it was. */}
         {page && (
-          <p className="flex flex-wrap items-center gap-1.5 text-sm">
+          <p className="flex flex-wrap items-center gap-x-1.5 text-sm">
             <span className="font-medium">On this page: </span>
             <a
               href={page.href}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 rounded-sm font-mono text-xs text-[#458CF7] underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#458CF7]"
+              className="inline-flex min-w-0 max-w-full items-center gap-1 rounded-sm text-[#458CF7] underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#458CF7]"
               title={page.href}
             >
-              {page.foreignHost && (
-                <span className="text-muted-foreground">{page.foreignHost}</span>
-              )}
-              {page.label}
+              {/* ★ONE ADDRESS, NOT TWO WORDS. `gap` on the anchor put a visible
+                  space between the host and the path — `elsewhere.com /post`.
+                  Host and label share a span with no gap between them.
+                  ★AND IT TRUNCATES: the label is a 48-character unbreakable mono
+                  string, which at min-content width overflows a card interior on
+                  a 360px phone. `min-w-0` lets the flex child shrink; the
+                  sibling link above solves it the same way. */}
+              <span className="truncate font-mono text-xs">
+                {page.foreignHost && (
+                  <span className="text-muted-foreground">{page.foreignHost}</span>
+                )}
+                {page.label}
+              </span>
               <ExternalLink className="h-3 w-3 shrink-0" aria-hidden="true" />
               <span className="sr-only">(opens in a new tab)</span>
             </a>
