@@ -22,9 +22,9 @@ import type { VisibilityResult } from "@/lib/search-visibility";
 
 const KEY = "commerce-search-visibility";
 
-/** Matches the api's DEFAULT_PRODUCT_LIMIT ceiling of 500. The panel shows the
- *  worklist head, not the whole catalogue — the api already orders by what is
- *  actionable first. */
+/** The api's own DEFAULT_PRODUCT_LIMIT, well inside its MAX_PRODUCT_LIMIT of
+ *  500. The panel shows the worklist head, not the whole catalogue — the api
+ *  already orders by what is actionable first. */
 export const VISIBILITY_LIMIT = 100;
 
 export function useSearchVisibility(limit = VISIBILITY_LIMIT) {

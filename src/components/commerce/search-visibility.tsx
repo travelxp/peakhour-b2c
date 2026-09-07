@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useLocale } from "@/hooks/use-locale";
 import { useSearchVisibility } from "@/hooks/use-search-visibility";
 import {
   badgeVariant,
@@ -14,7 +15,6 @@ import {
   stateLabel,
   windowSentence,
   type ProductRow,
-  type VisibilityReady,
 } from "@/lib/search-visibility";
 
 /**
@@ -47,6 +47,7 @@ const VISIBLE_ROWS = 10;
 
 export function SearchVisibilityPanel() {
   const { data, isLoading, isError } = useSearchVisibility();
+  const { formatNumber } = useLocale();
 
   const ready = useMemo(() => (isUsableVisibility(data) ? data : null), [data]);
 
@@ -103,7 +104,13 @@ export function SearchVisibilityPanel() {
         <p className="text-sm font-medium">{h.text}</p>
       </div>
 
-      {caveat && <p className="mb-3 text-xs text-muted-foreground">{caveat}</p>}
+      {/* ★★ONLY WHERE THERE IS SOMETHING TO CAVEAT. Under the all-clear
+          headline (`count === 0`) the caveat reads "we can't say for certain
+          that Google never showed these" with no `these` in front of it — a
+          reachable state, since a blocker can be set while nothing is unknown. */}
+      {caveat && h.count > 0 && (
+        <p className="mb-3 text-xs text-muted-foreground">{caveat}</p>
+      )}
 
       {/* ★STALE AND TRUNCATED ARE SEPARATE FROM THE CAVEAT. Neither stops the
           claim — a dated claim stays true however old it is — but a merchant
@@ -113,12 +120,11 @@ export function SearchVisibilityPanel() {
           This is the last read we completed; the daily sync has not run since.
         </p>
       )}
-      {ready.catalogTruncated && (
-        <p className="mb-3 text-xs text-muted-foreground">
-          Your catalogue is larger than we read in one pass, so these counts cover the first part
-          of it.
-        </p>
-      )}
+      {/* ★NO STANDALONE `catalogTruncated` LINE — `catalog_truncated` is one of
+          the api's blockers, so the caveat above already says it, off the same
+          boolean. Two sentences about one fact, always together, read as two
+          different problems. `stale` is NOT a blocker, which is why it keeps
+          its own line. */}
 
       <p className="mb-3 text-xs text-muted-foreground">
         Reading {ready.siteUrl}
@@ -128,7 +134,7 @@ export function SearchVisibilityPanel() {
       {rows.length > 0 && (
         <ul className="divide-y rounded-lg border">
           {rows.map((p) => (
-            <Row key={p.productId} product={p} />
+            <Row key={p.productId} product={p} formatNumber={formatNumber} />
           ))}
         </ul>
       )}
@@ -144,12 +150,18 @@ export function SearchVisibilityPanel() {
         </p>
       )}
 
-      <Legend ready={ready} />
+      <Legend rows={rows} />
     </section>
   );
 }
 
-function Row({ product }: { product: ProductRow }) {
+function Row({
+  product,
+  formatNumber,
+}: {
+  product: ProductRow;
+  formatNumber: (n: number) => string;
+}) {
   const s = stateLabel(String(product.state ?? ""));
   // ★A PRODUCT THE WINDOW DOES NOT COVER SAYS SO ON ITS OWN ROW. It is excluded
   // from the headline count; without a marker the merchant sees a row that looks
@@ -170,14 +182,18 @@ function Row({ product }: { product: ProductRow }) {
             clicks and impressions on a product it could not measure precisely so
             this cannot print "0" — which would read as "shown 0 times, clicked 0
             times" rather than "we hold nothing for this product". */}
+        {/* ★`formatNumber` FROM `useLocale`, NOT `toLocaleString`. The user has a
+            number-format preference and the products table on this same page
+            honours it — two grouping conventions side by side look like a bug in
+            one of them. */}
         {typeof product.impressions === "number" && (
           <span className="text-xs text-muted-foreground">
-            {product.impressions.toLocaleString()} shown
+            {formatNumber(product.impressions)} shown
           </span>
         )}
         {typeof product.clicks === "number" && (
           <span className="text-xs text-muted-foreground">
-            {product.clicks.toLocaleString()} clicks
+            {formatNumber(product.clicks)} clicks
           </span>
         )}
         <Badge variant={badgeVariant(s.tone)}>{s.label}</Badge>
@@ -194,8 +210,12 @@ function Row({ product }: { product: ProductRow }) {
  * renders untested, so a decision left in the JSX is a decision nothing scores —
  * which is how the blurbs came to be dead in the first place.
  */
-function Legend({ ready }: { ready: VisibilityReady }) {
-  const entries = legendEntries(ready.products);
+function Legend({ rows }: { rows: ProductRow[] }) {
+  // ★★THE ROWS ON SCREEN, NOT THE ROWS FETCHED. It read `ready.products` — up to
+  // a hundred — and explained badges the merchant cannot see, contradicting the
+  // "only the states present" invariant this component and `legendEntries` both
+  // state.
+  const entries = legendEntries(rows);
   if (entries.length === 0) return null;
   return (
     <div className="mt-4 space-y-1">
