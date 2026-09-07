@@ -72,6 +72,23 @@ describe("formatMoney", () => {
   });
 });
 
+describe("shortDate", () => {
+  it("★formats the UTC calendar day, whatever the viewer's timezone", () => {
+    // ★★EVERY DATE THE API SENDS IS A UTC-MIDNIGHT INSTANT, and formatting one
+    // in the viewer's zone shifts it a full day WEST of UTC — "16 Aug" becomes
+    // "15 Aug" in New York. The span sentence would then be wrong at both ends
+    // for every merchant in the Americas, and wrong in the direction that
+    // quietly widens the claim.
+    //
+    // ★ASSERTED ON THE DAY NUMBER, not by comparing against shortDate itself —
+    // a spec that formats its own expectation with the function under test
+    // cannot see this at all, which is how it shipped once.
+    expect(shortDate("2026-08-16T00:00:00.000Z")).toContain("16");
+    expect(shortDate("2026-09-07T00:00:00.000Z")).toContain("7");
+    expect(shortDate("2026-01-01T00:00:00.000Z")).toContain("1");
+  });
+});
+
 describe("provenanceLine", () => {
   it("names the source on a complete period, and says nothing about dates", () => {
     expect(provenanceLine(available())).toBe("From your store's own orders");
@@ -80,7 +97,7 @@ describe("provenanceLine", () => {
     );
   });
 
-  it("★says which days a partial figure covers", () => {
+  it("★says which days a partial COMMERCE figure covers", () => {
     const line = provenanceLine(
       available({ partial: true, coveredSince: "2026-08-16T00:00:00.000Z" }),
     );
@@ -95,6 +112,27 @@ describe("provenanceLine", () => {
     expect(line).toContain(shortDate("2026-09-07T00:00:00.000Z"));
   });
 
+  it("★describes a partial MEASUREMENT by its day count, not by dates", () => {
+    const line = provenanceLine(
+      available({
+        source: "analytics",
+        partial: true,
+        daysMeasured: 22,
+        daysInWindow: 30,
+      }),
+    );
+    // ★★A MEASUREMENT'S `covered` IS ALWAYS THE FULL WINDOW, by design: GA4's
+    // gaps are scattered — it can report on Monday and Wednesday and not
+    // Tuesday — so there is no narrowed span to state. Printing "covers 8 Aug
+    // to 7 Sep, not the whole period" is a sentence contradicting its own
+    // dates, and the real gap never gets said. Its end is exclusive too, so
+    // rendering it as the last day covered claims a day the amount holds
+    // nothing from.
+    expect(line).toContain("22 of 30 days");
+    expect(line).not.toContain("covers");
+    expect(line).not.toContain("not the whole period");
+  });
+
   it("reads `partial` rather than recomputing it from the day counts", () => {
     // ★TWO SURFACES RECOMPUTING ONE RULE IS HOW THEY COME TO DISAGREE. The api
     // sets `partial` from both coverages; a surface deriving it from
@@ -107,6 +145,18 @@ describe("provenanceLine", () => {
 describe("orderCountLine", () => {
   it("reads as a phrase beside the amount when the figure is available", () => {
     expect(orderCountLine(available())).toBe("from 17 orders");
+  });
+
+  it("★dates a short count on the AVAILABLE branch too", () => {
+    const line = orderCountLine(
+      available({ transactions: 17, transactionDays: 12, daysInWindow: 30 }),
+    );
+    // The count's coverage diverges from the revenue's — a property whose
+    // currency we could not read records purchases and no revenue — so an
+    // available figure can sit beside a count covering twelve of thirty days.
+    // A bare "from 17 orders" claims the whole period for it, which is exactly
+    // the claim the refusal branch takes a clause to avoid.
+    expect(line).toContain("12 of 30 days");
   });
 
   it("says `order` for one", () => {

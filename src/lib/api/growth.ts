@@ -77,6 +77,12 @@ export interface OutcomesResponse {
    * What the period was worth — the same honest-absence shape as `conversions`,
    * and NOT a figure this page is allowed to reason about.
    *
+   * ★OPTIONAL ON THE WIRE, DELIBERATELY. The two repos deploy separately, so
+   * this build can ship ahead of the api that sends the field. Typed as
+   * required, one `value.available` would throw and take the WHOLE Outcomes
+   * route down — headline, next actions, the numbers — over a card that had not
+   * arrived yet. Optional, the card simply does not render until it has.
+   *
    * ★★EVERY JUDGEMENT IS ALREADY MADE. Whether an amount may be shown at all,
    * which source it came from, how much of the period it covers and why it is
    * missing are settled in the api, once, so the web app and the Shopify app
@@ -84,7 +90,7 @@ export interface OutcomesResponse {
    * `available` is false and the amount when it is true — it must never invent
    * a zero, a fallback, or a period of its own.
    */
-  value:
+  value?:
     | {
         available: true;
         /** The merchant's own orders, or a measurement of their website.

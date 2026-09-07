@@ -287,6 +287,11 @@ function OutcomesBody({ data }: { data: OutcomesResponse }) {
       </div>
 
       {/* ── What was it worth? ─────────────────────────────────────────── */}
+      {/* ★GUARDED ON THE FIELD ITSELF, because the two repos deploy separately
+          and this build can ship ahead of the api that sends it. Unguarded, one
+          `value.available` throws and takes the WHOLE route down — headline,
+          next actions, the numbers — over a card that had not arrived yet. */}
+      {value && (
       <div className="space-y-2">
         <h3 className="text-sm font-semibold">What was it worth?</h3>
         <Card>
@@ -333,6 +338,7 @@ function OutcomesBody({ data }: { data: OutcomesResponse }) {
           </CardContent>
         </Card>
       </div>
+      )}
 
       {/* ── The numbers, small and last ────────────────────────────────── */}
       {!nothingHappened && (

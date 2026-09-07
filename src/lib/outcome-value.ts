@@ -13,12 +13,14 @@
  * figure, or compute a period of its own — the three ways a surface undoes an
  * honest-absence contract while looking completely reasonable.
  *
- * ── ★★AND THE SHOPIFY APP SAYS THE SAME THING, BY DERIVING IT THE SAME WAY ──
+ * ── ★★AND THE SHOPIFY APP MUST SAY THE SAME THING ──────────────────────────
  *
- * peakhour-shopify's `lib/outcome-value.ts` is this file's twin. They cannot
- * import from each other — separate repos, no shared package — so what keeps
+ * The embedded app is the other surface on this block. The two cannot import
+ * from each other — separate repos, no shared package — so what has to keep
  * them honest is that NEITHER decides anything: both read `available`,
- * `source`, `partial` and the covered dates and phrase exactly what those say.
+ * `source`, `partial` and the coverage, and phrase exactly what those say.
+ * ⏸`search-visibility.ts` and its Shopify counterpart are the established pair;
+ * this one is the same arrangement.
  *
  * ⏸IF THESE TWO EVER DIVERGE, the fix is to move the decision further into the
  * api rather than to sync the copy. A rule that lives in two places is a rule
@@ -83,24 +85,55 @@ export function sourceLabel(source: ValueAvailable["source"]): string {
   return source === "commerce" ? "From your store's own orders" : "Measured by Google Analytics";
 }
 
-/** A date a shopkeeper reads, in their own locale. */
+/**
+ * A date a shopkeeper reads, in their own locale but on OUR calendar.
+ *
+ * ★★`timeZone: "UTC"` IS THE WHOLE FUNCTION. Every date the api sends is a
+ * UTC-midnight instant, and formatting one in the viewer's zone shifts it a
+ * full day west of UTC: `2026-08-16T00:00:00.000Z` renders "15 Aug" in New
+ * York. The span sentence would then be wrong at BOTH ends for every merchant
+ * in the Americas, and wrong in the direction that quietly widens the claim.
+ *
+ * ★THE LOCALE STAYS THE VIEWER'S. Their month names and ordering are theirs;
+ * the calendar day is the one the amount was actually summed over.
+ */
 export function shortDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+  return new Date(iso).toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "short",
+    timeZone: "UTC",
+  });
 }
 
 /**
  * The sentence under the amount.
  *
- * ★★THE DATES ARE SAID OUT LOUD WHEN THE FIGURE DOES NOT COVER THE PERIOD. A
- * total summed over 22 of 30 days is a true number and a false answer to the
- * question the period heading just asked, and the reader has no way to tell
- * unless the span is stated. `partial` is the api's own flag — this does not
- * recompute it from the day counts, because two surfaces recomputing the same
- * rule is how they come to disagree.
+ * ★★A SHORT FIGURE IS SAID OUT LOUD — and HOW depends on the source, because
+ * the two put their missing days in different places and one phrasing cannot be
+ * right for both.
+ *
+ *   - THE BOOKS stop where the last completed sync did, so their gap is a
+ *     contiguous tail and the span really did narrow. Dates say it exactly, and
+ *     the end is an instant the amount includes.
+ *   - A MEASUREMENT spans the whole window with holes in it — GA4 can report on
+ *     Monday and Wednesday and not Tuesday — so its `covered` is deliberately
+ *     the full window. Printing "covers 8 Aug to 7 Sep, not the whole period"
+ *     for that is a sentence contradicting its own dates, and the real gap
+ *     never gets stated. ★AND ITS END IS EXCLUSIVE (GA4 drops the partial
+ *     current day), so rendering it as the last day covered claims a day the
+ *     amount holds nothing from. The COUNT is the only honest description.
+ *
+ * ★`partial` IS THE API'S OWN FLAG and is read, never recomputed from the day
+ * counts: it accounts for a short purchase count that `daysMeasured` alone
+ * would miss, and two surfaces recomputing one rule is how they come to
+ * disagree.
  */
 export function provenanceLine(value: ValueAvailable): string {
   const base = sourceLabel(value.source);
   if (!value.partial) return base;
+  if (value.source === "analytics") {
+    return `${base} · measured on ${value.daysMeasured} of ${value.daysInWindow} days`;
+  }
   return `${base} · covers ${shortDate(value.coveredSince)} to ${shortDate(
     value.coveredUntil,
   )}, not the whole period`;
@@ -119,16 +152,19 @@ export function orderCountLine(value: OutcomeValue): string | null {
   if (value.transactions === undefined) return null;
   const noun = value.transactions === 1 ? "order" : "orders";
   const count = new Intl.NumberFormat(undefined).format(value.transactions);
-  if (value.available) return `from ${count} ${noun}`;
 
-  // ★AND IT IS DATED ON A REFUSAL. Without the coverage, a bare "17 orders in
-  // this period" claims the whole period for a count that may cover half of it
-  // — the same false claim the amount above it was withheld to avoid.
+  // ★★QUALIFIED ON BOTH BRANCHES, and a first version qualified only the
+  // refusal. The count's coverage diverges from the revenue's — a property
+  // whose currency we could not read records purchases and no revenue — so an
+  // AVAILABLE figure can sit beside a count covering twelve of thirty days. A
+  // bare "from 17 orders" there claims the whole period for it, which is
+  // exactly the claim the other branch takes a clause to avoid.
   const short =
     value.transactionDays !== undefined &&
     value.daysInWindow !== undefined &&
     value.transactionDays < value.daysInWindow;
-  return short
-    ? `${count} ${noun} in this period (counted on ${value.transactionDays} of ${value.daysInWindow} days)`
-    : `${count} ${noun} in this period`;
+  const on = short ? ` (counted on ${value.transactionDays} of ${value.daysInWindow} days)` : "";
+
+  if (value.available) return `from ${count} ${noun}${on}`;
+  return `${count} ${noun} in this period${on}`;
 }

@@ -37,8 +37,22 @@ const SPEC = "src/lib/outcome-value.test.ts";
 /** ⚠️★`npx.cmd` ANSWERS EINVAL on this platform — go through the node binary. */
 const VITEST = "node_modules/vitest/vitest.mjs";
 
-/** See the header: an en-US/UTC machine cannot score the locale rules. */
-const RUN_ENV = { ...process.env, TZ: "Asia/Kolkata", LANG: "en_IN.UTF-8", LC_ALL: "en_IN.UTF-8" };
+/**
+ * See the header. ★★AND THE ZONE IS WEST OF UTC, WHICH IS THE POINT.
+ *
+ * Asia/Kolkata is +05:30, so a UTC-midnight instant formatted locally lands on
+ * the SAME calendar day and the `timeZone: "UTC"` rule is invisible there — a
+ * mutant dropping it survives, correctly, and tells us nothing. New York is
+ * -04:00/-05:00, where the same instant renders as the day BEFORE. That is the
+ * direction the bug actually shipped in, and the only zone class that can score
+ * it.
+ */
+const RUN_ENV = {
+  ...process.env,
+  TZ: "America/New_York",
+  LANG: "en_IN.UTF-8",
+  LC_ALL: "en_IN.UTF-8",
+};
 
 const MUTANTS = [
   // ── The money ────────────────────────────────────────────────────────────
@@ -68,12 +82,32 @@ const MUTANTS = [
     killer: "survives a currency code Intl refuses, rather than blanking the page",
   },
 
+  // ── The calendar the dates are read on ───────────────────────────────────
+  {
+    name: "format the covered dates in the viewer's zone, shifting the span a day west",
+    anchor: '    timeZone: "UTC",',
+    mutated: "",
+    killer: "★formats the UTC calendar day, whatever the viewer's timezone",
+  },
+
   // ── The sentence under it ────────────────────────────────────────────────
   {
-    name: "never say which days a partial figure covers",
+    name: "never say a partial figure is short",
     anchor: "  if (!value.partial) return base;",
     mutated: "  return base;",
-    killer: "★says which days a partial figure covers",
+    killer: "★says which days a partial COMMERCE figure covers",
+  },
+  {
+    name: "date a partial MEASUREMENT, contradicting its own full-window dates",
+    anchor: '  if (value.source === "analytics") {',
+    mutated: "  if (false) {",
+    killer: "★describes a partial MEASUREMENT by its day count, not by dates",
+  },
+  {
+    name: "count-phrase a partial COMMERCE figure, dropping the span it really narrowed to",
+    anchor: '  if (value.source === "analytics") {',
+    mutated: "  if (true) {",
+    killer: "★says which days a partial COMMERCE figure covers",
   },
   {
     name: "always say it, discrediting a figure that covers the whole period",
@@ -91,7 +125,7 @@ const MUTANTS = [
     name: "date the span from its own end, so it opens where it closes",
     anchor: "  return `${base} · covers ${shortDate(value.coveredSince)} to ${shortDate(",
     mutated: "  return `${base} · covers ${shortDate(value.coveredUntil)} to ${shortDate(",
-    killer: "★says which days a partial figure covers",
+    killer: "★says which days a partial COMMERCE figure covers",
   },
   {
     name: "give both sources the same label, so a figure cannot be argued with",
@@ -115,21 +149,27 @@ const MUTANTS = [
   },
   {
     name: "drop the count from a refusal, losing the one figure a mixed window keeps",
-    anchor: "  if (value.available) return `from ${count} ${noun}`;",
-    mutated: "  if (!value.available) return null;\n  return `from ${count} ${noun}`;",
+    anchor: "  if (value.available) return `from ${count} ${noun}${on}`;",
+    mutated: "  if (!value.available) return null;\n  return `from ${count} ${noun}${on}`;",
     killer: "★survives a refusal, because a count needs no currency",
   },
   {
-    name: "never date a refusal's count, claiming the period for twelve days of it",
-    anchor: "  return short",
-    mutated: "  return false",
+    name: "never qualify a short count, claiming the period for twelve days of it",
+    anchor: "  const on = short ?",
+    mutated: '  const on = false ?',
     killer: "★dates the count on a refusal when it covers less than the period",
   },
   {
-    name: "always date it, so a complete count reads as a partial one",
-    anchor: "  return short",
-    mutated: "  return true",
+    name: "always qualify it, so a complete count reads as a partial one",
+    anchor: "  const on = short ?",
+    mutated: "  const on = true ?",
     killer: "does not date a refusal's count when it covers the whole period",
+  },
+  {
+    name: "qualify only the refusal, leaving an available figure's short count bare",
+    anchor: "  if (value.available) return `from ${count} ${noun}${on}`;",
+    mutated: "  if (value.available) return `from ${count} ${noun}`;",
+    killer: "★dates a short count on the AVAILABLE branch too",
   },
   {
     name: "pluralise on nothing, so one order reads as orders",
