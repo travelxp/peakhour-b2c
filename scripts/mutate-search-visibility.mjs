@@ -1,0 +1,254 @@
+/**
+ * Mutation harness for the search-visibility copy layer.
+ *
+ * ★★WHY THIS FILE GETS ONE. `lib/search-visibility.ts` is where four rounds of
+ * api work become a sentence a merchant reads. Every rule it carries fails the
+ * same way — the panel renders, the numbers look right, and the words claim
+ * something about the merchant's business that we cannot support. No type, no
+ * lint and no green suite can see that; a mutant can.
+ *
+ * ★AND ITS TWIN IN peakhour-shopify HAS THE SAME MUTANTS, because the two
+ * surfaces must not drift. Neither file DECIDES anything — both phrase what the
+ * api already settled — but "must not drift" is a claim worth scoring rather
+ * than asserting.
+ *
+ * Discipline, unchanged from the programme's:
+ *   - ANCHOR PRE-FLIGHT: every anchor appears EXACTLY once before anything is
+ *     mutated. A stale anchor silently mutates nothing and scores a survivor.
+ *   - KILLER PRE-FLIGHT: every designated spec title exists EXACTLY once AND is
+ *     GREEN at baseline. ⚠️vitest's `-t` is a REGEX, so titles are compared for
+ *     equality against the JSON reporter's own output.
+ *   - SMOKE MUTANT: one that must obviously die.
+ *   - RESTORE FROM AN IN-MEMORY COPY, never `git checkout`, verified after.
+ *   - ⚠️A DEAD RUNNER IS NOT A KILL — see `runKiller`.
+ *
+ * ★★AND IT RUNS IN A NON-UTC TIMEZONE, DELIBERATELY. One rule here — rendering
+ * the window in UTC — is INVISIBLE when the machine already is UTC: dropping
+ * `timeZone: "UTC"` changes nothing there, so the mutant would survive
+ * correctly and tell us nothing.
+ *
+ * Run: node scripts/mutate-search-visibility.mjs
+ */
+import { readFileSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { execPath } from "node:process";
+
+const TARGET = "src/lib/search-visibility.ts";
+const SPEC = "src/lib/search-visibility.test.ts";
+
+/** ⚠️★`npx.cmd` ANSWERS EINVAL on this platform — go through the node binary. */
+const VITEST = "node_modules/vitest/vitest.mjs";
+
+/** See the header: a UTC machine cannot score the UTC rule. */
+const RUN_ENV = { ...process.env, TZ: "Asia/Kolkata" };
+
+const MUTANTS = [
+  {
+    name: "ignore the api's gate, asserting absence off the numbers alone",
+    anchor: "  if (r.absenceAssertable && covered > 0) {",
+    mutated: "  if (covered > 0) {",
+    killer: "softens to a statement about our data when absence cannot be asserted",
+  },
+  {
+    name: "count every `unknown`, including the ones we may not speak about",
+    anchor: "  const covered = r.summary.unknownWindowCovered;",
+    mutated: "  const covered = r.summary.unknown;",
+    killer: "counts only the products the window covers",
+  },
+  {
+    name: "assert over zero products, so the claim has no subject",
+    anchor: "  if (r.absenceAssertable && covered > 0) {",
+    mutated: "  if (r.absenceAssertable && covered >= 0) {",
+    killer: "does not assert over zero covered products, even with the gate open",
+  },
+  {
+    name: "report the gate on the all-clear, colouring good news as a failure",
+    anchor:
+      '    text: "Every product we can measure is showing up in Google search.",\n    asserted: false,',
+    mutated:
+      '    text: "Every product we can measure is showing up in Google search.",\n    asserted: r.absenceAssertable,',
+    killer: "says the good news as good news rather than as a zero",
+  },
+  {
+    name: "render the window in the viewer's timezone, moving a dated claim by a day",
+    anchor: '      timeZone: "UTC",\n',
+    mutated: "",
+    killer: "makes the strong claim only when the gate is open, and dates it",
+  },
+  {
+    name: "print a half-parsed range rather than dropping the dates",
+    anchor: '  if (!start || !end) return "";',
+    mutated: '  if (false) return "";',
+    killer: "says nothing when either end will not parse",
+  },
+  {
+    name: "join the dates with a dash in a sentence that already said between",
+    anchor: '  return range ? range.replace(" – ", " and ") : "";',
+    mutated: "  return range;",
+    killer: "joins the dates with a word, not a dash, inside the sentence",
+  },
+  {
+    name: "look states up with `??`, so a name colliding with Object.prototype renders a function",
+    anchor: "  if (Object.hasOwn(STATE_LABEL, state)) return STATE_LABEL[state];",
+    mutated: "  if (STATE_LABEL[state]) return STATE_LABEL[state];",
+    killer: "survives a state name that collides with Object.prototype",
+  },
+  {
+    name: "look blockers up with `??`, so a name colliding with Object.prototype prints a function",
+    anchor:
+      "    .map((b) => (Object.hasOwn(BLOCKER_NOTE, b) ? BLOCKER_NOTE[b] : `we hit a limit we cannot describe yet (${b})`));",
+    mutated: "    .map((b) => BLOCKER_NOTE[b] ?? `we hit a limit we cannot describe yet (${b})`);",
+    killer: "survives a blocker name that collides with Object.prototype",
+  },
+  {
+    name: "swallow a blocker this map has not learned, leaving softened copy uncaveated",
+    anchor:
+      "    .map((b) => (Object.hasOwn(BLOCKER_NOTE, b) ? BLOCKER_NOTE[b] : `we hit a limit we cannot describe yet (${b})`));",
+    mutated: "    .map((b) => (Object.hasOwn(BLOCKER_NOTE, b) ? BLOCKER_NOTE[b] : \"\"))\n    .filter(Boolean);",
+    killer: "still says something for a reason it does not recognise",
+  },
+  {
+    name: "accept a half-written body, letting NaN reach the headline",
+    anchor: "    Number.isFinite(v.summary.total) &&",
+    mutated: "    true &&",
+    killer: "rejects a half-written body rather than letting it reach the headline",
+  },
+  {
+    name: "stop checking `matching`, which drives every count of rows",
+    anchor: "    Number.isFinite(v.matching) &&",
+    mutated: "    true &&",
+    killer: "rejects a body with no `matching`, which drives every count of rows",
+  },
+  {
+    name: "trust the products array without its entries",
+    anchor: '    v.products.every((p) => !!p && typeof p === "object") &&',
+    mutated: "    true &&",
+    killer: "rejects a products array containing a non-object entry",
+  },
+  {
+    name: "describe `unknown` as a verdict on the product rather than a gap in our data",
+    anchor: '    blurb: "We hold no search data for this product in the reported window.",',
+    mutated: '    blurb: "Google has never shown this product.",',
+    killer: "describes `unknown` as our gap rather than the product's failure",
+  },
+];
+
+/** ★THE SMOKE MUTANT: it must die, or nothing else here counts. */
+const SMOKE = {
+  name: "SMOKE — every answer is the strong claim",
+  anchor: "  const covered = r.summary.unknownWindowCovered;",
+  mutated:
+    '  return { text: "SMOKE", asserted: true, count: 1 };\n  const covered = r.summary.unknownWindowCovered;',
+  killer: "softens to a statement about our data when absence cannot be asserted",
+};
+
+const original = readFileSync(TARGET, "utf8");
+
+// ── Anchor pre-flight ──────────────────────────────────────────────────────
+let preflightFailed = false;
+for (const m of [...MUTANTS, SMOKE]) {
+  const count = original.split(m.anchor).length - 1;
+  if (count !== 1) {
+    console.error(`ANCHOR PRE-FLIGHT FAILED: "${m.name}" matched ${count} time(s), expected 1`);
+    preflightFailed = true;
+  }
+}
+if (preflightFailed) process.exit(1);
+console.log(`anchor pre-flight: ${MUTANTS.length + 1} anchors, each exactly once`);
+
+// ── Killer pre-flight ──────────────────────────────────────────────────────
+function report() {
+  return spawnSync(execPath, [VITEST, "run", SPEC, "--reporter=json"], {
+    encoding: "utf8",
+    maxBuffer: 64 * 1024 * 1024,
+    env: RUN_ENV,
+  });
+}
+
+function assertionsOf(r) {
+  const parsed = JSON.parse(r.stdout.slice(r.stdout.indexOf("{")));
+  return parsed.testResults.flatMap((f) => f.assertionResults);
+}
+
+const base = assertionsOf(report());
+let killerFailed = false;
+for (const m of [...MUTANTS, SMOKE]) {
+  const matches = base.filter((a) => a.title === m.killer);
+  if (matches.length !== 1) {
+    console.error(
+      `KILLER PRE-FLIGHT FAILED: "${m.killer}" appears ${matches.length} time(s), expected 1`,
+    );
+    killerFailed = true;
+  } else if (matches[0].status !== "passed") {
+    console.error(
+      `KILLER PRE-FLIGHT FAILED: "${m.killer}" is "${matches[0].status}" at BASELINE — an ` +
+        "already-red spec scores every mutant it owns as killed.",
+    );
+    killerFailed = true;
+  }
+}
+if (killerFailed) {
+  console.error(base.map((a) => `  [${a.status}] ${a.title}`).join("\n"));
+  process.exit(1);
+}
+console.log(
+  `killer pre-flight: ${MUTANTS.length + 1} killers, each green at baseline (TZ=${RUN_ENV.TZ})\n`,
+);
+
+function runKiller(title) {
+  const r = report();
+  // ⚠️🚫★★A DEAD RUNNER IS NOT A KILL. Scoring an unparseable run as a kill
+  //  means a runner that fails to spawn marks every mutant — SMOKE included —
+  //  as killed, and the script exits 0 claiming a clean sweep.
+  if (r.error || typeof r.status !== "number") {
+    return { killed: false, how: `the runner did not run (${r.error?.message ?? "no exit code"})` };
+  }
+  let all;
+  try {
+    all = assertionsOf(r);
+  } catch {
+    return { killed: false, how: "vitest produced no JSON report" };
+  }
+  const mine = all.filter((a) => a.title === title);
+  if (mine.length !== 1) return { killed: false, how: `designated spec vanished (${mine.length})` };
+  return {
+    killed: mine[0].status === "failed",
+    how: mine[0].status,
+    others: all.filter((a) => a.title !== title && a.status === "failed").length,
+  };
+}
+
+const results = [];
+for (const m of [SMOKE, ...MUTANTS]) {
+  // ⚠️🚫★★TRY/FINALLY, BECAUSE A THROW BETWEEN MUTATE AND RESTORE LEAVES A
+  //  MUTANT IN A TRACKED SOURCE FILE. A harness that leaves a mutant behind is
+  //  worse than one that never ran.
+  let r;
+  try {
+    writeFileSync(TARGET, original.split(m.anchor).join(m.mutated), "utf8");
+    r = runKiller(m.killer);
+  } finally {
+    writeFileSync(TARGET, original, "utf8"); // ★IN-MEMORY RESTORE, every time.
+  }
+  results.push({ ...m, ...r });
+  const mark = r.killed ? "KILLED  " : "SURVIVED";
+  const collateral = r.others ? `  (+${r.others} other spec(s) also failed)` : "";
+  console.log(`${mark}  ${m.name}${collateral}`);
+}
+
+if (readFileSync(TARGET, "utf8") !== original) {
+  console.error(`\nRESTORE FAILED — ${TARGET} does not match its original bytes.`);
+  process.exit(1);
+}
+
+const survivors = results.filter((r) => !r.killed);
+console.log(`\n${results.length - survivors.length}/${results.length} killed; restore verified.`);
+if (!results[0].killed) {
+  console.error("SMOKE MUTANT SURVIVED — the harness cannot detect a death. Nothing else counts.");
+  process.exit(1);
+}
+if (survivors.length > 0) {
+  console.error("\nSURVIVORS (classify before fixing):");
+  for (const s of survivors) console.error(`  - ${s.name}  [${s.how}]`);
+  process.exit(1);
+}
