@@ -96,16 +96,29 @@ const MUTANTS = [
   {
     name: "look blockers up with `??`, so a name colliding with Object.prototype prints a function",
     anchor:
-      "    .map((b) => (Object.hasOwn(BLOCKER_NOTE, b) ? BLOCKER_NOTE[b] : `we hit a limit we cannot describe yet (${b})`));",
-    mutated: "    .map((b) => BLOCKER_NOTE[b] ?? `we hit a limit we cannot describe yet (${b})`);",
+      "      Object.hasOwn(BLOCKER_NOTE, b) ? BLOCKER_NOTE[b] : `we hit a limit we cannot describe yet (${b})`,",
+    mutated: "      BLOCKER_NOTE[b] ?? `we hit a limit we cannot describe yet (${b})`,",
     killer: "survives a blocker name that collides with Object.prototype",
   },
   {
     name: "swallow a blocker this map has not learned, leaving softened copy uncaveated",
     anchor:
-      "    .map((b) => (Object.hasOwn(BLOCKER_NOTE, b) ? BLOCKER_NOTE[b] : `we hit a limit we cannot describe yet (${b})`));",
-    mutated: "    .map((b) => (Object.hasOwn(BLOCKER_NOTE, b) ? BLOCKER_NOTE[b] : \"\"))\n    .filter(Boolean);",
+      "    .map((b) =>\n      Object.hasOwn(BLOCKER_NOTE, b) ? BLOCKER_NOTE[b] : `we hit a limit we cannot describe yet (${b})`,\n    );",
+    mutated:
+      "    .map((b) => (Object.hasOwn(BLOCKER_NOTE, b) ? BLOCKER_NOTE[b] : \"\"))\n    .filter(Boolean);",
     killer: "still says something for a reason it does not recognise",
+  },
+  {
+    name: "go silent instead of changing the lead, hiding every blocker on the all-clear",
+    anchor: "  return opts.subject === false",
+    mutated: '  if (opts.subject === false) return "";\n  return false',
+    killer: "changes its lead rather than going silent when the headline has no subject",
+  },
+  {
+    name: "use the subject lead everywhere, leaving the pronoun with no antecedent",
+    anchor: "  return opts.subject === false",
+    mutated: "  return false",
+    killer: "changes its lead rather than going silent when the headline has no subject",
   },
   {
     name: "accept a half-written body, letting NaN reach the headline",

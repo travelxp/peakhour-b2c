@@ -45,8 +45,16 @@ import {
  *  second catalogue. */
 const VISIBLE_ROWS = 10;
 
+/**
+ * ★FETCH WHAT WE RENDER. The panel asked for a hundred rows and showed ten, and
+ * once the legend moved onto the visible rows nothing referenced the other
+ * ninety. `summary` and `matching` are computed by the api BEFORE it slices, so
+ * narrowing the page costs no count and no headline — only the rows.
+ */
+const FETCH_ROWS = VISIBLE_ROWS;
+
 export function SearchVisibilityPanel() {
-  const { data, isLoading, isError } = useSearchVisibility();
+  const { data, isLoading, isError } = useSearchVisibility(FETCH_ROWS);
   const { formatNumber } = useLocale();
 
   const ready = useMemo(() => (isUsableVisibility(data) ? data : null), [data]);
@@ -89,7 +97,9 @@ export function SearchVisibilityPanel() {
   }
 
   const h = headline(ready);
-  const caveat = blockerNote(ready.absenceBlockers);
+  // ★THE LEAD ADAPTS TO WHETHER THE HEADLINE GAVE IT A SUBJECT; the caveat
+  // itself is never withheld — see blockerNote.
+  const caveat = blockerNote(ready.absenceBlockers, { subject: h.count > 0 });
   const when = windowSentence(ready.window);
   const rows = ready.products.slice(0, VISIBLE_ROWS);
 
@@ -104,28 +114,18 @@ export function SearchVisibilityPanel() {
         <p className="text-sm font-medium">{h.text}</p>
       </div>
 
-      {/* ★★ONLY WHERE THERE IS SOMETHING TO CAVEAT. Under the all-clear
-          headline (`count === 0`) the caveat reads "we can't say for certain
-          that Google never showed these" with no `these` in front of it — a
-          reachable state, since a blocker can be set while nothing is unknown. */}
-      {caveat && h.count > 0 && (
-        <p className="mb-3 text-xs text-muted-foreground">{caveat}</p>
-      )}
+      {caveat && <p className="mb-3 text-xs text-muted-foreground">{caveat}</p>}
 
-      {/* ★STALE AND TRUNCATED ARE SEPARATE FROM THE CAVEAT. Neither stops the
-          claim — a dated claim stays true however old it is — but a merchant
-          reading a month-old answer should know that is what it is. */}
+      {/* ★STALE IS SEPARATE FROM THE CAVEAT because it is NOT one of the api
+          blockers. It does not stop the claim — a dated claim stays true however
+          old it is — but a merchant reading a month-old answer should know that
+          is what it is. `catalogTruncated` has no line of its own: it IS a
+          blocker, so the caveat above already carries it, off the same boolean. */}
       {ready.stale && (
         <p className="mb-3 text-xs text-muted-foreground">
           This is the last read we completed; the daily sync has not run since.
         </p>
       )}
-      {/* ★NO STANDALONE `catalogTruncated` LINE — `catalog_truncated` is one of
-          the api's blockers, so the caveat above already says it, off the same
-          boolean. Two sentences about one fact, always together, read as two
-          different problems. `stale` is NOT a blocker, which is why it keeps
-          its own line. */}
-
       <p className="mb-3 text-xs text-muted-foreground">
         Reading {ready.siteUrl}
         {when ? ` · ${when}` : ""}

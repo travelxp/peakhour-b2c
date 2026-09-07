@@ -262,12 +262,25 @@ const BLOCKER_NOTE: Record<string, string> = {
  * holding the answer back — an empty caveat beside softened wording is the one
  * combination that reads as a bug in the copy rather than a limit on the data.
  */
-export function blockerNote(blockers: string[]): string {
+export function blockerNote(blockers: string[], opts: { subject?: boolean } = {}): string {
   const reasons = (blockers ?? [])
     .filter((b) => typeof b === "string" && b.length > 0)
-    .map((b) => (Object.hasOwn(BLOCKER_NOTE, b) ? BLOCKER_NOTE[b] : `we hit a limit we cannot describe yet (${b})`));
+    .map((b) =>
+      Object.hasOwn(BLOCKER_NOTE, b) ? BLOCKER_NOTE[b] : `we hit a limit we cannot describe yet (${b})`,
+    );
   if (reasons.length === 0) return "";
-  return `We can't say for certain that Google never showed these — ${reasons.join("; and ")}.`;
+  const why = reasons.join("; and ");
+  // ★★TWO LEADS, BECAUSE THE CAVEAT MUST SURVIVE THE ALL-CLEAR. The default
+  // lead refers to "these" — the products the headline just named — and has no
+  // antecedent when the headline is "every product we can measure is showing
+  // up". A first fix SUPPRESSED the caveat in that case, which silenced every
+  // blocker whenever nothing was unknown: a catalogue truncated at MAX_CATALOG
+  // with all the products we read indexed then reported everything fine, with
+  // no hint that a third of it was never looked at. The wording was the
+  // problem; the information never was.
+  return opts.subject === false
+    ? `This doesn't cover everything — ${why}.`
+    : `We can't say for certain that Google never showed these — ${why}.`;
 }
 
 /**

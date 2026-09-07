@@ -187,6 +187,30 @@ describe("blockerNote", () => {
   it("ignores empty and non-string entries", () => {
     expect(blockerNote(["", null as never, undefined as never])).toBe("");
   });
+
+  // ★★THE CAVEAT MUST SURVIVE THE ALL-CLEAR, WITH A DIFFERENT LEAD. Its default
+  // wording refers to "these" — the products the headline just named — and has
+  // no antecedent when the headline is "every product we can measure is showing
+  // up". A first fix SUPPRESSED it there, which silenced every blocker whenever
+  // nothing was unknown: a catalogue truncated at MAX_CATALOG with all the
+  // products we read indexed then reported everything fine, with no hint that a
+  // third of it was never looked at.
+  it("changes its lead rather than going silent when the headline has no subject", () => {
+    const withSubject = blockerNote(["catalog_truncated"]);
+    const without = blockerNote(["catalog_truncated"], { subject: false });
+
+    expect(withSubject).toContain("Google never showed these");
+    expect(without).not.toBe("");
+    expect(without).not.toContain("these");
+    expect(without).toContain("doesn't cover everything");
+    // Both still carry the REASON — only the lead changes.
+    expect(withSubject).toContain("larger than we read in one pass");
+    expect(without).toContain("larger than we read in one pass");
+  });
+
+  it("defaults to the subject lead when no option is passed", () => {
+    expect(blockerNote(["rows_lost"])).toBe(blockerNote(["rows_lost"], { subject: true }));
+  });
 });
 
 describe("stateLabel", () => {
