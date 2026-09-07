@@ -264,6 +264,35 @@ const NAV_GROUPS: NavGroup[] = [
   },
 ];
 
+/**
+ * A sidebar count that says what it is counting.
+ *
+ * ★A BARE NUMBER IN A NAV IS A RIDDLE. "Tasks · 3" does not say whether three
+ * things are running, three have failed, or three are waiting on the reader —
+ * and the difference between "working" and "broken" is the only thing the badge
+ * is there to convey. Worse, the number was previously invisible to assistive
+ * tech in any useful form: a screen reader announced "Tasks 3" and a truncated
+ * "9+" announced "Tasks 9 plus".
+ *
+ * So the digit stays (it is a glanceable shape, which is the point of a badge)
+ * and the sentence rides along in `title` for the pointer and in visually-hidden
+ * text for the reader. The exact figure goes in both, because "9+" is a display
+ * convenience and should never be the only number anyone can get.
+ */
+function NavCountBadge({ count, description }: { count: number; description: string }) {
+  return (
+    <span className="ml-auto flex items-center" title={description}>
+      <span
+        aria-hidden
+        className="flex size-5 items-center justify-center rounded-full bg-primary text-[10px] font-medium text-primary-foreground"
+      >
+        {count > 9 ? "9+" : count}
+      </span>
+      <span className="sr-only">{description}</span>
+    </span>
+  );
+}
+
 /** Badge showing count of open tickets — fetches lazily */
 function OpenTicketBadge() {
   const { data: tickets } = useMyTickets();
@@ -272,9 +301,10 @@ function OpenTicketBadge() {
   ).length;
   if (!openCount) return null;
   return (
-    <span className="ml-auto flex size-5 items-center justify-center rounded-full bg-primary text-[10px] font-medium text-primary-foreground">
-      {openCount > 9 ? "9+" : openCount}
-    </span>
+    <NavCountBadge
+      count={openCount}
+      description={`${openCount} support ${openCount === 1 ? "ticket" : "tickets"} still open — open Tickets to read the replies`}
+    />
   );
 }
 
@@ -283,9 +313,10 @@ function RunningJobsBadge() {
   const count = useRunningJobCount();
   if (!count) return null;
   return (
-    <span className="ml-auto flex size-5 items-center justify-center rounded-full bg-primary text-[10px] font-medium text-primary-foreground">
-      {count > 9 ? "9+" : count}
-    </span>
+    <NavCountBadge
+      count={count}
+      description={`${count} ${count === 1 ? "job is" : "jobs are"} running for you right now — open Tasks to watch progress. Nothing is waiting on you.`}
+    />
   );
 }
 

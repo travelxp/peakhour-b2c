@@ -23,6 +23,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Globe, CalendarDays, Check } from "lucide-react";
+import { AvatarPicker } from "@/components/dashboard/avatar-picker";
 
 const DATE_FORMAT_OPTIONS = [
   { value: "__browser__", label: "Browser default" },
@@ -92,9 +93,17 @@ export default function PreferencesPage() {
       <div>
         <h2 className="text-2xl font-bold tracking-tight">Preferences</h2>
         <p className="text-muted-foreground mt-1">
-          How dates, numbers, and currencies appear across the app
+          How you appear, and how dates, numbers and currencies are shown
         </p>
       </div>
+
+      {/* ★ABOVE THE FORMATTING CARD, AND ON THIS PAGE RATHER THAN SETTINGS →
+          General. Everything here is scoped to the signed-in USER; General is
+          scoped to the ORG (its name, category, budget, taxonomy). An avatar
+          on that page would be the only personal control in a room full of
+          business ones, and a teammate changing it would look like it changed
+          for the company. */}
+      <AvatarPicker />
 
       <Card className="max-w-3xl">
         <CardHeader>

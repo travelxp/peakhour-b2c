@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/providers/auth-provider";
+import { PlanLimitDialog } from "@/components/upgrade/plan-limit-dialog";
 import { invalidateLinkedInContentQueries } from "@/lib/linkedin-cache";
 import { CreateWorkspaceButton } from "@/components/integrations/create-workspace-button";
 import { useLocale } from "@/hooks/use-locale";
@@ -2031,6 +2032,21 @@ function ManagePagesDialog({
   const [pending, setPending] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [pendingToggle, setPendingToggle] = useState<PendingToggle | null>(null);
+  /**
+   * The Page whose switch was clicked while the plan was already full.
+   *
+   * ★A DISABLED SWITCH WITH A TOOLTIP WAS NOT AN ANSWER. The cap used to be
+   * expressed as a dead control explained on HOVER — which is unreachable on a
+   * phone, unreachable by tap, and invisible to anyone who does not think to
+   * hover a thing that looks broken. So the honest reading of the UI was "this
+   * page cannot be enabled", full stop, with the fact that it is a purchasable
+   * limit hidden behind a gesture half the users cannot make.
+   *
+   * The switch stays live at the cap and clicking it opens the same
+   * PlanLimitDialog the workspace switcher uses. Same rule, same surface,
+   * whether the thing being sized is a business or a Page.
+   */
+  const [capBlocked, setCapBlocked] = useState<string | null>(null);
   /** Which answer to a held 409 is currently in flight. */
   const [answeringWith, setAnsweringWith] = useState<"cancel" | "keep" | null>(null);
 
@@ -2233,15 +2249,22 @@ function ManagePagesDialog({
             {pages.map((p) => {
               const isOn = enabledIds.has(p.organizationId);
               const isPending = pending.has(p.organizationId);
-              // Disable toggle-on when at cap AND this page is currently
-              // OFF. A page that's already ON keeps its switch active so
-              // the user can turn it off (always allowed).
-              const switchDisabled = isPending || (atCap && !isOn);
+              // At the cap, turning a page ON is a purchase rather than a
+              // toggle — the switch stays live and routes to the plan dialog.
+              // A page that is already ON always keeps a working switch, since
+              // turning things off is never gated.
+              const capReached = atCap && !isOn;
               const switchEl = (
                 <Switch
                   checked={isOn}
-                  disabled={switchDisabled}
-                  onCheckedChange={(v) => togglePage(p.organizationId, v)}
+                  disabled={isPending}
+                  onCheckedChange={(v) => {
+                    if (capReached) {
+                      setCapBlocked(p.organizationName || `Page ${p.organizationId}`);
+                      return;
+                    }
+                    togglePage(p.organizationId, v);
+                  }}
                   aria-label={`Toggle ${p.organizationName || p.organizationId}`}
                 />
               );
@@ -2296,14 +2319,14 @@ function ManagePagesDialog({
                       </a>
                     </div>
                   </div>
-                  {switchDisabled && atCap && !isOn ? (
+                  {capReached ? (
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <span tabIndex={0}>{switchEl}</span>
                       </TooltipTrigger>
                       <TooltipContent side="left" className="max-w-[220px] text-[11px]">
-                        Plan cap reached. Disable another page or upgrade your plan
-                        to enable more.
+                        Your plan covers {cap} {cap === 1 ? "page" : "pages"}. Turn another off, or
+                        add this one to your plan.
                       </TooltipContent>
                     </Tooltip>
                   ) : (
@@ -2332,6 +2355,19 @@ function ManagePagesDialog({
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      {/* ★THE SAME DIALOG THE WORKSPACE SWITCHER OPENS. One plan sizes what you
+          can run — a business, a Page — so reaching either edge has to land on
+          one surface saying one thing. A bespoke message here would be a second
+          answer to the same question, and the two would drift. */}
+      <PlanLimitDialog
+        open={capBlocked !== null}
+        onOpenChange={(next) => !next && setCapBlocked(null)}
+        title={`${capBlocked ?? "That page"} isn't on your plan`}
+        description={`Your ${planLabel} plan covers ${cap} LinkedIn ${cap === 1 ? "page" : "pages"} for this business. Turn another one off to free a slot, or add this page to your plan.`}
+        benefit="Each enabled page gets its own posting queue, audience and reporting — nothing is shared or mixed between them."
+        ctaLabel="Add a page to my plan"
+      />
     </Dialog>
   );
 }

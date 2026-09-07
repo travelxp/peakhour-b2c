@@ -70,6 +70,17 @@ function slugify(label: string): string {
 
 const emptyTopic = (): Topic => ({ audience: "", who: "", focus: "" });
 
+/**
+ * A brief the dialog opens on, from a template card. Same shape as a Topic —
+ * the template IS a filled-in topic, which is the whole reason the gallery can
+ * teach the form rather than replace it.
+ */
+export interface TopicSeed {
+  audience: string;
+  who: string;
+  focus: string;
+}
+
 /** Map filled topics → segments. A topic counts only if its audience slugifies to a
  *  non-empty key (that key is the page's required `industry` axis). An optional
  *  `who` adds the persona axis (only when it slugifies to a usable key); a shared
@@ -100,16 +111,37 @@ export interface GeneratePagesDialogProps {
    *  state both open the same dialog). */
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /**
+   * Prefill for the first topic, from a template card. Undefined = a blank form.
+   *
+   * ★READ ONCE, AT MOUNT, AND NEVER SYNCED. The body is mounted only while the
+   * dialog is open (see below), so a new seed always arrives with a fresh
+   * component — which is exactly what makes it safe to seed `useState`
+   * directly. An effect syncing this into state would instead overwrite what
+   * the user had typed every time the parent re-rendered.
+   */
+  seed?: TopicSeed;
   /** Runs the generation. Resolve to close the dialog; throw to keep it open and
    *  surface the error inline (SEGMENTS_REQUIRED becomes a "name a topic" hint).
    *  `segments` is undefined when the owner submitted no topics (seed-default path). */
   onGenerate: (segments?: GenerateSegmentInput[]) => Promise<void>;
 }
 
-export function GeneratePagesDialog({ open, onOpenChange, onGenerate }: GeneratePagesDialogProps) {
+export function GeneratePagesDialog({ open, onOpenChange, onGenerate, seed }: GeneratePagesDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      {open ? <GeneratePagesDialogBody onGenerate={onGenerate} onClose={() => onOpenChange(false)} /> : null}
+      {open ? (
+        <GeneratePagesDialogBody
+          // ★KEYED ON THE SEED so switching templates without closing the
+          //  dialog remounts the body and re-seeds the form. Without the key,
+          //  React would reuse the instance and the second template would open
+          //  showing the first one's brief.
+          key={seed ? `${seed.audience}|${seed.who}|${seed.focus}` : "blank"}
+          seed={seed}
+          onGenerate={onGenerate}
+          onClose={() => onOpenChange(false)}
+        />
+      ) : null}
     </Dialog>
   );
 }
@@ -117,11 +149,15 @@ export function GeneratePagesDialog({ open, onOpenChange, onGenerate }: Generate
 function GeneratePagesDialogBody({
   onGenerate,
   onClose,
+  seed,
 }: {
   onGenerate: GeneratePagesDialogProps["onGenerate"];
   onClose: () => void;
+  seed?: TopicSeed;
 }) {
-  const [topics, setTopics] = useState<Topic[]>([emptyTopic()]);
+  const [topics, setTopics] = useState<Topic[]>([
+    seed ? { audience: seed.audience, who: seed.who, focus: seed.focus } : emptyTopic(),
+  ]);
   const [ctaHref, setCtaHref] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -188,6 +224,12 @@ function GeneratePagesDialogBody({
       // failure gets a friendly generic — never surface a raw backend/AI message.
       if (e instanceof ApiError && e.code === "SEGMENTS_REQUIRED") {
         setError("Add at least one topic — tell us who your pages should be for.");
+      } else if (e instanceof ApiError && e.code === "BUSINESS_NOT_READY") {
+        // The api's 422 for a business with no context row at all. Distinct
+        // from the grounding case the caller handles: this one is a broken
+        // workspace, not a thin profile, and telling the owner to "add more
+        // detail" would send them to fill in a form that already exists.
+        setError("This workspace isn't set up yet. Finish setting it up, then try again.");
       } else {
         setError("Couldn't start generating your pages. Please try again.");
       }
