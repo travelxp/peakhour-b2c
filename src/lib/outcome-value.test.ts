@@ -83,9 +83,56 @@ describe("shortDate", () => {
     // ★ASSERTED ON THE DAY NUMBER, not by comparing against shortDate itself —
     // a spec that formats its own expectation with the function under test
     // cannot see this at all, which is how it shipped once.
-    expect(shortDate("2026-08-16T00:00:00.000Z")).toContain("16");
-    expect(shortDate("2026-09-07T00:00:00.000Z")).toContain("7");
-    expect(shortDate("2026-01-01T00:00:00.000Z")).toContain("1");
+    // ★COMPARED AGAINST AN EXPECTATION BUILT WITH timeZone: "UTC" EXPLICITLY,
+    // not against shortDate itself — a spec that formats its own expectation
+    // with the function under test cannot see this at all, which is how it
+    // shipped once. Independent of the month names the runner's ICU produces.
+    const utc = (iso: string) =>
+      new Date(iso).toLocaleDateString(undefined, {
+        day: "numeric",
+        month: "short",
+        timeZone: "UTC",
+      });
+    for (const iso of [
+      "2026-08-16T00:00:00.000Z",
+      "2026-09-07T00:00:00.000Z",
+      // ★THE YEAR ROLLOVER, and it needs the full comparison rather than a
+      // digit: the buggy render of 1 Jan is "31 Dec", which contains "1".
+      "2026-01-01T00:00:00.000Z",
+    ]) {
+      expect(shortDate(iso), iso).toBe(utc(iso));
+    }
+  });
+});
+
+describe("the locale every number on the card is grouped by", () => {
+  it("★is the page's, and the currency is still the merchant's", () => {
+    // ★★ASSERTED ON THE CALL, not on the output. Which separators a locale
+    // produces is ICU's business and varies by platform — on Windows it ignores
+    // LANG entirely — so an output comparison here scores nothing on the one
+    // machine that matters. What must hold is the ARGUMENTS: one locale for
+    // every figure on this card (the page hard-codes en-US for the rest, and
+    // "1,234 wins" above "from 1.234 orders" reads as a bug whichever is
+    // right), and the currency taken from the response.
+    const seen: Array<[unknown, unknown]> = [];
+    const real = Intl.NumberFormat;
+    const spy = function (this: unknown, locale?: unknown, options?: unknown) {
+      seen.push([locale, options]);
+      return new (real as unknown as new (l?: unknown, o?: unknown) => Intl.NumberFormat)(
+        locale as string | undefined,
+        options as Intl.NumberFormatOptions | undefined,
+      );
+    } as unknown as typeof Intl.NumberFormat;
+    (Intl as { NumberFormat: typeof Intl.NumberFormat }).NumberFormat = spy;
+    try {
+      formatMoney(1284.5, "INR");
+      orderCountLine(available());
+    } finally {
+      (Intl as { NumberFormat: typeof Intl.NumberFormat }).NumberFormat = real;
+    }
+    expect(seen.length).toBeGreaterThanOrEqual(2);
+    for (const [locale] of seen) expect(locale).toBe("en-US");
+    expect(seen[0][1]).toMatchObject({ style: "currency", currency: "INR" });
   });
 });
 
@@ -133,6 +180,23 @@ describe("provenanceLine", () => {
     expect(line).not.toContain("not the whole period");
   });
 
+  it("does not claim a short revenue coverage when only the COUNT is short", () => {
+    // ★`partial` IS TRUE IF EITHER FIGURE FALLS SHORT, so a window whose
+    // revenue covers every day and whose purchase count does not would print
+    // "measured on 30 of 30 days" — a shortfall sentence carrying numbers that
+    // say the opposite. The count's own line states that case.
+    const line = provenanceLine(
+      available({
+        source: "analytics",
+        partial: true,
+        daysMeasured: 30,
+        daysInWindow: 30,
+        transactionDays: 12,
+      }),
+    );
+    expect(line).toBe("Measured by Google Analytics");
+  });
+
   it("reads `partial` rather than recomputing it from the day counts", () => {
     // ★TWO SURFACES RECOMPUTING ONE RULE IS HOW THEY COME TO DISAGREE. The api
     // sets `partial` from both coverages; a surface deriving it from
@@ -147,9 +211,20 @@ describe("orderCountLine", () => {
     expect(orderCountLine(available())).toBe("from 17 orders");
   });
 
-  it("★dates a short count on the AVAILABLE branch too", () => {
+  it("does not qualify a commerce count the span has already qualified", () => {
+    // ★THE API SETS THE TWO COVERAGES EQUAL ON THE COMMERCE PATH, so a short
+    // count there is the same shortfall the provenance line states as a span.
+    // Saying it twice — "covers 16 Aug to 7 Sep, not the whole period" and
+    // "(counted on 22 of 30 days)" — reads as two different problems.
     const line = orderCountLine(
-      available({ transactions: 17, transactionDays: 12, daysInWindow: 30 }),
+      available({ transactions: 17, transactionDays: 22, daysMeasured: 22, daysInWindow: 30 }),
+    );
+    expect(line).toBe("from 17 orders");
+  });
+
+  it("★dates a short count on the AVAILABLE branch when it DIVERGES from the revenue's", () => {
+    const line = orderCountLine(
+      available({ transactions: 17, transactionDays: 12, daysMeasured: 30, daysInWindow: 30 }),
     );
     // The count's coverage diverges from the revenue's — a property whose
     // currency we could not read records purchases and no revenue — so an

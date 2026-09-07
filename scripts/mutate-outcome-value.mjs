@@ -18,12 +18,13 @@
  *   - RESTORE FROM AN IN-MEMORY COPY, never `git checkout`, verified after.
  *   - ⚠️A DEAD RUNNER IS NOT A KILL.
  *
- * ★★AND IT RUNS IN A NON-UTC, NON-EN-US LOCALE, DELIBERATELY. Two rules here
- * are INVISIBLE on a developer's machine: the currency comes from the response
- * rather than the locale, and the covered dates are compared the way the code
- * formats them. On an en-US/UTC runner a mutant that derives the currency from
- * the locale still prints a dollar sign for a dollar fixture, and a date
- * assertion written as a regex still matches. Neither would be caught.
+ * ★★AND IT RUNS WEST OF UTC, DELIBERATELY. One rule here is INVISIBLE on a
+ * developer machine east of UTC or on UTC itself: the covered dates are read on
+ * OUR calendar rather than the viewer's. See RUN_ENV — Asia/Kolkata cannot score
+ * it, because a UTC-midnight instant lands on the same day there. The locale
+ * rules are asserted on the CALL rather than the output, because ICU on Windows
+ * ignores LANG and an output comparison would score nothing on the one machine
+ * that matters.
  *
  * Run: node scripts/mutate-outcome-value.mjs
  */
@@ -57,16 +58,22 @@ const RUN_ENV = {
 const MUTANTS = [
   // ── The money ────────────────────────────────────────────────────────────
   {
-    name: "derive the currency from the viewer's locale, relabelling rupees as dollars",
-    anchor: '    return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(amount);',
-    mutated: '    return new Intl.NumberFormat(undefined, { style: "currency", currency: "USD" }).format(amount);',
+    name: "hard-code the currency, relabelling a merchant's rupees as dollars",
+    anchor: '    return new Intl.NumberFormat(LOCALE, { style: "currency", currency }).format(amount);',
+    mutated: '    return new Intl.NumberFormat(LOCALE, { style: "currency", currency: "USD" }).format(amount);',
     killer: "uses the currency the api sent, not one derived from the locale",
   },
   {
-    name: "pin the locale, so a merchant's own number formatting is overridden",
-    anchor: '    return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(amount);',
-    mutated: '    return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(amount);',
-    killer: "uses the currency the api sent, not one derived from the locale",
+    name: "let the money and the count group their digits differently",
+    anchor: '    return new Intl.NumberFormat(LOCALE, { style: "currency", currency }).format(amount);',
+    mutated: '    return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(amount);',
+    killer: "★is the page's, and the currency is still the merchant's",
+  },
+  {
+    name: "let the COUNT drift off the card's locale",
+    anchor: "  const count = new Intl.NumberFormat(LOCALE).format(value.transactions);",
+    mutated: "  const count = new Intl.NumberFormat(undefined).format(value.transactions);",
+    killer: "★is the page's, and the currency is still the merchant's",
   },
   {
     name: "drop the sign, reporting a period of refunds as a period of sales",
@@ -96,6 +103,12 @@ const MUTANTS = [
     anchor: "  if (!value.partial) return base;",
     mutated: "  return base;",
     killer: "★says which days a partial COMMERCE figure covers",
+  },
+  {
+    name: "claim a short revenue coverage when only the COUNT is short",
+    anchor: "    if (value.daysMeasured >= value.daysInWindow) return base;",
+    mutated: "    void value;",
+    killer: "does not claim a short revenue coverage when only the COUNT is short",
   },
   {
     name: "date a partial MEASUREMENT, contradicting its own full-window dates",
@@ -166,10 +179,16 @@ const MUTANTS = [
     killer: "does not date a refusal's count when it covers the whole period",
   },
   {
-    name: "qualify only the refusal, leaving an available figure's short count bare",
+    name: "qualify only the refusal, leaving a diverging count bare on an available figure",
     anchor: "  if (value.available) return `from ${count} ${noun}${on}`;",
     mutated: "  if (value.available) return `from ${count} ${noun}`;",
-    killer: "★dates a short count on the AVAILABLE branch too",
+    killer: "★dates a short count on the AVAILABLE branch when it DIVERGES from the revenue's",
+  },
+  {
+    name: "qualify a commerce count the span has already qualified, saying it twice",
+    anchor: "    (!value.available || value.transactionDays !== value.daysMeasured);",
+    mutated: "    true;",
+    killer: "does not qualify a commerce count the span has already qualified",
   },
   {
     name: "pluralise on nothing, so one order reads as orders",

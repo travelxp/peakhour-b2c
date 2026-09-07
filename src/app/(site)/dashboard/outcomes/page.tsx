@@ -4,6 +4,7 @@ import {
   formatMoney,
   orderCountLine,
   provenanceLine,
+  shortDate,
 } from "@/lib/outcome-value";
 import { useState } from "react";
 import Link from "next/link";
@@ -377,7 +378,7 @@ function OutcomesBody({ data }: { data: OutcomesResponse }) {
                   value={NUM.format(reach.site.sessions)}
                   note={
                     reach.site.stale && reach.site.dataThrough
-                      ? `${NUM.format(reach.site.users)} people · only counted up to ${new Date(reach.site.dataThrough).toLocaleDateString(undefined, { day: "numeric", month: "short" })}`
+                      ? `${NUM.format(reach.site.users)} people · only counted up to ${shortDate(reach.site.dataThrough)}`
                       : `${NUM.format(reach.site.users)} people`
                   }
                 />

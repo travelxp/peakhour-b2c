@@ -53,24 +53,37 @@ export interface ValueUnavailable {
 export type OutcomeValue = ValueAvailable | ValueUnavailable;
 
 /**
+ * How every number on this card is grouped.
+ *
+ * ★★`en-US`, MATCHING THE PAGE, AND THAT IS A CONSISTENCY CHOICE RATHER THAN A
+ * PREFERENCE. The Outcomes page formats every other figure with a hard-coded
+ * `en-US`, so a card reading "1,234 wins" above "from 1.234 orders" is what a
+ * viewer-default locale produces here — two conventions inside one sentence,
+ * which reads as a bug whichever one is "right".
+ *
+ * ⏸THE REAL FIX IS APP-WIDE. This app has a `locale.ts` preference that neither
+ * this card nor the page consults; when something does, it belongs here and in
+ * the page's own `NUM` together, not in one of them.
+ */
+const LOCALE = "en-US";
+
+/**
  * The amount, in the currency the api said it was in.
  *
- * ★★THE CODE COMES FROM THE RESPONSE, NEVER FROM THE BROWSER. `undefined` as
- * the locale lets the viewer's own formatting rules apply — separators, symbol
- * placement, digit grouping — while the CURRENCY stays the merchant's. Deriving
- * it from the locale instead would relabel an Indian merchant's rupees as
- * dollars for a reader in New York, which is the one thing a money figure must
- * never do.
+ * ★★THE CODE COMES FROM THE RESPONSE, NEVER FROM THE LOCALE. Deriving it from
+ * the locale would relabel an Indian merchant's rupees as dollars for a reader
+ * in New York, which is the one thing a money figure must never do. The locale
+ * decides only how the digits are grouped and where the symbol sits.
  */
 export function formatMoney(amount: number, currency: string): string {
   try {
-    return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(amount);
+    return new Intl.NumberFormat(LOCALE, { style: "currency", currency }).format(amount);
   } catch {
     // ★A CODE Intl REFUSES MUST NOT TAKE THE PAGE DOWN. The api validates
     // against ISO-4217, so this is defence rather than expectation — but an
     // uncaught throw here would blank the whole Outcomes view over a formatting
     // detail, and the amount is still perfectly reportable beside its code.
-    return `${currency} ${new Intl.NumberFormat(undefined).format(amount)}`;
+    return `${currency} ${new Intl.NumberFormat(LOCALE).format(amount)}`;
   }
 }
 
@@ -132,6 +145,12 @@ export function provenanceLine(value: ValueAvailable): string {
   const base = sourceLabel(value.source);
   if (!value.partial) return base;
   if (value.source === "analytics") {
+    // ★AND ONLY WHEN THE REVENUE COVERAGE IS THE SHORT ONE. `partial` is true
+    // if EITHER figure falls short, so a window whose revenue covers every day
+    // and whose purchase count does not would print "measured on 30 of 30
+    // days" — a shortfall sentence carrying numbers that say the opposite. The
+    // count's own line states that case; this one has nothing to add to it.
+    if (value.daysMeasured >= value.daysInWindow) return base;
     return `${base} · measured on ${value.daysMeasured} of ${value.daysInWindow} days`;
   }
   return `${base} · covers ${shortDate(value.coveredSince)} to ${shortDate(
@@ -151,7 +170,7 @@ export function provenanceLine(value: ValueAvailable): string {
 export function orderCountLine(value: OutcomeValue): string | null {
   if (value.transactions === undefined) return null;
   const noun = value.transactions === 1 ? "order" : "orders";
-  const count = new Intl.NumberFormat(undefined).format(value.transactions);
+  const count = new Intl.NumberFormat(LOCALE).format(value.transactions);
 
   // ★★QUALIFIED ON BOTH BRANCHES, and a first version qualified only the
   // refusal. The count's coverage diverges from the revenue's — a property
@@ -159,10 +178,19 @@ export function orderCountLine(value: OutcomeValue): string | null {
   // AVAILABLE figure can sit beside a count covering twelve of thirty days. A
   // bare "from 17 orders" there claims the whole period for it, which is
   // exactly the claim the other branch takes a clause to avoid.
+  //
+  // ★BUT NOT WHEN THE LINE ABOVE HAS ALREADY SAID IT. On the commerce path the
+  // api sets the two coverages equal, so `short` is true exactly when
+  // `partial` is — and the card then states one shortfall twice, once as a span
+  // and once as a count. The qualifier exists for the DIVERGENCE, so it fires
+  // on the divergence: when the count's coverage differs from the revenue's, or
+  // when there is no revenue coverage stated at all because the amount was
+  // refused.
   const short =
     value.transactionDays !== undefined &&
     value.daysInWindow !== undefined &&
-    value.transactionDays < value.daysInWindow;
+    value.transactionDays < value.daysInWindow &&
+    (!value.available || value.transactionDays !== value.daysMeasured);
   const on = short ? ` (counted on ${value.transactionDays} of ${value.daysInWindow} days)` : "";
 
   if (value.available) return `from ${count} ${noun}${on}`;
