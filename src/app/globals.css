@@ -634,3 +634,83 @@
     display: none;
   }
 }
+
+/*
+ * ── Dashboard finishing utilities ─────────────────────────────────────────
+ *
+ * Two ambient effects, both obeying the house rule stated further up this file:
+ * MOTION MEANS CHANGE. Neither loops fast enough to be watched, and both are
+ * inert under prefers-reduced-motion.
+ */
+
+/*
+ * `u-ask-glow` — the Ask Peakhour launcher's resting pulse.
+ *
+ * A box-shadow animation, deliberately. The obvious alternative is a scaling
+ * pseudo-element ring, but a transform on the FAB (or a child of it) would make
+ * the button's hit area breathe under the cursor, so a click landing on the
+ * edge would sometimes miss. A shadow has no layout or hit-testing effect at
+ * all: the pulse is felt and the target never moves.
+ *
+ * 3.6s, not 1s. This sits on screen for the whole session; anything quick
+ * enough to read as "loading" would be a distraction by the second page.
+ */
+@keyframes ask-glow-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 6px 16px -4px color-mix(in oklab, var(--primary) 45%, transparent),
+      0 0 0 0 color-mix(in oklab, var(--primary) 35%, transparent);
+  }
+  50% {
+    box-shadow:
+      0 10px 24px -6px color-mix(in oklab, var(--primary) 55%, transparent),
+      0 0 0 8px color-mix(in oklab, var(--primary) 0%, transparent);
+  }
+}
+
+@layer components {
+  .u-ask-glow {
+    animation: ask-glow-pulse 3.6s var(--motion-ease-soft) infinite;
+  }
+  /* Hover/focus stills the pulse: the user has found it, so the affordance has
+     done its job and can stop asking for attention. */
+  .u-ask-glow:hover,
+  .u-ask-glow:focus-visible {
+    animation-play-state: paused;
+  }
+
+  /*
+   * `u-dot-field` — the whiteboard dot grid behind the Overview greeting.
+   *
+   * ★SCOPED TO THE HERO, NOT THE PAGE, AND THAT IS THE DESIGN DECISION. A dot
+   * field behind dense KPI cards and charts competes with the data for the same
+   * high-frequency detail, and in dark mode it eats the contrast the cards need.
+   * Confined to the band the eye lands on first, it gives the Overview the
+   * character of a workspace without taxing anything that has to be READ.
+   *
+   * The mask is what makes it a band rather than a rectangle with an edge:
+   * the field fades to nothing before the content below it starts, so there is
+   * no seam to align anything against.
+   *
+   * `background-position: center` (not the default `0 0`) keeps the grid
+   * centred as the sidebar collapses and expands, so the dots do not visibly
+   * shift sideways when the rail is toggled.
+   */
+  .u-dot-field {
+    background-image: radial-gradient(
+      color-mix(in oklab, var(--foreground) 16%, transparent) 1px,
+      transparent 1px
+    );
+    background-size: 22px 22px;
+    background-position: center;
+    -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 45%, transparent 100%);
+    mask-image: linear-gradient(to bottom, #000 0%, #000 45%, transparent 100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .u-ask-glow {
+    animation: none;
+  }
+}

@@ -22,11 +22,8 @@ import {
   Sparkles,
   CheckCircle,
   AlertCircle,
-  ArrowRight,
   ArrowUpRight,
-  TrendingUp,
   Zap,
-  Globe,
   Mail,
 } from "lucide-react";
 import { LinkedinIcon } from "@/components/brand/brand-icons";
@@ -35,11 +32,17 @@ import { FootprintReviewCard } from "@/components/dashboard/footprint-review-car
 import { RecommendationsCard } from "@/components/dashboard/recommendations-card";
 import { BrandMirrorCard } from "@/components/dashboard/brand-mirror-card";
 import { AskCard } from "@/components/dashboard/ask-card";
-import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
-import { cn } from "@/lib/utils";
+import { PageShell } from "@/components/dashboard/page-shell";
 import { OvernightRibbon } from "@/components/dashboard/overnight-ribbon";
+import { OverviewGreeting } from "@/components/dashboard/overview-greeting";
 import { WaitingForYou } from "@/components/dashboard/waiting-for-you";
-import { PeaksTrendCard } from "@/components/dashboard/peaks-trend-card";
+import { WorkCompletedCard } from "@/components/dashboard/work-completed-card";
+import { QuickActions } from "@/components/dashboard/quick-actions";
+import { SetupChecklist, type SetupStep } from "@/components/dashboard/setup-checklist";
+import {
+  BusinessAtAGlance,
+  GlanceCard,
+} from "@/components/dashboard/business-at-a-glance";
 import { useHomeSummary } from "@/hooks/use-home-summary";
 
 interface DashboardStats {
@@ -117,6 +120,11 @@ export default function OverviewPage() {
 
   const onboardingComplete = stats?.onboarding?.completed;
   const hasContent = (stats?.content.total ?? 0) > 0;
+  const anyConnection = Boolean(
+    stats?.connections.linkedinContent ||
+      stats?.connections.linkedinAds ||
+      stats?.connections.beehiiv,
+  );
 
   return (
     <PageShell width="wide">
@@ -133,59 +141,37 @@ export default function OverviewPage() {
           queryClient.invalidateQueries({ queryKey: ["dashboard-discovery"] });
         }}
       />
-      {/* Hero header. Was the app's only `text-3xl` title, and sat in a
-          non-wrapping `items-end justify-between` row: because the URL is one
-          unbreakable word, its automatic minimum size was the full URL width,
-          so a long org name plus a long domain forced the row wider than the
-          viewport rather than either side giving way. PageHeader stacks the
-          two under `sm` and puts the page on the same title scale as every
-          other route.
 
-          The explicit max-width is load-bearing. PageHeader holds its actions
-          track at natural width (`shrink-0`) so buttons are never squashed —
-          which means a variable-width action like this one has to cap itself,
-          or `truncate` below can never engage.
-
-          The cap is flat, not viewport-relative, and it steps UP rather than
-          down. Below `sm` this link already owns a full-width row of its own
-          (PageHeader is `flex-col` there), so a `vw` cap only truncated the
-          URL earlier than necessary for no gain. The binding case is the
-          opposite end: at a 768px viewport the sidebar is expanded and the
-          content area is just 464px, so a generous cap here would leave the
-          org name a ~164px column. 192px until `lg`, 288px above it.
-
-          One deliberate visual change: the link used to be `items-end`
-          (baseline-aligned with the description); PageHeader is
-          `sm:items-start`, so it now sits level with the title. */}
-      <PageHeader
-        title={org?.name || "Dashboard"}
-        description={stats?.businessType || "Your AI marketing command center"}
-        actions={
-          stats?.websiteUrl ? (
-            <a
-              href={stats.websiteUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground sm:max-w-48 lg:max-w-72"
-            >
-              <Globe className="h-3 w-3 shrink-0" />
-              <span className="truncate">
-                {stats.websiteUrl
-                  .replace(/^https?:\/\/(www\.)?/, "")
-                  .replace(/\/$/, "")}
-              </span>
-            </a>
-          ) : undefined
-        }
+      {/* ★THE BUSINESS NAME, NOT THE ORG NAME. They are usually the same string
+          — and where they differ, the business is the one every surface below
+          this point is scoped to. The org is a billing container. */}
+      <OverviewGreeting
+        businessName={business?.name ?? org?.name}
+        websiteUrl={stats?.websiteUrl}
       />
 
-      {/* What ran overnight. Sits directly under the header because it
+      {/* What ran overnight. Sits directly under the greeting because it
           answers the question the page is opened to ask. */}
       <OvernightRibbon activity={home?.activity} />
 
       {/* Discovery progress strip — only visible while a bg job is alive */}
       {discovery?.activeJob && (
         <DiscoveryProgressStrip jobId={discovery.activeJob.jobId} />
+      )}
+
+      {/* Setup nudge — only while something is genuinely outstanding. */}
+      {stats && !onboardingComplete && (
+        <SetupChecklist steps={setupSteps(stats, hasContent, anyConnection)} />
+      )}
+
+      {isError && (
+        <div
+          role="alert"
+          className="flex items-center gap-3 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive"
+        >
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          Failed to load dashboard data. Please try refreshing.
+        </div>
       )}
 
       {/* Footprint review — auto-archives once all entries are reviewed */}
@@ -198,6 +184,89 @@ export default function OverviewPage() {
         <RecommendationsCard recommendations={discovery.pendingRecommendations} />
       )}
 
+      {/* ── Your business at a glance ─────────────────────────
+          The four figures, each with what it means and one next step. Every
+          card links to the exact screen its number is about, so a count is
+          never a dead end. */}
+      <BusinessAtAGlance>
+        <GlanceCard
+          label="Content library"
+          icon={FileText}
+          series={2}
+          value={hasContent ? stats?.content.total : null}
+          meaning={
+            stats?.content.tagged
+              ? `${stats.content.tagged} analysed by AI and ready to repurpose`
+              : "Waiting to be analysed — tagging runs automatically"
+          }
+          action="Open library"
+          href="/dashboard/content"
+          emptyAction="Import your first content"
+          loading={isLoading}
+        />
+        <GlanceCard
+          label="High potential"
+          icon={Star}
+          series={2}
+          value={hasContent ? stats?.content.highPotential : null}
+          meaning={
+            (stats?.content.highPotential ?? 0) > 0
+              ? "Scored 7+ for ad potential — the best candidates to put budget behind"
+              : "Nothing has scored 7+ yet. Scores land as content is analysed."
+          }
+          action={
+            (stats?.content.highPotential ?? 0) > 0 ? "Turn one into an ad" : "See how scoring works"
+          }
+          href="/dashboard/content"
+          emptyAction="Add content to start scoring"
+          loading={isLoading}
+        />
+        <GlanceCard
+          label="Active campaigns"
+          icon={Megaphone}
+          series={3}
+          // A real zero, shown as zero: this business HAS an ads connection and
+          // the honest answer is "none running". Only an org with no ads
+          // connection at all gets the invitation instead.
+          value={stats?.connections.linkedinAds ? stats?.campaigns.active : null}
+          meaning={
+            stats?.campaigns.total
+              ? `${stats.campaigns.total} created in total`
+              : "No campaigns yet — your first can run off content you already have"
+          }
+          action={stats?.campaigns.active ? "Review performance" : "Launch your first"}
+          href="/dashboard/ads?channel=linkedin"
+          emptyAction="Connect ads to run campaigns"
+          loading={isLoading}
+        />
+        {/* Customers has no data source until outcomes attribution has an ads
+            connection to read. It shows the reason as the next step rather
+            than a placeholder figure — a dash in a headline slot is the
+            clearest way to tell someone software is unfinished. */}
+        <GlanceCard
+          label="Customers"
+          icon={Users}
+          series={4}
+          value={null}
+          action="See what gets tracked"
+          href="/dashboard/outcomes"
+          emptyAction="Connect ads to start tracking"
+          loading={isLoading}
+        />
+      </BusinessAtAGlance>
+
+      {/* Every decision the platform is holding, in one list, beside what the
+          platform has been getting done on its own. What needs you, and what
+          did not. */}
+      <div className="grid gap-4 lg:grid-cols-[1.05fr_0.95fr]">
+        <WaitingForYou
+          items={home?.needsYou}
+          total={home?.kpis.needsYou}
+          isLoading={homeLoading}
+        />
+        <WorkCompletedCard />
+      </div>
+
       {/* "What we understand about you" — the Brand Mirror. Self-fetching;
           renders nothing until there is understanding to reflect. */}
       <BrandMirrorCard />
@@ -205,94 +274,17 @@ export default function OverviewPage() {
       {/* Ask Peakhour entry point (self-hides unless the flag is on). */}
       <AskCard />
 
-      {isError && (
-        <div
-          role="alert"
-          className="flex items-center gap-3 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive"
-        >
-          <AlertCircle className="h-4 w-4 shrink-0" />
-          Failed to load dashboard data. Please try refreshing.
-        </div>
-      )}
-
-      {/* Setup nudge — only when onboarding not complete */}
-      {stats && !onboardingComplete && (
-        <SetupBanner stats={stats} />
-      )}
-
-      {/* KPI Grid */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <KpiCard
-          label="Content Library"
-          value={stats?.content.total}
-          change={stats?.content.tagged ? `${stats.content.tagged} AI-tagged` : undefined}
-          icon={FileText}
-          series={4}
-          loading={isLoading}
-          href="/dashboard/content"
-        />
-        <KpiCard
-          label="High Potential"
-          value={stats?.content.highPotential}
-          change="Ad score 7+"
-          icon={Star}
-          series={1}
-          loading={isLoading}
-          href="/dashboard/content"
-        />
-        {/* Zero campaigns is a real, correct number — so it shows as 0 with
-            the next step beside it, rather than the apologetic "Not started
-            yet" that made a working tile look like an unbuilt one. */}
-        <KpiCard
-          label="Active Campaigns"
-          value={stats?.campaigns.active}
-          change={
-            stats?.campaigns.total
-              ? `${stats.campaigns.total} total`
-              : "Launch your first"
-          }
-          icon={Megaphone}
-          series={2}
-          loading={isLoading}
-          href="/dashboard/ads?channel=linkedin"
-        />
-        {/* Customers has no data source yet — outcomes attribution needs an
-            ads connection. It used to render a hardcoded "--" in the headline
-            slot, which is the single clearest way to tell someone software is
-            unfinished. `unavailable` renders the same tile as an invitation
-            instead: no fake figure, and the reason is the call to action. */}
-        <KpiCard
-          label="Customers"
-          unavailable="Connect ads to start tracking"
-          icon={Users}
-          series={3}
-          loading={isLoading}
-          href="/dashboard/outcomes"
-        />
-      </div>
-
-      {/* Every decision the platform is holding, in one list. Cross-pillar:
-          a failed post and an unread pricing recommendation ask the same
-          thing of the same person, so they belong in the same queue. */}
-      {/* The queue and the spend sit side by side: what needs a decision,
-          and what the decisions have been costing. */}
-      <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
-        <WaitingForYou
-          items={home?.needsYou}
-          total={home?.kpis.needsYou}
-          isLoading={homeLoading}
-        />
-        <PeaksTrendCard />
-      </div>
-
-      {/* Two-column layout */}
+      {/* ── Setup state ───────────────────────────────────────
+          ★MOVED OUT FROM BESIDE "WAITING FOR YOU", ON PURPOSE. Neither of these
+          is a decision being held: an unconnected channel is a standing option
+          and an unfinished setup step is a state. Sitting them next to the
+          queue is what made the queue's count stop meaning anything urgent. */}
       <div className="grid gap-4 lg:grid-cols-5">
-        {/* Left: Integrations status — wider */}
         <Card className="lg:col-span-3">
           <CardHeader className="pb-4">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-base font-semibold">Integrations</CardTitle>
-              <Button asChild variant="ghost" size="sm" className="text-xs gap-1 text-muted-foreground">
+              <CardTitle className="text-base font-semibold">Connected channels</CardTitle>
+              <Button asChild variant="ghost" size="sm" className="gap-1 text-xs text-muted-foreground">
                 <Link href="/dashboard/integrations">
                   Manage
                   <ArrowUpRight className="h-3 w-3" />
@@ -331,62 +323,43 @@ export default function OverviewPage() {
               loading={isLoading}
               connectedLabel={hasContent ? `${stats?.content.total} posts synced` : "Connected"}
             />
-            {!isLoading &&
-              !(
-                stats?.connections.linkedinContent ||
-                stats?.connections.linkedinAds ||
-                stats?.connections.beehiiv
-              ) && (
-                <Button asChild size="sm" className="w-full mt-2">
-                  <Link href="/dashboard/integrations">
-                    <Plug className="h-3.5 w-3.5 mr-1.5" />
-                    Connect your first integration
-                  </Link>
-                </Button>
-              )}
+            {!isLoading && !anyConnection && (
+              <Button asChild size="sm" className="mt-2 w-full">
+                <Link href="/dashboard/integrations">
+                  <Plug className="mr-1.5 h-3.5 w-3.5" />
+                  Connect your first channel
+                </Link>
+              </Button>
+            )}
           </CardContent>
         </Card>
 
-        {/* Right: AI Engine status */}
         <Card className="lg:col-span-2">
           <CardHeader className="pb-4">
             <div className="flex items-center gap-2">
               <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10">
                 <Sparkles className="h-4 w-4 text-primary" />
               </div>
-              <CardTitle className="text-base font-semibold">AI Engine</CardTitle>
+              <CardTitle className="text-base font-semibold">AI engine</CardTitle>
             </div>
           </CardHeader>
           <CardContent className="space-y-3">
             <EngineStep
-              label="Business analyzed"
+              label="Business analysed"
               done={stats?.hasTaxonomy}
               loading={isLoading}
             />
-            <EngineStep
-              label="Content imported"
-              done={hasContent}
-              loading={isLoading}
-            />
-            <EngineStep
-              label="Budget configured"
-              done={stats?.hasBudget}
-              loading={isLoading}
-            />
-            <EngineStep
-              label="Onboarding complete"
-              done={onboardingComplete}
-              loading={isLoading}
-            />
+            <EngineStep label="Content imported" done={hasContent} loading={isLoading} />
+            <EngineStep label="Budget configured" done={stats?.hasBudget} loading={isLoading} />
 
             {!isLoading && onboardingComplete && (
-              <div className="rounded-xl bg-primary/5 border border-primary/10 px-4 py-3 mt-2">
+              <div className="mt-2 rounded-xl border border-primary/10 bg-primary/5 px-4 py-3">
                 <div className="flex items-center gap-2 text-sm font-medium text-primary">
                   <Zap className="h-4 w-4" />
                   Engine active
                 </div>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  AI is analyzing content and generating insights
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  AI is analysing content and generating insights
                 </p>
               </div>
             )}
@@ -394,202 +367,57 @@ export default function OverviewPage() {
         </Card>
       </div>
 
-      {/* Quick actions — only when onboarding complete */}
-      {onboardingComplete && (
-        <div className="grid gap-3 sm:grid-cols-3">
-          <QuickAction
-            href="/dashboard/content"
-            icon={FileText}
-            label="Browse content"
-            description="View tagged newsletters"
-          />
-          <QuickAction
-            href="/dashboard/integrations"
-            icon={Plug}
-            label="Manage integrations"
-            description="Connect or sync platforms"
-          />
-          <QuickAction
-            href="/dashboard/settings"
-            icon={TrendingUp}
-            label="Business settings"
-            description="Edit taxonomy and budget"
-          />
-        </div>
-      )}
+      <QuickActions />
     </PageShell>
   );
 }
 
-// ── Setup Banner ───────────────────────────────────────────
-
-function SetupBanner({ stats }: { stats: DashboardStats }) {
-  // Budget is no longer collected during onboarding — moved to settings.
-  // Pointing the user at the integrations page is the natural next step
-  // after onboarding completes.
-  const steps = [
-    { done: stats.hasTaxonomy, label: "Tell us about you", href: "/onboarding/add-business" },
-    { done: stats.connections.beehiiv || stats.connections.linkedinContent || stats.connections.linkedinAds, label: "Connect a platform", href: "/dashboard/integrations" },
-    { done: stats.hasBudget, label: "Set ad budget", href: "/dashboard/settings/billing" },
-  ];
-
-  const nextStep = steps.find((s) => !s.done);
-  const completedCount = steps.filter((s) => s.done).length;
-
-  // Self-hide when every visible step is done. The outer parent already
-  // hides on `stats.onboarding.completed`, but that persisted flag can
-  // be stale for businesses that completed the steps before the flag
-  // existed (or whose flag never got set due to an onboarding-cron
-  // hiccup). Without this guard, the banner would render as "3 of 3
-  // steps complete" with no CTA — pure clutter for a user who has
-  // already finished setup. Matches the existing "Engine active"
-  // sub-banner pattern in the AI Engine card.
-  if (completedCount === steps.length) {
-    return null;
-  }
-
-  return (
-    <Card className="overflow-hidden border-0 bg-linear-to-r from-primary/8 via-primary/4 to-transparent">
-      <CardContent className="flex items-center justify-between py-5">
-        <div className="flex items-center gap-4">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10">
-            <Sparkles className="h-6 w-6 text-primary" />
-          </div>
-          <div>
-            <p className="text-sm font-semibold">
-              Set up your AI engine
-            </p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {completedCount} of {steps.length} steps complete
-            </p>
-            {/* Step dots */}
-            <div className="flex gap-1.5 mt-2">
-              {steps.map((s, i) => (
-                <div
-                  key={i}
-                  className={`h-1.5 w-8 rounded-full transition-colors ${
-                    s.done ? "bg-primary" : "bg-muted"
-                  }`}
-                />
-              ))}
-            </div>
-          </div>
-        </div>
-        {nextStep && (
-          <Button asChild size="sm" className="gap-1.5">
-            <Link href={nextStep.href}>
-              {nextStep.label}
-              <ArrowRight className="h-3.5 w-3.5" />
-            </Link>
-          </Button>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-// ── KPI Card ───────────────────────────────────────────────
+// ── Setup steps ────────────────────────────────────────────
 
 /**
- * Which chart series this figure belongs to, in the platform's fixed pillar
- * order: 1 Commerce · 2 Content · 3 Growth · 4 Support · 5 Presence.
+ * The three things "Set up your AI engine" is actually measuring, each pointed
+ * at the screen that changes it.
  *
- * Replaces the free-form `iconBg` class string these cards used to take
- * (`"bg-state-info/10 text-state-info-on-tint"` and friends). Raw
- * Tailwind hues meant a metric's colour was decided per call site, drifted
- * between surfaces, and had nothing to do with the colour the same metric
- * gets when it's plotted. Going through --chart-* makes the tile and the
- * chart agree by construction, and picks up the dark-mode step for free.
+ * ★STEP ONE GOES TO THE BUSINESS PROFILE, NOT TO /onboarding/add-business.
+ * That was the "incorrect upgrade error": add-business ends at
+ * `POST /onboarding/confirm`, which gates on the plan's Business capacity and
+ * answers 402 BUSINESS_LIMIT_REACHED for any org that already has its one
+ * business — i.e. every org that can see this banner. The dashboard asked the
+ * owner to finish telling us about their business and the product replied that
+ * they had to upgrade to add another one. `/dashboard/growth/business` is the
+ * screen that reads and writes the profile for the business already in the
+ * session, which is the thing this step measures.
+ *
+ * ★AND STEP THREE IS NO LONGER "onboarding complete". The old list carried a
+ * fourth row for the persisted flag, which is not a step — it is the SUMMARY of
+ * the other three. An owner who had done all three still saw "3 of 4", with a
+ * fourth item they could not act on.
  */
-type PillarSeries = 1 | 2 | 3 | 4 | 5;
-
-/**
- * Icon on a tint of its own series colour. Verified ≥3:1 against that tint in
- * both themes — the non-text threshold, which is the right one here because
- * these are icons; the label and value beside them wear text tokens.
- */
-const SERIES_TINT: Record<PillarSeries, string> = {
-  1: "bg-chart-1/12 text-chart-1 dark:bg-chart-1/18",
-  2: "bg-chart-2/12 text-chart-2 dark:bg-chart-2/18",
-  3: "bg-chart-3/12 text-chart-3 dark:bg-chart-3/18",
-  4: "bg-chart-4/12 text-chart-4 dark:bg-chart-4/18",
-  5: "bg-chart-5/12 text-chart-5 dark:bg-chart-5/18",
-};
-
-function KpiCard({
-  label,
-  value,
-  change,
-  unavailable,
-  icon: Icon,
-  series,
-  loading,
-  href,
-}: {
-  label: string;
-  value?: number | string;
-  change?: string;
-  /**
-   * This metric has no data source yet — say what would switch it on rather
-   * than printing a placeholder figure. A dash or an em-dash in a headline
-   * slot reads as broken software; an invitation reads as a next step, and
-   * both are honest about there being no number.
-   */
-  unavailable?: string;
-  icon: React.ElementType;
-  series: PillarSeries;
-  loading: boolean;
-  href: string;
-}) {
-  return (
-    <Link href={href} className="group">
-      {/* u-lift/u-rail are the shared motion primitives from globals.css,
-          applied through className so <Card> itself stays regenerable. Both
-          are pointer-guarded and inert under prefers-reduced-motion. */}
-      <Card className="u-lift u-rail relative h-full overflow-hidden">
-        <CardContent className="pt-5 pb-4">
-          <div className="flex items-center justify-between mb-3">
-            <div
-              className={`flex h-9 w-9 items-center justify-center rounded-xl transition-transform duration-300 ease-brand group-hover:-rotate-6 group-hover:scale-110 motion-reduce:transition-none motion-reduce:group-hover:rotate-0 motion-reduce:group-hover:scale-100 ${SERIES_TINT[series]}`}
-            >
-              <Icon className="h-4.5 w-4.5" />
-            </div>
-            <ArrowUpRight className="h-4 w-4 text-muted-foreground/0 group-hover:text-muted-foreground transition-colors" />
-          </div>
-          {/* An unavailable metric keeps the tile's shape but drops the
-              number entirely — the label leads, and the reason takes the
-              slot the figure would have held. */}
-          {!unavailable && (
-            <div className="text-2xl font-bold tabular-nums tracking-tight">
-              {loading ? (
-                <span className="inline-block h-8 w-14 animate-pulse rounded-lg bg-muted" />
-              ) : (
-                (value ?? 0)
-              )}
-            </div>
-          )}
-          <p
-            className={cn(
-              "text-xs font-medium text-muted-foreground",
-              unavailable ? "text-sm font-semibold text-foreground" : "mt-0.5",
-            )}
-          >
-            {label}
-          </p>
-          {unavailable ? (
-            <p className="mt-1 inline-flex items-center gap-1 text-[11px] font-medium text-brand-label">
-              {unavailable}
-              <ArrowRight className="size-3" aria-hidden />
-            </p>
-          ) : (
-            change && (
-              <p className="text-[11px] text-muted-foreground/70 mt-1">{change}</p>
-            )
-          )}
-        </CardContent>
-      </Card>
-    </Link>
-  );
+function setupSteps(
+  stats: DashboardStats,
+  hasContent: boolean,
+  anyConnection: boolean,
+): SetupStep[] {
+  return [
+    {
+      label: "Tell us about your business",
+      detail: "What you sell and who for — everything we write is grounded in this.",
+      done: Boolean(stats.hasTaxonomy),
+      href: "/dashboard/growth/business",
+    },
+    {
+      label: "Connect a channel",
+      detail: "Where Peakhour publishes and listens. One is enough to start.",
+      done: anyConnection,
+      href: "/dashboard/integrations",
+    },
+    {
+      label: "Bring in your content",
+      detail: "Import or write your first piece so there is something to work with.",
+      done: hasContent,
+      href: "/dashboard/content",
+    },
+  ];
 }
 
 // ── Integration Row ────────────────────────────────────────
@@ -619,25 +447,25 @@ function IntegrationRow({
         <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-white ${iconBg}`}>
           {icon}
         </div>
-        <div className="flex-1 min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="text-sm font-medium">{name}</p>
-          <p className="text-[11px] text-muted-foreground truncate">{description}</p>
+          <p className="truncate text-[11px] text-muted-foreground">{description}</p>
         </div>
         {loading ? (
           <span className="inline-block h-5 w-16 animate-pulse rounded-full bg-muted" />
         ) : connected ? (
-          <Badge className="bg-success/90 text-[10px] gap-1 shrink-0 font-medium">
+          <Badge className="shrink-0 gap-1 bg-success/90 text-[10px] font-medium">
             <CheckCircle className="h-2.5 w-2.5" />
             {connectedLabel || "Live"}
           </Badge>
         ) : (
-          <Badge variant="outline" className="text-[10px] text-muted-foreground shrink-0">
+          <Badge variant="outline" className="shrink-0 text-[10px] text-muted-foreground">
             Not connected
           </Badge>
         )}
       </div>
       {warning && (
-        <div className="rounded-lg bg-warning/10 px-3 py-1.5 text-[11px] text-warning-on-tint flex items-center gap-1.5 ml-11">
+        <div className="ml-11 flex items-center gap-1.5 rounded-lg bg-warning/10 px-3 py-1.5 text-[11px] text-warning-on-tint">
           <AlertCircle className="h-3 w-3 shrink-0" />
           {warning}
         </div>
@@ -660,45 +488,13 @@ function EngineStep({
   return (
     <div className="flex items-center gap-3 text-sm">
       {loading ? (
-        <span className="inline-block h-5 w-5 animate-pulse rounded-full bg-muted shrink-0" />
+        <span className="inline-block h-5 w-5 shrink-0 animate-pulse rounded-full bg-muted" />
       ) : done ? (
-        <CheckCircle className="h-5 w-5 text-success shrink-0" />
+        <CheckCircle className="h-5 w-5 shrink-0 text-success" />
       ) : (
-        <div className="h-5 w-5 rounded-full border-2 border-muted shrink-0" />
+        <div className="h-5 w-5 shrink-0 rounded-full border-2 border-muted" />
       )}
-      <span className={done ? "text-foreground" : "text-muted-foreground"}>
-        {label}
-      </span>
+      <span className={done ? "text-foreground" : "text-muted-foreground"}>{label}</span>
     </div>
-  );
-}
-
-// ── Quick Action ───────────────────────────────────────────
-
-function QuickAction({
-  href,
-  icon: Icon,
-  label,
-  description,
-}: {
-  href: string;
-  icon: React.ElementType;
-  label: string;
-  description: string;
-}) {
-  return (
-    <Link href={href} className="group">
-      <Card className="transition-all hover:shadow-md hover:border-primary/20">
-        <CardContent className="flex items-center gap-3 py-4">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-muted group-hover:bg-primary/10 transition-colors">
-            <Icon className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
-          </div>
-          <div>
-            <p className="text-sm font-medium">{label}</p>
-            <p className="text-[11px] text-muted-foreground">{description}</p>
-          </div>
-        </CardContent>
-      </Card>
-    </Link>
   );
 }

@@ -10,6 +10,8 @@ import { resolveBrandLogo } from "@/lib/brand-logos";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Search } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollableTabsList } from "@/components/scrollable-tabslist";
@@ -22,6 +24,7 @@ import {
 } from "./channels.config";
 import { mapCatalogToChannels } from "./channels-from-catalog";
 import { resolveChannelCta } from "./channel-cta";
+import { filterChannels, groupChannels, type ChannelGroup } from "./channel-groups";
 import { PageShell } from "@/components/dashboard/page-shell";
 
 interface ApiIntegration {
@@ -92,6 +95,28 @@ export default function ContentChannelsHubPage() {
     return map;
   }, [integrations]);
 
+  // Search is local state, not URL-synced. This is a within-page find rather
+  // than a filter worth linking to or coming back to — nobody bookmarks a
+  // channel-list search — and a URL round-trip per keystroke would make the
+  // input feel heavier than the list it is filtering.
+  const [search, setSearch] = useState("");
+
+  /**
+   * The three groups, per tab.
+   *
+   * Memoised on the resolved connection map rather than on the raw response, so
+   * a refetch that returns identical connection state does not re-bucket the
+   * whole list. `resolveChannelCta` is the SAME call each row makes for its own
+   * CTA, so a row can never sit in a bucket that disagrees with its button.
+   */
+  const groupsFor = useMemo(
+    () => (list: ChannelConfig[]): ChannelGroup[] =>
+      groupChannels(filterChannels(list, search), (channel) =>
+        resolveChannelCta(channel, connections.get(channel.providerKey)),
+      ),
+    [connections, search],
+  );
+
   const cronToolbar = (
     <CronToolbar
       crons={[
@@ -120,10 +145,31 @@ export default function ContentChannelsHubPage() {
     <PageShell>
       {cronToolbar}
       <header className="space-y-2 border-b pb-6">
-        <h1 className="text-2xl font-semibold tracking-tight">Content channels</h1>
-        <p className="text-sm text-muted-foreground">
-          Connect content sources to ingest, repurpose, and publish across every channel.
-        </p>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0 space-y-2">
+            <h1 className="text-2xl font-semibold tracking-tight">Content channels</h1>
+            <p className="text-sm text-muted-foreground">
+              Connect content sources to ingest, repurpose, and publish across every channel.
+            </p>
+          </div>
+          {/* Top-right, and `type="search"` so the browser offers its own clear
+              affordance rather than us shipping a second one. `shrink-0` keeps
+              it from being squeezed by a long heading at tablet widths. */}
+          <div className="relative w-full shrink-0 sm:w-64">
+            <Search
+              className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+              aria-hidden
+            />
+            <Input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search channels"
+              aria-label="Search channels"
+              className="pl-8"
+            />
+          </div>
+        </div>
         {isError && (
           <p className="text-sm text-destructive">
             Couldn&rsquo;t load connection status. The list below shows availability only.
@@ -143,40 +189,100 @@ export default function ContentChannelsHubPage() {
           </TabsList>
         </ScrollableTabsList>
 
-        <TabsContent value={ALL_TAB} className="mt-6 space-y-3">
-          {channels.map((channel) => (
-            <ChannelRow
-              key={channel.slug}
-              channel={channel}
-              integration={connections.get(channel.providerKey)}
-              connectionStateUnknown={isError && !data}
-            />
-          ))}
+        <TabsContent value={ALL_TAB} className="mt-6">
+          <ChannelGroups
+            groups={groupsFor(channels)}
+            connections={connections}
+            connectionStateUnknown={isError && !data}
+            search={search}
+          />
         </TabsContent>
 
-        {CHANNEL_CATEGORIES.map((category) => {
-          const inCategory = channels.filter((c) => c.category === category);
-          return (
-            <TabsContent key={category} value={category} className="mt-6 space-y-3">
-              {inCategory.length === 0 ? (
-                <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-                  No channels in this category yet.
-                </p>
-              ) : (
-                inCategory.map((channel) => (
+        {CHANNEL_CATEGORIES.map((category) => (
+          <TabsContent key={category} value={category} className="mt-6">
+            <ChannelGroups
+              groups={groupsFor(channels.filter((c) => c.category === category))}
+              connections={connections}
+              connectionStateUnknown={isError && !data}
+              search={search}
+              emptyLabel="No channels in this category yet."
+            />
+          </TabsContent>
+        ))}
+      </Tabs>
+    </PageShell>
+  );
+}
+
+/**
+ * The three groups, rendered in order with their headings.
+ *
+ * ★AN EMPTY GROUP KEEPS ITS HEADING, WITH ONE EXCEPTION. "Connected — nothing
+ * connected yet" is the single most useful line on this page for a new
+ * merchant, and dropping it would leave them looking at a list of thirty
+ * options with nothing telling them where they stand. The exception is a
+ * SEARCH: while filtering, an empty group is an artefact of the query rather
+ * than a fact about the account, so the headings collapse and one "no matches"
+ * line takes their place.
+ */
+function ChannelGroups({
+  groups,
+  connections,
+  connectionStateUnknown,
+  search,
+  emptyLabel = "No channels here yet.",
+}: {
+  groups: ChannelGroup[];
+  connections: ConnectionMap;
+  connectionStateUnknown: boolean;
+  search: string;
+  emptyLabel?: string;
+}) {
+  const searching = search.trim().length > 0;
+  const total = groups.reduce((n, g) => n + g.channels.length, 0);
+
+  if (total === 0) {
+    return (
+      <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+        {searching ? `No channels match "${search.trim()}".` : emptyLabel}
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {groups.map((group) => {
+        if (searching && group.channels.length === 0) return null;
+        return (
+          <section key={group.key} className="space-y-3">
+            <h2 className="flex items-baseline gap-2 text-sm font-semibold">
+              {group.title}
+              {group.channels.length > 0 && (
+                <span className="font-mono text-xs font-normal tabular-nums text-muted-foreground">
+                  {group.channels.length}
+                </span>
+              )}
+            </h2>
+            {group.channels.length === 0 ? (
+              <p className="rounded-lg border border-dashed px-4 py-3 text-sm text-muted-foreground">
+                {group.empty}
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {group.channels.map((channel) => (
                   <ChannelRow
                     key={channel.slug}
                     channel={channel}
                     integration={connections.get(channel.providerKey)}
-                    connectionStateUnknown={isError && !data}
+                    connectionStateUnknown={connectionStateUnknown}
                   />
-                ))
-              )}
-            </TabsContent>
-          );
-        })}
-      </Tabs>
-    </PageShell>
+                ))}
+              </div>
+            )}
+          </section>
+        );
+      })}
+    </div>
   );
 }
 
