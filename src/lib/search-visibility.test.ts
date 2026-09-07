@@ -1,8 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
+  badgeVariant,
   blockerNote,
   headline,
   isUsableVisibility,
+  legendEntries,
   stateLabel,
   windowPhrase,
   windowSentence,
@@ -49,20 +51,43 @@ const ready = (over: Partial<VisibilityReady> = {}): VisibilityReady => ({
   ...over,
 });
 
+/**
+ * The same date the code would format, in UTC and in the ambient zone.
+ *
+ * ★★NEITHER THE LOCALE NOR THE TIMEZONE IS ASSUMED. A first version matched
+ * `/\b6 \w+ 2026\b/`, which holds only on a day-first locale: `en-IN` gives
+ * "6 Sept 2026" and `en-US` — the default when `LANG` is unset, as on most CI
+ * boxes — gives "Sep 6, 2026". The regex pinned the FIELD ORDER while its own
+ * comment claimed to be avoiding exactly that. Both specs would have gone red
+ * on CI, and the mutation harness would have aborted at killer pre-flight with
+ * its designated killer already failing.
+ *
+ * ★SO THE EXPECTATION IS COMPUTED THE WAY THE CODE COMPUTES IT, and the
+ * UTC-ness is asserted by DIFFERENCE from the local rendering rather than by a
+ * hard-coded day number.
+ */
+const OPTS = { day: "numeric", month: "short", year: "numeric" } as const;
+const utcDate = (iso: string) =>
+  new Date(iso).toLocaleDateString(undefined, { ...OPTS, timeZone: "UTC" });
+const localDate = (iso: string) => new Date(iso).toLocaleDateString(undefined, OPTS);
+
 describe("headline — the sentence the feature is for", () => {
   it("makes the strong claim only when the gate is open, and dates it", () => {
     const h = headline(ready());
+    const w = ready().window!;
     expect(h.asserted).toBe(true);
     expect(h.count).toBe(11);
     expect(h.text).toContain("11 products have not appeared in a Google search");
-    // ★★THE DAY NUMBERS ARE ASSERTED, NOT THE MONTH SPELLING. The window is UTC
-    // by construction and must print as UTC: a close of 6 Sep 23:59:59Z reads
-    // "7 Sept" for every merchant east of UTC, silently moving a dated claim
-    // about their business by a day. The month abbreviation is locale-dependent
-    // ("Sep" / "Sept") and asserting it would only pin the runner's locale.
-    expect(h.text).toMatch(/\b9 \w+ 2026\b/);
-    expect(h.text).toMatch(/\b6 \w+ 2026\b/);
-    expect(h.text).not.toMatch(/\b7 \w+ 2026\b/);
+    expect(h.text).toContain(utcDate(w.start));
+    expect(h.text).toContain(utcDate(w.end));
+    // ★★THE CLOSE IS THE ONE THAT MOVES. `2026-09-06T23:59:59.999Z` renders as
+    // the NEXT day everywhere east of UTC, so a dated claim about a merchant's
+    // business would silently shift by a day. Asserted only where the two
+    // renderings actually differ — on a UTC runner they are the same string,
+    // and demanding they differ would fail for the right code.
+    if (localDate(w.end) !== utcDate(w.end)) {
+      expect(h.text).not.toContain(localDate(w.end));
+    }
   });
 
   // ★★THE GATE IS NOT A HINT. With a blocker set the numbers look identical and
@@ -198,11 +223,69 @@ describe("stateLabel", () => {
   });
 });
 
+describe("badgeVariant", () => {
+  // ★★`no_url` AND `unknown` MUST NOT LOOK ALIKE. `no_url` is the one row state
+  // the merchant can act on today; `unknown` is a gap in OUR data and asks
+  // nothing of them. A first cut mapped success→default and everything else to
+  // secondary, painting the actionable row and the do-nothing row identically.
+  it("keeps the actionable state visually distinct from the do-nothing one", () => {
+    expect(badgeVariant(stateLabel("no_url").tone)).toBe("destructive");
+    expect(badgeVariant(stateLabel("unknown").tone)).toBe("secondary");
+    expect(badgeVariant(stateLabel("no_url").tone)).not.toBe(
+      badgeVariant(stateLabel("unknown").tone),
+    );
+  });
+
+  it("gives each of the four tones its own variant", () => {
+    const variants = (["success", "warning", "neutral", "critical"] as const).map(badgeVariant);
+    expect(new Set(variants).size).toBe(4);
+  });
+});
+
+describe("legendEntries", () => {
+  // ★ONLY THE STATES PRESENT, so the legend never explains a row that is not
+  // on screen.
+  it("explains only the states actually present, once each", () => {
+    const entries = legendEntries([
+      { state: "earning" },
+      { state: "earning" },
+      { state: "no_url" },
+    ]);
+    expect(entries.map((e) => e.state)).toEqual(["earning", "no_url"]);
+  });
+
+  // ★AND CARRIES THE BLURB, which is the whole reason it exists — the copy was
+  // dead until something rendered it, and dead copy in this file is scored by
+  // the harness and reported healthy.
+  it("carries a non-empty blurb and a variant for each entry", () => {
+    const [e] = legendEntries([{ state: "seen_not_clicked" }]);
+    expect(e.blurb).not.toBe("");
+    expect(e.label).toBe("Shown, not clicked");
+    expect(e.tone).toBe("outline");
+  });
+
+  // ★AN UNRECOGNISED STATE CONTRIBUTES NO EMPTY LINE. It has no blurb, so there
+  // is nothing to explain — but it still appears as a row badge above.
+  it("skips a state it cannot explain rather than printing a blank row", () => {
+    expect(legendEntries([{ state: "future_state" }])).toEqual([]);
+  });
+
+  it("survives missing and malformed entries", () => {
+    expect(legendEntries([])).toEqual([]);
+    expect(legendEntries([{ state: undefined }, { state: null as never }])).toEqual([]);
+  });
+});
+
 describe("windowSentence / windowPhrase", () => {
   it("renders both dates with a dash when standalone", () => {
-    const s = windowSentence({ start: "2026-08-09T00:00:00.000Z", end: "2026-09-06T23:59:59.999Z" });
+    const w = { start: "2026-08-09T00:00:00.000Z", end: "2026-09-06T23:59:59.999Z" };
+    const s = windowSentence(w);
     expect(s).toContain("–");
-    expect(s).toMatch(/\b6 \w+ 2026\b/);
+    // ★COMPUTED, NOT PATTERN-MATCHED — see the note on `utcDate`. A regex here
+    // pins the locale's FIELD ORDER: en-IN renders "6 Sept 2026" and en-US
+    // "Sep 6, 2026", and the second is the default when LANG is unset.
+    expect(s).toContain(utcDate(w.end));
+    if (localDate(w.end) !== utcDate(w.end)) expect(s).not.toContain(localDate(w.end));
   });
 
   it("joins them with a word inside a sentence", () => {

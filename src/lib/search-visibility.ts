@@ -149,6 +149,57 @@ export function stateLabel(state: string): {
   return { label: state, tone: "neutral", blurb: "" };
 }
 
+/** The Badge variants this surface has. */
+export type BadgeVariant = "default" | "secondary" | "destructive" | "outline";
+
+/**
+ * The four tones the states carry, mapped to the four Badge variants.
+ *
+ * ★★COLLAPSING THEM TO TWO MAKES `no_url` LOOK LIKE `unknown` — and those are
+ * the two that must NOT look alike. `no_url` is the one row state the merchant
+ * can act on today (the product has no address we can match); `unknown` is a gap
+ * in OUR data and asks nothing of them. A first cut mapped `success → default`
+ * and everything else to `secondary`, painting the actionable row and the
+ * do-nothing row identically.
+ *
+ * ★IT LIVES HERE, NOT IN THE COMPONENT, because this repo tests
+ * framework-agnostic logic and renders untested — so a decision left in the JSX
+ * is a decision nothing can score.
+ */
+export function badgeVariant(tone: "success" | "warning" | "neutral" | "critical"): BadgeVariant {
+  if (tone === "success") return "default";
+  if (tone === "critical") return "destructive";
+  if (tone === "warning") return "outline";
+  return "secondary";
+}
+
+/**
+ * Which verdicts to explain under the table, in the order they should read.
+ *
+ * ★ONLY THE STATES PRESENT, so the legend never explains a row that is not
+ * there — and only those with a blurb, so an unrecognised state contributes a
+ * badge to the list and no empty line.
+ *
+ * ★★AND IT EXISTS AT ALL BECAUSE THE BLURBS WERE DEAD. Copy no merchant can see
+ * is worse than none in this file, since the mutation harness scores it and
+ * reports the rule healthy. Its Shopify twin had the identical defect.
+ */
+export function legendEntries(
+  products: Array<{ state?: unknown }>,
+): Array<{ state: string; label: string; tone: BadgeVariant; blurb: string }> {
+  const seen = new Set<string>();
+  const out: Array<{ state: string; label: string; tone: BadgeVariant; blurb: string }> = [];
+  for (const p of products ?? []) {
+    const state = String(p?.state ?? "");
+    if (!state || seen.has(state)) continue;
+    seen.add(state);
+    const s = stateLabel(state);
+    if (!s.blurb) continue;
+    out.push({ state, label: s.label, tone: badgeVariant(s.tone), blurb: s.blurb });
+  }
+  return out;
+}
+
 /**
  * A window as the merchant reads it — two dates, never "the last 28 days".
  *

@@ -6,12 +6,15 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSearchVisibility } from "@/hooks/use-search-visibility";
 import {
+  badgeVariant,
   blockerNote,
   headline,
   isUsableVisibility,
+  legendEntries,
   stateLabel,
   windowSentence,
   type ProductRow,
+  type VisibilityReady,
 } from "@/lib/search-visibility";
 
 /**
@@ -88,7 +91,6 @@ export function SearchVisibilityPanel() {
   const caveat = blockerNote(ready.absenceBlockers);
   const when = windowSentence(ready.window);
   const rows = ready.products.slice(0, VISIBLE_ROWS);
-  const more = ready.matching - rows.length;
 
   return (
     <section className="mt-8">
@@ -131,11 +133,18 @@ export function SearchVisibilityPanel() {
         </ul>
       )}
 
-      {more > 0 && (
+      {/* ★★A COUNT, NOT A WORKLIST CLAIM. `matching` is the WHOLE catalogue
+          when no state filter is sent, which this hook never sends — so "and
+          490 more worth looking at first" printed directly under "every product
+          is showing up in Google search". The same sentence the products table
+          above already uses, and it is true in every state. */}
+      {ready.matching > rows.length && (
         <p className="mt-2 text-xs text-muted-foreground">
-          And {more} more — this list shows the {VISIBLE_ROWS} worth looking at first.
+          Showing the first {rows.length} of {ready.matching} products.
         </p>
       )}
+
+      <Legend ready={ready} />
     </section>
   );
 }
@@ -171,9 +180,33 @@ function Row({ product }: { product: ProductRow }) {
             {product.clicks.toLocaleString()} clicks
           </span>
         )}
-        <Badge variant={s.tone === "success" ? "default" : "secondary"}>{s.label}</Badge>
+        <Badge variant={badgeVariant(s.tone)}>{s.label}</Badge>
       </div>
     </li>
+  );
+}
+
+/**
+ * What each verdict means, for the states actually on screen.
+ *
+ * ★THE SELECTION IS `legendEntries` IN THE LIB, where it can be tested and
+ * mutated; this only draws it. This repo tests framework-agnostic logic and
+ * renders untested, so a decision left in the JSX is a decision nothing scores —
+ * which is how the blurbs came to be dead in the first place.
+ */
+function Legend({ ready }: { ready: VisibilityReady }) {
+  const entries = legendEntries(ready.products);
+  if (entries.length === 0) return null;
+  return (
+    <div className="mt-4 space-y-1">
+      <p className="text-xs font-medium">What these mean</p>
+      {entries.map((e) => (
+        <p key={e.state} className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          <Badge variant={e.tone}>{e.label}</Badge>
+          {e.blurb}
+        </p>
+      ))}
+    </div>
   );
 }
 

@@ -126,6 +126,30 @@ const MUTANTS = [
     killer: "rejects a products array containing a non-object entry",
   },
   {
+    name: "collapse the tones, painting the actionable row like the do-nothing one",
+    anchor: '  if (tone === "critical") return "destructive";',
+    mutated: '  if (tone === "critical") return "secondary";',
+    killer: "keeps the actionable state visually distinct from the do-nothing one",
+  },
+  {
+    name: "give two tones the same variant",
+    anchor: '  if (tone === "warning") return "outline";',
+    mutated: '  if (tone === "warning") return "secondary";',
+    killer: "gives each of the four tones its own variant",
+  },
+  {
+    name: "repeat a state in the legend, explaining the same badge twice",
+    anchor: "    if (!state || seen.has(state)) continue;",
+    mutated: "    if (!state) continue;",
+    killer: "explains only the states actually present, once each",
+  },
+  {
+    name: "print an empty legend line for a state we cannot explain",
+    anchor: "    if (!s.blurb) continue;",
+    mutated: "    if (false) continue;",
+    killer: "skips a state it cannot explain rather than printing a blank row",
+  },
+  {
     name: "describe `unknown` as a verdict on the product rather than a gap in our data",
     anchor: '    blurb: "We hold no search data for this product in the reported window.",',
     mutated: '    blurb: "Google has never shown this product.",',
