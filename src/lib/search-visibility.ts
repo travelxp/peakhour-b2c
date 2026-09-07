@@ -284,6 +284,27 @@ export function blockerNote(blockers: string[], opts: { subject?: boolean } = {}
 }
 
 /**
+ * The caveat for a result, with its lead already chosen.
+ *
+ * ★★THE ONE CALL A SURFACE SHOULD MAKE, because choosing the lead is a decision
+ * and it was being made where nothing scored it. The panel passed
+ * `{ subject: headline(ready).count > 0 }` itself — correct, and unverified:
+ * this repo renders untested, so dropping that second argument left the suite
+ * and the mutation sweep both green while reinstating the dangling pronoun the
+ * two leads exist to prevent.
+ *
+ * ★AND IT RECOMPUTES THE HEADLINE RATHER THAN TAKING IT, so a caller cannot
+ * hand it one headline and render another.
+ *
+ * ★THE SHOPIFY TWIN HAS THE IDENTICAL FUNCTION. It was extracted there first,
+ * and leaving this side inline was the very divergence the header forbids —
+ * caught by that PR's own third round rather than by anything here.
+ */
+export function caveatFor(r: VisibilityReady): string {
+  return blockerNote(r.absenceBlockers, { subject: headline(r).count > 0 });
+}
+
+/**
  * The headline, and whether it is the strong claim or the weak one.
  *
  * ── ★★THIS IS THE SENTENCE THE WHOLE FEATURE IS FOR, AND ITS ONE RISK ──────

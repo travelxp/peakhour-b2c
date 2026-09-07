@@ -109,6 +109,18 @@ const MUTANTS = [
     killer: "still says something for a reason it does not recognise",
   },
   {
+    name: "always use the subject lead from caveatFor, dangling the pronoun",
+    anchor: "  return blockerNote(r.absenceBlockers, { subject: headline(r).count > 0 });",
+    mutated: "  return blockerNote(r.absenceBlockers);",
+    killer: "drops to the subjectless lead under the all-clear",
+  },
+  {
+    name: "always use the subjectless lead, so a named list reads as if unnamed",
+    anchor: "  return blockerNote(r.absenceBlockers, { subject: headline(r).count > 0 });",
+    mutated: "  return blockerNote(r.absenceBlockers, { subject: false });",
+    killer: "uses the subject lead when the headline named products",
+  },
+  {
     name: "go silent instead of changing the lead, hiding every blocker on the all-clear",
     anchor: "  return opts.subject === false",
     mutated: '  if (opts.subject === false) return "";\n  return false',
@@ -179,12 +191,36 @@ const SMOKE = {
   killer: "softens to a statement about our data when absence cannot be asserted",
 };
 
+/**
+ * ★★ANCHORS ARE WRITTEN WITH `
+`; THE FILE ON DISK MAY USE `
+`.
+ *
+ * These repos are developed on Windows with git's `autocrlf`, so a file WRITTEN
+ * by an editor has LF and the same file after a merge and re-checkout has CRLF.
+ * Every multi-line anchor then matches zero times — which the pre-flight reports
+ * honestly, but as "your anchor is stale" rather than "your newlines are". It
+ * cost the Shopify twin a confused ten minutes on a harness that had passed an
+ * hour earlier against identical source.
+ *
+ * ★TRANSLATED RATHER THAN NORMALISED, so the file is rewritten byte-for-byte in
+ * its own convention — a test tool must not rewrite the line endings of a
+ * tracked file as a side effect.
+ */
+function eolOf(text) {
+  return text.includes("\r\n") ? "\r\n" : "\n";
+}
+function toEol(s, eol) {
+  return eol === "\n" ? s : s.split("\n").join(eol);
+}
+
 const original = readFileSync(TARGET, "utf8");
+const EOL = eolOf(original);
 
 // ── Anchor pre-flight ──────────────────────────────────────────────────────
 let preflightFailed = false;
 for (const m of [...MUTANTS, SMOKE]) {
-  const count = original.split(m.anchor).length - 1;
+  const count = original.split(toEol(m.anchor, EOL)).length - 1;
   if (count !== 1) {
     console.error(`ANCHOR PRE-FLIGHT FAILED: "${m.name}" matched ${count} time(s), expected 1`);
     preflightFailed = true;
@@ -262,7 +298,7 @@ for (const m of [SMOKE, ...MUTANTS]) {
   //  worse than one that never ran.
   let r;
   try {
-    writeFileSync(TARGET, original.split(m.anchor).join(m.mutated), "utf8");
+    writeFileSync(TARGET, original.split(toEol(m.anchor, EOL)).join(toEol(m.mutated, EOL)), "utf8");
     r = runKiller(m.killer);
   } finally {
     writeFileSync(TARGET, original, "utf8"); // ★IN-MEMORY RESTORE, every time.

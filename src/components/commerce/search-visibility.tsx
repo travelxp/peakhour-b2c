@@ -8,7 +8,7 @@ import { useLocale } from "@/hooks/use-locale";
 import { useSearchVisibility } from "@/hooks/use-search-visibility";
 import {
   badgeVariant,
-  blockerNote,
+  caveatFor,
   headline,
   isUsableVisibility,
   legendEntries,
@@ -97,9 +97,10 @@ export function SearchVisibilityPanel() {
   }
 
   const h = headline(ready);
-  // ★THE LEAD ADAPTS TO WHETHER THE HEADLINE GAVE IT A SUBJECT; the caveat
-  // itself is never withheld — see blockerNote.
-  const caveat = blockerNote(ready.absenceBlockers, { subject: h.count > 0 });
+  // ★ONE CALL — the lead choice lives in the lib, where it is scored. This
+  // line used to make that decision itself, correctly and unverified: dropping
+  // the argument left the suite and the sweep green.
+  const caveat = caveatFor(ready);
   const when = windowSentence(ready.window);
   const rows = ready.products.slice(0, VISIBLE_ROWS);
 
