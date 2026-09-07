@@ -71,16 +71,27 @@ export function OverviewGreeting({
       <span aria-hidden className="u-dot-field pointer-events-none absolute inset-x-0 -top-4 -z-10 h-48" />
 
       <h1 className="wrap-break-word text-2xl font-semibold tracking-tight sm:text-3xl">
-        {/* The greeting slot holds its width from the first paint, so the name
-            beside it does not jump sideways when the hour resolves one frame
-            later. `ch` rather than `rem`: the reservation has to hold at both
-            the 2xl and 3xl steps, and a fixed length that fits one is wrong for
-            the other. 15ch is "Good afternoon," — the longest of the three. */}
-        <span className="inline-block min-w-[15ch]">
-          {hour === null ? " " : `${greetingForHour(hour)},`}
-        </span>{" "}
-        <em className="font-semibold italic">{name}</em>{" "}
-        <span aria-hidden>👋</span>
+        {/* ⚠️NO WIDTH RESERVATION, AND THE FIRST VERSION WAS WRONG TO ADD ONE.
+            It held 15ch — the width of "Good afternoon," — so the name would not
+            shift sideways when the hour resolved a frame later. But "Good
+            morning," is shorter than that, so the reservation rendered as a
+            permanent gap between the greeting and the business name for two
+            thirds of every day: a defect anyone can see, traded against a
+            one-frame shift almost nobody would.
+
+            The whole SENTENCE waits instead, so the greeting and the name arrive
+            together. The non-breaking space is what keeps that free: an empty
+            <h1> has no line box, so without it the heading would collapse to
+            zero height for a frame and shove the entire page up — trading a
+            horizontal jump for a worse vertical one. */}
+        {hour === null ? (
+          " "
+        ) : (
+          <>
+            {greetingForHour(hour)}, <em className="font-semibold italic">{name}</em>{" "}
+            <span aria-hidden>👋</span>
+          </>
+        )}
       </h1>
       <p className="mt-1.5 text-sm text-muted-foreground">
         Here&rsquo;s what&rsquo;s happening across your business today.

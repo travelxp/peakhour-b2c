@@ -2,20 +2,27 @@ import { describe, it, expect } from "vitest";
 import { displayBusinessName, greetingForHour } from "./business-name";
 
 /**
- * The prettifier's whole risk is over-reach: mangling a name a human typed is a
- * far louder failure than leaving a hostname alone, and it happens at the top of
- * the dashboard where everyone sees it. Most of these tests are about what it
- * must NOT touch.
+ * The helper CAPITALISES a stored hostname; it does not edit one. Two failure
+ * modes bracket it, and most of these tests are about staying between them:
+ * mangling a name a human typed, and shortening a name into something that is
+ * not the business's name at all.
  */
 describe("displayBusinessName", () => {
-  it("turns a hostname into a brand", () => {
-    expect(displayBusinessName("quests.travel")).toBe("Quests");
-    expect(displayBusinessName("bellas-boutique.com")).toBe("Bellas Boutique");
-    expect(displayBusinessName("acme_co.io")).toBe("Acme Co");
+  it("keeps the complete registered name, separators and all", () => {
+    // ★NOT "Quests". An earlier version stripped the suffix, which shortened
+    //  the customer's own name into a fragment of it at the top of their
+    //  dashboard.
+    expect(displayBusinessName("quests.travel")).toBe("Quests.Travel");
+    expect(displayBusinessName("bellas-boutique.com")).toBe("Bellas-Boutique.Com");
+    expect(displayBusinessName("acme_co.io")).toBe("Acme_Co.Io");
   });
 
-  it("strips a leading www", () => {
-    expect(displayBusinessName("www.questsandtrails.com")).toBe("Questsandtrails");
+  it("strips a leading www., which is how you reach a name rather than part of one", () => {
+    expect(displayBusinessName("www.questsandtrails.com")).toBe("Questsandtrails.Com");
+  });
+
+  it("does not eat a workspace whose first segment really is www", () => {
+    expect(displayBusinessName("www.co")).toBe("Co");
   });
 
   it("leaves a name a person typed completely alone", () => {
@@ -46,16 +53,15 @@ describe("displayBusinessName", () => {
     expect(displayBusinessName("BBC-News")).toBe("BBC-News");
   });
 
-  it("still prettifies once there is positive evidence of a machine", () => {
+  it("still capitalises once there is positive evidence of a machine", () => {
     // A known TLD, or all-lower-case. Either is a thing a person does not type.
-    expect(displayBusinessName("t-mobile")).toBe("T Mobile");
-    expect(displayBusinessName("eBay-store.com")).toBe("eBay Store");
-    expect(displayBusinessName("IKEA-india.com")).toBe("IKEA India");
+    expect(displayBusinessName("t-mobile")).toBe("T-Mobile");
+    expect(displayBusinessName("IKEA-india.com")).toBe("IKEA-India.Com");
   });
 
-  it("never strips the only word, however suffix-like", () => {
-    expect(displayBusinessName("shop.com")).toBe("Shop");
-    expect(displayBusinessName("io.net")).toBe("Io");
+  it("never destroys deliberate capitalisation inside a segment", () => {
+    // Per SEGMENT: one that already carries a capital is left exactly as typed.
+    expect(displayBusinessName("eBay-store.com")).toBe("eBay-Store.Com");
   });
 
   it("handles empty and missing input", () => {
