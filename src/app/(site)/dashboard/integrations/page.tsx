@@ -2322,9 +2322,15 @@ function ManagePagesDialog({
                   </div>
                   {capReached ? (
                     <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span tabIndex={0}>{switchEl}</span>
-                      </TooltipTrigger>
+                      {/* ★THE SWITCH IS THE TRIGGER, NOT A SPAN AROUND IT. The
+                          wrapper existed because the switch used to be
+                          `disabled` — a disabled control takes no focus and
+                          fires no pointer events, so something else had to. Now
+                          that it is live, the wrapper's `tabIndex={0}` would add
+                          a second, unlabelled tab stop on every capped row: the
+                          keyboard user lands on an anonymous box, then on the
+                          switch, for one control. */}
+                      <TooltipTrigger asChild>{switchEl}</TooltipTrigger>
                       <TooltipContent side="left" className="max-w-[220px] text-[11px]">
                         Your plan covers {cap} {cap === 1 ? "page" : "pages"}. Turn another off, or
                         add this one to your plan.

@@ -36,11 +36,39 @@ const DOMAIN_SUFFIXES = new Set([
 /** No whitespace, and only characters a hostname or slug is built from. */
 const MACHINE_NAME = /^[A-Za-z0-9]+(?:[.\-_][A-Za-z0-9]+)+$/;
 
+/**
+ * ★SHAPE ALONE IS NOT ENOUGH, AND A REVIEW ROUND CAUGHT WHY. "T-Mobile",
+ * "Coca-Cola" and "J.P.Morgan" all satisfy MACHINE_NAME — no whitespace, only
+ * letters and separators — so shape by itself turned three real brands into
+ * "T Mobile", "Coca Cola" and "J P Morgan" at the top of the owner's own
+ * dashboard. That is precisely the mangling this module's docblock promises not
+ * to do, and it was in the one code path everybody sees.
+ *
+ * So a machine-shaped string must ALSO carry a positive signal that a machine
+ * made it, and there are exactly two:
+ *
+ *   • It ends in a known domain suffix. Only a hostname does that, and a
+ *     hostname is never how anyone writes their business name by hand.
+ *   • It is entirely lower-case. Slugs are; typed brand names essentially never
+ *     are, because the capital is the first thing a person types.
+ *
+ * A capitalised, hyphenated name with no TLD — "T-Mobile", "BBC-News" — now
+ * fails both and is returned exactly as stored. The cost is that a lower-case
+ * "t-mobile" still becomes "T Mobile", which is the right call: at that point
+ * the string is indistinguishable from a slug, and title-casing a slug is the
+ * whole job.
+ */
+function looksMachineMade(raw: string, parts: string[]): boolean {
+  if (DOMAIN_SUFFIXES.has(parts[parts.length - 1].toLowerCase())) return true;
+  return raw === raw.toLowerCase();
+}
+
 export function displayBusinessName(name: string | null | undefined): string {
   const raw = (name ?? "").trim();
   if (!raw || !MACHINE_NAME.test(raw)) return raw;
 
   const parts = raw.split(/[.\-_]+/).filter(Boolean);
+  if (!looksMachineMade(raw, parts)) return raw;
   // Drop a trailing TLD, but never the only word — "shop.com" must not
   // prettify to an empty string, and "io.net" is more likely a name than two
   // suffixes.

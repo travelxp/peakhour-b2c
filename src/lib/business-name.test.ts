@@ -36,12 +36,19 @@ describe("displayBusinessName", () => {
     expect(displayBusinessName("東京カフェ")).toBe("東京カフェ");
   });
 
-  it("does not destroy deliberate capitalisation", () => {
-    // Unconditional title-casing is what ruins BBC, eBay and IKEA. The rule
-    // is per SEGMENT: a segment that already carries a capital is left exactly
-    // as typed, and one that does not is capitalised — so "eBay-store" keeps
-    // its brand half and tidies the generic one.
-    expect(displayBusinessName("BBC-News")).toBe("BBC News");
+  it("leaves a hyphenated brand alone — shape alone is not evidence", () => {
+    // These all satisfy the machine-name SHAPE (no whitespace, letters and
+    // separators only). Rewriting them was a real regression a review caught,
+    // in the one code path everybody sees.
+    expect(displayBusinessName("T-Mobile")).toBe("T-Mobile");
+    expect(displayBusinessName("Coca-Cola")).toBe("Coca-Cola");
+    expect(displayBusinessName("J.P.Morgan")).toBe("J.P.Morgan");
+    expect(displayBusinessName("BBC-News")).toBe("BBC-News");
+  });
+
+  it("still prettifies once there is positive evidence of a machine", () => {
+    // A known TLD, or all-lower-case. Either is a thing a person does not type.
+    expect(displayBusinessName("t-mobile")).toBe("T Mobile");
     expect(displayBusinessName("eBay-store.com")).toBe("eBay Store");
     expect(displayBusinessName("IKEA-india.com")).toBe("IKEA India");
   });

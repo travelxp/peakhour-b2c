@@ -8,6 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { listSources } from "../../sources/api";
 
+/** The listing endpoint's validation ceiling, and what the Sources page itself
+ *  asks for. Only the LENGTH is used here — see the count note below. */
+const ACTIVE_SOURCE_CAP = 200;
+
 /**
  * The News Desk's empty state — why the queue is empty, and what to do.
  *
@@ -39,10 +43,8 @@ import { listSources } from "../../sources/api";
  */
 export function EmptyNewsDesk() {
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["trusted-sources", { status: "active", limit: 1 }],
-    // limit 1: the total is what decides the branch, not the rows. The listing
-    // endpoint returns a count alongside them, so one row is enough to answer.
-    queryFn: () => listSources({ status: "active", limit: 1 }),
+    queryKey: ["trusted-sources", { status: "active", limit: ACTIVE_SOURCE_CAP }],
+    queryFn: () => listSources({ status: "active", limit: ACTIVE_SOURCE_CAP }),
     retry: false,
     staleTime: 60_000,
   });
@@ -51,11 +53,16 @@ export function EmptyNewsDesk() {
     return <Skeleton className="h-40 w-full rounded-xl" />;
   }
 
-  // `rows.length` as the fallback: a listing response without a total is still
-  // usable, and an error is treated as "we can't tell" — which lands on the
-  // has-sources branch, because telling someone to add sources they already
-  // have is the worse of the two mistakes.
-  const activeCount = isError ? null : (data?.total ?? data?.rows?.length ?? 0);
+  // ★COUNTED FROM THE ROWS, NOT FROM `total`. The listing endpoint computes
+  //  `total: rows.length` AFTER applying the limit, so it is a page size rather
+  //  than a collection count — asking for one row to "just get the count" would
+  //  have reported every business as having exactly one source. The full page is
+  //  fetched instead.
+  //
+  //  An error is treated as "we can't tell", which lands on the has-sources
+  //  branch: telling someone to add sources they already have is the worse of
+  //  the two mistakes.
+  const activeCount = isError ? null : (data?.rows?.length ?? 0);
   const hasSources = activeCount === null || activeCount > 0;
 
   return (
