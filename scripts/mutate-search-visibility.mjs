@@ -198,22 +198,27 @@ const SMOKE = {
 };
 
 /**
- * ★★ANCHORS ARE WRITTEN WITH LF; THE FILE ON DISK MAY USE CRLF.
+ * ★ANCHORS ARE WRITTEN WITH LF; A FILE ON DISK MAY USE CRLF.
  *
- * These repos are developed on Windows with git's `autocrlf`, so a file WRITTEN
- * by an editor has LF and the same file after a merge and re-checkout has CRLF.
- * Every multi-line anchor then matches zero times — which the pre-flight reports
- * honestly, but as "your anchor is stale" rather than "your newlines are". It
- * cost the Shopify twin a confused ten minutes on a harness that had passed an
- * hour earlier against identical source.
+ * ★★AND IN THIS REPO IT CANNOT, WHICH IS WORTH SAYING RATHER THAN IMPLYING
+ * OTHERWISE. `.gitattributes` pins `*.ts text eol=lf`, so `core.autocrlf=true`
+ * is overridden and no checkout here produces a CRLF target — `git check-attr
+ * eol` confirms it. An earlier version of this comment asserted the opposite as
+ * this repo's motivating fact, which was simply wrong.
  *
- * ★★AND THE FILE CAN BE MIXED, WHICH IS WHY THIS RESOLVES PER ANCHOR RATHER
- * THAN GUESSING ONE ENDING FOR THE WHOLE FILE. A first version took the file's
- * ending to be CRLF if it contained any, and translated every anchor to it — so
- * on a file where a scripted edit had written LF lines into a CRLF file (which
- * is exactly how these edits are made) the anchors in the LF region matched
- * zero times and the pre-flight aborted with the same misleading message the
- * fix was meant to remove.
+ * ★THE REPO THAT ACTUALLY HIT IT IS peakhour-shopify, which has no
+ * `.gitattributes` at all: a file WRITTEN by an editor has LF and the same file
+ * after a merge and re-checkout has CRLF, so every multi-line anchor matched
+ * zero times and the pre-flight reported it as "your anchor is stale" rather
+ * than "your newlines are". ⏸The durable fix there is the attribute file, not
+ * more harness machinery; this stays because the two harnesses are twins and
+ * because it costs nothing.
+ *
+ * ★RESOLVED PER ANCHOR RATHER THAN PER FILE, so a file that is mixed — which a
+ * scripted edit writing LF lines into a CRLF file produces — still matches. ⚠️A
+ * multi-line anchor STRADDLING an LF/CRLF boundary matches neither form and
+ * fails the pre-flight loudly; it does not corrupt, and no harness run has ever
+ * met one.
  *
  * ★TRANSLATED, NEVER NORMALISED. The file is rewritten byte-for-byte in its own
  * conventions — a test tool must not rewrite the line endings of a tracked file
