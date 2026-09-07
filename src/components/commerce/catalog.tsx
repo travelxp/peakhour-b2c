@@ -19,6 +19,7 @@ import { FeatureGate } from "@/components/upgrade/feature-gate";
 import { useLocale } from "@/hooks/use-locale";
 import { minorToMajor } from "@/lib/money";
 import { PageShell } from "@/components/dashboard/page-shell";
+import { SearchVisibilityPanel } from "@/components/commerce/search-visibility";
 import {
   useCommerceCatalog,
   LISTING_ISSUE_LABEL,
@@ -192,6 +193,13 @@ function CatalogBody() {
       />
 
       <ListingDrawer item={selected} money={money} onClose={() => setSelected(null)} />
+
+      {/* ★THE THIRD QUESTION ABOUT THE SAME PRODUCTS: not "is this listing
+          complete" but "does Google show it at all". Below the table because
+          the table is what a merchant came to this route for, and it renders
+          NOTHING at all when there is no catalog to report on — this panel is
+          additive to the page, never a blocker on it. */}
+      <SearchVisibilityPanel />
     </PageShell>
   );
 }
