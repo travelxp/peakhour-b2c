@@ -71,14 +71,27 @@ export function OverviewGreeting({
       <span aria-hidden className="u-dot-field pointer-events-none absolute inset-x-0 -top-4 -z-10 h-48" />
 
       <h1 className="wrap-break-word text-2xl font-semibold tracking-tight sm:text-3xl">
-        {/* The greeting slot holds its width from the first paint, so the name
-            beside it does not jump sideways when the hour resolves one frame
-            later. `ch` rather than `rem`: the reservation has to hold at both
-            the 2xl and 3xl steps, and a fixed length that fits one is wrong for
-            the other. 15ch is "Good afternoon," — the longest of the three. */}
-        <span className="inline-block min-w-[15ch]">
-          {hour === null ? " " : `${greetingForHour(hour)},`}
-        </span>{" "}
+        {/* ⚠️NO WIDTH RESERVATION, AND THE FIRST VERSION WAS WRONG TO ADD ONE.
+            It held 15ch — the width of "Good afternoon," — so the name would not
+            shift sideways when the hour resolved a frame later. But "Good
+            morning," is shorter than that, so the reservation rendered as a
+            permanent gap between the greeting and the business name for two
+            thirds of every day: a defect anyone can see, traded against a
+            one-frame shift almost nobody would.
+
+            ⚠️AND ONLY THE GREETING WAITS — A SECOND VERSION PUT THE NAME INSIDE
+            THIS BRANCH TOO, which a review round caught. The name never depended
+            on the hour, so holding it back served nothing and cost everything
+            that reads the page without running the effect: this is the Overview
+            's only <h1>, and it server-rendered as a single non-breaking space.
+            A crawler, a no-JS client and anyone navigating by heading all got an
+            empty top-level heading.
+
+            The greeting word alone arrives late, and the name shifts right by
+            its width for one frame. That is the honest trade: a shift nobody
+            will catch, against a heading that is always present and always
+            says whose dashboard this is. */}
+        {hour !== null && greetingForHour(hour) + ", "}
         <em className="font-semibold italic">{name}</em>{" "}
         <span aria-hidden>👋</span>
       </h1>

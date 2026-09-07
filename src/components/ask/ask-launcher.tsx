@@ -23,10 +23,28 @@ function newThreadId(): string {
 }
 
 /**
- * How long the launcher stays expanded on arrival before collapsing back to a
- * circle. Long enough to be read once, short enough that it is not a banner.
+ * How long the launcher stays expanded before collapsing back to a circle.
+ * Long enough to be read once, short enough that it is not a banner.
  */
 const INTRODUCTION_MS = 2600;
+
+/**
+ * How often it re-introduces itself.
+ *
+ * ⚠️THE FIRST VERSION DID THIS ONCE PER SESSION AND THAT WAS TOO SHY TO WORK.
+ * The launcher lives in the dashboard shell, which does not unmount between
+ * navigations, so the animation fired 400ms after the very first mount and
+ * never again — an owner who was reading the page at that moment, or who
+ * arrived on a deep link, simply never saw it. An affordance nobody sees is not
+ * subtle, it is absent.
+ *
+ * ★45 SECONDS IS THE WHOLE DESIGN. It is far longer than anything that reads as
+ * "loading" and far shorter than a session, so the pill is a thing that
+ * occasionally catches the eye rather than a thing that moves while you work.
+ * Expanded for 2.6 of every 45 seconds, it is animating six per cent of the
+ * time.
+ */
+const REINTRODUCE_EVERY_MS = 45_000;
 
 export function AskLauncher() {
   const pathname = usePathname();
@@ -42,13 +60,34 @@ export function AskLauncher() {
    * so the first paint is a full-width label that snaps shut — a layout jump on
    * every page load rather than a gesture. Mounting collapsed and widening one
    * frame later makes the same motion read as an introduction.
-   *
-   * ★AND IT ONLY DOES IT ONCE PER SESSION, not once per route. The launcher
-   * lives in the dashboard shell, which does not unmount between navigations,
-   * so the effect below runs on mount only — introducing itself again on every
-   * click through the sidebar is how a friendly animation becomes a tic.
    */
   const [introducing, setIntroducing] = useState(false);
+
+  /**
+   * Has the owner ever opened the panel in this session?
+   *
+   * ★ONCE THEY HAVE, IT STOPS INTRODUCING ITSELF. The animation exists to tell
+   * somebody the button is there; a user who has already used it knows, and
+   * repeating at them from that point on is the difference between an
+   * affordance and a tic. The glow stays either way — that is ambient, and it
+   * does not move.
+   */
+  const [discovered, setDiscovered] = useState(false);
+
+  /**
+   * Pointer or keyboard focus is on the pill.
+   *
+   * ⚠️★KEPT SEPARATE FROM `introducing` BECAUSE THE TIMER AND THE USER WERE
+   * FIGHTING OVER ONE FLAG. Both used to write `introducing`, so a tick landing
+   * one second into a hover scheduled a collapse 2.6s later — and the label
+   * vanished from under the reader's cursor, mid-word. While the animation only
+   * ran in the first three seconds that was a load-time curiosity; on a 45-second
+   * interval it is a recurring one, for the whole session.
+   *
+   * With two flags the timer can no longer close anything the user is holding
+   * open: the pill is expanded when EITHER is set, and each owns only its own.
+   */
+  const [engaged, setEngaged] = useState(false);
 
   useEffect(() => {
     // `prefers-reduced-motion` is honoured by not animating at all rather than
@@ -61,13 +100,31 @@ export function AskLauncher() {
     ) {
       return;
     }
-    const inTimer = window.setTimeout(() => setIntroducing(true), 400);
-    const outTimer = window.setTimeout(() => setIntroducing(false), 400 + INTRODUCTION_MS);
-    return () => {
-      window.clearTimeout(inTimer);
-      window.clearTimeout(outTimer);
+    if (discovered) return;
+    // 🚫NOT ON THE FULL-PAGE ASK SURFACE. The component returns null there, but
+    //  this effect sits above that early return and would otherwise keep an
+    //  interval alive for the whole session, re-rendering an element nobody can
+    //  see — and `discovered` can never flip on that route, so it would never
+    //  stop.
+    if (pathname === "/dashboard/ask") return;
+
+    // Each cycle is its own pair of timers rather than one interval driving a
+    // toggle: an interval that fired while the tab was throttled could leave
+    // the pill stuck open, and a pair that always schedules its own collapse
+    // cannot.
+    let collapse: number | undefined;
+    const expand = () => {
+      setIntroducing(true);
+      collapse = window.setTimeout(() => setIntroducing(false), INTRODUCTION_MS);
     };
-  }, []);
+    const first = window.setTimeout(expand, 400);
+    const repeat = window.setInterval(expand, REINTRODUCE_EVERY_MS);
+    return () => {
+      window.clearTimeout(first);
+      window.clearInterval(repeat);
+      if (collapse !== undefined) window.clearTimeout(collapse);
+    };
+  }, [discovered, pathname]);
 
   // The full-page /dashboard/ask surface already hosts a conversation — don't
   // also float a (separate-thread) launcher over it.
@@ -76,6 +133,12 @@ export function AskLauncher() {
   function openPanel() {
     setThreadId((id) => id ?? newThreadId());
     setOpen(true);
+    // Stops the re-introduction loop for the rest of the session — see
+    // `discovered`. Both flags are cleared so the pill is not left wide behind
+    // the panel that just opened over it (the pointer is, by definition, on it).
+    setDiscovered(true);
+    setIntroducing(false);
+    setEngaged(false);
   }
 
   return (
@@ -83,10 +146,10 @@ export function AskLauncher() {
       {!open && (
         <button
           onClick={openPanel}
-          onMouseEnter={() => setIntroducing(true)}
-          onMouseLeave={() => setIntroducing(false)}
-          onFocus={() => setIntroducing(true)}
-          onBlur={() => setIntroducing(false)}
+          onMouseEnter={() => setEngaged(true)}
+          onMouseLeave={() => setEngaged(false)}
+          onFocus={() => setEngaged(true)}
+          onBlur={() => setEngaged(false)}
           className={cn(
             "group fixed bottom-6 right-6 z-50 flex h-12 items-center overflow-hidden rounded-full",
             "bg-primary text-primary-foreground shadow-lg",
@@ -94,7 +157,8 @@ export function AskLauncher() {
             // values rather than to `auto` — `auto` is not an animatable length,
             // so the transition would simply not run.
             "transition-[width,box-shadow] duration-500 ease-brand active:scale-95",
-            introducing ? "w-44" : "w-12",
+            // Expanded while EITHER holds it open — see `engaged`.
+            introducing || engaged ? "w-44" : "w-12",
             // The pulse. `u-ask-glow` lives in globals.css and is inert under
             // prefers-reduced-motion; it is a shadow animation, so it costs no
             // layout and cannot shift anything around it.
@@ -114,7 +178,7 @@ export function AskLauncher() {
               "whitespace-nowrap pr-5 text-sm font-semibold transition-opacity duration-300",
               // Fades slightly behind the width so the text never appears
               // clipped mid-reveal.
-              introducing ? "opacity-100 delay-100" : "opacity-0 delay-0",
+              introducing || engaged ? "opacity-100 delay-100" : "opacity-0 delay-0",
             )}
           >
             Ask Peakhour
