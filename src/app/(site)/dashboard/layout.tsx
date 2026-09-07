@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/providers/auth-provider";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,11 +29,11 @@ import {
   SidebarMenuSubItem,
   SidebarProvider,
   SidebarRail,
-  SidebarSeparator,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
-import { OrgSwitcher } from "@/components/dashboard/org-switcher";
-import { BusinessSwitcher } from "@/components/dashboard/business-switcher";
+import { WorkspaceSwitcher } from "@/components/dashboard/workspace-switcher";
+import { PeakhourLogo, PeakhourMark } from "@/components/shared/peakhour-logo";
+import { UserAvatar } from "@/components/dashboard/user-avatar";
 import { PlanBadge } from "@/components/dashboard/plan-badge";
 import { AttentionBell } from "@/components/dashboard/attention-bell";
 import { TrialExpiryBanner } from "@/components/dashboard/trial-expiry-banner";
@@ -107,14 +107,35 @@ interface NavGroup {
 // page route enforces the same gate server-trip-free via a redirect.
 const SHOW_AUTOPILOT = process.env.NEXT_PUBLIC_VERCEL_ENV !== "production";
 
+/**
+ * ★THE ORDER IS THE WEEK, NOT THE ORG CHART. It runs
+ * Overview → Integrations → Inbox → Content → Growth → Commerce → Presence →
+ * Insights, then everything else.
+ *
+ * Integrations sits second because it is the prerequisite for all of it: an
+ * owner whose channels are not connected cannot do a single thing in the five
+ * pillars below, and burying the connect step under Settings is what made a
+ * half-connected account look like a broken product. Inbox is third because a
+ * customer waiting on a reply outranks anything Peakhour might publish. Then
+ * the five pillars in their canonical order, then Insights, which is where you
+ * go to see how the six above went.
+ *
+ * Ask Peakhour, Tasks, Peaks and Settings drop below that line. None of them is
+ * a place you go to DO the business — they are the assistant, the machine's own
+ * work log, the meter and the controls — and mixing them into the pillar run
+ * made the list read as eleven equal things.
+ *
+ * There is deliberately ONE group with no label. A label per cluster would add
+ * four headings and three rules to a list of twelve items, which is more chrome
+ * than the grouping is worth; the ordering carries the meaning on its own.
+ */
 const NAV_GROUPS: NavGroup[] = [
   {
     label: "",
     items: [
       { href: "/dashboard/overview", label: "Overview", icon: LayoutDashboard },
-      ...(ASK_ENABLED
-        ? [{ href: "/dashboard/ask", label: "Ask Peakhour", icon: Sparkles }]
-        : []),
+      { href: "/dashboard/integrations", label: "Integrations", icon: Plug },
+      { href: "/dashboard/inbox", label: "Inbox", icon: MessagesSquare },
       {
         href: "/dashboard/content",
         label: "Content",
@@ -217,9 +238,10 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/dashboard/insights/search-console", label: "Search Console" },
         ],
       },
-      { href: "/dashboard/inbox", label: "Inbox", icon: MessagesSquare },
+      ...(ASK_ENABLED
+        ? [{ href: "/dashboard/ask", label: "Ask Peakhour", icon: Sparkles }]
+        : []),
       { href: "/dashboard/tasks", label: "Tasks", icon: ListChecks, badge: () => <RunningJobsBadge /> },
-      { href: "/dashboard/integrations", label: "Integrations", icon: Plug },
       { href: "/dashboard/peaks", label: "Peaks", icon: Zap },
       {
         href: "/dashboard/settings",
@@ -302,15 +324,10 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     );
   }
 
-  const initials = user?.name
-    ? user.name
-        .split(" ")
-        .filter(Boolean)
-        .map((n) => n[0])
-        .join("")
-        .slice(0, 2)
-        .toUpperCase()
-    : user?.email?.[0]?.toUpperCase() || "?";
+  // Initials are no longer derived here: <UserAvatar> resolves the user's
+  // chosen avatar (which may be an illustrated character, not a monogram at
+  // all) and falls back to initials from @/lib/avatars — where the derivation
+  // splits on astral characters properly, which this one did not.
 
   return (
     <AskContextProvider>
@@ -345,34 +362,41 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         does not let the background scroll behind a Dialog or Sheet. */}
     <SidebarProvider className="h-svh">
       <Sidebar collapsible="icon" variant="sidebar">
-        {/* ── Header: Logo + Switchers ──────────────────────── */}
-        <SidebarHeader>
+        {/* ── Header: brand lockup + workspace ──────────────── */}
+        {/* ★THE REAL LOCKUP, AND TWO CUTS OF IT. The wordmark carries the ".ai"
+            — the product is Peakhour.ai and the shell was the last surface
+            still calling it "Peakhour" over a hand-rolled "P" square, while
+            the marketing header two clicks away used the actual artwork. The
+            collapsed rail gets the solid disc instead: the wordmark's outline
+            mark is drawn for a 200px lockup and turns to grey mush at 32px.
+
+            The strapline moved off "AI Marketing" because the product is no
+            longer only that — Commerce, Presence, Inbox and Insights are all
+            shipped pillars, and a nav that promises marketing while listing a
+            storefront undersells itself in its own chrome. It is set at 11px
+            rather than the 12px the old one used: at the 256px rail width
+            "Your Smart Autonomous Business Platform" needs two lines either
+            way, and three would out-weigh the navigation beneath it. */}
+        <SidebarHeader className="gap-2">
           <SidebarMenu>
             <SidebarMenuItem>
-              <SidebarMenuButton size="lg" asChild>
-                <Link href="/dashboard/overview">
-                  <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                    <span className="text-sm font-bold">P</span>
-                  </div>
-                  <div className="grid flex-1 text-left leading-tight">
-                    <span className="truncate text-sm font-semibold">
-                      Peakhour
+              <SidebarMenuButton size="lg" asChild className="hover:bg-transparent">
+                <Link href="/dashboard/overview" aria-label="Peakhour.ai — dashboard home">
+                  <PeakhourMark className="size-8 shrink-0 group-data-[collapsible=icon]:size-6" />
+                  <span className="grid min-w-0 flex-1 gap-0.5 group-data-[collapsible=icon]:hidden">
+                    <PeakhourLogo className="h-4 w-auto" />
+                    <span className="truncate text-[11px] leading-tight text-muted-foreground">
+                      Your Smart Autonomous Business Platform
                     </span>
-                    <span className="truncate text-xs text-muted-foreground">
-                      AI Marketing
-                    </span>
-                  </div>
+                  </span>
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>
           <div className="group-data-[collapsible=icon]:hidden">
-            <OrgSwitcher />
-            <BusinessSwitcher />
+            <WorkspaceSwitcher />
           </div>
         </SidebarHeader>
-
-        <SidebarSeparator />
 
         {/* ── Navigation ────────────────────────────────────── */}
         <SidebarContent>
@@ -489,11 +513,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                     size="lg"
                     className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
                   >
-                    <Avatar className="size-8 rounded-lg">
-                      <AvatarFallback className="rounded-lg text-xs">
-                        {initials}
-                      </AvatarFallback>
-                    </Avatar>
+                    <UserAvatar className="size-8" glyphClassName="text-xs" />
                     <div className="grid flex-1 text-left leading-tight">
                       <span className="truncate text-sm font-medium">
                         {user?.name || "User"}
@@ -512,11 +532,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                   sideOffset={4}
                 >
                   <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
-                    <Avatar className="size-8 rounded-lg">
-                      <AvatarFallback className="rounded-lg text-xs">
-                        {initials}
-                      </AvatarFallback>
-                    </Avatar>
+                    <UserAvatar className="size-8" glyphClassName="text-xs" />
                     <div className="grid flex-1 text-left leading-tight">
                       <span className="truncate text-sm font-semibold">
                         {user?.name || "User"}

@@ -6,6 +6,15 @@ export interface UserPreferences {
   currency?: string;
   language?: string;
   numberFormat?: string;
+  /**
+   * Chosen dashboard avatar as one `<family>:<variant>` token —
+   * `monogram:amber`, `character:fox`. Typed as a bare string on purpose: the
+   * variant set is artwork and grows, and a union here would have to be edited
+   * in lockstep with the api's regex and the collection validator's. `null`
+   * clears it. Resolve it through `resolveAvatar` in @/lib/avatars, which
+   * falls back to the initials monogram for anything it does not recognise.
+   */
+  avatar?: string | null;
 }
 
 export interface AuthUser {
@@ -52,6 +61,17 @@ export interface BusinessSummary {
   name: string;
   slug: string;
   businessCategory?: string | null;
+  /**
+   * Is this business covered by the org's plan? One Peakhour Suite plan
+   * activates a fixed number of Businesses; the api assigns that coverage in
+   * creation order and fails OPEN when no cap is configured.
+   *
+   * ★ABSENT MEANS COVERED, AND THAT DEFAULT IS DELIBERATE. The field is served
+   * by a newer api than some deployed b2c builds talk to, and treating a
+   * missing value as "locked" would put an upgrade wall in front of the only
+   * workspace a customer has. Every read site therefore uses `!== false`.
+   */
+  planActive?: boolean;
 }
 
 export interface EntitlementLimits {

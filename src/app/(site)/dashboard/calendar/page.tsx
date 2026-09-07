@@ -157,6 +157,33 @@ export default function CalendarPage() {
   useEffect(() => {
     setTz(detectTimezone());
     setAnchor(new Date());
+    /**
+     * ?compose=1 opens the composer on arrival.
+     *
+     * ★THE COMPOSER HAD NO ADDRESS, WHICH IS WHY THIS EXISTS. It was local
+     * state only, so "Create a post" from anywhere else in the product could do
+     * no better than drop the owner on the calendar and leave them to find the
+     * button — the quick action would take them NEAR the thing rather than TO
+     * it. This is the smallest change that gives it one.
+     *
+     * Read straight off `location.search` inside the existing mount effect
+     * rather than through `useSearchParams()`: that hook opts the whole route
+     * into client-side bailout unless it is wrapped in its own <Suspense>, and
+     * this page is a single large client component with no such boundary.
+     *
+     * The param is then stripped with `replaceState`, so a refresh or a
+     * back-navigation does not re-open a sheet the user has already dismissed.
+     * `replace`, not `push` — reopening the composer must not cost a history
+     * entry the back button has to be pressed through.
+     */
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      if (url.searchParams.get("compose") === "1") {
+        setComposeOpen(true);
+        url.searchParams.delete("compose");
+        window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+      }
+    }
   }, []);
 
   const [mode, setMode] = useState<Mode>("week");
