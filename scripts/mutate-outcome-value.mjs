@@ -106,9 +106,15 @@ const MUTANTS = [
   },
   {
     name: "claim a short revenue coverage when only the COUNT is short",
-    anchor: "    if (value.daysMeasured >= value.daysInWindow) return base;",
-    mutated: "    void value;",
+    anchor: "  if (value.daysMeasured >= value.daysInWindow) return base;",
+    mutated: "  void value;",
     killer: "does not claim a short revenue coverage when only the COUNT is short",
+  },
+  {
+    name: "leave the commerce branch unguarded, contradicting the dates it prints",
+    anchor: "  if (value.daysMeasured >= value.daysInWindow) return base;",
+    mutated: '  if (value.source === "analytics" && value.daysMeasured >= value.daysInWindow) return base;',
+    killer: "adds nothing when a COMMERCE figure is partial only on its count",
   },
   {
     name: "date a partial MEASUREMENT, contradicting its own full-window dates",
@@ -123,10 +129,14 @@ const MUTANTS = [
     killer: "★says which days a partial COMMERCE figure covers",
   },
   {
-    name: "always say it, discrediting a figure that covers the whole period",
+    name: "ignore the api's flag, deriving the shortfall from the day counts alone",
     anchor: "  if (!value.partial) return base;",
     mutated: "  if (false) return base;",
-    killer: "names the source on a complete period, and says nothing about dates",
+    // ⚠️NOT the complete-period spec: the coverage guard below now returns
+    //  `base` for a 30-of-30 figure whatever this line says, so that case can
+    //  no longer see this mutant. The spec that CAN is the one holding the
+    //  counts fixed and flipping the flag.
+    killer: "reads `partial` rather than recomputing it from the day counts",
   },
   {
     name: "recompute partial from the day counts, dropping the purchase-count case",

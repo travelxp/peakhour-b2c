@@ -146,7 +146,12 @@ describe("provenanceLine", () => {
 
   it("★says which days a partial COMMERCE figure covers", () => {
     const line = provenanceLine(
-      available({ partial: true, coveredSince: "2026-08-16T00:00:00.000Z" }),
+      available({
+        partial: true,
+        coveredSince: "2026-08-16T00:00:00.000Z",
+        daysMeasured: 22,
+        daysInWindow: 30,
+      }),
     );
     // ★★A TOTAL OVER 22 OF 30 DAYS IS A TRUE NUMBER AND A FALSE ANSWER to the
     // question the period heading just asked. The reader has no way to tell
@@ -198,11 +203,27 @@ describe("provenanceLine", () => {
   });
 
   it("reads `partial` rather than recomputing it from the day counts", () => {
-    // ★TWO SURFACES RECOMPUTING ONE RULE IS HOW THEY COME TO DISAGREE. The api
-    // sets `partial` from both coverages; a surface deriving it from
-    // daysMeasured alone would drop the purchase-count case silently.
-    const line = provenanceLine(available({ partial: true, daysMeasured: 30, daysInWindow: 30 }));
-    expect(line).toContain("covers");
+    // ★★THE SAME COUNTS, THE OPPOSITE FLAG, THE OPPOSITE OUTPUT — which is the
+    // only shape that proves the flag is read rather than derived. A surface
+    // recomputing `partial` from daysMeasured would produce the same sentence
+    // for both of these, and would drop the api's purchase-count case silently.
+    const short = { daysMeasured: 22, daysInWindow: 30 };
+    expect(provenanceLine(available({ ...short, partial: true }))).toContain("covers");
+    expect(provenanceLine(available({ ...short, partial: false }))).toBe(
+      "From your store's own orders",
+    );
+  });
+
+  it("adds nothing when a COMMERCE figure is partial only on its count", () => {
+    // ⏸UNREACHABLE TODAY — the api sets the two coverages equal on this path —
+    // and guarded anyway, because its `partial` is written to allow the count
+    // alone to set it and the sentence would then print "covers 8 Aug to 7 Sep,
+    // not the whole period" over a span covering every day of it. An earlier
+    // spec pinned that contradiction as the expected output.
+    const line = provenanceLine(
+      available({ partial: true, daysMeasured: 30, daysInWindow: 30, transactionDays: 12 }),
+    );
+    expect(line).toBe("From your store's own orders");
   });
 });
 

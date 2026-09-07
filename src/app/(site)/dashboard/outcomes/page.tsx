@@ -149,6 +149,9 @@ function plural(label: string, n: number): string {
 
 function OutcomesBody({ data }: { data: OutcomesResponse }) {
   const { reach, attention, conversions, value, nextActions, movements } = data;
+  // Computed once: the guard and the rendered child were two independent
+  // evaluations of the same expression.
+  const countLine = value ? orderCountLine(value) : null;
   const [winOpen, setWinOpen] = useState(false);
   const nothingHappened =
     reach.organic.posts === 0 && reach.paid === null && (reach.site?.sessions ?? 0) === 0;
@@ -303,10 +306,8 @@ function OutcomesBody({ data }: { data: OutcomesResponse }) {
                   <span className="text-3xl font-semibold tabular-nums">
                     {formatMoney(value.amount, value.currency)}
                   </span>
-                  {orderCountLine(value) && (
-                    <span className="text-sm text-muted-foreground">
-                      {orderCountLine(value)}
-                    </span>
+                  {countLine && (
+                    <span className="text-sm text-muted-foreground">{countLine}</span>
                   )}
                 </div>
                 {/* ★WHERE IT CAME FROM, AND — WHEN THE FIGURE FALLS SHORT OF THE
@@ -331,9 +332,7 @@ function OutcomesBody({ data }: { data: OutcomesResponse }) {
                     money-adjacent figure there is. Dated when it does not cover
                     the period; absent entirely when the api sent none, because
                     a count nobody took is not a count of nought. */}
-                {orderCountLine(value) && (
-                  <p className="text-xs text-muted-foreground">{orderCountLine(value)}</p>
-                )}
+                {countLine && <p className="text-xs text-muted-foreground">{countLine}</p>}
               </div>
             )}
           </CardContent>

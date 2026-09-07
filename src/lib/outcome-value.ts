@@ -144,13 +144,19 @@ export function shortDate(iso: string): string {
 export function provenanceLine(value: ValueAvailable): string {
   const base = sourceLabel(value.source);
   if (!value.partial) return base;
+  // ★★AND NOTHING TO ADD WHEN THE REVENUE COVERAGE IS THE COMPLETE ONE, on
+  // either source. `partial` is true if EITHER figure falls short, so a block
+  // short only on its purchase count would otherwise print a shortfall sentence
+  // about the revenue — "covers 8 Aug to 7 Sep, not the whole period" over a
+  // span covering every day of it, or "measured on 30 of 30 days". The count's
+  // own line states that case; this one has nothing to say about it.
+  //
+  // ⏸UNREACHABLE ON THE COMMERCE PATH TODAY, because the api sets the two
+  // coverages equal there. It is guarded anyway because the api's `partial` is
+  // written to allow the count alone to set it, and the sentence this would
+  // produce contradicts the dates printed inside it.
+  if (value.daysMeasured >= value.daysInWindow) return base;
   if (value.source === "analytics") {
-    // ★AND ONLY WHEN THE REVENUE COVERAGE IS THE SHORT ONE. `partial` is true
-    // if EITHER figure falls short, so a window whose revenue covers every day
-    // and whose purchase count does not would print "measured on 30 of 30
-    // days" — a shortfall sentence carrying numbers that say the opposite. The
-    // count's own line states that case; this one has nothing to add to it.
-    if (value.daysMeasured >= value.daysInWindow) return base;
     return `${base} · measured on ${value.daysMeasured} of ${value.daysInWindow} days`;
   }
   return `${base} · covers ${shortDate(value.coveredSince)} to ${shortDate(
