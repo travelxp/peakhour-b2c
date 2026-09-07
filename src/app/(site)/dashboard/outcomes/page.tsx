@@ -1,5 +1,11 @@
 "use client";
 
+import {
+  formatMoney,
+  orderCountLine,
+  provenanceLine,
+  shortDate,
+} from "@/lib/outcome-value";
 import { useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
@@ -142,7 +148,10 @@ function plural(label: string, n: number): string {
 }
 
 function OutcomesBody({ data }: { data: OutcomesResponse }) {
-  const { reach, attention, conversions, nextActions, movements } = data;
+  const { reach, attention, conversions, value, nextActions, movements } = data;
+  // Computed once: the guard and the rendered child were two independent
+  // evaluations of the same expression.
+  const countLine = value ? orderCountLine(value) : null;
   const [winOpen, setWinOpen] = useState(false);
   const nothingHappened =
     reach.organic.posts === 0 && reach.paid === null && (reach.site?.sessions ?? 0) === 0;
@@ -281,6 +290,56 @@ function OutcomesBody({ data }: { data: OutcomesResponse }) {
         </Card>
       </div>
 
+      {/* ── What was it worth? ─────────────────────────────────────────── */}
+      {/* ★GUARDED ON THE FIELD ITSELF, because the two repos deploy separately
+          and this build can ship ahead of the api that sends it. Unguarded, one
+          `value.available` throws and takes the WHOLE route down — headline,
+          next actions, the numbers — over a card that had not arrived yet. */}
+      {value && (
+      <div className="space-y-2">
+        <h3 className="text-sm font-semibold">What was it worth?</h3>
+        <Card>
+          <CardContent className="p-5">
+            {value.available ? (
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                  <span className="text-3xl font-semibold tabular-nums">
+                    {formatMoney(value.amount, value.currency)}
+                  </span>
+                  {countLine && (
+                    <span className="text-sm text-muted-foreground">{countLine}</span>
+                  )}
+                </div>
+                {/* ★WHERE IT CAME FROM, AND — WHEN THE FIGURE FALLS SHORT OF THE
+                    PERIOD — WHICH DAYS IT ACTUALLY COVERS. Both come from
+                    `provenanceLine`, which is tested and mutated; the page does
+                    not recompute `partial` from the day counts, because two
+                    surfaces recomputing one rule is how they come to disagree. */}
+                <p className="text-xs text-muted-foreground">{provenanceLine(value)}</p>
+              </div>
+            ) : (
+              // ★NO NUMBER HERE EITHER, AND FOR THE SAME REASON AS THE CARD
+              // ABOVE. The api has already decided this cannot be shown — a
+              // measured zero from a property with no purchase tracking means
+              // the opposite of a shop that sold nothing, and rendering "0"
+              // over it turns our missing setup step into a verdict on their
+              // trading. The message names the fix; this page does not invent
+              // one.
+              <div className="space-y-2">
+                <p className="text-sm">{value.message}</p>
+                {/* A purchase count needs no currency, so it survives a window
+                    we cannot total — and on a two-currency store it is the only
+                    money-adjacent figure there is. Dated when it does not cover
+                    the period; absent entirely when the api sent none, because
+                    a count nobody took is not a count of nought. */}
+                {countLine && <p className="text-xs text-muted-foreground">{countLine}</p>}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+      )}
+
       {/* ── The numbers, small and last ────────────────────────────────── */}
       {!nothingHappened && (
         <div className="space-y-2">
@@ -318,7 +377,7 @@ function OutcomesBody({ data }: { data: OutcomesResponse }) {
                   value={NUM.format(reach.site.sessions)}
                   note={
                     reach.site.stale && reach.site.dataThrough
-                      ? `${NUM.format(reach.site.users)} people · only counted up to ${new Date(reach.site.dataThrough).toLocaleDateString(undefined, { day: "numeric", month: "short" })}`
+                      ? `${NUM.format(reach.site.users)} people · only counted up to ${shortDate(reach.site.dataThrough)}`
                       : `${NUM.format(reach.site.users)} people`
                   }
                 />

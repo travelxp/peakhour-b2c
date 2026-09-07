@@ -73,6 +73,51 @@ export interface OutcomesResponse {
         currency?: string;
       }
     | { configured: false; reason: "not_connected" | "no_key_event"; message: string };
+  /**
+   * What the period was worth — the same honest-absence shape as `conversions`,
+   * and NOT a figure this page is allowed to reason about.
+   *
+   * ★OPTIONAL ON THE WIRE, DELIBERATELY. The two repos deploy separately, so
+   * this build can ship ahead of the api that sends the field. Typed as
+   * required, one `value.available` would throw and take the WHOLE Outcomes
+   * route down — headline, next actions, the numbers — over a card that had not
+   * arrived yet. Optional, the card simply does not render until it has.
+   *
+   * ★★EVERY JUDGEMENT IS ALREADY MADE. Whether an amount may be shown at all,
+   * which source it came from, how much of the period it covers and why it is
+   * missing are settled in the api, once, so the web app and the Shopify app
+   * cannot answer them differently. This page renders `message` when
+   * `available` is false and the amount when it is true — it must never invent
+   * a zero, a fallback, or a period of its own.
+   */
+  value?:
+    | {
+        available: true;
+        /** The merchant's own orders, or a measurement of their website.
+         *  Rendered, because a figure nobody can argue with is magic. */
+        source: "commerce" | "analytics";
+        /** ★MAY BE NEGATIVE — both sources are refund-net. */
+        amount: number;
+        currency: string;
+        transactions?: number;
+        transactionDays?: number;
+        /** ★THE SPAN THE AMOUNT ACTUALLY COVERS. Not the same as `period` even
+         *  when complete: `period` is a rolling now-minus-N-days and these are
+         *  the money's own window. Render these when `partial`. */
+        coveredSince: string;
+        coveredUntil: string;
+        daysMeasured: number;
+        daysInWindow: number;
+        partial: boolean;
+      }
+    | {
+        available: false;
+        reason: "not_reported" | "mixed_currency" | "unconfirmed_zero";
+        message: string;
+        transactions?: number;
+        transactionDays?: number;
+        daysInWindow?: number;
+      };
   headline: string;
   movements: Array<{ direction: "up" | "down" | "flat"; text: string }>;
   nextActions: Array<{
