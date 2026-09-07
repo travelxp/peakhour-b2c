@@ -212,6 +212,21 @@ describe("blockerNote", () => {
   it("defaults to the subject lead when no option is passed", () => {
     expect(blockerNote(["rows_lost"])).toBe(blockerNote(["rows_lost"], { subject: true }));
   });
+
+  // ★★ASSERTED WHOLE, NOT BY FRAGMENT. Every other assertion here is a
+  // `toContain`, and on the Shopify twin the two-lead refactor dropped the
+  // trailing full stop without one of them noticing — leaving that surface
+  // unpunctuated while this one kept it. A `toBe` is what catches an edit to
+  // the ENDS of a sentence rather than its middle, and this spec exists here so
+  // the twins cannot drift in the other direction either.
+  it("ends both leads as sentences", () => {
+    expect(blockerNote(["rows_lost"])).toBe(
+      "We can't say for certain that Google never showed these — part of the last read did not save.",
+    );
+    expect(blockerNote(["rows_lost"], { subject: false })).toBe(
+      "This doesn't cover everything — part of the last read did not save.",
+    );
+  });
 });
 
 describe("caveatFor — the one call a surface makes", () => {

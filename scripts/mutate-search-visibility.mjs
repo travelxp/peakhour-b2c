@@ -121,6 +121,12 @@ const MUTANTS = [
     killer: "uses the subject lead when the headline named products",
   },
   {
+    name: "drop the full stop, leaving one surface unpunctuated against its twin",
+    anchor: "    ? `This doesn't cover everything — ${why}.`",
+    mutated: "    ? `This doesn't cover everything — ${why}`",
+    killer: "ends both leads as sentences",
+  },
+  {
     name: "go silent instead of changing the lead, hiding every blocker on the all-clear",
     anchor: "  return opts.subject === false",
     mutated: '  if (opts.subject === false) return "";\n  return false',
@@ -192,9 +198,7 @@ const SMOKE = {
 };
 
 /**
- * ★★ANCHORS ARE WRITTEN WITH `
-`; THE FILE ON DISK MAY USE `
-`.
+ * ★★ANCHORS ARE WRITTEN WITH LF; THE FILE ON DISK MAY USE CRLF.
  *
  * These repos are developed on Windows with git's `autocrlf`, so a file WRITTEN
  * by an editor has LF and the same file after a merge and re-checkout has CRLF.
@@ -203,24 +207,47 @@ const SMOKE = {
  * cost the Shopify twin a confused ten minutes on a harness that had passed an
  * hour earlier against identical source.
  *
- * ★TRANSLATED RATHER THAN NORMALISED, so the file is rewritten byte-for-byte in
- * its own convention — a test tool must not rewrite the line endings of a
- * tracked file as a side effect.
+ * ★★AND THE FILE CAN BE MIXED, WHICH IS WHY THIS RESOLVES PER ANCHOR RATHER
+ * THAN GUESSING ONE ENDING FOR THE WHOLE FILE. A first version took the file's
+ * ending to be CRLF if it contained any, and translated every anchor to it — so
+ * on a file where a scripted edit had written LF lines into a CRLF file (which
+ * is exactly how these edits are made) the anchors in the LF region matched
+ * zero times and the pre-flight aborted with the same misleading message the
+ * fix was meant to remove.
+ *
+ * ★TRANSLATED, NEVER NORMALISED. The file is rewritten byte-for-byte in its own
+ * conventions — a test tool must not rewrite the line endings of a tracked file
+ * as a side effect of running.
  */
-function eolOf(text) {
-  return text.includes("\r\n") ? "\r\n" : "\n";
+function toCrlf(s) {
+  return s.split("\n").join("\r\n");
 }
-function toEol(s, eol) {
-  return eol === "\n" ? s : s.split("\n").join(eol);
+
+/**
+ * The form of `anchor` that actually occurs in `src`, with its count.
+ *
+ * ★AMBIGUITY IS A FAILURE, NOT A CHOICE. If both forms occur the anchor is not
+ * unique in any meaningful sense, and the pre-flight must say so rather than
+ * pick one.
+ */
+function resolveAnchor(src, anchor) {
+  const lf = src.split(anchor).length - 1;
+  const crlf = anchor.includes("\n") ? src.split(toCrlf(anchor)).length - 1 : 0;
+  if (lf > 0 && crlf > 0) return { text: anchor, count: lf + crlf };
+  return crlf > 0 ? { text: toCrlf(anchor), count: crlf } : { text: anchor, count: lf };
+}
+
+/** The mutated text in the same convention the matched anchor used. */
+function matchMutated(anchorText, mutated) {
+  return anchorText.includes("\r\n") ? toCrlf(mutated) : mutated;
 }
 
 const original = readFileSync(TARGET, "utf8");
-const EOL = eolOf(original);
 
 // ── Anchor pre-flight ──────────────────────────────────────────────────────
 let preflightFailed = false;
 for (const m of [...MUTANTS, SMOKE]) {
-  const count = original.split(toEol(m.anchor, EOL)).length - 1;
+  const count = resolveAnchor(original, m.anchor).count;
   if (count !== 1) {
     console.error(`ANCHOR PRE-FLIGHT FAILED: "${m.name}" matched ${count} time(s), expected 1`);
     preflightFailed = true;
@@ -298,7 +325,8 @@ for (const m of [SMOKE, ...MUTANTS]) {
   //  worse than one that never ran.
   let r;
   try {
-    writeFileSync(TARGET, original.split(toEol(m.anchor, EOL)).join(toEol(m.mutated, EOL)), "utf8");
+    const { text } = resolveAnchor(original, m.anchor);
+    writeFileSync(TARGET, original.split(text).join(matchMutated(text, m.mutated)), "utf8");
     r = runKiller(m.killer);
   } finally {
     writeFileSync(TARGET, original, "utf8"); // ★IN-MEMORY RESTORE, every time.
