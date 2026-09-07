@@ -16,9 +16,12 @@
  * that guessed would be worse than none: mangling a real name in the greeting
  * is a far louder failure than leaving a hostname alone.
  *
- * The TLD is dropped for the same reason the separators are: "Quests Travel" is
- * the brand, ".travel" is where it is hosted. Only well-known TLDs are stripped,
- * so a genuine last word is never eaten.
+ * ⚠️NOTHING IS DROPPED, AND AN EARLIER VERSION WAS WRONG TO DROP ANYTHING. It
+ * removed the TLD on the reasoning that "Quests" is the brand and ".travel" is
+ * where it is hosted — which produced "Good afternoon, Quests" at the top of
+ * that customer's own dashboard. The registered name is the whole string, and a
+ * product that shortens the customer's name has decided it knows better. This
+ * function CAPITALISES; it does not edit.
  */
 
 /**
@@ -56,11 +59,12 @@ const MACHINE_NAME = /^[A-Za-z0-9]+(?:[.\-_][A-Za-z0-9]+)+$/;
  *   • It is entirely lower-case. Slugs are; typed brand names essentially never
  *     are, because the capital is the first thing a person types.
  *
- * A capitalised, hyphenated name with no TLD — "T-Mobile", "BBC-News" — now
- * fails both and is returned exactly as stored. The cost is that a lower-case
- * "t-mobile" still becomes "T Mobile", which is the right call: at that point
- * the string is indistinguishable from a slug, and title-casing a slug is the
- * whole job.
+ * A capitalised, hyphenated name with no TLD — "T-Mobile", "BBC-News" — fails
+ * both and is returned exactly as stored. The cost is that a lower-case
+ * "t-mobile" becomes "T-Mobile", which is the right call: at that point the
+ * string is indistinguishable from a slug, and capitalising a slug is the whole
+ * job. (Note the separator survives — this used to read "T Mobile", from the
+ * version that also joined the segments with spaces.)
  */
 function looksMachineMade(raw: string, parts: string[]): boolean {
   if (DOMAIN_SUFFIXES.has(parts[parts.length - 1].toLowerCase())) return true;
@@ -82,9 +86,19 @@ export function displayBusinessName(name: string | null | undefined): string {
 
   if (!looksMachineMade(raw, raw.split(/[.\-_]+/).filter(Boolean))) return raw;
 
-  // Strip a leading "www." only — never a trailing suffix. Guarded on there
-  // being something after it, so a workspace literally named "www" survives.
-  const body = /^www[.\-_]/i.test(raw) ? raw.replace(/^www[.\-_]/i, "") : raw;
+  // Strip a leading "www." only — never a trailing suffix.
+  //
+  // ⚠️A DOT, NOT ANY SEPARATOR. The first version matched `/^www[.\-_]/`, so a
+  // workspace stored as "www-designs.com" displayed as "Designs.Com" — the same
+  // name-shortening this function exists to stop, one prefix over. "www-" is
+  // part of a name; "www." is not.
+  //
+  // ⚠️AND ONLY WHEN A DOMAIN REMAINS. "www.co" is not a site called "co" behind
+  // a www prefix — there is nothing left that looks like a hostname — so it
+  // keeps its first segment. Requiring another separator in the remainder is
+  // what tells "www.questsandtrails.com" (strip) from "www.co" (keep).
+  const rest = /^www\./i.test(raw) ? raw.slice(4) : null;
+  const body = rest && /[.\-_]/.test(rest) ? rest : raw;
 
   // Capitalise each alphanumeric run IN PLACE, leaving every "." "-" and "_"
   // exactly where it was. A segment that already carries a capital is left as

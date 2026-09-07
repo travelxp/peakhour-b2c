@@ -79,19 +79,21 @@ export function OverviewGreeting({
             thirds of every day: a defect anyone can see, traded against a
             one-frame shift almost nobody would.
 
-            The whole SENTENCE waits instead, so the greeting and the name arrive
-            together. The non-breaking space is what keeps that free: an empty
-            <h1> has no line box, so without it the heading would collapse to
-            zero height for a frame and shove the entire page up — trading a
-            horizontal jump for a worse vertical one. */}
-        {hour === null ? (
-          " "
-        ) : (
-          <>
-            {greetingForHour(hour)}, <em className="font-semibold italic">{name}</em>{" "}
-            <span aria-hidden>👋</span>
-          </>
-        )}
+            ⚠️AND ONLY THE GREETING WAITS — A SECOND VERSION PUT THE NAME INSIDE
+            THIS BRANCH TOO, which a review round caught. The name never depended
+            on the hour, so holding it back served nothing and cost everything
+            that reads the page without running the effect: this is the Overview
+            's only <h1>, and it server-rendered as a single non-breaking space.
+            A crawler, a no-JS client and anyone navigating by heading all got an
+            empty top-level heading.
+
+            The greeting word alone arrives late, and the name shifts right by
+            its width for one frame. That is the honest trade: a shift nobody
+            will catch, against a heading that is always present and always
+            says whose dashboard this is. */}
+        {hour !== null && greetingForHour(hour) + ", "}
+        <em className="font-semibold italic">{name}</em>{" "}
+        <span aria-hidden>👋</span>
       </h1>
       <p className="mt-1.5 text-sm text-muted-foreground">
         Here&rsquo;s what&rsquo;s happening across your business today.

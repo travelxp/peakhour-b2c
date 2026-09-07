@@ -21,8 +21,14 @@ describe("displayBusinessName", () => {
     expect(displayBusinessName("www.questsandtrails.com")).toBe("Questsandtrails.Com");
   });
 
-  it("does not eat a workspace whose first segment really is www", () => {
-    expect(displayBusinessName("www.co")).toBe("Co");
+  it("strips www. only, and only when a domain is left behind it", () => {
+    // ★"www.co" is not a site called "co" behind a www prefix — nothing
+    //  hostname-shaped remains — so the first segment stays.
+    expect(displayBusinessName("www.co")).toBe("Www.Co");
+    // ★AND "www-" IS PART OF A NAME, NOT A PREFIX. Matching any separator here
+    //  turned "www-designs.com" into "Designs.Com" — the same shortening this
+    //  function exists to stop.
+    expect(displayBusinessName("www-designs.com")).toBe("Www-Designs.Com");
   });
 
   it("leaves a name a person typed completely alone", () => {

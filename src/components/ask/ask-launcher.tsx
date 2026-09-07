@@ -74,6 +74,21 @@ export function AskLauncher() {
    */
   const [discovered, setDiscovered] = useState(false);
 
+  /**
+   * Pointer or keyboard focus is on the pill.
+   *
+   * ⚠️★KEPT SEPARATE FROM `introducing` BECAUSE THE TIMER AND THE USER WERE
+   * FIGHTING OVER ONE FLAG. Both used to write `introducing`, so a tick landing
+   * one second into a hover scheduled a collapse 2.6s later — and the label
+   * vanished from under the reader's cursor, mid-word. While the animation only
+   * ran in the first three seconds that was a load-time curiosity; on a 45-second
+   * interval it is a recurring one, for the whole session.
+   *
+   * With two flags the timer can no longer close anything the user is holding
+   * open: the pill is expanded when EITHER is set, and each owns only its own.
+   */
+  const [engaged, setEngaged] = useState(false);
+
   useEffect(() => {
     // `prefers-reduced-motion` is honoured by not animating at all rather than
     // by animating faster: the expand/collapse is decoration, and the button is
@@ -86,6 +101,12 @@ export function AskLauncher() {
       return;
     }
     if (discovered) return;
+    // 🚫NOT ON THE FULL-PAGE ASK SURFACE. The component returns null there, but
+    //  this effect sits above that early return and would otherwise keep an
+    //  interval alive for the whole session, re-rendering an element nobody can
+    //  see — and `discovered` can never flip on that route, so it would never
+    //  stop.
+    if (pathname === "/dashboard/ask") return;
 
     // Each cycle is its own pair of timers rather than one interval driving a
     // toggle: an interval that fired while the tab was throttled could leave
@@ -103,7 +124,7 @@ export function AskLauncher() {
       window.clearInterval(repeat);
       if (collapse !== undefined) window.clearTimeout(collapse);
     };
-  }, [discovered]);
+  }, [discovered, pathname]);
 
   // The full-page /dashboard/ask surface already hosts a conversation — don't
   // also float a (separate-thread) launcher over it.
@@ -113,10 +134,11 @@ export function AskLauncher() {
     setThreadId((id) => id ?? newThreadId());
     setOpen(true);
     // Stops the re-introduction loop for the rest of the session — see
-    // `discovered`. Also collapses the pill immediately so it is not left wide
-    // behind the panel that just opened over it.
+    // `discovered`. Both flags are cleared so the pill is not left wide behind
+    // the panel that just opened over it (the pointer is, by definition, on it).
     setDiscovered(true);
     setIntroducing(false);
+    setEngaged(false);
   }
 
   return (
@@ -124,10 +146,10 @@ export function AskLauncher() {
       {!open && (
         <button
           onClick={openPanel}
-          onMouseEnter={() => setIntroducing(true)}
-          onMouseLeave={() => setIntroducing(false)}
-          onFocus={() => setIntroducing(true)}
-          onBlur={() => setIntroducing(false)}
+          onMouseEnter={() => setEngaged(true)}
+          onMouseLeave={() => setEngaged(false)}
+          onFocus={() => setEngaged(true)}
+          onBlur={() => setEngaged(false)}
           className={cn(
             "group fixed bottom-6 right-6 z-50 flex h-12 items-center overflow-hidden rounded-full",
             "bg-primary text-primary-foreground shadow-lg",
@@ -135,7 +157,8 @@ export function AskLauncher() {
             // values rather than to `auto` — `auto` is not an animatable length,
             // so the transition would simply not run.
             "transition-[width,box-shadow] duration-500 ease-brand active:scale-95",
-            introducing ? "w-44" : "w-12",
+            // Expanded while EITHER holds it open — see `engaged`.
+            introducing || engaged ? "w-44" : "w-12",
             // The pulse. `u-ask-glow` lives in globals.css and is inert under
             // prefers-reduced-motion; it is a shadow animation, so it costs no
             // layout and cannot shift anything around it.
@@ -155,7 +178,7 @@ export function AskLauncher() {
               "whitespace-nowrap pr-5 text-sm font-semibold transition-opacity duration-300",
               // Fades slightly behind the width so the text never appears
               // clipped mid-reveal.
-              introducing ? "opacity-100 delay-100" : "opacity-0 delay-0",
+              introducing || engaged ? "opacity-100 delay-100" : "opacity-0 delay-0",
             )}
           >
             Ask Peakhour
