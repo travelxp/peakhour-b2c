@@ -237,9 +237,32 @@ function resolveAnchor(src, anchor) {
   return crlf > 0 ? { text: toCrlf(anchor), count: crlf } : { text: anchor, count: lf };
 }
 
-/** The mutated text in the same convention the matched anchor used. */
-function matchMutated(anchorText, mutated) {
-  return anchorText.includes("\r\n") ? toCrlf(mutated) : mutated;
+/**
+ * The line ending in force WHERE THE ANCHOR MATCHED.
+ *
+ * ★★READ FROM THE FILE, NOT FROM THE ANCHOR. A first version inferred it from
+ * the anchor text — which works for a multi-line anchor, whose own form IS the
+ * local truth, and silently fails for a SINGLE-LINE one, because a single-line
+ * anchor never contains a newline to inspect. A multi-line `mutated` (the SMOKE
+ * mutant, and "go silent instead of changing the lead") was then written with
+ * bare LFs into a CRLF file: harmless to parse, and a direct violation of the
+ * "translated, never normalised" rule three lines above it.
+ *
+ * ★SO A SINGLE-LINE ANCHOR TAKES THE ENDING OF THE LINE IT MATCHED ON, which is
+ * the only answer that stays right on a mixed file.
+ */
+function eolAt(src, anchorText) {
+  if (anchorText.includes("\r\n")) return "\r\n";
+  if (anchorText.includes("\n")) return "\n";
+  const i = src.indexOf(anchorText);
+  if (i < 0) return "\n";
+  const nl = src.indexOf("\n", i + anchorText.length);
+  return nl > 0 && src[nl - 1] === "\r" ? "\r\n" : "\n";
+}
+
+/** The mutated text in the convention in force where the anchor matched. */
+function matchMutated(src, anchorText, mutated) {
+  return eolAt(src, anchorText) === "\r\n" ? toCrlf(mutated) : mutated;
 }
 
 const original = readFileSync(TARGET, "utf8");
@@ -326,7 +349,7 @@ for (const m of [SMOKE, ...MUTANTS]) {
   let r;
   try {
     const { text } = resolveAnchor(original, m.anchor);
-    writeFileSync(TARGET, original.split(text).join(matchMutated(text, m.mutated)), "utf8");
+    writeFileSync(TARGET, original.split(text).join(matchMutated(original, text, m.mutated)), "utf8");
     r = runKiller(m.killer);
   } finally {
     writeFileSync(TARGET, original, "utf8"); // ★IN-MEMORY RESTORE, every time.
