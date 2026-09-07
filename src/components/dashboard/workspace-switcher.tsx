@@ -78,17 +78,18 @@ export function WorkspaceSwitcher() {
     }
   }
 
-  const trigger = (
-    <SidebarMenuButton
-      size="lg"
-      className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
-      // The button is inert with nothing to switch to, but it is still a
-      // button so the header keeps one consistent shape. `aria-disabled`
-      // rather than `disabled`: a disabled control is skipped by screen
-      // readers entirely, and this one is still the label for the active
-      // workspace.
-      aria-disabled={!hasChoices || undefined}
-    >
+  /**
+   * The visual block, shared by both states.
+   *
+   * ★IT IS ONLY A BUTTON WHEN THERE IS SOMETHING TO PRESS. A customer with one
+   * business has nothing to switch to, and rendering the control anyway — inert,
+   * or disabled — is the pattern this component was written to remove: a thing
+   * that looks like a control and is not one. So the single-workspace case gets
+   * the identical block as plain content, with no role, no focus stop and no
+   * chevron, and the dropdown case wraps it in the button.
+   */
+  const face = (
+    <>
       <span className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-accent text-sidebar-accent-foreground">
         {switching ? (
           <Loader2 className="size-4 animate-spin" aria-hidden />
@@ -96,20 +97,35 @@ export function WorkspaceSwitcher() {
           <Building2 className="size-4" aria-hidden />
         )}
       </span>
-      <span className="grid flex-1 text-left leading-tight">
+      <span className="grid min-w-0 flex-1 text-left leading-tight">
         <span className="truncate text-sm font-semibold">{activeName}</span>
         <span className="truncate text-xs text-muted-foreground">
           {hasChoices ? "Switch workspace" : "Your workspace"}
         </span>
       </span>
       {hasChoices && <ChevronsUpDown className="ml-auto size-4 opacity-60" aria-hidden />}
+    </>
+  );
+
+  const trigger = (
+    <SidebarMenuButton
+      size="lg"
+      className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+    >
+      {face}
     </SidebarMenuButton>
   );
 
   return (
     <SidebarMenu>
       <SidebarMenuItem>
-        {hasChoices ? (
+        {!hasChoices ? (
+          // Same metrics as SidebarMenuButton size="lg", minus every
+          // interactive affordance.
+          <div className="flex h-12 w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm">
+            {face}
+          </div>
+        ) : (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
             <DropdownMenuContent
@@ -178,8 +194,6 @@ export function WorkspaceSwitcher() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-        ) : (
-          trigger
         )}
       </SidebarMenuItem>
 

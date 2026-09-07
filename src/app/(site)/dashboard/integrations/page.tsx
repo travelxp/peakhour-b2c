@@ -2176,6 +2176,7 @@ function ManagePagesDialog({
   const brandAnchor = fitQuery.data?.brandAnchor ?? null;
 
   return (
+    <>
     <Dialog open={open} onOpenChange={(next) => (next ? onOpenChange(true) : closeDialog())}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
@@ -2355,20 +2356,27 @@ function ManagePagesDialog({
           </Button>
         </DialogFooter>
       </DialogContent>
-
-      {/* ★THE SAME DIALOG THE WORKSPACE SWITCHER OPENS. One plan sizes what you
-          can run — a business, a Page — so reaching either edge has to land on
-          one surface saying one thing. A bespoke message here would be a second
-          answer to the same question, and the two would drift. */}
-      <PlanLimitDialog
-        open={capBlocked !== null}
-        onOpenChange={(next) => !next && setCapBlocked(null)}
-        title={`${capBlocked ?? "That page"} isn't on your plan`}
-        description={`Your ${planLabel} plan covers ${cap} LinkedIn ${cap === 1 ? "page" : "pages"} for this business. Turn another one off to free a slot, or add this page to your plan.`}
-        benefit="Each enabled page gets its own posting queue, audience and reporting — nothing is shared or mixed between them."
-        ctaLabel="Add a page to my plan"
-      />
     </Dialog>
+
+    {/* ★THE SAME DIALOG THE WORKSPACE SWITCHER OPENS. One plan sizes what you
+        can run — a business, a Page — so reaching either edge has to land on
+        one surface saying one thing. A bespoke message here would be a second
+        answer to the same question, and the two would drift.
+        A SIBLING of the Manage dialog rather than a child: nesting one Radix
+        Dialog.Root inside another puts the inner one's context in front of the
+        outer's for everything below it, and there is no reason to reason about
+        that when both portal to the body regardless. The Manage dialog stays
+        OPEN behind it on purpose — the likeliest next move after reading the
+        cap is turning a different page off, which is the list underneath. */}
+    <PlanLimitDialog
+      open={capBlocked !== null}
+      onOpenChange={(next) => !next && setCapBlocked(null)}
+      title={`${capBlocked ?? "That page"} isn't on your plan`}
+      description={`Your ${planLabel} plan covers ${cap} LinkedIn ${cap === 1 ? "page" : "pages"} for this business. Turn another one off to free a slot, or add this page to your plan.`}
+      benefit="Each enabled page gets its own posting queue, audience and reporting — nothing is shared or mixed between them."
+      ctaLabel="Add a page to my plan"
+    />
+    </>
   );
 }
 
