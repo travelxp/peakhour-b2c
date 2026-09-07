@@ -394,32 +394,40 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     <SidebarProvider className="h-svh">
       <Sidebar collapsible="icon" variant="sidebar">
         {/* ── Header: brand lockup + workspace ──────────────── */}
-        {/* ★THE REAL LOCKUP, AND TWO CUTS OF IT. The wordmark carries the ".ai"
-            — the product is Peakhour.ai and the shell was the last surface
-            still calling it "Peakhour" over a hand-rolled "P" square, while
-            the marketing header two clicks away used the actual artwork. The
-            collapsed rail gets the solid disc instead: the wordmark's outline
-            mark is drawn for a 200px lockup and turns to grey mush at 32px.
+        {/* ★THE REAL LOCKUP, AND EXACTLY ONE CUT OF IT AT A TIME. The wordmark
+            carries the ".ai" — the product is Peakhour.ai, and the shell was the
+            last surface still calling it "Peakhour" over a hand-rolled "P"
+            square while the marketing header two clicks away used the real
+            artwork.
 
-            The strapline moved off "AI Marketing" because the product is no
-            longer only that — Commerce, Presence, Inbox and Insights are all
-            shipped pillars, and a nav that promises marketing while listing a
-            storefront undersells itself in its own chrome. It is set at 11px
-            rather than the 12px the old one used: at the 256px rail width
-            "Your Smart Autonomous Business Platform" needs two lines either
-            way, and three would out-weigh the navigation beneath it. */}
+            ⚠️A first version rendered PeakhourMark BESIDE PeakhourLogo, which
+            drew the mark twice: `peakhour-logo.png` is the LOCKUP — the mark
+            AND the wordmark — not a wordmark on its own. Expanded shows the
+            lockup alone; the rail shows the disc alone.
+
+            ★The disc is a separate asset rather than the lockup scaled down,
+            because they are different artwork. The lockup draws the mark as
+            outline strokes, legible at 32px inside a 200px lockup and a grey
+            smudge once it is the only thing in a 32px box; the disc is the
+            solid cut that survives rail size.
+
+            🚫AND THERE IS NO STRAPLINE. "AI Marketing" had to go — Commerce,
+            Presence, Inbox and Insights are all shipped pillars, and a nav that
+            promises marketing while listing a storefront undersells itself in
+            its own chrome. But its replacement was a 39-character positioning
+            line in a 256px rail that also holds a 32px mark and its padding, so
+            it wrapped past the rail and truncated to "Your Smart Autonomous
+            Bus…" — which says less than nothing. A brand promise belongs on the
+            marketing site and in onboarding, where there is room to make it;
+            repeated above the navigation on every visit it is furniture. The
+            wordmark already says who this is. */}
         <SidebarHeader className="gap-2">
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton size="lg" asChild className="hover:bg-transparent">
                 <Link href="/dashboard/overview" aria-label="Peakhour.ai — dashboard home">
-                  <PeakhourMark className="size-8 shrink-0 group-data-[collapsible=icon]:size-6" />
-                  <span className="grid min-w-0 flex-1 gap-0.5 group-data-[collapsible=icon]:hidden">
-                    <PeakhourLogo className="h-4 w-auto" />
-                    <span className="truncate text-[11px] leading-tight text-muted-foreground">
-                      Your Smart Autonomous Business Platform
-                    </span>
-                  </span>
+                  <PeakhourMark className="hidden size-6 shrink-0 group-data-[collapsible=icon]:block" />
+                  <PeakhourLogo className="h-6 w-auto group-data-[collapsible=icon]:hidden" />
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
