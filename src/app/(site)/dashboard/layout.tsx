@@ -394,30 +394,58 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     <SidebarProvider className="h-svh">
       <Sidebar collapsible="icon" variant="sidebar">
         {/* ── Header: brand lockup + workspace ──────────────── */}
-        {/* ★THE REAL LOCKUP, AND TWO CUTS OF IT. The wordmark carries the ".ai"
-            — the product is Peakhour.ai and the shell was the last surface
-            still calling it "Peakhour" over a hand-rolled "P" square, while
-            the marketing header two clicks away used the actual artwork. The
-            collapsed rail gets the solid disc instead: the wordmark's outline
-            mark is drawn for a 200px lockup and turns to grey mush at 32px.
+        {/* ★THE REAL LOCKUP, AND EXACTLY ONE CUT OF IT AT A TIME. The wordmark
+            carries the ".ai" — the product is Peakhour.ai, and the shell was the
+            last surface still calling it "Peakhour" over a hand-rolled "P"
+            square while the marketing header two clicks away used the real
+            artwork.
 
-            The strapline moved off "AI Marketing" because the product is no
-            longer only that — Commerce, Presence, Inbox and Insights are all
-            shipped pillars, and a nav that promises marketing while listing a
-            storefront undersells itself in its own chrome. It is set at 11px
-            rather than the 12px the old one used: at the 256px rail width
-            "Your Smart Autonomous Business Platform" needs two lines either
-            way, and three would out-weigh the navigation beneath it. */}
+            ⚠️A first version rendered PeakhourMark BESIDE PeakhourLogo, which
+            drew the mark twice: `peakhour-logo.png` is the LOCKUP — the mark
+            AND the wordmark — not a wordmark on its own. Expanded shows the
+            lockup alone; the rail shows the disc alone.
+
+            ★The disc is a separate asset rather than the lockup scaled down,
+            because they are different artwork. The lockup draws the mark as
+            outline strokes, legible at 32px inside a 200px lockup and a grey
+            smudge once it is the only thing in a 32px box; the disc is the
+            solid cut that survives rail size.
+
+            ★AND THE DESCRIPTOR IS THE MARKETING SITE'S OWN WORDS. The page
+            title is "Peakhour.ai — The AI business platform for growing
+            brands", so the chrome and the site now agree rather than
+            maintaining a third phrase between them. It replaces "AI Marketing",
+            which was too narrow: Commerce, Presence, Inbox and Insights are all
+            shipped pillars, and a nav promising marketing while listing a
+            storefront undersells itself in its own chrome.
+
+            🚫IT IS A DESCRIPTOR, NOT A SLOGAN, and the slot decides that. This
+            line is on screen every visit, and a brand line at that frequency
+            stops registering inside a fortnight — so the job here is to say
+            what the product IS to someone who does not know yet. "Every hour is
+            Peakhour" is the better LINE and it lives on the onboarding payoff,
+            where it is read once and something has just been achieved.
+
+            ⚠️AND IT IS 24 CHARACTERS FOR A REASON. The version before it was a
+            39-character positioning statement that ran past the rail and
+            truncated to "Your Smart Autonomous Bus…". The text column is about
+            224px, which is roughly 40 characters at 11px with ZERO margin — so
+            anything near that breaks on a larger OS font, a narrower rail or a
+            translation. Sentence case, not Title Case: a capitalised label
+            reads as a chip, and this should sit quietly under the wordmark. */}
         <SidebarHeader className="gap-2">
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton size="lg" asChild className="hover:bg-transparent">
                 <Link href="/dashboard/overview" aria-label="Peakhour.ai — dashboard home">
-                  <PeakhourMark className="size-8 shrink-0 group-data-[collapsible=icon]:size-6" />
-                  <span className="grid min-w-0 flex-1 gap-0.5 group-data-[collapsible=icon]:hidden">
-                    <PeakhourLogo className="h-4 w-auto" />
+                  <PeakhourMark className="hidden size-6 shrink-0 group-data-[collapsible=icon]:block" />
+                  {/* h-5, not h-6: the lockup and the descriptor share a 48px
+                      button, and 20 + 2 + 14 leaves the stack breathing room
+                      where 24 would crowd it. */}
+                  <span className="grid min-w-0 gap-0.5 group-data-[collapsible=icon]:hidden">
+                    <PeakhourLogo className="h-5 w-auto" />
                     <span className="truncate text-[11px] leading-tight text-muted-foreground">
-                      Your Smart Autonomous Business Platform
+                      The AI business platform
                     </span>
                   </span>
                 </Link>
