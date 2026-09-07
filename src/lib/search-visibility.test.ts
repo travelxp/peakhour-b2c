@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   badgeVariant,
   blockerNote,
+  caveatFor,
   headline,
   isUsableVisibility,
   legendEntries,
@@ -210,6 +211,58 @@ describe("blockerNote", () => {
 
   it("defaults to the subject lead when no option is passed", () => {
     expect(blockerNote(["rows_lost"])).toBe(blockerNote(["rows_lost"], { subject: true }));
+  });
+
+  // ★★ASSERTED WHOLE, NOT BY FRAGMENT. Every other assertion here is a
+  // `toContain`, and on the Shopify twin the two-lead refactor dropped the
+  // trailing full stop without one of them noticing — leaving that surface
+  // unpunctuated while this one kept it. A `toBe` is what catches an edit to
+  // the ENDS of a sentence rather than its middle, and this spec exists here so
+  // the twins cannot drift in the other direction either.
+  it("ends both leads as sentences", () => {
+    expect(blockerNote(["rows_lost"])).toBe(
+      "We can't say for certain that Google never showed these — part of the last read did not save.",
+    );
+    expect(blockerNote(["rows_lost"], { subject: false })).toBe(
+      "This doesn't cover everything — part of the last read did not save.",
+    );
+  });
+});
+
+describe("caveatFor — the one call a surface makes", () => {
+  // ★★THE LEAD CHOICE IS A DECISION, AND IT WAS BEING MADE WHERE NOTHING SCORED
+  // IT. The panel passed `{ subject: headline(ready).count > 0 }` itself —
+  // correct, and unverified: this repo renders untested, so dropping that
+  // argument left the suite and the mutation sweep both green while
+  // reinstating the dangling pronoun. Its Shopify twin extracted this first;
+  // leaving this side inline was the divergence the header forbids.
+  it("uses the subject lead when the headline named products", () => {
+    const r = ready({
+      absenceAssertable: false,
+      absenceBlockers: ["rows_lost"],
+      summary: { ...ready().summary, unknown: 11, unknownWindowCovered: 0 },
+    });
+    expect(headline(r).count).toBeGreaterThan(0);
+    expect(caveatFor(r)).toContain("Google never showed these");
+  });
+
+  it("drops to the subjectless lead under the all-clear", () => {
+    const r = ready({
+      absenceAssertable: false,
+      absenceBlockers: ["catalog_truncated"],
+      summary: { ...ready().summary, unknown: 0, unknownWindowCovered: 0 },
+    });
+    expect(headline(r).count).toBe(0);
+    const caveat = caveatFor(r);
+    expect(caveat).toContain("doesn't cover everything");
+    expect(caveat).not.toContain("these");
+    // ★AND IT IS STILL SAID. A truncated catalogue with every product we read
+    // indexed must not report "everything is fine" in silence.
+    expect(caveat).toContain("larger than we read in one pass");
+  });
+
+  it("says nothing when nothing is blocking", () => {
+    expect(caveatFor(ready())).toBe("");
   });
 });
 

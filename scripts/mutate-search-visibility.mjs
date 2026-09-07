@@ -109,6 +109,24 @@ const MUTANTS = [
     killer: "still says something for a reason it does not recognise",
   },
   {
+    name: "always use the subject lead from caveatFor, dangling the pronoun",
+    anchor: "  return blockerNote(r.absenceBlockers, { subject: headline(r).count > 0 });",
+    mutated: "  return blockerNote(r.absenceBlockers);",
+    killer: "drops to the subjectless lead under the all-clear",
+  },
+  {
+    name: "always use the subjectless lead, so a named list reads as if unnamed",
+    anchor: "  return blockerNote(r.absenceBlockers, { subject: headline(r).count > 0 });",
+    mutated: "  return blockerNote(r.absenceBlockers, { subject: false });",
+    killer: "uses the subject lead when the headline named products",
+  },
+  {
+    name: "drop the full stop, leaving one surface unpunctuated against its twin",
+    anchor: "    ? `This doesn't cover everything — ${why}.`",
+    mutated: "    ? `This doesn't cover everything — ${why}`",
+    killer: "ends both leads as sentences",
+  },
+  {
     name: "go silent instead of changing the lead, hiding every blocker on the all-clear",
     anchor: "  return opts.subject === false",
     mutated: '  if (opts.subject === false) return "";\n  return false',
@@ -179,12 +197,85 @@ const SMOKE = {
   killer: "softens to a statement about our data when absence cannot be asserted",
 };
 
+/**
+ * ★ANCHORS ARE WRITTEN WITH LF; A FILE ON DISK MAY USE CRLF.
+ *
+ * ★★AND IN THIS REPO IT CANNOT, WHICH IS WORTH SAYING RATHER THAN IMPLYING
+ * OTHERWISE. `.gitattributes` pins `*.ts text eol=lf`, so `core.autocrlf=true`
+ * is overridden and no checkout here produces a CRLF target — `git check-attr
+ * eol` confirms it. An earlier version of this comment asserted the opposite as
+ * this repo's motivating fact, which was simply wrong.
+ *
+ * ★THE REPO THAT ACTUALLY HIT IT IS peakhour-shopify, which has no
+ * `.gitattributes` at all: a file WRITTEN by an editor has LF and the same file
+ * after a merge and re-checkout has CRLF, so every multi-line anchor matched
+ * zero times and the pre-flight reported it as "your anchor is stale" rather
+ * than "your newlines are". ⏸The durable fix there is the attribute file, not
+ * more harness machinery; this stays because the two harnesses are twins and
+ * because it costs nothing.
+ *
+ * ★RESOLVED PER ANCHOR RATHER THAN PER FILE, so a file that is mixed — which a
+ * scripted edit writing LF lines into a CRLF file produces — still matches. ⚠️A
+ * multi-line anchor STRADDLING an LF/CRLF boundary matches neither form and
+ * fails the pre-flight loudly; it does not corrupt, and no harness run has ever
+ * met one.
+ *
+ * ★TRANSLATED, NEVER NORMALISED. The file is rewritten byte-for-byte in its own
+ * conventions — a test tool must not rewrite the line endings of a tracked file
+ * as a side effect of running.
+ */
+function toCrlf(s) {
+  return s.split("\n").join("\r\n");
+}
+
+/**
+ * The form of `anchor` that actually occurs in `src`, with its count.
+ *
+ * ★AMBIGUITY IS A FAILURE, NOT A CHOICE. If both forms occur the anchor is not
+ * unique in any meaningful sense, and the pre-flight must say so rather than
+ * pick one.
+ */
+function resolveAnchor(src, anchor) {
+  const lf = src.split(anchor).length - 1;
+  const crlf = anchor.includes("\n") ? src.split(toCrlf(anchor)).length - 1 : 0;
+  if (lf > 0 && crlf > 0) return { text: anchor, count: lf + crlf };
+  return crlf > 0 ? { text: toCrlf(anchor), count: crlf } : { text: anchor, count: lf };
+}
+
+/**
+ * The line ending in force WHERE THE ANCHOR MATCHED.
+ *
+ * ★★READ FROM THE FILE, NOT FROM THE ANCHOR. A first version inferred it from
+ * the anchor text — which works for a multi-line anchor, whose own form IS the
+ * local truth, and silently fails for a SINGLE-LINE one, because a single-line
+ * anchor never contains a newline to inspect. A multi-line `mutated` (the SMOKE
+ * mutant, and "go silent instead of changing the lead") was then written with
+ * bare LFs into a CRLF file: harmless to parse, and a direct violation of the
+ * "translated, never normalised" rule three lines above it.
+ *
+ * ★SO A SINGLE-LINE ANCHOR TAKES THE ENDING OF THE LINE IT MATCHED ON, which is
+ * the only answer that stays right on a mixed file.
+ */
+function eolAt(src, anchorText) {
+  if (anchorText.includes("\r\n")) return "\r\n";
+  if (anchorText.includes("\n")) return "\n";
+  const i = src.indexOf(anchorText);
+  if (i < 0) return "\n";
+  const nl = src.indexOf("\n", i + anchorText.length);
+  return nl > 0 && src[nl - 1] === "\r" ? "\r\n" : "\n";
+}
+
+/** The mutated text in the convention in force where the anchor matched. */
+function matchMutated(src, anchorText, mutated) {
+  return eolAt(src, anchorText) === "\r\n" ? toCrlf(mutated) : mutated;
+}
+
 const original = readFileSync(TARGET, "utf8");
 
 // ── Anchor pre-flight ──────────────────────────────────────────────────────
 let preflightFailed = false;
 for (const m of [...MUTANTS, SMOKE]) {
-  const count = original.split(m.anchor).length - 1;
+  const count = resolveAnchor(original, m.anchor).count;
   if (count !== 1) {
     console.error(`ANCHOR PRE-FLIGHT FAILED: "${m.name}" matched ${count} time(s), expected 1`);
     preflightFailed = true;
@@ -262,7 +353,8 @@ for (const m of [SMOKE, ...MUTANTS]) {
   //  worse than one that never ran.
   let r;
   try {
-    writeFileSync(TARGET, original.split(m.anchor).join(m.mutated), "utf8");
+    const { text } = resolveAnchor(original, m.anchor);
+    writeFileSync(TARGET, original.split(text).join(matchMutated(original, text, m.mutated)), "utf8");
     r = runKiller(m.killer);
   } finally {
     writeFileSync(TARGET, original, "utf8"); // ★IN-MEMORY RESTORE, every time.
