@@ -1,5 +1,10 @@
 "use client";
 
+import {
+  formatMoney,
+  orderCountLine,
+  provenanceLine,
+} from "@/lib/outcome-value";
 import { useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
@@ -142,7 +147,7 @@ function plural(label: string, n: number): string {
 }
 
 function OutcomesBody({ data }: { data: OutcomesResponse }) {
-  const { reach, attention, conversions, nextActions, movements } = data;
+  const { reach, attention, conversions, value, nextActions, movements } = data;
   const [winOpen, setWinOpen] = useState(false);
   const nothingHappened =
     reach.organic.posts === 0 && reach.paid === null && (reach.site?.sessions ?? 0) === 0;
@@ -275,6 +280,54 @@ function OutcomesBody({ data }: { data: OutcomesResponse }) {
                   Tell us what counts as a win
                   <ArrowRight className="ml-1.5 size-3.5" aria-hidden="true" />
                 </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* ── What was it worth? ─────────────────────────────────────────── */}
+      <div className="space-y-2">
+        <h3 className="text-sm font-semibold">What was it worth?</h3>
+        <Card>
+          <CardContent className="p-5">
+            {value.available ? (
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                  <span className="text-3xl font-semibold tabular-nums">
+                    {formatMoney(value.amount, value.currency)}
+                  </span>
+                  {orderCountLine(value) && (
+                    <span className="text-sm text-muted-foreground">
+                      {orderCountLine(value)}
+                    </span>
+                  )}
+                </div>
+                {/* ★WHERE IT CAME FROM, AND — WHEN THE FIGURE FALLS SHORT OF THE
+                    PERIOD — WHICH DAYS IT ACTUALLY COVERS. Both come from
+                    `provenanceLine`, which is tested and mutated; the page does
+                    not recompute `partial` from the day counts, because two
+                    surfaces recomputing one rule is how they come to disagree. */}
+                <p className="text-xs text-muted-foreground">{provenanceLine(value)}</p>
+              </div>
+            ) : (
+              // ★NO NUMBER HERE EITHER, AND FOR THE SAME REASON AS THE CARD
+              // ABOVE. The api has already decided this cannot be shown — a
+              // measured zero from a property with no purchase tracking means
+              // the opposite of a shop that sold nothing, and rendering "0"
+              // over it turns our missing setup step into a verdict on their
+              // trading. The message names the fix; this page does not invent
+              // one.
+              <div className="space-y-2">
+                <p className="text-sm">{value.message}</p>
+                {/* A purchase count needs no currency, so it survives a window
+                    we cannot total — and on a two-currency store it is the only
+                    money-adjacent figure there is. Dated when it does not cover
+                    the period; absent entirely when the api sent none, because
+                    a count nobody took is not a count of nought. */}
+                {orderCountLine(value) && (
+                  <p className="text-xs text-muted-foreground">{orderCountLine(value)}</p>
+                )}
               </div>
             )}
           </CardContent>
