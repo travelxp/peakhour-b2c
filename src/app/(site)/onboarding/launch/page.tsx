@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { displayBusinessName } from "@/lib/business-name";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/providers/auth-provider";
@@ -210,11 +211,27 @@ export default function LaunchPage() {
         </h1>
         <p className="text-lg text-muted-foreground max-w-md mx-auto">
           {isDone
-            ? `Welcome to peakhour, ${org?.name ?? "friend"}. Your dashboard is ready.`
+            ? // ★THE NAME IS PRETTIFIED AND THE BRAND IS CAPITALISED. Onboarding
+              // saves whatever the pasted link resolved to, so this greeted
+              // people as "quests.travel" — and it spelled its own product
+              // "peakhour" while doing it. Same helper the Overview greeting
+              // uses, so the two cannot drift.
+              `Welcome to Peakhour, ${displayBusinessName(org?.name) || "friend"}. Your dashboard is ready.`
             : isFailed
               ? "Don't worry — you can still use the dashboard. We'll try again automatically."
               : "Feel free to close this tab. We'll keep going in the background."}
         </p>
+        {/* ★THE BRAND LINE, AND THIS IS THE SLOT IT WAS WRITTEN FOR. It is a
+            payoff, not a descriptor: it explains the NAME rather than the
+            offering, so it teaches a first-time owner nothing about what the
+            product does — which is why the sidebar carries "The AI business
+            platform" instead. Here it is read ONCE, at the moment setup
+            succeeds, where a flourish lands and cannot wear out. Shown only on
+            `isDone` for the same reason: it would be glib over a failure and
+            premature over a progress bar. */}
+        {isDone && (
+          <p className="text-sm font-medium text-brand-label">Every hour is Peakhour.</p>
+        )}
       </div>
 
       <Card className="border-2">
