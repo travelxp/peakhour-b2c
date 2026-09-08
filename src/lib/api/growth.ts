@@ -329,6 +329,80 @@ export type LeadDelivery =
   | { status: "created" | "existing"; subscriptionId: string }
   | { status: "blocked" | "unknown"; reason: string };
 
+/**
+ * Why one source in the funnel contributed nothing.
+ *
+ * ★★THE FIRST IS NOT LIKE THE OTHERS, AND THE STAGE TOTAL TURNS ON IT.
+ * `not_connected` is a fact about the merchant — no Business Profile means no
+ * map views to miss — so a total over the channels they DO have is a complete
+ * answer. Every other reason is a fact about US, and the api withholds the
+ * total rather than publishing an undercount that reads as a collapse.
+ *
+ * This client never re-derives that decision: it renders `total` when the api
+ * sends one and `incomplete` when it does not.
+ */
+export type VisibilityAbsence =
+  | "not_connected"
+  | "not_configured"
+  | "pending"
+  | "stale"
+  | "needs_reconnect"
+  | "unavailable";
+
+export type VisibilityFigure =
+  | {
+      source: "google_search" | "google_business_profile" | "google_analytics" | "value";
+      available: true;
+      value: number;
+      /** Days inside the window this source actually reported. Short of
+       *  `period.days` means the stage is `partial`. */
+      days: number;
+    }
+  | {
+      source: "google_search" | "google_business_profile" | "google_analytics" | "value";
+      available: false;
+      reason: VisibilityAbsence;
+    };
+
+export interface VisibilityStage {
+  key: "found" | "chosen" | "convinced" | "bought";
+  question: string;
+  /** Absent when the api refused to total — `incomplete` says why. */
+  total?: number;
+  incomplete?: "nothing_connected" | "awaiting_data";
+  /** True when a contributing source covered fewer days than were asked for.
+   *  The number is real; it is only a short answer to the window. */
+  partial?: boolean;
+  figures: VisibilityFigure[];
+}
+
+export interface VisibilityResponse {
+  period: { days: number; since: string; until: string };
+  stages: VisibilityStage[];
+  /** ★ABSENT MEANS THE RECONCILIATION COULD NOT BE READ — which is not any of
+   *  its refusals, each of which is a claim about the merchant's own data. */
+  value?: OutcomesResponse["value"];
+  /** ★THE SPLIT'S OWN WINDOW IS NOT `period.days`: it classifies the newest
+   *  Search Console slice, written over a fixed trailing window. A share
+   *  computed against a stage total from a SHORTER period can exceed 100%. */
+  brandSplit?: {
+    windowDays: number;
+    split:
+      | {
+          assertable: true;
+          brand: { clicks: number; impressions: number; queries: number };
+          nonBrand: { clicks: number; impressions: number; queries: number };
+          terms: string[];
+          termsSource: "owner" | "seeded";
+        }
+      | {
+          assertable: false;
+          reason: "no_brand_terms" | "unusable_brand_terms";
+          message: string;
+        };
+  };
+}
+
 export const growthApi = {
   /** Recent weekly optimizer runs (newest first, up to 12). */
   adjustments: () => api.get<{ runs: OptimizerRun[] }>("/v1/growth/adjustments"),
@@ -371,6 +445,17 @@ export const growthApi = {
    * for its first months.
    */
   outcomes: (days = 28) => api.get<OutcomesResponse>(`/v1/growth/outcomes?days=${days}`),
+
+  /**
+   * Found → chosen → convinced → bought, over ONE window.
+   *
+   * ★THE WINDOW IS THE POINT. Every reader behind this endpoint has a different
+   * default (90 / 30 / 28 days), and a funnel assembled client-side from three
+   * of them shows a collapse between its stages that is an artefact of the
+   * windows. One request, one window, four comparable answers.
+   */
+  visibility: (days = 28) =>
+    api.get<VisibilityResponse>(`/v1/growth/visibility?days=${days}`),
 
   /** What this business could count as a win, and what it currently does. */
   winOptions: () => api.get<WinOptionsResponse>("/v1/growth/win-options"),

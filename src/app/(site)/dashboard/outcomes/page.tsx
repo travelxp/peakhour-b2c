@@ -25,6 +25,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/molecules/empty-state";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { WhatCountsAsAWinDialog } from "@/components/growth/what-counts-as-a-win-dialog";
+import { VisibilityFunnel } from "@/components/growth/visibility-funnel";
 import { useAuth } from "@/providers/auth-provider";
 import { growthApi, type OutcomesResponse } from "@/lib/api/growth";
 import { platformLabel } from "@/lib/audience-library-rules";
@@ -78,6 +79,18 @@ export default function OutcomesPage() {
   const { business } = useAuth();
   const [days, setDays] = useState<number>(28);
 
+  // ★A SEPARATE QUERY, NOT A SECOND FIELD ON /outcomes, and the reason is what
+  // the funnel is for: it must be able to fail, be slow, or be absent without
+  // touching the page beneath it. The same `days` goes to both so the funnel
+  // and the numbers under it describe the same period — the one thing a
+  // client-side assembly of this data always gets wrong.
+  const visibility = useQuery({
+    queryKey: ["growth-visibility", business?._id ?? "none", days],
+    queryFn: () => growthApi.visibility(days),
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
+  });
+
   const outcomes = useQuery({
     // Business in the key for the same reason every other business-scoped hook
     // pins it: the route is business-scoped server-side, and a key that does
@@ -116,6 +129,16 @@ export default function OutcomesPage() {
           ))}
         </div>
       </div>
+
+      {/* ★★THE FUNNEL LEADS, AND EVERYTHING BELOW IT IS UNCHANGED. Found →
+          chosen → convinced → bought is the shape of the question a shopkeeper
+          actually asks; the ranked actions under it are what to do about the
+          answer. It renders nothing at all on a failure rather than a red
+          panel, because the page works without it. */}
+      <VisibilityFunnel
+        data={visibility.data}
+        isPending={visibility.isPending && !visibility.isError}
+      />
 
       {outcomes.isPending ? (
         <div className="space-y-4">

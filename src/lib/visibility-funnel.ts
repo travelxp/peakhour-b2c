@@ -1,0 +1,118 @@
+import type { VisibilityAbsence, VisibilityResponse, VisibilityStage } from "@/lib/api/growth";
+
+/**
+ * What the visibility funnel SAYS — the phrasing rules, with no React in them.
+ *
+ * ★★NOTHING HERE DECIDES ANYTHING. Whether a stage may be totalled, whether an
+ * amount may be shown, whether a source counts as stopped: every one of those
+ * is settled in the api, and a second decision on this side would differ from
+ * it on the same data. What lives here is the sentence — which is its own way
+ * of being wrong, and the only one this repo can still get wrong.
+ *
+ * ★THE FAILURE MODE THESE GUARD AGAINST is a true figure inside a false
+ * sentence: a stage the api refused to total rendered as "0", a 28-day brand
+ * share stated as a percentage of a 7-day figure, a lapsed grant told to
+ * "connect Google" when they already did.
+ *
+ * @package peakhour-b2c
+ */
+
+const NUM = new Intl.NumberFormat("en-US");
+
+/**
+ * What each stated absence means to a shopkeeper.
+ *
+ * ★★`needs_reconnect` IS NOT `not_connected`, AND THE WHOLE POINT OF THE api
+ * SENDING TWO REASONS IS THAT THEY GET TWO SENTENCES. "Connect Google" is the
+ * wrong instruction for somebody whose grant lapsed — they already did, and the
+ * thing to do is authorise it again. Collapsing them would waste the
+ * distinction the api goes to some trouble to make.
+ *
+ * ★AND `unavailable` IS OURS, NOT THEIRS. It means we could not read it, so it
+ * must not read as anything the merchant should go and fix.
+ */
+const ABSENCE_TEXT: Record<VisibilityAbsence, string> = {
+  not_connected: "not connected",
+  not_configured: "needs finishing",
+  pending: "gathering data",
+  stale: "stopped updating",
+  needs_reconnect: "reconnect Google",
+  unavailable: "couldn't be read",
+};
+
+export function absenceText(reason: VisibilityAbsence): string {
+  return ABSENCE_TEXT[reason];
+}
+
+/**
+ * What a stage with no total should say instead of a number.
+ *
+ * ★★TWO STATES, TWO SENTENCES, BECAUSE THEY HAVE DIFFERENT FIXES. "You haven't
+ * connected anything that answers this" is a setup step; "one of your
+ * connections hasn't reported" is a wait or a repair. And NEITHER is a zero:
+ * "0 people found you" is a verdict on a business that has simply connected
+ * nothing, which is the single most misleading thing this surface could print.
+ */
+export function incompleteLine(stage: VisibilityStage): string {
+  return stage.incomplete === "nothing_connected"
+    ? "Nothing connected yet"
+    : "Waiting on a connection";
+}
+
+/**
+ * The shortest coverage among the sources that answered — the one that made the
+ * stage partial.
+ *
+ * ★THE SHORTEST, NOT THE LONGEST OR THE AVERAGE. The sentence exists to warn
+ * that part of the window is missing, and it is the WORST-covered source that
+ * decides how much. Reporting the best one would understate exactly the gap the
+ * line is there to disclose.
+ */
+export function shortestSpan(stage: VisibilityStage): number {
+  const days = stage.figures.filter((f) => f.available).map((f) => f.days);
+  return days.length > 0 ? Math.min(...days) : 0;
+}
+
+/** "Part of the period — 7 of 28 days", or null when the stage is whole. */
+export function partialLine(stage: VisibilityStage, windowDays: number): string | null {
+  // ★ONLY WHEN THERE IS A TOTAL TO QUALIFY. A stage with no number has nothing
+  // for this sentence to be about, and printing a coverage note beside
+  // "Nothing connected yet" reads as though something WAS measured.
+  if (typeof stage.total !== "number" || !stage.partial) return null;
+  return `Part of the period — ${shortestSpan(stage)} of ${windowDays} days`;
+}
+
+/**
+ * The brand-split sentence, or the api's own refusal, or nothing.
+ *
+ * ★★IT NAMES DAYS, NEVER A PERCENTAGE, AND THAT IS THE RULE THIS FUNCTION
+ * EXISTS FOR. The split classifies the newest Search Console slice, written
+ * over a fixed trailing window that is NOT the page's — so on a 7-day view its
+ * clicks cover four times the FOUND figure sitting above it, and a share
+ * computed against that figure can exceed 100%. The api sends `windowDays`
+ * precisely so a surface can state the span instead of dividing by the wrong
+ * denominator.
+ *
+ * ★AND A REFUSAL IS RENDERED, NOT DROPPED. "We could not work out which
+ * searches are your own name" and "Search Console is not connected" have
+ * different fixes; dropping the first makes it look like the second.
+ */
+export function brandLine(brandSplit: VisibilityResponse["brandSplit"]): string | null {
+  if (!brandSplit) return null;
+  const { split, windowDays } = brandSplit;
+  if (!split.assertable) return split.message;
+
+  const total = split.brand.clicks + split.nonBrand.clicks;
+  // ★A MEASURED ZERO IS STILL AN ANSWER, and it is a useful one: nobody
+  // searched for this shop by name. But "0 of 0" says nothing at all, so a
+  // window with no clicks in it gets the honest short sentence instead.
+  if (total === 0) {
+    return `Nobody searched Google for you by name in the last ${windowDays} days.`;
+  }
+  const seeded =
+    split.termsSource === "seeded" ? " (using the name we worked out)" : "";
+  return (
+    `${NUM.format(split.brand.clicks)} of ${NUM.format(total)} search clicks came from ` +
+    `people searching for you by name, over the last ${windowDays} days${seeded}.`
+  );
+}
