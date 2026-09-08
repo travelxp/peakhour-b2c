@@ -193,7 +193,10 @@ describe("the flag itself", () => {
     // somebody switching a flag OFF is most likely to reach for. The failure is
     // a navigation reorganisation shipping to every merchant because a variable
     // said "false".
-    for (const value of ["0", "false", "no", "off", ""]) {
+    // ★"1" IS IN THIS LIST DELIBERATELY. The flag was declared here taking "1"
+    // before it moved to lib/flags.ts and adopted the repo's "true" convention;
+    // the old spelling must now read as OFF rather than half-working.
+    for (const value of ["0", "false", "no", "off", "1", ""]) {
       vi.resetModules();
       vi.stubEnv("NEXT_PUBLIC_OUTCOMES_HOME", value);
       const mod = await import("./nav-home");
@@ -207,7 +210,7 @@ describe("the flag itself", () => {
     // The redirect and the sidebar's logo both read this. Two copies is how a
     // click on the mark comes to land somewhere other than where the app opened.
     vi.resetModules();
-    vi.stubEnv("NEXT_PUBLIC_OUTCOMES_HOME", "1");
+    vi.stubEnv("NEXT_PUBLIC_OUTCOMES_HOME", "true");
     const on = await import("./nav-home");
     expect(on.HOME_ROUTE).toBe("/dashboard/outcomes");
 
@@ -229,7 +232,7 @@ describe("landingRoute", () => {
     // in — the PRIMARY entry into the product — landed on the one screen the
     // flag demotes.
     vi.resetModules();
-    vi.stubEnv("NEXT_PUBLIC_OUTCOMES_HOME", "1");
+    vi.stubEnv("NEXT_PUBLIC_OUTCOMES_HOME", "true");
     const on = await import("./nav-home");
     expect(on.landingRoute("/dashboard/overview")).toBe("/dashboard/outcomes");
 
@@ -246,7 +249,7 @@ describe("landingRoute", () => {
     // A Shopify claim page, an invite, a deep link — the server chose those,
     // and this must not second-guess a destination that is not "home".
     vi.resetModules();
-    vi.stubEnv("NEXT_PUBLIC_OUTCOMES_HOME", "1");
+    vi.stubEnv("NEXT_PUBLIC_OUTCOMES_HOME", "true");
     const on = await import("./nav-home");
     for (const route of [
       "/dashboard/commerce/channels",

@@ -19,10 +19,11 @@
  * type and no render can catch that; a mutant can.
  *
  * ★AND THE FLAG ITSELF IS THE OTHER HALF. `NEXT_PUBLIC_OUTCOMES_HOME` is
- * compared against the string "1" rather than coerced, because "0" and "false"
- * — the two spellings somebody switching a flag OFF reaches for — are both
- * truthy strings. That mutant ships a navigation reorganisation to every
- * merchant because a variable said "false".
+ * compared against the string "true" — the convention every other flag in
+ * lib/flags.ts uses — rather than coerced, because "0" and "false" are both
+ * truthy strings and are the two spellings somebody switching a flag OFF
+ * reaches for. That mutant ships a navigation reorganisation to every merchant
+ * because a variable said "false".
  *
  * Run: node scripts/mutate-nav-home.mjs
  */
@@ -31,6 +32,13 @@ import { spawnSync } from "node:child_process";
 import { execPath } from "node:process";
 
 const TARGET = "src/lib/nav-home.ts";
+/**
+ * ★A SECOND TARGET, BECAUSE THE FLAG MOVED. Review round 3 put
+ * `OUTCOMES_HOME` in lib/flags.ts with every other client flag — a mutant that
+ * cannot reach it would score its comparison rule as covered when nothing
+ * touches it. Each mutant names its own target, defaulting to the partition's.
+ */
+const FLAGS = "src/lib/flags.ts";
 const SPEC = "src/lib/nav-home.test.ts";
 
 /** ⚠️★`npx.cmd` ANSWERS EINVAL on this platform — go through the node binary. */
@@ -43,39 +51,45 @@ const MUTANTS = [
   // ── Nothing is removed ───────────────────────────────────────────────────
   {
     name: "★★drop the tail, losing every pillar the grouping does not name",
-    anchor: "  const tail = all.filter((i) => !taken.has(i.href));",
+    anchor: "  const tail = all;",
     mutated: "  const tail = [];",
     killer: "★★keeps every pillar destination, exactly once",
   },
   {
     name: "★★sweep only the KNOWN pillars into the tail, so a new screen vanishes",
-    anchor: "  const tail = all.filter((i) => !taken.has(i.href));",
+    anchor: "  const tail = all;",
     mutated:
-      "  const tail = all.filter((i) => !taken.has(i.href) && i.href.startsWith('/dashboard/o'));",
+      "  const tail = all.filter((i) => i.href.startsWith('/dashboard/o'));",
     killer:
       "★★sweeps a destination it has never heard of into the tail rather than losing it",
   },
-  {
-    name: "leave an assigned pillar in the tail as well, listing it twice",
-    anchor: "  const taken = new Set([homeItem.href, ...lead.map((i) => i.href), ...Object.keys(FUNNEL_GROUP)]);",
-    mutated: "  const taken = new Set([homeItem.href, ...lead.map((i) => i.href)]);",
-    killer: "★★keeps every pillar destination, exactly once",
-  },
-  {
-    name: "leave the LEAD items in the tail as well, listing Integrations twice",
-    anchor: "  const taken = new Set([homeItem.href, ...lead.map((i) => i.href), ...Object.keys(FUNNEL_GROUP)]);",
-    mutated: "  const taken = new Set([homeItem.href, ...Object.keys(FUNNEL_GROUP)]);",
-    killer: "★★keeps every pillar destination, exactly once",
-  },
+  // ⚠★RETIRED WITH ITS TARGET, AND THE TARGET WAS DELETED RATHER THAN KEPT.
+  //  This mutated an exclusion set filtered out of the tail. Review round 3
+  //  added ONE dedupe at the end, which fixes every duplicate the set was
+  //  preventing — so the set could not change any output, and both mutants
+  //  against it SURVIVED. ★The set was removed rather than the mutants
+  //  re-designated: a guard that cannot change a result reads as load-bearing
+  //  to the next person. What it was protecting is now pinned by "drop the
+  //  dedupe" below, which dies.
 
   // ── Where things land ────────────────────────────────────────────────────
   {
     name: "★promote an unassigned destination into a funnel heading it was never given",
     anchor:
       "      .filter(([, g]) => g === label)\n      .map(([h]) => byHref.get(h))",
-    mutated: "      .map(() => undefined)\n      .concat(all.map((i) => [i]).map(([i]) => i))",
+    mutated:
+      "      .filter(() => true)\n      .map(([h]) => byHref.get(h))",
     killer: "groups the pillars under the funnel questions",
   },
+  {
+    name: "★★drop the dedupe, so an item in two places renders in both",
+    anchor: "      items: g.items.filter((i) => (seen.has(i.href) ? false : (seen.add(i.href), true))),",
+    mutated: "      items: g.items,",
+    killer: "★★never lists the promoted home twice, even once it is a pillar of its own",
+  },
+  // ⚠★RETIRED AS A DUPLICATE. Adding to `seen` while keeping every item is
+  //  the same edit as dropping the dedupe entirely, which the entry above
+  //  already scores.
   {
     name: "★★keep Overview at the top, so the whole change does nothing",
     anchor: '  const lead = LEAD_HREFS.map((h) => byHref.get(h)).filter((i): i is T => i !== undefined);',
@@ -112,15 +126,10 @@ const MUTANTS = [
     mutated: "      .map(([h]) => (byHref.get(h) ? { ...byHref.get(h) } : undefined))",
     killer: "★passes items through BY REFERENCE, so icons, subitems and gates survive",
   },
-  {
-    name: "★★list the promoted home twice once it is a pillar of its own",
-    anchor: "  const taken = new Set([homeItem.href, ...lead.map((i) => i.href), ...Object.keys(FUNNEL_GROUP)]);",
-    mutated: "  const taken = new Set([...lead.map((i) => i.href), ...Object.keys(FUNNEL_GROUP)]);",
-    killer: "★★never lists the promoted home twice, even once it is a pillar of its own",
-  },
+  // ⚠★RETIRED WITH THE SAME SET, for the same reason — see the note above.
   {
     name: "★keep the promoted route in its parent's subitems as well",
-    anchor: "      i.subItems?.some((s) => s.href === home.href)",
+    anchor: "      i.href !== home.href && i.subItems?.some((s) => s.href === home.href)",
     mutated: "      false",
     killer: "★removes the promoted route from whichever parent held it as a subitem",
   },
@@ -133,21 +142,21 @@ const MUTANTS = [
   },
   {
     name: "★★render a heading with nothing under it",
-    anchor: "  ].filter((g) => g.items.length > 0);",
-    mutated: "  ];",
+    anchor: "    .filter((g) => g.items.length > 0);",
+    mutated: "    ;",
     killer: "★★drops a heading with nothing under it rather than showing an empty section",
   },
   {
     name: "drop every group that is not labelled, losing the lead and the tail",
-    anchor: "  ].filter((g) => g.items.length > 0);",
-    mutated: "  ].filter((g) => g.label !== \"\");",
+    anchor: "    .filter((g) => g.items.length > 0);",
+    mutated: "    .filter((g) => g.label !== \"\");",
     killer: "★★keeps every pillar destination, exactly once",
   },
   {
     name: "throw when the grouping names a pillar that has been retired",
-    anchor: "      .filter((i): i is T => i !== undefined);\n\n  // ★EVERYTHING NOT PLACED",
+    anchor: "      .map(([h]) => byHref.get(h))\n      .filter((i): i is T => i !== undefined);",
     mutated:
-      "      .map((i) => { if (!i) throw new Error('missing'); return i; });\n\n  // ★EVERYTHING NOT PLACED",
+      "      .map(([h]) => byHref.get(h))\n      .map((i) => { if (!i) throw new Error('missing'); return i; });",
     killer: "★★drops a heading with nothing under it rather than showing an empty section",
   },
 
@@ -161,13 +170,15 @@ const MUTANTS = [
   // ── The flag ─────────────────────────────────────────────────────────────
   {
     name: "★★COERCE the flag, so `NEXT_PUBLIC_OUTCOMES_HOME=false` switches it ON",
-    anchor: 'export const OUTCOMES_HOME = process.env.NEXT_PUBLIC_OUTCOMES_HOME === "1";',
+    target: FLAGS,
+    anchor: 'export const OUTCOMES_HOME = process.env.NEXT_PUBLIC_OUTCOMES_HOME === "true";',
     mutated: "export const OUTCOMES_HOME = Boolean(process.env.NEXT_PUBLIC_OUTCOMES_HOME);",
     killer: "★the flag is OFF for every spelling of off",
   },
   {
     name: "default the flag ON, shipping the reorganisation to everyone",
-    anchor: 'export const OUTCOMES_HOME = process.env.NEXT_PUBLIC_OUTCOMES_HOME === "1";',
+    target: FLAGS,
+    anchor: 'export const OUTCOMES_HOME = process.env.NEXT_PUBLIC_OUTCOMES_HOME === "true";',
     mutated: 'export const OUTCOMES_HOME = process.env.NEXT_PUBLIC_OUTCOMES_HOME !== "0";',
     killer: "★the flag is OFF for every spelling of off",
   },
@@ -280,14 +291,20 @@ function matchMutated(src, anchorText, mutated) {
   return eolAt(src, anchorText) === "\r\n" ? toCrlf(mutated) : mutated;
 }
 
-const original = readFileSync(TARGET, "utf8");
+/** ★READ EACH TARGET ONCE, AND RESTORE FROM THIS COPY — never `git checkout`. */
+const ALL = [SMOKE, ...MUTANTS].map((m) => ({ ...m, target: m.target ?? TARGET }));
+const originals = new Map(
+  [...new Set(ALL.map((m) => m.target))].map((t) => [t, readFileSync(t, "utf8")]),
+);
 
 // ── Anchor pre-flight ──────────────────────────────────────────────────────
 let preflightFailed = false;
-for (const m of [...MUTANTS, SMOKE]) {
-  const count = resolveAnchor(original, m.anchor).count;
+for (const m of ALL) {
+  const count = resolveAnchor(originals.get(m.target), m.anchor).count;
   if (count !== 1) {
-    console.error(`ANCHOR PRE-FLIGHT FAILED: "${m.name}" matched ${count} time(s), expected 1`);
+    console.error(
+      `ANCHOR PRE-FLIGHT FAILED: "${m.name}" matched ${count} time(s) in ${m.target}, expected 1`,
+    );
     preflightFailed = true;
   }
 }
@@ -357,17 +374,23 @@ function runKiller(title) {
 }
 
 const results = [];
-for (const m of [SMOKE, ...MUTANTS]) {
+for (const m of ALL) {
   // ⚠️🚫★★TRY/FINALLY, BECAUSE A THROW BETWEEN MUTATE AND RESTORE LEAVES A
   //  MUTANT IN A TRACKED SOURCE FILE. A harness that leaves a mutant behind is
   //  worse than one that never ran.
   let r;
   try {
-    const { text } = resolveAnchor(original, m.anchor);
-    writeFileSync(TARGET, original.split(text).join(matchMutated(original, text, m.mutated)), "utf8");
+    const pristine = originals.get(m.target);
+    const { text } = resolveAnchor(pristine, m.anchor);
+    writeFileSync(
+      m.target,
+      pristine.split(text).join(matchMutated(pristine, text, m.mutated)),
+      "utf8",
+    );
     r = runKiller(m.killer);
   } finally {
-    writeFileSync(TARGET, original, "utf8"); // ★IN-MEMORY RESTORE, every time.
+    // ★IN-MEMORY RESTORE, every time.
+    writeFileSync(m.target, originals.get(m.target), "utf8");
   }
   results.push({ ...m, ...r });
   const mark = r.killed ? "KILLED  " : "SURVIVED";
@@ -375,9 +398,11 @@ for (const m of [SMOKE, ...MUTANTS]) {
   console.log(`${mark}  ${m.name}${collateral}`);
 }
 
-if (readFileSync(TARGET, "utf8") !== original) {
-  console.error(`\nRESTORE FAILED — ${TARGET} does not match its original bytes.`);
-  process.exit(1);
+for (const [target, pristine] of originals) {
+  if (readFileSync(target, "utf8") !== pristine) {
+    console.error(`\nRESTORE FAILED — ${target} does not match its original bytes.`);
+    process.exit(1);
+  }
 }
 
 const survivors = results.filter((r) => !r.killed);

@@ -22,16 +22,15 @@
  * @package peakhour-b2c
  */
 
-/**
- * Whether Outcomes is the app's home and the navigation follows the funnel.
- *
- * ⚠️COMPARED AGAINST THE STRING "1", NOT COERCED. `process.env` values are
- * strings, so `Boolean(process.env.X)` is true for "0" and "false" — the two
- * spellings somebody switching a flag OFF is most likely to reach for, and the
- * failure would be a navigation reorganisation shipping to everyone because a
- * variable said "false".
- */
-export const OUTCOMES_HOME = process.env.NEXT_PUBLIC_OUTCOMES_HOME === "1";
+// ★THE FLAG ITSELF LIVES IN lib/flags.ts, with every other client flag and on
+// the same `"true"` convention. A first version declared it here and took `"1"`
+// — so `NEXT_PUBLIC_OUTCOMES_HOME=true`, the spelling every other flag in this
+// repo uses, silently left the feature off. One convention per repo; a flag
+// whose accepted value has to be looked up is a flag somebody sets wrongly.
+// Re-exported so callers of this module need only one import.
+import { OUTCOMES_HOME } from "./flags";
+
+export { OUTCOMES_HOME };
 
 /**
  * The route the app opens on.
@@ -125,7 +124,11 @@ export function funnelNav<T extends NavLike & { subItems?: { href: string }[] }>
   const all = pillars
     .flatMap((g) => g.items)
     .map((i) =>
-      i.subItems?.some((s) => s.href === home.href)
+      // ★★NEVER AGAINST THE PROMOTED ITEM ITSELF. Growth and Commerce both list
+      // their OWN href as their first subitem ("Ads", "Command Center"), so
+      // promoting either would have deleted that subitem from its own submenu —
+      // a destination lost by the very code written to stop losing them.
+      i.href !== home.href && i.subItems?.some((s) => s.href === home.href)
         ? { ...i, subItems: i.subItems.filter((s) => s.href !== home.href) }
         : i,
     ) as T[];
@@ -136,12 +139,6 @@ export function funnelNav<T extends NavLike & { subItems?: { href: string }[] }>
   const homeItem = byHref.get(home.href) ?? home;
 
   const lead = LEAD_HREFS.map((h) => byHref.get(h)).filter((i): i is T => i !== undefined);
-  // ★`home.href` IS IN THE SET TOO. It is promoted from a SUBITEM today, so it
-  // is not in `all` and the omission cost nothing — but the moment Outcomes
-  // becomes a top-level pillar it would appear in the lead AND in the tail, and
-  // the "exactly once" rule would break silently on the one item the whole
-  // navigation is built around.
-  const taken = new Set([homeItem.href, ...lead.map((i) => i.href), ...Object.keys(FUNNEL_GROUP)]);
 
   const inGroup = (label: "Found" | "Chosen" | "Convinced") =>
     Object.entries(FUNNEL_GROUP)
@@ -149,24 +146,42 @@ export function funnelNav<T extends NavLike & { subItems?: { href: string }[] }>
       .map(([h]) => byHref.get(h))
       .filter((i): i is T => i !== undefined);
 
-  // ★EVERYTHING NOT PLACED, IN ITS ORIGINAL ORDER. Overview lands here — still
-  // one click away, still the same page, no longer the first thing a merchant
-  // sees, which is the whole of the change.
-  const tail = all.filter((i) => !taken.has(i.href));
+  // ★★EVERYTHING, IN ITS ORIGINAL ORDER — and the dedupe below is what makes
+  // that correct rather than duplicative. A first version filtered an
+  // exclusion set out of this list AND deduped afterwards; the set could not
+  // change any output the dedupe did not already fix, so it was a guard that
+  // read as load-bearing and tested as nothing. One rule, at the end.
+  //
+  // Overview lands here — still one click away, still the same page, no longer
+  // the first thing a merchant sees, which is the whole of the change.
+  const tail = all;
 
-  // ★★AN EMPTY GROUP IS DROPPED, HEADING AND ALL. `FUNNEL_GROUP` names hrefs,
-  // so a pillar that is retired or an href that is mistyped leaves its question
-  // with nothing under it — and a "Found" heading over empty space tells a
-  // merchant a section exists that does not. Dropping it is also what keeps the
-  // grouping honest as pillars come and go: the sidebar shows the questions it
-  // can actually answer.
+  // ★★ONE DEDUPE AT THE END, NOT AN EXCLUSION FILTER PER PLACE. An item can
+  // land in three of these — the lead, a funnel heading, the tail — and a first
+  // version guarded each entry point separately. Two of those three guards could
+  // not fire on any input the module allows (`FUNNEL_GROUP` and `LEAD_HREFS`
+  // are constants that do not name the home href today), which is a guard that
+  // reads as load-bearing and tests as nothing. Emitting first and keeping the
+  // FIRST occurrence is one rule, reachable from any input, and it is what makes
+  // "exactly once" true rather than merely intended.
+  //
+  // ★AND AN EMPTY GROUP IS DROPPED, HEADING AND ALL. `FUNNEL_GROUP` names
+  // hrefs, so a retired pillar or a mistyped href leaves its question with
+  // nothing under it — and a "Found" heading over empty space tells a merchant
+  // a section exists that does not.
+  const seen = new Set<string>();
   return [
     { label: "", items: [homeItem, ...lead] },
     { label: "Found", items: inGroup("Found") },
     { label: "Chosen", items: inGroup("Chosen") },
     { label: "Convinced", items: inGroup("Convinced") },
     { label: "", items: tail },
-  ].filter((g) => g.items.length > 0);
+  ]
+    .map((g) => ({
+      ...g,
+      items: g.items.filter((i) => (seen.has(i.href) ? false : (seen.add(i.href), true))),
+    }))
+    .filter((g) => g.items.length > 0);
 }
 
 /**
