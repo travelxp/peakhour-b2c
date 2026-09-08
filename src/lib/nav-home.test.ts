@@ -110,16 +110,59 @@ describe("funnelNav", () => {
     expect(content).toBe(pillars[0].items.find((i) => i.href === "/dashboard/content"));
   });
 
-  it("survives a pillar list missing something the grouping expects", () => {
-    // ★A BUILD MUST NOT FAIL BECAUSE A PILLAR WAS RETIRED. The grouping names
-    // hrefs; a retired one simply has no item, and the heading is short rather
-    // than the sidebar being absent.
+  it("★★drops a heading with nothing under it rather than showing an empty section", () => {
+    // ★A BUILD MUST NOT FAIL BECAUSE A PILLAR WAS RETIRED — and a "Found"
+    // heading over empty space tells a merchant a section exists that does not.
+    // The grouping names hrefs; a retired or mistyped one simply leaves its
+    // question with nothing to answer it, and the question goes with it.
     const withoutPresence: NavGroupLike<Item>[] = [
       { label: "", items: pillars[0].items.filter((i) => i.href !== "/dashboard/presence") },
     ];
     const out = funnelNav(withoutPresence, home);
-    expect(out.find((g) => g.label === "Found")?.items).toEqual([]);
+    expect(out.map((g) => g.label)).not.toContain("Found");
     expect(hrefs(out)).toHaveLength(hrefs(withoutPresence).length + 1);
+  });
+
+  it("★★never lists the promoted home twice, even once it is a pillar of its own", () => {
+    // ★TODAY Outcomes is promoted from a SUBITEM, so it is not in the pillar
+    // list and the exclusion costs nothing. The moment it becomes a top-level
+    // pillar it would appear in the lead AND in the tail — the "exactly once"
+    // rule breaking silently on the one item the navigation is built around.
+    const withHome: NavGroupLike<Item>[] = [
+      { label: "", items: [...pillars[0].items, home] },
+    ];
+    const out = hrefs(funnelNav(withHome, home));
+    expect(out.filter((h) => h === "/dashboard/outcomes")).toHaveLength(1);
+  });
+
+  it("★removes the promoted route from whichever parent held it as a subitem", () => {
+    // Outcomes lives under Growth in the pillar navigation. Promoted without
+    // this, the route is in two places at once: both entries light up on it,
+    // Growth auto-expands beneath its own promoted child, and in the collapsed
+    // rail the two are indistinguishable.
+    type WithSubs = Item & { subItems?: { href: string }[] };
+    const withSubs: NavGroupLike<WithSubs>[] = [
+      {
+        label: "",
+        items: [
+          {
+            href: "/dashboard/ads",
+            label: "Growth",
+            subItems: [{ href: "/dashboard/ads" }, { href: "/dashboard/outcomes" }],
+          },
+        ],
+      },
+    ];
+    const out = funnelNav(withSubs, home as WithSubs);
+    const growth = out.flatMap((g) => g.items).find((i) => i.href === "/dashboard/ads");
+    expect(growth?.subItems?.map((s) => s.href)).toEqual(["/dashboard/ads"]);
+    // ★AND THE ORIGINAL IS NOT MUTATED. The pillar navigation is a module-scope
+    // constant shared with the un-flagged render; editing it in place would
+    // change what a merchant WITHOUT the flag sees.
+    expect(withSubs[0].items[0].subItems?.map((s) => s.href)).toEqual([
+      "/dashboard/ads",
+      "/dashboard/outcomes",
+    ]);
   });
 });
 

@@ -48,6 +48,7 @@ import { AskLauncher } from "@/components/ask/ask-launcher";
 import { ASK_ENABLED } from "@/lib/flags";
 import { HOME_ROUTE, OUTCOMES_HOME, funnelNav } from "@/lib/nav-home";
 import {
+  Gauge,
   LayoutDashboard,
   Sparkles,
   FileText,
@@ -279,7 +280,11 @@ const PILLAR_NAV: NavGroup[] = [
 const OUTCOMES_ITEM: NavItem = {
   href: "/dashboard/outcomes",
   label: "Outcomes",
-  icon: TrendingUp,
+  // ★NOT `TrendingUp`, WHICH IS GROWTH'S ICON. In the collapsed rail an item
+  // IS its icon, and two entries wearing the same one are indistinguishable —
+  // which is precisely the confusion promoting this route out of Growth was
+  // meant to remove.
+  icon: Gauge,
 };
 
 /**

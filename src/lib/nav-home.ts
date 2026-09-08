@@ -103,15 +103,32 @@ export interface NavGroupLike<T extends NavLike> {
  * worth", which it does not: it is where a catalog is managed. Three headings
  * and an honest gap beat four headings and a wrong one.
  */
-export function funnelNav<T extends NavLike>(
+export function funnelNav<T extends NavLike & { subItems?: { href: string }[] }>(
   pillars: NavGroupLike<T>[],
   home: T,
 ): NavGroupLike<T>[] {
-  const all = pillars.flatMap((g) => g.items);
+  // ★★THE PROMOTED HREF IS REMOVED FROM WHICHEVER PARENT HELD IT AS A SUBITEM.
+  // Outcomes lives under Growth in the pillar navigation, so promoting it left
+  // the route in two places at once: both entries light up on /dashboard/
+  // outcomes, Growth auto-expands underneath its own promoted child, and in the
+  // collapsed icon rail the two are indistinguishable. One destination, one
+  // place in the list.
+  const all = pillars
+    .flatMap((g) => g.items)
+    .map((i) =>
+      i.subItems?.some((s) => s.href === home.href)
+        ? { ...i, subItems: i.subItems.filter((s) => s.href !== home.href) }
+        : i,
+    ) as T[];
   const byHref = new Map(all.map((i) => [i.href, i]));
 
   const lead = LEAD_HREFS.map((h) => byHref.get(h)).filter((i): i is T => i !== undefined);
-  const taken = new Set([...lead.map((i) => i.href), ...Object.keys(FUNNEL_GROUP)]);
+  // ★`home.href` IS IN THE SET TOO. It is promoted from a SUBITEM today, so it
+  // is not in `all` and the omission cost nothing — but the moment Outcomes
+  // becomes a top-level pillar it would appear in the lead AND in the tail, and
+  // the "exactly once" rule would break silently on the one item the whole
+  // navigation is built around.
+  const taken = new Set([home.href, ...lead.map((i) => i.href), ...Object.keys(FUNNEL_GROUP)]);
 
   const inGroup = (label: "Found" | "Chosen" | "Convinced") =>
     Object.entries(FUNNEL_GROUP)
@@ -124,11 +141,17 @@ export function funnelNav<T extends NavLike>(
   // sees, which is the whole of the change.
   const tail = all.filter((i) => !taken.has(i.href));
 
+  // ★★AN EMPTY GROUP IS DROPPED, HEADING AND ALL. `FUNNEL_GROUP` names hrefs,
+  // so a pillar that is retired or an href that is mistyped leaves its question
+  // with nothing under it — and a "Found" heading over empty space tells a
+  // merchant a section exists that does not. Dropping it is also what keeps the
+  // grouping honest as pillars come and go: the sidebar shows the questions it
+  // can actually answer.
   return [
     { label: "", items: [home, ...lead] },
     { label: "Found", items: inGroup("Found") },
     { label: "Chosen", items: inGroup("Chosen") },
     { label: "Convinced", items: inGroup("Convinced") },
     { label: "", items: tail },
-  ];
+  ].filter((g) => g.items.length > 0);
 }

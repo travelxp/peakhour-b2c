@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/card";
 import { CheckCircle2, ArrowRight, Sparkles, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { HOME_ROUTE } from "@/lib/nav-home";
 
 interface DiscoveryStatus {
   status: "pending" | "running" | "done" | "failed";
@@ -73,7 +74,7 @@ export default function LaunchPage() {
   // in sessionStorage from a prior session whose job has been TTL'd.
   useEffect(() => {
     if (!jobId) {
-      router.replace("/dashboard/overview");
+      router.replace(HOME_ROUTE);
     }
   }, [jobId, router]);
 
@@ -103,7 +104,7 @@ export default function LaunchPage() {
           // bounce to the dashboard.
           if (status?.status === "done" || status?.status === "failed") return;
           sessionStorage.removeItem("onboarding:jobId");
-          router.replace("/dashboard/overview");
+          router.replace(HOME_ROUTE);
           return;
         }
         setPollError(
@@ -271,7 +272,7 @@ export default function LaunchPage() {
             className="w-full"
             onClick={() => {
               sessionStorage.removeItem("onboarding:jobId");
-              router.push("/dashboard/overview");
+              router.push(HOME_ROUTE);
             }}
           >
             <span className="flex items-center gap-2">

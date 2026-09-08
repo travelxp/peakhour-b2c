@@ -24,6 +24,7 @@ import {
   YoutubeIcon,
 } from "@/components/brand/brand-icons";
 import { cn } from "@/lib/utils";
+import { HOME_ROUTE } from "@/lib/nav-home";
 
 interface ClassifyResponse {
   kind: string;
@@ -111,7 +112,7 @@ function AddBusinessContent() {
   useEffect(() => {
     if (authLoading) return;
     if (org?.onboarding?.completed) {
-      router.replace("/dashboard/overview");
+      router.replace(HOME_ROUTE);
     }
   }, [authLoading, org, router]);
 

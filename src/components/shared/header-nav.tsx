@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/providers/auth-provider";
 import { PeakhourLogo } from "@/components/shared/peakhour-logo";
+import { HOME_ROUTE } from "@/lib/nav-home";
 
 // The five modules are the product — each has its own page. Pricing and Peaks
 // are real routes today.
@@ -185,7 +186,7 @@ export function HeaderNav({
               {!isLoading && isAuthenticated ? (
                 <>
                   <Link
-                    href="/dashboard/overview"
+                    href={HOME_ROUTE}
                     onClick={() => setMenuOpen(false)}
                     className="text-sm font-medium transition-colors hover:text-foreground"
                   >
@@ -281,7 +282,7 @@ function UserMenu({
             <p className="text-xs text-muted-foreground truncate">{user.email}</p>
           </div>
           <Link
-            href="/dashboard/overview"
+            href={HOME_ROUTE}
             onClick={() => setOpen(false)}
             className="block w-full rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-accent"
           >

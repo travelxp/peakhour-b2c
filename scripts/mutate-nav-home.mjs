@@ -57,14 +57,14 @@ const MUTANTS = [
   },
   {
     name: "leave an assigned pillar in the tail as well, listing it twice",
-    anchor: "  const taken = new Set([...lead.map((i) => i.href), ...Object.keys(FUNNEL_GROUP)]);",
-    mutated: "  const taken = new Set(lead.map((i) => i.href));",
+    anchor: "  const taken = new Set([home.href, ...lead.map((i) => i.href), ...Object.keys(FUNNEL_GROUP)]);",
+    mutated: "  const taken = new Set([home.href, ...lead.map((i) => i.href)]);",
     killer: "★★keeps every pillar destination, exactly once",
   },
   {
     name: "leave the LEAD items in the tail as well, listing Integrations twice",
-    anchor: "  const taken = new Set([...lead.map((i) => i.href), ...Object.keys(FUNNEL_GROUP)]);",
-    mutated: "  const taken = new Set(Object.keys(FUNNEL_GROUP));",
+    anchor: "  const taken = new Set([home.href, ...lead.map((i) => i.href), ...Object.keys(FUNNEL_GROUP)]);",
+    mutated: "  const taken = new Set([home.href, ...Object.keys(FUNNEL_GROUP)]);",
     killer: "★★keeps every pillar destination, exactly once",
   },
 
@@ -98,8 +98,12 @@ const MUTANTS = [
   {
     name: "★invent a BOUGHT heading over Commerce, which does not answer that question",
     anchor: "    { label: \"Convinced\", items: inGroup(\"Convinced\") },",
+    // ⚠★AN EMPTY ONE NO LONGER COUNTS. Round 1 added the drop-empty-groups
+    //  filter, which makes `items: []` a no-op — so the mutant has to put
+    //  something UNDER the heading to be the defect it describes: a "Bought"
+    //  label over Commerce, implying Commerce answers "what was it worth".
     mutated:
-      "    { label: \"Convinced\", items: inGroup(\"Convinced\") },\n    { label: \"Bought\", items: [] },",
+      "    { label: \"Bought\", items: inGroup(\"Convinced\") },",
     killer: "★has no BOUGHT heading, which is a finding rather than an omission",
   },
   {
@@ -109,11 +113,42 @@ const MUTANTS = [
     killer: "★passes items through BY REFERENCE, so icons, subitems and gates survive",
   },
   {
+    name: "★★list the promoted home twice once it is a pillar of its own",
+    anchor: "  const taken = new Set([home.href, ...lead.map((i) => i.href), ...Object.keys(FUNNEL_GROUP)]);",
+    mutated: "  const taken = new Set([...lead.map((i) => i.href), ...Object.keys(FUNNEL_GROUP)]);",
+    killer: "★★never lists the promoted home twice, even once it is a pillar of its own",
+  },
+  {
+    name: "★keep the promoted route in its parent's subitems as well",
+    anchor: "      i.subItems?.some((s) => s.href === home.href)",
+    mutated: "      false",
+    killer: "★removes the promoted route from whichever parent held it as a subitem",
+  },
+  {
+    name: "★★MUTATE the shared pillar list in place, changing the un-flagged sidebar",
+    anchor: "        ? { ...i, subItems: i.subItems.filter((s) => s.href !== home.href) }",
+    mutated:
+      "        ? ((i.subItems = i.subItems.filter((s) => s.href !== home.href)), i)",
+    killer: "★removes the promoted route from whichever parent held it as a subitem",
+  },
+  {
+    name: "★★render a heading with nothing under it",
+    anchor: "  ].filter((g) => g.items.length > 0);",
+    mutated: "  ];",
+    killer: "★★drops a heading with nothing under it rather than showing an empty section",
+  },
+  {
+    name: "drop every group that is not labelled, losing the lead and the tail",
+    anchor: "  ].filter((g) => g.items.length > 0);",
+    mutated: "  ].filter((g) => g.label !== \"\");",
+    killer: "★★keeps every pillar destination, exactly once",
+  },
+  {
     name: "throw when the grouping names a pillar that has been retired",
     anchor: "      .filter((i): i is T => i !== undefined);\n\n  // ★EVERYTHING NOT PLACED",
     mutated:
       "      .map((i) => { if (!i) throw new Error('missing'); return i; });\n\n  // ★EVERYTHING NOT PLACED",
-    killer: "survives a pillar list missing something the grouping expects",
+    killer: "★★drops a heading with nothing under it rather than showing an empty section",
   },
 
   // ── The flag ─────────────────────────────────────────────────────────────
@@ -141,8 +176,8 @@ const MUTANTS = [
 /** ★THE SMOKE MUTANT: it must die, or nothing else here counts. */
 const SMOKE = {
   name: "SMOKE — the funnel navigation is always empty",
-  anchor: "  const all = pillars.flatMap((g) => g.items);",
-  mutated: "  const all = [];",
+  anchor: "  const all = pillars\n    .flatMap((g) => g.items)",
+  mutated: "  const all = []\n    .flatMap((g) => g.items)",
   killer: "★★keeps every pillar destination, exactly once",
 };
 

@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Sparkles, ArrowLeft, ArrowRight, AlertCircle } from "lucide-react";
+import { HOME_ROUTE } from "@/lib/nav-home";
 
 const BUSINESS_CATEGORIES = [
   { value: "health_medical", label: "Health & Medical" },
@@ -155,7 +156,7 @@ export default function AboutPage() {
         if (err.code === "ORG_EXISTS") {
           sessionStorage.removeItem("onboarding:extract");
           await refreshUser();
-          router.replace("/dashboard/overview");
+          router.replace(HOME_ROUTE);
           return;
         }
         setError(err.message);
