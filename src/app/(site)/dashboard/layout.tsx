@@ -46,6 +46,7 @@ import { ChatPanel } from "@/components/molecules/chat-panel";
 import { AskContextProvider } from "@/providers/ask-context-provider";
 import { AskLauncher } from "@/components/ask/ask-launcher";
 import { ASK_ENABLED } from "@/lib/flags";
+import { HOME_ROUTE, OUTCOMES_HOME, funnelNav } from "@/lib/nav-home";
 import {
   LayoutDashboard,
   Sparkles,
@@ -129,7 +130,7 @@ const SHOW_AUTOPILOT = process.env.NEXT_PUBLIC_VERCEL_ENV !== "production";
  * four headings and three rules to a list of twelve items, which is more chrome
  * than the grouping is worth; the ordering carries the meaning on its own.
  */
-const NAV_GROUPS: NavGroup[] = [
+const PILLAR_NAV: NavGroup[] = [
   {
     label: "",
     items: [
@@ -263,6 +264,32 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
 ];
+
+/**
+ * ★THE FUNNEL NAVIGATION IS DERIVED, NOT WRITTEN OUT AGAIN. `funnelNav`
+ * partitions the pillar list — every item comes out exactly once, and a pillar
+ * added next month lands in the tail rather than vanishing from a navigation
+ * nobody has switched on to notice. The grouping itself, and why there is no
+ * "Bought" heading, are argued in lib/nav-home.ts.
+ *
+ * ★OUTCOMES IS PROMOTED FROM GROWTH'S SUBITEMS to lead the list. It stays where
+ * it was as well; this changes where a merchant finds it first, not where it
+ * exists.
+ */
+const OUTCOMES_ITEM: NavItem = {
+  href: "/dashboard/outcomes",
+  label: "Outcomes",
+  icon: TrendingUp,
+};
+
+/**
+ * ★THE DEFAULT IS TODAY'S NAVIGATION. `NEXT_PUBLIC_OUTCOMES_HOME` is unset in
+ * every environment until somebody decides otherwise, so this resolves to
+ * PILLAR_NAV and no merchant sees a changed sidebar.
+ */
+const NAV_GROUPS: NavGroup[] = OUTCOMES_HOME
+  ? funnelNav(PILLAR_NAV, OUTCOMES_ITEM)
+  : PILLAR_NAV;
 
 /**
  * A sidebar count that says what it is counting.
@@ -438,7 +465,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton size="lg" asChild className="hover:bg-transparent">
-                <Link href="/dashboard/overview" aria-label="Peakhour.ai — dashboard home">
+                <Link href={HOME_ROUTE} aria-label="Peakhour.ai — dashboard home">
                   {/* ★TWO COLUMNS: THE MARK, THEN THE NAME OVER ITS DESCRIPTION.
                       The mark is present in BOTH states — it is the one element
                       that survives the collapse — so it is not duplicated the
