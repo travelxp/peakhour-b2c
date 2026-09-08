@@ -130,8 +130,13 @@ describe("brandLine", () => {
   });
 
   it("★states the split's OWN window, not the page's", () => {
-    const line = brandLine({ ...split()!, windowDays: 28 });
-    expect(line).toContain("last 28 days");
+    // ★★A FIXTURE OF 28 CANNOT TEST THIS, and the first version of this case
+    // used one — 28 is the page's own default, so replacing the interpolation
+    // with the literal left every spec green. The window has to be a number
+    // nothing else on the page would have produced.
+    const line = brandLine({ ...split()!, windowDays: 41 });
+    expect(line).toContain("last 41 days");
+    expect(line).not.toContain("28");
   });
 
   it("says the terms were guessed when nobody has confirmed them", () => {
@@ -168,6 +173,25 @@ describe("brandLine", () => {
       split({ brand: { clicks: 0, impressions: 0, queries: 0 }, nonBrand: { clicks: 0, impressions: 0, queries: 0 } }),
     );
     expect(line).toBe("Nobody searched Google for you by name in the last 28 days.");
+  });
+
+  it("★★does not say NOBODY SEARCHED over a window with impressions in it", () => {
+    // ★★THE FALSE SENTENCE OVER A TRUE FIGURE, COMMITTED BY THE MODULE THAT
+    // EXISTS TO PREVENT IT. "Nobody searched Google for you by name" sat
+    // directly under a FOUND stage reporting 1,320 impressions, because the
+    // zero check looked only at CLICKS. A shop can appear hundreds of times and
+    // be clicked never — that is a finding, and a different one.
+    const line = brandLine(
+      split({
+        brand: { clicks: 0, impressions: 420, queries: 6 },
+        nonBrand: { clicks: 0, impressions: 900, queries: 40 },
+      }),
+    );
+    expect(line).not.toContain("Nobody searched");
+    expect(line).toBe(
+      "420 of 1,320 times you appeared in Google were people searching for you by name — " +
+        "none of them clicked through, over the last 28 days.",
+    );
   });
 
   it("groups thousands, so a large figure is readable", () => {

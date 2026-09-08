@@ -19,12 +19,15 @@
  * of a 7-day figure, a lapsed grant told to "connect Google" when they already
  * did. None of those fails a type, a build, or a render.
  *
- * ★AND THE ZONE IS NOT PINNED HERE, WHICH IS A DIFFERENCE FROM ITS SIBLING.
+ * ★AND NEITHER THE ZONE NOR THE LOCALE IS PINNED HERE, WHICH IS A DIFFERENCE
+ * FROM ITS SIBLING AND WORTH STATING RATHER THAN IMPLYING.
  * mutate-outcome-value.mjs runs west of UTC because the covered dates it
- * defends are read on a calendar; nothing in this file reads a date — the api
- * sends day COUNTS — so there is no zone-sensitive rule for such a run to
- * score. The LOCALE is pinned, because the one formatter here groups digits and
- * a machine's own locale must not decide what the spec asserts.
+ * defends are read on a calendar, and it pins a locale because its formatters
+ * take one. Nothing in this file reads a date — the api sends day COUNTS — and
+ * its one formatter names `"en-US"` explicitly, so a `LANG` here would be
+ * inert. ⚠️A first version set one anyway and said it mattered, which is worse
+ * than not setting it: an environment variable nothing reads reads as a
+ * precaution somebody took.
  *
  * Run: node scripts/mutate-visibility-funnel.mjs
  */
@@ -38,7 +41,7 @@ const SPEC = "src/lib/visibility-funnel.test.ts";
 /** ⚠️★`npx.cmd` ANSWERS EINVAL on this platform — go through the node binary. */
 const VITEST = "node_modules/vitest/vitest.mjs";
 
-const RUN_ENV = { ...process.env, LANG: "en_IN.UTF-8", LC_ALL: "en_IN.UTF-8" };
+const RUN_ENV = { ...process.env };
 
 const MUTANTS = [
   // ── An absence that names the wrong fix ──────────────────────────────────
@@ -139,6 +142,24 @@ const MUTANTS = [
     anchor: 'const NUM = new Intl.NumberFormat("en-US");',
     mutated: "const NUM = { format: (n) => String(n) };",
     killer: "groups thousands, so a large figure is readable",
+  },
+  {
+    name: "★★call a window with impressions and no clicks 'nobody searched'",
+    anchor: "  if (total === 0 && impressions > 0) {",
+    mutated: "  if (false) {",
+    killer: "★★does not say NOBODY SEARCHED over a window with impressions in it",
+  },
+  {
+    name: "count only brand impressions as the denominator, so the share is always all of it",
+    anchor: "  const impressions = split.brand.impressions + split.nonBrand.impressions;",
+    mutated: "  const impressions = split.brand.impressions;",
+    killer: "★★does not say NOBODY SEARCHED over a window with impressions in it",
+  },
+  {
+    name: "★hard-code the split's window, so a change to the sync ships a wrong number",
+    anchor: "    `people searching for you by name, over the last ${windowDays} days${seeded}.`",
+    mutated: "    `people searching for you by name, over the last 28 days${seeded}.`",
+    killer: "★states the split's OWN window, not the page's",
   },
 ];
 

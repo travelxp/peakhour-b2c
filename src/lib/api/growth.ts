@@ -349,23 +349,30 @@ export type VisibilityAbsence =
   | "needs_reconnect"
   | "unavailable";
 
+/**
+ * ★NO `"value"` MEMBER, AND NO `"bought"` STAGE, BECAUSE THE api SENDS
+ * NEITHER. Money is not one of `stages`: the three stages are sums of
+ * comparable integers, while the amount has its own currency, its own covered
+ * window and its own three refusals, and arrives as the sibling `value` block
+ * decided by `buildValueBlock`. Typing a stage key nobody sends invites a
+ * surface to look for a fourth card in the wrong place — which is exactly what
+ * happened here once.
+ */
+export type VisibilitySource = "google_search" | "google_business_profile" | "google_analytics";
+
 export type VisibilityFigure =
   | {
-      source: "google_search" | "google_business_profile" | "google_analytics" | "value";
+      source: VisibilitySource;
       available: true;
       value: number;
       /** Days inside the window this source actually reported. Short of
        *  `period.days` means the stage is `partial`. */
       days: number;
     }
-  | {
-      source: "google_search" | "google_business_profile" | "google_analytics" | "value";
-      available: false;
-      reason: VisibilityAbsence;
-    };
+  | { source: VisibilitySource; available: false; reason: VisibilityAbsence };
 
 export interface VisibilityStage {
-  key: "found" | "chosen" | "convinced" | "bought";
+  key: "found" | "chosen" | "convinced";
   question: string;
   /** Absent when the api refused to total — `incomplete` says why. */
   total?: number;

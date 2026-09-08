@@ -103,9 +103,23 @@ export function brandLine(brandSplit: VisibilityResponse["brandSplit"]): string 
   if (!split.assertable) return split.message;
 
   const total = split.brand.clicks + split.nonBrand.clicks;
-  // ★A MEASURED ZERO IS STILL AN ANSWER, and it is a useful one: nobody
-  // searched for this shop by name. But "0 of 0" says nothing at all, so a
-  // window with no clicks in it gets the honest short sentence instead.
+  const impressions = split.brand.impressions + split.nonBrand.impressions;
+
+  // ★★A ZERO IN CLICKS IS NOT A ZERO IN DEMAND, AND SAYING SO WAS A FALSE
+  // SENTENCE OVER A TRUE FIGURE — the thing this module exists to prevent,
+  // committed by this module. "Nobody searched Google for you by name" sat
+  // directly under a FOUND stage reporting 1,320 impressions, because the
+  // check looked only at clicks. A shop can appear hundreds of times and be
+  // clicked never; that is a finding, and a different one.
+  if (total === 0 && impressions > 0) {
+    return (
+      `${NUM.format(split.brand.impressions)} of ${NUM.format(impressions)} times you ` +
+      `appeared in Google were people searching for you by name — none of them clicked ` +
+      `through, over the last ${windowDays} days.`
+    );
+  }
+  // No clicks AND no impressions: nobody looked at all, which is the honest
+  // short sentence. "0 of 0 search clicks" says nothing about anything.
   if (total === 0) {
     return `Nobody searched Google for you by name in the last ${windowDays} days.`;
   }
