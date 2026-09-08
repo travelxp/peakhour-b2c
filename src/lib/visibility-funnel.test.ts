@@ -50,19 +50,105 @@ describe("absenceText", () => {
 });
 
 describe("incompleteLine", () => {
+  /** ★A COHERENT nothing_connected STAGE, which the first fixture was not: it
+   *  carried two AVAILABLE figures, a state the api cannot produce. That
+   *  incoherence let a mutant deleting the whole branch survive, because the
+   *  fall-through happened to answer something else. */
+  const nothingConnected = () =>
+    stage({
+      total: undefined,
+      incomplete: "nothing_connected",
+      figures: [
+        { source: "google_search", available: false, reason: "not_connected" },
+        { source: "google_business_profile", available: false, reason: "not_connected" },
+      ],
+    });
+
   it("★never renders an untotalled stage as a zero", () => {
     // "0 people found you" is a verdict on a business that has simply connected
     // nothing — the single most misleading thing this surface could print.
-    const line = incompleteLine(stage({ total: undefined, incomplete: "nothing_connected" }));
+    const line = incompleteLine(nothingConnected());
     expect(line).toBe("Nothing connected yet");
     expect(line).not.toMatch(/\b0\b/);
   });
 
   it("gives the two states different sentences, because they have different fixes", () => {
-    const nothing = incompleteLine(stage({ total: undefined, incomplete: "nothing_connected" }));
-    const waiting = incompleteLine(stage({ total: undefined, incomplete: "awaiting_data" }));
+    const nothing = incompleteLine(nothingConnected());
+    expect(nothing).toBe("Nothing connected yet");
+    const waiting = incompleteLine(
+      stage({
+        total: undefined,
+        incomplete: "awaiting_data",
+        figures: [
+          { source: "google_search", available: true, value: 4000, days: 28 },
+          { source: "google_business_profile", available: false, reason: "pending" },
+        ],
+      }),
+    );
     expect(waiting).toBe("Waiting on a connection");
     expect(nothing).not.toBe(waiting);
+  });
+
+  it("★★does not blame the merchant's connection for OUR read failure", () => {
+    // ★THE HEADLINE CONTRADICTED THE ROW BENEATH IT. "Waiting on a connection"
+    // sat directly above "couldn't be read", pointing at the merchant's setup
+    // for a timeout of ours. `stage.figures` was in hand and unread.
+    const line = incompleteLine(
+      stage({
+        total: undefined,
+        incomplete: "awaiting_data",
+        figures: [{ source: "google_search", available: false, reason: "unavailable" }],
+      }),
+    );
+    expect(line).toBe("We couldn't read this");
+  });
+
+  it("★names the fix when there IS one, rather than telling somebody to wait", () => {
+    const line = incompleteLine(
+      stage({
+        total: undefined,
+        incomplete: "awaiting_data",
+        figures: [
+          { source: "google_search", available: false, reason: "needs_reconnect" },
+          { source: "google_business_profile", available: false, reason: "pending" },
+        ],
+      }),
+    );
+    expect(line).toBe("Reconnect Google to see this");
+  });
+
+  it("★★does not call it OUR failure when only SOME of the blockers are ours", () => {
+    // ★ONE UNREADABLE SOURCE BESIDE ONE STILL GATHERING IS NOT "we couldn't
+    // read this" — there is a real wait in there, and saying otherwise sends
+    // somebody to chase an outage that is half a new connection.
+    const line = incompleteLine(
+      stage({
+        total: undefined,
+        incomplete: "awaiting_data",
+        figures: [
+          { source: "google_search", available: false, reason: "unavailable" },
+          { source: "google_business_profile", available: false, reason: "pending" },
+        ],
+      }),
+    );
+    expect(line).toBe("Waiting on a connection");
+  });
+
+  it("★ignores a NOT-CONNECTED source when choosing the sentence", () => {
+    // A channel the merchant does not use never blocks a total, so it must not
+    // decide the words either — otherwise a business with no Business Profile
+    // would be told to reconnect something they never connected.
+    const line = incompleteLine(
+      stage({
+        total: undefined,
+        incomplete: "awaiting_data",
+        figures: [
+          { source: "google_business_profile", available: false, reason: "not_connected" },
+          { source: "google_search", available: false, reason: "unavailable" },
+        ],
+      }),
+    );
+    expect(line).toBe("We couldn't read this");
   });
 });
 

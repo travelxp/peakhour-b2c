@@ -67,17 +67,45 @@ const MUTANTS = [
   // ── An untotalled stage rendered as a number ─────────────────────────────
   {
     name: "★★render an untotalled stage as a zero, the worst sentence this surface has",
-    anchor:
-      '  return stage.incomplete === "nothing_connected"\n    ? "Nothing connected yet"\n    : "Waiting on a connection";',
-    mutated: '  return "0";',
+    anchor: '  if (stage.incomplete === "nothing_connected") return "Nothing connected yet";',
+    mutated: '  return "0";\n  if (false) return "x";',
     killer: "★never renders an untotalled stage as a zero",
   },
   {
     name: "give both incomplete states one sentence, hiding which of two fixes applies",
-    anchor:
-      '  return stage.incomplete === "nothing_connected"\n    ? "Nothing connected yet"\n    : "Waiting on a connection";',
-    mutated: '  return "Waiting on a connection";',
+    anchor: '  if (stage.incomplete === "nothing_connected") return "Nothing connected yet";',
+    mutated: '  if (false) return "Nothing connected yet";',
     killer: "gives the two states different sentences, because they have different fixes",
+  },
+  {
+    name: "★★blame the merchant's connection for OUR read failure",
+    anchor: "    return \"We couldn't read this\";",
+    mutated: '    return "Waiting on a connection";',
+    killer: "★★does not blame the merchant's connection for OUR read failure",
+  },
+  {
+    name: "tell somebody to WAIT when there is a reconnect to do",
+    anchor: '    return "Reconnect Google to see this";',
+    mutated: '    return "Waiting on a connection";',
+    killer: "★names the fix when there IS one, rather than telling somebody to wait",
+  },
+  {
+    name: "★let a channel the merchant does not use decide the sentence",
+    anchor:
+      '  const blocking = stage.figures.filter((f) => !f.available && f.reason !== "not_connected");',
+    mutated: "  const blocking = stage.figures.filter((f) => !f.available);",
+    killer: "★ignores a NOT-CONNECTED source when choosing the sentence",
+  },
+  {
+    name: "call it OUR failure when only SOME of the blockers are ours",
+    anchor:
+      '  if (blocking.every((f) => !f.available && f.reason === "unavailable")) {',
+    mutated: '  if (blocking.some((f) => !f.available && f.reason === "unavailable")) {',
+    // ★NOT the reconnect test, which this SURVIVED: its figures carry no
+    //  `unavailable` at all, so `.some` and `.every` agree there. Only a MIXED
+    //  set — one unreadable source beside one still gathering — can tell them
+    //  apart, which is the case the sentence exists to get right.
+    killer: "★★does not call it OUR failure when only SOME of the blockers are ours",
   },
 
   // ── The coverage note ────────────────────────────────────────────────────

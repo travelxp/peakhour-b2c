@@ -58,9 +58,22 @@ export function absenceText(reason: VisibilityAbsence): string {
  * nothing, which is the single most misleading thing this surface could print.
  */
 export function incompleteLine(stage: VisibilityStage): string {
-  return stage.incomplete === "nothing_connected"
-    ? "Nothing connected yet"
-    : "Waiting on a connection";
+  if (stage.incomplete === "nothing_connected") return "Nothing connected yet";
+
+  // ★★"WAITING ON A CONNECTION" IS ONLY TRUE OF SOME OF THE THINGS THAT BLOCK A
+  // TOTAL, and `stage.figures` was in hand and unread. When the blocker is
+  // `unavailable` the fault is OURS — the headline blamed the merchant's
+  // connection for our own timeout, directly above a row saying "couldn't be
+  // read". And when it is `needs_reconnect` there is something to DO, which
+  // "waiting" tells nobody.
+  const blocking = stage.figures.filter((f) => !f.available && f.reason !== "not_connected");
+  if (blocking.every((f) => !f.available && f.reason === "unavailable")) {
+    return "We couldn't read this";
+  }
+  if (blocking.some((f) => !f.available && f.reason === "needs_reconnect")) {
+    return "Reconnect Google to see this";
+  }
+  return "Waiting on a connection";
 }
 
 /**

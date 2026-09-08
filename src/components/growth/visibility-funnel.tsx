@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Link2Off, Loader2, PlugZap, RefreshCw } from "lucide-react";
+import { AlertTriangle, HelpCircle, Loader2, PlugZap, RefreshCw } from "lucide-react";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -32,15 +32,26 @@ import type { VisibilityAbsence, VisibilityResponse, VisibilityStage } from "@/l
  * tested and mutated without a DOM.
  */
 
-/** Icon per stated absence. The WORDS live in the lib; only the picture is
- *  here, because a picture cannot be wrong in the way a sentence can. */
-const ABSENCE_ICON: Record<VisibilityAbsence, typeof PlugZap> = {
-  not_connected: PlugZap,
-  not_configured: AlertTriangle,
-  pending: Loader2,
-  stale: AlertTriangle,
-  needs_reconnect: RefreshCw,
-  unavailable: Link2Off,
+/**
+ * Icon per stated absence. The WORDS live in the lib; only the picture is here.
+ *
+ * ★A PICTURE CAN STILL CONTRADICT A SENTENCE. `unavailable` means WE could not
+ * read it, and a broken-link glyph undid in the icon the distinction
+ * `absenceText` is written to preserve — it pointed at the merchant's
+ * connection for our own failure. A question mark says "we do not know", which
+ * is what it is.
+ *
+ * ★AND THE SPINNER HAS TO SPIN. Every other Loader2 in this repo is paired with
+ * `animate-spin`; a frozen one reads as a thing that has stalled rather than a
+ * thing in progress, which is the opposite of "gathering data".
+ */
+const ABSENCE_ICON: Record<VisibilityAbsence, { icon: typeof PlugZap; className?: string }> = {
+  not_connected: { icon: PlugZap },
+  not_configured: { icon: AlertTriangle },
+  pending: { icon: Loader2, className: "animate-spin" },
+  stale: { icon: AlertTriangle },
+  needs_reconnect: { icon: RefreshCw },
+  unavailable: { icon: HelpCircle },
 };
 
 const SOURCE_LABEL: Record<string, string> = {
@@ -49,13 +60,21 @@ const SOURCE_LABEL: Record<string, string> = {
   google_analytics: "Your website",
 };
 
+/** ★NEVER THE RAW WIRE VALUE. The two repos deploy separately, so this build
+ *  can meet a source it has no label for — and `google_business_profile` in a
+ *  merchant-facing list is worse than a generic word. The same forward-compat
+ *  hole was closed for the absence text and its icon two lines below. */
+function sourceLabel(source: string): string {
+  return SOURCE_LABEL[source] ?? "Another source";
+}
+
 const NUM = new Intl.NumberFormat("en-US");
 
 function StageCard({ stage, windowDays }: { stage: VisibilityStage; windowDays: number }) {
   const hasTotal = typeof stage.total === "number";
   const partial = partialLine(stage, windowDays);
   return (
-    <div className="flex flex-col gap-2 p-4">
+    <div className="flex flex-col gap-2 bg-card p-4">
       <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
         {stage.question}
       </p>
@@ -71,7 +90,7 @@ function StageCard({ stage, windowDays }: { stage: VisibilityStage; windowDays: 
 
       <ul className="mt-1 space-y-1">
         {stage.figures.map((f) => {
-          const label = SOURCE_LABEL[f.source] ?? f.source;
+          const label = sourceLabel(f.source);
           if (f.available) {
             return (
               <li key={f.source} className="flex justify-between gap-2 text-xs">
@@ -84,12 +103,12 @@ function StageCard({ stage, windowDays }: { stage: VisibilityStage; windowDays: 
           // has already grown twice, and `<undefined />` throws — which the
           // dashboard's error boundary turns into the whole Outcomes page
           // disappearing, the opposite of this component's own contract.
-          const Icon = ABSENCE_ICON[f.reason] ?? AlertTriangle;
+          const { icon: Icon, className } = ABSENCE_ICON[f.reason] ?? { icon: HelpCircle };
           return (
             <li key={f.source} className="flex justify-between gap-2 text-xs">
               <span className="text-muted-foreground">{label}</span>
               <span className="flex items-center gap-1 text-muted-foreground">
-                <Icon className="size-3" aria-hidden />
+                <Icon className={`size-3 ${className ?? ""}`} aria-hidden />
                 {absenceText(f.reason)}
               </span>
             </li>
@@ -129,7 +148,13 @@ export function VisibilityFunnel({
             sends it. A transient failure would have shown "couldn't be read"
             above a real amount. One figure, one request.
             `data.value` therefore goes unread by this component, deliberately. */}
-        <div className="grid divide-y sm:grid-cols-2 sm:divide-x lg:grid-cols-3 lg:divide-y-0">
+        {/* ★★SEPARATORS DRAWN AS GRID GAPS, NOT AS `divide-*`. With three cards
+            in a two-column grid, `divide-y` and `divide-x` are both live at
+            `sm` and Tailwind applies them by DOM ORDER rather than by grid
+            position — so the second card took a stray top border and the third
+            a stray left border, right across 640–1024px. A one-pixel gap over a
+            border-coloured background draws the right lines in every wrap. */}
+        <div className="grid gap-px bg-border sm:grid-cols-2 lg:grid-cols-3">
           {data.stages.map((s) => (
             <StageCard key={s.key} stage={s} windowDays={data.period.days} />
           ))}

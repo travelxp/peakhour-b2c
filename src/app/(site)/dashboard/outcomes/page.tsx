@@ -135,10 +135,11 @@ export default function OutcomesPage() {
           actually asks; the ranked actions under it are what to do about the
           answer. It renders nothing at all on a failure rather than a red
           panel, because the page works without it. */}
-      <VisibilityFunnel
-        data={visibility.data}
-        isPending={visibility.isPending && !visibility.isError}
-      />
+      {/* ★`isPending` ALONE. A first version wrote `isPending && !isError` —
+          a guard after a stronger guard: the two statuses are mutually
+          exclusive in Query v5, so the second could never fire and read as a
+          precaution somebody had taken. */}
+      <VisibilityFunnel data={visibility.data} isPending={visibility.isPending} />
 
       {outcomes.isPending ? (
         <div className="space-y-4">
@@ -390,18 +391,28 @@ function OutcomesBody({ data }: { data: OutcomesResponse }) {
                     : undefined
                 }
               />
-              {/* ★A SITE BLOCK ONLY WHEN ANALYTICS IS CONNECTED, and dated when
-                  the data has stopped moving — the number is still true, it is
-                  just true about three weeks ago, and a figure without that
-                  caveat is the one people plan against. */}
+              {/* ★★THE SESSION COUNT MOVED TO THE FUNNEL, AND THE PEOPLE COUNT
+                  STAYED. Both this and the funnel's CONVINCED card were GA4
+                  sessions over the same nominal window, from two endpoints that
+                  compute it differently: /outcomes uses a rolling now−N×24h
+                  cutoff and sums every matching row, while /visibility snaps to
+                  UTC midnight, scopes to the selected property, keeps whole-day
+                  rows only and de-dupes to the newest snapshot per day. Two
+                  numbers for one quantity, on one screen, guaranteed to
+                  disagree — the defect the money card was fixed for one review
+                  round earlier.
+                  ★The funnel's is the better-computed one, so it keeps the
+                  sessions; this figure now reports USERS, which the funnel does
+                  not carry and which is a different question anyway ("how many
+                  people", not "how many visits"). */}
               {reach.site && (
                 <Figure
-                  label="Visited your site"
-                  value={NUM.format(reach.site.sessions)}
+                  label="People who visited"
+                  value={NUM.format(reach.site.users)}
                   note={
                     reach.site.stale && reach.site.dataThrough
-                      ? `${NUM.format(reach.site.users)} people · only counted up to ${shortDate(reach.site.dataThrough)}`
-                      : `${NUM.format(reach.site.users)} people`
+                      ? `only counted up to ${shortDate(reach.site.dataThrough)}`
+                      : undefined
                   }
                 />
               )}
