@@ -25,6 +25,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/molecules/empty-state";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { WhatCountsAsAWinDialog } from "@/components/growth/what-counts-as-a-win-dialog";
+import { VisibilityFunnel } from "@/components/growth/visibility-funnel";
 import { useAuth } from "@/providers/auth-provider";
 import { growthApi, type OutcomesResponse } from "@/lib/api/growth";
 import { platformLabel } from "@/lib/audience-library-rules";
@@ -78,6 +79,18 @@ export default function OutcomesPage() {
   const { business } = useAuth();
   const [days, setDays] = useState<number>(28);
 
+  // ★A SEPARATE QUERY, NOT A SECOND FIELD ON /outcomes, and the reason is what
+  // the funnel is for: it must be able to fail, be slow, or be absent without
+  // touching the page beneath it. The same `days` goes to both so the funnel
+  // and the numbers under it describe the same period — the one thing a
+  // client-side assembly of this data always gets wrong.
+  const visibility = useQuery({
+    queryKey: ["growth-visibility", business?._id ?? "none", days],
+    queryFn: () => growthApi.visibility(days),
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
+  });
+
   const outcomes = useQuery({
     // Business in the key for the same reason every other business-scoped hook
     // pins it: the route is business-scoped server-side, and a key that does
@@ -116,6 +129,17 @@ export default function OutcomesPage() {
           ))}
         </div>
       </div>
+
+      {/* ★★THE FUNNEL LEADS, AND EVERYTHING BELOW IT IS UNCHANGED. Found →
+          chosen → convinced → bought is the shape of the question a shopkeeper
+          actually asks; the ranked actions under it are what to do about the
+          answer. It renders nothing at all on a failure rather than a red
+          panel, because the page works without it. */}
+      {/* ★`isPending` ALONE. A first version wrote `isPending && !isError` —
+          a guard after a stronger guard: the two statuses are mutually
+          exclusive in Query v5, so the second could never fire and read as a
+          precaution somebody had taken. */}
+      <VisibilityFunnel data={visibility.data} isPending={visibility.isPending} />
 
       {outcomes.isPending ? (
         <div className="space-y-4">
@@ -367,18 +391,28 @@ function OutcomesBody({ data }: { data: OutcomesResponse }) {
                     : undefined
                 }
               />
-              {/* ★A SITE BLOCK ONLY WHEN ANALYTICS IS CONNECTED, and dated when
-                  the data has stopped moving — the number is still true, it is
-                  just true about three weeks ago, and a figure without that
-                  caveat is the one people plan against. */}
+              {/* ★★THE SESSION COUNT MOVED TO THE FUNNEL, AND THE PEOPLE COUNT
+                  STAYED. Both this and the funnel's CONVINCED card were GA4
+                  sessions over the same nominal window, from two endpoints that
+                  compute it differently: /outcomes uses a rolling now−N×24h
+                  cutoff and sums every matching row, while /visibility snaps to
+                  UTC midnight, scopes to the selected property, keeps whole-day
+                  rows only and de-dupes to the newest snapshot per day. Two
+                  numbers for one quantity, on one screen, guaranteed to
+                  disagree — the defect the money card was fixed for one review
+                  round earlier.
+                  ★The funnel's is the better-computed one, so it keeps the
+                  sessions; this figure now reports USERS, which the funnel does
+                  not carry and which is a different question anyway ("how many
+                  people", not "how many visits"). */}
               {reach.site && (
                 <Figure
-                  label="Visited your site"
-                  value={NUM.format(reach.site.sessions)}
+                  label="People who visited"
+                  value={NUM.format(reach.site.users)}
                   note={
                     reach.site.stale && reach.site.dataThrough
-                      ? `${NUM.format(reach.site.users)} people · only counted up to ${shortDate(reach.site.dataThrough)}`
-                      : `${NUM.format(reach.site.users)} people`
+                      ? `only counted up to ${shortDate(reach.site.dataThrough)}`
+                      : undefined
                   }
                 />
               )}
