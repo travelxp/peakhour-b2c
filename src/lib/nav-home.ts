@@ -91,10 +91,19 @@ export interface NavGroupLike<T extends NavLike> {
  * tail. A pillar added next month lands in the tail rather than vanishing from
  * a navigation nobody has switched on to notice.
  *
- * ★AND `home` IS PROMOTED, NOT COPIED. Outcomes lives inside Growth's subitems
- * in the pillar navigation; the funnel leads with it, so the caller passes the
- * item and it appears at the top. It stays where it was as well — this changes
- * where a merchant FINDS it first, not where it exists.
+ * ★AND `home` IS PROMOTED OUT OF WHEREVER IT WAS, not copied alongside it.
+ * Outcomes lives inside Growth's subitems in the pillar navigation, so the
+ * caller passes an item for it and this removes it from that parent — one
+ * destination, one place in the list. Left in both, the route lights up twice,
+ * its parent auto-expands beneath its own promoted child, and in the collapsed
+ * rail the two are indistinguishable.
+ *
+ * ★★AND IF THE PILLAR LIST ALREADY HAS A TOP-LEVEL ITEM FOR THAT HREF, THAT
+ * ITEM WINS. The caller's argument is a stub — an href, a label and an icon —
+ * while a real pillar carries an entitlement key, upsell copy and subitems.
+ * Preferring the stub deleted all of it silently: an unentitled org would stop
+ * seeing the locked upsell and simply see a working link. The occurrence count
+ * is 1 either way, so nothing about "exactly once" could catch it.
  *
  * ★★THERE IS NO "BOUGHT" GROUP, WHICH IS A FINDING RATHER THAN AN OMISSION.
  * The other three questions each have tools behind them; the fourth has none —
@@ -122,13 +131,17 @@ export function funnelNav<T extends NavLike & { subItems?: { href: string }[] }>
     ) as T[];
   const byHref = new Map(all.map((i) => [i.href, i]));
 
+  // ★THE REAL PILLAR WINS OVER THE CALLER'S STUB. See the docblock: the stub
+  // has no entitlement key and no subitems, and preferring it throws both away.
+  const homeItem = byHref.get(home.href) ?? home;
+
   const lead = LEAD_HREFS.map((h) => byHref.get(h)).filter((i): i is T => i !== undefined);
   // ★`home.href` IS IN THE SET TOO. It is promoted from a SUBITEM today, so it
   // is not in `all` and the omission cost nothing — but the moment Outcomes
   // becomes a top-level pillar it would appear in the lead AND in the tail, and
   // the "exactly once" rule would break silently on the one item the whole
   // navigation is built around.
-  const taken = new Set([home.href, ...lead.map((i) => i.href), ...Object.keys(FUNNEL_GROUP)]);
+  const taken = new Set([homeItem.href, ...lead.map((i) => i.href), ...Object.keys(FUNNEL_GROUP)]);
 
   const inGroup = (label: "Found" | "Chosen" | "Convinced") =>
     Object.entries(FUNNEL_GROUP)
@@ -148,10 +161,30 @@ export function funnelNav<T extends NavLike & { subItems?: { href: string }[] }>
   // grouping honest as pillars come and go: the sidebar shows the questions it
   // can actually answer.
   return [
-    { label: "", items: [home, ...lead] },
+    { label: "", items: [homeItem, ...lead] },
     { label: "Found", items: inGroup("Found") },
     { label: "Chosen", items: inGroup("Chosen") },
     { label: "Convinced", items: inGroup("Convinced") },
     { label: "", items: tail },
   ].filter((g) => g.items.length > 0);
+}
+
+/**
+ * Normalise a server-issued landing route against the flag.
+ *
+ * ★★THE api CANNOT KNOW ABOUT THIS FLAG. `NEXT_PUBLIC_OUTCOMES_HOME` is
+ * build-inlined into the browser bundle; `verify-magic` and the WordPress
+ * bridge both hand back `/dashboard/overview` as "the app's home", and they are
+ * a separate deployment with no visibility of it. With the flag on, the primary
+ * entry into the product — signing in — landed on the very screen the flag
+ * demotes, while `/dashboard`, the logo and the navigation all pointed at
+ * Outcomes.
+ *
+ * ★ONLY THE HOME LITERAL IS REWRITTEN. A server that sends somewhere specific —
+ * a Shopify claim page, an invite, a deep link — means it, and this must not
+ * second-guess that. It rewrites exactly the one route that means "wherever
+ * home is".
+ */
+export function landingRoute(serverRoute: string): string {
+  return serverRoute === "/dashboard/overview" ? HOME_ROUTE : serverRoute;
 }

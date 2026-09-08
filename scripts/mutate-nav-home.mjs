@@ -57,14 +57,14 @@ const MUTANTS = [
   },
   {
     name: "leave an assigned pillar in the tail as well, listing it twice",
-    anchor: "  const taken = new Set([home.href, ...lead.map((i) => i.href), ...Object.keys(FUNNEL_GROUP)]);",
-    mutated: "  const taken = new Set([home.href, ...lead.map((i) => i.href)]);",
+    anchor: "  const taken = new Set([homeItem.href, ...lead.map((i) => i.href), ...Object.keys(FUNNEL_GROUP)]);",
+    mutated: "  const taken = new Set([homeItem.href, ...lead.map((i) => i.href)]);",
     killer: "★★keeps every pillar destination, exactly once",
   },
   {
     name: "leave the LEAD items in the tail as well, listing Integrations twice",
-    anchor: "  const taken = new Set([home.href, ...lead.map((i) => i.href), ...Object.keys(FUNNEL_GROUP)]);",
-    mutated: "  const taken = new Set([home.href, ...Object.keys(FUNNEL_GROUP)]);",
+    anchor: "  const taken = new Set([homeItem.href, ...lead.map((i) => i.href), ...Object.keys(FUNNEL_GROUP)]);",
+    mutated: "  const taken = new Set([homeItem.href, ...Object.keys(FUNNEL_GROUP)]);",
     killer: "★★keeps every pillar destination, exactly once",
   },
 
@@ -85,13 +85,13 @@ const MUTANTS = [
   },
   {
     name: "put the prerequisites below the funnel, so connecting comes after measuring",
-    anchor: "    { label: \"\", items: [home, ...lead] },",
-    mutated: "    { label: \"\", items: [home] },",
+    anchor: "    { label: \"\", items: [homeItem, ...lead] },",
+    mutated: "    { label: \"\", items: [homeItem] },",
     killer: "leads with the home screen, then the two prerequisites",
   },
   {
     name: "drop the home screen from the lead, so the app opens on a list",
-    anchor: "    { label: \"\", items: [home, ...lead] },",
+    anchor: "    { label: \"\", items: [homeItem, ...lead] },",
     mutated: "    { label: \"\", items: [...lead] },",
     killer: "leads with the home screen, then the two prerequisites",
   },
@@ -114,7 +114,7 @@ const MUTANTS = [
   },
   {
     name: "★★list the promoted home twice once it is a pillar of its own",
-    anchor: "  const taken = new Set([home.href, ...lead.map((i) => i.href), ...Object.keys(FUNNEL_GROUP)]);",
+    anchor: "  const taken = new Set([homeItem.href, ...lead.map((i) => i.href), ...Object.keys(FUNNEL_GROUP)]);",
     mutated: "  const taken = new Set([...lead.map((i) => i.href), ...Object.keys(FUNNEL_GROUP)]);",
     killer: "★★never lists the promoted home twice, even once it is a pillar of its own",
   },
@@ -151,6 +151,13 @@ const MUTANTS = [
     killer: "★★drops a heading with nothing under it rather than showing an empty section",
   },
 
+  {
+    name: "★★prefer the caller's STUB, deleting the real pillar's gate and subitems",
+    anchor: "  const homeItem = byHref.get(home.href) ?? home;",
+    mutated: "  const homeItem = home;",
+    killer: "★★keeps the REAL pillar when the home href is also a top-level item",
+  },
+
   // ── The flag ─────────────────────────────────────────────────────────────
   {
     name: "★★COERCE the flag, so `NEXT_PUBLIC_OUTCOMES_HOME=false` switches it ON",
@@ -170,6 +177,25 @@ const MUTANTS = [
       'export const HOME_ROUTE = OUTCOMES_HOME ? "/dashboard/outcomes" : "/dashboard/overview";',
     mutated: 'export const HOME_ROUTE = "/dashboard/overview";',
     killer: "★the home route follows the flag, in one place",
+  },
+  {
+    name: "★★take the server's landing route as given, so signing in lands on the demoted screen",
+    anchor: '  return serverRoute === "/dashboard/overview" ? HOME_ROUTE : serverRoute;',
+    mutated: "  return serverRoute;",
+    killer: "★★rewrites the server's HOME literal, because the api cannot know the flag",
+  },
+  {
+    name: "rewrite EVERY server route to home, overruling a deep link the server meant",
+    anchor: '  return serverRoute === "/dashboard/overview" ? HOME_ROUTE : serverRoute;',
+    mutated: "  return HOME_ROUTE;",
+    killer: "★leaves a route the server MEANT exactly as it is",
+  },
+  {
+    name: "match the home literal by PREFIX, so /dashboard/overview/setup is swallowed",
+    anchor: '  return serverRoute === "/dashboard/overview" ? HOME_ROUTE : serverRoute;',
+    mutated:
+      '  return serverRoute.startsWith("/dashboard/overview") ? HOME_ROUTE : serverRoute;',
+    killer: "★leaves a route the server MEANT exactly as it is",
   },
 ];
 

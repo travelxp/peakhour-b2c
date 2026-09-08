@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
+import { landingRoute } from "@/lib/nav-home";
 import { useSearchParams, useRouter } from "next/navigation";
 import { verifyMagicLink } from "@/lib/auth";
 import { useAuth } from "@/providers/auth-provider";
@@ -56,7 +57,12 @@ function VerifyContent() {
     verifyMagicLink(token, uid)
       .then(async (result) => {
         await refreshUser();
-        router.replace(next ?? result.redirectTo);
+        // ★THE SERVER'S "HOME" IS NORMALISED AGAINST THE FLAG. The api has no
+        // visibility of a NEXT_PUBLIC build flag, so it hands back
+        // /dashboard/overview as the app's home — and signing in is the
+        // PRIMARY entry into the product, which would land on the one screen
+        // the flag demotes. An explicit `next` is left exactly as it is.
+        router.replace(next ?? landingRoute(result.redirectTo));
       })
       .catch((err) => {
         if (err instanceof ApiError) {

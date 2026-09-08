@@ -123,6 +123,26 @@ describe("funnelNav", () => {
     expect(hrefs(out)).toHaveLength(hrefs(withoutPresence).length + 1);
   });
 
+  it("★★keeps the REAL pillar when the home href is also a top-level item", () => {
+    // ★★THE CALLER'S ARGUMENT IS A STUB — an href, a label and an icon — while
+    // a real pillar carries an entitlement key, upsell copy and subitems.
+    // Preferring the stub deleted all of it SILENTLY: an unentitled org would
+    // stop seeing the locked upsell and simply see a working link. The
+    // occurrence count is 1 either way, so "exactly once" cannot catch it.
+    type Gated = Item & { feature?: string; subItems?: { href: string }[] };
+    const real: Gated = {
+      href: "/dashboard/outcomes",
+      label: "Outcomes",
+      feature: "growth.nav",
+      subItems: [{ href: "/dashboard/outcomes/value" }],
+    };
+    const withReal: NavGroupLike<Gated>[] = [{ label: "", items: [...pillars[0].items, real] }];
+    const out = funnelNav(withReal, home as Gated);
+    const emitted = out.flatMap((g) => g.items).find((i) => i.href === "/dashboard/outcomes");
+    expect(emitted).toBe(real);
+    expect(emitted?.feature).toBe("growth.nav");
+  });
+
   it("★★never lists the promoted home twice, even once it is a pillar of its own", () => {
     // ★TODAY Outcomes is promoted from a SUBITEM, so it is not in the pillar
     // list and the exclusion costs nothing. The moment it becomes a top-level
@@ -196,6 +216,45 @@ describe("the flag itself", () => {
     const off = await import("./nav-home");
     expect(off.HOME_ROUTE).toBe("/dashboard/overview");
 
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+});
+
+describe("landingRoute", () => {
+  it("★★rewrites the server's HOME literal, because the api cannot know the flag", async () => {
+    // `NEXT_PUBLIC_OUTCOMES_HOME` is build-inlined into the browser bundle;
+    // verify-magic and the WordPress bridge both hand back /dashboard/overview
+    // as "the app's home" from a separate deployment. With the flag on, signing
+    // in — the PRIMARY entry into the product — landed on the one screen the
+    // flag demotes.
+    vi.resetModules();
+    vi.stubEnv("NEXT_PUBLIC_OUTCOMES_HOME", "1");
+    const on = await import("./nav-home");
+    expect(on.landingRoute("/dashboard/overview")).toBe("/dashboard/outcomes");
+
+    vi.resetModules();
+    vi.stubEnv("NEXT_PUBLIC_OUTCOMES_HOME", "");
+    const off = await import("./nav-home");
+    expect(off.landingRoute("/dashboard/overview")).toBe("/dashboard/overview");
+
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  it("★leaves a route the server MEANT exactly as it is", async () => {
+    // A Shopify claim page, an invite, a deep link — the server chose those,
+    // and this must not second-guess a destination that is not "home".
+    vi.resetModules();
+    vi.stubEnv("NEXT_PUBLIC_OUTCOMES_HOME", "1");
+    const on = await import("./nav-home");
+    for (const route of [
+      "/dashboard/commerce/channels",
+      "/dashboard/overview/setup",
+      "/onboarding/launch",
+    ]) {
+      expect(on.landingRoute(route)).toBe(route);
+    }
     vi.unstubAllEnvs();
     vi.resetModules();
   });

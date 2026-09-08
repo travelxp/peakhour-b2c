@@ -273,9 +273,9 @@ const PILLAR_NAV: NavGroup[] = [
  * nobody has switched on to notice. The grouping itself, and why there is no
  * "Bought" heading, are argued in lib/nav-home.ts.
  *
- * ★OUTCOMES IS PROMOTED FROM GROWTH'S SUBITEMS to lead the list. It stays where
- * it was as well; this changes where a merchant finds it first, not where it
- * exists.
+ * ★OUTCOMES IS PROMOTED OUT OF GROWTH'S SUBITEMS to lead the list — removed
+ * from there rather than copied, so the route has one place in the sidebar
+ * rather than two that both light up on it.
  */
 const OUTCOMES_ITEM: NavItem = {
   href: "/dashboard/outcomes",
