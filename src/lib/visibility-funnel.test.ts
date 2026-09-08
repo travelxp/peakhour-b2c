@@ -167,12 +167,29 @@ describe("brandLine", () => {
   });
 
   it("★turns a measured zero into a sentence rather than `0 of 0`", () => {
-    // Nobody searching by name is a real, useful answer. "0 of 0 search clicks"
-    // is not a sentence about anything.
+    // ★AND THE SENTENCE IS ABOUT THE WHOLE WINDOW, NOT ABOUT THE BRAND HALF.
+    // This branch is only reachable when there were no impressions either — the
+    // case above takes every other zero — so "nobody searched for you BY NAME"
+    // would imply generic search traffic that did not happen.
     const line = brandLine(
       split({ brand: { clicks: 0, impressions: 0, queries: 0 }, nonBrand: { clicks: 0, impressions: 0, queries: 0 } }),
     );
-    expect(line).toBe("Nobody searched Google for you by name in the last 28 days.");
+    expect(line).toBe("You did not appear in Google search at all in the last 28 days.");
+    expect(line).not.toContain("by name");
+  });
+
+  it("★★says the terms were guessed on the NO-CLICK sentence too", () => {
+    // ★THE QUALIFIER WAS COMPUTED AFTER BOTH ZERO BRANCHES, so the two
+    // sentences most likely to be read as a verdict stated a GUESSED brand
+    // classification as a confirmed one.
+    const line = brandLine(
+      split({
+        termsSource: "seeded",
+        brand: { clicks: 0, impressions: 420, queries: 6 },
+        nonBrand: { clicks: 0, impressions: 900, queries: 40 },
+      }),
+    );
+    expect(line).toContain("the name we worked out");
   });
 
   it("★★does not say NOBODY SEARCHED over a window with impressions in it", () => {
@@ -202,5 +219,16 @@ describe("brandLine", () => {
       }),
     );
     expect(line).toContain("9,000 of 12,000");
+  });
+});
+
+describe("absenceText — a reason this build has never heard of", () => {
+  it("★names an absence this build has never heard of", () => {
+    // ★THE UNION HAS ALREADY GROWN TWICE, and the two repos deploy separately,
+    // so this build can meet a reason the api added after it shipped. The ICON
+    // lookup beside this one was hardened for exactly that and the WORDS were
+    // not — leaving a row with a warning triangle and nothing next to it, which
+    // says less than saying nothing would.
+    expect(absenceText("quota_exhausted" as never)).toBe("not available");
   });
 });

@@ -4,7 +4,6 @@ import { AlertTriangle, Link2Off, Loader2, PlugZap, RefreshCw } from "lucide-rea
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatMoney, orderCountLine, provenanceLine } from "@/lib/outcome-value";
 import {
   absenceText,
   brandLine,
@@ -101,50 +100,6 @@ function StageCard({ stage, windowDays }: { stage: VisibilityStage; windowDays: 
   );
 }
 
-/**
- * "What was it worth?" — the money, phrased with the helpers the Outcomes card
- * below already uses.
- *
- * ★★NOTHING HERE DECIDES WHETHER AN AMOUNT MAY BE SHOWN. `available: false`
- * with a reason arrives from the api, which is the single place in the platform
- * allowed to make that call — including the `unconfirmed_zero` refusal, where
- * GA4's 0 for a property with no purchase tracking is indistinguishable from a
- * shop that sold nothing. Printing that as "0" is the one thing this card must
- * never do.
- *
- * ★AND AN ABSENT `value` IS NOT A REFUSAL. The api omits the block entirely
- * when the reconciliation could not be READ, which is not a claim about the
- * merchant's data and must not be rendered as one.
- */
-function BoughtCard({ value }: { value: VisibilityResponse["value"] }) {
-  const orders = value ? orderCountLine(value) : null;
-  return (
-    <div className="flex flex-col gap-2 p-4">
-      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        What was it worth?
-      </p>
-
-      {!value ? (
-        <p className="text-sm font-medium text-muted-foreground">Couldn&apos;t be read</p>
-      ) : value.available ? (
-        <p className="text-2xl font-bold tabular-nums">
-          {formatMoney(value.amount, value.currency)}
-        </p>
-      ) : (
-        <p className="text-sm font-medium text-muted-foreground">Not counted yet</p>
-      )}
-
-      {value?.available ? (
-        <p className="text-xs text-muted-foreground">{provenanceLine(value)}</p>
-      ) : value ? (
-        <p className="text-xs text-muted-foreground">{value.message}</p>
-      ) : null}
-
-      {orders ? <p className="text-xs text-muted-foreground">{orders}</p> : null}
-    </div>
-  );
-}
-
 export function VisibilityFunnel({
   data,
   isPending,
@@ -165,17 +120,19 @@ export function VisibilityFunnel({
   return (
     <Card>
       <CardContent className="p-0">
-        <div className="grid divide-y sm:grid-cols-2 sm:divide-x lg:grid-cols-4 lg:divide-y-0">
+        {/* ★★THREE CARDS, NOT FOUR, AND THE FOURTH QUESTION IS ANSWERED BELOW.
+            "What was it worth?" already has a card on this page, fed by
+            /v1/growth/outcomes and rendering the same `buildValueBlock` output
+            in more detail. Drawing it here as well put the SAME FIGURE on the
+            screen twice from TWO REQUESTS — and the two can disagree, because
+            /visibility omits the block on a failed read while /outcomes always
+            sends it. A transient failure would have shown "couldn't be read"
+            above a real amount. One figure, one request.
+            `data.value` therefore goes unread by this component, deliberately. */}
+        <div className="grid divide-y sm:grid-cols-2 sm:divide-x lg:grid-cols-3 lg:divide-y-0">
           {data.stages.map((s) => (
             <StageCard key={s.key} stage={s} windowDays={data.period.days} />
           ))}
-          {/* ★★THE FOURTH QUESTION, AND IT IS NOT ONE OF `stages`. The api
-              keeps money out of that array deliberately — the other three are
-              sums of comparable integers, this is an amount in a currency with
-              its own covered window and its own three refusals, all decided in
-              buildValueBlock. Rendering it from the same StageCard would have
-              meant re-deciding here whether an amount may be shown. */}
-          <BoughtCard value={data.value} />
         </div>
         {brand ? (
           <div className="border-t px-4 py-3 text-xs text-muted-foreground">{brand}</div>

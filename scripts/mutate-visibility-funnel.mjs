@@ -119,12 +119,10 @@ const MUTANTS = [
     mutated: "    `people searching for you by name.${seeded}`",
     killer: "★states the split's OWN window, not the page's",
   },
-  {
-    name: "present a GUESSED brand name as a confirmed one",
-    anchor: '    split.termsSource === "seeded" ? " (using the name we worked out)" : "";',
-    mutated: '    "";',
-    killer: "says the terms were guessed when nobody has confirmed them",
-  },
+  // ⚠★MERGED INTO THE ENTRY BELOW. Round 2 moved the qualifier ABOVE the two
+  //  zero branches (it was being stated as confirmed on the sentences most
+  //  likely to be read as a verdict), so there is one line to mutate now rather
+  //  than two, and its killer is the stronger of the two specs.
   {
     name: "★★drop the api's refusal, so 'we cannot name you' looks like 'not connected'",
     anchor: "  if (!split.assertable) return split.message;",
@@ -154,6 +152,27 @@ const MUTANTS = [
     anchor: "  const impressions = split.brand.impressions + split.nonBrand.impressions;",
     mutated: "  const impressions = split.brand.impressions;",
     killer: "★★does not say NOBODY SEARCHED over a window with impressions in it",
+  },
+  {
+    name: "★★compute the seeded qualifier AFTER the zero branches, as the first version did",
+    anchor:
+      '  const seeded = split.termsSource === "seeded" ? " (using the name we worked out)" : "";',
+    mutated: '  const seeded = "";',
+    killer: "★★says the terms were guessed on the NO-CLICK sentence too",
+  },
+  {
+    name: "narrow an EMPTY window's sentence to 'by name', implying demand that never happened",
+    anchor:
+      "    return `You did not appear in Google search at all in the last ${windowDays} days.`;",
+    mutated:
+      "    return `Nobody searched Google for you by name in the last ${windowDays} days.`;",
+    killer: "★turns a measured zero into a sentence rather than `0 of 0`",
+  },
+  {
+    name: "leave a new absence reason with no words beside its icon",
+    anchor: '  return ABSENCE_TEXT[reason] ?? "not available";',
+    mutated: "  return ABSENCE_TEXT[reason];",
+    killer: "★names an absence this build has never heard of",
   },
   {
     name: "★hard-code the split's window, so a change to the sync ships a wrong number",
@@ -294,8 +313,11 @@ if (killerFailed) {
   console.error(base.map((a) => `  [${a.status}] ${a.title}`).join("\n"));
   process.exit(1);
 }
+// ★NO ZONE IN THE BANNER, BECAUSE THERE IS NO ZONE. Its sibling prints one
+// because it pins one; here the line always read `TZ=undefined`, which says a
+// precaution FAILED rather than that none was needed.
 console.log(
-  `killer pre-flight: ${MUTANTS.length + 1} killers, each green at baseline (TZ=${RUN_ENV.TZ})\n`,
+  `killer pre-flight: ${MUTANTS.length + 1} killers, each green at baseline\n`,
 );
 
 function runKiller(title) {

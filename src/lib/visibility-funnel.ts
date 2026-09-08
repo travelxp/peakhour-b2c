@@ -41,7 +41,11 @@ const ABSENCE_TEXT: Record<VisibilityAbsence, string> = {
 };
 
 export function absenceText(reason: VisibilityAbsence): string {
-  return ABSENCE_TEXT[reason];
+  // ★A REASON THIS BUILD HAS NEVER HEARD OF STILL GETS WORDS. The icon lookup
+  // beside this one was hardened for exactly that and this was not — leaving a
+  // source row with a warning triangle and nothing next to it, which is a row
+  // that says less than saying nothing would.
+  return ABSENCE_TEXT[reason] ?? "not available";
 }
 
 /**
@@ -104,6 +108,12 @@ export function brandLine(brandSplit: VisibilityResponse["brandSplit"]): string 
 
   const total = split.brand.clicks + split.nonBrand.clicks;
   const impressions = split.brand.impressions + split.nonBrand.impressions;
+  // ★★COMPUTED BEFORE THE EARLY RETURNS, NOT AFTER THEM. A first version put
+  // this below both zero branches, so the two sentences that fire on a
+  // no-click window stated a GUESSED brand classification as a confirmed one —
+  // the exact seed the qualifier exists to disclose, on the two sentences most
+  // likely to be read as a verdict.
+  const seeded = split.termsSource === "seeded" ? " (using the name we worked out)" : "";
 
   // ★★A ZERO IN CLICKS IS NOT A ZERO IN DEMAND, AND SAYING SO WAS A FALSE
   // SENTENCE OVER A TRUE FIGURE — the thing this module exists to prevent,
@@ -115,16 +125,18 @@ export function brandLine(brandSplit: VisibilityResponse["brandSplit"]): string 
     return (
       `${NUM.format(split.brand.impressions)} of ${NUM.format(impressions)} times you ` +
       `appeared in Google were people searching for you by name — none of them clicked ` +
-      `through, over the last ${windowDays} days.`
+      `through, over the last ${windowDays} days${seeded}.`
     );
   }
-  // No clicks AND no impressions: nobody looked at all, which is the honest
-  // short sentence. "0 of 0 search clicks" says nothing about anything.
+  // ★★NO CLICKS AND NO IMPRESSIONS IS "NOBODY LOOKED", NOT "NOBODY LOOKED BY
+  // NAME". This branch is only reachable when the whole window is empty — the
+  // impressions case above takes every other zero — so narrowing the sentence
+  // to "by name" implies there WAS generic search traffic that this business
+  // did not get by reputation, which is a claim about demand that did not
+  // happen. Say what is true: Google sent nothing at all.
   if (total === 0) {
-    return `Nobody searched Google for you by name in the last ${windowDays} days.`;
+    return `You did not appear in Google search at all in the last ${windowDays} days.`;
   }
-  const seeded =
-    split.termsSource === "seeded" ? " (using the name we worked out)" : "";
   return (
     `${NUM.format(split.brand.clicks)} of ${NUM.format(total)} search clicks came from ` +
     `people searching for you by name, over the last ${windowDays} days${seeded}.`
