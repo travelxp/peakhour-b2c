@@ -279,6 +279,17 @@ const MUTANTS = [
     killer: "★★★offers it on an ordinary compose surface",
   },
   {
+    // ⚠️NOT HYPOTHETICAL: the repurpose sheet targets googlebusiness now that
+    // the recommender offers it. Two entries for one channel share a
+    // scheduledAtUtc, hence an idempotency key, and the unique index rejects
+    // the insertMany AFTER the plan row is written.
+    where: "target",
+    name: "★★★append a second entry for a channel the caller is already scheduling",
+    anchor: "  if (args.alreadyTargeted) return false;",
+    mutated: "  if (false) return false;",
+    killer: "★★★HIDES it when the caller is already scheduling to the listing",
+  },
+  {
     where: "target",
     name: "★★let an explicit hide be overridden by availability",
     anchor: "  if (args.hidden === true) return false;",

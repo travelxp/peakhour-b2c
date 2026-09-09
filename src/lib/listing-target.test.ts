@@ -101,7 +101,7 @@ describe("listingTargetFrom — may we offer it", () => {
 
 describe("shouldOfferListing — where the panel belongs", () => {
   it("★★★offers it on an ordinary compose surface", () => {
-    expect(shouldOfferListing({ available: true, hasCommitOverride: false })).toBe(true);
+    expect(shouldOfferListing({ available: true, hasCommitOverride: false, alreadyTargeted: false })).toBe(true);
   });
 
   it("★★★HIDES it on a surface with its own commit, whose endpoint may drop the payload", () => {
@@ -109,25 +109,47 @@ describe("shouldOfferListing — where the panel belongs", () => {
     // server-side, so the merchant's listing body, offer window, coupon and
     // button would be dropped in silence and the RAW IDEA TEXT published to
     // their public listing.
-    expect(shouldOfferListing({ available: true, hasCommitOverride: true })).toBe(false);
+    expect(shouldOfferListing({ available: true, hasCommitOverride: true, alreadyTargeted: false })).toBe(false);
   });
 
   it("★★★lets an override surface opt back in explicitly", () => {
     // Once its endpoint carries payload through, false is how it says so.
     expect(
-      shouldOfferListing({ available: true, hidden: false, hasCommitOverride: true }),
+      shouldOfferListing({ available: true, hidden: false, hasCommitOverride: true, alreadyTargeted: false }),
     ).toBe(true);
   });
 
+  it("★★★HIDES it when the caller is already scheduling to the listing", () => {
+    // ⚠️NOT HYPOTHETICAL. The repurpose sheet targets googlebusiness now that
+    // the recommender offers it — for exactly the allowlisted-and-connected
+    // merchant this panel is offered to. Two entries for one channel take the
+    // same scheduledAtUtc from resolveStagger, hence the same idempotency key,
+    // which the unique index rejects on insertMany AFTER the plan document is
+    // inserted: an error toast and an orphaned plan.
+    expect(
+      shouldOfferListing({ available: true, hasCommitOverride: false, alreadyTargeted: true }),
+    ).toBe(false);
+    // ★AND IT BEATS AN EXPLICIT OPT-IN TOO. "show it anyway" cannot be a way to
+    // ask for the collision.
+    expect(
+      shouldOfferListing({
+        available: true,
+        hidden: false,
+        hasCommitOverride: false,
+        alreadyTargeted: true,
+      }),
+    ).toBe(false);
+  });
+
   it("★★an explicit hide beats everything", () => {
-    expect(shouldOfferListing({ available: true, hidden: true, hasCommitOverride: false })).toBe(
+    expect(shouldOfferListing({ available: true, hidden: true, hasCommitOverride: false, alreadyTargeted: false })).toBe(
       false,
     );
   });
 
   it("★★★never offers it when the merchant may not publish there anyway", () => {
-    expect(shouldOfferListing({ available: false, hasCommitOverride: false })).toBe(false);
-    expect(shouldOfferListing({ available: false, hidden: false, hasCommitOverride: true })).toBe(
+    expect(shouldOfferListing({ available: false, hasCommitOverride: false, alreadyTargeted: false })).toBe(false);
+    expect(shouldOfferListing({ available: false, hidden: false, hasCommitOverride: true, alreadyTargeted: false })).toBe(
       false,
     );
   });

@@ -99,7 +99,27 @@ export function shouldOfferListing(args: {
   available: boolean;
   hidden?: boolean | undefined;
   hasCommitOverride: boolean;
+  /**
+   * The caller is ALREADY scheduling to the listing as one of its channels.
+   *
+   * ★★★AND THIS IS NOT HYPOTHETICAL — it is what the repurpose sheet does now.
+   * `/v1/content/recommend-platforms` passes `includeListing: true`,
+   * `googlebusiness` buckets as a social target, and the sheet turns it into a
+   * channel entry — for exactly the allowlisted-and-connected merchant this
+   * panel is offered to. Appending a second entry for the same channel gives
+   * both the same `scheduledAtUtc` from `resolveStagger`, hence the same
+   * `scheduledItemIdempotencyKey`, which the unique `by_idempotency` index
+   * rejects on `insertMany` — AFTER the plan document is inserted. The merchant
+   * gets an error toast and an orphaned plan.
+   *
+   * ⚠️SO IT IS HIDDEN, NOT DE-DUPLICATED. Silently dropping one of the two
+   * would mean the panel the merchant filled in was ignored, or the channel
+   * they picked was overwritten. Not offering it says the plainer thing: the
+   * listing is already a target here.
+   */
+  alreadyTargeted: boolean;
 }): boolean {
+  if (args.alreadyTargeted) return false;
   if (args.hidden === true) return false;
   if (args.hidden === false) return args.available;
   return !args.hasCommitOverride && args.available;

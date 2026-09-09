@@ -160,6 +160,11 @@ export function SchedulerComposer({
     available: listingTarget.available,
     hidden: hideListingOption,
     hasCommitOverride: Boolean(commit),
+    // ★THE CALLER MAY ALREADY BE SCHEDULING TO THE LISTING — the repurpose
+    // sheet does, now that the recommender offers the channel. See the note on
+    // shouldOfferListing: a second entry for the same channel collides on the
+    // idempotency key and leaves an orphaned plan behind.
+    alreadyTargeted: channels.some((c) => c.channel === LISTING_CHANNEL),
   });
   const [listingOn, setListingOn] = useState(false);
   // ⚠️"ACTIVE" AND "SENDABLE" ARE DIFFERENT. The merchant has turned it on and
