@@ -21,8 +21,12 @@ import {
   needsAnswer,
   PRESENCE_ROUTE,
   REVIEW_PAGE_LIMIT,
+  reviewerLabel,
   reviewsAreTruncated,
+  shouldAdoptPublishedReply,
+  shouldRefreshAfter,
   TRANSPORT_ERROR_CODE,
+  unansweredBadge,
   replyCharsRemaining,
   replyOutcome,
   replyRefusal,
@@ -159,6 +163,41 @@ describe("reviewsAreTruncated — a capped list says so", () => {
 
   it("★asks the api for exactly the page it can serve", () => {
     expect(REVIEW_PAGE_LIMIT).toBe(100);
+  });
+});
+
+describe("unansweredBadge — what the tab is allowed to claim", () => {
+  const page = (n: number, over: Partial<ReviewItemLike> = {}) =>
+    Array.from({ length: n }, (_, i) => row({ _id: `id${i}`, ...over }));
+
+  it("★★★says nothing at all when nothing has been fetched", () => {
+    // An in-flight or failed fetch has not earned a zero, and a tab with no
+    // badge is what "we have not been told" looks like.
+    expect(unansweredBadge(undefined)).toBeNull();
+  });
+
+  it("★★★shows a badge on a truncated page even when its count is zero", () => {
+    // ⚠️THE GATE THAT HID IT: `count > 0`. A merchant whose hundred NEWEST
+    // reviews are all answered may have older ones that are not, and a silent
+    // tab tells them the opposite of what we know.
+    const allAnswered = page(REVIEW_PAGE_LIMIT, {
+      review: review({ replyPublished: "Thanks!" }),
+    });
+    expect(unansweredBadge(allAnswered)).toEqual({ label: "0+" });
+  });
+
+  it("★★★marks a truncated count as a floor, not a total", () => {
+    const capped = page(REVIEW_PAGE_LIMIT);
+    expect(unansweredBadge(capped)).toEqual({ label: `${REVIEW_PAGE_LIMIT}+` });
+  });
+
+  it("★★shows a bare number when the whole list arrived", () => {
+    expect(unansweredBadge(page(3))).toEqual({ label: "3" });
+  });
+
+  it("★★shows nothing when a complete list has nothing waiting", () => {
+    expect(unansweredBadge(page(3, { review: review({ replyPublished: "Thanks!" }) }))).toBeNull();
+    expect(unansweredBadge([])).toBeNull();
   });
 });
 
@@ -371,6 +410,67 @@ describe("replyOutcome — two successes that look like failures", () => {
   it("★an api that omits `recorded` is a plain success, not an unrecorded one", () => {
     expect(replyOutcome({ sent: true }).kind).toBe("published");
   });
+
+  it("★★★does NOT refresh the list on the one outcome whose row has gone", () => {
+    // ⚠️`recorded: false` IS `matchedCount === 0` — the row is not in the
+    // collection any more, so a refetch returns a list without it, React
+    // unmounts the card, and the only place the words "your reply is live,
+    // don't send it again" appear goes with it.
+    expect(shouldRefreshAfter(replyOutcome({ sent: true, recorded: false }))).toBe(false);
+    expect(shouldRefreshAfter(replyOutcome({ sent: true, recorded: true }))).toBe(true);
+    expect(shouldRefreshAfter(replyOutcome({ sent: false, reason: "unchanged" }))).toBe(true);
+  });
+});
+
+describe("shouldAdoptPublishedReply — a reply that arrives after the box was seeded", () => {
+  it("★★★adopts a reply published while the card was open", () => {
+    // A colleague answering the same review left this card reading "Update
+    // reply" over an EMPTY, send-disabled box.
+    expect(shouldAdoptPublishedReply({ dirty: false, seen: undefined, incoming: "Thanks Jo!" })).toBe(
+      true,
+    );
+  });
+
+  it("★★★never overwrites what the merchant has typed", () => {
+    // Their half-written public reply, gone with no undo, is worse than a
+    // stale box.
+    expect(shouldAdoptPublishedReply({ dirty: true, seen: undefined, incoming: "Thanks Jo!" })).toBe(
+      false,
+    );
+  });
+
+  it("★★never clears the box because a row stopped reporting a reply", () => {
+    expect(shouldAdoptPublishedReply({ dirty: false, seen: "Thanks Jo!", incoming: undefined })).toBe(
+      false,
+    );
+  });
+
+  it("★★does nothing when the published reply has not changed", () => {
+    expect(
+      shouldAdoptPublishedReply({ dirty: false, seen: "Thanks Jo!", incoming: "Thanks Jo!" }),
+    ).toBe(false);
+  });
+});
+
+describe("reviewerLabel — whose review this is", () => {
+  it("★★★names the customer the webhook actually recorded", () => {
+    // ⚠️THE GBP WEBHOOK WRITES NO `contact` ON A REVIEW ROW. It puts the
+    // reviewer in the SUBJECT, so a card reading only `contact.name` showed
+    // "A customer" above every review in the inbox.
+    expect(reviewerLabel(row({ subject: "New 4★ review from Jo Smith" }))).toBe(
+      "New 4★ review from Jo Smith",
+    );
+  });
+
+  it("★★prefers a structured contact name when a writer sets one", () => {
+    expect(
+      reviewerLabel(row({ contact: { name: "Jo Smith" }, subject: "New 4★ review from Jo Smith" })),
+    ).toBe("Jo Smith");
+  });
+
+  it("★falls back to a person rather than to nothing", () => {
+    expect(reviewerLabel(row({ subject: "   " }))).toBe("A customer");
+  });
 });
 
 // ── What went wrong ──────────────────────────────────────────────────────────
@@ -469,8 +569,55 @@ describe("replyRefusal — whose problem is it", () => {
       message: "This action requires editor or admin role",
     });
     expect(r.kind).toBe("no_permission");
-    expect(r.headline).toBe("This action requires editor or admin role");
     expect(r.description).toBe("Publishing a reply needs editor access to this business.");
+  });
+
+  it("★★★never renders requireRole's internal wording as the headline", () => {
+    // ⚠️THE ROUTE SENDS THREE DIFFERENT STRINGS THROUGH THIS ONE CODE:
+    // "This action requires editor or admin role", "Insufficient permissions"
+    // and "No roles assigned" — the last two being internal wording, and a
+    // fourth ("Active business required") not about roles at all. Passing the
+    // message through made our own merchant-facing headline unreachable.
+    for (const message of [
+      "Insufficient permissions",
+      "No roles assigned",
+      "Active business required",
+      "This action requires editor or admin role",
+    ]) {
+      expect(replyRefusal({ code: "FORBIDDEN", status: 403, message }).headline).toBe(
+        "You don't have permission to reply on this business's behalf.",
+      );
+    }
+  });
+
+  it("★★★says a vanished row is gone rather than sending it to support", () => {
+    // Reachable two ways, neither a ticket: a 30s staleTime with no
+    // refetch-on-focus outlives the row, and `app.onError`'s unknown-route
+    // handler answers NOT_FOUND — so b2c shipping ahead of the api would tell
+    // every merchant to raise one.
+    const r = replyRefusal({ code: "NOT_FOUND", status: 404, message: "Inbox item not found" });
+    expect(r.kind).toBe("not_repliable");
+    expect(r.headline).toBe("This review isn't in your inbox any more.");
+    expect(r.description).toBe("Reload the page to see what's there now.");
+  });
+
+  it("★★★never shows a merchant a raw locations/{id} or a second screen to go to", () => {
+    // `classifyParentLookup` interpolates the internal listing id AND ends
+    // "Re-pick the location on the Business Profile integration" — a different
+    // screen from the one this module's own second sentence names. One refusal
+    // cannot point at two places.
+    const r = replyRefusal({
+      code: "LOCATION_NOT_MANAGED",
+      status: 409,
+      message:
+        "locations/12345 is not under any Business Profile account this connection manages. " +
+        "Re-pick the location on the Business Profile integration.",
+    });
+    expect(r.headline).not.toContain("locations/12345");
+    expect(r.headline).not.toContain("integration");
+    expect(r.headline).toBe(
+      "This listing isn't under the Business Profile account we're connected to.",
+    );
   });
 
   it("★★★says this one has to be answered on Google rather than offering a retry", () => {

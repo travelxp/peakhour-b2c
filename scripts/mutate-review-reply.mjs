@@ -197,6 +197,117 @@ const MUTANTS = [
     mutated: "export const REVIEW_PAGE_LIMIT = 250;",
     killer: "★asks the api for exactly the page it can serve",
   },
+  {
+    // ⚠️ROUND 2: `count > 0` hid the badge on a truncated page whose hundred
+    // newest reviews were all answered — a silent tab claiming nothing is
+    // waiting, about rows we never fetched.
+    where: "rules",
+    name: "★★★claim nothing is waiting on a page we know is incomplete",
+    anchor: "  if (count === 0 && !truncated) return null;",
+    mutated: "  if (count === 0) return null;",
+    killer: "★★★shows a badge on a truncated page even when its count is zero",
+  },
+  {
+    where: "rules",
+    name: "★★★drop the + , so a floor reads as a total",
+    anchor: '  return { label: truncated ? `${count}+` : String(count) };',
+    mutated: "  return { label: String(count) };",
+    killer: "★★★marks a truncated count as a floor, not a total",
+  },
+  {
+    where: "rules",
+    name: "★★mark every count as a floor, including the complete ones",
+    anchor: '  return { label: truncated ? `${count}+` : String(count) };',
+    mutated: '  return { label: `${count}+` };',
+    killer: "★★shows a bare number when the whole list arrived",
+  },
+  {
+    where: "rules",
+    name: "★★badge a complete list with nothing waiting on it",
+    anchor: "  if (count === 0 && !truncated) return null;",
+    mutated: "  if (false) return null;",
+    killer: "★★shows nothing when a complete list has nothing waiting",
+  },
+
+  // ── Who the review is from ───────────────────────────────────────────────
+  {
+    // ⚠️ROUND 2: the GBP webhook writes NO `contact` on a review row — the
+    // reviewer is in the SUBJECT — so every review in the inbox was headed
+    // "A customer" and the field carrying the name was never rendered.
+    where: "rules",
+    name: "★★★lose the customer's name the webhook did record",
+    anchor: '  return item.contact?.name?.trim() || item.subject?.trim() || "A customer";',
+    mutated: '  return item.contact?.name?.trim() || "A customer";',
+    killer: "★★★names the customer the webhook actually recorded",
+  },
+  {
+    where: "rules",
+    name: "★★let the subject beat a structured contact name",
+    anchor: '  return item.contact?.name?.trim() || item.subject?.trim() || "A customer";',
+    mutated: '  return item.subject?.trim() || item.contact?.name?.trim() || "A customer";',
+    killer: "★★prefers a structured contact name when a writer sets one",
+  },
+  {
+    where: "rules",
+    name: "★head a review with a blank line rather than a person",
+    anchor: '  return item.contact?.name?.trim() || item.subject?.trim() || "A customer";',
+    mutated: '  return item.contact?.name ?? item.subject ?? "A customer";',
+    killer: "★falls back to a person rather than to nothing",
+  },
+
+  // ── A reply that arrives after the box was seeded ────────────────────────
+  {
+    // ⚠️ROUND 2: the box is seeded once at mount, so a colleague answering the
+    // same review left the card reading "Update reply" over an empty,
+    // send-disabled textarea — editing by retyping.
+    where: "rules",
+    name: "★★★never adopt a reply published while the card was open",
+    anchor: "  return args.incoming !== args.seen;",
+    mutated: "  return false;",
+    killer: "★★★adopts a reply published while the card was open",
+  },
+  {
+    // ⚠️★★★THE DANGEROUS DIRECTION. Half a written public reply, replaced by
+    // somebody else's words, with no undo.
+    where: "rules",
+    name: "★★★overwrite what the merchant is typing with somebody else's reply",
+    anchor: "  if (args.dirty) return false;",
+    mutated: "  if (false) return false;",
+    killer: "★★★never overwrites what the merchant has typed",
+  },
+  {
+    where: "rules",
+    name: "★★clear a box showing a published reply because the row stopped reporting one",
+    anchor: "  if (args.incoming === undefined) return false;",
+    mutated: "  if (false) return false;",
+    killer: "★★never clears the box because a row stopped reporting a reply",
+  },
+  {
+    where: "rules",
+    name: "★★re-seed the box on every render, undoing nothing but costing a loop",
+    anchor: "  return args.incoming !== args.seen;",
+    mutated: "  return true;",
+    killer: "★★does nothing when the published reply has not changed",
+  },
+
+  // ── What to refresh, and when not to ─────────────────────────────────────
+  {
+    // ⚠️★★★ROUND 2: `recorded: false` IS `matchedCount === 0`. Refetching
+    // returns a list without this row, unmounting the card and taking the only
+    // "your reply is live, don't send it again" warning with it.
+    where: "rules",
+    name: "★★★refresh the row away, and the do-not-resend warning with it",
+    anchor: '  return outcome.kind !== "published_unrecorded";',
+    mutated: "  return true;",
+    killer: "★★★does NOT refresh the list on the one outcome whose row has gone",
+  },
+  {
+    where: "rules",
+    name: "★★never refresh, so an answered review stays unanswered on screen",
+    anchor: '  return outcome.kind !== "published_unrecorded";',
+    mutated: "  return false;",
+    killer: "★★★does NOT refresh the list on the one outcome whose row has gone",
+  },
 
   // ── The order it is worked in ────────────────────────────────────────────
   {
@@ -592,6 +703,42 @@ const MUTANTS = [
     anchor: '  FORBIDDEN: "Publishing a reply needs editor access to this business.",',
     mutated: '  FORBIDDEN: "Someone with editor access on this business can send it for you.",',
     killer: "★★gives advice that is true of every FORBIDDEN the route can emit",
+  },
+  {
+    // ⚠️ROUND 2: `requireRole` sends three different strings through this one
+    // code, two of them internal wording and one not about roles at all.
+    where: "rules",
+    name: "★★★render requireRole's internal wording as merchant copy",
+    anchor: '  "UNRECOGNISED_REVIEW_REFERENCE",\n  // ⚠️`FORBIDDEN` IS OFF THIS LIST',
+    mutated: '  "UNRECOGNISED_REVIEW_REFERENCE",\n  "FORBIDDEN",\n  // ⚠️`FORBIDDEN` IS OFF THIS LIST',
+    killer: "★★★never renders requireRole's internal wording as the headline",
+  },
+  {
+    // ⚠️ROUND 2: that message interpolates the raw `locations/{id}` AND names a
+    // different screen from the one our own second sentence points at.
+    where: "rules",
+    name: "★★★show a merchant a raw locations/{id} and a second screen to go to",
+    anchor: '  "NO_LOCATION_PICKED",\n  // ⚠️`LOCATION_NOT_MANAGED` IS OFF IT TOO',
+    mutated:
+      '  "NO_LOCATION_PICKED",\n  "LOCATION_NOT_MANAGED",\n  // ⚠️`LOCATION_NOT_MANAGED` IS OFF IT TOO',
+    killer: "★★★never shows a merchant a raw locations/{id} or a second screen to go to",
+  },
+  {
+    // ⚠️ROUND 2: reachable through a 30s staleTime AND through
+    // `app.onError`'s unknown-route handler — a deploy-order hazard, not a
+    // hypothetical.
+    where: "rules",
+    name: "★★★send a vanished row to support",
+    anchor: '  NOT_FOUND: "not_repliable",',
+    mutated: '  NOT_FOUND: "unhandled",',
+    killer: "★★★says a vanished row is gone rather than sending it to support",
+  },
+  {
+    where: "rules",
+    name: "★★tell somebody to reload nothing, on a row that is gone",
+    anchor: '  NOT_FOUND: "Reload the page to see what\'s there now.",',
+    mutated: '  NOT_FOUND: "",',
+    killer: "★★★says a vanished row is gone rather than sending it to support",
   },
   {
     where: "rules",

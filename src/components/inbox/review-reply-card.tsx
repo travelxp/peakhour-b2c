@@ -19,6 +19,9 @@ import {
   replyCharsRemaining,
   replyOutcome,
   replyRefusal,
+  reviewerLabel,
+  shouldAdoptPublishedReply,
+  shouldRefreshAfter,
   REVIEW_REPLY_MAX_LENGTH,
   TRANSPORT_ERROR_CODE,
   type ReplyOutcome,
@@ -116,6 +119,19 @@ export function ReviewReplyCard({ item, onChanged }: { item: InboxItem; onChange
   const [text, setText] = useState(state.initialText);
   const [outcome, setOutcome] = useState<ReplyOutcome | null>(null);
   const [refusal, setRefusal] = useState<ReplyRefusal | null>(null);
+  // What the box was last seeded from, and whether anybody has typed since.
+  const [seen, setSeen] = useState(state.published);
+  const [dirty, setDirty] = useState(false);
+
+  // ★★ADOPT A PUBLISHED REPLY THAT ARRIVES AFTER MOUNT — a colleague answering
+  // the same review, or our own write landing on a later refetch. Without this
+  // the card reads "Update reply" over an empty, send-disabled box. The rule
+  // (never over typed text, never adopting an absent one) is in the module;
+  // this is the render-time assignment React documents for exactly this.
+  if (shouldAdoptPublishedReply({ dirty, seen, incoming: state.published })) {
+    setSeen(state.published);
+    setText(state.published ?? "");
+  }
 
   const send = useMutation({
     mutationFn: ({ comment, force }: { comment: string; force?: boolean }) =>
@@ -124,11 +140,12 @@ export function ReviewReplyCard({ item, onChanged }: { item: InboxItem; onChange
       const result = replyOutcome(res);
       setOutcome(result);
       setRefusal(null);
-      // ⚠️`published_unrecorded` REFRESHES TOO, and shows the row still
-      // unanswered — which is the truth. The note above it says the reply is
-      // live and must not be sent again; a list quietly showing it as answered
-      // would contradict the row the api could not write.
-      onChanged();
+      // ⚠️★★NOT ON `published_unrecorded`. `recorded: false` means the api's
+      // updateOne matched NOTHING, so the row is gone and a refetch returns a
+      // list without it — unmounting this card, and with it the only place the
+      // words "your reply is live, don't send it again" appear. A stale row
+      // showing a true warning beats a tidy list that never mentions the reply.
+      if (shouldRefreshAfter(result)) onChanged();
     },
     onError: (err) => {
       // ★★A THROW THAT IS NOT AN `ApiError` IS NOT AN ANSWER FROM THE api.
@@ -164,6 +181,7 @@ export function ReviewReplyCard({ item, onChanged }: { item: InboxItem; onChange
    */
   function edit(next: string) {
     setText(next);
+    setDirty(true);
     setRefusal(null);
     setOutcome(null);
   }
@@ -211,7 +229,11 @@ export function ReviewReplyCard({ item, onChanged }: { item: InboxItem; onChange
             )}
             <span className="text-[11px] text-muted-foreground">{formatDate(item.createdAt)}</span>
           </div>
-          <p className="truncate text-sm font-medium">{item.contact?.name || "A customer"}</p>
+          {/* ★THE WEBHOOK WRITES NO `contact` ON A REVIEW ROW — it puts the
+              reviewer in the SUBJECT ("New 4★ review from Jo Smith"), so a card
+              reading only `contact.name` said "A customer" above every review
+              and never rendered the field carrying the name. */}
+          <p className="truncate text-sm font-medium">{reviewerLabel(item)}</p>
           {item.body && <p className="whitespace-pre-wrap text-xs text-muted-foreground">{item.body}</p>}
         </div>
         {item.status !== "resolved" && item.status !== "closed" && (

@@ -22,7 +22,7 @@ import {
   REVIEW_PAGE_LIMIT,
   reviewQueueOrder,
   reviewsAreTruncated,
-  unansweredReviewCount,
+  unansweredBadge,
 } from "@/lib/review-reply";
 import { PageShell } from "@/components/dashboard/page-shell";
 
@@ -355,12 +355,11 @@ export default function InboxPage() {
   // number of reviews waiting on an answer is the thing that makes somebody
   // open the app at all.
   const reviews = useReviewsQuery();
-  const unanswered = unansweredReviewCount(reviews.data?.items);
-  // ⚠️A FLOOR, NOT A TOTAL, when the api handed back a full page — the count
-  // is of what arrived, and the oldest unanswered rows are the ones missing.
-  const unansweredLabel = reviewsAreTruncated(reviews.data?.items)
-    ? `${unanswered}+`
-    : String(unanswered);
+  // ★★★THE "SHOW IT AT ALL" DECISION IS THE MODULE'S, because it is the one
+  // that can claim something untrue. `unanswered > 0` hid the badge on a
+  // TRUNCATED page whose hundred newest reviews were all answered — a silent
+  // tab asserting nothing is waiting, about older rows we never fetched.
+  const badge = unansweredBadge(reviews.data?.items);
 
   return (
     <PageShell>
@@ -380,9 +379,9 @@ export default function InboxPage() {
             {/* ⚠️NO BADGE AT ZERO, and none while the count is unknown. A "0"
                 is a claim that there is nothing waiting, which a failed or
                 in-flight fetch has not earned. */}
-            {unanswered > 0 && (
+            {badge && (
               <Badge className="ml-1.5 bg-warning/15 px-1.5 text-[10px] text-warning-on-tint">
-                {unansweredLabel}
+                {badge.label}
               </Badge>
             )}
           </TabsTrigger>
@@ -392,7 +391,12 @@ export default function InboxPage() {
           <LeadsPane />
         </TabsContent>
 
-        <TabsContent value="reviews" className="mt-4">
+        {/* ⚠️★★`forceMount`, BECAUSE RADIX UNMOUNTS AN INACTIVE PANE. This is
+            the one tab holding a composer, and a merchant who glances at Leads
+            mid-reply came back to an empty box — a public reply they had
+            written, gone, with no undo. The same data loss `appendReply` was
+            written to prevent, arrived at by a different route. */}
+        <TabsContent value="reviews" className="mt-4" forceMount>
           <ReviewsPane query={reviews} />
         </TabsContent>
 

@@ -69,9 +69,27 @@ export interface ReviewItemLike {
   _id: string;
   source: string;
   status: string;
+  subject?: string;
+  contact?: { name?: string };
   body?: string;
   review?: ReviewPayload;
   createdAt: string;
+}
+
+/**
+ * Whose review this is, as far as the row can say.
+ *
+ * ★★★THE WEBHOOK WRITES NO `contact` ON A REVIEW ROW. It puts the reviewer in
+ * the SUBJECT — `New 4★ review from Jo Smith` — so a card reading only
+ * `contact.name` showed "A customer" above every review in the inbox, and the
+ * one field carrying the customer's name was never rendered at all.
+ *
+ * ★`contact` STILL COMES FIRST, because a future writer for another network
+ * would populate it properly and this should prefer the structured field the
+ * day one does.
+ */
+export function reviewerLabel(item: ReviewItemLike): string {
+  return item.contact?.name?.trim() || item.subject?.trim() || "A customer";
 }
 
 // ── Can this row be replied to at all ────────────────────────────────────────
@@ -146,6 +164,42 @@ export function unansweredReviewCount(items: readonly ReviewItemLike[] | undefin
  * unanswered review has been sitting longest.
  */
 export const REVIEW_PAGE_LIMIT = 100;
+
+/** What the tab shows, or nothing at all. */
+export interface UnansweredBadge {
+  label: string;
+}
+
+/**
+ * The badge, including the case where the number is a floor.
+ *
+ * ★★★"NO BADGE" IS A CLAIM THAT NOTHING IS WAITING, and only two things earn
+ * it: a complete page with nothing unanswered in it, or no data at all — where
+ * we say nothing rather than say zero. A TRUNCATED page has earned neither. A
+ * merchant whose hundred newest reviews are all answered may have older ones
+ * that are not, and a silent tab tells them the opposite of what we know.
+ *
+ * ★AND THE "+" IS THE HONEST PART. `100+` and `0+` both say the same thing:
+ * this is what arrived, there is more behind it.
+ */
+export function unansweredBadge(
+  items: readonly ReviewItemLike[] | undefined,
+): UnansweredBadge | null {
+  const count = unansweredReviewCount(items);
+  const truncated = reviewsAreTruncated(items);
+  // ⚠️AN IN-FLIGHT OR FAILED FETCH IS NOT A ZERO — it lands here as `undefined`,
+  // counts nothing and is not truncated, and gets no badge. That is the same
+  // answer as a complete list with nothing waiting, deliberately: a tab with no
+  // badge is what "nothing to do, or we have not been told" looks like, and the
+  // pane below says which.
+  //
+  // ⏸AN EXPLICIT `if (!items) return null;` STOOD HERE AND COULD NOT FIRE —
+  // this line already answers `undefined` identically. The mutation harness
+  // found it; a guard that cannot change an answer is a guard that only looks
+  // like a check.
+  if (count === 0 && !truncated) return null;
+  return { label: truncated ? `${count}+` : String(count) };
+}
 
 /**
  * Did we ask for everything, or just the first page of it?
@@ -239,6 +293,36 @@ export function composerStateFor(item: ReviewItemLike): ComposerState {
     };
   }
   return { initialText: published ?? "", suggestion, published, canSend: true };
+}
+
+/**
+ * Should an incoming published reply be adopted into the box?
+ *
+ * ★★★THE BOX IS SEEDED ONCE, AT MOUNT, and a reply that arrives afterwards —
+ * a colleague answering the same review, or our own write landing on a later
+ * refetch — left the card reading "Update reply" over an EMPTY textarea with
+ * Send disabled. "Editing means editing" was the whole point of prefilling it;
+ * a stale empty box means editing is retyping.
+ *
+ * ⚠️AND NEVER OVER SOMETHING THE MERCHANT HAS TYPED. Half a written reply
+ * silently replaced by somebody else's is worse than a stale box: it is their
+ * words, on their screen, gone with no undo. `dirty` is the veto.
+ *
+ * ⚠️AND NEVER ADOPTS AN ABSENT ONE. A row that stops reporting a published
+ * reply would otherwise CLEAR a box that is showing it, which no fact we have
+ * justifies.
+ */
+export function shouldAdoptPublishedReply(args: {
+  /** Has the person touched the box since it was last seeded? */
+  dirty: boolean;
+  /** The published reply this card last seeded from. */
+  seen: string | undefined;
+  /** What the row says now. */
+  incoming: string | undefined;
+}): boolean {
+  if (args.dirty) return false;
+  if (args.incoming === undefined) return false;
+  return args.incoming !== args.seen;
 }
 
 export type ReplyTextCheck =
@@ -339,6 +423,24 @@ export function replyOutcome(res: ReplyResponseLike): ReplyOutcome {
   return { kind: "published", headline: "Your reply is live on Google.", offerForce: false };
 }
 
+/**
+ * May the caller refresh the list on the back of this outcome?
+ *
+ * ★★★NO, ON `published_unrecorded`, AND THAT IS NOT A PERFORMANCE POINT.
+ * `recorded: false` means the api's own `updateOne` matched NOTHING — the row
+ * is gone from the collection. Refetching therefore returns a list WITHOUT this
+ * review, React unmounts the card, and the only place the words "your reply is
+ * live, don't send it again" appear goes with it. The merchant is left looking
+ * at an inbox that never mentions the reply they just published, which is
+ * exactly the state that makes somebody write it a second time.
+ *
+ * ★THE STALE ROW IS THE LESSER EVIL. It is one card, showing a warning that is
+ * true, until the next navigation.
+ */
+export function shouldRefreshAfter(outcome: ReplyOutcome): boolean {
+  return outcome.kind !== "published_unrecorded";
+}
+
 // ── What went wrong ──────────────────────────────────────────────────────────
 
 /**
@@ -398,6 +500,12 @@ const KIND_BY_CODE: Record<string, ReplyRefusalKind> = {
   UNSUPPORTED_NETWORK: "not_repliable",
   NO_REVIEW_REFERENCE: "not_repliable",
   UNRECOGNISED_REVIEW_REFERENCE: "not_repliable",
+  // ★THE ROW IS GONE. Reachable two ways and neither is a support ticket: a
+  // 30-second staleTime with no refetch-on-focus means the list outlives the
+  // row, and `app.onError`'s unknown-route handler answers NOT_FOUND — so if
+  // b2c ships ahead of the api, EVERY send tells the merchant to open a
+  // ticket. `toast-errors.ts` calls that out as a deploy-order hazard.
+  NOT_FOUND: "not_repliable",
   // The person
   FORBIDDEN: "no_permission",
   // The words
@@ -443,10 +551,13 @@ const API_AUTHORED_MESSAGE = new Set([
   "UNSUPPORTED_NETWORK",
   "NO_REVIEW_REFERENCE",
   "UNRECOGNISED_REVIEW_REFERENCE",
-  // ★"This action requires editor or admin role" names the role the merchant
-  // has to be granted. Replacing it with our own guess at which role that is
-  // would be a second place for it to drift the day the route's gate changes.
-  "FORBIDDEN",
+  // ⚠️`FORBIDDEN` IS OFF THIS LIST, HAVING BEEN ON IT. The argument for
+  // passing it through was that "This action requires editor or admin role"
+  // names the role — but that is one of THREE strings `requireRole` can send,
+  // and the other two are "Insufficient permissions" and "No roles assigned":
+  // internal wording, and in the third case ("Active business required") not
+  // about roles at all. Keeping it made our own merchant-facing headline
+  // unreachable.
   "EMPTY_REPLY",
   "REPLY_TOO_LONG",
   // ⚠️`VALIDATION_ERROR` IS OFF THIS LIST TOO, and it looks like it belongs on
@@ -458,7 +569,12 @@ const API_AUTHORED_MESSAGE = new Set([
   "REAUTH_REQUIRED",
   "LOCATION_UNRESOLVED",
   "NO_LOCATION_PICKED",
-  "LOCATION_NOT_MANAGED",
+  // ⚠️`LOCATION_NOT_MANAGED` IS OFF IT TOO, AND FOR TWO REASONS AT ONCE.
+  // `classifyParentLookup` builds that message by interpolating the raw
+  // `locations/12345` — an internal id the merchant has never seen — and it
+  // ends "Re-pick the location on the Business Profile integration", which
+  // names a DIFFERENT screen from the one this module's own second sentence
+  // sends them to. One refusal cannot point at two places.
   "RATE_LIMITED",
 ]);
 
@@ -469,6 +585,7 @@ const FALLBACK_HEADLINE: Record<string, string> = {
   UNSUPPORTED_NETWORK: "We can't reply to this network from here yet.",
   NO_REVIEW_REFERENCE: "We don't have a reference for this review on Google.",
   UNRECOGNISED_REVIEW_REFERENCE: "We don't recognise the reference stored for this review.",
+  NOT_FOUND: "This review isn't in your inbox any more.",
   FORBIDDEN: "You don't have permission to reply on this business's behalf.",
   EMPTY_REPLY: "A reply needs something in it.",
   REPLY_TOO_LONG: `Google allows ${REVIEW_REPLY_MAX_LENGTH} characters.`,
@@ -490,6 +607,7 @@ const FALLBACK_HEADLINE: Record<string, string> = {
 };
 
 const SECOND_SENTENCE: Record<string, string> = {
+  NOT_FOUND: "Reload the page to see what's there now.",
   // ⚠️TRUE OF ALL THREE FORBIDDENs THE ROUTE CAN EMIT. It also answers this
   // code for "No roles assigned" and "Active business required", and an
   // earlier sentence here told those merchants to ask a colleague for editor
