@@ -49,6 +49,10 @@ import { TimezoneBanner } from "./timezone-banner";
 import { ChannelIconCompact } from "@/components/brand/channel-icon";
 import { useSchedulePreview } from "./use-schedule-preview";
 import { useSchedulerEntitlements } from "./use-scheduler-entitlements";
+import { LocalPostOptions } from "./local-post-options";
+import { LISTING_CHANNEL, useListingTarget } from "./use-listing-target";
+import { emptyListingDraft, listingProblems, type ListingDraft } from "@/lib/local-post";
+import { listingPlanTarget } from "@/lib/listing-target";
 import { UpgradeCallout } from "./upgrade-callout";
 import { channelDisplayName } from "@/lib/scheduler/format";
 
@@ -96,6 +100,14 @@ export interface SchedulerComposerProps {
   commit?: (body: CommitPlanRequest) => Promise<CommitPlanResponse>;
   /** Override the commit button label (default "Schedule"). */
   submitLabel?: string;
+  /**
+   * Suppress the "also post this to Google" panel on a surface where it does
+   * not belong. Default false — the composer asks `useListingTarget()` for
+   * itself, so every compose surface gains the option without each caller
+   * having to wire it, which is what makes "social and Google in ONE action"
+   * true everywhere rather than on one screen.
+   */
+  hideListingOption?: boolean;
   className?: string;
 }
 
@@ -116,9 +128,20 @@ export function SchedulerComposer({
   onScheduled,
   commit,
   submitLabel,
+  hideListingOption,
   className,
 }: SchedulerComposerProps) {
   const [anchor, setAnchor] = useState<Date>(initialAnchor ?? defaultAnchor());
+  const listingTarget = useListingTarget();
+  const offerListing = !hideListingOption && listingTarget.available;
+  const [listingOn, setListingOn] = useState(false);
+  // ★SEEDED FROM THE FIRST CHANNEL'S TEXT, then owned separately. Retyping the
+  // promotion is the fastest way to make this feature unused; but a listing
+  // post is read by someone deciding where to go now, so editing it here must
+  // not touch what goes to the social channels.
+  const [listingDraft, setListingDraft] = useState<ListingDraft>(() =>
+    emptyListingDraft(channels[0]?.payload.text ?? ""),
+  );
   // SSR-safe timezone init: start with UTC (or caller's explicit choice),
   // then hydrate to the user's real tz after mount. Avoids the hydration
   // mismatch where the server renders "UTC" and the client renders
@@ -179,9 +202,37 @@ export function SchedulerComposer({
   );
   const { preview, loading, error } = useSchedulePreview(previewInput);
 
+  // ★THE LISTING RIDES ALONG, IT DOES NOT REPLACE. A merchant can also
+  // schedule to the listing ALONE — the panel is the only target then, and the
+  // "pick at least one channel" guard below has to account for that.
+  // ★THE ENTRY, NOT A BOOLEAN, so what the commit sends is decided in one
+  // tested place rather than assembled inline where nothing can see it.
+  // `listingPlanTarget` returns null unless the panel is offered, a location
+  // is picked, the merchant turned it on AND the draft is clean.
+  const listingTargetEntry = listingPlanTarget({
+    offered: offerListing,
+    locationPicked: listingTarget.locationPicked,
+    enabled: listingOn,
+    draft: listingDraft,
+  });
+  // ⚠️"ACTIVE" AND "SENDABLE" ARE DIFFERENT. The merchant has turned it on and
+  // could send it (active) even while the draft still has problems — which is
+  // when the badge and the count should already include it and the button
+  // should be disabled, rather than the panel appearing to switch itself off.
+  const listingActive = offerListing && listingTarget.locationPicked && listingOn;
+  const listingBlockers = listingActive ? listingProblems(listingDraft) : [];
+  const targetCount = channels.length + (listingActive ? 1 : 0);
+
   const submit = async () => {
-    if (channels.length === 0) {
+    if (channels.length === 0 && !listingActive) {
       toast.error("Pick at least one channel before scheduling.");
+      return;
+    }
+    if (listingBlockers.length > 0) {
+      // ⚠️THE API REFUSES THESE TOO, AND ITS REFUSAL IS TERMINAL — the item ends
+      // at `failed` tomorrow with no way to correct it in place. Stopping here
+      // is the difference between a fixable form and a dead row.
+      toast.error(listingBlockers[0]!.message);
       return;
     }
     if (submittingRef.current) return;
@@ -191,17 +242,20 @@ export function SchedulerComposer({
       const body: CommitPlanRequest = {
         ...(title ? { title } : {}),
         source,
-        channels: channels.map((c) => ({
-          channel: c.channel,
-          ...(c.connectionId ? { connectionId: c.connectionId } : {}),
-          ...(c.preferredLocalTime
-            ? { preferredLocalTime: c.preferredLocalTime }
-            : {}),
-          ...(c.publishViaReminder !== undefined
-            ? { publishViaReminder: c.publishViaReminder }
-            : {}),
-          payload: c.payload,
-        })),
+        channels: [
+          ...channels.map((c) => ({
+            channel: c.channel,
+            ...(c.connectionId ? { connectionId: c.connectionId } : {}),
+            ...(c.preferredLocalTime
+              ? { preferredLocalTime: c.preferredLocalTime }
+              : {}),
+            ...(c.publishViaReminder !== undefined
+              ? { publishViaReminder: c.publishViaReminder }
+              : {}),
+            payload: c.payload,
+          })),
+          ...(listingTargetEntry ? [listingTargetEntry] : []),
+        ],
         staggerStrategy: strategy,
         canonicalScheduledAtUtc: anchor.toISOString(),
         timezone,
@@ -246,10 +300,20 @@ export function SchedulerComposer({
       {/* Channel targets — read-only badges */}
       <div>
         <Label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-          Publishing to {channels.length} channel
-          {channels.length === 1 ? "" : "s"}
+          Publishing to {targetCount} channel
+          {targetCount === 1 ? "" : "s"}
         </Label>
         <div className="flex flex-wrap gap-1.5">
+          {/* ★THE LISTING GETS A BADGE LIKE ANY OTHER TARGET once it is on.
+              Leaving it out of this row would mean the one destination a
+              merchant most wants to be sure about is the one the summary does
+              not mention. */}
+          {listingActive && (
+            <div className="inline-flex items-center gap-1.5 rounded-full border bg-background px-2.5 py-1 text-xs">
+              <ChannelIconCompact channel={LISTING_CHANNEL} size={14} />
+              <span className="font-medium">{channelDisplayName(LISTING_CHANNEL)}</span>
+            </div>
+          )}
           {channels.map((c) => (
             <div
               key={c.channel}
@@ -266,6 +330,16 @@ export function SchedulerComposer({
           ))}
         </div>
       </div>
+
+      {offerListing && (
+        <LocalPostOptions
+          enabled={listingOn}
+          onEnabledChange={setListingOn}
+          draft={listingDraft}
+          onDraftChange={setListingDraft}
+          locationMissing={!listingTarget.locationPicked}
+        />
+      )}
 
       <ScheduleTimePicker
         value={anchor}
@@ -369,13 +443,20 @@ export function SchedulerComposer({
         onClick={submit}
         // Disable rules:
         //  - submitting / loading-preview (UX)
-        //  - empty channels (no-op)
+        //  - nothing targeted at all (no-op) — the LISTING counts as a target,
+        //    so a merchant posting only to their Google listing can still
+        //    schedule; without that this button stayed dead for the one case
+        //    S5·4 exists to serve.
+        //  - a listing draft with problems the api would refuse TERMINALLY:
+        //    better a disabled button with the reason under the field than a
+        //    scheduled row that ends at `failed` tomorrow.
         //  - bundleExceedsCap or bundlesLocked (server would 402)
         //    — we read the same entitlements the server checks; no
         //    sense letting the user hit submit on a known-bad config.
         disabled={
           submitting ||
-          channels.length === 0 ||
+          (channels.length === 0 && !listingActive) ||
+          listingBlockers.length > 0 ||
           loading ||
           bundleExceedsCap ||
           bundlesLocked

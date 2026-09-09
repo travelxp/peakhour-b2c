@@ -83,17 +83,27 @@ export function detectTimezone(): string {
 }
 
 /** Pretty channel name — UI-only; falls back to the raw key. */
+/**
+ * ★A MAP, NOT AN OBJECT LITERAL. `channel` arrives on API data, and a plain
+ * object answers "constructor" and "toString" out of `Object.prototype` — so
+ * the `??` fallback never fires for those keys and this function returns a
+ * FUNCTION where React expects a string.
+ */
+const CHANNEL_NAMES = new Map<string, string>([
+  ["newsletter", "Newsletter"],
+  ["linkedin", "LinkedIn"],
+  ["x", "X"],
+  ["facebook", "Facebook"],
+  ["instagram", "Instagram"],
+  ["threads", "Threads"],
+  ["youtube", "YouTube"],
+  // The merchant's own Google listing (Local Posts). Named as they know it,
+  // not as the channel key spells it.
+  ["googlebusiness", "Google Business Profile"],
+]);
+
 export function channelDisplayName(channel: ChannelKey): string {
-  const MAP: Record<string, string> = {
-    newsletter: "Newsletter",
-    linkedin: "LinkedIn",
-    x: "X",
-    facebook: "Facebook",
-    instagram: "Instagram",
-    threads: "Threads",
-    youtube: "YouTube",
-  };
-  return MAP[channel] ?? channel.charAt(0).toUpperCase() + channel.slice(1);
+  return CHANNEL_NAMES.get(channel) ?? channel.charAt(0).toUpperCase() + channel.slice(1);
 }
 
 /** Tone-coded label for an item status. Returns Tailwind tokens that

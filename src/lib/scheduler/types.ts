@@ -273,4 +273,18 @@ export interface SchedulerEntitlementsResponse {
     maxScheduleHorizonDays?: number;
     maxScheduleBundleSize?: number;
   };
+  /**
+   * Which allowlist-gated publish destinations THIS BUSINESS may use.
+   *
+   * ⚠️PER-BUSINESS, unlike everything else on this response, which is a plan
+   * fact about the org. That is why the hook keys its cache on the business and
+   * the server sends `Vary`.
+   *
+   * ⚠️AND IT IS FOR RENDERING, NOT AUTHORISATION. `commitPlan` asks the same
+   * question again, so a surface that ignores this list gets a 403 rather than
+   * a post on a merchant's public listing. Absent when the API predates the
+   * field — treat that as "nothing gated is enabled", which hides the
+   * affordance rather than offering one the server would refuse.
+   */
+  gatedChannels?: { enabled: string[]; all: string[] };
 }
