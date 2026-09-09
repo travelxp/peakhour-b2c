@@ -47,7 +47,11 @@ const WINDOWS = LEDGER_WINDOWS;
 
 export default function ContentLedgerPage() {
   const { business } = useAuth();
-  const [days, setDays] = useState<number>(90);
+  // ★THE FIRST WINDOW, NOT A COPY OF ITS NUMBER. A hardcoded 90 re-derives the
+  // one fact the shared list exists to hold: reorder the picker and the screen
+  // opens with no button pressed, under a headline naming a period none of them
+  // offers.
+  const [days, setDays] = useState<number>(WINDOWS[0].days);
 
   const ledger = useQuery({
     // Business in the key for the same reason every other business-scoped hook

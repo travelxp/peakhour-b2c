@@ -458,7 +458,13 @@ export function rowTitle(row: LedgerRow): string {
   const t = row.title?.trim();
   if (t) return t;
   try {
-    const path = new URL(row.url).pathname;
+    const url = new URL(row.url);
+    // ⚠️THE QUERY IS PART OF WHICH PAGE THIS IS, and a first version dropped
+    // it. The api enumerates the query-addressed shape under `no_path`, and two
+    // title-less rows differing only in their query both rendered as
+    // `/index.php` — two lines a merchant cannot tell apart, in the column
+    // whose whole job is to say which page a row is.
+    const path = `${url.pathname}${url.search}`;
     return path && path !== "/" ? path : row.url;
   } catch {
     return row.url;

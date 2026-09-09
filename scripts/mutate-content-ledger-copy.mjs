@@ -287,6 +287,12 @@ const MUTANTS = [
     killer: "★falls back to the PATH, not to a bare empty string",
   },
   {
+    name: "★★drop the query, so two different pages render as the same row",
+    anchor: "    const path = `${url.pathname}${url.search}`;",
+    mutated: "    const path = url.pathname;",
+    killer: "★★keeps the QUERY, which is part of which page a row is",
+  },
+  {
     name: "★★label a title-less site-root row “/”",
     anchor: '    return path && path !== "/" ? path : row.url;',
     mutated: "    return path || row.url;",

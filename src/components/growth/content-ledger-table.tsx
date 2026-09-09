@@ -70,7 +70,10 @@ function Row({ row }: { row: LedgerRow }) {
   const suggestion = row.suggestion ? suggestionLine(row.suggestion) : null;
 
   return (
-    <div className="grid grid-cols-1 gap-3 border-b p-4 last:border-b-0 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]">
+    // The separator is the container's `divide-y`. A `border-b` here as well
+    // stacked two 1px rules on every internal row, and made `last:border-b-0`
+    // dead — the last row had no border of its own to remove.
+    <div className="grid grid-cols-1 gap-3 p-4 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]">
       <div className="min-w-0 space-y-1">
         {/* ★★NO LINK WHEN THERE IS NO ADDRESS WE CAN OPEN, AND NO ICON EITHER.
             A stored url that will not parse — or one with no scheme, which is a

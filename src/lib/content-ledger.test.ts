@@ -567,6 +567,17 @@ describe("rowTitle", () => {
     expect(rowTitle(row({ title: undefined, url: "not a url" }))).toBe("not a url");
   });
 
+  it("★★keeps the QUERY, which is part of which page a row is", () => {
+    // The api enumerates the query-addressed shape under `no_path`. Dropping it
+    // rendered two title-less rows as the identical `/index.php` — two lines a
+    // merchant cannot tell apart, in the column whose whole job is to say which
+    // page each row is.
+    const a = rowTitle(row({ title: undefined, url: "https://shop.example/index.php?p=12" }));
+    const b = rowTitle(row({ title: undefined, url: "https://shop.example/index.php?p=13" }));
+    expect(a).toBe("/index.php?p=12");
+    expect(a).not.toBe(b);
+  });
+
   it("★★does not label a title-less ROOT row “/”", () => {
     // `new URL(u).pathname` is "/" for a site root, which is truthy — so a
     // first version labelled the row with a single slash. The case is
