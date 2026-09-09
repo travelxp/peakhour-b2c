@@ -49,5 +49,10 @@ export {
   schedulerFeatureEnabled,
 } from "./use-scheduler-entitlements";
 
+// S5·4 — "also post this to Google", and whether this merchant may.
+export { useListingTarget, LISTING_CHANNEL } from "./use-listing-target";
+export type { ListingTarget } from "./use-listing-target";
+export { LocalPostOptions } from "./local-post-options";
+
 export { UpgradeCallout } from "./upgrade-callout";
 export type { UpgradeCalloutProps } from "./upgrade-callout";

@@ -273,4 +273,24 @@ export interface SchedulerEntitlementsResponse {
     maxScheduleHorizonDays?: number;
     maxScheduleBundleSize?: number;
   };
+  /**
+   * Which allowlist-gated publish destinations THIS BUSINESS may use.
+   *
+   * ⚠️PER-BUSINESS, unlike everything else on this response, which is a plan
+   * fact about the org — which is why the server sends `Vary` on it.
+   *
+   * ⚠️AND THE CLIENT CACHE IS *NOT* KEYED ON THE BUSINESS. `useSchedulerEntitlements`
+   * uses the unscoped key `["scheduler:entitlements"]`; what actually keeps one
+   * business's gate list out of another's composer is `switchBusiness` calling
+   * `queryClient.clear()`. Said plainly because the previous version of this
+   * comment claimed the key was scoped — and a comment asserting a guarantee
+   * the code does not implement is an invitation to narrow that `clear()`.
+   *
+   * ⚠️AND IT IS FOR RENDERING, NOT AUTHORISATION. `commitPlan` asks the same
+   * question again, so a surface that ignores this list gets a 403 rather than
+   * a post on a merchant's public listing. Absent when the API predates the
+   * field — treat that as "nothing gated is enabled", which hides the
+   * affordance rather than offering one the server would refuse.
+   */
+  gatedChannels?: { enabled: string[]; all: string[] };
 }
