@@ -18,6 +18,7 @@ import {
 } from "@/hooks/use-wa-conversations";
 import { inboxApi, type InboxItem, type InboxPriority } from "@/lib/api/inbox";
 import { ReviewReplyCard } from "@/components/inbox/review-reply-card";
+import { inboxTabFromHash } from "@/lib/review-summary";
 import {
   REVIEW_PAGE_LIMIT,
   reviewQueueOrder,
@@ -355,6 +356,13 @@ export default function InboxPage() {
   // number of reviews waiting on an answer is the thing that makes somebody
   // open the app at all.
   const reviews = useReviewsQuery();
+  // ★★SO A LINK CAN NAME A LANE. Presence's "answer 3 waiting reviews" button
+  // dropped somebody on Conversations, with the thing they asked for one
+  // unexplained click away. Read once, on mount: the hash is a starting point,
+  // not a controlled value, so clicking a tab afterwards still just works.
+  const [tab, setTab] = useState(() =>
+    inboxTabFromHash(typeof window === "undefined" ? undefined : window.location.hash),
+  );
   // ★★★THE "SHOW IT AT ALL" DECISION IS THE MODULE'S, because it is the one
   // that can claim something untrue. `unanswered > 0` hid the badge on a
   // TRUNCATED page whose hundred newest reviews were all answered — a silent
@@ -370,7 +378,7 @@ export default function InboxPage() {
         </p>
       </div>
 
-      <Tabs defaultValue="conversations">
+      <Tabs value={tab} onValueChange={(v) => setTab(inboxTabFromHash(v))}>
         <TabsList>
           <TabsTrigger value="conversations">Conversations</TabsTrigger>
           <TabsTrigger value="leads">Leads</TabsTrigger>
