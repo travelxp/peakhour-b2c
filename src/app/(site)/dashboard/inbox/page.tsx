@@ -201,12 +201,23 @@ function LeadsPane() {
   });
   const onChanged = () => queryClient.invalidateQueries({ queryKey: ["inbox-leads"] });
 
-  if (leads.isLoading) {
+  // ⚠️★★`isPending`, NOT `isLoading` — the same hole the reviews lane had, in
+  // the lane beside it. react-query v5 derives `isLoading` as
+  // `isPending && isFetching`, so a PAUSED query (offline) is neither loading
+  // nor errored and fell straight through to "No leads yet" — a specific claim
+  // about a merchant's campaigns that a request which never completed has not
+  // earned.
+  if (leads.isPending) {
     return (
       <div className="space-y-2">
         {[0, 1, 2].map((i) => (
           <Skeleton key={i} className="h-20 w-full" />
         ))}
+        {leads.fetchStatus === "paused" && (
+          <p className="text-center text-xs text-muted-foreground">
+            Waiting for a connection — your leads will load when you&apos;re back online.
+          </p>
+        )}
       </div>
     );
   }

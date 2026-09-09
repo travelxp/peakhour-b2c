@@ -221,11 +221,23 @@ export function periodLine(data: MeasurementHealthResponse): string {
  * business whose Business Profile we could not read claims we looked at five
  * things. `summary.checked` is the honest denominator, and when it is smaller
  * than the list the sentence says so.
+ *
+ * ★★★AND THE NUMERATOR IS COUNTED, NOT SUBTRACTED. `checked - attention` treats
+ * everything that is not a failure as a pass — so the day the api grows a
+ * FOURTH state, every check in it is reported to the merchant as having passed.
+ * That is not hypothetical: `HealthState` is typed as the union we know PLUS a
+ * string precisely because "the api's sets grow independently of this deploy",
+ * and `orderedChecks` already has an `UNKNOWN_RANK` for exactly that. One file,
+ * two places, and only one of them was ready.
+ *
+ * ⚠️A PASS IS A CHECK WE KNOW PASSED. Anything else is left out of the
+ * numerator rather than assumed into it, so an unrecognised state makes the
+ * sentence quieter, never wronger.
  */
 export function passedLine(data: MeasurementHealthResponse): string | null {
-  const { checked, attention, unmeasurable } = data.summary;
+  const { checked, unmeasurable } = data.summary;
   if (checked === 0) return null;
-  const passed = checked - attention;
+  const passed = data.checks.filter((c) => c.state === "ok").length;
   const base = `${passed} of ${checked} ${checked === 1 ? "check" : "checks"} passed`;
   return unmeasurable > 0
     ? `${base}. ${unmeasurable} more couldn't be checked.`
