@@ -5,7 +5,6 @@ import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, CheckCircle2, ExternalLink, HelpCircle } from "lucide-react";
 
 import { Card, CardContent } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/providers/auth-provider";
 import { growthApi, type HealthCheck } from "@/lib/api/growth";
 import {
@@ -158,12 +157,17 @@ export function MeasurementHealthPanel({ manageHref = null }: { manageHref?: str
     gcTime: 60 * 60_000,
   });
 
-  if (health.isLoading) {
-    return <Skeleton className="h-28 w-full rounded-lg" />;
-  }
-  // ★NOTHING ON ERROR. See the file header: a qualifier that cannot load says
-  // nothing, and a red banner here reads as a failed connection.
-  if (health.isError || !health.data) return null;
+  // ⚠️🚫★★NO SKELETON, AND A FIRST VERSION HAD ONE. It sat ABOVE the two gates
+  // below, so the panel that promises to render nothing for a business with
+  // nothing connected instead rendered a placeholder for the length of three
+  // live Google calls and then vanished, shifting the page under somebody who
+  // had just finished connecting an account. A skeleton is a promise that
+  // something is coming, and this panel cannot make that promise until it has
+  // read the answer. It appears when it has something to say.
+  //
+  // ★NOTHING ON ERROR EITHER. See the file header: a qualifier that cannot load
+  // says nothing, and a red banner here reads as a failed connection.
+  if (health.isPending || health.isError || !health.data) return null;
 
   const data = health.data;
   // ★★A BUSINESS WITH NOTHING CONNECTED GETS NOTHING. Every check comes back
