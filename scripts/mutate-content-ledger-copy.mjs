@@ -116,10 +116,16 @@ const MUTANTS = [
 
   // ── A row's own dates ────────────────────────────────────────────────────
   {
-    name: "★★★write “since you published” over a window that opens before the page did",
-    anchor: "  return search.coversFromPublish",
-    mutated: "  return true",
-    killer: "★★★does not write “since you published” over a window that predates it",
+    name: "★★★read the flag as lifetime coverage, contradicting the “live N days” beside it",
+    anchor: "    ? range",
+    mutated: "    ? `${range} — the whole time this page has been live`",
+    killer: "★★★claims nothing beyond the dates when the window starts after publication",
+  },
+  {
+    name: "★★say nothing about a window that reaches back past the page's existence",
+    anchor: "    : `${range} — includes days before this page went live`;",
+    mutated: "    : range;",
+    killer: "★★marks a window that reaches back past the page's own existence",
   },
   {
     name: "★★report a page with ONE reading as unchanged",
@@ -159,6 +165,24 @@ const MUTANTS = [
     killer: "★★★names the page size rather than claiming a business total",
   },
   {
+    name: "★★★drop the window, so 40 pages over a year reads as 4",
+    anchor: '    : `${count(n, "page")} published in ${period}`;',
+    mutated: '    : `${count(n, "page")} published through Peakhour`;',
+    killer: "★★★names the WINDOW too, so 40 pages over a year is not read as 4",
+  },
+  {
+    name: "★turn every window into months, inventing a fraction of one",
+    anchor: '  if (days % 30 === 0) return `the last ${count(days / 30, "month")}`;',
+    mutated: '  return `the last ${count(days / 30, "month")}`;',
+    killer: "★falls back to days rather than inventing a fraction of a month",
+  },
+  {
+    name: "★★print “1 clicks” under a summary that pluralises correctly",
+    anchor: "  return `${NUM.format(n)} ${n === 1 ? one : many}`;",
+    mutated: "  return `${NUM.format(n)} ${many}`;",
+    killer: "★★pluralises, because a first version built these in the component",
+  },
+  {
     name: "★★★sum clicks across pages whose windows cover different months",
     anchor: '  if (s.reason === "mixed_windows") {',
     mutated: "  if (false) {",
@@ -185,6 +209,14 @@ const MUTANTS = [
 
   // ── Where the record begins ──────────────────────────────────────────────
   {
+    name: "★★★claim the PRODUCT started recording when a business first published",
+    anchor:
+      "  return `Your earliest recorded page was published on ${ledgerDate(ledger.stampedFrom)}.`;",
+    mutated:
+      "  return `Peakhour began recording published pages on ${ledgerDate(ledger.stampedFrom)}.`;",
+    killer: "★★★says when the record begins, so a short list is not read as a short year",
+  },
+  {
     name: "★★★stop saying when the record begins, so a short list reads as a short year",
     anchor: "  if (began <= since) return null;",
     mutated: "  return null;",
@@ -203,6 +235,12 @@ const MUTANTS = [
     anchor: "  const t = row.title?.trim();",
     mutated: "  return row.title ?? \"\";\n  const t = row.title?.trim();",
     killer: "★falls back to the PATH, not to a bare empty string",
+  },
+  {
+    name: "★★label a title-less site-root row “/”",
+    anchor: '    return path && path !== "/" ? path : row.url;',
+    mutated: "    return path || row.url;",
+    killer: "★★does not label a title-less ROOT row “/”",
   },
   {
     name: "★render a page published this morning as “live 0 days”",

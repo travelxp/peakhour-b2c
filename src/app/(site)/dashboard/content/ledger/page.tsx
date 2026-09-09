@@ -13,6 +13,8 @@ import { useAuth } from "@/providers/auth-provider";
 import { growthApi, type ContentLedgerResponse } from "@/lib/api/growth";
 import {
   analyticsTotalLine,
+  ledgerDate,
+  periodPhrase,
   recordBeganLine,
   searchTotalLine,
   summaryHeadline,
@@ -111,22 +113,35 @@ function LedgerBody({ data }: { data: ContentLedgerResponse }) {
   const began = recordBeganLine(data);
 
   if (data.rows.length === 0) {
+    // ★★TWO EMPTY STATES, BECAUSE THERE ARE TWO REASONS, AND `stampedFrom` IS
+    // WHAT TELLS THEM APART. A first version had one and asserted the harder
+    // of the two: it told a merchant who published in February and happened to
+    // be looking at 90 days that the ledger holds nothing recoverable and
+    // "starts from your next one" — while the response in hand already proved
+    // otherwise.
+    const everPublished = data.stampedFrom !== null;
     return (
-      <div className="space-y-3">
-        <EmptyState
-          icon={FileClock}
-          title="Nothing published through Peakhour yet"
-          description={
-            // ★★THE EMPTY STATE SAYS WHY IT IS EMPTY, and the reason is ours,
-            // not theirs. A merchant with a year of articles behind them will
-            // otherwise read a blank table as the product failing to find their
-            // work — when what is actually true is that nothing recorded which
-            // page came from which publish until the ledger shipped, and that
-            // link cannot be reconstructed.
-            "Pages you publish from Peakhour appear here with what they earned. Articles published before this was switched on can't be matched back to their publish, so the ledger starts from your next one."
-          }
-        />
-      </div>
+      <EmptyState
+        icon={FileClock}
+        title={
+          everPublished
+            ? `Nothing published in ${periodPhrase(data.period.days)}`
+            : "Nothing published through Peakhour yet"
+        }
+        description={
+          everPublished
+            ? // ★IT NAMES WHAT IT DOES HOLD, so a merchant who published
+              // earlier is pointed at the longer window rather than told their
+              // work is gone.
+              `Your earliest recorded page was published on ${ledgerDate(
+                data.stampedFrom as string,
+              )}. Try a longer period to see it.`
+            : // ★★AND THE REASON THE RECORD MAY BE SHORT IS OURS, NOT THEIRS.
+              // Nothing recorded which page came from which publish until the
+              // ledger shipped, and that link cannot be reconstructed.
+              "Pages you publish from Peakhour appear here with what they earned. Articles published before this was switched on can't be matched back to their publish, so the ledger starts from your next one."
+        }
+      />
     );
   }
 
@@ -135,7 +150,7 @@ function LedgerBody({ data }: { data: ContentLedgerResponse }) {
       <Card>
         <CardContent className="space-y-3 pt-6">
           <p className="text-lg font-semibold">
-            {summaryHeadline(data.summary, data.truncated)}
+            {summaryHeadline(data.summary, data.truncated, data.period.days)}
           </p>
           {/* ★★THE TWO TOTALS ARE SEPARATE LINES, NOT ONE ROW OF TILES. They
               measure different things over different spans — a window against a

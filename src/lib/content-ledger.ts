@@ -126,17 +126,26 @@ export function analyticsAbsenceText(
 /**
  * The line under a row's search figures, saying what they cover.
  *
- * ★★THE WINDOW'S OWN DATES, AND WHETHER THEY BEGIN AT PUBLICATION. A window
- * that opened before the page went live still holds only this page's traffic —
- * the days before it existed contributed nothing — but writing "since you
- * published" over it claims a span that was not measured. Two sentences,
- * because there are two facts.
+ * ★★THE WINDOW'S OWN DATES, AND NOTHING MORE THAN THEY SAY. The range IS the
+ * claim; anything added to it has to be true of the range itself.
+ *
+ * ⚠️🚫★★`coversFromPublish` MEANS "NO DAYS BEFORE PUBLICATION", NOT "THE WHOLE
+ * LIFE OF THE PAGE", and a first version wrote the second sentence on the first
+ * flag. The api sets it from `windowStart >= publishedAt` — so a page published
+ * in January with a stored 28-day window of 1–28 August is `true`, and the row
+ * read "Aug 1 – Aug 28 — the whole time this page has been live" directly
+ * beside "Live 236 days". Two lines of the same row contradicting each other,
+ * with 28 days of clicks presented as a lifetime total.
+ *
+ * ★SO `true` ADDS NOTHING. The dates already say what was measured; the only
+ * fact worth adding is the one a reader would otherwise get wrong, which is a
+ * window that reaches back past the page's own existence.
  */
 export function searchWindowLine(search: Extract<LedgerSearch, { state: "measured" }>): string {
   const range = windowRange(search.windowStart, search.windowEnd);
   return search.coversFromPublish
-    ? `${range} — the whole time this page has been live`
-    : `${range} — a window that opens before this page did`;
+    ? range
+    : `${range} — includes days before this page went live`;
 }
 
 /**
@@ -192,22 +201,76 @@ export function suggestionLine(suggestion: LedgerSuggestion): string {
   );
 }
 
+/** A count with its noun, pluralised. */
+function count(n: number, one: string, many = `${one}s`): string {
+  return `${NUM.format(n)} ${n === 1 ? one : many}`;
+}
+
+/**
+ * A window as a phrase a picker button matches: "the last 90 days".
+ *
+ * ⏸MONTHS ONLY WHERE THEY DIVIDE CLEANLY. "the last 12 months" is what the
+ * button says; "the last 11.97 months" is what an unconditional conversion
+ * produces for any other value the api will accept.
+ */
+export function periodPhrase(days: number): string {
+  if (days % 365 === 0) {
+    const years = days / 365;
+    return `the last ${count(years, "year")}`;
+  }
+  if (days % 30 === 0) return `the last ${count(days / 30, "month")}`;
+  return `the last ${count(days, "day")}`;
+}
+
 /**
  * The headline above the table.
  *
- * ★★IT NAMES THE SCOPE OF EVERY FIGURE UNDER IT. `pagesInView` counts the rows
- * RETURNED, so on a business with three hundred publications and a page size of
- * fifty it is fifty — and a headline reading "50 pages" above a table invites
- * "you published fifty things", a statement about the merchant drawn from our
- * page size.
+ * ★★IT NAMES THE SCOPE OF EVERY FIGURE UNDER IT, AND THERE ARE TWO SCOPES.
+ *
+ * `pagesInView` counts the rows RETURNED, so on a business with three hundred
+ * publications and a page size of fifty it is fifty — a headline reading "50
+ * pages" invites "you published fifty things", a statement about the merchant
+ * drawn from our page size.
+ *
+ * ⚠️AND THE WINDOW IS THE OTHER ONE, WHICH A FIRST VERSION STATED ONLY IN THE
+ * TRUNCATED BRANCH. Forty pages over a year with the 90-day window selected
+ * reads "4 pages published through Peakhour" — the same misreading from the
+ * other direction, and `recordBeganLine` is null in exactly that case, so
+ * nothing else on the screen says which period it means.
  */
-export function summaryHeadline(summary: LedgerSummary, truncated: boolean): string {
+export function summaryHeadline(
+  summary: LedgerSummary,
+  truncated: boolean,
+  days: number,
+): string {
   const n = summary.pagesInView;
-  if (n === 0) return "Nothing published through Peakhour yet";
-  const noun = n === 1 ? "page" : "pages";
+  const period = periodPhrase(days);
+  if (n === 0) return `Nothing published through Peakhour in ${period}`;
   return truncated
-    ? `Your ${NUM.format(n)} most recent ${noun}`
-    : `${NUM.format(n)} ${noun} published through Peakhour`;
+    ? `Your ${NUM.format(n)} most recent ${n === 1 ? "page" : "pages"}`
+    : `${count(n, "page")} published in ${period}`;
+}
+
+/**
+ * A row's search figures.
+ *
+ * ★★PLURALISED HERE RATHER THAN IN THE COMPONENT, and that is the point of
+ * moving it. A first version built this string in the table with hard-coded
+ * plurals — "1 clicks · 1 impressions" — directly beneath summary lines that
+ * pluralised correctly, and being in a `.tsx` put it beyond both the spec and
+ * the mutation harness.
+ */
+export function searchFiguresLine(
+  search: Extract<LedgerSearch, { state: "measured" }>,
+): string {
+  return `${count(search.clicks, "click")} · ${count(search.impressions, "impression")}`;
+}
+
+/** A row's analytics figures, pluralised for the same reason. */
+export function analyticsFiguresLine(
+  analytics: Extract<LedgerAnalytics, { state: "measured" }>,
+): string {
+  return `${count(analytics.views, "view")} · ${count(analytics.conversions, "conversion")}`;
 }
 
 /**
@@ -260,14 +323,22 @@ export function analyticsTotalLine(summary: LedgerSummary): string {
 }
 
 /**
- * Where the record begins, when that is later than the period asked for.
+ * Where THIS BUSINESS's record begins, when that is later than the period asked
+ * for.
  *
- * ★★THE GAP IS WORK THAT HAPPENED BEFORE ANYTHING RECORDED WHO PUBLISHED IT.
- * Nothing linked a page to its publish before the ledger shipped and the link
- * cannot be reconstructed, so a business with a year of articles sees only the
- * ones published since. Without this line the list reads as "you have published
- * four things" — a statement about the merchant drawn from the date we started
- * keeping records.
+ * ★★THE GAP EXPLAINS A SHORT LIST. Nothing linked a page to its publish before
+ * the ledger shipped and the link cannot be reconstructed, so a business with a
+ * year of articles may see only the ones published since. Without this line the
+ * list reads as "you have published four things" — a statement about the
+ * merchant drawn from the date their record starts.
+ *
+ * ⚠️🚫★★IT SAYS "YOUR EARLIEST", NOT "PEAKHOUR BEGAN". `stampedFrom` is the
+ * oldest stamp THIS BUSINESS carries, and a first version phrased it as the
+ * product's own start date — so a merchant who first published three weeks ago
+ * was told Peakhour only began recording three weeks ago, which is a claim
+ * about us that this field cannot support. It also cannot distinguish "we did
+ * not record before then" from "you did not publish before then", so the
+ * sentence states only what the field IS.
  *
  * ★NULL WHEN THERE IS NOTHING TO SAY: nothing stamped at all (the empty state
  * carries that), or a record that already begins before the window.
@@ -278,7 +349,7 @@ export function recordBeganLine(ledger: ContentLedgerResponse): string | null {
   const since = new Date(ledger.period.since).getTime();
   if (Number.isNaN(began) || Number.isNaN(since)) return null;
   if (began <= since) return null;
-  return `Peakhour began recording published pages on ${ledgerDate(ledger.stampedFrom)}.`;
+  return `Your earliest recorded page was published on ${ledgerDate(ledger.stampedFrom)}.`;
 }
 
 /** How long a page has been live, as a phrase. */
@@ -287,12 +358,21 @@ export function daysLiveLine(row: LedgerRow): string {
   return `Live ${NUM.format(row.daysLive)} ${row.daysLive === 1 ? "day" : "days"}`;
 }
 
-/** The page's own name, falling back to its address. */
+/**
+ * The page's own name, falling back to its address.
+ *
+ * ⚠️AND THE ROOT PATH IS NOT AN ADDRESS A MERCHANT CAN READ. `new URL(u).pathname`
+ * is `"/"` for a site root, which is truthy — so a first version labelled a
+ * title-less root row `/`. The case is reachable: the api's own `no_path` reason
+ * enumerates a URL that IS `/`. The full URL is longer and says which page it
+ * is, which is the whole job of this string.
+ */
 export function rowTitle(row: LedgerRow): string {
   const t = row.title?.trim();
   if (t) return t;
   try {
-    return new URL(row.url).pathname || row.url;
+    const path = new URL(row.url).pathname;
+    return path && path !== "/" ? path : row.url;
   } catch {
     return row.url;
   }

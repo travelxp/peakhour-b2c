@@ -6,10 +6,12 @@ import { ExternalLink, Lightbulb } from "lucide-react";
 import {
   analyticsAbsenceText,
   analyticsCoverageLine,
+  analyticsFiguresLine,
   daysLiveLine,
   ledgerDate,
   rowTitle,
   searchAbsenceText,
+  searchFiguresLine,
   searchTrendLine,
   searchWindowLine,
   suggestionLine,
@@ -36,8 +38,6 @@ import type { LedgerRow } from "@/lib/api/growth";
  * analytics is a SERIES summed from the publish date. Putting them under one
  * "performance" heading would invite a reader to subtract one from the other.
  */
-
-const NUM = new Intl.NumberFormat("en-US");
 
 /** A figure with the sentence that says what it covers, or the sentence alone. */
 function Measure({
@@ -101,9 +101,7 @@ function Row({ row }: { row: LedgerRow }) {
         </p>
         {row.search.state === "measured" ? (
           <Measure
-            value={`${NUM.format(row.search.clicks)} clicks · ${NUM.format(
-              row.search.impressions,
-            )} impressions`}
+            value={searchFiguresLine(row.search)}
             sub={[searchWindowLine(row.search), searchTrendLine(row.search)]
               .filter(Boolean)
               .join(" · ")}
@@ -119,9 +117,7 @@ function Row({ row }: { row: LedgerRow }) {
         </p>
         {row.analytics.state === "measured" ? (
           <Measure
-            value={`${NUM.format(row.analytics.views)} views · ${NUM.format(
-              row.analytics.conversions,
-            )} conversions`}
+            value={analyticsFiguresLine(row.analytics)}
             sub={analyticsCoverageLine(row.analytics)}
           />
         ) : (

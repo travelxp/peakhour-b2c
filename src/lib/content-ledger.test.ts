@@ -2,12 +2,15 @@ import { describe, it, expect } from "vitest";
 import {
   analyticsAbsenceText,
   analyticsCoverageLine,
+  analyticsFiguresLine,
   analyticsTotalLine,
   daysLiveLine,
   ledgerDate,
+  periodPhrase,
   recordBeganLine,
   rowTitle,
   searchAbsenceText,
+  searchFiguresLine,
   searchTotalLine,
   searchTrendLine,
   searchWindowLine,
@@ -169,15 +172,23 @@ describe("searchWindowLine", () => {
     expect(searchWindowLine(measuredSearch())).toContain("Aug 1, 2026 – Aug 28, 2026");
   });
 
-  it("★★★does not write “since you published” over a window that predates it", () => {
-    // The figures are still this page's — the days before it existed
-    // contributed nothing — but the SPAN was not measured, and claiming it was
-    // is the difference between a true number and a true sentence.
-    const covering = searchWindowLine(measuredSearch());
-    const overlapping = searchWindowLine(measuredSearch({ coversFromPublish: false }));
-    expect(covering).toContain("the whole time this page has been live");
-    expect(overlapping).not.toContain("the whole time");
-    expect(overlapping).toContain("opens before this page did");
+  it("★★★claims nothing beyond the dates when the window starts after publication", () => {
+    // ⚠️`coversFromPublish` MEANS "NO DAYS BEFORE PUBLICATION", NOT "THE WHOLE
+    // LIFE OF THE PAGE" — the api sets it from `windowStart >= publishedAt`.
+    // A page published in January with a 28-day August window is `true`, and a
+    // first version wrote "the whole time this page has been live" over it,
+    // directly beside "Live 236 days". Two lines of one row contradicting each
+    // other, with 28 days of clicks read as a lifetime total.
+    const line = searchWindowLine(measuredSearch());
+    expect(line).toBe("Aug 1, 2026 – Aug 28, 2026");
+    expect(line).not.toMatch(/whole time|life|since you published/i);
+  });
+
+  it("★★marks a window that reaches back past the page's own existence", () => {
+    // The only fact worth adding to the dates is the one a reader would
+    // otherwise get wrong.
+    const line = searchWindowLine(measuredSearch({ coversFromPublish: false }));
+    expect(line).toContain("includes days before this page went live");
   });
 });
 
@@ -233,6 +244,49 @@ describe("analyticsCoverageLine", () => {
   });
 });
 
+// ── The figures on a row ────────────────────────────────────────────────────
+
+describe("searchFiguresLine / analyticsFiguresLine", () => {
+  it("★★pluralises, because a first version built these in the component", () => {
+    // Hard-coded plurals there produced "1 clicks · 1 impressions" directly
+    // beneath summary lines that pluralised correctly — and being in a `.tsx`
+    // put it beyond both the spec and the mutation harness. That is why the
+    // strings moved here.
+    expect(searchFiguresLine(measuredSearch({ clicks: 1, impressions: 1 }))).toBe(
+      "1 click · 1 impression",
+    );
+    expect(analyticsFiguresLine(measuredAnalytics({ views: 1, conversions: 1 }))).toBe(
+      "1 view · 1 conversion",
+    );
+  });
+
+  it("prints the plural for every other count, including zero", () => {
+    // ⏸A ZERO HERE IS A REAL ZERO. These lines are only reached on `measured`,
+    // where the api HAS the figure — "0 clicks" from a page Google reported and
+    // nobody clicked is a fact, and the refusals live in the absence text.
+    expect(searchFiguresLine(measuredSearch({ clicks: 0, impressions: 12 }))).toBe(
+      "0 clicks · 12 impressions",
+    );
+    expect(analyticsFiguresLine(measuredAnalytics())).toBe("380 views · 4 conversions");
+  });
+});
+
+describe("periodPhrase", () => {
+  it("says months and years where they divide cleanly", () => {
+    expect(periodPhrase(90)).toBe("the last 3 months");
+    expect(periodPhrase(365)).toBe("the last 1 year");
+    expect(periodPhrase(30)).toBe("the last 1 month");
+  });
+
+  it("★falls back to days rather than inventing a fraction of a month", () => {
+    // The api accepts anything from 7 to 365, and "the last 1.57 months" is
+    // what an unconditional conversion produces for the values the picker does
+    // not offer.
+    expect(periodPhrase(7)).toBe("the last 7 days");
+    expect(periodPhrase(47)).toBe("the last 47 days");
+  });
+});
+
 // ── The suggestion, and the comparison that must not be invited ─────────────
 
 describe("suggestionLine", () => {
@@ -269,17 +323,34 @@ describe("summaryHeadline", () => {
   it("★★★names the page size rather than claiming a business total", () => {
     // `pagesInView` counts the rows RETURNED. "50 pages published" above a
     // truncated table is a statement about the merchant drawn from our limit.
-    expect(summaryHeadline(summary({ pagesInView: 50 }), true)).toBe(
+    expect(summaryHeadline(summary({ pagesInView: 50 }), true, 90)).toBe(
       "Your 50 most recent pages",
-    );
-    expect(summaryHeadline(summary({ pagesInView: 4 }), false)).toBe(
-      "4 pages published through Peakhour",
     );
   });
 
-  it("has an empty state that is not a zero", () => {
-    expect(summaryHeadline(summary({ pagesInView: 0 }), false)).toBe(
-      "Nothing published through Peakhour yet",
+  it("★★★names the WINDOW too, so 40 pages over a year is not read as 4", () => {
+    // A first version stated the scope only in the truncated branch, so forty
+    // pages over a year with the 90-day window selected read "4 pages published
+    // through Peakhour" — the same misreading from the other direction. And
+    // `recordBeganLine` is null in exactly that case, so nothing else on the
+    // screen said which period it meant.
+    expect(summaryHeadline(summary({ pagesInView: 4 }), false, 90)).toBe(
+      "4 pages published in the last 3 months",
+    );
+    expect(summaryHeadline(summary({ pagesInView: 4 }), false, 365)).toBe(
+      "4 pages published in the last 1 year",
+    );
+  });
+
+  it("has an empty state that is not a zero, and still names the window", () => {
+    expect(summaryHeadline(summary({ pagesInView: 0 }), false, 90)).toBe(
+      "Nothing published through Peakhour in the last 3 months",
+    );
+  });
+
+  it("counts one page in the singular", () => {
+    expect(summaryHeadline(summary({ pagesInView: 1 }), false, 90)).toBe(
+      "1 page published in the last 3 months",
     );
   });
 });
@@ -351,9 +422,14 @@ describe("recordBeganLine", () => {
     // link cannot be reconstructed. Without this the list reads as "you have
     // published four things" — a statement about the merchant drawn from the
     // date we started keeping records.
-    expect(recordBeganLine(ledger())).toBe(
-      "Peakhour began recording published pages on Jul 1, 2026.",
-    );
+    // ⚠️AND IT SAYS "YOUR EARLIEST", NOT "PEAKHOUR BEGAN". `stampedFrom` is
+    // the oldest stamp THIS BUSINESS carries; phrasing it as the product's own
+    // start date told a merchant who first published three weeks ago that
+    // Peakhour only began recording three weeks ago — a claim about us this
+    // field cannot support.
+    const line = recordBeganLine(ledger());
+    expect(line).toBe("Your earliest recorded page was published on Jul 1, 2026.");
+    expect(line).not.toMatch(/Peakhour began/i);
   });
 
   it("★says nothing when the record already begins before the window", () => {
@@ -385,6 +461,15 @@ describe("rowTitle", () => {
 
   it("falls back to the raw string when the URL does not parse", () => {
     expect(rowTitle(row({ title: undefined, url: "not a url" }))).toBe("not a url");
+  });
+
+  it("★★does not label a title-less ROOT row “/”", () => {
+    // `new URL(u).pathname` is "/" for a site root, which is truthy — so a
+    // first version labelled the row with a single slash. The case is
+    // reachable: the api's own `no_path` reason enumerates a URL that IS "/".
+    expect(rowTitle(row({ title: undefined, url: "https://shop.example/" }))).toBe(
+      "https://shop.example/",
+    );
   });
 });
 
