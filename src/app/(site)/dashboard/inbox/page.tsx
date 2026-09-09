@@ -457,7 +457,16 @@ function InboxTabs() {
     <PageShell>
       <InboxHeader />
 
-      <Tabs value={tab} onValueChange={(v) => selectTab(inboxTabFromParam(v))}>
+      {/* ⚠️★★MANUAL ACTIVATION, because `onValueChange` now NAVIGATES. With
+          Radix's default "automatic", arrowing across the tab list selects on
+          every focus move — so each keypress would push a history entry and
+          Back would walk through tabs instead of leaving the page. The
+          `dashboard/ads` precedent sets this for exactly the same reason. */}
+      <Tabs
+        value={tab}
+        activationMode="manual"
+        onValueChange={(v) => selectTab(inboxTabFromParam(v))}
+      >
         <TabsList>
           <TabsTrigger value="conversations">Conversations</TabsTrigger>
           <TabsTrigger value="leads">Leads</TabsTrigger>

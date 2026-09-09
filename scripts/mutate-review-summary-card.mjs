@@ -267,6 +267,22 @@ const MUTANTS = [
     mutated: "    windowFigures: false,",
     killer: "★★shows both halves once the window has something in it",
   },
+
+  // ── Round 3: the one reply that is the routine case ──────────────────────
+  {
+    where: "rules",
+    name: "★★★say 'any of the 1 replies' to a merchant with one console reply",
+    anchor: "    const plural = summary.respondedCount === 1 ? \"reply\" : \"replies\";",
+    mutated: "    const plural = \"replies\";",
+    killer: "★★★says it in the singular for the one reply that is the routine case",
+  },
+  {
+    where: "rules",
+    name: "★★★drop the singular phrasing around the count",
+    anchor: "    return `We can't time ${summary.respondedCount === 1 ? \"the\" : \"any of the\"} ${summary.respondedCount} ${plural} in this period — ${summary.respondedCount === 1 ? \"it was\" : \"they were\"} published before the review${summary.respondedCount === 1 ? \"\" : \"s\"} reached us.`;",
+    mutated: "    return `We can't time any of the ${summary.respondedCount} ${plural} in this period — they were published before the reviews reached us.`;",
+    killer: "★★★says it in the singular for the one reply that is the routine case",
+  },
 ];
 
 /** ★THE SMOKE MUTANT: one per (file, spec) pair. */

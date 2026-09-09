@@ -189,7 +189,12 @@ export function ReviewSummaryCard() {
           the reply figures are over a different population entirely, so a
           quiet quarter still has both to show — see `cardSections`. */}
       {sections.standingFigures && (
-        <div className="grid gap-3 sm:grid-cols-4">
+        // ⚠️THE COLUMN COUNT FOLLOWS WHAT IS IN IT. Hard-coded at four, a quiet
+        // quarter's two tiles were squeezed into the first two columns with half
+        // the card left blank.
+        <div
+          className={`grid gap-3 ${sections.windowFigures ? "sm:grid-cols-4" : "sm:grid-cols-2"}`}
+        >
           {sections.windowFigures && (
             <>
               <Stat

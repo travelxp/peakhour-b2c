@@ -163,6 +163,18 @@ describe("responseCaveat — the replies we cannot time", () => {
     expect(note).not.toContain("Timed over");
   });
 
+  it("★★★says it in the singular for the one reply that is the routine case", () => {
+    // ⚠️AN OWNER WHO ANSWERED IN GOOGLE'S OWN APP has a `replyPublishedAt`
+    // predating the row, so the latency is negative and excluded — one such
+    // reply in a window is ordinary, and "any of the 1 replies" is what a
+    // merchant would have read.
+    const note = responseCaveat(summary({ respondedCount: 1, timedCount: 0 }));
+    expect(note).toBe(
+      "We can't time the 1 reply in this period — it was published before the review reached us.",
+    );
+    expect(note).not.toContain("1 replies");
+  });
+
   it("★★says nothing at all when there were no replies to time", () => {
     expect(responseCaveat(summary({ respondedCount: 0, timedCount: 0 }))).toBeNull();
   });

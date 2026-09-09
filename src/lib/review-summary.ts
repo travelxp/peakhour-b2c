@@ -159,7 +159,13 @@ export function responseCaveat(summary: ReviewSummary): string | null {
   // that cannot change an answer only looks like a check.
   if (summary.timedCount === summary.respondedCount) return null;
   if (summary.timedCount === 0) {
-    return `We can't time any of the ${summary.respondedCount} replies in this period — they were published before the reviews reached us.`;
+    // ⚠️PLURALISED LIKE EVERYTHING ELSE HERE. One console reply in the window
+    // is the ROUTINE case, not an edge one — an owner who answered in Google's
+    // app has a `replyPublishedAt` predating the row, so the latency is
+    // negative and excluded — and "any of the 1 replies" is what a merchant
+    // would have read.
+    const plural = summary.respondedCount === 1 ? "reply" : "replies";
+    return `We can't time ${summary.respondedCount === 1 ? "the" : "any of the"} ${summary.respondedCount} ${plural} in this period — ${summary.respondedCount === 1 ? "it was" : "they were"} published before the review${summary.respondedCount === 1 ? "" : "s"} reached us.`;
   }
   return `Timed over ${summary.timedCount} of ${summary.respondedCount} replies; the rest were published before the reviews reached us.`;
 }
