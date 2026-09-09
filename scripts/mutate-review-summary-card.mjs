@@ -237,6 +237,36 @@ const MUTANTS = [
     mutated: "export const REVIEW_SUMMARY_QUERY_KEY = [\"presence-reviews\"] as const;",
     killer: "★★★is a single exported key, so an invalidation cannot miss it",
   },
+
+  // ── Round 2: an empty window is not an empty card ────────────────────────
+  {
+    where: "rules",
+    name: "★★★hide a quiet quarter's all-time unanswered figure and reply time",
+    anchor: "    standingFigures: summary.state !== \"awaiting_reviews\",",
+    mutated: "    standingFigures: summary.state === \"ready\",",
+    killer: "★★★keeps the unanswered and reply figures through a quiet quarter",
+  },
+  {
+    where: "rules",
+    name: "★★★show standing figures where nothing has ever arrived",
+    anchor: "    standingFigures: summary.state !== \"awaiting_reviews\",",
+    mutated: "    standingFigures: true,",
+    killer: "★★★shows nothing at all when nothing has ever arrived",
+  },
+  {
+    where: "rules",
+    name: "★★★chart a window with nothing in it",
+    anchor: "    windowFigures: summary.state === \"ready\",",
+    mutated: "    windowFigures: summary.state !== \"awaiting_reviews\",",
+    killer: "★★★keeps the unanswered and reply figures through a quiet quarter",
+  },
+  {
+    where: "rules",
+    name: "★★never show the window figures at all",
+    anchor: "    windowFigures: summary.state === \"ready\",",
+    mutated: "    windowFigures: false,",
+    killer: "★★shows both halves once the window has something in it",
+  },
 ];
 
 /** ★THE SMOKE MUTANT: one per (file, spec) pair. */

@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { presenceApi } from "@/lib/api/presence";
 import { useLocale } from "@/hooks/use-locale";
 import {
+  cardSections,
   formatResponseTime,
   ratingLabel,
   ratingSubLabel,
@@ -114,13 +115,22 @@ export function ReviewSummaryCard() {
   // absent-state copy, which reads as an answer.
   if (query.isPending) {
     return (
-      <Card className="space-y-3 p-5">
+      <Card className="gap-3 p-5">
         <Skeleton className="h-5 w-40" />
         <div className="grid gap-3 sm:grid-cols-4">
           {[0, 1, 2, 3].map((i) => (
             <Skeleton key={i} className="h-16 w-full" />
           ))}
         </div>
+        {/* ⚠️AN INDEFINITE SKELETON IS NOT AN ANSWER. A paused query never
+            resolves and never errors, so without this an offline merchant
+            watches a placeholder for ever with nothing to act on — the same
+            note the Inbox's own reviews lane carries. */}
+        {query.fetchStatus === "paused" && (
+          <p className="text-center text-xs text-muted-foreground">
+            Waiting for a connection — your reviews will load when you&apos;re back online.
+          </p>
+        )}
       </Card>
     );
   }
@@ -143,13 +153,17 @@ export function ReviewSummaryCard() {
   }
 
   const summary = query.data;
+  const sections = cardSections(summary);
   const empty = reviewEmptyState(summary);
   const cta = unansweredCta(summary);
   const responseNote = responseCaveat(summary);
   const sampleNote = sampleCaveat(summary);
 
+  // ⚠️`gap-4`, NOT `space-y-4`: Card is already `flex flex-col gap-6`, and
+  // twMerge does not reconcile the two groups — the sections sat 40px apart and
+  // the skeleton state was taller than the card it replaced.
   return (
-    <Card className="space-y-4 p-5">
+    <Card className="gap-4 p-5">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <h2 className="font-medium">Reviews</h2>
@@ -164,45 +178,52 @@ export function ReviewSummaryCard() {
         )}
       </div>
 
-      {empty ? (
+      {empty && (
         <div className="rounded-lg border border-dashed p-6 text-center">
           <p className="text-sm font-medium">{empty.headline}</p>
           <p className="mx-auto mt-1 max-w-md text-xs text-muted-foreground">{empty.body}</p>
         </div>
-      ) : (
-        <>
-          <div className="grid gap-3 sm:grid-cols-4">
-            <Stat
-              label="Rating"
-              value={ratingLabel(summary)}
-              sub={ratingSubLabel(summary)}
-              absent="No rated reviews yet"
-            />
-            <Stat label="Reviews" value={String(summary.volume)} absent="None" />
-            <Stat
-              label="Unanswered"
-              value={String(summary.unanswered)}
-              sub="all time"
-              absent="None"
-            />
-            <Stat
-              label="Usual reply time"
-              value={formatResponseTime(summary.medianResponseMs)}
-              sub={`over ${summary.timedCount} timed`}
-              absent="Not measured yet"
-            />
-          </div>
-
-          {(responseNote || sampleNote) && (
-            <div className="space-y-1 text-[11px] text-muted-foreground">
-              {responseNote && <p>{responseNote}</p>}
-              {sampleNote && <p>{sampleNote}</p>}
-            </div>
-          )}
-
-          <WorstList summary={summary} />
-        </>
       )}
+
+      {/* ★★AN EMPTY WINDOW IS NOT AN EMPTY CARD. `unanswered` is all-time and
+          the reply figures are over a different population entirely, so a
+          quiet quarter still has both to show — see `cardSections`. */}
+      {sections.standingFigures && (
+        <div className="grid gap-3 sm:grid-cols-4">
+          {sections.windowFigures && (
+            <>
+              <Stat
+                label="Rating"
+                value={ratingLabel(summary)}
+                sub={ratingSubLabel(summary)}
+                absent="No rated reviews yet"
+              />
+              <Stat label="Reviews" value={String(summary.volume)} absent="None" />
+            </>
+          )}
+          <Stat
+            label="Unanswered"
+            value={String(summary.unanswered)}
+            sub="all time"
+            absent="None"
+          />
+          <Stat
+            label="Usual reply time"
+            value={formatResponseTime(summary.medianResponseMs)}
+            sub={`over ${summary.timedCount} timed`}
+            absent="Not measured yet"
+          />
+        </div>
+      )}
+
+      {(responseNote || sampleNote) && (
+        <div className="space-y-1 text-[11px] text-muted-foreground">
+          {responseNote && <p>{responseNote}</p>}
+          {sampleNote && <p>{sampleNote}</p>}
+        </div>
+      )}
+
+      {sections.windowFigures && <WorstList summary={summary} />}
     </Card>
   );
 }

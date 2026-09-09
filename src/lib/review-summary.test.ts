@@ -13,6 +13,7 @@
  */
 import { describe, it, expect } from "vitest";
 import {
+  cardSections,
   formatResponseTime,
   inboxTabFromParam,
   ratingLabel,
@@ -214,6 +215,32 @@ describe("unansweredCta — the only action on the card", () => {
 
   it("★says 'review' when there is one", () => {
     expect(unansweredCta(summary({ unanswered: 1 }))?.label).toBe("Answer 1 waiting review");
+  });
+});
+
+describe("cardSections — an empty window is not an empty card", () => {
+  it("★★★keeps the unanswered and reply figures through a quiet quarter", () => {
+    // ⚠️THE TWO HALVES ARE OVER DIFFERENT POPULATIONS. A merchant whose whole
+    // imported corpus predates the window, and who answered twenty reviews this
+    // week, has `volume: 0` and so `quiet_window` — and hiding everything threw
+    // away their reply time, their responded count AND their all-time unanswered
+    // figure, while the card still offered to answer them.
+    const sections = cardSections(summary({ state: "quiet_window" }));
+    expect(sections.standingFigures).toBe(true);
+    expect(sections.windowFigures).toBe(false);
+  });
+
+  it("★★★shows nothing at all when nothing has ever arrived", () => {
+    // There is no review to be unanswered and no reply to have timed.
+    const sections = cardSections(summary({ state: "awaiting_reviews" }));
+    expect(sections.standingFigures).toBe(false);
+    expect(sections.windowFigures).toBe(false);
+  });
+
+  it("★★shows both halves once the window has something in it", () => {
+    const sections = cardSections(summary({ state: "ready" }));
+    expect(sections.standingFigures).toBe(true);
+    expect(sections.windowFigures).toBe(true);
   });
 });
 

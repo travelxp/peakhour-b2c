@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
@@ -361,10 +361,36 @@ export default function InboxPage() {
   // useSearchParams needs a Suspense boundary or the route bails out of
   // static rendering at build time — the same wrapper dashboard/ads uses, for
   // the same reason.
+  //
+  // ⚠️AND THE FALLBACK CARRIES THE HEADER, as that precedent's own comment
+  // says it must: an empty shell renders blank on a hard load and then shifts
+  // the whole page down when the real content arrives.
   return (
-    <Suspense fallback={<PageShell />}>
+    <Suspense
+      fallback={
+        <PageShell>
+          <InboxHeader />
+          <Skeleton className="h-64 w-full" />
+        </PageShell>
+      }
+    >
       <InboxTabs />
     </Suspense>
+  );
+}
+
+/** ★ONE HEADER, so the fallback and the page cannot describe the screen
+ *  differently — which is exactly how a loading state comes to shift the
+ *  page it is standing in for. */
+function InboxHeader() {
+  return (
+    <div>
+      <h1 className="text-2xl font-semibold tracking-tight">Inbox</h1>
+      <p className="mt-1 text-sm text-muted-foreground">
+        One queue for everything inbound — conversations and leads, whichever channel they came
+        from.
+      </p>
+    </div>
   );
 }
 
@@ -393,11 +419,34 @@ function InboxTabs() {
   // the only path anybody takes. `useSearchParams` is subscribed to the router
   // rather than read off `window`, so it is right on both.
   const params = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const fromUrl = inboxTabFromParam(params.get("tab"));
+  // ★THE LANE THE USER JUST CLICKED, held until the URL catches up:
+  // `router.push` commits in a transition, during which `useSearchParams`
+  // still returns the OLD params — so without this the tab visibly lags the
+  // click. The same reason `dashboard/ads` holds a `pendingChannel`.
   const [picked, setPicked] = useState<InboxTab | null>(null);
-  // ⚠️THE URL IS THE DEFAULT, NOT A CONTROLLER. Once somebody clicks a tab
-  // their choice wins, or every click would be undone by the query string
-  // still naming the lane they arrived on.
-  const tab = picked ?? inboxTabFromParam(params.get("tab"));
+  // ★★AND IT IS RELEASED AS SOON AS THE URL AGREES, which is what makes Back
+  // work: a held value that outlived the navigation would override the lane
+  // the user just went back to, for ever.
+  if (picked !== null && picked === fromUrl) setPicked(null);
+  const tab = picked ?? fromUrl;
+
+  /**
+   * ★★★THE URL IS WRITTEN, NOT JUST READ. Holding the lane in local state
+   * alone meant a reload, a bookmark or a Back returned somebody to the lane
+   * they had LEFT — and a merchant who switches to Reviews and refreshes is
+   * doing the most ordinary thing there is.
+   *
+   * `push`, because a tab click is a user gesture and Back should undo it.
+   */
+  function selectTab(next: InboxTab) {
+    setPicked(next);
+    const search = new URLSearchParams(params.toString());
+    search.set("tab", next);
+    router.push(`${pathname}?${search.toString()}`, { scroll: false });
+  }
   // ★★★THE "SHOW IT AT ALL" DECISION IS THE MODULE'S, because it is the one
   // that can claim something untrue. `unanswered > 0` hid the badge on a
   // TRUNCATED page whose hundred newest reviews were all answered — a silent
@@ -406,14 +455,9 @@ function InboxTabs() {
 
   return (
     <PageShell>
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Inbox</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          One queue for everything inbound — conversations and leads, whichever channel they came from.
-        </p>
-      </div>
+      <InboxHeader />
 
-      <Tabs value={tab} onValueChange={(v) => setPicked(inboxTabFromParam(v))}>
+      <Tabs value={tab} onValueChange={(v) => selectTab(inboxTabFromParam(v))}>
         <TabsList>
           <TabsTrigger value="conversations">Conversations</TabsTrigger>
           <TabsTrigger value="leads">Leads</TabsTrigger>

@@ -51,6 +51,35 @@ export interface ReviewSummary {
   worstRecent: WorstReview[];
 }
 
+/**
+ * Which halves of the card a state has anything to say with.
+ *
+ * ★★★THE FIGURES ARE OVER TWO DIFFERENT POPULATIONS, and treating an empty
+ * WINDOW as an empty CARD hides the half that is not windowed. A merchant
+ * whose imported corpus all predates the window, and who answered twenty
+ * reviews this week, has `volume: 0` and therefore `quiet_window` — and the
+ * card was dropping their reply time, their responded count and their
+ * ALL-TIME unanswered figure while still offering to answer them. That is the
+ * exact scenario the api's `summariseResponses` was rewritten for; throwing
+ * it away on this side undoes the fix.
+ *
+ * ★`awaiting_reviews` GENUINELY HAS NOTHING, because nothing has ever
+ * arrived: there is no review to be unanswered and no reply to have timed.
+ */
+export interface CardSections {
+  /** Rating, volume and the worst list — all scoped to the window. */
+  windowFigures: boolean;
+  /** Unanswered (all time) and how fast we have been answering. */
+  standingFigures: boolean;
+}
+
+export function cardSections(summary: ReviewSummary): CardSections {
+  return {
+    windowFigures: summary.state === "ready",
+    standingFigures: summary.state !== "awaiting_reviews",
+  };
+}
+
 export interface EmptyState {
   headline: string;
   body: string;
