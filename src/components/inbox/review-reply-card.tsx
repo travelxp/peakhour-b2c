@@ -20,6 +20,7 @@ import {
   replyOutcome,
   replyRefusal,
   REVIEW_REPLY_MAX_LENGTH,
+  TRANSPORT_ERROR_CODE,
   type ReplyOutcome,
   type ReplyRefusal,
 } from "@/lib/review-reply";
@@ -130,7 +131,12 @@ export function ReviewReplyCard({ item, onChanged }: { item: InboxItem; onChange
       onChanged();
     },
     onError: (err) => {
-      const detail = err instanceof ApiError ? err : {};
+      // ★★A THROW THAT IS NOT AN `ApiError` IS NOT AN ANSWER FROM THE api.
+      // Offline, DNS, CORS and a dropped connection all raise a bare
+      // TypeError; handing that over as an empty object classified it as
+      // `unhandled` and told the merchant to contact support about their own
+      // wifi. `TRANSPORT_ERROR_CODE` is where the module puts that case.
+      const detail = err instanceof ApiError ? err : { code: TRANSPORT_ERROR_CODE };
       setRefusal(replyRefusal(detail));
       setOutcome(null);
     },
@@ -148,6 +154,27 @@ export function ReviewReplyCard({ item, onChanged }: { item: InboxItem; onChange
   const remaining = replyCharsRemaining(text);
   const checked = checkReplyText(text);
   const sending = send.isPending;
+
+  /**
+   * ★★EVERY NOTE ON THIS CARD IS ABOUT TEXT THAT IS NO LONGER IN THE BOX once
+   * the merchant types. The dangerous one is "that's already your published
+   * reply" and its "send it again anyway" button: left standing over a
+   * rewritten reply, it force-publishes NEW words under a banner saying they
+   * are a repeat of the old ones.
+   */
+  function edit(next: string) {
+    setText(next);
+    setRefusal(null);
+    setOutcome(null);
+  }
+
+  /** Fill the box without destroying what is in it — `appendReply` refuses
+   *  rather than truncating, exactly as the saved-reply picker does. */
+  function insert(body: string): boolean {
+    const { text: next, fitted } = appendReply(text, body, REVIEW_REPLY_MAX_LENGTH);
+    if (fitted) edit(next);
+    return fitted;
+  }
 
   function submit(force?: boolean) {
     // ★THE PRE-FLIGHT IS A COURTESY, NOT THE GATE. The api re-checks both rules
@@ -219,7 +246,7 @@ export function ReviewReplyCard({ item, onChanged }: { item: InboxItem; onChange
         <div className="mt-2 space-y-2">
           <Textarea
             value={text}
-            onChange={(e) => setText(e.target.value)}
+            onChange={(e) => edit(e.target.value)}
             rows={3}
             placeholder={
               state.published ? "Edit your reply…" : "Write a reply — it appears publicly on Google."
@@ -229,14 +256,23 @@ export function ReviewReplyCard({ item, onChanged }: { item: InboxItem; onChange
           />
           <div className="flex flex-wrap items-center gap-2">
             {/* ★THE SUGGESTION IS A BUTTON, NOT A DEFAULT. It fills the box and
-                leaves the person holding the pen. */}
+                leaves the person holding the pen.
+                ⚠️AND IT APPENDS RATHER THAN REPLACING. Overwriting threw away
+                whatever was already there — a published reply the merchant was
+                part-way through editing, or a paragraph they had just typed —
+                with no undo, which is the same mistake `appendReply` was
+                written to stop the saved-reply picker making. */}
             {state.suggestion && (
               <Button
                 size="sm"
                 variant="outline"
                 className="h-7 px-2 text-xs"
                 disabled={sending}
-                onClick={() => setText(state.suggestion ?? "")}
+                onClick={() => {
+                  if (!insert(state.suggestion ?? "")) {
+                    toast.error("The suggestion doesn't fit — shorten your reply first.");
+                  }
+                }}
               >
                 Use the suggested reply
               </Button>
@@ -245,11 +281,7 @@ export function ReviewReplyCard({ item, onChanged }: { item: InboxItem; onChange
               channel="google_review"
               draft={text}
               disabled={sending}
-              onInsert={(body) => {
-                const { text: next, fitted } = appendReply(text, body, REVIEW_REPLY_MAX_LENGTH);
-                if (fitted) setText(next);
-                return fitted;
-              }}
+              onInsert={insert}
             />
             <span
               className={`ml-auto text-[11px] ${

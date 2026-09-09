@@ -18,7 +18,12 @@ import {
 } from "@/hooks/use-wa-conversations";
 import { inboxApi, type InboxItem, type InboxPriority } from "@/lib/api/inbox";
 import { ReviewReplyCard } from "@/components/inbox/review-reply-card";
-import { reviewQueueOrder, unansweredReviewCount } from "@/lib/review-reply";
+import {
+  REVIEW_PAGE_LIMIT,
+  reviewQueueOrder,
+  reviewsAreTruncated,
+  unansweredReviewCount,
+} from "@/lib/review-reply";
 import { PageShell } from "@/components/dashboard/page-shell";
 
 /**
@@ -261,7 +266,7 @@ function LeadsPane() {
 function useReviewsQuery() {
   return useQuery({
     queryKey: ["inbox-reviews"],
-    queryFn: () => inboxApi.list({ kind: "review", limit: 100 }),
+    queryFn: () => inboxApi.list({ kind: "review", limit: REVIEW_PAGE_LIMIT }),
     staleTime: 30_000,
     refetchOnWindowFocus: false,
   });
@@ -271,12 +276,21 @@ function ReviewsPane({ query }: { query: ReturnType<typeof useReviewsQuery> }) {
   const queryClient = useQueryClient();
   const onChanged = () => queryClient.invalidateQueries({ queryKey: ["inbox-reviews"] });
 
-  if (query.isLoading) {
+  // ⚠️★★`isPending`, NOT `isLoading`. In react-query v5 `isLoading` is
+  // `isPending && isFetching`, so a PAUSED query — the offline case, which is
+  // the whole reason this branch exists — is neither loading nor errored, and
+  // an unresolved query fell straight through to "No reviews here yet".
+  if (query.isPending) {
     return (
       <div className="space-y-2">
         {[0, 1, 2].map((i) => (
           <Skeleton key={i} className="h-28 w-full" />
         ))}
+        {query.fetchStatus === "paused" && (
+          <p className="text-center text-xs text-muted-foreground">
+            Waiting for a connection — your reviews will load when you&apos;re back online.
+          </p>
+        )}
       </div>
     );
   }
@@ -315,6 +329,15 @@ function ReviewsPane({ query }: { query: ReturnType<typeof useReviewsQuery> }) {
       {items.map((item) => (
         <ReviewReplyCard key={item._id} item={item} onChanged={onChanged} />
       ))}
+      {/* ⚠️A CAPPED LIST SAYS SO. `GET /inbox` maxes out at 100 and sorts
+          newest-first with no cursor, so the rows dropped are the OLDEST —
+          exactly where an unanswered review has been waiting longest. */}
+      {reviewsAreTruncated(query.data?.items) && (
+        <p className="px-1 text-xs text-muted-foreground">
+          Showing your {REVIEW_PAGE_LIMIT} most recent reviews. Older ones aren&apos;t listed here
+          yet — answer these and they&apos;ll come into view.
+        </p>
+      )}
     </div>
   );
 }
@@ -333,6 +356,11 @@ export default function InboxPage() {
   // open the app at all.
   const reviews = useReviewsQuery();
   const unanswered = unansweredReviewCount(reviews.data?.items);
+  // ⚠️A FLOOR, NOT A TOTAL, when the api handed back a full page — the count
+  // is of what arrived, and the oldest unanswered rows are the ones missing.
+  const unansweredLabel = reviewsAreTruncated(reviews.data?.items)
+    ? `${unanswered}+`
+    : String(unanswered);
 
   return (
     <PageShell>
@@ -354,7 +382,7 @@ export default function InboxPage() {
                 in-flight fetch has not earned. */}
             {unanswered > 0 && (
               <Badge className="ml-1.5 bg-warning/15 px-1.5 text-[10px] text-warning-on-tint">
-                {unanswered}
+                {unansweredLabel}
               </Badge>
             )}
           </TabsTrigger>

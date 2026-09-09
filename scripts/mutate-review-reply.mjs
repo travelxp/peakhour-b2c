@@ -98,24 +98,27 @@ const MUTANTS = [
     where: "rules",
     name: "★★★count reviews that have already been answered",
     anchor:
-      '    (i) => !hasPublishedReply(i) && i.status !== "resolved" && i.status !== "closed",',
-    mutated: '    (i) => i.status !== "resolved" && i.status !== "closed",',
+      '  return !hasPublishedReply(item) && item.status !== "resolved" && item.status !== "closed";',
+    mutated: '  return item.status !== "resolved" && item.status !== "closed";',
     killer: "★★★counts a review with no published reply",
   },
   {
+    // ⚠️AND THIS IS ALSO WHAT MADE THE BADGE AND THE SORT DISAGREE, now that
+    // both read `needsAnswer`: the count would keep handled work, and the lane
+    // would keep it at the top.
     where: "rules",
     name: "★★★keep counting work the merchant has already handled",
     anchor:
-      '    (i) => !hasPublishedReply(i) && i.status !== "resolved" && i.status !== "closed",',
-    mutated: "    (i) => !hasPublishedReply(i),",
+      '  return !hasPublishedReply(item) && item.status !== "resolved" && item.status !== "closed";',
+    mutated: "  return !hasPublishedReply(item);",
     killer: "★★★stops counting one the merchant resolved or closed",
   },
   {
     where: "rules",
     name: "★★stop counting anything a human has opened",
     anchor:
-      '    (i) => !hasPublishedReply(i) && i.status !== "resolved" && i.status !== "closed",',
-    mutated: '    (i) => !hasPublishedReply(i) && i.status === "queued",',
+      '  return !hasPublishedReply(item) && item.status !== "resolved" && item.status !== "closed";',
+    mutated: '  return !hasPublishedReply(item) && item.status === "queued";',
     killer: "★★★stops counting one the merchant resolved or closed",
   },
   {
@@ -123,10 +126,8 @@ const MUTANTS = [
     // own size — the row is still there, still unanswered, still visible.
     where: "rules",
     name: "★★hide reviews we cannot reply to from the count",
-    anchor:
-      '    (i) => !hasPublishedReply(i) && i.status !== "resolved" && i.status !== "closed",',
-    mutated:
-      '    (i) => !hasPublishedReply(i) && isRepliableReview(i) && i.status !== "resolved" && i.status !== "closed",',
+    anchor: "  return (items ?? []).filter(needsAnswer);",
+    mutated: "  return (items ?? []).filter((i) => needsAnswer(i) && isRepliableReview(i));",
     killer: "★★counts a review we cannot reply to from here",
   },
   {
@@ -151,6 +152,50 @@ const MUTANTS = [
     anchor: "  return (items ?? []).filter(",
     mutated: "  return (items as readonly T[]).filter(",
     killer: "★an absent list counts zero rather than throwing",
+  },
+  {
+    // ⚠️ROUND 1 FOUND THIS: the badge and the sort asked the same question
+    // separately and disagreed. A review answered in Google's console and
+    // marked handled was netted out of the count and still pinned to the top.
+    where: "rules",
+    name: "★★★sort on the published reply alone, so handled work owns the top",
+    anchor: "    const answered = Number(!needsAnswer(a)) - Number(!needsAnswer(b));",
+    mutated:
+      "    const answered = Number(hasPublishedReply(a)) - Number(hasPublishedReply(b));",
+    killer: "★★★asks the same question the queue order asks",
+  },
+
+  // ── A page is not the whole list ─────────────────────────────────────────
+  {
+    // ⚠️THE api CAPS `limit` AT 100 AND HAS NO CURSOR, and sorts newest-first
+    // — so the rows dropped are the OLDEST, where an unanswered review has
+    // been waiting longest.
+    where: "rules",
+    name: "★★★report a full page as the whole list",
+    anchor: "  return (items?.length ?? 0) >= REVIEW_PAGE_LIMIT;",
+    mutated: "  return false;",
+    killer: "★★★says a full page is a floor, not a total",
+  },
+  {
+    where: "rules",
+    name: "★★call every list truncated, so a merchant with four reviews is told there are more",
+    anchor: "  return (items?.length ?? 0) >= REVIEW_PAGE_LIMIT;",
+    mutated: "  return true;",
+    killer: "★★an empty or absent list is not a truncated one",
+  },
+  {
+    where: "rules",
+    name: "★★miss the exactly-full page, which is the only one that IS truncated",
+    anchor: "  return (items?.length ?? 0) >= REVIEW_PAGE_LIMIT;",
+    mutated: "  return (items?.length ?? 0) > REVIEW_PAGE_LIMIT;",
+    killer: "★★★says a full page is a floor, not a total",
+  },
+  {
+    where: "rules",
+    name: "★ask the api for a page it will refuse",
+    anchor: "export const REVIEW_PAGE_LIMIT = 100;",
+    mutated: "export const REVIEW_PAGE_LIMIT = 250;",
+    killer: "★asks the api for exactly the page it can serve",
   },
 
   // ── The order it is worked in ────────────────────────────────────────────
@@ -496,6 +541,57 @@ const MUTANTS = [
     anchor: '  REPLY_TOO_LONG: "fix_text",',
     mutated: '  REPLY_TOO_LONG: "unhandled",',
     killer: "★★keeps the words in the composer when the words are the problem",
+  },
+  {
+    // ⚠️ROUND 1: a `fetch` that throws never becomes an ApiError, so the card
+    // handed `replyRefusal` an empty object and a merchant's own wifi became
+    // "contact support quoting a reference".
+    where: "rules",
+    name: "★★★send a merchant's dropped connection to support",
+    anchor: "  [TRANSPORT_ERROR_CODE]: \"retry\",\n  PARSE_ERROR: \"retry\",",
+    mutated: "  PARSE_ERROR: \"retry\",",
+    killer: "★★★sends a merchant's own dropped connection back to the button, not to support",
+  },
+  {
+    where: "rules",
+    name: "★★send a non-JSON gateway response to support",
+    anchor: "  [TRANSPORT_ERROR_CODE]: \"retry\",\n  PARSE_ERROR: \"retry\",",
+    mutated: "  [TRANSPORT_ERROR_CODE]: \"retry\",",
+    killer: "★★a non-JSON body is the gateway wobbling, not our route answering",
+  },
+  {
+    // ⚠️THE SAME FALSE CERTAINTY THE `recorded: false` BRANCH EXISTS TO AVOID.
+    // A request that reached the route and then lost its connection may well
+    // have published the reply.
+    where: "rules",
+    name: "★★★promise nothing was sent, on the one path that cannot know",
+    anchor:
+      '  [TRANSPORT_ERROR_CODE]: "Check your connection and try again — re-sending the same words is safe.",',
+    mutated: '  [TRANSPORT_ERROR_CODE]: "Check your connection and try again — nothing was sent.",',
+    killer: "★★★never claims nothing was sent when we never got an answer",
+  },
+  {
+    where: "rules",
+    name: "★★★render zod's own English to a merchant",
+    anchor: '  "REPLY_TOO_LONG",\n  // ⚠️`VALIDATION_ERROR` IS OFF THIS LIST TOO',
+    mutated: '  "REPLY_TOO_LONG",\n  "VALIDATION_ERROR",\n  // ⚠️`VALIDATION_ERROR` IS OFF THIS LIST TOO',
+    killer: "★★★never renders zod's own English as merchant copy",
+  },
+  {
+    where: "rules",
+    name: "★★blame Google for a request that never reached it",
+    anchor: '  VALIDATION_ERROR: "That reply couldn\'t be sent as written.",',
+    mutated: '  VALIDATION_ERROR: "Google wouldn\'t accept that reply.",',
+    killer: "★★says nothing about Google when nothing reached Google",
+  },
+  {
+    // ⚠️THE ROUTE ANSWERS FORBIDDEN FOR THREE DIFFERENT THINGS, and only one
+    // of them is fixed by a colleague granting a role.
+    where: "rules",
+    name: "★★give role advice that cannot fix two of the three FORBIDDENs",
+    anchor: '  FORBIDDEN: "Publishing a reply needs editor access to this business.",',
+    mutated: '  FORBIDDEN: "Someone with editor access on this business can send it for you.",',
+    killer: "★★gives advice that is true of every FORBIDDEN the route can emit",
   },
   {
     where: "rules",

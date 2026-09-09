@@ -100,13 +100,26 @@ export function hasPublishedReply(item: ReviewItemLike): boolean {
 // ── The badge ────────────────────────────────────────────────────────────────
 
 /**
- * The number that makes somebody open the app.
+ * Is this review still waiting on somebody?
  *
- * ★★TWO CONDITIONS, AND THE SECOND IS THE ONE THAT KEEPS IT HONEST. A review is
- * unanswered when nothing has been published for it AND the merchant has not
- * already dealt with it — `resolved` / `closed` is a person saying "handled",
- * possibly by answering in Google's own console, and a badge that keeps
- * counting those is a badge people learn to ignore.
+ * ★★TWO CONDITIONS, AND THE SECOND IS THE ONE THAT KEEPS IT HONEST. A review
+ * needs an answer when nothing has been published for it AND the merchant has
+ * not already dealt with it — `resolved` / `closed` is a person saying
+ * "handled", possibly by answering in Google's own console, and a queue that
+ * keeps counting those is a queue people learn to ignore.
+ *
+ * ★★★ONE PREDICATE, TWO READERS, DELIBERATELY. The badge and the sort order
+ * both ask this question, and when they asked it separately they disagreed: a
+ * review answered in Google's console and marked handled was excluded from the
+ * count and still pinned to the TOP of the lane — a badge reading zero above a
+ * list led by work that is finished.
+ */
+export function needsAnswer(item: ReviewItemLike): boolean {
+  return !hasPublishedReply(item) && item.status !== "resolved" && item.status !== "closed";
+}
+
+/**
+ * The reviews still waiting on somebody — the number that makes them open the app.
  *
  * ★A REVIEW WE CANNOT REPLY TO FROM HERE STILL COUNTS. It is still an
  * unanswered review; the card says why it has to be answered on Google. Netting
@@ -115,14 +128,39 @@ export function hasPublishedReply(item: ReviewItemLike): boolean {
 export function unansweredReviews<T extends ReviewItemLike>(
   items: readonly T[] | undefined,
 ): T[] {
-  return (items ?? []).filter(
-    (i) => !hasPublishedReply(i) && i.status !== "resolved" && i.status !== "closed",
-  );
+  return (items ?? []).filter(needsAnswer);
 }
 
 /** `unansweredReviews().length`, for the tab badge. */
 export function unansweredReviewCount(items: readonly ReviewItemLike[] | undefined): number {
   return unansweredReviews(items).length;
+}
+
+/**
+ * What one page of the lane asks the api for.
+ *
+ * ⚠️THIS IS THE api's HARD MAXIMUM, AND THE ROUTE HAS NO CURSOR. `GET
+ * /v1/support/inbox` caps `limit` at 100 and sorts `createdAt: -1`, so a
+ * merchant with more than 100 review rows is served the hundred NEWEST — and
+ * the ones silently dropped are the OLDEST, which is precisely where an
+ * unanswered review has been sitting longest.
+ */
+export const REVIEW_PAGE_LIMIT = 100;
+
+/**
+ * Did we ask for everything, or just the first page of it?
+ *
+ * ★★A CAPPED LIST MUST SAY SO RATHER THAN LOOK COMPLETE. The badge counts what
+ * arrived; when a full page arrived, "7" is a floor and not a total, and the
+ * lane renders it as such. Pretending otherwise reports a smaller number than
+ * the truth on exactly the accounts with the most reviews to answer.
+ *
+ * ⏸THE REAL FIX IS SERVER-SIDE — a cursor on `GET /inbox`, or an
+ * `unanswered=true` filter so the count is a `countDocuments` rather than a
+ * page length. Recorded rather than papered over with a bigger limit.
+ */
+export function reviewsAreTruncated(items: readonly ReviewItemLike[] | undefined): boolean {
+  return (items?.length ?? 0) >= REVIEW_PAGE_LIMIT;
 }
 
 /**
@@ -139,7 +177,11 @@ export function unansweredReviewCount(items: readonly ReviewItemLike[] | undefin
 export function reviewQueueOrder<T extends ReviewItemLike>(items: readonly T[]): T[] {
   const NO_RATING = 3;
   return [...items].sort((a, b) => {
-    const answered = Number(hasPublishedReply(a)) - Number(hasPublishedReply(b));
+    // ★THE SAME QUESTION THE BADGE ASKS. Sorting on `hasPublishedReply` alone
+    // left a review the merchant had marked handled — having answered it in
+    // Google's own console — permanently at the top of a lane whose badge read
+    // zero.
+    const answered = Number(!needsAnswer(a)) - Number(!needsAnswer(b));
     if (answered !== 0) return answered;
     const rating = (a.review?.rating ?? NO_RATING) - (b.review?.rating ?? NO_RATING);
     if (rating !== 0) return rating;
@@ -338,6 +380,18 @@ export interface ReplyErrorLike {
   requestId?: string;
 }
 
+/**
+ * The code a caller passes when the throw was NOT an api response at all.
+ *
+ * ★★★A `fetch` THAT THROWS NEVER BECOMES AN `ApiError` — offline, DNS, CORS, a
+ * dropped connection mid-request all raise a bare TypeError, and a caller
+ * handing that to `replyRefusal` as an empty object got "our team has the
+ * details, contact support" for a problem no support agent can see and a second
+ * click usually fixes. `toastUnhandledApiError` draws the same line and this
+ * surface must not disagree with it.
+ */
+export const TRANSPORT_ERROR_CODE = "NETWORK_ERROR";
+
 const KIND_BY_CODE: Record<string, ReplyRefusalKind> = {
   // The row
   NOT_A_REVIEW: "not_repliable",
@@ -362,6 +416,11 @@ const KIND_BY_CODE: Record<string, ReplyRefusalKind> = {
   LISTING_LOOKUP_INCOMPLETE: "retry",
   RATE_LIMITED: "retry",
   UPSTREAM_ERROR: "retry",
+  // The wire. ★Neither of these is an answer FROM the api: `NETWORK_ERROR` is
+  // a fetch that threw, and `PARSE_ERROR` is a non-JSON body — a gateway or a
+  // proxy, not our route. Both are the transient family.
+  [TRANSPORT_ERROR_CODE]: "retry",
+  PARSE_ERROR: "retry",
 };
 
 /**
@@ -390,7 +449,11 @@ const API_AUTHORED_MESSAGE = new Set([
   "FORBIDDEN",
   "EMPTY_REPLY",
   "REPLY_TOO_LONG",
-  "VALIDATION_ERROR",
+  // ⚠️`VALIDATION_ERROR` IS OFF THIS LIST TOO, and it looks like it belongs on
+  // it. The route builds that message from `parsed.error.issues[0].message` —
+  // zod's own English ("String must contain at least 1 character(s)") — or
+  // "Invalid item id", which is about a URL the merchant never typed. Neither
+  // is copy, and neither is about their reply.
   "NOT_CONNECTED",
   "REAUTH_REQUIRED",
   "LOCATION_UNRESOLVED",
@@ -409,7 +472,10 @@ const FALLBACK_HEADLINE: Record<string, string> = {
   FORBIDDEN: "You don't have permission to reply on this business's behalf.",
   EMPTY_REPLY: "A reply needs something in it.",
   REPLY_TOO_LONG: `Google allows ${REVIEW_REPLY_MAX_LENGTH} characters.`,
-  VALIDATION_ERROR: "Google wouldn't accept that reply.",
+  // ★NOT "Google wouldn't accept that reply" — nothing reached Google. The
+  // request never left our own validation, and saying otherwise sends the
+  // merchant looking for a problem with their listing.
+  VALIDATION_ERROR: "That reply couldn't be sent as written.",
   REPLY_REJECTED: "Google wouldn't accept that reply.",
   NOT_CONNECTED: "Google Business Profile isn't connected.",
   REAUTH_REQUIRED: "Reconnect Google Business Profile to reply.",
@@ -419,10 +485,17 @@ const FALLBACK_HEADLINE: Record<string, string> = {
   LISTING_LOOKUP_INCOMPLETE: "Couldn't check your listing just now.",
   RATE_LIMITED: "Google is rate-limiting replies just now.",
   UPSTREAM_ERROR: "Google couldn't accept the reply just now.",
+  [TRANSPORT_ERROR_CODE]: "Couldn't reach Peakhour.",
+  PARSE_ERROR: "Couldn't reach Peakhour.",
 };
 
 const SECOND_SENTENCE: Record<string, string> = {
-  FORBIDDEN: "Someone with editor access on this business can send it for you.",
+  // ⚠️TRUE OF ALL THREE FORBIDDENs THE ROUTE CAN EMIT. It also answers this
+  // code for "No roles assigned" and "Active business required", and an
+  // earlier sentence here told those merchants to ask a colleague for editor
+  // access — advice that cannot fix either. What is true in every case is who
+  // is allowed to publish, so that is what it says.
+  FORBIDDEN: "Publishing a reply needs editor access to this business.",
   REPLY_REJECTED: "Try rewording it — links and contact details are often what Google objects to.",
   NOT_CONNECTED: "Connect it on Presence, then reply.",
   REAUTH_REQUIRED: "It only takes a click, on Presence.",
@@ -434,6 +507,13 @@ const SECOND_SENTENCE: Record<string, string> = {
   // healthy connection over a 503 is the failure this whole classifier exists
   // to avoid.
   LISTING_LOOKUP_INCOMPLETE: "Nothing's wrong with your connection — try again in a moment.",
+  // ⚠️NOT "NOTHING WAS SENT". A request that reached the route and then lost
+  // its connection may well have published the reply — we did not get an answer
+  // either way, and claiming it did not go out is the same false certainty the
+  // `recorded: false` branch exists to avoid. What IS true is that a repeat is
+  // harmless: Google's reply endpoint is a PUT.
+  [TRANSPORT_ERROR_CODE]: "Check your connection and try again — re-sending the same words is safe.",
+  PARSE_ERROR: "Check your connection and try again — re-sending the same words is safe.",
   RATE_LIMITED: "Give it a minute and try again.",
   UPSTREAM_ERROR: "Try again in a moment.",
 };

@@ -18,7 +18,11 @@ import {
   hasPublishedReply,
   isRepliableReview,
   isRetryableRefusal,
+  needsAnswer,
   PRESENCE_ROUTE,
+  REVIEW_PAGE_LIMIT,
+  reviewsAreTruncated,
+  TRANSPORT_ERROR_CODE,
   replyCharsRemaining,
   replyOutcome,
   replyRefusal,
@@ -113,11 +117,48 @@ describe("unansweredReviews — the number that makes somebody open the app", ()
     expect(unansweredReviews(undefined)).toEqual([]);
   });
 
+  it("★★★asks the same question the queue order asks", () => {
+    // ⚠️THE BADGE AND THE SORT DISAGREEING is not a cosmetic problem: a review
+    // answered in Google's own console and marked handled was netted out of
+    // the count and still pinned to the TOP of the lane — a badge reading zero
+    // above a list led by finished work.
+    const handled = row({ status: "resolved" });
+    expect(needsAnswer(handled)).toBe(false);
+    expect(unansweredReviewCount([handled])).toBe(0);
+    expect(reviewQueueOrder([handled, row({ _id: "open" })]).map((r) => r._id)).toEqual([
+      "open",
+      handled._id,
+    ]);
+  });
+
   it("★hasPublishedReply reads the published reply, not the draft", () => {
     expect(hasPublishedReply(row({ review: review({ replyDraft: "Sorry to hear that." }) }))).toBe(
       false,
     );
     expect(hasPublishedReply(row({ review: review({ replyPublished: "Sorry!" }) }))).toBe(true);
+  });
+});
+
+describe("reviewsAreTruncated — a capped list says so", () => {
+  it("★★★says a full page is a floor, not a total", () => {
+    // ⚠️`GET /inbox` caps at 100 and sorts newest-first with no cursor, so the
+    // rows dropped are the OLDEST — where an unanswered review has been
+    // waiting longest. A badge that reports the page length as the answer
+    // undercounts exactly the accounts with the most to answer.
+    const page = Array.from({ length: REVIEW_PAGE_LIMIT }, (_, i) =>
+      row({ _id: `id${i}`, createdAt: `2026-09-01T00:00:${String(i).padStart(2, "0")}.000Z` }),
+    );
+    expect(reviewsAreTruncated(page)).toBe(true);
+    expect(reviewsAreTruncated(page.slice(0, REVIEW_PAGE_LIMIT - 1))).toBe(false);
+  });
+
+  it("★★an empty or absent list is not a truncated one", () => {
+    expect(reviewsAreTruncated([])).toBe(false);
+    expect(reviewsAreTruncated(undefined)).toBe(false);
+  });
+
+  it("★asks the api for exactly the page it can serve", () => {
+    expect(REVIEW_PAGE_LIMIT).toBe(100);
   });
 });
 
@@ -429,7 +470,7 @@ describe("replyRefusal — whose problem is it", () => {
     });
     expect(r.kind).toBe("no_permission");
     expect(r.headline).toBe("This action requires editor or admin role");
-    expect(r.description).toBe("Someone with editor access on this business can send it for you.");
+    expect(r.description).toBe("Publishing a reply needs editor access to this business.");
   });
 
   it("★★★says this one has to be answered on Google rather than offering a retry", () => {
@@ -464,5 +505,62 @@ describe("replyRefusal — whose problem is it", () => {
 
   it("★an error with no code at all is ours, not a retry", () => {
     expect(replyRefusal({}).kind).toBe("unhandled");
+  });
+
+  it("★★★sends a merchant's own dropped connection back to the button, not to support", () => {
+    // A `fetch` that throws never becomes an ApiError — offline, DNS, CORS.
+    // Telling somebody to contact support about their wifi is a ticket no
+    // agent can close.
+    const r = replyRefusal({ code: TRANSPORT_ERROR_CODE });
+    expect(r.kind).toBe("retry");
+    expect(isRetryableRefusal(r)).toBe(true);
+    expect(r.headline).toBe("Couldn't reach Peakhour.");
+  });
+
+  it("★★★never claims nothing was sent when we never got an answer", () => {
+    // ⚠️A REQUEST THAT REACHED THE ROUTE AND THEN LOST ITS CONNECTION may well
+    // have published the reply. "Nothing was sent" is the same false certainty
+    // the `recorded: false` branch exists to avoid; what IS true is that a
+    // repeat is harmless, because Google's reply endpoint is a PUT.
+    for (const code of [TRANSPORT_ERROR_CODE, "PARSE_ERROR"]) {
+      const r = replyRefusal({ code });
+      expect(r.description).toBe(
+        "Check your connection and try again — re-sending the same words is safe.",
+      );
+      expect(r.description).not.toContain("nothing was sent");
+    }
+  });
+
+  it("★★a non-JSON body is the gateway wobbling, not our route answering", () => {
+    expect(replyRefusal({ code: "PARSE_ERROR", status: 502 }).kind).toBe("retry");
+  });
+
+  it("★★★never renders zod's own English as merchant copy", () => {
+    // The route builds VALIDATION_ERROR's message from
+    // `parsed.error.issues[0].message`, which is zod's wording — or "Invalid
+    // item id", which is about a URL the merchant never typed.
+    const r = replyRefusal({
+      code: "VALIDATION_ERROR",
+      status: 400,
+      message: "String must contain at least 1 character(s)",
+    });
+    expect(r.headline).toBe("That reply couldn't be sent as written.");
+    expect(r.headline).not.toContain("character(s)");
+  });
+
+  it("★★says nothing about Google when nothing reached Google", () => {
+    // VALIDATION_ERROR is our own request being refused before it left. Saying
+    // "Google wouldn't accept that" sends the merchant looking at their
+    // listing for a problem that is not there.
+    expect(replyRefusal({ code: "VALIDATION_ERROR", status: 400 }).headline).not.toContain("Google");
+  });
+
+  it("★★gives advice that is true of every FORBIDDEN the route can emit", () => {
+    // It answers this code for "Insufficient permissions", "No roles assigned"
+    // AND "Active business required" — telling the last of those to ask a
+    // colleague for editor access is advice that cannot fix it.
+    expect(replyRefusal({ code: "FORBIDDEN", status: 403 }).description).toBe(
+      "Publishing a reply needs editor access to this business.",
+    );
   });
 });
