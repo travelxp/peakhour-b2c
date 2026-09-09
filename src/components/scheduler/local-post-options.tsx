@@ -75,6 +75,10 @@ export function LocalPostOptions({
     onDraftChange({ ...draft, [key]: value });
 
   const needsWindow = draft.topicType === "EVENT" || draft.topicType === "OFFER";
+  /** A button that takes a URL is selected, so the field belongs on screen. */
+  const showLinkField = Boolean(draft.actionType) && draft.actionType !== LISTING_ACTION_WITHOUT_URL;
+  /** …or one does not, but a value is still sitting there to be cleared. */
+  const staleLink = !showLinkField && draft.actionUrl.trim().length > 0;
   const windowNoun = draft.topicType === "OFFER" ? "Offer" : "Event";
   const summaryLength = draft.summary.trim().length;
 
@@ -101,12 +105,16 @@ export function LocalPostOptions({
       {/* ★A MISSING LOCATION IS NOT AN ERROR, IT IS AN UNFINISHED SETUP, and the
           publisher refuses it by name rather than guessing. Saying so here —
           with the place to fix it — beats a toggle that turns on and then fails
-          tomorrow. */}
+          tomorrow.
+          ⚠️THE LINK GOES TO PRESENCE, WHICH IS WHERE THE PICKER IS. It pointed
+          at the integrations page, where a merchant would have found the
+          connection and no way to choose a location — sent to a screen for an
+          action that is not on it. */}
       {locationMissing && (
         <p id={`${id}-nolocation`} className="border-t px-3 py-2 text-xs text-muted-foreground">
-          Pick which of your locations to post to on the{" "}
-          <Link className="underline" href="/dashboard/integrations">
-            Business Profile integration
+          Pick which of your locations to post to on{" "}
+          <Link className="underline" href="/dashboard/presence">
+            Presence
           </Link>{" "}
           first.
         </p>
@@ -266,12 +274,20 @@ export function LocalPostOptions({
             {problemFor("actionType") && <ErrorLine>{problemFor("actionType")}</ErrorLine>}
           </div>
 
-          {/* ★THE LINK FIELD DISAPPEARS FOR "Call", because the listing's own
-              phone number is the target and there is nothing to supply. The
-              rules still report a stale value rather than dropping it — the
-              merchant may have typed one and then switched. */}
-          {draft.actionType && draft.actionType !== LISTING_ACTION_WITHOUT_URL && (
-            <Field label="Button link" error={problemFor("actionUrl")} htmlFor={`${id}-cta`}>
+          {/* ★THE LINK FIELD DISAPPEARS FOR "Call" AND FOR NO BUTTON, because the
+              listing's own phone number is the target and there is nothing to
+              supply — ⚠️BUT NOT WHILE A STALE VALUE IS STILL THERE. The rules
+              report a leftover link rather than dropping it (the merchant may
+              have typed one and then switched), and the message tells them to
+              clear it. Hiding the field in exactly those two states left the
+              Schedule button disabled pointing at a box that was not on the
+              screen. */}
+          {(showLinkField || staleLink) && (
+            <Field
+              label={showLinkField ? "Button link" : "Leftover link — clear it"}
+              error={problemFor("actionUrl")}
+              htmlFor={`${id}-cta`}
+            >
               <Input
                 id={`${id}-cta`}
                 value={draft.actionUrl}
@@ -280,9 +296,6 @@ export function LocalPostOptions({
                 className="text-sm"
               />
             </Field>
-          )}
-          {draft.actionType === LISTING_ACTION_WITHOUT_URL && problemFor("actionUrl") && (
-            <ErrorLine>{problemFor("actionUrl")}</ErrorLine>
           )}
 
           {problemFor("media") && <ErrorLine>{problemFor("media")}</ErrorLine>}

@@ -135,6 +135,12 @@ export function GbpConnectCard() {
       );
       qc.invalidateQueries({ queryKey: CAP_KEY });
       qc.invalidateQueries({ queryKey: STATUS_KEY });
+      // ★AND THE INTEGRATIONS LIST, because `GET /v1/integrations` now reports
+      // the picked location and the scheduler's "also post this to Google"
+      // panel reads it from there. Without this the merchant picks a location,
+      // returns to the composer and still finds the toggle disabled — told to
+      // do the thing they just did.
+      qc.invalidateQueries({ queryKey: ["content-hub-integrations"] });
       // ★AND KICK A SYNC, WHICH IS WHAT MAKES THE TOAST TRUE. Without it
       // nothing lands until the hourly cron, so "will start arriving" meant
       // "within the hour". The GA4 picker does the same thing for the same

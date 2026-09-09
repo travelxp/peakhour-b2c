@@ -429,7 +429,7 @@ export function SchedulerComposer({
           variant="banner"
           message={`Your plan caps bundle publishing at ${bundleCap} channel${
             bundleCap === 1 ? "" : "s"
-          } per plan — upgrade to bundle ${channels.length} together.`}
+          } per plan — upgrade to bundle ${targetCount} together.`}
         />
       )}
 

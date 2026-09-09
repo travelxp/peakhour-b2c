@@ -28,8 +28,14 @@ export type { ListingTarget } from "@/lib/listing-target";
 
 export function useListingTarget(): ListingTarget {
   const { data: ent } = useSchedulerEntitlements();
+  // ★★THE KEY THE REST OF THE APP ALREADY USES for this endpoint, not a new
+  // one. A private key would have been invalidated by nothing: a merchant who
+  // picks their location and comes straight back to the composer would still
+  // see the disabled toggle, for a minute, with no way to tell why. Sharing the
+  // key means every existing invalidation — and the one the location picker now
+  // fires — reaches this read too.
   const { data } = useQuery({
-    queryKey: ["integrations:list"],
+    queryKey: ["content-hub-integrations"],
     queryFn: () => api.get<{ integrations: IntegrationRowLike[] }>("/v1/integrations"),
     staleTime: 60_000,
   });
