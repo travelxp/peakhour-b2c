@@ -161,6 +161,11 @@ const PILLAR_NAV: NavGroup[] = [
           { href: "/dashboard/content/news", label: "News Desk" },
           { href: "/dashboard/strategist", label: "Strategist" },
           { href: "/dashboard/calendar", label: "Calendar" },
+          // Ledger closes the chain the order above describes: ingest → ground
+          // → plan → publish → what it EARNED. It sits after Calendar because
+          // it is the only screen here about what came back rather than what
+          // goes out, and it is meaningless before something has gone out.
+          { href: "/dashboard/content/ledger", label: "Ledger" },
           { href: "/dashboard/media", label: "Media" },
           { href: "/dashboard/content/seasonal-events", label: "Seasonal Events" },
         ],

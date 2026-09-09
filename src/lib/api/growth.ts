@@ -410,6 +410,115 @@ export interface VisibilityResponse {
   };
 }
 
+// ── Content ledger ──────────────────────────────────────────────────────────
+//
+// ★★THE TWO HALVES OF A ROW MEASURE DIFFERENT THINGS, and the types keep them
+// apart on purpose. SEARCH is a 28-day WINDOW that carries its own bounds;
+// ANALYTICS is a SERIES summed from the publish date, carrying the first and
+// last day actually present. Nothing on this response is scoped to
+// `period` — that filters which PUBLICATIONS are listed and nothing else.
+
+/** The latest per-URL search window for one published page. */
+export type LedgerSearch =
+  | {
+      state: "measured";
+      clicks: number;
+      impressions: number;
+      position?: number;
+      /** The window's own bounds. NOT `period`. */
+      windowStart: string;
+      windowEnd: string;
+      capturedAt?: string;
+      /** False when the window opens before the page went live — the figures
+       *  are still this page's, but "since you published" would be wrong. */
+      coversFromPublish: boolean;
+      trend?: { clicksChange: number; impressionsChange: number; fromWindowEnd: string };
+    }
+  | { state: "unknown"; reason: "awaiting_sync" | "window_predates_publish" };
+
+/** What one published page earned in analytics since it went live. */
+export type LedgerAnalytics
+  = | {
+      state: "measured";
+      views: number;
+      conversions: number;
+      /** The first and last day actually present — not the window asked for. */
+      coveredSince: string;
+      coveredUntil: string;
+      /** Days PRESENT, not days spanned: the gap is how a surface knows the
+       *  total is a floor. */
+      daysCovered: number;
+    }
+  | {
+      state: "unknown";
+      reason: "not_connected" | "no_page_rows" | "no_path" | "ambiguous_path";
+    };
+
+/** The Search Console suggestion a page was written for, when one was recorded. */
+export interface LedgerSuggestion {
+  actionKey: string;
+  type: string;
+  query: string;
+  url?: string;
+  adoptedAt?: string;
+  /** ⚠️ALL THREE ARE ABOUT THE SEARCH TERM, not about the page — the `search`
+   *  block on the same row is the page's total across every query it ranks
+   *  for. The nesting is what stops the two being subtracted. */
+  forQuery: {
+    estMonthlyClicks: number;
+    clicksAtAdoption: number;
+    positionAtAdoption: number;
+  };
+}
+
+export interface LedgerRow {
+  url: string;
+  title?: string;
+  channel: string;
+  sourceType: string;
+  publishedAt: string;
+  daysLive: number;
+  suggestion?: LedgerSuggestion;
+  search: LedgerSearch;
+  analytics: LedgerAnalytics;
+}
+
+export interface LedgerSummary {
+  /** Publications IN THIS RESPONSE, not the business's total. */
+  pagesInView: number;
+  search:
+    | {
+        state: "measured";
+        clicks: number;
+        impressions: number;
+        windowStart: string;
+        windowEnd: string;
+        pagesMeasured: number;
+      }
+    | {
+        state: "unavailable";
+        /** `mixed_windows` — the measured pages were last synced against
+         *  DIFFERENT windows, so a sum of their clicks describes no period at
+         *  all. Withheld, exactly as `mixed_currency` is for money. */
+        reason: "no_measured_pages" | "mixed_windows";
+        pagesMeasured: number;
+      };
+  analytics:
+    | { state: "measured"; views: number; conversions: number; pagesMeasured: number }
+    | { state: "unavailable"; reason: "no_measured_pages"; pagesMeasured: number };
+}
+
+export interface ContentLedgerResponse {
+  period: { days: number; since: string; until: string };
+  /** The oldest stamp the business carries, or null when nothing is stamped.
+   *  NOT `period.since` — the gap between them is work done before anything
+   *  recorded who published it. */
+  stampedFrom: string | null;
+  rows: LedgerRow[];
+  summary: LedgerSummary;
+  truncated: boolean;
+}
+
 export const growthApi = {
   /** Recent weekly optimizer runs (newest first, up to 12). */
   adjustments: () => api.get<{ runs: OptimizerRun[] }>("/v1/growth/adjustments"),
@@ -463,6 +572,20 @@ export const growthApi = {
    */
   visibility: (days = 28) =>
     api.get<VisibilityResponse>(`/v1/growth/visibility?days=${days}`),
+
+  /**
+   * What we published, and what each page earned.
+   *
+   * ★`days` FILTERS BY PUBLICATION DATE AND NOTHING ELSE. Each page is then
+   * measured over its whole life, because "what did this article earn" is a
+   * question about the article, not about the last quarter. Every measurement
+   * date on a row comes from that row's own data — the search window's own
+   * bounds, the first and last analytics day actually present.
+   */
+  contentLedger: (days = 90, limit = 50) =>
+    api.get<ContentLedgerResponse>(
+      `/v1/growth/content-ledger?days=${days}&limit=${limit}`,
+    ),
 
   /** What this business could count as a win, and what it currently does. */
   winOptions: () => api.get<WinOptionsResponse>("/v1/growth/win-options"),
