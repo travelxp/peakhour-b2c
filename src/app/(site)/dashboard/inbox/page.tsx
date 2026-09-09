@@ -19,6 +19,7 @@ import {
 } from "@/hooks/use-wa-conversations";
 import { inboxApi, type InboxItem, type InboxPriority } from "@/lib/api/inbox";
 import { ReviewReplyCard } from "@/components/inbox/review-reply-card";
+import { listFetchState } from "@/lib/list-fetch-state";
 import {
   inboxTabFromParam,
   REVIEW_SUMMARY_QUERY_KEY,
@@ -201,29 +202,20 @@ function LeadsPane() {
   });
   const onChanged = () => queryClient.invalidateQueries({ queryKey: ["inbox-leads"] });
 
-  // ⚠️★★`isPending`, NOT `isLoading` — the same hole the reviews lane had, in
-  // the lane beside it. react-query v5 derives `isLoading` as
-  // `isPending && isFetching`, so a PAUSED query (offline) is neither loading
-  // nor errored and fell straight through to "No leads yet" — a specific claim
-  // about a merchant's campaigns that a request which never completed has not
-  // earned.
-  if (leads.isPending) {
+  const state = listFetchState(leads, leads.data?.items?.length ?? 0);
+  if (state === "loading" || state === "waiting") {
     return (
       <div className="space-y-2">
         {[0, 1, 2].map((i) => (
           <Skeleton key={i} className="h-20 w-full" />
         ))}
-        {leads.fetchStatus === "paused" && (
-          <p className="text-center text-xs text-muted-foreground">
-            Waiting for a connection — your leads will load when you&apos;re back online.
-          </p>
-        )}
       </div>
     );
   }
+  if (state === "paused") return <WaitingForConnection what="leads" />;
   // A failed fetch must never masquerade as "no leads" — leads keep
   // arriving (and billing) server-side whether or not this list loads.
-  if (leads.isError) {
+  if (state === "error") {
     return (
       <Card className="flex flex-col items-center gap-2 p-8 text-center">
         <p className="text-sm font-medium">Couldn&apos;t load your leads</p>
@@ -265,6 +257,22 @@ function LeadsPane() {
   );
 }
 
+/**
+ * What a lane says while it is waiting on the network.
+ *
+ * ★ONE SENTENCE, THREE LANES. A paused query never resolves and never errors,
+ * so without this the merchant watches placeholders for ever with nothing to
+ * act on — and three hand-written versions of that sentence is three chances
+ * for one of them to go missing again.
+ */
+function WaitingForConnection({ what }: { what: string }) {
+  return (
+    <p className="text-center text-xs text-muted-foreground">
+      Waiting for a connection — your {what} will load when you&apos;re back online.
+    </p>
+  );
+}
+
 // ── Reviews lane (sup_inbox, kind: review — S0·4) ─────────────────────
 
 /**
@@ -300,28 +308,21 @@ function ReviewsPane({ query }: { query: ReturnType<typeof useReviewsQuery> }) {
     queryClient.invalidateQueries({ queryKey: REVIEW_SUMMARY_QUERY_KEY });
   };
 
-  // ⚠️★★`isPending`, NOT `isLoading`. In react-query v5 `isLoading` is
-  // `isPending && isFetching`, so a PAUSED query — the offline case, which is
-  // the whole reason this branch exists — is neither loading nor errored, and
-  // an unresolved query fell straight through to "No reviews here yet".
-  if (query.isPending) {
+  const state = listFetchState(query, query.data?.items?.length ?? 0);
+  if (state === "loading" || state === "waiting") {
     return (
       <div className="space-y-2">
         {[0, 1, 2].map((i) => (
           <Skeleton key={i} className="h-28 w-full" />
         ))}
-        {query.fetchStatus === "paused" && (
-          <p className="text-center text-xs text-muted-foreground">
-            Waiting for a connection — your reviews will load when you&apos;re back online.
-          </p>
-        )}
       </div>
     );
   }
+  if (state === "paused") return <WaitingForConnection what="reviews" />;
   // ★★A FAILED FETCH MUST NEVER READ AS "NO REVIEWS". An unanswered one-star
   // review is the most expensive row in this app, and "you're all caught up"
   // is the worst possible thing to say about one we simply could not load.
-  if (query.isError) {
+  if (state === "error") {
     return (
       <Card className="flex flex-col items-center gap-2 p-8 text-center">
         <p className="text-sm font-medium">Couldn&apos;t load your reviews</p>
@@ -406,9 +407,18 @@ function InboxHeader() {
 }
 
 function InboxTabs() {
-  const { conversations, isLoading } = useWaConversations();
+  const conversationsQuery = useWaConversations();
+  const { conversations } = conversationsQuery;
+  const refetchConversations = conversationsQuery.refetch;
+  const convState = listFetchState(conversationsQuery, conversations.length);
   const [selected, setSelected] = useState<string | null>(null);
-  const { data: thread, isLoading: threadLoading } = useWaThread(selected);
+  const threadQuery = useWaThread(selected);
+  const thread = threadQuery.data;
+  // ★AND THE SAME `enabled`-GATED TRAP AGAIN: with
+  // no thread selected the query is pending and idle for ever. Silent rather
+  // than false — a blank pane claims nothing — but a blank pane is still not an
+  // answer when the merchant is offline.
+  const threadState = listFetchState(threadQuery, thread?.messages.length ?? 0);
   const handoff = useWaHandoff();
   const resume = useWaResume();
   // ★★HOISTED SO THE BADGE EXISTS BEFORE THE TAB IS OPENED. A count that only
@@ -520,12 +530,34 @@ function InboxTabs() {
           <div className="grid gap-6 lg:grid-cols-[340px_1fr]">
             {/* Thread list */}
             <Card className="max-h-[70vh] overflow-y-auto p-2">
-              {isLoading && (
+              {/* ⚠️★★★THE THIRD LANE, AND THE ONE WITH THE EXTRA TRAP. This query
+                  is `enabled`-gated on a business being picked, so a DISABLED
+                  query sits pending with an idle fetch for ever — the repair
+                  the other two lanes needed (`isPending`) would spin a skeleton
+                  here with nothing behind it. It also had no error branch at
+                  all, so a failed request read as "No conversations yet". */}
+              {(convState === "loading" || convState === "waiting") && (
                 <div className="space-y-2 p-2">
                   {[0, 1, 2].map((i) => <Skeleton key={i} className="h-14 w-full" />)}
                 </div>
               )}
-              {!isLoading && conversations.length === 0 && (
+              {convState === "paused" && (
+                <div className="p-2">
+                  <WaitingForConnection what="conversations" />
+                </div>
+              )}
+              {convState === "error" && (
+                <div className="space-y-2 p-4 text-center">
+                  <p className="text-sm font-medium">Couldn&apos;t load your conversations</p>
+                  <p className="text-xs text-muted-foreground">
+                    This is a problem loading the list, not an empty inbox.
+                  </p>
+                  <Button size="sm" variant="outline" onClick={() => refetchConversations()}>
+                    Retry
+                  </Button>
+                </div>
+              )}
+              {convState === "empty" && (
                 <p className="p-4 text-sm text-muted-foreground">No conversations yet.</p>
               )}
               {conversations.map((conv: WaConversation) => (
@@ -590,9 +622,15 @@ function InboxTabs() {
                     )}
                   </div>
                   <div className="flex-1 space-y-2 overflow-y-auto bg-[#e5ddd5] p-3">
-                    {threadLoading && <Skeleton className="h-20 w-full" />}
+                    {threadState === "loading" && <Skeleton className="h-20 w-full" />}
+                    {threadState === "paused" && <WaitingForConnection what="messages" />}
+                    {threadState === "error" && (
+                      <p className="p-4 text-center text-sm text-muted-foreground">
+                        Couldn&apos;t load this conversation. Try again in a moment.
+                      </p>
+                    )}
                     {thread?.messages.map((m, i) => <Bubble key={i} role={m.role} content={m.content} />)}
-                    {thread && thread.messages.length === 0 && (
+                    {threadState === "empty" && (
                       <p className="p-4 text-center text-sm text-muted-foreground">No messages.</p>
                     )}
                   </div>

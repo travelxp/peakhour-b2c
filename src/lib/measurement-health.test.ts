@@ -271,8 +271,17 @@ describe("passedLine", () => {
 
   it("★offers no ratio when nothing could be checked", () => {
     // "0 of 0 passed" is a sentence about nothing.
+    // ⚠️AND THIS FIXTURE AGREES WITH ITSELF TOO. It kept the default single
+    // ATTENTION check beside a summary saying nothing could be checked —
+    // harmless only because the guard returns first, which is exactly the kind
+    // of "harmless today" that stops being true when the guard moves.
     expect(
-      passedLine(health({ summary: { checked: 0, attention: 0, unmeasurable: 5, headline: "h" } })),
+      passedLine(
+        health({
+          summary: { checked: 0, attention: 0, unmeasurable: 5, headline: "h" },
+          checks: [1, 2, 3, 4, 5].map((n) => unmeasurable(`c${n}`)),
+        }),
+      ),
     ).toBeNull();
   });
 });
