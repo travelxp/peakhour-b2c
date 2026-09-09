@@ -144,6 +144,26 @@ const MUTANTS = [
     killer: "★is not fooled by a provider named after Object.prototype",
   },
 
+  // ── Where a check we could not run goes instead ──────────────────────────
+  {
+    name: "★★★leave an unreadable connection as a finding with nowhere to carry it out",
+    anchor: '  if (check.state !== "unmeasurable") return null;\n  return manageHref;',
+    mutated: "  return null;",
+    killer: "★★★gives a check we could not run somewhere to go",
+  },
+  {
+    name: "★★★link back to the page the merchant is already standing on",
+    anchor: "  return manageHref;",
+    mutated: '  return manageHref ?? "/dashboard/integrations";',
+    killer: "★★★sends nobody away from the page the connections are already on",
+  },
+  {
+    name: "★★offer “check your connections” under a green row and under a Google-admin fix",
+    anchor: '  if (check.state !== "unmeasurable") return null;\n  return manageHref;',
+    mutated: "  return manageHref;",
+    killer: "★★offers the link ONLY for a check we could not run",
+  },
+
   // ── The counts ───────────────────────────────────────────────────────────
   {
     name: "★★★count out of what EXISTS rather than out of what we could check",

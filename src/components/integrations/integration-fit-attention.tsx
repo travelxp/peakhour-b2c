@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api, ApiError } from "@/lib/api";
+import { affectsMeasurementHealth } from "@/lib/measurement-health";
 import {
   Card,
   CardContent,
@@ -43,6 +45,7 @@ function formatProvider(p: string | null): string {
 }
 
 export function IntegrationFitAttention() {
+  const queryClient = useQueryClient();
   const [flags, setFlags] = useState<FitFlag[] | null>(null);
   const [moving, setMoving] = useState<string | null>(null);
 
@@ -71,6 +74,14 @@ export function IntegrationFitAttention() {
         connectionId: f.connectionId,
       });
       setFlags((prev) => (prev ? prev.filter((x) => x.connectionId !== f.connectionId) : prev));
+      // ★★THE CONNECTION HAS LEFT THIS BUSINESS, SO THE HEALTH PANEL BELOW IS
+      // NOW ABOUT SOMETHING THAT IS NOT HERE. It caches for half an hour, and it
+      // is mounted directly under this card — so without the invalidation a
+      // merchant reads verdicts for a Google account they have just moved out,
+      // two inches below the sentence saying it was moved.
+      if (f.provider && affectsMeasurementHealth(f.provider)) {
+        queryClient.invalidateQueries({ queryKey: ["measurement-health"] });
+      }
       toast.success(`Moved ${formatProvider(f.provider)} into a new workspace "${res.name}".`);
     } catch (err) {
       toast.error(

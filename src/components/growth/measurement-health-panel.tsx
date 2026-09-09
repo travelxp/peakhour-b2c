@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, CheckCircle2, ExternalLink, HelpCircle } from "lucide-react";
 
@@ -13,6 +14,7 @@ import {
   orderedChecks,
   passedLine,
   periodLine,
+  reconnectHref,
 } from "@/lib/measurement-health";
 
 /**
@@ -66,13 +68,14 @@ const STATE_STYLE: ReadonlyMap<string, StateStyle> = new Map<string, StateStyle>
   ["ok", { icon: CheckCircle2, tone: "text-success", label: "Fine" }],
 ]);
 
-function CheckRow({ check }: { check: HealthCheck }) {
+function CheckRow({ check, manageHref }: { check: HealthCheck; manageHref: string | null }) {
   // ★THE FALLBACK IS THE UNCERTAIN ONE, not the green one. A state this build
   // has never heard of is a state we cannot vouch for, and the icon that says
   // so is the honest default.
   const style = STATE_STYLE.get(check.state) ?? UNKNOWN_STATE;
   const Icon = style.icon;
   const fix = fixFor(check);
+  const reconnect = reconnectHref(check, manageHref);
 
   return (
     <div className="flex gap-3 py-3">
@@ -86,8 +89,8 @@ function CheckRow({ check }: { check: HealthCheck }) {
         {/* ★★THE FIX APPEARS ONLY UNDER SOMETHING BROKEN, and `fixFor` is where
             that is decided. Steps under a green check are noise; steps under
             "we couldn't read your analytics" are worse, because the repair for
-            that is usually the Reconnect button on this very page, and a link
-            to Google sends somebody away from it. */}
+            that is a connection rather than a setting in Google's admin. The
+            link below is where that case goes instead. */}
         {fix && (
           <div className="mt-2 rounded-md border bg-muted/40 p-3">
             <p className="text-xs font-medium">Fix it in {fix.where}</p>
@@ -107,12 +110,28 @@ function CheckRow({ check }: { check: HealthCheck }) {
             </a>
           </div>
         )}
+        {/* ★★A CHECK WE COULD NOT RUN NEEDS SOMEWHERE TO GO, and only on a page
+            that is not already the connections page. `reconnectHref` decides
+            both halves; see its comment for why a "fix it in Google" link would
+            be the wrong answer here. */}
+        {reconnect && (
+          <Link
+            className="mt-1 inline-block text-xs font-medium text-primary hover:underline"
+            href={reconnect}
+          >
+            Check your connections
+          </Link>
+        )}
       </div>
     </div>
   );
 }
 
-export function MeasurementHealthPanel() {
+/**
+ * @param manageHref Where the connections live, when this panel is NOT standing
+ *   on that page. Omitted on the integrations page, whose cards are the answer.
+ */
+export function MeasurementHealthPanel({ manageHref = null }: { manageHref?: string | null } = {}) {
   const { business } = useAuth();
 
   const health = useQuery({
@@ -121,10 +140,22 @@ export function MeasurementHealthPanel() {
     // say which business is one cache clear away from showing another's.
     queryKey: ["measurement-health", business?._id ?? "none"],
     queryFn: () => growthApi.measurementHealth(),
+    // ⚠️🚫★★NOT UNTIL THERE IS A BUSINESS TO ASK ABOUT. The dashboard shell
+    // renders its children while the active business is still resolving, so
+    // without this the query fires under the key `"none"`, 403s, and retries —
+    // twice per page, on both pages, and a second time when the business
+    // arrives. The route makes three live Google calls; it is the last one in
+    // the product to enter speculatively.
+    enabled: Boolean(business?._id),
     // ⏸LONGER THAN THE OTHER GROWTH QUERIES. Three live Google calls sit behind
     // this, and a measurement fault is a thing that takes days to appear and
     // days to fix — not a figure worth refetching on every navigation.
     staleTime: 30 * 60_000,
+    // ⚠️AND `gcTime` HAS TO SAY SO TOO. It defaults to five minutes, so a
+    // half-hour `staleTime` on its own buys nothing: leave the page for six
+    // minutes, come back, and the entry has been collected — the three Google
+    // calls run again on a cache that was documented as still warm.
+    gcTime: 60 * 60_000,
   });
 
   if (health.isLoading) {
@@ -154,7 +185,7 @@ export function MeasurementHealthPanel() {
         {passed && <p className="mt-1 text-sm text-muted-foreground">{passed}</p>}
         <div className="mt-2 divide-y">
           {checks.map((c) => (
-            <CheckRow key={c.id} check={c} />
+            <CheckRow key={c.id} check={c} manageHref={manageHref} />
           ))}
         </div>
       </CardContent>

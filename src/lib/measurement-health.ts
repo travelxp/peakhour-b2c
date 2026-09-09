@@ -137,6 +137,26 @@ export function affectsMeasurementHealth(provider: string): boolean {
 }
 
 /**
+ * Where to send somebody whose check we could not run.
+ *
+ * ⚠️🚫★★`fixFor` WITHHOLDS A FIX FOR `unmeasurable` BECAUSE THE REPAIR IS THE
+ * RECONNECT BUTTON ON THE PAGE — AND THAT PREMISE IS ONLY TRUE ON ONE PAGE. On
+ * the integrations page the card is inches away; on settings there is no card
+ * and no button, so "we couldn't read your analytics, check the connection is
+ * still authorised" was a dead end: a finding, an instruction, and nowhere to
+ * carry it out. The caller says whether it is standing somewhere with the
+ * connections on it, and only a caller that is NOT gets a link.
+ *
+ * ⏸AND ONLY FOR `unmeasurable`. A link labelled "check your connections" under
+ * a green row, or under a finding whose fix is three steps in Google's admin,
+ * points away from the thing that would actually help.
+ */
+export function reconnectHref(check: HealthCheck, manageHref: string | null): string | null {
+  if (check.state !== "unmeasurable") return null;
+  return manageHref;
+}
+
+/**
  * The order findings are read in.
  *
  * ★★WHAT NEEDS DOING COMES FIRST, AND WHAT WE COULD NOT CHECK IS NOT LAST BY

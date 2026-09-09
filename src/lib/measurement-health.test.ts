@@ -6,6 +6,7 @@ import {
   orderedChecks,
   passedLine,
   periodLine,
+  reconnectHref,
 } from "./measurement-health";
 import type { HealthCheck, MeasurementHealthResponse } from "@/lib/api/growth";
 
@@ -54,8 +55,8 @@ describe("fixFor", () => {
 
   it("★★★offers nothing for a check we could not RUN", () => {
     // "We couldn't read your analytics" has no repair in Google's admin — the
-    // thing to fix is usually the Reconnect button on the page this panel is
-    // standing on, and a link to Google sends somebody away from it.
+    // thing to fix is a connection rather than a setting, which is what
+    // `reconnectHref` below is for.
     expect(fixFor(check({ state: "unmeasurable" }))).toBeNull();
   });
 
@@ -121,7 +122,7 @@ describe("orderedChecks", () => {
     expect(input.map((c) => c.id)).toEqual(["a", "b"]);
   });
 
-it("★★★ranks a state named after Object.prototype as uncertain, not as a pass", () => {
+  it("★★★ranks a state named after Object.prototype as uncertain, not as a pass", () => {
     const out = orderedChecks([
       check({ id: "a", state: "ok" }),
       check({ id: "b", state: "constructor" }),
@@ -242,6 +243,33 @@ describe("affectsMeasurementHealth", () => {
 
   it("★is not fooled by a provider named after Object.prototype", () => {
     expect(affectsMeasurementHealth("constructor")).toBe(false);
+  });
+});
+
+describe("reconnectHref", () => {
+  it("★★★gives a check we could not run somewhere to go", () => {
+    // `fixFor` withholds a fix for `unmeasurable` because the repair is a
+    // connection, not a setting in Google's admin. On a page with no connection
+    // cards on it that left a finding, an instruction, and nowhere to carry it
+    // out.
+    expect(reconnectHref(check({ state: "unmeasurable" }), "/dashboard/integrations")).toBe(
+      "/dashboard/integrations",
+    );
+  });
+
+  it("★★★sends nobody away from the page the connections are already on", () => {
+    // The integrations page passes no href: its own cards are the answer, and a
+    // link back to the page you are standing on is a dead end of a different
+    // kind.
+    expect(reconnectHref(check({ state: "unmeasurable" }), null)).toBeNull();
+  });
+
+  it("★★offers the link ONLY for a check we could not run", () => {
+    // "Check your connections" under a green row, or under a finding whose fix
+    // is three steps in Google's admin, points away from what would help.
+    expect(reconnectHref(check({ state: "ok" }), "/dashboard/integrations")).toBeNull();
+    expect(reconnectHref(check({ state: "attention" }), "/dashboard/integrations")).toBeNull();
+    expect(reconnectHref(check({ state: "something_new" }), "/dashboard/integrations")).toBeNull();
   });
 });
 

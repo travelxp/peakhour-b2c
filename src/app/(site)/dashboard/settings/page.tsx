@@ -316,7 +316,7 @@ function SettingsContent() {
             the two cannot drift. This is where a merchant comes back to when
             something looks wrong rather than when they have just connected
             something — the findings are the same either way. */}
-        <MeasurementHealthPanel />
+        <MeasurementHealthPanel manageHref="/dashboard/integrations" />
         {/* Business Details */}
         <Card>
           <CardHeader>
