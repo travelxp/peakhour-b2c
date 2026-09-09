@@ -519,6 +519,52 @@ export interface ContentLedgerResponse {
   truncated: boolean;
 }
 
+/**
+ * One measurement check, exactly as the api decided it.
+ *
+ * ★★THREE STATES, AND THE THIRD IS A REAL ANSWER. `unmeasurable` is neither
+ * `ok` nor `attention`: collapsed into the first it tells a business whose
+ * analytics we cannot read that their analytics is healthy, and collapsed into
+ * the second it invents a fault. Every judgement was made in the api; this side
+ * chooses words and a link, and must never re-decide a state.
+ *
+ * ⏸`state` AND `id` ARE TYPED AS THE UNIONS WE KNOW PLUS A STRING, because the
+ * api's sets grow independently of this deploy. A check this build has never
+ * heard of still has a headline and a detail the api wrote, and showing those
+ * with no fix beside them is strictly better than hiding a finding.
+ */
+export type HealthState = "ok" | "attention" | "unmeasurable";
+
+export type HealthCheckId =
+  | "unassigned_traffic"
+  | "self_referral"
+  | "hostname_agreement"
+  | "key_event"
+  | "listing_completeness";
+
+export interface HealthCheck {
+  id: HealthCheckId | (string & {});
+  state: HealthState | (string & {});
+  /** One sentence a shopkeeper can read. */
+  headline: string;
+  /** Why, and — on `attention` — what to do. */
+  detail: string;
+}
+
+export interface HealthSummary {
+  /** Checks we could actually run. NOT `checks.length`. */
+  checked: number;
+  attention: number;
+  unmeasurable: number;
+  headline: string;
+}
+
+export interface MeasurementHealthResponse {
+  period: { days: number; since: string; until: string };
+  summary: HealthSummary;
+  checks: HealthCheck[];
+}
+
 export const growthApi = {
   /** Recent weekly optimizer runs (newest first, up to 12). */
   adjustments: () => api.get<{ runs: OptimizerRun[] }>("/v1/growth/adjustments"),
@@ -586,6 +632,16 @@ export const growthApi = {
     api.get<ContentLedgerResponse>(
       `/v1/growth/content-ledger?days=${days}&limit=${limit}`,
     ),
+
+  /**
+   * Can the numbers be believed?
+   *
+   * ★THE CHECK THAT QUALIFIES EVERY OTHER FIGURE IN THE PRODUCT. It makes three
+   * live Google calls, so it is asked deliberately — on the page a merchant
+   * lands on after connecting an account, not on every render.
+   */
+  measurementHealth: () =>
+    api.get<MeasurementHealthResponse>("/v1/growth/measurement-health"),
 
   /** What this business could count as a win, and what it currently does. */
   winOptions: () => api.get<WinOptionsResponse>("/v1/growth/win-options"),

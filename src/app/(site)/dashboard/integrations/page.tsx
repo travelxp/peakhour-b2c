@@ -18,6 +18,7 @@ import { ConfirmDialog } from "@/components/molecules/confirm-dialog";
 import { WhatsAppEmbeddedSignup } from "@/components/integrations/whatsapp-embedded-signup";
 import { OAuthConnectResult } from "@/components/integrations/oauth-connect-result";
 import { WordPressConnectModal } from "@/components/integrations/wordpress-connect-modal";
+import { MeasurementHealthPanel } from "@/components/growth/measurement-health-panel";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -649,6 +650,16 @@ export default function IntegrationsPage() {
         title="Integrations"
         description="Connect your platforms to power AI-driven content and ads"
       />
+
+      {/* ★★CAN THE NUMBERS BE BELIEVED — HERE, BECAUSE THIS IS WHERE A MERCHANT
+          LANDS AFTER CONNECTING. `returnTo` defaults to this page, so the panel
+          is the first thing after "it worked": the moment a property is
+          attached is the moment to say whether it is pointed at the right site,
+          and every screen in the product renders whether it is or not.
+
+          It renders nothing for a business with nothing connected, and nothing
+          when it cannot load. */}
+      <MeasurementHealthPanel />
 
       {/* Search + Tabs bar */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
