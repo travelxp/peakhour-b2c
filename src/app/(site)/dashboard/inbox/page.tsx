@@ -17,6 +17,8 @@ import {
   type WaConversation,
 } from "@/hooks/use-wa-conversations";
 import { inboxApi, type InboxItem, type InboxPriority } from "@/lib/api/inbox";
+import { ReviewReplyCard } from "@/components/inbox/review-reply-card";
+import { reviewQueueOrder, unansweredReviewCount } from "@/lib/review-reply";
 import { PageShell } from "@/components/dashboard/page-shell";
 
 /**
@@ -241,6 +243,82 @@ function LeadsPane() {
   );
 }
 
+// ── Reviews lane (sup_inbox, kind: review — S0·4) ─────────────────────
+
+/**
+ * The Google reviews lane.
+ *
+ * ★★THE ONLY LANE WHOSE REPLY LEAVES PEAKHOUR FOR A PAGE THE MERCHANT'S
+ * CUSTOMERS READ. Everything it decides — what the box starts with, what a
+ * refusal means, whether a `recorded: false` is a success — is in
+ * `lib/review-reply.ts`, tested; `ReviewReplyCard` is the markup.
+ *
+ * ⚠️ZERO ROWS TODAY, AND THAT IS NOT A BUG. `sup_inbox` holds no
+ * `google_review` items until the Pub/Sub notification topic is provisioned
+ * (plan S0·1, unassigned). The empty state has to say what will fill it rather
+ * than implying the merchant has no reviews — nobody has told us either way.
+ */
+function useReviewsQuery() {
+  return useQuery({
+    queryKey: ["inbox-reviews"],
+    queryFn: () => inboxApi.list({ kind: "review", limit: 100 }),
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+  });
+}
+
+function ReviewsPane({ query }: { query: ReturnType<typeof useReviewsQuery> }) {
+  const queryClient = useQueryClient();
+  const onChanged = () => queryClient.invalidateQueries({ queryKey: ["inbox-reviews"] });
+
+  if (query.isLoading) {
+    return (
+      <div className="space-y-2">
+        {[0, 1, 2].map((i) => (
+          <Skeleton key={i} className="h-28 w-full" />
+        ))}
+      </div>
+    );
+  }
+  // ★★A FAILED FETCH MUST NEVER READ AS "NO REVIEWS". An unanswered one-star
+  // review is the most expensive row in this app, and "you're all caught up"
+  // is the worst possible thing to say about one we simply could not load.
+  if (query.isError) {
+    return (
+      <Card className="flex flex-col items-center gap-2 p-8 text-center">
+        <p className="text-sm font-medium">Couldn&apos;t load your reviews</p>
+        <p className="max-w-md text-xs text-muted-foreground">
+          This is a problem loading the list, not an empty inbox. Try again in a moment.
+        </p>
+        <Button size="sm" variant="outline" onClick={() => query.refetch()}>
+          Retry
+        </Button>
+      </Card>
+    );
+  }
+  const items = reviewQueueOrder(query.data?.items ?? []);
+  if (items.length === 0) {
+    return (
+      <Card className="flex flex-col items-center gap-2 p-8 text-center">
+        <Sparkles className="size-5 text-muted-foreground" />
+        <p className="text-sm font-medium">No reviews here yet</p>
+        <p className="max-w-md text-xs text-muted-foreground">
+          Once your Google Business Profile is connected and sending us review notifications, every
+          new review lands here — worst first — with a reply you can publish back to your listing
+          without leaving Peakhour.
+        </p>
+      </Card>
+    );
+  }
+  return (
+    <div className="space-y-2">
+      {items.map((item) => (
+        <ReviewReplyCard key={item._id} item={item} onChanged={onChanged} />
+      ))}
+    </div>
+  );
+}
+
 // ── Page ──────────────────────────────────────────────────────────────
 
 export default function InboxPage() {
@@ -249,6 +327,12 @@ export default function InboxPage() {
   const { data: thread, isLoading: threadLoading } = useWaThread(selected);
   const handoff = useWaHandoff();
   const resume = useWaResume();
+  // ★★HOISTED SO THE BADGE EXISTS BEFORE THE TAB IS OPENED. A count that only
+  // appears once you have already looked at the lane is not a count — the
+  // number of reviews waiting on an answer is the thing that makes somebody
+  // open the app at all.
+  const reviews = useReviewsQuery();
+  const unanswered = unansweredReviewCount(reviews.data?.items);
 
   return (
     <PageShell>
@@ -263,10 +347,25 @@ export default function InboxPage() {
         <TabsList>
           <TabsTrigger value="conversations">Conversations</TabsTrigger>
           <TabsTrigger value="leads">Leads</TabsTrigger>
+          <TabsTrigger value="reviews">
+            Reviews
+            {/* ⚠️NO BADGE AT ZERO, and none while the count is unknown. A "0"
+                is a claim that there is nothing waiting, which a failed or
+                in-flight fetch has not earned. */}
+            {unanswered > 0 && (
+              <Badge className="ml-1.5 bg-warning/15 px-1.5 text-[10px] text-warning-on-tint">
+                {unanswered}
+              </Badge>
+            )}
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="leads" className="mt-4">
           <LeadsPane />
+        </TabsContent>
+
+        <TabsContent value="reviews" className="mt-4">
+          <ReviewsPane query={reviews} />
         </TabsContent>
 
         <TabsContent value="conversations" className="mt-4">
