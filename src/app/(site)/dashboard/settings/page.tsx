@@ -11,6 +11,7 @@ import { useLocale } from "@/hooks/use-locale";
 // (?returnTo=), so a new provider is labelled once, not per page.
 import { formatProviderName } from "@/lib/provider-names";
 import { IntegrationFitAttention } from "@/components/integrations/integration-fit-attention";
+import { MeasurementHealthPanel } from "@/components/growth/measurement-health-panel";
 import { RequestReviewButton } from "@/components/integrations/request-review-button";
 import { CreateWorkspaceButton } from "@/components/integrations/create-workspace-button";
 import { ContactSupportDialog } from "@/components/support/contact-support-dialog";
@@ -311,6 +312,11 @@ function SettingsContent() {
         {/* Wrong-brand integrations flagged by the fit-reconcile cron. Renders
             nothing when there's no pollution. */}
         <IntegrationFitAttention />
+        {/* ★THE SAME PANEL AS THE INTEGRATIONS PAGE, and the same component so
+            the two cannot drift. This is where a merchant comes back to when
+            something looks wrong rather than when they have just connected
+            something — the findings are the same either way. */}
+        <MeasurementHealthPanel manageHref="/dashboard/integrations" />
         {/* Business Details */}
         <Card>
           <CardHeader>
