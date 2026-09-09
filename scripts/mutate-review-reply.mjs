@@ -236,23 +236,33 @@ const MUTANTS = [
     // "A customer" and the field carrying the name was never rendered.
     where: "rules",
     name: "★★★lose the customer's name the webhook did record",
-    anchor: '  return item.contact?.name?.trim() || item.subject?.trim() || "A customer";',
-    mutated: '  return item.contact?.name?.trim() || "A customer";',
+    anchor: '.exec(item.subject?.trim() ?? "")?.[1]?.trim();',
+    mutated: '.exec("")?.[1]?.trim();',
     killer: "★★★names the customer the webhook actually recorded",
+  },
+  {
+    // ⚠️ROUND 3: rendering the whole subject beside a drawn star row repeated
+    // the rating, and for a reviewer Google named nobody for it put the words
+    // "New 4★ review" where a person's name goes.
+    where: "rules",
+    name: "★★★render our own sentence about the review as the customer's name",
+    anchor: '.exec(item.subject?.trim() ?? "")?.[1]?.trim();',
+    mutated: '.exec("")?.[1] ?? item.subject?.trim();',
+    killer: "★★★renders a name, not our own sentence about the review",
+  },
+  {
+    where: "rules",
+    name: "★★take only the first word of the name",
+    anchor: '.exec(item.subject?.trim() ?? "")?.[1]?.trim();',
+    mutated: '.exec(item.subject?.trim() ?? "")?.[1]?.split(" ")[0]?.trim();',
+    killer: "★★keeps a name that has the word from inside it",
   },
   {
     where: "rules",
     name: "★★let the subject beat a structured contact name",
-    anchor: '  return item.contact?.name?.trim() || item.subject?.trim() || "A customer";',
-    mutated: '  return item.subject?.trim() || item.contact?.name?.trim() || "A customer";',
+    anchor: "  if (contact) return contact;",
+    mutated: "  if (false) return contact;",
     killer: "★★prefers a structured contact name when a writer sets one",
-  },
-  {
-    where: "rules",
-    name: "★head a review with a blank line rather than a person",
-    anchor: '  return item.contact?.name?.trim() || item.subject?.trim() || "A customer";',
-    mutated: '  return item.contact?.name ?? item.subject ?? "A customer";',
-    killer: "★falls back to a person rather than to nothing",
   },
 
   // ── A reply that arrives after the box was seeded ────────────────────────

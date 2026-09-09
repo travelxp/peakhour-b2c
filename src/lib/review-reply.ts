@@ -89,7 +89,18 @@ export interface ReviewItemLike {
  * day one does.
  */
 export function reviewerLabel(item: ReviewItemLike): string {
-  return item.contact?.name?.trim() || item.subject?.trim() || "A customer";
+  const contact = item.contact?.name?.trim();
+  if (contact) return contact;
+  // ★THE SUBJECT IS OUR OWN SENTENCE, NOT A NAME. The webhook builds it as
+  // `New ${rating}★ review${author ? ` from ${author}` : ""}`, so rendering it
+  // whole beside the star row said "New 4★ review from Jo Smith" next to four
+  // drawn stars — and, for a reviewer Google gave no name for, put the words
+  // "New 4★ review" where a person's name goes.
+  //
+  // ⚠️A FORMAT CHANGE DEGRADES TO "A customer", never to a wrong name: no
+  // " from ", no author.
+  const author = /\sfrom\s(.+)$/.exec(item.subject?.trim() ?? "")?.[1]?.trim();
+  return author || "A customer";
 }
 
 // ── Can this row be replied to at all ────────────────────────────────────────

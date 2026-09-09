@@ -395,8 +395,17 @@ export default function InboxPage() {
             the one tab holding a composer, and a merchant who glances at Leads
             mid-reply came back to an empty box — a public reply they had
             written, gone, with no undo. The same data loss `appendReply` was
-            written to prevent, arrived at by a different route. */}
-        <TabsContent value="reviews" className="mt-4" forceMount>
+            written to prevent, arrived at by a different route.
+            ⚠️★★★AND `forceMount` ALONE LEAVES IT VISIBLE ON EVERY TAB. Radix
+            computes `hidden={!present}` with `present = forceMount || isSelected`,
+            so forcing the mount also forces `hidden` off — the reviews pane
+            rendered underneath Conversations and Leads. `data-state` is set
+            independently of `present`, so the hiding has to be ours. */}
+        <TabsContent
+          value="reviews"
+          className="mt-4 data-[state=inactive]:hidden"
+          forceMount
+        >
           <ReviewsPane query={reviews} />
         </TabsContent>
 

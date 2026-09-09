@@ -457,19 +457,43 @@ describe("reviewerLabel — whose review this is", () => {
     // ⚠️THE GBP WEBHOOK WRITES NO `contact` ON A REVIEW ROW. It puts the
     // reviewer in the SUBJECT, so a card reading only `contact.name` showed
     // "A customer" above every review in the inbox.
-    expect(reviewerLabel(row({ subject: "New 4★ review from Jo Smith" }))).toBe(
-      "New 4★ review from Jo Smith",
+    expect(reviewerLabel(row({ subject: "New 4★ review from Jo Smith" }))).toBe("Jo Smith");
+  });
+
+  it("★★★renders a name, not our own sentence about the review", () => {
+    // The subject is `New 4★ review from Jo Smith` — beside a drawn star row
+    // it repeats the rating, and for a reviewer Google named nobody for it
+    // puts the words "New 4★ review" where a person's name goes.
+    const label = reviewerLabel(row({ subject: "New 4★ review from Jo Smith" }));
+    expect(label).not.toContain("review");
+    expect(label).not.toContain("★");
+  });
+
+  it("★★★says A customer when Google gave us no name", () => {
+    expect(reviewerLabel(row({ subject: "New 4★ review" }))).toBe("A customer");
+  });
+
+  it("★★keeps a name that has the word from inside it", () => {
+    expect(reviewerLabel(row({ subject: "New 5★ review from Jo from Bristol" }))).toBe(
+      "Jo from Bristol",
     );
   });
 
   it("★★prefers a structured contact name when a writer sets one", () => {
+    // ⚠️THE TWO NAMES MUST DIFFER. A fixture whose contact name and subject
+    // author are the same string cannot reach this branch: dropping the
+    // contact check entirely gives the identical answer, and the mutation
+    // harness said so.
     expect(
-      reviewerLabel(row({ contact: { name: "Jo Smith" }, subject: "New 4★ review from Jo Smith" })),
+      reviewerLabel(
+        row({ contact: { name: "Jo Smith" }, subject: "New 4★ review from Someone Else" }),
+      ),
     ).toBe("Jo Smith");
   });
 
   it("★falls back to a person rather than to nothing", () => {
     expect(reviewerLabel(row({ subject: "   " }))).toBe("A customer");
+    expect(reviewerLabel(row({ subject: undefined }))).toBe("A customer");
   });
 });
 

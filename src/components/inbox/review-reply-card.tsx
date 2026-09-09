@@ -131,6 +131,12 @@ export function ReviewReplyCard({ item, onChanged }: { item: InboxItem; onChange
   if (shouldAdoptPublishedReply({ dirty, seen, incoming: state.published })) {
     setSeen(state.published);
     setText(state.published ?? "");
+    // ⚠️★★AND THE NOTES GO WITH THE TEXT THEY WERE ABOUT. Swapping the box
+    // contents while leaving "that's already your published reply" — and its
+    // force-publish button — standing over the NEW words is the same hazard
+    // `edit` clears them for, reached without anybody typing.
+    setRefusal(null);
+    setOutcome(null);
   }
 
   const send = useMutation({
@@ -168,6 +174,12 @@ export function ReviewReplyCard({ item, onChanged }: { item: InboxItem; onChange
     onError: () => toast.error("Couldn't update this review. Try again in a moment."),
   });
 
+  // ★★WHAT THE LAST ATTEMPT WAS, so "Try again" repeats THAT attempt. A
+  // transient failure during a FORCED re-send used to retry un-forced, which
+  // the api answers "unchanged" to — so restoring a reply deleted in Google's
+  // own console needed the merchant to find the force button a second time.
+  const [lastForce, setLastForce] = useState(false);
+
   const remaining = replyCharsRemaining(text);
   const checked = checkReplyText(text);
   const sending = send.isPending;
@@ -203,6 +215,7 @@ export function ReviewReplyCard({ item, onChanged }: { item: InboxItem; onChange
       setOutcome(null);
       return;
     }
+    setLastForce(force === true);
     send.mutate({ comment: checked.comment, force });
   }
 
@@ -331,7 +344,7 @@ export function ReviewReplyCard({ item, onChanged }: { item: InboxItem; onChange
               variant="outline"
               className="h-7 px-2 text-xs"
               disabled={sending}
-              onClick={() => submit()}
+              onClick={() => submit(lastForce)}
             >
               Try again
             </Button>
