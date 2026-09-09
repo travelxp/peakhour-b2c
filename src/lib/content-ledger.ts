@@ -207,19 +207,61 @@ function count(n: number, one: string, many = `${one}s`): string {
 }
 
 /**
- * A window as a phrase a picker button matches: "the last 90 days".
+ * The publication windows the picker offers, and what each one is CALLED.
  *
- * ⏸MONTHS ONLY WHERE THEY DIVIDE CLEANLY. "the last 12 months" is what the
- * button says; "the last 11.97 months" is what an unconditional conversion
- * produces for any other value the api will accept.
+ * ★★THE LABEL LIVES HERE BECAUSE THE SENTENCE UNDER IT IS BUILT FROM THE SAME
+ * ROW. A quarter is the shortest span over which a published page has had time
+ * to earn anything; a year is "everything we have", since the api refuses
+ * anything longer.
+ */
+export const LEDGER_WINDOWS = [
+  { days: 90, label: "90 days" },
+  { days: 365, label: "12 months" },
+] as const;
+
+/** The longest window on offer — and the api's own ceiling. */
+export const MAX_LEDGER_DAYS = LEDGER_WINDOWS[LEDGER_WINDOWS.length - 1].days;
+
+/**
+ * A window as a phrase the picker button matches: "the last 90 days".
+ *
+ * ⚠️🚫★★IT READS THE BUTTON'S OWN LABEL, AND A FIRST VERSION RE-DERIVED ONE.
+ * That version tried `% 365` then `% 30`, and neither picker value came out
+ * saying what its own button says: 365 became "the last 1 year" against a
+ * button reading "12 months", and 90 became "the last 3 months" against one
+ * reading "90 days". Every headline and empty state on the screen then named a
+ * period the merchant had not clicked, and the docstring claiming otherwise
+ * was the only place the intent survived. Two derivations of one fact are two
+ * chances to disagree; there is now one.
+ *
+ * ⏸THE FALLBACK IS FOR VALUES THE PICKER DOES NOT OFFER — the api accepts any
+ * day count up to its ceiling, and a link or a stale query string can carry
+ * one. Months only where they divide cleanly: "the last 11.97 months" is what
+ * an unconditional conversion produces.
  */
 export function periodPhrase(days: number): string {
-  if (days % 365 === 0) {
-    const years = days / 365;
-    return `the last ${count(years, "year")}`;
-  }
+  const offered = LEDGER_WINDOWS.find((w) => w.days === days);
+  if (offered) return `the last ${offered.label}`;
+  if (days % 365 === 0) return `the last ${count(days / 365, "year")}`;
   if (days % 30 === 0) return `the last ${count(days / 30, "month")}`;
   return `the last ${count(days, "day")}`;
+}
+
+/**
+ * Why nothing is listed, for a business that HAS published before.
+ *
+ * ⚠️🚫★★IT DOES NOT SAY "TRY A LONGER PERIOD" AT THE LONGEST PERIOD, AND A
+ * FIRST VERSION DID. 365 days is both the last button on the picker and the
+ * api's own ceiling, so a merchant whose earliest page is eighteen months old
+ * was told to do the one thing the screen cannot do — and the instruction is
+ * the only sentence on an otherwise empty page, so there is nothing else for
+ * them to read instead.
+ */
+export function nothingInWindowDetail(stampedFrom: string, days: number): string {
+  const earliest = `Your earliest recorded page was published on ${ledgerDate(stampedFrom)}.`;
+  return days >= MAX_LEDGER_DAYS
+    ? `${earliest} The ledger reaches back ${periodPhrase(MAX_LEDGER_DAYS).replace("the last ", "")}, so anything before that isn't listed here.`
+    : `${earliest} Try a longer period to see it.`;
 }
 
 /**
@@ -246,8 +288,14 @@ export function summaryHeadline(
   const n = summary.pagesInView;
   const period = periodPhrase(days);
   if (n === 0) return `Nothing published through Peakhour in ${period}`;
+  // ⚠️BOTH BRANCHES NAME THE WINDOW, AND A FIRST FIX ONLY CLAIMED THEY DID. The
+  // truncated one omitted it, so a business with three hundred publications got
+  // the same fifty rows and the identical headline from either picker button —
+  // and `recordBeganLine` is null in exactly that case, so nothing on the
+  // screen said which period was being shown or that the button had done
+  // anything at all.
   return truncated
-    ? `Your ${NUM.format(n)} most recent ${n === 1 ? "page" : "pages"}`
+    ? `Your ${NUM.format(n)} most recent ${n === 1 ? "page" : "pages"} in ${period}`
     : `${count(n, "page")} published in ${period}`;
 }
 
@@ -286,19 +334,32 @@ export function analyticsFiguresLine(
 export function searchTotalLine(summary: LedgerSummary): string {
   const s = summary.search;
   if (s.state === "measured") {
+    // ⚠️🚫★★EVERY PLURAL HERE GOES THROUGH `count`, AND ONE DID NOT. This line
+    // built its own strings by hand and hard-coded "impressions", so a summary
+    // of one click and one impression read "1 search click and 1 impressions"
+    // — directly above a row that `searchFiguresLine` had rendered correctly as
+    // "1 click · 1 impression". That is the exact defect this module was
+    // extracted to remove, reproduced inside it, and neither the spec's
+    // `toContain` nor the `count` mutant could see it because the sentence
+    // never called the helper they were guarding.
     return (
-      `${NUM.format(s.clicks)} search ${s.clicks === 1 ? "click" : "clicks"} and ` +
-      `${NUM.format(s.impressions)} impressions across ${NUM.format(s.pagesMeasured)} ` +
-      `${s.pagesMeasured === 1 ? "page" : "pages"}, ${windowRange(s.windowStart, s.windowEnd)}`
+      `${count(s.clicks, "search click")} and ${count(s.impressions, "impression")} ` +
+      `across ${count(s.pagesMeasured, "page")}, ${windowRange(s.windowStart, s.windowEnd)}`
     );
   }
+  // ★★KEYED ON WHAT WAS MEASURED, NOT ON THE REASON WE KNOW ABOUT. A first
+  // version denied search data for every reason except `mixed_windows`, so a
+  // third reason arriving from the api with pages already measured would print
+  // "No search data for these pages yet" above rows showing clicks. Nothing
+  // measured is the only state that sentence is true of.
+  if (s.pagesMeasured === 0) return "No search data for these pages yet";
   if (s.reason === "mixed_windows") {
     return (
-      `${NUM.format(s.pagesMeasured)} ${s.pagesMeasured === 1 ? "page has" : "pages have"} ` +
-      `search data, but over different periods — so there is no total to show`
+      `${count(s.pagesMeasured, "page has", "pages have")} search data, but over ` +
+      `different periods — so there is no total to show`
     );
   }
-  return "No search data for these pages yet";
+  return `${count(s.pagesMeasured, "page has", "pages have")} search data, but we can't total it`;
 }
 
 /**
@@ -312,14 +373,40 @@ export function searchTotalLine(summary: LedgerSummary): string {
 export function analyticsTotalLine(summary: LedgerSummary): string {
   const a = summary.analytics;
   if (a.state === "measured") {
+    // Through `count` for the same reason as its search counterpart above: a
+    // hand-built plural beside a helper-built one is the pair that drifts.
     return (
-      `${NUM.format(a.views)} ${a.views === 1 ? "view" : "views"} and ` +
-      `${NUM.format(a.conversions)} ${a.conversions === 1 ? "conversion" : "conversions"} ` +
-      `across ${NUM.format(a.pagesMeasured)} ${a.pagesMeasured === 1 ? "page" : "pages"}, ` +
-      `each since it was published`
+      `${count(a.views, "view")} and ${count(a.conversions, "conversion")} ` +
+      `across ${count(a.pagesMeasured, "page")}, each since it was published`
     );
   }
-  return "No analytics for these pages yet";
+  // Keyed on what was measured, not on the reason we know about — the same
+  // guard as its search counterpart, and for the same future.
+  if (a.pagesMeasured === 0) return "No analytics for these pages yet";
+  return `${count(a.pagesMeasured, "page has", "pages have")} analytics, but we can't total it`;
+}
+
+/**
+ * The address a row's title should link to, or null when there isn't one.
+ *
+ * ⚠️🚫★★`row.url` IS STORED, NOT VALIDATED, AND A FIRST VERSION PUT IT
+ * STRAIGHT INTO AN `href`. `rowTitle` two functions down already models a url
+ * that will not parse — the api enumerates it as the `no_path` reason — and
+ * this side then handed the same string to a `<Link>`: a scheme-less
+ * `example.com/page` is a RELATIVE href, so "open in a new tab" opened the
+ * dashboard's own 404, on the row whose whole job is to show the merchant the
+ * page they published.
+ *
+ * ★AND THE SCHEME IS CHECKED, NOT JUST THE PARSE. `new URL` accepts
+ * `javascript:` and `data:` happily; neither is a page anybody published.
+ */
+export function rowHref(row: LedgerRow): string | null {
+  try {
+    const url = new URL(row.url);
+    return url.protocol === "http:" || url.protocol === "https:" ? url.toString() : null;
+  } catch {
+    return null;
+  }
 }
 
 /**

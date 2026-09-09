@@ -190,21 +190,71 @@ const MUTANTS = [
   },
   {
     name: "★★★report an unmeasured search total as zero clicks",
-    anchor: '  return "No search data for these pages yet";',
-    mutated: "  return `${NUM.format(0)} search clicks`;",
+    anchor: '  if (s.pagesMeasured === 0) return "No search data for these pages yet";',
+    mutated: "  if (s.pagesMeasured === 0) return `${NUM.format(0)} search clicks`;",
     killer: "says there is no data rather than reporting zero clicks",
   },
   {
+    name: "★★★deny search data over pages we just measured",
+    anchor: '  if (s.pagesMeasured === 0) return "No search data for these pages yet";',
+    mutated: '  if (s.state === "unavailable") return "No search data for these pages yet";',
+    killer: "★★★never denies search data over pages it just measured",
+  },
+  {
     name: "★★★report unmeasured analytics as zero views",
-    anchor: '  return "No analytics for these pages yet";',
-    mutated: "  return `${NUM.format(0)} views and ${NUM.format(0)} conversions`;",
+    anchor: '  if (a.pagesMeasured === 0) return "No analytics for these pages yet";',
+    mutated: "  if (a.pagesMeasured === 0) return `${NUM.format(0)} views and ${NUM.format(0)} conversions`;",
     killer: "says there is no data rather than reporting zero views",
   },
   {
     name: "★★drop “each since it was published”, so a sum over different lifetimes reads as one period",
-    anchor: "      `each since it was published`",
-    mutated: "      ``",
+    anchor: "across ${count(a.pagesMeasured, \"page\")}, each since it was published`",
+    mutated: "across ${count(a.pagesMeasured, \"page\")}`",
     killer: "★says the total is each page over its OWN life",
+  },
+
+  // ── The plurals the module exists to hold in one place ───────────────────
+  {
+    name: "★★★hard-code the total's plurals again, so “1 impressions” sits above “1 impression”",
+    anchor: '      `${count(s.clicks, "search click")} and ${count(s.impressions, "impression")} ` +',
+    mutated:
+      '      `${NUM.format(s.clicks)} search ${s.clicks === 1 ? "click" : "clicks"} and ` +\n' +
+      "      `${NUM.format(s.impressions)} impressions ` +",
+    killer: "★★★pluralises the TOTAL the same way the rows under it do",
+  },
+
+  // ── The window a phrase names ────────────────────────────────────────────
+  {
+    name: "★★★re-derive the period phrase, so no button says what its own label says",
+    anchor: "  const offered = LEDGER_WINDOWS.find((w) => w.days === days);\n  if (offered) return `the last ${offered.label}`;\n",
+    mutated: "",
+    killer: "★★★says exactly what the button the merchant pressed says",
+  },
+  {
+    name: "★★★drop the window from the truncated headline, so both buttons read alike",
+    anchor: '    ? `Your ${NUM.format(n)} most recent ${n === 1 ? "page" : "pages"} in ${period}`',
+    mutated: '    ? `Your ${NUM.format(n)} most recent ${n === 1 ? "page" : "pages"}`',
+    killer: "★★★names the window in the TRUNCATED branch too",
+  },
+  {
+    name: "★★★ask for a longer period at the longest period there is",
+    anchor: "  return days >= MAX_LEDGER_DAYS",
+    mutated: "  return false",
+    killer: "★★★does NOT ask for a longer period at the longest period",
+  },
+
+  // ── The link ─────────────────────────────────────────────────────────────
+  {
+    name: "★★★hand a scheme-less url to an href, opening our own 404 in a new tab",
+    anchor: '    const url = new URL(row.url);\n    return url.protocol === "http:" || url.protocol === "https:" ? url.toString() : null;',
+    mutated: "    return new URL(row.url, \"https://x.invalid\").toString();",
+    killer: "★★★refuses a stored url with no scheme, which is a RELATIVE href",
+  },
+  {
+    name: "★★accept any scheme `new URL` parses, javascript: included",
+    anchor: '    return url.protocol === "http:" || url.protocol === "https:" ? url.toString() : null;',
+    mutated: "    return url.toString();",
+    killer: "★★refuses a scheme that is not the web",
   },
 
   // ── Where the record begins ──────────────────────────────────────────────

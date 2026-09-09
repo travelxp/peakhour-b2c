@@ -13,7 +13,8 @@ import { useAuth } from "@/providers/auth-provider";
 import { growthApi, type ContentLedgerResponse } from "@/lib/api/growth";
 import {
   analyticsTotalLine,
-  ledgerDate,
+  LEDGER_WINDOWS,
+  nothingInWindowDetail,
   periodPhrase,
   recordBeganLine,
   searchTotalLine,
@@ -39,13 +40,10 @@ import {
  * and never what any of them is said to have earned.
  */
 
-/** Publication windows worth offering. A quarter is the shortest span over
- *  which a published page has had time to earn anything; a year is "everything
- *  we have", since the record does not reach further back than that anyway. */
-const WINDOWS = [
-  { days: 90, label: "90 days" },
-  { days: 365, label: "12 months" },
-] as const;
+/** ★THE WINDOWS AND THEIR LABELS COME FROM THE LIB, not from a copy here. The
+ *  sentences under the picker name the period the merchant clicked, and they
+ *  can only do that if the button and the phrase read the same row. */
+const WINDOWS = LEDGER_WINDOWS;
 
 export default function ContentLedgerPage() {
   const { business } = useAuth();
@@ -132,10 +130,11 @@ function LedgerBody({ data }: { data: ContentLedgerResponse }) {
           everPublished
             ? // ★IT NAMES WHAT IT DOES HOLD, so a merchant who published
               // earlier is pointed at the longer window rather than told their
-              // work is gone.
-              `Your earliest recorded page was published on ${ledgerDate(
-                data.stampedFrom as string,
-              )}. Try a longer period to see it.`
+              // work is gone — and at the LONGEST window, where there is no
+              // longer one to point at, it says so instead of asking for the
+              // impossible. That branch lives in the lib, with the phrase it
+              // has to agree with.
+              nothingInWindowDetail(data.stampedFrom as string, data.period.days)
             : // ★★AND THE REASON THE RECORD MAY BE SHORT IS OURS, NOT THEIRS.
               // Nothing recorded which page came from which publish until the
               // ledger shipped, and that link cannot be reconstructed.

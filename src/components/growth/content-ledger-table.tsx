@@ -9,6 +9,7 @@ import {
   analyticsFiguresLine,
   daysLiveLine,
   ledgerDate,
+  rowHref,
   rowTitle,
   searchAbsenceText,
   searchFiguresLine,
@@ -65,21 +66,33 @@ function Measure({
 
 function Row({ row }: { row: LedgerRow }) {
   const title = rowTitle(row);
+  const href = rowHref(row);
   const suggestion = row.suggestion ? suggestionLine(row.suggestion) : null;
 
   return (
     <div className="grid grid-cols-1 gap-3 border-b p-4 last:border-b-0 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]">
       <div className="min-w-0 space-y-1">
+        {/* ★★NO LINK WHEN THERE IS NO ADDRESS WE CAN OPEN, AND NO ICON EITHER.
+            A stored url that will not parse — or one with no scheme, which is a
+            RELATIVE href — sent "open in a new tab" to the dashboard's own 404.
+            An icon promising a link beside text that is not one is the same
+            broken promise, one step quieter. */}
         <div className="flex min-w-0 items-start gap-2">
-          <Link
-            href={row.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="min-w-0 truncate text-sm font-medium hover:underline"
-          >
-            {title}
-          </Link>
-          <ExternalLink className="mt-0.5 size-3 shrink-0 text-muted-foreground" aria-hidden />
+          {href ? (
+            <>
+              <Link
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="min-w-0 truncate text-sm font-medium hover:underline"
+              >
+                {title}
+              </Link>
+              <ExternalLink className="mt-0.5 size-3 shrink-0 text-muted-foreground" aria-hidden />
+            </>
+          ) : (
+            <span className="min-w-0 truncate text-sm font-medium">{title}</span>
+          )}
         </div>
         <p className="text-xs text-muted-foreground">
           {/* ★THE PUBLISH DATE IS OURS, not the CMS's — it is the date every

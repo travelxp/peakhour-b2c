@@ -6,7 +6,10 @@ import {
   analyticsTotalLine,
   daysLiveLine,
   ledgerDate,
+  LEDGER_WINDOWS,
+  nothingInWindowDetail,
   periodPhrase,
+  rowHref,
   recordBeganLine,
   rowTitle,
   searchAbsenceText,
@@ -272,10 +275,23 @@ describe("searchFiguresLine / analyticsFiguresLine", () => {
 });
 
 describe("periodPhrase", () => {
-  it("says months and years where they divide cleanly", () => {
-    expect(periodPhrase(90)).toBe("the last 3 months");
-    expect(periodPhrase(365)).toBe("the last 1 year");
+  it("★★★says exactly what the button the merchant pressed says", () => {
+    // A first version re-derived the phrase from the day count, and NEITHER
+    // picker value came out matching its own button: 365 became "the last 1
+    // year" beside a button reading "12 months", and 90 became "the last 3
+    // months" beside one reading "90 days". Every headline and empty state on
+    // the screen then named a period nobody had clicked.
+    for (const w of LEDGER_WINDOWS) {
+      expect(periodPhrase(w.days)).toBe(`the last ${w.label}`);
+    }
+    expect(periodPhrase(90)).toBe("the last 90 days");
+    expect(periodPhrase(365)).toBe("the last 12 months");
+  });
+
+  it("says months and years where they divide cleanly, for windows not offered", () => {
     expect(periodPhrase(30)).toBe("the last 1 month");
+    expect(periodPhrase(60)).toBe("the last 2 months");
+    expect(periodPhrase(730)).toBe("the last 2 years");
   });
 
   it("★falls back to days rather than inventing a fraction of a month", () => {
@@ -324,8 +340,20 @@ describe("summaryHeadline", () => {
     // `pagesInView` counts the rows RETURNED. "50 pages published" above a
     // truncated table is a statement about the merchant drawn from our limit.
     expect(summaryHeadline(summary({ pagesInView: 50 }), true, 90)).toBe(
-      "Your 50 most recent pages",
+      "Your 50 most recent pages in the last 90 days",
     );
+  });
+
+  it("★★★names the window in the TRUNCATED branch too", () => {
+    // A first fix claimed both branches named it and only one did. With three
+    // hundred publications both picker buttons return the same fifty rows, so
+    // an unnamed window made them produce the identical headline — and
+    // `recordBeganLine` is null in exactly that case, so nothing on the screen
+    // said the button had done anything at all.
+    const ninety = summaryHeadline(summary({ pagesInView: 50 }), true, 90);
+    const year = summaryHeadline(summary({ pagesInView: 50 }), true, 365);
+    expect(ninety).not.toBe(year);
+    expect(year).toContain("the last 12 months");
   });
 
   it("★★★names the WINDOW too, so 40 pages over a year is not read as 4", () => {
@@ -335,22 +363,22 @@ describe("summaryHeadline", () => {
     // `recordBeganLine` is null in exactly that case, so nothing else on the
     // screen said which period it meant.
     expect(summaryHeadline(summary({ pagesInView: 4 }), false, 90)).toBe(
-      "4 pages published in the last 3 months",
+      "4 pages published in the last 90 days",
     );
     expect(summaryHeadline(summary({ pagesInView: 4 }), false, 365)).toBe(
-      "4 pages published in the last 1 year",
+      "4 pages published in the last 12 months",
     );
   });
 
   it("has an empty state that is not a zero, and still names the window", () => {
     expect(summaryHeadline(summary({ pagesInView: 0 }), false, 90)).toBe(
-      "Nothing published through Peakhour in the last 3 months",
+      "Nothing published through Peakhour in the last 90 days",
     );
   });
 
   it("counts one page in the singular", () => {
     expect(summaryHeadline(summary({ pagesInView: 1 }), false, 90)).toBe(
-      "1 page published in the last 3 months",
+      "1 page published in the last 90 days",
     );
   });
 });
@@ -381,6 +409,82 @@ describe("searchTotalLine", () => {
     );
     expect(line).toBe("No search data for these pages yet");
     expect(line).not.toMatch(/\b0\b/);
+  });
+
+  it("★★★pluralises the TOTAL the same way the rows under it do", () => {
+    // This line built its own strings and hard-coded "impressions", so one
+    // click and one impression read "1 search click and 1 impressions" —
+    // directly above a row `searchFiguresLine` had rendered correctly as "1
+    // click · 1 impression". That is the exact defect this module was extracted
+    // to remove, reproduced inside it, and a `toContain` assertion cannot see
+    // it because the number is right and only the noun is wrong.
+    const line = searchTotalLine(
+      summary({
+        search: {
+          state: "measured",
+          clicks: 1,
+          impressions: 1,
+          windowStart: iso("2026-08-01"),
+          windowEnd: iso("2026-08-28"),
+          pagesMeasured: 1,
+        },
+      }),
+    );
+    expect(line).toContain("1 search click and 1 impression across 1 page");
+    expect(line).not.toMatch(/\b1 (impressions|pages|search clicks)\b/);
+  });
+
+  it("★★★never denies search data over pages it just measured", () => {
+    // A first version asserted "No search data for these pages yet" for every
+    // reason but `mixed_windows`, so a third reason arriving from the api with
+    // pages already measured printed that denial above rows showing clicks.
+    // Nothing measured is the only state that sentence is true of.
+    const line = searchTotalLine(
+      summary({
+        search: { state: "unavailable", reason: "something_new" as never, pagesMeasured: 3 },
+      }),
+    );
+    expect(line).not.toBe("No search data for these pages yet");
+    expect(line).toContain("3 pages have search data");
+  });
+});
+
+describe("nothingInWindowDetail", () => {
+  it("★points a merchant at the longer window when there is one", () => {
+    const d = nothingInWindowDetail(iso("2026-01-15"), 90);
+    expect(d).toContain("Jan 15, 2026");
+    expect(d).toContain("Try a longer period");
+  });
+
+  it("★★★does NOT ask for a longer period at the longest period", () => {
+    // 365 days is both the last button on the picker and the api's own ceiling,
+    // so a merchant whose earliest page is eighteen months old was told to do
+    // the one thing the screen cannot do — and it is the only sentence on an
+    // otherwise empty page, so there is nothing else for them to read.
+    const d = nothingInWindowDetail(iso("2025-01-15"), 365);
+    expect(d).not.toMatch(/longer period/i);
+    expect(d).toContain("reaches back 12 months");
+  });
+});
+
+describe("rowHref", () => {
+  it("links a page we can actually open", () => {
+    expect(rowHref(row())).toBe("https://shop.example/blog/winter-boots");
+  });
+
+  it("★★★refuses a stored url with no scheme, which is a RELATIVE href", () => {
+    // `rowTitle` already models a url that will not parse — the api enumerates
+    // it as `no_path` — and this side then handed the same string to a `Link`.
+    // "Open in a new tab" opened the dashboard's own 404, on the row whose
+    // whole job is to show the merchant the page they published.
+    expect(rowHref(row({ url: "shop.example/blog/winter-boots" }))).toBeNull();
+    expect(rowHref(row({ url: "not a url at all" }))).toBeNull();
+  });
+
+  it("★★refuses a scheme that is not the web", () => {
+    // `new URL` accepts these happily; neither is a page anybody published.
+    expect(rowHref(row({ url: "javascript:alert(1)" }))).toBeNull();
+    expect(rowHref(row({ url: "data:text/html,hi" }))).toBeNull();
   });
 });
 
