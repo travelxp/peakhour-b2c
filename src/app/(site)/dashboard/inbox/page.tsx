@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
@@ -18,6 +19,11 @@ import {
 } from "@/hooks/use-wa-conversations";
 import { inboxApi, type InboxItem, type InboxPriority } from "@/lib/api/inbox";
 import { ReviewReplyCard } from "@/components/inbox/review-reply-card";
+import {
+  inboxTabFromParam,
+  REVIEW_SUMMARY_QUERY_KEY,
+  type InboxTab,
+} from "@/lib/review-summary";
 import {
   REVIEW_PAGE_LIMIT,
   reviewQueueOrder,
@@ -274,7 +280,14 @@ function useReviewsQuery() {
 
 function ReviewsPane({ query }: { query: ReturnType<typeof useReviewsQuery> }) {
   const queryClient = useQueryClient();
-  const onChanged = () => queryClient.invalidateQueries({ queryKey: ["inbox-reviews"] });
+  // ★★ANSWERING A REVIEW CHANGES PRESENCE TOO. That card has a five-minute
+  // staleTime and no refetch on focus, so without this a merchant who
+  // answered their last waiting review and walked back to Presence was still
+  // offered "Answer 1 waiting review" for the one they had just answered.
+  const onChanged = () => {
+    queryClient.invalidateQueries({ queryKey: ["inbox-reviews"] });
+    queryClient.invalidateQueries({ queryKey: REVIEW_SUMMARY_QUERY_KEY });
+  };
 
   // ⚠️★★`isPending`, NOT `isLoading`. In react-query v5 `isLoading` is
   // `isPending && isFetching`, so a PAUSED query — the offline case, which is
@@ -345,6 +358,43 @@ function ReviewsPane({ query }: { query: ReturnType<typeof useReviewsQuery> }) {
 // ── Page ──────────────────────────────────────────────────────────────
 
 export default function InboxPage() {
+  // useSearchParams needs a Suspense boundary or the route bails out of
+  // static rendering at build time — the same wrapper dashboard/ads uses, for
+  // the same reason.
+  //
+  // ⚠️AND THE FALLBACK CARRIES THE HEADER, as that precedent's own comment
+  // says it must: an empty shell renders blank on a hard load and then shifts
+  // the whole page down when the real content arrives.
+  return (
+    <Suspense
+      fallback={
+        <PageShell>
+          <InboxHeader />
+          <Skeleton className="h-64 w-full" />
+        </PageShell>
+      }
+    >
+      <InboxTabs />
+    </Suspense>
+  );
+}
+
+/** ★ONE HEADER, so the fallback and the page cannot describe the screen
+ *  differently — which is exactly how a loading state comes to shift the
+ *  page it is standing in for. */
+function InboxHeader() {
+  return (
+    <div>
+      <h1 className="text-2xl font-semibold tracking-tight">Inbox</h1>
+      <p className="mt-1 text-sm text-muted-foreground">
+        One queue for everything inbound — conversations and leads, whichever channel they came
+        from.
+      </p>
+    </div>
+  );
+}
+
+function InboxTabs() {
   const { conversations, isLoading } = useWaConversations();
   const [selected, setSelected] = useState<string | null>(null);
   const { data: thread, isLoading: threadLoading } = useWaThread(selected);
@@ -355,6 +405,48 @@ export default function InboxPage() {
   // number of reviews waiting on an answer is the thing that makes somebody
   // open the app at all.
   const reviews = useReviewsQuery();
+  // ★★SO A LINK CAN NAME A LANE. Presence's "answer 3 waiting reviews" button
+  // dropped somebody on Conversations, with the thing they asked for one
+  // unexplained click away. Read once, on mount: the hash is a starting point,
+  // not a controlled value, so clicking a tab afterwards still just works.
+  // ★★★A SEARCH PARAM, NOT A HASH, AND THAT IS THE WHOLE OF THE FIX. A hash
+  // read in a `useState` initializer is read DURING RENDER, while the App
+  // Router only writes the new URL in HistoryUpdater's `useInsertionEffect` —
+  // and with no `loading.tsx` on this route the page mounts in the same
+  // commit, so the initializer saw the PREVIOUS page's hash. Clicking
+  // "Answer N waiting reviews" on Presence therefore landed on Conversations:
+  // the exact bug the link exists to fix, working on a hard load and broken on
+  // the only path anybody takes. `useSearchParams` is subscribed to the router
+  // rather than read off `window`, so it is right on both.
+  const params = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const fromUrl = inboxTabFromParam(params.get("tab"));
+  // ★THE LANE THE USER JUST CLICKED, held until the URL catches up:
+  // `router.push` commits in a transition, during which `useSearchParams`
+  // still returns the OLD params — so without this the tab visibly lags the
+  // click. The same reason `dashboard/ads` holds a `pendingChannel`.
+  const [picked, setPicked] = useState<InboxTab | null>(null);
+  // ★★AND IT IS RELEASED AS SOON AS THE URL AGREES, which is what makes Back
+  // work: a held value that outlived the navigation would override the lane
+  // the user just went back to, for ever.
+  if (picked !== null && picked === fromUrl) setPicked(null);
+  const tab = picked ?? fromUrl;
+
+  /**
+   * ★★★THE URL IS WRITTEN, NOT JUST READ. Holding the lane in local state
+   * alone meant a reload, a bookmark or a Back returned somebody to the lane
+   * they had LEFT — and a merchant who switches to Reviews and refreshes is
+   * doing the most ordinary thing there is.
+   *
+   * `push`, because a tab click is a user gesture and Back should undo it.
+   */
+  function selectTab(next: InboxTab) {
+    setPicked(next);
+    const search = new URLSearchParams(params.toString());
+    search.set("tab", next);
+    router.push(`${pathname}?${search.toString()}`, { scroll: false });
+  }
   // ★★★THE "SHOW IT AT ALL" DECISION IS THE MODULE'S, because it is the one
   // that can claim something untrue. `unanswered > 0` hid the badge on a
   // TRUNCATED page whose hundred newest reviews were all answered — a silent
@@ -363,14 +455,18 @@ export default function InboxPage() {
 
   return (
     <PageShell>
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Inbox</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          One queue for everything inbound — conversations and leads, whichever channel they came from.
-        </p>
-      </div>
+      <InboxHeader />
 
-      <Tabs defaultValue="conversations">
+      {/* ⚠️★★MANUAL ACTIVATION, because `onValueChange` now NAVIGATES. With
+          Radix's default "automatic", arrowing across the tab list selects on
+          every focus move — so each keypress would push a history entry and
+          Back would walk through tabs instead of leaving the page. The
+          `dashboard/ads` precedent sets this for exactly the same reason. */}
+      <Tabs
+        value={tab}
+        activationMode="manual"
+        onValueChange={(v) => selectTab(inboxTabFromParam(v))}
+      >
         <TabsList>
           <TabsTrigger value="conversations">Conversations</TabsTrigger>
           <TabsTrigger value="leads">Leads</TabsTrigger>

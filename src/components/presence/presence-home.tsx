@@ -1,8 +1,9 @@
 "use client";
 
-import { MapPin, Star, BarChart3, MessageSquareText } from "lucide-react";
+import { MapPin, BarChart3, MessageSquareText } from "lucide-react";
 import { FeatureGate } from "@/components/upgrade/feature-gate";
 import { GbpConnectCard } from "@/components/presence/gbp-connect-card";
+import { ReviewSummaryCard } from "@/components/presence/review-summary-card";
 
 /**
  * Presence pillar home. The local-presence cockpit — keep a business found,
@@ -17,10 +18,21 @@ import { GbpConnectCard } from "@/components/presence/gbp-connect-card";
  * it carries the step that actually blocks a multi-location merchant: choosing
  * WHICH listing this business is.
  *
- * ★THE THREE SURFACES BELOW ARE STILL UNBUILT and are labelled as such. The
- * listing editor, the reviews inbox and the insights charts land with the
- * storage and read PRs; describing them in the present tense here while
- * nothing renders them is the same mistake in a different place.
+ * ★THE SURFACES BELOW ARE STILL UNBUILT and are labelled as such. The
+ * listing editor and the insights charts land with the storage and read PRs;
+ * describing them in the present tense here while nothing renders them is the
+ * same mistake in a different place.
+ *
+ * ★★AND REVIEWS HAS COME OFF THAT LIST, WHICH IS THE SAME RULE RUN BACKWARDS.
+ * The lane is built (S0·4: a reply published to the listing from the Inbox)
+ * and so is this summary (S0·5), so leaving it under 'Coming with Presence'
+ * would understate the product exactly as the old `coming_soon` badge on the
+ * connect card overstated the wait.
+ *
+ * ⚠️THE FIGURES ARE ALL ABSENT TODAY. No `google_review` row exists for
+ * anybody until the Pub/Sub topic is provisioned (S0·1), so the card renders
+ * its empty state — which says nothing has reached US, never that the
+ * merchant has no reviews.
  */
 export function PresenceHome() {
   return (
@@ -43,6 +55,8 @@ export function PresenceHome() {
 
         <GbpConnectCard />
 
+        <ReviewSummaryCard />
+
         {/* ★STILL COMING, AND LABELLED. Moving "coming soon" off the connect
             card and onto the things that genuinely are not built is the point:
             the badge was on the one part that works. */}
@@ -50,16 +64,11 @@ export function PresenceHome() {
           <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
             Coming with Presence
           </h2>
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2">
             <FeatureCard
               icon={<MapPin className="h-5 w-5" />}
               title="Listings"
               body="Edit your name, hours, categories, and photos once — we keep them in sync across every network and flag drift."
-            />
-            <FeatureCard
-              icon={<Star className="h-5 w-5" />}
-              title="Reviews"
-              body="Every review lands in one inbox with an AI-drafted reply a tap away — negative reviews jump the queue."
             />
             <FeatureCard
               icon={<BarChart3 className="h-5 w-5" />}
