@@ -60,23 +60,42 @@ const MUTANTS = [
   },
   {
     name: "★★★hand back SOME fix for a check this build has never heard of",
-    anchor: "  return FIXES[check.id] ?? null;",
-    mutated: "  return FIXES[check.id] ?? FIXES.unassigned_traffic;",
+    anchor: "  return FIXES.get(check.id) ?? null;",
+    mutated: '  return FIXES.get(check.id) ?? (FIXES.get("unassigned_traffic") as HealthFix);',
     killer: "★★★shows a finding it has never heard of, with no fix beside it",
+  },
+  {
+    // ⚠️THE MUTANT IS THE CONTAINER, NOT THE LOGIC. An object literal keyed by
+    // a string off the wire answers `constructor` from its prototype, so the
+    // `??` never fires and a FUNCTION is handed back as a fix.
+    name: "★★★look the fix up in an object literal, so `constructor` finds one on the prototype",
+    anchor: "  return FIXES.get(check.id) ?? null;",
+    mutated:
+      "  return (Object.fromEntries(FIXES) as Record<string, HealthFix>)[check.id] ?? null;",
+    killer: "★★★survives a check id that names something on Object.prototype",
   },
 
   // ── The order the findings are read in ───────────────────────────────────
   {
     name: "★★★sort “we couldn't check” below the green rows, burying it",
-    anchor: 'const STATE_RANK: Record<string, number> = { attention: 0, unmeasurable: 1, ok: 2 };',
-    mutated: 'const STATE_RANK: Record<string, number> = { attention: 0, ok: 1, unmeasurable: 2 };',
+    anchor: '  ["unmeasurable", 1],\n  ["ok", 2],',
+    mutated: '  ["unmeasurable", 2],\n  ["ok", 1],',
     killer: "★★★puts what we could not check ABOVE what passed",
   },
   {
     name: "★★★treat a state this build has never heard of as a PASS",
-    anchor: "    (a, b) => (STATE_RANK[a.state] ?? 1) - (STATE_RANK[b.state] ?? 1),",
-    mutated: "    (a, b) => (STATE_RANK[a.state] ?? 9) - (STATE_RANK[b.state] ?? 9),",
+    anchor: "const UNKNOWN_RANK = 1;",
+    mutated: "const UNKNOWN_RANK = 9;",
     killer: "★★sorts a state it has never heard of as uncertain, not as a pass",
+  },
+  {
+    name: "★★★rank the states from an object literal, so `constructor` outranks everything",
+    anchor:
+      "      (STATE_RANK.get(a.state) ?? UNKNOWN_RANK) - (STATE_RANK.get(b.state) ?? UNKNOWN_RANK),",
+    mutated:
+      "      ((Object.fromEntries(STATE_RANK) as Record<string, number>)[a.state] ?? UNKNOWN_RANK) -\n" +
+      "      ((Object.fromEntries(STATE_RANK) as Record<string, number>)[b.state] ?? UNKNOWN_RANK),",
+    killer: "★★★ranks a state named after Object.prototype as uncertain, not as a pass",
   },
   {
     name: "★★★sort the cached response in place, reordering it under every other reader",
@@ -97,6 +116,32 @@ const MUTANTS = [
     anchor: "  return data.summary.checked > 0;",
     mutated: "  return data.summary.attention > 0;",
     killer: "speaks as soon as one check could be run",
+  },
+
+  // ── When the panel has to be refetched ───────────────────────────────────
+  {
+    name: "★★★leave a disconnected Business Profile showing a green verdict for half an hour",
+    anchor: '  "google_business_profile",\n]);',
+    mutated: "]);",
+    killer: "★★★names every provider the check actually reads",
+  },
+  {
+    name: "★★spend three live Google calls every time any integration is disconnected",
+    anchor: "  return MEASURED_PROVIDERS.has(provider);",
+    mutated: "  return true;",
+    killer: "★★spends no round trip on a provider the check never reads",
+  },
+  {
+    name: "★test the provider against an object literal, so `constructor` refetches",
+    anchor: "  return MEASURED_PROVIDERS.has(provider);",
+    mutated:
+      "  return Boolean(\n" +
+      "    (Object.fromEntries([...MEASURED_PROVIDERS].map((p) => [p, true])) as Record<\n" +
+      "      string,\n" +
+      "      boolean\n" +
+      "    >)[provider],\n" +
+      "  );",
+    killer: "★is not fooled by a provider named after Object.prototype",
   },
 
   // ── The counts ───────────────────────────────────────────────────────────

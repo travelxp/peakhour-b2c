@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  affectsMeasurementHealth,
   fixFor,
   hasSomethingToSay,
   orderedChecks,
@@ -68,6 +69,18 @@ describe("fixFor", () => {
     expect(orderedChecks([unknown])).toHaveLength(1);
   });
 
+  it("★★★survives a check id that names something on Object.prototype", () => {
+    // An object literal keyed by a string off the wire answers `constructor`
+    // and `toString` from its prototype, so `FIXES[id] ?? null` never reaches
+    // its miss branch and hands back a FUNCTION as a fix — after which
+    // `fix.steps.map` throws and takes the whole panel down. That defeats the
+    // "never crashed on an unknown check" contract by the shape of the
+    // container rather than by the logic, which is why these are Maps.
+    for (const id of ["constructor", "toString", "hasOwnProperty", "__proto__", "valueOf"]) {
+      expect(fixFor(check({ id })), id).toBeNull();
+    }
+  });
+
   it("★every fix names where it happens and links somewhere real", () => {
     for (const id of [
       "unassigned_traffic",
@@ -106,6 +119,14 @@ describe("orderedChecks", () => {
     const input = [check({ id: "a", state: "ok" }), check({ id: "b", state: "attention" })];
     orderedChecks(input);
     expect(input.map((c) => c.id)).toEqual(["a", "b"]);
+  });
+
+it("★★★ranks a state named after Object.prototype as uncertain, not as a pass", () => {
+    const out = orderedChecks([
+      check({ id: "a", state: "ok" }),
+      check({ id: "b", state: "constructor" }),
+    ]);
+    expect(out.map((c) => c.id)).toEqual(["b", "a"]);
   });
 
   it("★★sorts a state it has never heard of as uncertain, not as a pass", () => {
@@ -195,6 +216,32 @@ describe("passedLine", () => {
     expect(
       passedLine(health({ summary: { checked: 0, attention: 0, unmeasurable: 5, headline: "h" } })),
     ).toBeNull();
+  });
+});
+
+// ── When the panel has to be refetched ──────────────────────────────────────
+
+describe("affectsMeasurementHealth", () => {
+  it("★★★names every provider the check actually reads", () => {
+    // The panel caches for half an hour. A merchant who disconnects Google
+    // Analytics and is not refetched keeps reading green analytics verdicts
+    // directly above the card that now says "not connected" — the panel
+    // contradicting the page it is printed on.
+    expect(affectsMeasurementHealth("google_analytics")).toBe(true);
+    expect(affectsMeasurementHealth("google_search_console")).toBe(true);
+    expect(affectsMeasurementHealth("google_business_profile")).toBe(true);
+  });
+
+  it("★★spends no round trip on a provider the check never reads", () => {
+    // Three live Google calls sit behind a refetch; disconnecting Klaviyo has
+    // no bearing on any of them.
+    expect(affectsMeasurementHealth("klaviyo")).toBe(false);
+    expect(affectsMeasurementHealth("shopify")).toBe(false);
+    expect(affectsMeasurementHealth("linkedin_ads")).toBe(false);
+  });
+
+  it("★is not fooled by a provider named after Object.prototype", () => {
+    expect(affectsMeasurementHealth("constructor")).toBe(false);
   });
 });
 

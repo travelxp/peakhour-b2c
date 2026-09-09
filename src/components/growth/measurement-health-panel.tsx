@@ -37,36 +37,40 @@ import {
  * qualifier on other numbers, and a qualifier that cannot load says nothing.
  */
 
-const STATE_STYLE: Record<
-  string,
-  { icon: typeof AlertTriangle; dot: string; tone: string; label: string }
-> = {
-  attention: {
-    icon: AlertTriangle,
-    dot: "bg-warning",
-    tone: "text-warning",
-    label: "Needs a look",
-  },
-  // ★★`unmeasurable` HAS ITS OWN GLYPH, NOT A GREEN ONE AND NOT A RED ONE.
-  // Drawn as a pass it tells a business whose analytics we cannot read that
-  // their analytics is healthy — the more expensive of the two mistakes,
-  // because nobody goes looking for it. Drawn as a fault it invents one.
-  unmeasurable: {
-    icon: HelpCircle,
-    dot: "bg-muted-foreground",
-    tone: "text-muted-foreground",
-    label: "Couldn't check",
-  },
-  ok: { icon: CheckCircle2, dot: "bg-success", tone: "text-success", label: "Fine" },
+interface StateStyle {
+  icon: typeof AlertTriangle;
+  /** The icon's colour. There is no second colour: a dot beside the icon was
+   *  the same fact twice, and every future state would have had to supply it. */
+  tone: string;
+  /** Read aloud before the headline, because the icon carries the state and a
+   *  screen reader gets nothing from `aria-hidden`. */
+  label: string;
+}
+
+/** ★★`unmeasurable` HAS ITS OWN GLYPH, NOT A GREEN ONE AND NOT A RED ONE. Drawn
+ *  as a pass it tells a business whose analytics we cannot read that their
+ *  analytics is healthy — the more expensive of the two mistakes, because
+ *  nobody goes looking for it. Drawn as a fault it invents one. */
+const UNKNOWN_STATE: StateStyle = {
+  icon: HelpCircle,
+  tone: "text-muted-foreground",
+  label: "Couldn't check",
 };
 
-/** ⚠️THE FALLBACK IS THE UNCERTAIN ONE, not the green one. A state this build
- *  has never heard of is a state we cannot vouch for, and the icon that says so
- *  is the honest default. */
-const UNKNOWN_STATE = STATE_STYLE.unmeasurable;
+/** ⚠️A `Map`, for the reason `fixFor` records: an object literal keyed by a
+ *  string off the wire answers `constructor` and `toString` from its prototype,
+ *  so the `??` below would hand back a function instead of falling through. */
+const STATE_STYLE: ReadonlyMap<string, StateStyle> = new Map<string, StateStyle>([
+  ["attention", { icon: AlertTriangle, tone: "text-warning", label: "Needs a look" }],
+  ["unmeasurable", UNKNOWN_STATE],
+  ["ok", { icon: CheckCircle2, tone: "text-success", label: "Fine" }],
+]);
 
 function CheckRow({ check }: { check: HealthCheck }) {
-  const style = STATE_STYLE[check.state] ?? UNKNOWN_STATE;
+  // ★THE FALLBACK IS THE UNCERTAIN ONE, not the green one. A state this build
+  // has never heard of is a state we cannot vouch for, and the icon that says
+  // so is the honest default.
+  const style = STATE_STYLE.get(check.state) ?? UNKNOWN_STATE;
   const Icon = style.icon;
   const fix = fixFor(check);
 

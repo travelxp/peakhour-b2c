@@ -42,7 +42,8 @@ export interface HealthFix {
  * on an account picker having promised a settings page. The entrance plus the
  * steps gets them there in the same minute and cannot be wrong.
  */
-const FIXES: Record<string, HealthFix> = {
+const FIXES: ReadonlyMap<string, HealthFix> = new Map(
+  Object.entries({
   unassigned_traffic: {
     where: "your campaign links",
     steps: [
@@ -89,14 +90,50 @@ const FIXES: Record<string, HealthFix> = {
       "Fill in whatever is named above — a category, hours, a phone number, a website, a description.",
       "Save. Google usually shows the change within a day.",
     ],
-    link: { label: "Open Business Profile", href: "https://business.google.com/" },
-  },
-};
+      link: { label: "Open Business Profile", href: "https://business.google.com/" },
+    },
+  }),
+);
 
-/** The fix for a check, or null when offering one would be wrong. */
+/**
+ * The fix for a check, or null when offering one would be wrong.
+ *
+ * ⚠️🚫★★A `Map`, NOT AN OBJECT LITERAL, AND A FIRST VERSION WAS THE LITERAL.
+ * `FIXES[check.id] ?? null` looks like a lookup with a miss branch and is not:
+ * an id of `constructor` or `toString` finds the value on `Object.prototype`,
+ * so the `??` never fires and a function is handed back as a fix — after which
+ * `fix.steps.map` throws and takes the panel down. That is precisely the
+ * "never crashed on an unknown check" contract this file states, defeated by
+ * the shape of the container rather than by the logic. A `Map` has no
+ * prototype chain to fall through.
+ */
 export function fixFor(check: HealthCheck): HealthFix | null {
   if (check.state !== "attention") return null;
-  return FIXES[check.id] ?? null;
+  return FIXES.get(check.id) ?? null;
+}
+
+/**
+ * Whether disconnecting or reconnecting this provider changes the verdicts.
+ *
+ * ★★THE PANEL CACHES FOR HALF AN HOUR, SO SOMETHING HAS TO INVALIDATE IT. A
+ * merchant who disconnects Google Analytics on the integrations page would
+ * otherwise keep reading green analytics verdicts directly above the card that
+ * now says "not connected" — the panel contradicting the page it is printed on,
+ * which is worse than either answer alone.
+ *
+ * ⏸AND ONLY FOR THE PROVIDERS THE CHECK ACTUALLY READS. Three live Google calls
+ * sit behind a refetch; disconnecting Klaviyo has no bearing on any of them,
+ * and spending the round trip anyway would make every card on the page slower
+ * to leave.
+ */
+const MEASURED_PROVIDERS = new Set([
+  "google_analytics",
+  "google_search_console",
+  "google_business_profile",
+]);
+
+export function affectsMeasurementHealth(provider: string): boolean {
+  return MEASURED_PROVIDERS.has(provider);
 }
 
 /**
@@ -108,14 +145,23 @@ export function fixFor(check: HealthCheck): HealthFix | null {
  * sorting it under the green rows would bury the one state nobody goes looking
  * for.
  */
-const STATE_RANK: Record<string, number> = { attention: 0, unmeasurable: 1, ok: 2 };
+const STATE_RANK: ReadonlyMap<string, number> = new Map([
+  ["attention", 0],
+  ["unmeasurable", 1],
+  ["ok", 2],
+]);
+
+/** A state we cannot interpret ranks with the ones we could not check — see
+ *  `fixFor` for why these lookups are Maps and not object literals. */
+const UNKNOWN_RANK = 1;
 
 export function orderedChecks(checks: HealthCheck[]): HealthCheck[] {
   // ⚠️A STABLE SORT OVER A COPY. `Array.prototype.sort` mutates, and the array
   // here is react-query's cached response object — sorting it in place reorders
   // the cache under every other reader of the same query.
   return [...checks].sort(
-    (a, b) => (STATE_RANK[a.state] ?? 1) - (STATE_RANK[b.state] ?? 1),
+    (a, b) =>
+      (STATE_RANK.get(a.state) ?? UNKNOWN_RANK) - (STATE_RANK.get(b.state) ?? UNKNOWN_RANK),
   );
 }
 

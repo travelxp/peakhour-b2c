@@ -19,6 +19,7 @@ import { WhatsAppEmbeddedSignup } from "@/components/integrations/whatsapp-embed
 import { OAuthConnectResult } from "@/components/integrations/oauth-connect-result";
 import { WordPressConnectModal } from "@/components/integrations/wordpress-connect-modal";
 import { MeasurementHealthPanel } from "@/components/growth/measurement-health-panel";
+import { affectsMeasurementHealth } from "@/lib/measurement-health";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -581,6 +582,15 @@ export default function IntegrationsPage() {
             : i
         )
       );
+      // ★★AND THE HEALTH PANEL ABOVE HAS TO BE TOLD. It caches for half an hour,
+      // so without this a merchant who disconnects Google Analytics keeps
+      // reading green analytics verdicts directly above the card that now says
+      // "not connected" — the panel contradicting the page it is printed on,
+      // which is worse than either answer alone. Only for the providers the
+      // check actually reads: three live Google calls sit behind a refetch.
+      if (affectsMeasurementHealth(realProvider)) {
+        queryClient.invalidateQueries({ queryKey: ["measurement-health"] });
+      }
     } catch (err) {
       if (err instanceof ApiError) setError(err.message);
     } finally {
