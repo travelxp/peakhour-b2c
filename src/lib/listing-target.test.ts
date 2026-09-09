@@ -14,6 +14,7 @@ import { describe, it, expect } from "vitest";
 import {
   listingPlanTarget,
   listingTargetFrom,
+  shouldOfferListing,
   LISTING_CHANNEL,
   LISTING_PROVIDER,
   type IntegrationRowLike,
@@ -98,6 +99,40 @@ describe("listingTargetFrom — may we offer it", () => {
   });
 });
 
+describe("shouldOfferListing — where the panel belongs", () => {
+  it("★★★offers it on an ordinary compose surface", () => {
+    expect(shouldOfferListing({ available: true, hasCommitOverride: false })).toBe(true);
+  });
+
+  it("★★★HIDES it on a surface with its own commit, whose endpoint may drop the payload", () => {
+    // ⚠️THE NEWS DESK APPROVE ROUTE IS .strict() and derives the payload
+    // server-side, so the merchant's listing body, offer window, coupon and
+    // button would be dropped in silence and the RAW IDEA TEXT published to
+    // their public listing.
+    expect(shouldOfferListing({ available: true, hasCommitOverride: true })).toBe(false);
+  });
+
+  it("★★★lets an override surface opt back in explicitly", () => {
+    // Once its endpoint carries payload through, false is how it says so.
+    expect(
+      shouldOfferListing({ available: true, hidden: false, hasCommitOverride: true }),
+    ).toBe(true);
+  });
+
+  it("★★an explicit hide beats everything", () => {
+    expect(shouldOfferListing({ available: true, hidden: true, hasCommitOverride: false })).toBe(
+      false,
+    );
+  });
+
+  it("★★★never offers it when the merchant may not publish there anyway", () => {
+    expect(shouldOfferListing({ available: false, hasCommitOverride: false })).toBe(false);
+    expect(shouldOfferListing({ available: false, hidden: false, hasCommitOverride: true })).toBe(
+      false,
+    );
+  });
+});
+
 describe("buildListingChannelOptions — the Call button, belt and braces", () => {
   it("★★★drops a stale URL when the button is Call, even though the rules already refuse it", () => {
     // ⚠️THE FIRST VERSION OF THIS TEST USED actionUrl: "", which cannot reach
@@ -174,6 +209,25 @@ describe("listingPlanTarget — what it contributes", () => {
     // holds two active Business Profile rows.
     const t = listingPlanTarget({ ...on, draft: draft() });
     expect(t).not.toHaveProperty("connectionId");
+  });
+
+  it("★★★forwards the images the rules validated", () => {
+    // ⚠️VALIDATED AND THEN DROPPED IS THE WORST OF BOTH. listingProblems
+    // checks the media cap and the https requirement, and the api reads media
+    // from payload.mediaUrls — so omitting it meant a merchant's chosen image
+    // passed every check and never left the browser.
+    const t = listingPlanTarget({
+      ...on,
+      draft: draft({ mediaUrls: ["https://a.example/1.jpg"] }),
+    });
+    expect(t?.payload.mediaUrls).toEqual(["https://a.example/1.jpg"]);
+  });
+
+  it("★★omits mediaUrls entirely when there are none, rather than sending an empty array", () => {
+    expect(listingPlanTarget({ ...on, draft: draft() })).not.toHaveProperty("payload.mediaUrls");
+    expect(
+      listingPlanTarget({ ...on, draft: draft({ mediaUrls: ["  "] }) }),
+    ).not.toHaveProperty("payload.mediaUrls");
   });
 
   it("★★★carries the composed options through", () => {

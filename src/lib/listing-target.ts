@@ -78,10 +78,42 @@ export function listingTargetFrom(
   return { available: enabled && connected, locationPicked };
 }
 
+/**
+ * Should the "also post this to Google" panel be offered on this surface?
+ *
+ * ★★A `commit` OVERRIDE HIDES IT, AND THIS IS THE MOST DANGEROUS THING S5·4
+ * GOT WRONG. An override means the plan does NOT go to
+ * `POST /v1/scheduler/plans`, and the endpoints it goes to instead may not
+ * carry `payload` at all — the News Desk approve route is `.strict()` and
+ * derives the payload server-side from the idea. So the merchant's listing
+ * body, offer window, coupon and button would be dropped in silence and the RAW
+ * IDEA TEXT published to their public Maps and Search listing: a post they did
+ * not write, on the page their customers read.
+ *
+ * ⚠️DEFAULTED OFF RATHER THAN LEFT TO EACH CALLER TO REMEMBER. Relying on every
+ * override surface to opt out is the kind of rule that holds until somebody
+ * adds the next one. An explicit `false` opts a surface back in once its
+ * endpoint carries `payload` through.
+ */
+export function shouldOfferListing(args: {
+  available: boolean;
+  hidden?: boolean | undefined;
+  hasCommitOverride: boolean;
+}): boolean {
+  if (args.hidden === true) return false;
+  if (args.hidden === false) return args.available;
+  return !args.hasCommitOverride && args.available;
+}
+
 /** What the listing adds to the committed plan — `null` when it adds nothing. */
 export interface ListingPlanTarget {
   channel: string;
-  payload: { text: string; hashtags: string[]; channelOptions: Record<string, unknown> };
+  payload: {
+    text: string;
+    hashtags: string[];
+    mediaUrls?: string[];
+    channelOptions: Record<string, unknown>;
+  };
 }
 
 /**
@@ -104,6 +136,8 @@ export function listingPlanTarget(args: {
 }): ListingPlanTarget | null {
   if (!args.offered || !args.locationPicked || !args.enabled) return null;
   if (listingProblems(args.draft).length > 0) return null;
+  // Blanks dropped, exactly as the rules count them.
+  const media = args.draft.mediaUrls.map((u) => u.trim()).filter(Boolean);
   return {
     channel: LISTING_CHANNEL,
     // ★NO connectionId. `resolveConnection` maps the channel key to the
@@ -117,6 +151,13 @@ export function listingPlanTarget(args: {
       // not in a feed; the publisher never appends them and sending them here
       // would only pad a payload that is capped.
       hashtags: [],
+      // ⚠️FORWARDED, BECAUSE THE RULES VALIDATE IT. `listingProblems` checks the
+      // media cap and the https requirement, and the api reads media from
+      // `payload.mediaUrls` — so leaving it out meant every image a merchant
+      // chose would be validated and then silently dropped. Inert today (the
+      // panel has no image input yet) and a silent loss the moment one is added,
+      // which is the worst time to discover it.
+      ...(media.length > 0 ? { mediaUrls: media } : {}),
       channelOptions: buildListingChannelOptions(args.draft),
     },
   };

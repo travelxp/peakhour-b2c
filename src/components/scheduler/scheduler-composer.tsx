@@ -52,7 +52,7 @@ import { useSchedulerEntitlements } from "./use-scheduler-entitlements";
 import { LocalPostOptions } from "./local-post-options";
 import { LISTING_CHANNEL, useListingTarget } from "./use-listing-target";
 import { emptyListingDraft, listingProblems, type ListingDraft } from "@/lib/local-post";
-import { listingPlanTarget } from "@/lib/listing-target";
+import { listingPlanTarget, shouldOfferListing } from "@/lib/listing-target";
 import { UpgradeCallout } from "./upgrade-callout";
 import { channelDisplayName } from "@/lib/scheduler/format";
 
@@ -101,11 +101,19 @@ export interface SchedulerComposerProps {
   /** Override the commit button label (default "Schedule"). */
   submitLabel?: string;
   /**
-   * Suppress the "also post this to Google" panel on a surface where it does
-   * not belong. Default false — the composer asks `useListingTarget()` for
-   * itself, so every compose surface gains the option without each caller
-   * having to wire it, which is what makes "social and Google in ONE action"
-   * true everywhere rather than on one screen.
+   * Force the "also post this to Google" panel on or off.
+   *
+   * Default (undefined) is ON for a surface using the standard commit, and OFF
+   * for one that passes its own `commit` — see the note beside `offerListing`
+   * in the body: an override means the payload contract belongs to the caller's
+   * endpoint, and dropping the listing payload silently publishes the wrong
+   * text to a merchant's storefront.
+   *
+   * The composer asks `useListingTarget()` for itself, so every ordinary
+   * compose surface gains the option without wiring — which is what makes
+   * "social and Google in ONE action" true everywhere rather than on one
+   * screen. Pass `false` to opt an override surface back in once its endpoint
+   * carries `payload` through.
    */
   hideListingOption?: boolean;
   className?: string;
@@ -133,8 +141,38 @@ export function SchedulerComposer({
 }: SchedulerComposerProps) {
   const [anchor, setAnchor] = useState<Date>(initialAnchor ?? defaultAnchor());
   const listingTarget = useListingTarget();
-  const offerListing = !hideListingOption && listingTarget.available;
+  /**
+   * ★★A `commit` OVERRIDE HIDES THE PANEL, AND THIS IS THE FINDING THAT
+   * MATTERS MOST IN S5·4. An override means the plan does NOT go to
+   * `POST /v1/scheduler/plans`, and the endpoints it goes to instead may not
+   * carry `payload` at all — the News Desk approve route is `.strict()` and
+   * derives the payload server-side from the idea. So the merchant's listing
+   * body, their offer window, their coupon and their button would be dropped in
+   * silence and the RAW IDEA TEXT published to their public Maps and Search
+   * listing. A post they did not write, on the page their customers read.
+   *
+   * ⚠️DEFAULTED OFF RATHER THAN LEFT TO EACH CALLER TO REMEMBER. Relying on
+   * every override surface to pass `hideListingOption` is exactly the kind of
+   * rule that holds until somebody adds the next one. A surface whose endpoint
+   * genuinely honours the payload can opt back in explicitly.
+   */
+  const offerListing = shouldOfferListing({
+    available: listingTarget.available,
+    hidden: hideListingOption,
+    hasCommitOverride: Boolean(commit),
+  });
   const [listingOn, setListingOn] = useState(false);
+  // ⚠️"ACTIVE" AND "SENDABLE" ARE DIFFERENT. The merchant has turned it on and
+  // could send it (active) even while the draft still has problems — which is
+  // when the badge and the count should already include it and the button
+  // should be disabled, rather than the panel appearing to switch itself off.
+  const listingActive = offerListing && listingTarget.locationPicked && listingOn;
+  // ★★WHAT THE COMMIT ACTUALLY SENDS, and the plan caps below read THIS rather
+  // than `channels.length`. The server counts the bundle it receives, so a
+  // Free-tier merchant with one social channel and the listing on was walked
+  // into a 402 by a button that looked enabled, and a Starter merchant on a cap
+  // of three by their fourth target.
+  const targetCount = channels.length + (listingActive ? 1 : 0);
   // ★SEEDED FROM THE FIRST CHANNEL'S TEXT, then owned separately. Retyping the
   // promotion is the fastest way to make this feature unused; but a listing
   // post is read by someone deciding where to go now, so editing it here must
@@ -171,14 +209,13 @@ export function SchedulerComposer({
   const autoApproveVisible =
     canAutoApprove === true || (canAutoApprove !== false && autoApproveAuthorized);
   const bundleCap = entitlements?.schedulerLimits.maxScheduleBundleSize;
-  const bundleExceedsCap =
-    bundleCap !== undefined && channels.length > bundleCap;
+  const bundleExceedsCap = bundleCap !== undefined && targetCount > bundleCap;
   // Multi-channel users mounted before entitlements arrive: hide
   // the locked banner until we know — otherwise paid users flash a
   // "Free tier" callout on every load.
   const bundlesLocked =
     !entitlementsLoading &&
-    channels.length > 1 &&
+    targetCount > 1 &&
     entitlements?.schedulerFeatures.bundles === false;
   const queueCap = entitlements?.schedulerLimits.maxScheduledItems;
   // Double-submit ref guard — protects against React batching delays
@@ -193,18 +230,28 @@ export function SchedulerComposer({
       canonicalScheduledAtUtc: anchor.toISOString(),
       timezone,
       staggerStrategy: strategy,
-      channels: channels.map((c) => ({
-        channel: c.channel,
-        preferredLocalTime: c.preferredLocalTime,
-      })),
+      // ★★THE LISTING IS A TARGET IN THE PREVIEW TOO. Left out, the confirm
+      // card never says when the listing post publishes — and in the
+      // listing-ONLY case this composer explicitly supports, the channel list
+      // was empty, the preview never ran and the card rendered nothing at all:
+      // no time, no conflict warning, on the one destination a merchant most
+      // wants confirmed.
+      channels: [
+        ...channels.map((c) => ({
+          channel: c.channel,
+          preferredLocalTime: c.preferredLocalTime,
+        })),
+        ...(listingActive ? [{ channel: LISTING_CHANNEL }] : []),
+      ],
     }),
-    [anchor, timezone, strategy, channels],
+    [anchor, timezone, strategy, channels, listingActive],
   );
   const { preview, loading, error } = useSchedulePreview(previewInput);
 
   // ★THE LISTING RIDES ALONG, IT DOES NOT REPLACE. A merchant can also
   // schedule to the listing ALONE — the panel is the only target then, and the
   // "pick at least one channel" guard below has to account for that.
+  //
   // ★THE ENTRY, NOT A BOOLEAN, so what the commit sends is decided in one
   // tested place rather than assembled inline where nothing can see it.
   // `listingPlanTarget` returns null unless the panel is offered, a location
@@ -219,9 +266,7 @@ export function SchedulerComposer({
   // could send it (active) even while the draft still has problems — which is
   // when the badge and the count should already include it and the button
   // should be disabled, rather than the panel appearing to switch itself off.
-  const listingActive = offerListing && listingTarget.locationPicked && listingOn;
   const listingBlockers = listingActive ? listingProblems(listingDraft) : [];
-  const targetCount = channels.length + (listingActive ? 1 : 0);
 
   const submit = async () => {
     if (channels.length === 0 && !listingActive) {

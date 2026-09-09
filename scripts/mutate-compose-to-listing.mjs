@@ -258,6 +258,63 @@ const MUTANTS = [
     killer: "★★omits the offer object entirely when none of its fields were filled in",
   },
 
+  // ── Where the panel belongs, and what it forwards ────────────────────────
+  {
+    // ⚠️THE MOST DANGEROUS THING S5·4 GOT WRONG. A commit override means the
+    // plan does not go to POST /v1/scheduler/plans, and the News Desk approve
+    // route is .strict() and derives the payload server-side — so the
+    // merchant's listing body, offer window, coupon and button are dropped in
+    // silence and the RAW IDEA TEXT is published to their public listing.
+    where: "target",
+    name: "★★★offer the panel on a surface whose endpoint drops the payload",
+    anchor: "  return !args.hasCommitOverride && args.available;",
+    mutated: "  return args.available;",
+    killer: "★★★HIDES it on a surface with its own commit, whose endpoint may drop the payload",
+  },
+  {
+    where: "target",
+    name: "★★★never offer it on an ordinary surface either, so the feature is unreachable",
+    anchor: "  return !args.hasCommitOverride && args.available;",
+    mutated: "  return false;",
+    killer: "★★★offers it on an ordinary compose surface",
+  },
+  {
+    where: "target",
+    name: "★★let an explicit hide be overridden by availability",
+    anchor: "  if (args.hidden === true) return false;",
+    mutated: "  if (false) return false;",
+    killer: "★★an explicit hide beats everything",
+  },
+  {
+    where: "target",
+    name: "★★★ignore the opt-back-in, so a fixed endpoint can never regain the panel",
+    anchor: "  if (args.hidden === false) return args.available;",
+    mutated: "  if (false) return args.available;",
+    killer: "★★★lets an override surface opt back in explicitly",
+  },
+  {
+    where: "target",
+    name: "★★★offer it to a business that may not publish there at all",
+    anchor: "  if (args.hidden === false) return args.available;",
+    mutated: "  if (args.hidden === false) return true;",
+    killer: "★★★never offers it when the merchant may not publish there anyway",
+  },
+  {
+    // ⚠️VALIDATED AND THEN DROPPED IS THE WORST OF BOTH. The rules check the
+    // media cap and the https requirement, and the api reads payload.mediaUrls.
+    where: "target",
+    name: "★★★drop the images the rules validated, so a merchant's photo never leaves the browser",
+    anchor: "      ...(media.length > 0 ? { mediaUrls: media } : {}),",
+    mutated: "",
+    killer: "★★★forwards the images the rules validated",
+  },
+  {
+    where: "target",
+    name: "★★send an empty mediaUrls array rather than omitting it",
+    anchor: "      ...(media.length > 0 ? { mediaUrls: media } : {}),",
+    mutated: "      mediaUrls: media,",
+    killer: "★★omits mediaUrls entirely when there are none, rather than sending an empty array",
+  },
   // ── May we offer it at all ───────────────────────────────────────────────
   {
     where: "target",
