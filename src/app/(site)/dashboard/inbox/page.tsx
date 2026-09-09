@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
@@ -18,7 +19,11 @@ import {
 } from "@/hooks/use-wa-conversations";
 import { inboxApi, type InboxItem, type InboxPriority } from "@/lib/api/inbox";
 import { ReviewReplyCard } from "@/components/inbox/review-reply-card";
-import { inboxTabFromHash } from "@/lib/review-summary";
+import {
+  inboxTabFromParam,
+  REVIEW_SUMMARY_QUERY_KEY,
+  type InboxTab,
+} from "@/lib/review-summary";
 import {
   REVIEW_PAGE_LIMIT,
   reviewQueueOrder,
@@ -275,7 +280,14 @@ function useReviewsQuery() {
 
 function ReviewsPane({ query }: { query: ReturnType<typeof useReviewsQuery> }) {
   const queryClient = useQueryClient();
-  const onChanged = () => queryClient.invalidateQueries({ queryKey: ["inbox-reviews"] });
+  // ★★ANSWERING A REVIEW CHANGES PRESENCE TOO. That card has a five-minute
+  // staleTime and no refetch on focus, so without this a merchant who
+  // answered their last waiting review and walked back to Presence was still
+  // offered "Answer 1 waiting review" for the one they had just answered.
+  const onChanged = () => {
+    queryClient.invalidateQueries({ queryKey: ["inbox-reviews"] });
+    queryClient.invalidateQueries({ queryKey: REVIEW_SUMMARY_QUERY_KEY });
+  };
 
   // ⚠️★★`isPending`, NOT `isLoading`. In react-query v5 `isLoading` is
   // `isPending && isFetching`, so a PAUSED query — the offline case, which is
@@ -346,6 +358,17 @@ function ReviewsPane({ query }: { query: ReturnType<typeof useReviewsQuery> }) {
 // ── Page ──────────────────────────────────────────────────────────────
 
 export default function InboxPage() {
+  // useSearchParams needs a Suspense boundary or the route bails out of
+  // static rendering at build time — the same wrapper dashboard/ads uses, for
+  // the same reason.
+  return (
+    <Suspense fallback={<PageShell />}>
+      <InboxTabs />
+    </Suspense>
+  );
+}
+
+function InboxTabs() {
   const { conversations, isLoading } = useWaConversations();
   const [selected, setSelected] = useState<string | null>(null);
   const { data: thread, isLoading: threadLoading } = useWaThread(selected);
@@ -360,9 +383,21 @@ export default function InboxPage() {
   // dropped somebody on Conversations, with the thing they asked for one
   // unexplained click away. Read once, on mount: the hash is a starting point,
   // not a controlled value, so clicking a tab afterwards still just works.
-  const [tab, setTab] = useState(() =>
-    inboxTabFromHash(typeof window === "undefined" ? undefined : window.location.hash),
-  );
+  // ★★★A SEARCH PARAM, NOT A HASH, AND THAT IS THE WHOLE OF THE FIX. A hash
+  // read in a `useState` initializer is read DURING RENDER, while the App
+  // Router only writes the new URL in HistoryUpdater's `useInsertionEffect` —
+  // and with no `loading.tsx` on this route the page mounts in the same
+  // commit, so the initializer saw the PREVIOUS page's hash. Clicking
+  // "Answer N waiting reviews" on Presence therefore landed on Conversations:
+  // the exact bug the link exists to fix, working on a hard load and broken on
+  // the only path anybody takes. `useSearchParams` is subscribed to the router
+  // rather than read off `window`, so it is right on both.
+  const params = useSearchParams();
+  const [picked, setPicked] = useState<InboxTab | null>(null);
+  // ⚠️THE URL IS THE DEFAULT, NOT A CONTROLLER. Once somebody clicks a tab
+  // their choice wins, or every click would be undone by the query string
+  // still naming the lane they arrived on.
+  const tab = picked ?? inboxTabFromParam(params.get("tab"));
   // ★★★THE "SHOW IT AT ALL" DECISION IS THE MODULE'S, because it is the one
   // that can claim something untrue. `unanswered > 0` hid the badge on a
   // TRUNCATED page whose hundred newest reviews were all answered — a silent
@@ -378,7 +413,7 @@ export default function InboxPage() {
         </p>
       </div>
 
-      <Tabs value={tab} onValueChange={(v) => setTab(inboxTabFromHash(v))}>
+      <Tabs value={tab} onValueChange={(v) => setPicked(inboxTabFromParam(v))}>
         <TabsList>
           <TabsTrigger value="conversations">Conversations</TabsTrigger>
           <TabsTrigger value="leads">Leads</TabsTrigger>

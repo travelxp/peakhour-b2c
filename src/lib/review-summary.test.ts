@@ -14,7 +14,7 @@
 import { describe, it, expect } from "vitest";
 import {
   formatResponseTime,
-  inboxTabFromHash,
+  inboxTabFromParam,
   ratingLabel,
   ratingSubLabel,
   responseCaveat,
@@ -22,6 +22,7 @@ import {
   sampleCaveat,
   unansweredCta,
   INBOX_REVIEWS_HREF,
+  REVIEW_SUMMARY_QUERY_KEY,
   type ReviewSummary,
 } from "./review-summary";
 
@@ -172,6 +173,16 @@ describe("sampleCaveat — averaged over a page, not over everything", () => {
     expect(note).toContain("500 most recent of 900");
   });
 
+  it("★★★describes the SAMPLE, not the average", () => {
+    // ⚠️THE api AVERAGES ONLY THE ROWS THAT CARRY A RATING and reports that as
+    // `ratedCount`, so "rating averaged over the 500 most recent" sat directly
+    // above "from 460 rated reviews" — two numbers on one card disagreeing
+    // about what the average was over.
+    const note = sampleCaveat(summary({ sampled: 500, volume: 900, ratedCount: 460 }));
+    expect(note).toBe("Based on the 500 most recent of 900 reviews.");
+    expect(note).not.toContain("averaged");
+  });
+
   it("★★says nothing when the sample IS everything", () => {
     expect(sampleCaveat(summary({ sampled: 6, volume: 6 }))).toBeNull();
   });
@@ -197,8 +208,8 @@ describe("unansweredCta — the only action on the card", () => {
     // is an assertion written AROUND a value rather than ON it: change the
     // constant and both sides move together, so dropping the fragment was
     // invisible.
-    expect(unansweredCta(summary({ unanswered: 1 }))?.href).toBe("/dashboard/inbox#reviews");
-    expect(INBOX_REVIEWS_HREF).toBe("/dashboard/inbox#reviews");
+    expect(unansweredCta(summary({ unanswered: 1 }))?.href).toBe("/dashboard/inbox?tab=reviews");
+    expect(INBOX_REVIEWS_HREF).toBe("/dashboard/inbox?tab=reviews");
   });
 
   it("★says 'review' when there is one", () => {
@@ -206,20 +217,31 @@ describe("unansweredCta — the only action on the card", () => {
   });
 });
 
-describe("inboxTabFromHash — where the call to action lands", () => {
+describe("REVIEW_SUMMARY_QUERY_KEY — one name, two surfaces", () => {
+  it("★★★is a single exported key, so an invalidation cannot miss it", () => {
+    // ⚠️SPELLED OUT IN BOTH PLACES IT DRIFTS SILENTLY: the invalidation simply
+    // stops matching, and the Presence card keeps offering to answer a review
+    // that has just been answered.
+    expect(REVIEW_SUMMARY_QUERY_KEY).toEqual(["presence-review-summary"]);
+  });
+});
+
+describe("inboxTabFromParam — where the call to action lands", () => {
   it("★★★opens the reviews lane when that is what was asked for", () => {
-    expect(inboxTabFromHash("#reviews")).toBe("reviews");
-    expect(inboxTabFromHash("reviews")).toBe("reviews");
+    expect(inboxTabFromParam("reviews")).toBe("reviews");
   });
 
   it("★★opens the default lane for anything it does not recognise", () => {
     // ⚠️A STALE BOOKMARK MUST NOT LEAVE THE PAGE SHOWING NO TAB AT ALL.
-    expect(inboxTabFromHash("#nonsense")).toBe("conversations");
-    expect(inboxTabFromHash("")).toBe("conversations");
-    expect(inboxTabFromHash(undefined)).toBe("conversations");
+    expect(inboxTabFromParam("nonsense")).toBe("conversations");
+    expect(inboxTabFromParam("")).toBe("conversations");
+    expect(inboxTabFromParam(undefined)).toBe("conversations");
+    // ★AND `null`, WHICH IS WHAT `searchParams.get` RETURNS when the parameter
+    // is simply not there — the ordinary case, not an edge one.
+    expect(inboxTabFromParam(null)).toBe("conversations");
   });
 
   it("★knows the other lane too", () => {
-    expect(inboxTabFromHash("#leads")).toBe("leads");
+    expect(inboxTabFromParam("leads")).toBe("leads");
   });
 });

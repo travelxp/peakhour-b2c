@@ -15,6 +15,7 @@ import {
   ratingSubLabel,
   responseCaveat,
   reviewEmptyState,
+  REVIEW_SUMMARY_QUERY_KEY,
   sampleCaveat,
   unansweredCta,
   type ReviewSummary,
@@ -101,7 +102,7 @@ function WorstList({ summary }: { summary: ReviewSummary }) {
 
 export function ReviewSummaryCard() {
   const query = useQuery({
-    queryKey: ["presence-review-summary"],
+    queryKey: REVIEW_SUMMARY_QUERY_KEY,
     queryFn: () => presenceApi.reviewSummary(),
     staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,

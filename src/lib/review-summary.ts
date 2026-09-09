@@ -144,7 +144,13 @@ export function responseCaveat(summary: ReviewSummary): string | null {
  */
 export function sampleCaveat(summary: ReviewSummary): string | null {
   if (summary.sampled >= summary.volume) return null;
-  return `Rating averaged over the ${summary.sampled} most recent of ${summary.volume} reviews.`;
+  // ⚠️IT DESCRIBES THE SAMPLE, NOT THE AVERAGE. Saying "rating averaged over
+  // the 500 most recent" put a sentence about 500 reviews directly above
+  // "from 460 rated reviews" — the api averages only the ROWS THAT CARRY A
+  // RATING and reports that as `ratedCount`, so the two numbers disagreed on
+  // screen. This says what the page is actually built from; the rating's own
+  // caption says how many of those were rated.
+  return `Based on the ${summary.sampled} most recent of ${summary.volume} reviews.`;
 }
 
 /**
@@ -171,8 +177,22 @@ export interface UnansweredCta {
   href: string;
 }
 
+/**
+ * The summary query's key, exported so the Inbox can invalidate it.
+ *
+ * ★★★ANSWERING A REVIEW CHANGES THIS CARD, AND NOTHING TOLD IT SO. The reply
+ * flow invalidated only the Inbox's own list, and this query has a five-minute
+ * `staleTime` with no refetch on focus — so a merchant who answered their last
+ * waiting review and walked back to Presence was still offered "Answer 1
+ * waiting review", for a review they had just answered.
+ *
+ * ★ONE DEFINITION, TWO READERS. A key spelled out in both places is a key that
+ * drifts, and the drift is silent: the invalidation simply stops matching.
+ */
+export const REVIEW_SUMMARY_QUERY_KEY = ["presence-review-summary"] as const;
+
 /** Where the Inbox's review lane lives. */
-export const INBOX_REVIEWS_HREF = "/dashboard/inbox#reviews";
+export const INBOX_REVIEWS_HREF = "/dashboard/inbox?tab=reviews";
 
 /**
  * The one thing on this card a merchant can act on.
@@ -193,19 +213,28 @@ export function unansweredCta(summary: ReviewSummary): UnansweredCta | null {
   };
 }
 
+/** The Inbox's lanes. */
+export type InboxTab = "conversations" | "leads" | "reviews";
+
 /**
- * Which Inbox lane a URL fragment asks for.
+ * Which Inbox lane a `?tab=` value asks for.
  *
  * ★★SO THE CARD'S CALL TO ACTION LANDS ON THE REVIEWS TAB. Linking to
  * `/dashboard/inbox` alone drops somebody who clicked "answer 3 waiting
  * reviews" onto the Conversations lane, with the thing they asked for one
  * unexplained click away.
  *
- * ⚠️ANYTHING ELSE IS THE DEFAULT, never an error: a stale bookmark or a hash
+ * ⚠️★★★A SEARCH PARAM RATHER THAN A FRAGMENT, and the difference is the whole
+ * fix. A fragment can only be read off `window`, and on an IN-APP navigation
+ * the App Router writes the new URL in HistoryUpdater's `useInsertionEffect` —
+ * so a page with no `loading.tsx` mounts in the same commit and reads the
+ * PREVIOUS page's fragment. The link worked on a hard load and failed on the
+ * only path anybody takes. `useSearchParams` is subscribed to the router.
+ *
+ * ⚠️ANYTHING ELSE IS THE DEFAULT, never an error: a stale bookmark or a value
  * meant for something else must not leave the page showing no tab at all.
  */
-export function inboxTabFromHash(hash: string | undefined): "conversations" | "leads" | "reviews" {
-  const value = (hash ?? "").replace(/^#/, "");
+export function inboxTabFromParam(value: string | null | undefined): InboxTab {
   if (value === "reviews" || value === "leads") return value;
   return "conversations";
 }

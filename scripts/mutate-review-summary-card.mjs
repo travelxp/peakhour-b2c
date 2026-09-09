@@ -189,7 +189,7 @@ const MUTANTS = [
   {
     where: "rules",
     name: "★★drop somebody on whichever lane opens first",
-    anchor: "export const INBOX_REVIEWS_HREF = \"/dashboard/inbox#reviews\";",
+    anchor: "export const INBOX_REVIEWS_HREF = \"/dashboard/inbox?tab=reviews\";",
     mutated: "export const INBOX_REVIEWS_HREF = \"/dashboard/inbox\";",
     killer: "★★lands on the reviews lane, not on whichever tab opens first",
   },
@@ -204,22 +204,15 @@ const MUTANTS = [
     where: "rules",
     name: "★★★ignore the lane the link asked for",
     anchor: "  if (value === \"reviews\" || value === \"leads\") return value;",
-    mutated: "  if (false) return value as \"reviews\";",
+    mutated: "  if (false) return value as InboxTab;",
     killer: "★★★opens the reviews lane when that is what was asked for",
   },
   {
     where: "rules",
     name: "★★★show no tab at all for a hash nobody recognises",
     anchor: "  return \"conversations\";",
-    mutated: "  return value as \"conversations\";",
+    mutated: "  return value as InboxTab;",
     killer: "★★opens the default lane for anything it does not recognise",
-  },
-  {
-    where: "rules",
-    name: "★★fail to strip the # , so no hash is ever recognised",
-    anchor: "  const value = (hash ?? \"\").replace(/^#/, \"\");",
-    mutated: "  const value = hash ?? \"\";",
-    killer: "★★★opens the reviews lane when that is what was asked for",
   },
   {
     where: "rules",
@@ -227,6 +220,22 @@ const MUTANTS = [
     anchor: "  if (value === \"reviews\" || value === \"leads\") return value;",
     mutated: "  if (value === \"reviews\") return value;",
     killer: "★knows the other lane too",
+  },
+
+  // ── Round 1: the sample sentence, and one key spelled twice ──────────────
+  {
+    where: "rules",
+    name: "★★★describe the average rather than the sample, so two numbers disagree",
+    anchor: "  return `Based on the ${summary.sampled} most recent of ${summary.volume} reviews.`;",
+    mutated: "  return `Rating averaged over the ${summary.sampled} most recent of ${summary.volume} reviews.`;",
+    killer: "★★★describes the SAMPLE, not the average",
+  },
+  {
+    where: "rules",
+    name: "★★★spell the summary query key differently from the invalidation",
+    anchor: "export const REVIEW_SUMMARY_QUERY_KEY = [\"presence-review-summary\"] as const;",
+    mutated: "export const REVIEW_SUMMARY_QUERY_KEY = [\"presence-reviews\"] as const;",
+    killer: "★★★is a single exported key, so an invalidation cannot miss it",
   },
 ];
 
