@@ -187,12 +187,26 @@ describe("hasSomethingToSay", () => {
 
 // ── The counts ──────────────────────────────────────────────────────────────
 
+/**
+ * ⚠️THESE FIXTURES NOW AGREE WITH THEMSELVES, AND THEY DID NOT BEFORE. Each
+ * declared a summary ("5 checked, 1 needing attention") beside a `checks` array
+ * holding a single attention row — so the two halves of the response described
+ * different businesses. A fixture that self-contradicts cannot catch a function
+ * reading the wrong half of it, which is precisely the bug below.
+ */
+const ok = (id: string) => check({ id, state: "ok", headline: "Fine", detail: "Fine." });
+const unmeasurable = (id: string) =>
+  check({ id, state: "unmeasurable", headline: "Couldn't check", detail: "No connection." });
+
 describe("passedLine", () => {
   it("★★★counts out of what we could CHECK, not out of what exists", () => {
     // "4 of 5 passed" over a business whose Business Profile we could not read
     // claims we looked at five things.
     const line = passedLine(
-      health({ summary: { checked: 3, attention: 1, unmeasurable: 2, headline: "h" } }),
+      health({
+        summary: { checked: 3, attention: 1, unmeasurable: 2, headline: "h" },
+        checks: [ok("a"), ok("b"), check(), unmeasurable("d"), unmeasurable("e")],
+      }),
     );
     expect(line).toContain("2 of 3 checks passed");
     expect(line).toContain("2 more couldn't be checked");
@@ -201,21 +215,73 @@ describe("passedLine", () => {
 
   it("says nothing about what it could not check when it checked everything", () => {
     const line = passedLine(
-      health({ summary: { checked: 5, attention: 1, unmeasurable: 0, headline: "h" } }),
+      health({
+        summary: { checked: 5, attention: 1, unmeasurable: 0, headline: "h" },
+        checks: [ok("a"), ok("b"), ok("c"), ok("d"), check()],
+      }),
     );
     expect(line).toBe("4 of 5 checks passed.");
   });
 
   it("counts one check in the singular", () => {
     expect(
-      passedLine(health({ summary: { checked: 1, attention: 0, unmeasurable: 4, headline: "h" } })),
+      passedLine(
+        health({
+          summary: { checked: 1, attention: 0, unmeasurable: 4, headline: "h" },
+          checks: [ok("a"), unmeasurable("b"), unmeasurable("c"), unmeasurable("d"), unmeasurable("e")],
+        }),
+      ),
     ).toContain("1 of 1 check passed");
+  });
+
+  it("★★★never reports a state it has never heard of as a pass", () => {
+    // ⚠️`checked - attention` COUNTS EVERYTHING THAT IS NOT A FAILURE AS A
+    // PASS. `HealthState` is typed as the union we know PLUS a string because
+    // "the api's sets grow independently of this deploy" — so the day a fourth
+    // state ships, every check in it was being reported to the merchant as
+    // having passed. `orderedChecks` already had an `UNKNOWN_RANK` for exactly
+    // this; one file, two places, and only one of them was ready.
+    const line = passedLine(
+      health({
+        summary: { checked: 5, attention: 1, unmeasurable: 0, headline: "h" },
+        checks: [
+          ok("a"),
+          ok("b"),
+          ok("c"),
+          check(),
+          check({ id: "e", state: "degraded", headline: "Half working", detail: "Partly." }),
+        ],
+      }),
+    );
+    expect(line).toBe("3 of 5 checks passed.");
+    expect(line).not.toContain("4 of 5");
+  });
+
+  it("★★a pass is counted, not inferred from the absence of a failure", () => {
+    // Every check we could run is in an unrecognised state: nothing is known
+    // to have passed, and the honest numerator is zero rather than five.
+    const line = passedLine(
+      health({
+        summary: { checked: 5, attention: 0, unmeasurable: 0, headline: "h" },
+        checks: [1, 2, 3, 4, 5].map((n) => check({ id: `c${n}`, state: "degraded" })),
+      }),
+    );
+    expect(line).toBe("0 of 5 checks passed.");
   });
 
   it("★offers no ratio when nothing could be checked", () => {
     // "0 of 0 passed" is a sentence about nothing.
+    // ⚠️AND THIS FIXTURE AGREES WITH ITSELF TOO. It kept the default single
+    // ATTENTION check beside a summary saying nothing could be checked —
+    // harmless only because the guard returns first, which is exactly the kind
+    // of "harmless today" that stops being true when the guard moves.
     expect(
-      passedLine(health({ summary: { checked: 0, attention: 0, unmeasurable: 5, headline: "h" } })),
+      passedLine(
+        health({
+          summary: { checked: 0, attention: 0, unmeasurable: 5, headline: "h" },
+          checks: [1, 2, 3, 4, 5].map((n) => unmeasurable(`c${n}`)),
+        }),
+      ),
     ).toBeNull();
   });
 });

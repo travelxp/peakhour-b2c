@@ -191,6 +191,26 @@ const MUTANTS = [
     mutated: "  return `Checked over the last ${days} days.`;",
     killer: "counts one day in the singular",
   },
+
+  // ── A pass is counted, not subtracted ────────────────────────────────────
+  {
+    name: "★★★report a state we have never heard of as a pass",
+    anchor: "  const passed = data.checks.filter((c) => c.state === \"ok\").length;",
+    mutated: "  const passed = checked - data.checks.filter((c) => c.state === \"attention\").length;",
+    killer: "★★★never reports a state it has never heard of as a pass",
+  },
+  {
+    name: "★★★infer a pass from the absence of a failure",
+    anchor: "  const passed = data.checks.filter((c) => c.state === \"ok\").length;",
+    mutated: "  const passed = checked;",
+    killer: "★★a pass is counted, not inferred from the absence of a failure",
+  },
+  {
+    name: "★★count the unmeasurable checks as passes too",
+    anchor: "  const passed = data.checks.filter((c) => c.state === \"ok\").length;",
+    mutated: "  const passed = data.checks.filter((c) => c.state !== \"attention\").length;",
+    killer: "★★★never reports a state it has never heard of as a pass",
+  },
 ];
 
 /**
