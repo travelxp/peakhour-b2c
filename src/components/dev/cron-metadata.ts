@@ -833,6 +833,12 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
     description:
       "Scans a batch of the least-recently-checked pages for broken links and redirects, so the site graph reflects what visitors actually hit.",
   },
+  "site-graph-shopify": {
+    label: "Read your Shopify content",
+    frequency: "Runs daily at 3am UTC",
+    description:
+      "Walks your store's blog posts, pages and collections and records what each one says about itself — its SEO title and description, when it was published, and whether it is still live — so the content audit can tell a gap from a page it has never seen.",
+  },
   "site-graph-inspection": {
     label: "Sync URL inspection",
     frequency: "Runs daily at 4am UTC",

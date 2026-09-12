@@ -19,7 +19,7 @@ import {
 } from "@/hooks/use-wa-conversations";
 import { inboxApi, type InboxItem, type InboxPriority } from "@/lib/api/inbox";
 import { ReviewReplyCard } from "@/components/inbox/review-reply-card";
-import { listFetchState } from "@/lib/list-fetch-state";
+import { listFetchState, showsSkeleton, showsRows } from "@/lib/list-fetch-state";
 import {
   inboxTabFromParam,
   REVIEW_SUMMARY_QUERY_KEY,
@@ -203,7 +203,12 @@ function LeadsPane() {
   const onChanged = () => queryClient.invalidateQueries({ queryKey: ["inbox-leads"] });
 
   const state = listFetchState(leads, leads.data?.items?.length ?? 0);
-  if (state === "loading" || state === "waiting") {
+  // ⚠️★★★`showsSkeleton`, NOT `loading || waiting` — AND THE DIFFERENCE IS THE
+  //  BUG THE HELPER EXISTS FOR. `waiting` means the query is DISABLED: nobody
+  //  has asked, so nothing is in flight and nothing will arrive. A skeleton
+  //  there spins for ever. The helper says `loading` alone; hand-rolling the
+  //  pair beside it re-introduced exactly what it was written to prevent.
+  if (showsSkeleton(state)) {
     return (
       <div className="space-y-2">
         {[0, 1, 2].map((i) => (
@@ -212,6 +217,9 @@ function LeadsPane() {
       </div>
     );
   }
+  // ★NOTHING ASKED, SO NOTHING CLAIMED. Not the empty state — that one asserts
+  //  the list came back with no rows, which we have not established.
+  if (state === "waiting") return null;
   if (state === "paused") return <WaitingForConnection what="leads" />;
   // A failed fetch must never masquerade as "no leads" — leads keep
   // arriving (and billing) server-side whether or not this list loads.
@@ -309,7 +317,9 @@ function ReviewsPane({ query }: { query: ReturnType<typeof useReviewsQuery> }) {
   };
 
   const state = listFetchState(query, query.data?.items?.length ?? 0);
-  if (state === "loading" || state === "waiting") {
+  // ⚠️`showsSkeleton` — see the leads lane above. `waiting` is a DISABLED
+  //  query: nothing is in flight, so a skeleton there spins for ever.
+  if (showsSkeleton(state)) {
     return (
       <div className="space-y-2">
         {[0, 1, 2].map((i) => (
@@ -318,6 +328,10 @@ function ReviewsPane({ query }: { query: ReturnType<typeof useReviewsQuery> }) {
       </div>
     );
   }
+  // ★NOTHING ASKED, SO NOTHING CLAIMED — and emphatically not the empty state:
+  //  "you are all caught up" about reviews we never requested is the sentence
+  //  this lane most needs to avoid.
+  if (state === "waiting") return null;
   if (state === "paused") return <WaitingForConnection what="reviews" />;
   // ★★A FAILED FETCH MUST NEVER READ AS "NO REVIEWS". An unanswered one-star
   // review is the most expensive row in this app, and "you're all caught up"
@@ -536,7 +550,9 @@ function InboxTabs() {
                   the other two lanes needed (`isPending`) would spin a skeleton
                   here with nothing behind it. It also had no error branch at
                   all, so a failed request read as "No conversations yet". */}
-              {(convState === "loading" || convState === "waiting") && (
+              {/* ⚠️`showsSkeleton` — see the leads lane. `waiting` is a disabled
+                  query, and a skeleton for it never resolves. */}
+              {showsSkeleton(convState) && (
                 <div className="space-y-2 p-2">
                   {[0, 1, 2].map((i) => <Skeleton key={i} className="h-14 w-full" />)}
                 </div>
@@ -560,7 +576,26 @@ function InboxTabs() {
               {convState === "empty" && (
                 <p className="p-4 text-sm text-muted-foreground">No conversations yet.</p>
               )}
-              {conversations.map((conv: WaConversation) => (
+              {/* ⚠️★★★A FAILED REFRESH SAYS SO WITHOUT TAKING THE ROWS AWAY. This
+                  lane polls every thirty seconds, so `error` here is usually a
+                  failed BACKGROUND refetch with the last good list still behind
+                  it — query-core keeps `data` and flips `status`. Collapsing
+                  that into `error` painted "couldn't load your conversations,
+                  this is not an empty inbox" directly above the conversations it
+                  had just listed. `stale` keeps the rows and admits the
+                  staleness instead. */}
+              {convState === "stale" && (
+                <p className="px-2 pb-1 text-[11px] text-muted-foreground">
+                  Couldn&apos;t refresh just now — showing the last update.{" "}
+                  <button
+                    onClick={() => refetchConversations()}
+                    className="underline underline-offset-2"
+                  >
+                    Retry
+                  </button>
+                </p>
+              )}
+              {showsRows(convState) && conversations.map((conv: WaConversation) => (
                 <button
                   key={conv.threadId}
                   onClick={() => setSelected(conv.threadId)}
