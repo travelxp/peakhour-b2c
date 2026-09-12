@@ -126,8 +126,9 @@ export default function PrivacyPolicyPage() {
                 lines), processed on your behalf and described in{" "}
                 <a href="#shopify" className="text-foreground underline">Section 12.5</a>. The
                 app can also <strong>write back</strong> to your store — publishing a blog
-                article you approved, updating SEO text when you ask it to, or creating a
-                discount code you approved.
+                article you approved, or updating SEO text when you ask it to. The install
+                grant also covers creating discount codes, for a markdown feature described in
+                that section.
               </li>
               <li>
                 <strong>Beehiiv and other publishing tools:</strong> newsletter content,
@@ -697,8 +698,10 @@ export default function PrivacyPolicyPage() {
               catalog permissions contain no personal data about your shoppers. Separately,
               the app requests the <strong>protected customer data</strong> permissions that
               order-based features need — order records, and the customer name, phone number,
-              email address, and the <strong>postcode and country</strong> of the order&apos;s
-              delivery and billing addresses. Shopify reviews and approves those permissions.
+              email address, the <strong>postcode and country</strong> of the order&apos;s
+              delivery and billing addresses, and whether that shopper has{" "}
+              <strong>opted in or out of marketing</strong> by email and by SMS, as recorded on
+              their Shopify customer account. Shopify reviews and approves those permissions.
               You grant them <strong>when you install the app</strong>, together with the
               catalog permissions and in the same prompt — they are not a separate, later
               opt-in. (If your store was connected before we added a permission, Shopify asks
@@ -794,17 +797,23 @@ export default function PrivacyPolicyPage() {
               It cannot be turned back into an address and it names no shopper. The rest of the
               order record is retained as your business data, because it is what makes
               inventory, seasonality, delivery-area and merchandising analysis work; it carries
-              no shopper contact details once that window has passed.
+              no shopper contact details once that window has passed. It also keeps a{" "}
+              <strong>pseudonymous reference</strong> — a one-way scrambled value derived from
+              the phone number — so that a later deletion request can still find every order
+              belonging to that shopper. It is not readable as a phone number and is not used
+              to contact anyone.
             </p>
             <p className="mt-2">
               Separately, we keep one <strong>customer record per shopper</strong> holding their
               name, phone number and email address, so that repeat orders are recognised as the
               same person and
               so you can still reach a customer about an order placed months ago. That record is
-              kept for as long as your store stays connected, and is erased when the shopper asks
-              you to delete their data, when the store is redacted after you uninstall the app,
-              or when you close your {SITE.name} account — whichever happens first. It is not on
-              a 90-day timer.
+              kept for as long as your store stays connected. When the shopper asks you to
+              delete their data, when the store is redacted after you uninstall the app, or when
+              you close your {SITE.name} account — whichever happens first — we remove the
+              identifying details from it (name, phone, email) and keep only the pseudonymous
+              reference described above, so that the same erasure can still be applied to
+              anything that arrives afterwards. It is not on a 90-day timer.
             </p>
             <p className="mt-2">
               <strong>Deletion requests.</strong> We support Shopify&apos;s mandatory privacy
@@ -819,7 +828,18 @@ export default function PrivacyPolicyPage() {
               Shopify sends us a shop-redaction notice about <strong>48 hours later</strong>, and
               that is when we erase the store data we hold; the delay is Shopify&apos;s, and it
               exists so that reinstalling within that window does not cost you your history.
-              You can ask us to erase anything we hold at{" "}
+            </p>
+            <p className="mt-2">
+              <strong>The one thing an erasure deliberately keeps.</strong> If a shopper has{" "}
+              <strong>opted out</strong> of marketing, we keep that opt-out — and nothing else —
+              after erasing everything described above. It is stored as a one-way scrambled
+              value with no name, phone number or email attached, so it cannot be used to
+              identify or contact anyone; it exists only so that we can recognise a
+              &quot;no&quot; if the same shopper reappears. Erasing it would mean forgetting
+              that someone asked not to be messaged, and then messaging them. Retaining the
+              minimum needed to honour an objection is a recognised exception to erasure, and
+              holding it in this form is what keeps it minimal. When you close your account
+              entirely, it goes too. You can ask us to erase anything we hold at{" "}
               <a href={`mailto:${SITE.contactPrivacy}`} className="text-foreground underline">
                 {SITE.contactPrivacy}
               </a>
