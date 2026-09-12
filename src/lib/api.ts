@@ -1,3 +1,19 @@
+/**
+ * Paths where a 401 must NOT trigger the auto-refresh retry.
+ *
+ * `/auth/refresh` is the obvious one — retrying it would recurse.
+ *
+ * ⚠️★★`/auth/test-login` is the subtler one. A 401 there means WRONG PASSWORD,
+ * never "your access token expired" — so refreshing and replaying it is
+ * meaningless, and it is worse than meaningless: the API counts failed attempts
+ * against the credential and locks it at ten. With any still-valid session
+ * cookie present `tryRefresh()` succeeds, so each typo silently burned TWO
+ * attempts and five mistypes locked a reviewer's credential mid-certification.
+ */
+function skipsAuthRetry(path: string): boolean {
+  return path.includes("/auth/refresh") || path.includes("/auth/test-login");
+}
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 /** Exported for cases where a raw URL is needed (e.g., OAuth redirects) */
@@ -162,7 +178,7 @@ class ApiClient {
       }
 
       // Auto-refresh on 401: call /auth/refresh to renew access_token, then retry once
-      if (finalRes.status === 401 && !path.includes("/auth/refresh")) {
+      if (finalRes.status === 401 && !skipsAuthRetry(path)) {
         const refreshed = await this.tryRefresh();
         if (refreshed) {
           // Retry the original request with fresh access_token cookie
@@ -245,7 +261,7 @@ class ApiClient {
     const doFetch = () => fetch(url, { credentials: "include" });
 
     let res = await doFetch();
-    if (res.status === 401 && !path.includes("/auth/refresh")) {
+    if (res.status === 401 && !skipsAuthRetry(path)) {
       const refreshed = await this.tryRefresh();
       if (refreshed) res = await doFetch();
     }
@@ -319,7 +335,7 @@ class ApiClient {
       });
 
     let res = await doFetch();
-    if (res.status === 401 && !path.includes("/auth/refresh")) {
+    if (res.status === 401 && !skipsAuthRetry(path)) {
       const refreshed = await this.tryRefresh();
       if (refreshed) res = await doFetch();
     }

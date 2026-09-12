@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { KeyRound } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,9 +19,9 @@ import { ApiError } from "@/lib/api";
  *
  * `POST /v1/auth/test-login` refuses unless the deployment is non-production AND
  * `TEST_LOGIN_ENABLED=true`. The build-time flag below decides only whether the
- * markup ships, so a production bundle carries no form at all — but if one ever
- * did, the server would still 403. Anyone reasoning about who can use this
- * should read `helpers/test-credentials.ts`, not this file.
+ * markup ships, so a production bundle renders no form — but if one ever did,
+ * the server would still 403. Anyone reasoning about who can use this should
+ * read `helpers/test-credentials.ts`, not this file.
  *
  * ── ★COLLAPSED BY DEFAULT
  *
@@ -35,10 +35,21 @@ export function PasswordSignIn() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  /**
+   * ★★A REF, BECAUSE THE COMMENT ON THE BUTTON CLAIMS A SYNCHRONOUS REFUSAL.
+   *
+   * `submitting` is state: React batches the update, so two submits in the same
+   * tick — a double Enter, a click landing on an already-submitting form — both
+   * read `false` and both fire. Each one the API counts against the ten-attempt
+   * lockout. The sibling magic-link flow uses `inFlightRef` for exactly this;
+   * the state stays too, because it is what the button renders.
+   */
+  const inFlightRef = useRef(false);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (submitting) return;
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
     setSubmitting(true);
     setError(null);
     try {
@@ -57,13 +68,17 @@ export function PasswordSignIn() {
           ? err.message
           : "Could not sign in. Check the credentials and try again.",
       );
+      inFlightRef.current = false;
       setSubmitting(false);
     }
   }
 
   return (
     <details className="mt-6 rounded-lg border border-border/60 bg-muted/20">
-      <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 text-xs font-medium text-muted-foreground sm:text-sm">
+      {/* ★`[&::-webkit-details-marker]:hidden` alongside `list-none`: Safari
+          draws its own marker and ignores list-style, as
+          feature-comparison.tsx notes one component over. */}
+      <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 text-xs font-medium text-muted-foreground sm:text-sm marker:content-none [&::-webkit-details-marker]:hidden">
         <KeyRound className="size-3.5 shrink-0" aria-hidden />
         Sign in with password
         <span className="ml-auto text-[11px] font-normal opacity-70">reviewers only</span>
@@ -118,9 +133,12 @@ export function PasswordSignIn() {
           // aria-disabled rather than `disabled`, matching the magic-link button
           // above: a real `disabled` is blurred by the browser, throwing focus to
           // <body> for the whole round trip. The `submitting` guard in onSubmit
-          // already refuses a double submit synchronously.
+          // already refuses a double submit synchronously (via inFlightRef).
           aria-disabled={submitting}
-          className="h-10 rounded-md border border-border bg-background text-sm font-semibold transition-colors hover:bg-muted disabled:opacity-60"
+          // ★`aria-disabled:` and not `disabled:` — the element is never natively
+          //  disabled, so the `disabled:` variant matched nothing and the busy
+          //  state was invisible. GOLD_BUTTON in auth-flow.tsx does the same.
+          className="h-10 rounded-md border border-border bg-background text-sm font-semibold transition-colors hover:bg-muted aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
         >
           {submitting ? "Signing in…" : "Sign in"}
         </button>

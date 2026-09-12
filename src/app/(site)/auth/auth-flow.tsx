@@ -857,11 +857,16 @@ export function AuthFlow({
                 </button>
               </form>
 
-              {/* ★★DEV-ONLY, AND THE FLAG IS BUILD-TIME ON PURPose.
-                  `NEXT_PUBLIC_TEST_LOGIN` is inlined at build, so a production
-                  bundle ships no form and no route reference at all — nothing to
-                  find by reading the JS. A runtime probe would have advertised
-                  that the namespace exists.
+              {/* ★★DEV-ONLY, AND THE FLAG IS BUILD-TIME ON PURPOSE.
+                  `NEXT_PUBLIC_TEST_LOGIN` is inlined at build, so the branch is
+                  statically false in a production bundle and the panel never
+                  renders. ⚠️A first version of this comment claimed the bundle
+                  would carry "no route reference at all" — that does not follow:
+                  the import is unconditional, and the `/v1/auth/test-login`
+                  literal lives in `lib/auth.ts`, which ships anyway for
+                  `sendMagicLink`. What is true is narrower — no form, and no way
+                  to submit one — and a runtime probe would still have been
+                  worse, because it advertises that the namespace exists.
 
                   ⚠️It is NOT the security boundary: `/v1/auth/test-login` refuses
                   unless the deployment is non-prod AND `TEST_LOGIN_ENABLED=true`,
