@@ -119,9 +119,9 @@ export default function PrivacyPolicyPage() {
               <li>
                 <strong>Shopify and other commerce platforms:</strong> where you connect a
                 store, its profile, product catalog, inventory and published storefront
-                content. If you additionally enable order-based features and grant the
-                permissions they need — granted at install — we also receive order records,
-                which can include your shopper&apos;s name, phone number and email address, and
+                content. Because the order permissions are part of the same install grant, we
+                also receive order records from the moment your store is connected — these
+                can include your shopper&apos;s name, phone number and email address, and
                 the <strong>postcode and country</strong> of the order (never the street
                 lines), processed on your behalf and described in{" "}
                 <a href="#shopify" className="text-foreground underline">Section 12.5</a>. The
@@ -699,11 +699,13 @@ export default function PrivacyPolicyPage() {
               order-based features need — order records, and the customer name, phone number,
               email address, and the <strong>postcode and country</strong> of the order&apos;s
               delivery and billing addresses. Shopify reviews and approves those permissions.
-              ⚠️ You grant them <strong>when you install the app</strong>, together with the
+              You grant them <strong>when you install the app</strong>, together with the
               catalog permissions and in the same prompt — they are not a separate, later
-              opt-in. Once your store is connected we sync your orders, so the fields listed
-              here reach us from that point, whether or not you have switched on a feature that
-              uses them.
+              opt-in. (If your store was connected before we added a permission, Shopify asks
+              you to approve the addition the next time you open the app, and the features that
+              need it do not run until you do.) Once your store is connected we sync your
+              orders, so the fields listed here reach us from that point, whether or not you
+              have switched on a feature that uses them.
             </p>
             <p className="mt-2">
               <strong>What we write back to your store.</strong> With your permission the app
@@ -732,19 +734,26 @@ export default function PrivacyPolicyPage() {
               <strong>How far back we look.</strong> Shopify limits apps to your{" "}
               <strong>last 60 days</strong> of orders unless it separately approves wider
               access. Sixty days is too short to tell a seasonal pattern from a real change in
-              demand, or to judge a delivery area on its return rate, so we ask Shopify to
-              approve that wider access (<code>read_all_orders</code>) and use it where it is
-              granted. ★ It widens the <strong>time range only</strong> — the same fields
-              described above, over more of your own trading history. It gives us nothing
-              additional about any individual shopper, and the retention limits below apply to
-              an older order exactly as they do to a recent one.
+              demand, or to tell slow-moving stock from stock that has genuinely stopped
+              selling, so we have prepared a request to Shopify for that wider access
+              (<code>read_all_orders</code>). It is <strong>not granted today</strong>, and
+              until Shopify approves it we see only your most recent 60 days.
+            </p>
+            <p className="mt-2">
+              If it is approved, it widens the <strong>time range only</strong>, and we have
+              committed to Shopify that we will read <strong>order line items and dates
+              only</strong> from those older orders — not the shopper name, phone, email or
+              postcode described above. So a longer history tells us more about{" "}
+              <em>what sold and when</em>, and nothing more about any individual shopper.
             </p>
             <p className="mt-2">
               <strong>Your customers&apos; data, and our role.</strong> An order record can
               include your customer&apos;s <strong>name, phone number, email address, and the
-              postcode and country</strong> of the delivery or billing address.{" "}
-              ★ We do <strong>not</strong> receive street lines: our request asks Shopify for
-              the postcode and the country and nothing else of either address. We process
+              postcode and country</strong> of the delivery or billing address, and a contact
+              phone number recorded on it. We do <strong>not</strong> receive street lines,
+              building names or anything else that identifies a specific address — our request
+              asks Shopify for the postcode, the country and the phone, and nothing more of
+              either address block. We process
               those <strong>on your behalf and on your instructions</strong>: for your
               shoppers&apos; personal data you are the controller / Data Fiduciary and we act
               as your processor. We use it only to deliver the features you switched on — for
@@ -802,7 +811,7 @@ export default function PrivacyPolicyPage() {
               webhooks. When a shopper asks you to delete their data, Shopify notifies us and we
               erase the personal details we received from Shopify about them — the name, phone,
               email and postcode on their orders, including the scrambled form of the postcode
-              described above, and the customer record. ★ Where we can identify the same shopper
+              described above, and the customer record. Where we can identify the same shopper
               on another channel of yours — for example a WhatsApp conversation reachable at the
               same phone number — that contact and its messages are erased too, so a deletion
               request is not answered only within Shopify. If you
