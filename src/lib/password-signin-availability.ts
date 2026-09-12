@@ -33,11 +33,15 @@
  * no form. Returning it SILENTLY is what this whole change exists to stop: the
  * build-time flag it replaced failed exactly that way, and the runbook ended up
  * calling it "the condition most likely to be missed, because everything else
- * looks right". An unset `NEXT_PUBLIC_API_URL`, a cold start, a CORS
- * misconfiguration and a 5xx all land here, and on a dev stack every one of them
- * means a reviewer is looking at a page with no password form. The log is how
+ * looks right". An unset `NEXT_PUBLIC_API_URL`, a cold start, a DNS or
+ * network failure, a timeout and a 5xx all land here, and on a dev stack every
+ * one of them means a reviewer is looking at a page with no password form.
+ * (⚠️Not CORS — this runs server-side in Node, where it cannot apply. A previous
+ * revision listed it, left over from when the probe ran in the browser, and it
+ * would send a debugger down a dead end.) The log is how
  * somebody finds that in under a minute instead of an afternoon.
  */
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 /**
@@ -52,6 +56,14 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
  */
 const TIMEOUT_MS = 3_000;
 
+/**
+ * Resolve whether this stack allows password sign-in. Server-side; see the
+ * module overview above for why it is not a client probe.
+ *
+ * ★Never throws and never returns `true` on doubt — every failure path logs
+ * what happened and answers `false`, because a sign-in form that cannot work is
+ * worse than no form.
+ */
 export async function isPasswordSignInAvailable(): Promise<boolean> {
   if (!API_URL) {
     console.warn(
