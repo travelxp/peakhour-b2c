@@ -873,7 +873,7 @@ export function AuthFlow({
                   unless the deployment is non-prod AND `TEST_LOGIN_ENABLED=true`,
                   so this only decides whether the markup exists. Drift between
                   the two is cosmetic — a form that always 403s — never a hole. */}
-              {TEST_LOGIN_PANEL && <PasswordSignIn />}
+              {TEST_LOGIN_PANEL && <PasswordSignIn next={next} />}
 
               <ul className="mt-4 flex flex-wrap justify-center gap-x-3.5 gap-y-1.5 text-xs text-muted-foreground sm:mt-6 sm:gap-x-4 sm:text-sm">
                 {(isPreLaunch ? PRELAUNCH_PROMISES : SIGNUP_PROMISES).map((tick) => (

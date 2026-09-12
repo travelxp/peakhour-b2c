@@ -32,7 +32,7 @@ import { TEST_LOGIN_PANEL } from "@/lib/flags";
  * told where to click by the handoff block the CMS generates, and nobody else
  * needs to see it at all.
  */
-export function PasswordSignIn() {
+export function PasswordSignIn({ next }: { next?: string | null }) {
   const [email, setEmail] = useState("");
   // (state declared before the flag guard so the hook order is unconditional)
   const [password, setPassword] = useState("");
@@ -68,7 +68,18 @@ export function PasswordSignIn() {
       //  landing on the very screen the flag demotes. `nav-home.ts` records the
       //  same bug being fixed once already, for verify-magic and the WordPress
       //  bridge.
-      window.location.assign(landingRoute(res.redirectTo || "/dashboard/overview"));
+      // ★★A DEEP LINK WINS OVER THE HOME ROUTE. AuthFlow already parses and
+      //  same-origin-validates `?next=` (and the Shopify fragment form), and
+      //  auth/verify honours it — a visitor sent to /auth?next=/claim/shopify
+      //  with a ONE-SHOT claim token who used this panel landed on the dashboard
+      //  instead, never spending the token, leaving the store unclaimed and the
+      //  token unusable.
+      //
+      // ★`replace`, not `assign`. Assign pushes a history entry, so Back
+      //  returned to /auth with a live session and a bfcache-restored password
+      //  field. The magic-link path replaces for the same reason, and replace
+      //  keeps the full-reload property the comment above argues for.
+      window.location.replace(next || landingRoute(res.redirectTo || "/dashboard/overview"));
     } catch (err) {
       // ★The API answers every failure identically on purpose — unknown email,
       //  wrong password, expired, revoked and locked are one 401 — so there is

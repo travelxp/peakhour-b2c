@@ -167,18 +167,7 @@ export async function sendMagicLink(
   );
 }
 
-/**
- * Reviewer password sign-in — the dev-only grant.
- *
- * ★Exists because every platform that certifies us (LinkedIn, Meta, Google,
- * TikTok, Shopify) asks for a username and password a stranger can use in an
- * incognito window, and will not accept "we'll forward the magic link to you".
- *
- * ⚠️The server refuses this outright unless the deployment is non-production AND
- * `TEST_LOGIN_ENABLED=true`, so a production build that calls it gets a 403.
- * Whatever the UI does about visibility is convenience — the API is the
- * boundary.
- */
+/** The grant's response. See {@link signInWithPassword}. */
 export interface TestLoginResult {
   accessToken: string;
   refreshToken: string;
@@ -193,6 +182,23 @@ export interface TestLoginResult {
   credential: { label: string; expiresAt: string };
 }
 
+/**
+ * Reviewer password sign-in — the dev-only grant.
+ *
+ * ★Exists because every platform that certifies us (LinkedIn, Meta, Google,
+ * TikTok, Shopify) asks for a username and password a stranger can use in an
+ * incognito window, and will not accept "we'll forward the magic link to you".
+ *
+ * ⚠️★The server refuses this outright unless the deployment is non-production
+ * AND `TEST_LOGIN_ENABLED=true`, so a production build that calls it gets a 403.
+ * Whatever the UI does about visibility is convenience — the API is the
+ * boundary.
+ *
+ * ★A 401 here means WRONG PASSWORD, never "token expired", and the API counts
+ * failed attempts against a ten-attempt lockout — which is why `api.ts` excludes
+ * this path from the auto-refresh retry (`skipsAuthRetry`). A caller that
+ * reimplements the request must do the same or each typo costs two attempts.
+ */
 export async function signInWithPassword(
   email: string,
   password: string,
