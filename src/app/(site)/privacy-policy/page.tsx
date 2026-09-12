@@ -120,14 +120,14 @@ export default function PrivacyPolicyPage() {
                 <strong>Shopify and other commerce platforms:</strong> where you connect a
                 store, its profile, product catalog, inventory and published storefront
                 content. If you additionally enable order-based features and grant the
-                permission they need, we also receive order records, which can include your
-                shopper&apos;s name, phone number and email address — processed on your behalf
-                and described in <a href="#shopify" className="text-foreground underline">Section 12.5</a>. Where you enable those
-                features, the order record also includes the order&apos;s delivery/billing
-                address, which we use for the geographic analysis described there. With your
-                permission the app can also <strong>write back</strong> to your store —
-                publishing a blog article you approved, or updating SEO text when you ask it
-                to.
+                permissions they need — granted at install — we also receive order records,
+                which can include your shopper&apos;s name, phone number and email address, and
+                the <strong>postcode and country</strong> of the order (never the street
+                lines), processed on your behalf and described in{" "}
+                <a href="#shopify" className="text-foreground underline">Section 12.5</a>. The
+                app can also <strong>write back</strong> to your store — publishing a blog
+                article you approved, updating SEO text when you ask it to, or creating a
+                discount code you approved.
               </li>
               <li>
                 <strong>Beehiiv and other publishing tools:</strong> newsletter content,
@@ -697,35 +697,54 @@ export default function PrivacyPolicyPage() {
               catalog permissions contain no personal data about your shoppers. Separately,
               the app requests the <strong>protected customer data</strong> permissions that
               order-based features need — order records, and the customer name, phone number,
-              email address and order address on them. Shopify reviews and approves those
-              permissions, and you grant them at install; we access shopper data only where you
-              have granted them and switched the relevant features on.
+              email address, and the <strong>postcode and country</strong> of the order&apos;s
+              delivery and billing addresses. Shopify reviews and approves those permissions.
+              ⚠️ You grant them <strong>when you install the app</strong>, together with the
+              catalog permissions and in the same prompt — they are not a separate, later
+              opt-in. Once your store is connected we sync your orders, so the fields listed
+              here reach us from that point, whether or not you have switched on a feature that
+              uses them.
             </p>
             <p className="mt-2">
               <strong>What we write back to your store.</strong> With your permission the app
               does not only read — it can <strong>publish and edit content on your live
               storefront</strong> on your instruction: creating a blog article you composed and
               approved in {SITE.name}, and updating the SEO title and description on a blog
-              post, page or product when you press Fix. These writes are made with the
-              permissions you granted at install, only to the store you connected, and only
-              when you ask for them — we do not publish or change anything on a schedule you
-              did not set. Content we publish is content you reviewed. Nothing we write contains
-              your shoppers&apos; personal data.
+              post, page or product when you press Fix. The install grant also includes
+              permission to create <strong>discount codes</strong>, for a markdown feature you
+              approve item by item. These writes are made with the permissions you granted at
+              install, only to the store you connected, and only when you ask for them — we do
+              not publish or change anything on a schedule you did not set. Content we publish
+              is content you reviewed. Nothing we write contains your shoppers&apos; personal
+              data.
             </p>
             <p className="mt-2">
-              <strong>What changes if you enable order-based features.</strong> Features such as
-              cash-on-delivery confirmation and geographic analysis need your{" "}
+              <strong>What order-based features use.</strong> Features such as
+              cash-on-delivery confirmation and delivery-area analysis use your{" "}
               <strong>order records</strong> — line items, quantities, totals, currency,
               dates, whether the order is cash-on-delivery, the order&apos;s status including
-              returns and cancellations, and the delivery/billing address. Those features
-              require you to grant order and customer access, and Shopify asks you to approve
-              that separately. Everything in the rest of this section describes what happens
-              once you do; until then it does not apply to your store.
+              returns and cancellations, and the postcode and country on it. Switching a
+              feature on changes what we <strong>do</strong> with that data, not whether we
+              receive it: the permissions are granted at install and the order sync follows
+              from the connection itself.
+            </p>
+            <p className="mt-2">
+              <strong>How far back we look.</strong> Shopify limits apps to your{" "}
+              <strong>last 60 days</strong> of orders unless it separately approves wider
+              access. Sixty days is too short to tell a seasonal pattern from a real change in
+              demand, or to judge a delivery area on its return rate, so we ask Shopify to
+              approve that wider access (<code>read_all_orders</code>) and use it where it is
+              granted. ★ It widens the <strong>time range only</strong> — the same fields
+              described above, over more of your own trading history. It gives us nothing
+              additional about any individual shopper, and the retention limits below apply to
+              an older order exactly as they do to a recent one.
             </p>
             <p className="mt-2">
               <strong>Your customers&apos; data, and our role.</strong> An order record can
-              include your customer&apos;s <strong>name, phone number, email address and
-              delivery/billing address</strong>. We process
+              include your customer&apos;s <strong>name, phone number, email address, and the
+              postcode and country</strong> of the delivery or billing address.{" "}
+              ★ We do <strong>not</strong> receive street lines: our request asks Shopify for
+              the postcode and the country and nothing else of either address. We process
               those <strong>on your behalf and on your instructions</strong>: for your
               shoppers&apos; personal data you are the controller / Data Fiduciary and we act
               as your processor. We use it only to deliver the features you switched on — for
@@ -737,16 +756,16 @@ export default function PrivacyPolicyPage() {
               customer contact details.
             </p>
             <p className="mt-2">
-              <strong>Why we need the address, and what we do with it.</strong> We use the
-              address on an order for <strong>geographic analysis</strong>: aggregating your
-              orders, returns and cancellations by city, region/state and country so that you
-              can see where your demand and your returns are concentrated, and use those
-              location patterns to plan your marketing, targeting and merchandising. The
-              analysis is about <strong>places, not people</strong> — it is presented to you
-              as counts and trends per location, never as a list of shoppers. The address is
-              also used, where a feature you enabled needs it, to deliver that feature for the
-              order it belongs to. We do not use shopper addresses for our own advertising, we
-              do not sell or share them, and we do not use them to train AI models.
+              <strong>Why we need the postcode, and what we do with it.</strong> We use the
+              postcode and country on an order for <strong>delivery-area analysis</strong>:
+              aggregating your orders, returns and cancellations by postcode area and country
+              so that you can see where your demand and your returns are concentrated, and use
+              those patterns to plan your marketing, targeting and merchandising. The analysis
+              is about <strong>places, not people</strong> — it is presented to you as counts
+              and trends per area, never as a list of shoppers. The postcode is also used,
+              where a feature you enabled needs it, to deliver that feature for the order it
+              belongs to. We do not use it for our own advertising, we do not sell or share it,
+              and we do not use it to train AI models.
             </p>
             <p className="mt-2">
               <strong>What we deliberately do not take.</strong> We never receive your
@@ -757,15 +776,16 @@ export default function PrivacyPolicyPage() {
             </p>
             <p className="mt-2">
               <strong>How long we keep it.</strong> The copy of a shopper&apos;s name, phone
-              number, email address and street address that sits <strong>on each order</strong> is{" "}
-              <strong>erased after 90 days</strong> — the purpose it serves, such as confirming
-              that order, is measured in days rather than years. What survives that window from
-              the address is only its <strong>coarse geography</strong> — city, region/state and
-              country — which is what the geographic analysis above runs on and which does not
-              identify a shopper. The rest of the order record is retained as your business
-              data, because it is what makes inventory, seasonality, geographic and
-              merchandising analysis work; it carries no shopper contact details once that
-              window has passed.
+              number, email address and <strong>postcode</strong> that sits{" "}
+              <strong>on each order</strong> is <strong>erased after 90 days</strong> — the
+              purpose it serves, such as confirming that order, is measured in days rather than
+              years. What survives that window is the order&apos;s <strong>country</strong> and
+              a <strong>one-way scrambled form of the postcode</strong>, which lets us keep
+              matching orders from the same delivery area without holding the postcode itself.
+              It cannot be turned back into an address and it names no shopper. The rest of the
+              order record is retained as your business data, because it is what makes
+              inventory, seasonality, delivery-area and merchandising analysis work; it carries
+              no shopper contact details once that window has passed.
             </p>
             <p className="mt-2">
               Separately, we keep one <strong>customer record per shopper</strong> holding their
@@ -781,15 +801,16 @@ export default function PrivacyPolicyPage() {
               <strong>Deletion requests.</strong> We support Shopify&apos;s mandatory privacy
               webhooks. When a shopper asks you to delete their data, Shopify notifies us and we
               erase the personal details we received from Shopify about them — the name, phone,
-              email and address on their orders, and the customer record described above. If you
+              email and postcode on their orders, including the scrambled form of the postcode
+              described above, and the customer record. ★ Where we can identify the same shopper
+              on another channel of yours — for example a WhatsApp conversation reachable at the
+              same phone number — that contact and its messages are erased too, so a deletion
+              request is not answered only within Shopify. If you
               uninstall the app,
               Shopify sends us a shop-redaction notice about <strong>48 hours later</strong>, and
               that is when we erase the store data we hold; the delay is Shopify&apos;s, and it
-              exists so that reinstalling within that window does not cost you your history. Data
-              that
-              reached us through a different channel — for example, a shopper who messaged your
-              business on WhatsApp — belongs to that channel&apos;s record and is erased through
-              it, not by a Shopify notification. You can ask us to erase anything we hold at{" "}
+              exists so that reinstalling within that window does not cost you your history.
+              You can ask us to erase anything we hold at{" "}
               <a href={`mailto:${SITE.contactPrivacy}`} className="text-foreground underline">
                 {SITE.contactPrivacy}
               </a>
