@@ -167,6 +167,39 @@ export async function sendMagicLink(
   );
 }
 
+/**
+ * Reviewer password sign-in — the dev-only grant.
+ *
+ * ★Exists because every platform that certifies us (LinkedIn, Meta, Google,
+ * TikTok, Shopify) asks for a username and password a stranger can use in an
+ * incognito window, and will not accept "we'll forward the magic link to you".
+ *
+ * ⚠️The server refuses this outright unless the deployment is non-production AND
+ * `TEST_LOGIN_ENABLED=true`, so a production build that calls it gets a 403.
+ * Whatever the UI does about visibility is convenience — the API is the
+ * boundary.
+ */
+export interface TestLoginResult {
+  accessToken: string;
+  refreshToken: string;
+  tokenType: string;
+  expiresIn: number;
+  user: { _id: string; email: string; name: string | null; profileCompleted: boolean };
+  orgId: string;
+  businessId: string | null;
+  redirectTo: string;
+  /** Minted alongside the session cookies, because setting them arms csrfGuard. */
+  csrfToken: string;
+  credential: { label: string; expiresAt: string };
+}
+
+export async function signInWithPassword(
+  email: string,
+  password: string,
+): Promise<TestLoginResult> {
+  return api.post<TestLoginResult>("/v1/auth/test-login", { email, password });
+}
+
 export async function verifyMagicLink(
   token: string,
   uid: string
