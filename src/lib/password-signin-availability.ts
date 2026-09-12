@@ -40,7 +40,16 @@
  */
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 
-/** Short: this is one boolean on the sign-in path, not a page-blocking read. */
+/**
+ * Short: this is one boolean on the sign-in path, not a page-blocking read.
+ *
+ * ⚠️★IT BOUNDS THE COLD-CACHE CALL ONLY. Next strips a caller's `signal` when it
+ * revalidates a stale entry in the background, so a refresh after the window has
+ * no timeout of its own. That is survivable here — the stale value keeps being
+ * served while it happens, so a slow API delays the NEXT answer rather than this
+ * render — but the guarantee is narrower than "every call is bounded", and a
+ * previous version of this comment implied otherwise.
+ */
 const TIMEOUT_MS = 3_000;
 
 export async function isPasswordSignInAvailable(): Promise<boolean> {

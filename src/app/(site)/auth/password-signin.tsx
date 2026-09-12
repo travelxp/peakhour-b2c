@@ -19,9 +19,9 @@ import { landingRoute } from "@/lib/nav-home";
  * ── ★★THIS IS NOT A SECURITY BOUNDARY, AND MUST NOT BE MISTAKEN FOR ONE
  *
  * `POST /v1/auth/test-login` refuses on production, and the environment decides
- * that — there is no opt-in flag on either side. The check below decides only
- * whether the markup renders; if it were ever wrong, the server would still
- * 403. Anyone reasoning about who can use this should read
+ * that — there is no opt-in flag on either side. The `available` guard below
+ * decides only whether the markup renders; if it were ever wrong, the server
+ * would still 403. Anyone reasoning about who can use this should read
  * `helpers/test-credentials.ts`, not this file.
  *
  * ── ★★THE API DECIDES, AND page.tsx RESOLVES IT SERVER-SIDE
@@ -40,9 +40,24 @@ import { landingRoute } from "@/lib/nav-home";
  * told where to click by the handoff block the CMS generates, and nobody else
  * needs to see it at all.
  */
-export function PasswordSignIn({ next }: { next?: string | null }) {
+export function PasswordSignIn({
+  /**
+   * The API's answer, resolved server-side in `page.tsx`.
+   *
+   * ★★REQUIRED, AND GUARDED INSIDE THIS COMPONENT rather than only at the call
+   * site. A previous revision moved the check out to the parent's `&&` and left
+   * the docblock above still claiming the component held it — so a second mount,
+   * or a dropped condition in that one line, would have rendered a password form
+   * anywhere under a file that says it cannot. The call site checks it too; this
+   * is the half that cannot be edited away by accident.
+   */
+  available,
+  next,
+}: {
+  available: boolean;
+  next?: string | null;
+}) {
   const [email, setEmail] = useState("");
-  // (state declared before the flag guard so the hook order is unconditional)
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -101,6 +116,10 @@ export function PasswordSignIn({ next }: { next?: string | null }) {
       setSubmitting(false);
     }
   }
+
+  // ★After the hooks, so the hook order stays unconditional whatever the API
+  //  said. See `available` above for why this lives here and not only upstream.
+  if (!available) return null;
 
   return (
     <details className="mt-6 rounded-lg border border-border/60 bg-muted/20">

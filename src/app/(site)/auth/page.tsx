@@ -27,8 +27,8 @@ import { AuthFlow } from "./auth-flow";
  * Mirrors how `components/shared/header.tsx` resolves the same value.
  */
 export default async function AuthPage() {
-  // In parallel — these are two independent endpoints, and awaiting them in
-  // sequence costs a second round trip on a cold cache.
+  // In parallel — these are three independent endpoints, and awaiting them in
+  // sequence costs two extra round trips on a cold cache.
   const [catalog, pricing, passwordSignIn] = await Promise.all([
     getPublicCatalog(),
     // "DEFAULT" is not a sentinel the API honours — it fails the two-letter

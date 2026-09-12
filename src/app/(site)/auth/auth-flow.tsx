@@ -869,7 +869,7 @@ export function AuthFlow({
                   page.tsx — see lib/password-signin-availability.ts for why it is
                   not a client probe. Not a security boundary either way:
                   /v1/auth/test-login refuses on production regardless. */}
-              {passwordSignIn && <PasswordSignIn next={next} />}
+              {passwordSignIn && <PasswordSignIn available={passwordSignIn} next={next} />}
 
               <ul className="mt-4 flex flex-wrap justify-center gap-x-3.5 gap-y-1.5 text-xs text-muted-foreground sm:mt-6 sm:gap-x-4 sm:text-sm">
                 {(isPreLaunch ? PRELAUNCH_PROMISES : SIGNUP_PROMISES).map((tick) => (
