@@ -401,7 +401,12 @@ class ApiClient {
     }
 
     // Auto-refresh on 401 (same as request())
-    if (res.status === 401) {
+    //
+    // ★Uses the same exclusion helper as the other three retry sites. No caller
+    //  of `streamPost` hits an excluded path today — its three callers are all
+    //  /v1/content/* streaming routes — but "the one retry site that decides
+    //  this for itself" is exactly how the next one gets it wrong.
+    if (res.status === 401 && !skipsAuthRetry(path)) {
       const refreshed = await this.tryRefresh();
       if (refreshed) {
         res = await fetch(`${this.baseUrl}${path}`, fetchOpts);

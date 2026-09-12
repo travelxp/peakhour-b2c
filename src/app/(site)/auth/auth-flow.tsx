@@ -7,6 +7,7 @@ import { useSearchParams } from "next/navigation";
 import { useIsomorphicLayoutEffect } from "@/hooks/use-isomorphic-layout-effect";
 import { sendMagicLink } from "@/lib/auth";
 import { PasswordSignIn } from "./password-signin";
+import { TEST_LOGIN_PANEL } from "@/lib/flags";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api, ApiError } from "@/lib/api";
@@ -872,7 +873,7 @@ export function AuthFlow({
                   unless the deployment is non-prod AND `TEST_LOGIN_ENABLED=true`,
                   so this only decides whether the markup exists. Drift between
                   the two is cosmetic — a form that always 403s — never a hole. */}
-              {process.env.NEXT_PUBLIC_TEST_LOGIN === "true" && <PasswordSignIn />}
+              {TEST_LOGIN_PANEL && <PasswordSignIn />}
 
               <ul className="mt-4 flex flex-wrap justify-center gap-x-3.5 gap-y-1.5 text-xs text-muted-foreground sm:mt-6 sm:gap-x-4 sm:text-sm">
                 {(isPreLaunch ? PRELAUNCH_PROMISES : SIGNUP_PROMISES).map((tick) => (

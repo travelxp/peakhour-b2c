@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { signInWithPassword } from "@/lib/auth";
 import { ApiError } from "@/lib/api";
+import { landingRoute } from "@/lib/nav-home";
+import { TEST_LOGIN_PANEL } from "@/lib/flags";
 
 /**
  * Password sign-in for platform reviewers — LinkedIn, Meta, Google, TikTok,
@@ -32,6 +34,7 @@ import { ApiError } from "@/lib/api";
  */
 export function PasswordSignIn() {
   const [email, setEmail] = useState("");
+  // (state declared before the flag guard so the hook order is unconditional)
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -58,7 +61,14 @@ export function PasswordSignIn() {
       //  session cookies, and the app's auth provider reads them at load; a
       //  soft navigation would land on the dashboard with the pre-sign-in
       //  React tree still holding "signed out" and bounce straight back here.
-      window.location.assign(res.redirectTo || "/dashboard/overview");
+      // ★★NORMALISED THROUGH `landingRoute`. The API hardcodes
+      //  /dashboard/overview as "the app's home" and cannot know about
+      //  NEXT_PUBLIC_OUTCOMES_HOME, which is build-inlined into THIS bundle — so
+      //  with that flag on, this would have been the only sign-in entry point
+      //  landing on the very screen the flag demotes. `nav-home.ts` records the
+      //  same bug being fixed once already, for verify-magic and the WordPress
+      //  bridge.
+      window.location.assign(landingRoute(res.redirectTo || "/dashboard/overview"));
     } catch (err) {
       // ★The API answers every failure identically on purpose — unknown email,
       //  wrong password, expired, revoked and locked are one 401 — so there is
@@ -72,6 +82,15 @@ export function PasswordSignIn() {
       setSubmitting(false);
     }
   }
+
+  // ★★THE GUARD LIVES HERE TOO, so the docblock above is true of the COMPONENT
+  //  rather than of one call site. A first version asserted "the build-time flag
+  //  below" while the only gate was in auth-flow.tsx — a second mount, or a
+  //  dropped `&&`, would have shipped the panel to production under a file that
+  //  says it cannot. Build-inlined, so this branch is statically dead in a
+  //  production bundle exactly as the caller's is. Placed after the hooks so the
+  //  hook order stays unconditional.
+  if (!TEST_LOGIN_PANEL) return null;
 
   return (
     <details className="mt-6 rounded-lg border border-border/60 bg-muted/20">
