@@ -1,13 +1,12 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { KeyRound } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { signInWithPassword } from "@/lib/auth";
+import { signInWithPassword, isPasswordSignInAvailable } from "@/lib/auth";
 import { ApiError } from "@/lib/api";
 import { landingRoute } from "@/lib/nav-home";
-import { TEST_LOGIN_PANEL } from "@/lib/flags";
 
 /**
  * Password sign-in for platform reviewers — LinkedIn, Meta, Google, TikTok,
@@ -19,11 +18,22 @@ import { TEST_LOGIN_PANEL } from "@/lib/flags";
  *
  * ── ★★THIS IS NOT A SECURITY BOUNDARY, AND MUST NOT BE MISTAKEN FOR ONE
  *
- * `POST /v1/auth/test-login` refuses unless the deployment is non-production AND
- * `TEST_LOGIN_ENABLED=true`. The build-time flag below decides only whether the
- * markup ships, so a production bundle renders no form — but if one ever did,
- * the server would still 403. Anyone reasoning about who can use this should
- * read `helpers/test-credentials.ts`, not this file.
+ * `POST /v1/auth/test-login` refuses on production, and the environment decides
+ * that — there is no opt-in flag on either side. The check below decides only
+ * whether the markup renders; if it were ever wrong, the server would still
+ * 403. Anyone reasoning about who can use this should read
+ * `helpers/test-credentials.ts`, not this file.
+ *
+ * ── ★★IT ASKS THE API RATHER THAN MIRRORING THE ANSWER
+ *
+ * A build-time `NEXT_PUBLIC_TEST_LOGIN` used to gate this. It was a second
+ * switch that had to stay in step with the API's, and when it drifted the
+ * failure was silent: a correctly-deployed dev stack with no form on the page
+ * and nothing anywhere saying why. `APP_ENV` is server-only, so asking is the
+ * only way this app can know.
+ *
+ * ★Renders nothing until the answer arrives, and nothing if it cannot be
+ * reached. A form that will not work is worse than no form.
  *
  * ── ★COLLAPSED BY DEFAULT
  *
@@ -48,6 +58,18 @@ export function PasswordSignIn({ next }: { next?: string | null }) {
    * the state stays too, because it is what the button renders.
    */
   const inFlightRef = useRef(false);
+  /** null = not yet answered. See the docblock: absent is not "no". */
+  const [available, setAvailable] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void isPasswordSignInAvailable().then((v) => {
+      if (!cancelled) setAvailable(v);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -94,14 +116,15 @@ export function PasswordSignIn({ next }: { next?: string | null }) {
     }
   }
 
-  // ★★THE GUARD LIVES HERE TOO, so the docblock above is true of the COMPONENT
-  //  rather than of one call site. A first version asserted "the build-time flag
-  //  below" while the only gate was in auth-flow.tsx — a second mount, or a
-  //  dropped `&&`, would have shipped the panel to production under a file that
-  //  says it cannot. Build-inlined, so this branch is statically dead in a
-  //  production bundle exactly as the caller's is. Placed after the hooks so the
+  // ★★THE GUARD LIVES HERE, not at the call site, so the docblock above is true
+  //  of the COMPONENT. A second mount, or a dropped `&&` in a parent, cannot
+  //  ship the panel somewhere it does not belong. Placed after the hooks so the
   //  hook order stays unconditional.
-  if (!TEST_LOGIN_PANEL) return null;
+  //
+  //  ★`!== true` rather than `=== false`: "not yet answered" renders nothing,
+  //  the same as "no". A disclosure that pops into existence a moment after the
+  //  page settles is worse than one that was never there.
+  if (available !== true) return null;
 
   return (
     <details className="mt-6 rounded-lg border border-border/60 bg-muted/20">

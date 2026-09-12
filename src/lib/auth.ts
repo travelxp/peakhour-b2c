@@ -183,16 +183,37 @@ export interface TestLoginResult {
 }
 
 /**
+ * May this stack sign in with a password?
+ *
+ * ★★THE API IS ASKED, RATHER THAN THE ANSWER BEING DUPLICATED HERE. It decides
+ * from `APP_ENV`, which is server-only — this app is a separate deployment and
+ * knows only which API it talks to. A build-time `NEXT_PUBLIC_TEST_LOGIN`
+ * mirrored the answer and could drift out of step with it, and the failure that
+ * caused was silent: a correctly-deployed dev stack with no form on the page and
+ * nothing anywhere saying why.
+ *
+ * Returns `false` on any error. A probe that cannot reach the API is not a
+ * reason to render a sign-in form that will not work.
+ */
+export async function isPasswordSignInAvailable(): Promise<boolean> {
+  try {
+    const res = await api.get<{ enabled: boolean }>("/v1/auth/test-login/available");
+    return res.enabled === true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Reviewer password sign-in — the dev-only grant.
  *
  * ★Exists because every platform that certifies us (LinkedIn, Meta, Google,
  * TikTok, Shopify) asks for a username and password a stranger can use in an
  * incognito window, and will not accept "we'll forward the magic link to you".
  *
- * ⚠️★The server refuses this outright unless the deployment is non-production
- * AND `TEST_LOGIN_ENABLED=true`, so a production build that calls it gets a 403.
- * Whatever the UI does about visibility is convenience — the API is the
- * boundary.
+ * ⚠️★The server refuses this outright on production. The environment decides;
+ * there is no opt-in flag on either side that could change that, and nothing the
+ * UI does about visibility is a boundary.
  *
  * ★A 401 here means WRONG PASSWORD, never "token expired", and the API counts
  * failed attempts against a ten-attempt lockout — which is why `api.ts` excludes
