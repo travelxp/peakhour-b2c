@@ -7,7 +7,6 @@ import { useSearchParams } from "next/navigation";
 import { useIsomorphicLayoutEffect } from "@/hooks/use-isomorphic-layout-effect";
 import { sendMagicLink } from "@/lib/auth";
 import { PasswordSignIn } from "./password-signin";
-import { TEST_LOGIN_PANEL } from "@/lib/flags";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api, ApiError } from "@/lib/api";
@@ -209,9 +208,17 @@ export function AuthFlow({
   signupMode,
   /** Pre-formatted so the client bundle carries no pricing logic. */
   freePeaks,
+  /**
+   * Whether this stack's API allows password sign-in. Resolved on the server in
+   * `page.tsx` — see `lib/password-signin-availability.ts` for why it is not a
+   * client probe. Defaults to false so a caller that forgets it renders nothing
+   * rather than a form that cannot work.
+   */
+  passwordSignIn = false,
 }: {
   signupMode: PlatformSignupMode;
   freePeaks: string;
+  passwordSignIn?: boolean;
 }) {
   // Anything other than "open" means access is gated behind approval, so the
   // page must not promise same-day access.
@@ -858,22 +865,17 @@ export function AuthFlow({
                 </button>
               </form>
 
-              {/* ★★DEV-ONLY, AND THE FLAG IS BUILD-TIME ON PURPOSE.
-                  `NEXT_PUBLIC_TEST_LOGIN` is inlined at build, so the branch is
-                  statically false in a production bundle and the panel never
-                  renders. ⚠️A first version of this comment claimed the bundle
-                  would carry "no route reference at all" — that does not follow:
-                  the import is unconditional, and the `/v1/auth/test-login`
-                  literal lives in `lib/auth.ts`, which ships anyway for
-                  `sendMagicLink`. What is true is narrower — no form, and no way
-                  to submit one — and a runtime probe would still have been
-                  worse, because it advertises that the namespace exists.
-
-                  ⚠️It is NOT the security boundary: `/v1/auth/test-login` refuses
-                  unless the deployment is non-prod AND `TEST_LOGIN_ENABLED=true`,
-                  so this only decides whether the markup exists. Drift between
-                  the two is cosmetic — a form that always 403s — never a hole. */}
-              {TEST_LOGIN_PANEL && <PasswordSignIn next={next} />}
+              {/* ★Dev-only, decided by the API and resolved server-side in
+                  page.tsx — see lib/password-signin-availability.ts for why it is
+                  not a client probe. ★No `&&` here on purpose: a previous
+                  revision wrote `{passwordSignIn && <PasswordSignIn
+                  available={passwordSignIn} …/>}`, which passes the guard its own
+                  operand and makes the component's check unreachable — dead code
+                  under a docblock calling it the half that cannot be edited away.
+                  One live guard, and it is the one inside the component. Not a
+                  security boundary either way: /v1/auth/test-login refuses on
+                  production regardless. */}
+              <PasswordSignIn available={passwordSignIn} next={next} />
 
               <ul className="mt-4 flex flex-wrap justify-center gap-x-3.5 gap-y-1.5 text-xs text-muted-foreground sm:mt-6 sm:gap-x-4 sm:text-sm">
                 {(isPreLaunch ? PRELAUNCH_PROMISES : SIGNUP_PROMISES).map((tick) => (

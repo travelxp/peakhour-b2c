@@ -6,6 +6,7 @@ import {
   formatPeaks,
   FREE_PEAKS_FALLBACK,
 } from "@/lib/pricing";
+import { isPasswordSignInAvailable } from "@/lib/password-signin-availability";
 import { AuthFlow } from "./auth-flow";
 
 /**
@@ -26,15 +27,20 @@ import { AuthFlow } from "./auth-flow";
  * Mirrors how `components/shared/header.tsx` resolves the same value.
  */
 export default async function AuthPage() {
-  // In parallel — these are two independent endpoints, and awaiting them in
-  // sequence costs a second round trip on a cold cache.
-  const [catalog, pricing] = await Promise.all([
+  // In parallel — these are three independent endpoints, and awaiting them in
+  // sequence costs two extra round trips on a cold cache.
+  const [catalog, pricing, passwordSignIn] = await Promise.all([
     getPublicCatalog(),
     // "DEFAULT" is not a sentinel the API honours — it fails the two-letter
     // validation and the response comes back geo-resolved. We pass it purely
     // to pin one cache key, and read only `peaksIncluded`, which is a
     // plan-level allowance and country-independent. Never read a price here.
     getPricing("DEFAULT"),
+    // ★Resolved HERE rather than probed from the client on mount. That keeps a
+    //  credentialed request off every production /auth view for an answer that
+    //  can only be "false" there, and means the panel is present in the first
+    //  HTML rather than popping in once the page has settled.
+    isPasswordSignInAvailable(),
   ]);
   const signupMode = catalog?.platform?.signupMode ?? "open";
   const freePeaks = formatPeaks(minFreePeaksPerMonth(pricing) ?? FREE_PEAKS_FALLBACK);
@@ -54,7 +60,7 @@ export default async function AuthPage() {
         </div>
       }
     >
-      <AuthFlow signupMode={signupMode} freePeaks={freePeaks} />
+      <AuthFlow signupMode={signupMode} freePeaks={freePeaks} passwordSignIn={passwordSignIn} />
     </Suspense>
   );
 }

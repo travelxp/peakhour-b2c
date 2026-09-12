@@ -7,7 +7,6 @@ import { Label } from "@/components/ui/label";
 import { signInWithPassword } from "@/lib/auth";
 import { ApiError } from "@/lib/api";
 import { landingRoute } from "@/lib/nav-home";
-import { TEST_LOGIN_PANEL } from "@/lib/flags";
 
 /**
  * Password sign-in for platform reviewers — LinkedIn, Meta, Google, TikTok,
@@ -19,11 +18,20 @@ import { TEST_LOGIN_PANEL } from "@/lib/flags";
  *
  * ── ★★THIS IS NOT A SECURITY BOUNDARY, AND MUST NOT BE MISTAKEN FOR ONE
  *
- * `POST /v1/auth/test-login` refuses unless the deployment is non-production AND
- * `TEST_LOGIN_ENABLED=true`. The build-time flag below decides only whether the
- * markup ships, so a production bundle renders no form — but if one ever did,
- * the server would still 403. Anyone reasoning about who can use this should
- * read `helpers/test-credentials.ts`, not this file.
+ * `POST /v1/auth/test-login` refuses on production, and the environment decides
+ * that — there is no opt-in flag on either side. The `available` guard below
+ * decides only whether the markup renders; if it were ever wrong, the server
+ * would still 403. Anyone reasoning about who can use this should read
+ * `helpers/test-credentials.ts`, not this file.
+ *
+ * ── ★★THE API DECIDES, AND page.tsx RESOLVES IT SERVER-SIDE
+ *
+ * A build-time `NEXT_PUBLIC_TEST_LOGIN` used to gate this. It was a second
+ * switch that had to stay in step with the API's, and when it drifted the
+ * failure was silent: a correctly-deployed dev stack with no form on the page
+ * and nothing anywhere saying why. `APP_ENV` is server-only, so asking the API
+ * is the only way this app can know — and `lib/password-signin-availability.ts`
+ * records why that ask happens on the server rather than from here.
  *
  * ── ★COLLAPSED BY DEFAULT
  *
@@ -32,9 +40,24 @@ import { TEST_LOGIN_PANEL } from "@/lib/flags";
  * told where to click by the handoff block the CMS generates, and nobody else
  * needs to see it at all.
  */
-export function PasswordSignIn({ next }: { next?: string | null }) {
+export function PasswordSignIn({
+  /**
+   * The API's answer, resolved server-side in `page.tsx`.
+   *
+   * ★★REQUIRED, AND GUARDED INSIDE THIS COMPONENT rather than only at the call
+   * site. A previous revision moved the check out to the parent's `&&` and left
+   * the docblock above still claiming the component held it — so a second mount,
+   * or a dropped condition in that one line, would have rendered a password form
+   * anywhere under a file that says it cannot. The call site checks it too; this
+   * is the half that cannot be edited away by accident.
+   */
+  available,
+  next,
+}: {
+  available: boolean;
+  next?: string | null;
+}) {
   const [email, setEmail] = useState("");
-  // (state declared before the flag guard so the hook order is unconditional)
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -94,14 +117,9 @@ export function PasswordSignIn({ next }: { next?: string | null }) {
     }
   }
 
-  // ★★THE GUARD LIVES HERE TOO, so the docblock above is true of the COMPONENT
-  //  rather than of one call site. A first version asserted "the build-time flag
-  //  below" while the only gate was in auth-flow.tsx — a second mount, or a
-  //  dropped `&&`, would have shipped the panel to production under a file that
-  //  says it cannot. Build-inlined, so this branch is statically dead in a
-  //  production bundle exactly as the caller's is. Placed after the hooks so the
-  //  hook order stays unconditional.
-  if (!TEST_LOGIN_PANEL) return null;
+  // ★After the hooks, so the hook order stays unconditional whatever the API
+  //  said. See `available` above for why this lives here and not only upstream.
+  if (!available) return null;
 
   return (
     <details className="mt-6 rounded-lg border border-border/60 bg-muted/20">

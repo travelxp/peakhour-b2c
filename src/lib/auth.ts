@@ -189,10 +189,9 @@ export interface TestLoginResult {
  * TikTok, Shopify) asks for a username and password a stranger can use in an
  * incognito window, and will not accept "we'll forward the magic link to you".
  *
- * ⚠️★The server refuses this outright unless the deployment is non-production
- * AND `TEST_LOGIN_ENABLED=true`, so a production build that calls it gets a 403.
- * Whatever the UI does about visibility is convenience — the API is the
- * boundary.
+ * ⚠️★The server refuses this outright on production. The environment decides;
+ * there is no opt-in flag on either side that could change that, and nothing the
+ * UI does about visibility is a boundary.
  *
  * ★A 401 here means WRONG PASSWORD, never "token expired", and the API counts
  * failed attempts against a ten-attempt lockout — which is why `api.ts` excludes
