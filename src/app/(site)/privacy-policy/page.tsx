@@ -21,7 +21,7 @@ export default function PrivacyPolicyPage() {
 
         <div className="mt-8 space-y-8 text-sm leading-relaxed text-muted-foreground">
           <section>
-            <h2 className="text-lg font-semibold text-foreground">1. Introduction</h2>
+            <h2 id="introduction" className="text-lg font-semibold text-foreground scroll-mt-24">1. Introduction</h2>
             <p className="mt-2">
               This Privacy Policy explains how {SITE.company.legalName} (&quot;{SITE.name}&quot;,
               &quot;we&quot;, &quot;us&quot;, or &quot;our&quot;) — the companies that operate the {SITE.name}{" "}
@@ -53,9 +53,9 @@ export default function PrivacyPolicyPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-foreground">2. Information We Collect</h2>
+            <h2 id="information-we-collect" className="text-lg font-semibold text-foreground scroll-mt-24">2. Information We Collect</h2>
 
-            <h3 className="mt-4 font-medium text-foreground">2.1 Information You Provide</h3>
+            <h3 id="information-you-provide" className="mt-4 font-medium text-foreground scroll-mt-24">2.1 Information You Provide</h3>
             <ul className="mt-2 list-disc space-y-1 pl-6">
               <li>
                 <strong>Account information:</strong> name, email address, and password when
@@ -76,7 +76,7 @@ export default function PrivacyPolicyPage() {
               </li>
             </ul>
 
-            <h3 className="mt-4 font-medium text-foreground">2.2 Information from Third-Party Platforms</h3>
+            <h3 id="information-from-third-party-platforms" className="mt-4 font-medium text-foreground scroll-mt-24">2.2 Information from Third-Party Platforms</h3>
             <p className="mt-2">
               When you connect a third-party account, you authorize that platform — through
               its OAuth consent screen — to share specific data with us. We request only the
@@ -121,10 +121,13 @@ export default function PrivacyPolicyPage() {
                 store, its profile, product catalog, inventory and published storefront
                 content. If you additionally enable order-based features and grant the
                 permission they need, we also receive order records, which can include your
-                shopper&apos;s name and phone number — processed on your behalf and described
-                in Section 12.5. Where you enable those features, the order record also
-                includes the order&apos;s delivery/billing address, which we use for the
-                geographic analysis described in Section 12.5.
+                shopper&apos;s name, phone number and email address — processed on your behalf
+                and described in <a href="#shopify" className="text-foreground underline">Section 12.5</a>. Where you enable those
+                features, the order record also includes the order&apos;s delivery/billing
+                address, which we use for the geographic analysis described there. With your
+                permission the app can also <strong>write back</strong> to your store —
+                publishing a blog article you approved, or updating SEO text when you ask it
+                to.
               </li>
               <li>
                 <strong>Beehiiv and other publishing tools:</strong> newsletter content,
@@ -132,7 +135,7 @@ export default function PrivacyPolicyPage() {
               </li>
             </ul>
 
-            <h3 className="mt-4 font-medium text-foreground">2.3 Automatically Collected Information</h3>
+            <h3 id="automatically-collected-information" className="mt-4 font-medium text-foreground scroll-mt-24">2.3 Automatically Collected Information</h3>
             <ul className="mt-2 list-disc space-y-1 pl-6">
               <li>
                 <strong>Usage data:</strong> pages visited, features used, and actions taken
@@ -150,7 +153,7 @@ export default function PrivacyPolicyPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-foreground">3. How We Use Your Information</h2>
+            <h2 id="how-we-use-your-information" className="text-lg font-semibold text-foreground scroll-mt-24">3. How We Use Your Information</h2>
             <p className="mt-2">We use collected information to:</p>
             <ul className="mt-2 list-disc space-y-1 pl-6">
               <li>Provide, maintain, and improve the Service.</li>
@@ -168,7 +171,7 @@ export default function PrivacyPolicyPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-foreground">4. AI Processing</h2>
+            <h2 id="ai-processing" className="text-lg font-semibold text-foreground scroll-mt-24">4. AI Processing</h2>
             <p className="mt-2">
               Our Service uses artificial intelligence — including our proprietary AI/ML
               models and third-party AI providers — to analyze your content, generate ad
@@ -198,7 +201,7 @@ export default function PrivacyPolicyPage() {
               </li>
             </ul>
 
-            <h3 className="mt-6 font-medium text-foreground">
+            <h3 id="how-anonymized-data-improves-the-platform-for-everyone" className="mt-6 font-medium text-foreground scroll-mt-24">
               4.1 How Anonymized Data Improves the Platform for Everyone
             </h3>
             <p className="mt-2">
@@ -253,7 +256,7 @@ export default function PrivacyPolicyPage() {
               </li>
             </ul>
 
-            <h3 className="mt-6 font-medium text-foreground">
+            <h3 id="plan-tiers-and-data-processing" className="mt-6 font-medium text-foreground scroll-mt-24">
               4.2 Plan Tiers and Data Processing
             </h3>
             <p className="mt-2">
@@ -317,7 +320,7 @@ export default function PrivacyPolicyPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-foreground">5. How We Share Your Information</h2>
+            <h2 id="how-we-share-your-information" className="text-lg font-semibold text-foreground scroll-mt-24">5. How We Share Your Information</h2>
             <p className="mt-2">We do not sell your personal information. We share information only as follows:</p>
             <ul className="mt-2 list-disc space-y-1 pl-6">
               <li>
@@ -401,7 +404,7 @@ export default function PrivacyPolicyPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-foreground">6. Data Security</h2>
+            <h2 id="data-security" className="text-lg font-semibold text-foreground scroll-mt-24">6. Data Security</h2>
             <p className="mt-2">
               We implement appropriate technical and organizational measures to protect your
               information, including:
@@ -419,7 +422,7 @@ export default function PrivacyPolicyPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-foreground">7. Cookies</h2>
+            <h2 id="cookies" className="text-lg font-semibold text-foreground scroll-mt-24">7. Cookies</h2>
             <p className="mt-2">We use the following types of cookies:</p>
             <ul className="mt-2 list-disc space-y-1 pl-6">
               <li>
@@ -443,7 +446,7 @@ export default function PrivacyPolicyPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-foreground">8. Data Retention</h2>
+            <h2 id="data-retention" className="text-lg font-semibold text-foreground scroll-mt-24">8. Data Retention</h2>
             <p className="mt-2">
               We retain your information for as long as your account is active or as needed
               to provide the Service. Upon account deletion:
@@ -471,7 +474,7 @@ export default function PrivacyPolicyPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-foreground">9. Your Rights</h2>
+            <h2 id="your-rights" className="text-lg font-semibold text-foreground scroll-mt-24">9. Your Rights</h2>
             <p className="mt-2">
               Depending on your location, you may have the following rights regarding your
               personal data:
@@ -507,7 +510,7 @@ export default function PrivacyPolicyPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-foreground">10. International Data Transfers</h2>
+            <h2 id="international-data-transfers" className="text-lg font-semibold text-foreground scroll-mt-24">10. International Data Transfers</h2>
             <p className="mt-2">
               Your information may be transferred to and processed in countries other than
               your country of residence. We ensure appropriate safeguards are in place for
@@ -516,7 +519,7 @@ export default function PrivacyPolicyPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-foreground">11. Children&apos;s Privacy</h2>
+            <h2 id="childrens-privacy" className="text-lg font-semibold text-foreground scroll-mt-24">11. Children&apos;s Privacy</h2>
             <p className="mt-2">
               The Service is not intended for individuals under the age of 18. We do not
               knowingly collect personal information from children. If we learn that we have
@@ -525,7 +528,7 @@ export default function PrivacyPolicyPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-foreground">
+            <h2 id="third-party-platform-data-and-developer-program-compliance" className="text-lg font-semibold text-foreground scroll-mt-24">
               12. Third-Party Platform Data &amp; Developer-Program Compliance
             </h2>
             <p className="mt-2">
@@ -555,7 +558,7 @@ export default function PrivacyPolicyPage() {
               and contacts set out here apply to that data.
             </p>
 
-            <h3 className="mt-4 font-medium text-foreground">12.1 Meta Platform (Facebook, Instagram, Ads, WhatsApp)</h3>
+            <h3 id="meta-platform-facebook-instagram-ads-whatsapp" className="mt-4 font-medium text-foreground scroll-mt-24">12.1 Meta Platform (Facebook, Instagram, Ads, WhatsApp)</h3>
             <p className="mt-2">
               Our use and transfer of information received from Meta APIs adheres to the{" "}
               <a href="https://developers.facebook.com/terms/" className="text-foreground underline" target="_blank" rel="noopener noreferrer">
@@ -572,7 +575,7 @@ export default function PrivacyPolicyPage() {
               page.
             </p>
 
-            <h3 className="mt-4 font-medium text-foreground">12.2 Google</h3>
+            <h3 id="google" className="mt-4 font-medium text-foreground scroll-mt-24">12.2 Google</h3>
             <p className="mt-2">
               Where you connect Google services, our use and transfer of information received
               from Google APIs adheres to the{" "}
@@ -585,14 +588,14 @@ export default function PrivacyPolicyPage() {
               for security, or to comply with law).
             </p>
 
-            <h3 className="mt-4 font-medium text-foreground">12.3 X (formerly Twitter)</h3>
+            <h3 id="x-formerly-twitter" className="mt-4 font-medium text-foreground scroll-mt-24">12.3 X (formerly Twitter)</h3>
             <p className="mt-2">
               Our access to and use of X content and data complies with the X Developer
               Agreement and Policy. We use X data only to provide the features you enable and
               cease using, and delete, such data when you revoke access or as required by X.
             </p>
 
-            <h3 className="mt-4 font-medium text-foreground">12.4 LinkedIn</h3>
+            <h3 id="linkedin" className="mt-4 font-medium text-foreground scroll-mt-24">12.4 LinkedIn</h3>
             <p className="mt-2">
               Our use of LinkedIn data complies with the{" "}
               <a href="https://legal.linkedin.com/api-terms-of-use" className="text-foreground underline" target="_blank" rel="noopener noreferrer">
@@ -678,7 +681,7 @@ export default function PrivacyPolicyPage() {
               permitted-services settings.
             </p>
 
-            <h3 className="mt-4 font-medium text-foreground">12.5 Shopify</h3>
+            <h3 id="shopify" className="mt-4 font-medium text-foreground scroll-mt-24">12.5 Shopify</h3>
             <p className="mt-2">
               If you install our Shopify app, we access data from your Shopify store through
               the Shopify Admin API under the permissions you grant at install, and our use of
@@ -693,10 +696,21 @@ export default function PrivacyPolicyPage() {
               inventory, and published storefront content such as pages and blog posts. Those
               catalog permissions contain no personal data about your shoppers. Separately,
               the app requests the <strong>protected customer data</strong> permissions that
-              order-based features need — order records, and the customer name, phone number
-              and order address on them. Shopify reviews and approves those permissions, and
-              you grant them at install; we access shopper data only where you have granted
-              them and switched the relevant features on.
+              order-based features need — order records, and the customer name, phone number,
+              email address and order address on them. Shopify reviews and approves those
+              permissions, and you grant them at install; we access shopper data only where you
+              have granted them and switched the relevant features on.
+            </p>
+            <p className="mt-2">
+              <strong>What we write back to your store.</strong> With your permission the app
+              does not only read — it can <strong>publish and edit content on your live
+              storefront</strong> on your instruction: creating a blog article you composed and
+              approved in {SITE.name}, and updating the SEO title and description on a blog
+              post, page or product when you press Fix. These writes are made with the
+              permissions you granted at install, only to the store you connected, and only
+              when you ask for them — we do not publish or change anything on a schedule you
+              did not set. Content we publish is content you reviewed. Nothing we write contains
+              your shoppers&apos; personal data.
             </p>
             <p className="mt-2">
               <strong>What changes if you enable order-based features.</strong> Features such as
@@ -710,8 +724,8 @@ export default function PrivacyPolicyPage() {
             </p>
             <p className="mt-2">
               <strong>Your customers&apos; data, and our role.</strong> An order record can
-              include your customer&apos;s <strong>name, phone number and delivery/billing
-              address</strong>. We process
+              include your customer&apos;s <strong>name, phone number, email address and
+              delivery/billing address</strong>. We process
               those <strong>on your behalf and on your instructions</strong>: for your
               shoppers&apos; personal data you are the controller / Data Fiduciary and we act
               as your processor. We use it only to deliver the features you switched on — for
@@ -735,14 +749,15 @@ export default function PrivacyPolicyPage() {
               do not sell or share them, and we do not use them to train AI models.
             </p>
             <p className="mt-2">
-              <strong>What we deliberately do not take.</strong> We do not request or store
-              shopper <strong>email addresses</strong>. We ask for the narrowest permissions
-              the features need, and we request protected customer data only for the features
-              described here.
+              <strong>What we deliberately do not take.</strong> We never receive your
+              shoppers&apos; <strong>payment details</strong> — Shopify does not expose card or
+              bank information to apps, and we do not ask for it. We ask for the narrowest
+              permissions the features need, and we request protected customer data only for the
+              features described here.
             </p>
             <p className="mt-2">
               <strong>How long we keep it.</strong> The copy of a shopper&apos;s name, phone
-              number and street address that sits <strong>on each order</strong> is{" "}
+              number, email address and street address that sits <strong>on each order</strong> is{" "}
               <strong>erased after 90 days</strong> — the purpose it serves, such as confirming
               that order, is measured in days rather than years. What survives that window from
               the address is only its <strong>coarse geography</strong> — city, region/state and
@@ -754,7 +769,8 @@ export default function PrivacyPolicyPage() {
             </p>
             <p className="mt-2">
               Separately, we keep one <strong>customer record per shopper</strong> holding their
-              name and phone number, so that repeat orders are recognised as the same person and
+              name, phone number and email address, so that repeat orders are recognised as the
+              same person and
               so you can still reach a customer about an order placed months ago. That record is
               kept for as long as your store stays connected, and is erased when the shopper asks
               you to delete their data, when the store is redacted after you uninstall the app,
@@ -764,8 +780,9 @@ export default function PrivacyPolicyPage() {
             <p className="mt-2">
               <strong>Deletion requests.</strong> We support Shopify&apos;s mandatory privacy
               webhooks. When a shopper asks you to delete their data, Shopify notifies us and we
-              erase the personal details we received from Shopify about them — the name, phone
-              and address on their orders, and the customer record described above. If you uninstall the app,
+              erase the personal details we received from Shopify about them — the name, phone,
+              email and address on their orders, and the customer record described above. If you
+              uninstall the app,
               Shopify sends us a shop-redaction notice about <strong>48 hours later</strong>, and
               that is when we erase the store data we hold; the delay is Shopify&apos;s, and it
               exists so that reinstalling within that window does not cost you your history. Data
@@ -779,14 +796,14 @@ export default function PrivacyPolicyPage() {
               .
             </p>
 
-            <h3 className="mt-4 font-medium text-foreground">12.6 Microsoft and other providers</h3>
+            <h3 id="microsoft-and-other-providers" className="mt-4 font-medium text-foreground scroll-mt-24">12.6 Microsoft and other providers</h3>
             <p className="mt-2">
               Where you connect Microsoft or other third-party services, we comply with the
               applicable provider&apos;s API terms and use the data only to deliver the features
               you have enabled.
             </p>
 
-            <h3 className="mt-4 font-medium text-foreground">12.7 Revoking access</h3>
+            <h3 id="revoking-access" className="mt-4 font-medium text-foreground scroll-mt-24">12.7 Revoking access</h3>
             <p className="mt-2">
               You can disconnect any integration at any time from your account settings or
               from the relevant platform&apos;s app/connected-apps settings. On disconnection we
@@ -795,7 +812,7 @@ export default function PrivacyPolicyPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-foreground">13. Legal Bases for Processing (EEA / UK)</h2>
+            <h2 id="legal-bases-for-processing-eea-uk" className="text-lg font-semibold text-foreground scroll-mt-24">13. Legal Bases for Processing (EEA / UK)</h2>
             <p className="mt-2">
               If you are in the European Economic Area or the United Kingdom, we process your
               personal data on one or more of the following legal bases under the GDPR:
@@ -823,9 +840,9 @@ export default function PrivacyPolicyPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-foreground">14. Region-Specific Privacy Rights</h2>
+            <h2 id="region-specific-privacy-rights" className="text-lg font-semibold text-foreground scroll-mt-24">14. Region-Specific Privacy Rights</h2>
 
-            <h3 className="mt-4 font-medium text-foreground">14.1 European Economic Area &amp; United Kingdom (GDPR)</h3>
+            <h3 id="european-economic-area-and-united-kingdom-gdpr" className="mt-4 font-medium text-foreground scroll-mt-24">14.1 European Economic Area &amp; United Kingdom (GDPR)</h3>
             <p className="mt-2">
               In addition to the rights in Section 9, you have the right to lodge a complaint
               with your local supervisory authority (in the UK, the Information
@@ -833,7 +850,7 @@ export default function PrivacyPolicyPage() {
               carried out by automated means, you also have the right to data portability.
             </p>
 
-            <h3 className="mt-4 font-medium text-foreground">14.2 California (CCPA / CPRA)</h3>
+            <h3 id="california-ccpa-cpra" className="mt-4 font-medium text-foreground scroll-mt-24">14.2 California (CCPA / CPRA)</h3>
             <p className="mt-2">
               If you are a California resident, you have the right to know what personal
               information we collect and how we use and disclose it, to request access and
@@ -848,7 +865,7 @@ export default function PrivacyPolicyPage() {
               and we have not done so in the preceding twelve months.
             </p>
 
-            <h3 className="mt-4 font-medium text-foreground">14.3 India (DPDP Act, 2023)</h3>
+            <h3 id="india-dpdp-act-2023" className="mt-4 font-medium text-foreground scroll-mt-24">14.3 India (DPDP Act, 2023)</h3>
             <p className="mt-2">
               If you are in India, you have the right to access a summary of your personal data
               and our processing, to correction and erasure of your data, to nominate another
@@ -861,7 +878,7 @@ export default function PrivacyPolicyPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-foreground">15. Grievance Redressal (India)</h2>
+            <h2 id="grievance-redressal-india" className="text-lg font-semibold text-foreground scroll-mt-24">15. Grievance Redressal (India)</h2>
             <p className="mt-2">
               In accordance with the DPDP Act, 2023 and applicable Information Technology
               rules, {SITE.company.legalName} has appointed a Grievance Officer to address
@@ -885,7 +902,7 @@ export default function PrivacyPolicyPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-foreground">16. Governing Law &amp; Jurisdiction</h2>
+            <h2 id="governing-law-and-jurisdiction" className="text-lg font-semibold text-foreground scroll-mt-24">16. Governing Law &amp; Jurisdiction</h2>
             <p className="mt-2">
               This Privacy Policy and any dispute arising out of or relating to it or the
               processing of your personal data are governed by the laws of India, and the
@@ -896,7 +913,7 @@ export default function PrivacyPolicyPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-foreground">17. Changes to This Policy</h2>
+            <h2 id="changes-to-this-policy" className="text-lg font-semibold text-foreground scroll-mt-24">17. Changes to This Policy</h2>
             <p className="mt-2">
               We may update this Privacy Policy from time to time. We will notify you of
               material changes by posting the new policy on this page and updating the
@@ -906,7 +923,7 @@ export default function PrivacyPolicyPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-foreground">18. Contact Us</h2>
+            <h2 id="contact-us" className="text-lg font-semibold text-foreground scroll-mt-24">18. Contact Us</h2>
             <p className="mt-2">
               If you have questions about this Privacy Policy or our data practices, contact:
             </p>
