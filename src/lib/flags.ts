@@ -36,3 +36,23 @@ export const ASK_ENABLED = process.env.NEXT_PUBLIC_ASK_ENABLED === "true";
  * before that lands strands new accounts.
  */
 export const OUTCOMES_HOME = process.env.NEXT_PUBLIC_OUTCOMES_HOME === "true";
+
+/**
+ * Whether the reviewer password sign-in panel renders on `/auth`.
+ *
+ * Peakhour signs everybody in by magic link. A platform reviewer — LinkedIn,
+ * Meta, Google, TikTok, Shopify — cannot receive email at our domain, and every
+ * one of those certifications asks instead for a username and password a
+ * stranger can use in an incognito window.
+ *
+ * ⚠️★★THIS IS NOT THE SECURITY BOUNDARY. `POST /v1/auth/test-login` refuses
+ * unless the API deployment is non-production AND `TEST_LOGIN_ENABLED=true`.
+ * This flag decides only whether the markup renders, so drift between the two
+ * is cosmetic — a form that always 403s — never a hole. Set it in the dev b2c
+ * Vercel scope only; production must leave it unset.
+ *
+ * ★Build-inlined, so with it off the branch is statically false and the panel
+ * never renders. A runtime probe would have advertised that the namespace
+ * exists, which is a worse trade for the same convenience.
+ */
+export const TEST_LOGIN_PANEL = process.env.NEXT_PUBLIC_TEST_LOGIN === "true";
