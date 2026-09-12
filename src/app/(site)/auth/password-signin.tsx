@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { KeyRound } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { signInWithPassword, isPasswordSignInAvailable } from "@/lib/auth";
+import { signInWithPassword } from "@/lib/auth";
 import { ApiError } from "@/lib/api";
 import { landingRoute } from "@/lib/nav-home";
 
@@ -24,16 +24,14 @@ import { landingRoute } from "@/lib/nav-home";
  * 403. Anyone reasoning about who can use this should read
  * `helpers/test-credentials.ts`, not this file.
  *
- * ── ★★IT ASKS THE API RATHER THAN MIRRORING THE ANSWER
+ * ── ★★THE API DECIDES, AND page.tsx RESOLVES IT SERVER-SIDE
  *
  * A build-time `NEXT_PUBLIC_TEST_LOGIN` used to gate this. It was a second
  * switch that had to stay in step with the API's, and when it drifted the
  * failure was silent: a correctly-deployed dev stack with no form on the page
- * and nothing anywhere saying why. `APP_ENV` is server-only, so asking is the
- * only way this app can know.
- *
- * ★Renders nothing until the answer arrives, and nothing if it cannot be
- * reached. A form that will not work is worse than no form.
+ * and nothing anywhere saying why. `APP_ENV` is server-only, so asking the API
+ * is the only way this app can know — and `lib/password-signin-availability.ts`
+ * records why that ask happens on the server rather than from here.
  *
  * ── ★COLLAPSED BY DEFAULT
  *
@@ -58,18 +56,6 @@ export function PasswordSignIn({ next }: { next?: string | null }) {
    * the state stays too, because it is what the button renders.
    */
   const inFlightRef = useRef(false);
-  /** null = not yet answered. See the docblock: absent is not "no". */
-  const [available, setAvailable] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    void isPasswordSignInAvailable().then((v) => {
-      if (!cancelled) setAvailable(v);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -115,16 +101,6 @@ export function PasswordSignIn({ next }: { next?: string | null }) {
       setSubmitting(false);
     }
   }
-
-  // ★★THE GUARD LIVES HERE, not at the call site, so the docblock above is true
-  //  of the COMPONENT. A second mount, or a dropped `&&` in a parent, cannot
-  //  ship the panel somewhere it does not belong. Placed after the hooks so the
-  //  hook order stays unconditional.
-  //
-  //  ★`!== true` rather than `=== false`: "not yet answered" renders nothing,
-  //  the same as "no". A disclosure that pops into existence a moment after the
-  //  page settles is worse than one that was never there.
-  if (available !== true) return null;
 
   return (
     <details className="mt-6 rounded-lg border border-border/60 bg-muted/20">

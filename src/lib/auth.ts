@@ -183,28 +183,6 @@ export interface TestLoginResult {
 }
 
 /**
- * May this stack sign in with a password?
- *
- * ★★THE API IS ASKED, RATHER THAN THE ANSWER BEING DUPLICATED HERE. It decides
- * from `APP_ENV`, which is server-only — this app is a separate deployment and
- * knows only which API it talks to. A build-time `NEXT_PUBLIC_TEST_LOGIN`
- * mirrored the answer and could drift out of step with it, and the failure that
- * caused was silent: a correctly-deployed dev stack with no form on the page and
- * nothing anywhere saying why.
- *
- * Returns `false` on any error. A probe that cannot reach the API is not a
- * reason to render a sign-in form that will not work.
- */
-export async function isPasswordSignInAvailable(): Promise<boolean> {
-  try {
-    const res = await api.get<{ enabled: boolean }>("/v1/auth/test-login/available");
-    return res.enabled === true;
-  } catch {
-    return false;
-  }
-}
-
-/**
  * Reviewer password sign-in — the dev-only grant.
  *
  * ★Exists because every platform that certifies us (LinkedIn, Meta, Google,

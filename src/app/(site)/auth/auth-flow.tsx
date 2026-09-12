@@ -208,9 +208,17 @@ export function AuthFlow({
   signupMode,
   /** Pre-formatted so the client bundle carries no pricing logic. */
   freePeaks,
+  /**
+   * Whether this stack's API allows password sign-in. Resolved on the server in
+   * `page.tsx` — see `lib/password-signin-availability.ts` for why it is not a
+   * client probe. Defaults to false so a caller that forgets it renders nothing
+   * rather than a form that cannot work.
+   */
+  passwordSignIn = false,
 }: {
   signupMode: PlatformSignupMode;
   freePeaks: string;
+  passwordSignIn?: boolean;
 }) {
   // Anything other than "open" means access is gated behind approval, so the
   // page must not promise same-day access.
@@ -857,12 +865,11 @@ export function AuthFlow({
                 </button>
               </form>
 
-              {/* ★Dev-only. The component asks the API whether password sign-in is
-                  available here and renders nothing until it says yes — the gate
-                  lives inside it rather than in this condition, so it cannot be
-                  dropped by editing this line. Not a security boundary either
-                  way: /v1/auth/test-login refuses on production regardless. */}
-              <PasswordSignIn next={next} />
+              {/* ★Dev-only, decided by the API and resolved server-side in
+                  page.tsx — see lib/password-signin-availability.ts for why it is
+                  not a client probe. Not a security boundary either way:
+                  /v1/auth/test-login refuses on production regardless. */}
+              {passwordSignIn && <PasswordSignIn next={next} />}
 
               <ul className="mt-4 flex flex-wrap justify-center gap-x-3.5 gap-y-1.5 text-xs text-muted-foreground sm:mt-6 sm:gap-x-4 sm:text-sm">
                 {(isPreLaunch ? PRELAUNCH_PROMISES : SIGNUP_PROMISES).map((tick) => (
