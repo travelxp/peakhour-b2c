@@ -52,12 +52,22 @@ import {
   POLITICAL_DECLARATION_WITHDRAW_WARNING,
   declarationState,
   formatDeclaredAt,
+  SPECIAL_AD_CATEGORY_LABELS,
+  SPECIAL_AD_CATEGORY_ORDER,
+  SPECIAL_AD_CATEGORY_QUESTION,
+  SPECIAL_AD_CATEGORY_NONE_NOTE,
+  SPECIAL_AD_CATEGORY_CONSEQUENCE,
 } from "@/lib/ads-copy";
 
 export function AdvertisingDeclarationCard() {
   const queryClient = useQueryClient();
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [ticked, setTicked] = useState(false);
+  // ★A SET, AND EMPTY IS A REAL VALUE. Submitting with nothing selected
+  // sends `specialAdCategories: []` — Meta has no "not answered" value, so
+  // "none of these apply" is a statement the merchant makes, not a field
+  // they skipped. The copy says so beside the boxes.
+  const [categories, setCategories] = useState<string[]>([]);
 
   // Shares the cache key with the optimizer board, so declaring on either
   // surface updates both without a refetch.
@@ -69,13 +79,23 @@ export function AdvertisingDeclarationCard() {
   });
 
   const save = useMutation({
-    mutationFn: (notPolitical: boolean) => growthApi.updateSettings({ notPolitical }),
+    // ★THE DECLARATION IS ONE SUBMISSION. The political answer and the
+    // category answers are given against one notice at one moment, and the
+    // api refuses them separately (DECLARATION_INCOMPLETE) precisely so a
+    // record cannot end up with halves consented to under different wording.
+    mutationFn: (declare: boolean) =>
+      growthApi.updateSettings(
+        declare
+          ? { politicalIntent: "NOT_POLITICAL", specialAdCategories: categories }
+          : { politicalIntent: null },
+      ),
     onSuccess: (res, notPolitical) => {
       // PATCH returns the same envelope as GET (currentNoticeVersion +
       // declaredByName included), so writing it straight into the cache
       // cannot blank the version and flip this card to "unknown".
       queryClient.setQueryData(["growth-settings"], res);
       setTicked(false);
+      setCategories([]);
       toast.success(
         notPolitical
           ? "Declaration recorded — automatic campaigns can now declare on your behalf."
@@ -278,6 +298,54 @@ export function AdvertisingDeclarationCard() {
                 >
                   {notice}
                 </Label>
+              </div>
+            ) : null}
+
+            {/* ── Meta's special ad categories (M-03) ──────────────────
+                ★SHOWN IN THE SAME FORM, SUBMITTED IN THE SAME CLICK. Two
+                surfaces would mean two records with two timestamps, and
+                nothing could then say which notice each half answered.
+
+                ★AND THE COST IS STATED BEFORE THE TICK. Meta strips
+                lookalikes, exclusions and sub-city geo from these
+                campaigns; finding that out after declaring is finding out
+                too late. */}
+            {state.kind !== "unknown" ? (
+              <div className="space-y-2 rounded-md border bg-muted/30 p-3">
+                <p className="text-xs font-medium">{SPECIAL_AD_CATEGORY_QUESTION}</p>
+                <div className="space-y-1.5">
+                  {SPECIAL_AD_CATEGORY_ORDER.map((key) => (
+                    <div key={key} className="flex items-start gap-2">
+                      <Checkbox
+                        id={`sac-${key}`}
+                        checked={categories.includes(key)}
+                        disabled={save.isPending}
+                        onCheckedChange={(v) =>
+                          setCategories((prev) =>
+                            v === true
+                              ? [...prev, key]
+                              : prev.filter((c) => c !== key),
+                          )
+                        }
+                        className="mt-0.5"
+                      />
+                      <Label
+                        htmlFor={`sac-${key}`}
+                        className="text-[11px] font-normal leading-relaxed text-muted-foreground"
+                      >
+                        {SPECIAL_AD_CATEGORY_LABELS[key]}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[11px] leading-relaxed text-muted-foreground">
+                  {SPECIAL_AD_CATEGORY_NONE_NOTE}
+                </p>
+                {categories.length > 0 ? (
+                  <p className="text-[11px] leading-relaxed text-warning-on-tint">
+                    {SPECIAL_AD_CATEGORY_CONSEQUENCE}
+                  </p>
+                ) : null}
               </div>
             ) : null}
 

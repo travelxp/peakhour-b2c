@@ -663,7 +663,31 @@ export const growthApi = {
   updateSettings: (patch: {
     optimizerEnabled?: boolean;
     weeklyBudgetEnvelope?: number | null;
-    notPolitical?: boolean;
+    /**
+     * ⚠️WAS `notPolitical?: boolean` (M-03). The boolean could only ever say
+     * NOT_POLITICAL or withdraw, so nothing could record a business that IS a
+     * political advertiser — and the Meta special ad category derived from it
+     * could never fire. `null` withdraws, which is the unset the old `false`
+     * performed.
+     *
+     * ★b2c does not OFFER "POLITICAL" — Peakhour does not support the
+     * obligations it carries, which is why the declaration card renders that
+     * state read-only. The type admits it because the api must be able to
+     * represent a business support has recorded as one.
+     */
+    politicalIntent?: "POLITICAL" | "NOT_POLITICAL" | null;
+    /**
+     * Meta special ad categories the advertiser self-identifies.
+     *
+     * ★MUST BE SENT WITH `politicalIntent` — the api refuses categories on
+     * their own (DECLARATION_INCOMPLETE), because the declaration is made
+     * against one notice at one moment and cannot be assembled from separate
+     * requests.
+     *
+     * ⚠️`[]` IS AN ANSWER ("asked, none apply"), not an omission. Meta has no
+     * "not answered" value, so the api distinguishes it from absent.
+     */
+    specialAdCategories?: string[];
     /** `null` clears it — and clearing is an unset server-side, so "nobody has
      *  chosen" stays the single reading of absence. */
     winDefinition?: {

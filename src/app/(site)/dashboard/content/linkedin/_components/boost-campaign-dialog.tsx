@@ -237,8 +237,14 @@ export function BoostCampaignDialog({
         // the LinkedIn draft already exists. After the cap we stop waiting; the
         // request usually still lands, and the Ads-hub card offers the
         // declaration either way.
+        // ★NO `specialAdCategories` — THIS DIALOG NEVER ASKED.
+        // Sending `[]` would record, on the merchant's behalf, that none of
+        // their ads are housing, credit or employment ads, from a form that
+        // never put the question to them. Omitting it leaves the record
+        // without an answer, which the api reports as undeclared; the Ads-hub
+        // declaration card is where the question is actually asked.
         const write = growthApi
-          .updateSettings({ notPolitical: true })
+          .updateSettings({ politicalIntent: "NOT_POLITICAL" })
           .then((res) => queryClient.setQueryData(["growth-settings"], res))
           .catch(() => {
             // The campaign is created and already carries this answer, so a

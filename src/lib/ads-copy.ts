@@ -45,7 +45,95 @@ export const POLITICAL_DECLARATION_NOTICES: Record<string, string> = {
     "political advertising under the law of the targeted countries, including " +
     "EU law for ads targeted to the EU. Advertisers must comply with " +
     "LinkedIn's policies and regulatory requirements.",
+  /**
+   * ★THE WORDING IS UNCHANGED, AND THE VERSION STILL MOVED. Worth stating,
+   * because "the text is identical so why re-prompt" is the reasonable-sounding
+   * mistake that would break this.
+   *
+   * `noticeVersion` identifies **the declaration form**, not this paragraph.
+   * The api's form now also asks about Meta's special ad categories
+   * (`specialAdCategories`), so a business that consented to
+   * `linkedin-ttpa-2025-10` answered strictly fewer questions than this version
+   * asks. Re-prompting is correct even though LinkedIn's sentence did not move.
+   *
+   * ⚠️AND THE TWO PARTS ARE NOT CONCATENATED INTO ONE STRING. This text is
+   * LinkedIn's, verbatim, and not ours to extend — see the header. Meta's
+   * category question is separate copy (`SPECIAL_AD_CATEGORY_*` below) shown
+   * beside it, consented to in the same submission.
+   */
+  "ads-declaration-2026-09":
+    "I confirm this is not political advertising. None of my ads qualify as " +
+    "political advertising under the law of the targeted countries, including " +
+    "EU law for ads targeted to the EU. Advertisers must comply with " +
+    "LinkedIn's policies and regulatory requirements.",
 };
+
+/**
+ * Meta's special ad categories, as a merchant reads them.
+ *
+ * ── ★WHY THIS IS OUR WORDING WHERE THE NOTICE ABOVE IS NOT ────────────────
+ *
+ * LinkedIn's contract requires its notice presented verbatim. Meta's
+ * requirement is different in kind: the advertiser must **self-identify** the
+ * category, and Meta publishes the category NAMES rather than a sentence we
+ * must recite. So these labels are ours to make legible — and they must be,
+ * because `FINANCIAL_PRODUCTS_SERVICES` is not a question anybody can answer.
+ *
+ * ⚠️`ISSUES_ELECTIONS_POLITICS` IS NOT HERE. It is the same fact as the
+ * political declaration above, derived server-side from `politicalIntent`.
+ * Offering it as a sixth checkbox would let one business answer the same
+ * question twice, two different ways, in one form.
+ *
+ * Keys match the api's `DECLARABLE_SPECIAL_AD_CATEGORIES` exactly; a key that
+ * drifts is rejected by the PATCH rather than silently dropped.
+ */
+export const SPECIAL_AD_CATEGORY_LABELS: Record<string, string> = {
+  HOUSING: "Housing — property for sale or rent, mortgages, or housing services",
+  EMPLOYMENT: "Employment — job ads, recruitment, or career services",
+  CREDIT: "Credit — credit cards, loans, financing, or car leasing",
+  FINANCIAL_PRODUCTS_SERVICES:
+    "Financial products and services — banking, insurance, investments, or savings",
+  ONLINE_GAMBLING_AND_GAMING:
+    "Online gambling and gaming — betting, casino, lottery, or real-money games",
+};
+
+/** The order they are shown in. A `Record` has no guaranteed order to rely on. */
+export const SPECIAL_AD_CATEGORY_ORDER = [
+  "HOUSING",
+  "EMPLOYMENT",
+  "CREDIT",
+  "FINANCIAL_PRODUCTS_SERVICES",
+  "ONLINE_GAMBLING_AND_GAMING",
+] as const;
+
+export const SPECIAL_AD_CATEGORY_QUESTION =
+  "Do any of your ads fall into one of these categories?";
+
+/**
+ * ★WHY TICKING NOTHING IS AN ANSWER, SAID TO THE USER.
+ *
+ * Meta has no "not answered" value for `special_ad_categories` — it takes a
+ * category or an empty list. So submitting with none ticked is a positive
+ * statement that none apply, and the form has to say so rather than letting it
+ * read as a question the user skipped.
+ */
+export const SPECIAL_AD_CATEGORY_NONE_NOTE =
+  "Leave them all unticked if none apply — that is an answer, and we record it as one.";
+
+/**
+ * ⚠️What declaring a category COSTS, stated before the tick rather than
+ * discovered afterwards.
+ *
+ * Meta removes targeting tools for these campaigns (plan §2.1): no lookalike
+ * audiences, no saved audiences, no exclusions, no sub-city geography, and age
+ * is forced to 18-65+ across all genders with a minimum 15-mile radius. A
+ * merchant who ticks one and then finds their audiences refused deserves to
+ * have been told first.
+ */
+export const SPECIAL_AD_CATEGORY_CONSEQUENCE =
+  "Meta limits targeting for these campaigns — no lookalike audiences, saved " +
+  "audiences or exclusions, no targeting below city level, and ages are set to " +
+  "18-65+ for everyone. We'll tell you when a suggested audience can't be used.";
 
 /**
  * The most recent wording we hold, for surfaces that must show SOMETHING.

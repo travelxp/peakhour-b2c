@@ -18,9 +18,16 @@ import {
   formatDeclaredAt,
   noticeTextFor,
   POLITICAL_DECLARATION_NOTICES,
+  SPECIAL_AD_CATEGORY_LABELS,
+  SPECIAL_AD_CATEGORY_ORDER,
+  SPECIAL_AD_CATEGORY_NONE_NOTE,
+  SPECIAL_AD_CATEGORY_CONSEQUENCE,
 } from "./ads-copy";
 
-const CURRENT = "linkedin-ttpa-2025-10";
+// ★The version in force, which moved with M-03. Kept as a constant rather
+// than inlined so the matrix below tests the CURRENT wording rather than a
+// version we happen to still hold the text for.
+const CURRENT = "ads-declaration-2026-09";
 
 const declaration = {
   politicalIntent: "NOT_POLITICAL" as const,
@@ -216,4 +223,83 @@ describe("the notice text is keyed by the version it is", () => {
     expect(text).toContain("LinkedIn's policies");
   });
 
+});
+
+/**
+ * ── M-03: the notice version moved, and the wording did not ───────────────
+ *
+ * ★THE PAIRING RULE THIS FILE EXISTS FOR. `ads-copy.ts` says it: *"an
+ * unrecognised version means we do not have the text the api is asking about,
+ * so `declarationState` returns `unknown` and the card refuses to collect
+ * consent rather than collecting the wrong consent. Add the new wording here
+ * in the same PR that bumps the api."*
+ */
+describe("the M-03 notice version", () => {
+  it("★we hold the text for the version the api now asks about", () => {
+    // Without this entry the declaration card renders `unknown` and NOBODY can
+    // declare — safe, but broken. It is the half of the pair that is easy to
+    // forget because the api deploys green without it.
+    expect(noticeTextFor("ads-declaration-2026-09")).toBeTruthy();
+  });
+
+  it("★the wording is unchanged from the version it supersedes, ON PURPOSE", () => {
+    // `noticeVersion` identifies the declaration FORM, not this paragraph. The
+    // form now also asks about Meta's special ad categories, so a business that
+    // consented to the old version answered strictly fewer questions — a
+    // re-prompt is correct even though LinkedIn's sentence did not move.
+    //
+    // Pinned because "the text is identical, so why re-prompt" is the
+    // reasonable-sounding change that would silently inherit consent.
+    expect(POLITICAL_DECLARATION_NOTICES["ads-declaration-2026-09"]).toBe(
+      POLITICAL_DECLARATION_NOTICES["linkedin-ttpa-2025-10"],
+    );
+  });
+
+  it("keeps the superseded wording, so an old record still renders honestly", () => {
+    // Deleting it would turn every business still on the old version from
+    // `superseded` ("please confirm the current wording") into `unknown` ("we
+    // couldn't check") — a worse and less actionable message for a state we
+    // understand perfectly well.
+    expect(noticeTextFor("linkedin-ttpa-2025-10")).toBeTruthy();
+  });
+});
+
+describe("special ad category copy", () => {
+  it("★★offers no ISSUES_ELECTIONS_POLITICS checkbox — it is derived", () => {
+    // It is the same fact as the political declaration shown directly above it
+    // in the same form. A sixth checkbox would let one business answer one
+    // question twice, two different ways, in one submission.
+    expect(SPECIAL_AD_CATEGORY_ORDER).not.toContain("ISSUES_ELECTIONS_POLITICS");
+    expect(SPECIAL_AD_CATEGORY_LABELS).not.toHaveProperty("ISSUES_ELECTIONS_POLITICS");
+  });
+
+  it("every key shown has a label, and every label is shown", () => {
+    // ★BOTH DIRECTIONS. A key with no label renders a blank line beside a
+    // checkbox; a label no order includes is copy nobody ever reads, which is
+    // how a category silently stops being offered.
+    for (const k of SPECIAL_AD_CATEGORY_ORDER) {
+      expect(SPECIAL_AD_CATEGORY_LABELS[k], `no label for ${k}`).toBeTruthy();
+    }
+    expect(Object.keys(SPECIAL_AD_CATEGORY_LABELS).sort()).toEqual([...SPECIAL_AD_CATEGORY_ORDER].sort());
+  });
+
+  it("★covers the five declarable categories, including the two §2.1 gets wrong", () => {
+    // CREDIT is real (§2.1's correction box calls it a bad guess) and
+    // ONLINE_GAMBLING_AND_GAMING is missing from that box entirely.
+    expect([...SPECIAL_AD_CATEGORY_ORDER].sort()).toEqual([
+      "CREDIT",
+      "EMPLOYMENT",
+      "FINANCIAL_PRODUCTS_SERVICES",
+      "HOUSING",
+      "ONLINE_GAMBLING_AND_GAMING",
+    ]);
+  });
+
+  it("★says that ticking nothing is an answer, and what declaring one costs", () => {
+    // Meta has no "not answered" value, so an empty submission is a positive
+    // statement — the form has to say so rather than letting it read as skipped.
+    expect(SPECIAL_AD_CATEGORY_NONE_NOTE).toMatch(/that is an answer/i);
+    // And the targeting a declared category removes is stated BEFORE the tick.
+    expect(SPECIAL_AD_CATEGORY_CONSEQUENCE).toMatch(/lookalike/i);
+  });
 });
