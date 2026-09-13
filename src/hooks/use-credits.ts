@@ -49,6 +49,25 @@ export interface RateCardUseCase {
   label: string;
   creditMultiplier: number;
   minCreditsPerCall: number;
+  /** cfg_products.pillar; null = cross-product. */
+  pillar: string | null;
+  /**
+   * ★RENDER "Free", NEVER "0 Peaks" AND NEVER A DASH.
+   *
+   * The api derives this (`customerBillable === false`, or no multiplier) and
+   * its own field comment instructs callers to branch on THIS rather than on
+   * the number — because a zero price and a free task are the same figure and
+   * a different promise. "0 Peaks" reads as a price somebody forgot to set;
+   * "—" reads as not-applicable. On a safety feature both read worse than the
+   * truth, which is that being told why we stopped something costs nothing.
+   *
+   * ⚠️ THIS FIELD WAS ADDED TO THE API AND NOT TO THIS TYPE, so for a while
+   * the rate card rendered every free task as "—" — the exact "never absent"
+   * failure the requirement forbids, in the one place it is supposed to hold.
+   */
+  free: boolean;
+  /** Merchant-facing sentence from `cfg_ai_models`; null when the row has none. */
+  description: string | null;
 }
 
 export interface CreditsHistoryDay {
