@@ -152,12 +152,31 @@ export function AdvertisingDeclarationCard() {
         // request, forever. It is not a transient failure and must not be
         // dressed as one.
         err instanceof ApiError && err.code === "DECLARATION_INCOMPLETE"
-          ? "We can't show the Meta category question right now, and saving without it would " +
-            "erase the answer you already gave. Reload the page and try again — nothing was changed."
+          ? // ⚠️★NO REMEDY IS OFFERED, BECAUSE THERE ISN'T ONE THE MERCHANT CAN
+            // TAKE. The first cut said *reload the page*, which is the same
+            // dead-end-dressed-as-a-remedy this file refuses for the
+            // `unsupported_notice` retry button: the trigger is an envelope
+            // served WITHOUT `specialAdCategoryOptions`, and a reload fetches
+            // the same envelope. It says what happened and what did NOT happen,
+            // and stops there.
+            "We can't show the Meta category question right now, and saving without it would " +
+            "erase the answer you already gave. Nothing was changed — your existing declaration " +
+            "still stands."
           : "Couldn't save your declaration. Try again in a moment — nothing was changed.",
       ),
   });
 
+  // ⚠️★★`reopen` IS RE-VALIDATED AGAINST THE CURRENT STATE, because it is a
+  // flag a merchant set once and this card re-renders on every background
+  // refetch. Held raw, it OUTRANKED `state.kind`: a mid-session move to
+  // `superseded` kept rendering *"Your declaration stays in force"* about a
+  // record the api had already stopped honouring, and a move to `unknown`
+  // left a heading with no notice, no checkboxes and no Save — a form with
+  // nothing in it.
+  //
+  // ★It only ever meant *"amend the categories on a declaration that is
+  // standing"*. Every other state already renders its own, more urgent,
+  // version of the same form.
   const state = declarationState({
     declaration: settings.data?.settings.advertisingDeclaration,
     currentNoticeVersion: settings.data?.currentNoticeVersion,
@@ -169,6 +188,8 @@ export function AdvertisingDeclarationCard() {
     // either. Only claim ignorance when we genuinely have nothing.
     failed: settings.isError && !settings.data,
   });
+
+  const amending = reopen && state.kind === "declared";
 
   // Not `isLoading`: that is pending AND fetching, so a paused/offline fetch
   // leaves it false with no data, and `declarationState` would then render a
@@ -264,7 +285,7 @@ export function AdvertisingDeclarationCard() {
               </Button>
             </div>
           </div>
-        ) : state.kind === "declared" && !reopen ? (
+        ) : state.kind === "declared" && !amending ? (
           <div className="flex items-start gap-2">
             <ShieldCheck className="mt-0.5 size-4 shrink-0 text-success-on-tint" />
             <div className="min-w-0 flex-1 space-y-1">
@@ -352,7 +373,7 @@ export function AdvertisingDeclarationCard() {
                   are written for a business with NO declaration in force;
                   shown to one that is amending a standing declaration they
                   contradict the line the merchant just clicked away from. */}
-              {reopen ? (
+              {amending ? (
                 <ShieldCheck className="mt-0.5 size-4 shrink-0 text-success-on-tint" />
               ) : state.kind === "unknown" ? (
                 <ShieldQuestion className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
@@ -361,7 +382,7 @@ export function AdvertisingDeclarationCard() {
               )}
               <div className="min-w-0 flex-1 space-y-1">
                 <p className="text-sm font-medium">
-                  {reopen
+                  {amending
                     ? "Answer the Meta category question"
                     : state.kind === "superseded"
                       ? "Please confirm the current wording"
@@ -372,7 +393,7 @@ export function AdvertisingDeclarationCard() {
                         : "Advertising declaration"}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {reopen ? (
+                  {amending ? (
                     <>
                       Your declaration stays in force. Meta also needs the
                       special-ad-category answer, and the two are recorded
@@ -510,7 +531,7 @@ export function AdvertisingDeclarationCard() {
                 {save.isPending ? (
                   <Loader2 className="mr-1 size-3 animate-spin" />
                 ) : null}
-                {reopen
+                {amending
                   ? "Save"
                   : state.kind === "superseded"
                     ? "Confirm"
@@ -543,7 +564,7 @@ export function AdvertisingDeclarationCard() {
                 to the standing declaration short of reloading the page. A
                 sibling rather than a branch, so it cannot disturb the
                 `state.reason` narrowing the retry button above depends on. */}
-            {reopen ? (
+            {amending ? (
               <Button
                 type="button"
                 variant="ghost"

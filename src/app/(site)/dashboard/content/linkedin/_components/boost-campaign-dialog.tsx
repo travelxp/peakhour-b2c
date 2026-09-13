@@ -223,6 +223,28 @@ export function BoostCampaignDialog({
   // the wording is not in it — and this simply borrows it.
   const noticeUnavailable = Boolean(settings.data || settings.isError) && !canDeclare;
 
+  // ⚠️★★AND THE ANSWER IS *DERIVED*, NOT GATED — which is where round 2 went
+  // wrong in both directions at once.
+  //
+  // Putting `canDeclare` on the Create button disabled CAMPAIGN CREATION for
+  // a failed settings read, with no retry affordance and no relation to the
+  // thing that failed. That is a bigger outage than the one it prevents:
+  // master's local fallback kept this working, and the declaration is not
+  // what a boost is FOR.
+  //
+  // ★The label under the checkbox already describes the correct behaviour —
+  // *"Left unticked, the campaign is created without a declaration"*. So with
+  // no wording to show, the answer is simply NO DECLARATION. The campaign is
+  // created, LinkedIn may hold EU delivery until one is made in Campaign
+  // Manager or on the Ads page, and nothing is confirmed on the advertiser's
+  // behalf against a sentence they never saw.
+  //
+  // ⚠️It also fixes the split brain: `checked` was forced false while
+  // `notPolitical` stayed true, so the box LOOKED unticked while the
+  // *"left unticked"* warning stayed hidden and the payload still said true —
+  // and the box self-ticked when the query resolved. One value now.
+  const declares = canDeclare && notPolitical;
+
   const boost = useMutation({
     // The declaration answers travel as VARIABLES, not read from state in
     // onSuccess. Inputs stay enabled while the request is in flight, so a
@@ -236,6 +258,9 @@ export function BoostCampaignDialog({
         dailyBudget: budgetNumber,
         currencyCode: currencyCode.trim().toUpperCase(),
         durationDays: durationNumber,
+        // ★`declares`, not the raw checkbox: with no wording on screen this is
+        // false, and the campaign is created WITHOUT a declaration rather than
+        // with one the advertiser never read.
         notPolitical: vars.notPolitical,
         // Only meaningful for lead_generation, and the server refuses that
         // objective without it — see the picker below.
@@ -572,8 +597,8 @@ export function BoostCampaignDialog({
               // ★Unticked and disabled with no wording to agree to. Leaving it
               // ticked would present a confirmation the advertiser cannot read
               // as already given.
-              checked={stampableNotice === undefined ? false : notPolitical}
-              disabled={stampableNotice === undefined}
+              checked={declares}
+              disabled={!canDeclare}
               onCheckedChange={(v) => {
                 setNotPolitical(v === true);
                 // Un-ticking the notice must also clear the durable opt-in, or
@@ -590,12 +615,15 @@ export function BoostCampaignDialog({
                   a second copy that could differ from the one being stamped;
                   showing wording we are not about to record is the failure
                   the whole version mechanism exists to prevent. The checkbox
-                  below is disabled when this is absent. */}
+                  is disabled when this is absent, and the campaign is then
+                  created WITHOUT a declaration rather than blocked. */}
               {stampableNotice ??
                 (noticeUnavailable ? (
                   <span className="text-warning-on-tint">
                     We can&apos;t show the declaration wording right now, so this
-                    campaign can&apos;t be created. Try again in a moment.
+                    campaign will be created without a declaration. LinkedIn may
+                    hold delivery to EU audiences until you make one — you can do
+                    that on the Ads page.
                   </span>
                 ) : (
                   <span className="text-muted-foreground">
@@ -610,7 +638,7 @@ export function BoostCampaignDialog({
               >
                 Learn more
               </a>
-              {!notPolitical ? (
+              {!declares ? (
                 <span className="mt-1 block text-warning-on-tint">
                   Left unticked, the campaign is created without a declaration —
                   LinkedIn may hold delivery to EU audiences until you make one
@@ -625,7 +653,12 @@ export function BoostCampaignDialog({
               pre-filled, so open-then-create inside 300ms is ordinary, and the
               user would never learn the durable option exists. Hidden only
               when we positively KNOW the api is on wording we don't hold. */}
-          {notPolitical && !(settings.data && !stampableNotice) ? (
+          {/* ⚠️★`noticeUnavailable`, NOT `settings.data && !stampableNotice`.
+              The two differ on an ERRORED read, where the second is false and
+              left this opt-in enabled underneath a label saying the wording
+              cannot be shown — offering to persist a declaration that is not
+              being made. The named condition is the one this always wanted. */}
+          {declares && !noticeUnavailable ? (
             <div className="flex items-start gap-2 pl-3">
               <Checkbox
                 id="boost-apply-future"
@@ -671,8 +704,8 @@ export function BoostCampaignDialog({
           </Button>
           <Button
             type="button"
-            onClick={() => boost.mutate({ notPolitical, applyToFuture })}
-            disabled={!valid || !canDeclare || boost.isPending || blocked !== null}
+            onClick={() => boost.mutate({ notPolitical: declares, applyToFuture })}
+            disabled={!valid || boost.isPending || blocked !== null}
           >
             {boost.isPending
               ? "Creating…"
