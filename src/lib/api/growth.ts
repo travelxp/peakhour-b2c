@@ -20,12 +20,14 @@ export type ProposalType =
   | "boost_threshold"
   | "audience_emphasis";
 
-export type ProposalStatus = "proposed" | "approved" | "dismissed" | "applied" | "failed";
+export type ProposalStatus =
+  "proposed" | "approved" | "dismissed" | "applied" | "failed";
 
 /** Decision outcomes the decide endpoint reports. `retryable` = the
  *  apply failed for a FIXABLE reason and the proposal was reverted to
  *  `proposed` — fix the cause (reconnect / envelope) and decide again. */
-export type DecisionStatus = "approved" | "dismissed" | "applied" | "failed" | "retryable";
+export type DecisionStatus =
+  "approved" | "dismissed" | "applied" | "failed" | "retryable";
 
 /**
  * Outcomes (v1).
@@ -42,9 +44,18 @@ export interface OutcomesResponse {
     organic: {
       impressions: number;
       posts: number;
-      byPlatform: Array<{ platform: string; impressions: number; posts: number }>;
+      byPlatform: Array<{
+        platform: string;
+        impressions: number;
+        posts: number;
+      }>;
     };
-    paid: { impressions: number; campaigns: number; spend: number; currency?: string } | null;
+    paid: {
+      impressions: number;
+      campaigns: number;
+      spend: number;
+      currency?: string;
+    } | null;
     site: {
       sessions: number;
       users: number;
@@ -72,7 +83,11 @@ export interface OutcomesResponse {
         costPer: number | null;
         currency?: string;
       }
-    | { configured: false; reason: "not_connected" | "no_key_event"; message: string };
+    | {
+        configured: false;
+        reason: "not_connected" | "no_key_event";
+        message: string;
+      };
   /**
    * What the period was worth — the same honest-absence shape as `conversions`,
    * and NOT a figure this page is allowed to reason about.
@@ -189,6 +204,41 @@ export interface GrowthSettings {
 export interface GrowthSettingsResponse {
   settings: GrowthSettings;
   currentNoticeVersion?: string;
+  /**
+   * ★★THE WORDING THE VERSION MEANS, SERVED RATHER THAN LOOKED UP.
+   *
+   * This file used to hold a `Record<version, string>` and resolve the text
+   * locally. That made a notice bump a DEPLOY problem: the api would ship a
+   * version we had no text for, the card would refuse to collect consent —
+   * correctly, since it could not show what it would be stamping — and
+   * nobody could declare until the client caught up. Shipping the client
+   * first was worse: it sent a shape the api rejected.
+   *
+   * No merge order avoided that, which is the tell: it was never an
+   * ordering problem, it was two copies of one string. The api owns it now.
+   *
+   * ⚠️STILL OPTIONAL, AND THE GUARD STILL MATTERS. An absent text must make
+   * the card refuse, exactly as an unknown version used to — what changed is
+   * that this can now only happen on a broken response instead of on every
+   * ordinary bump.
+   */
+  /** ★TWO STRINGS — one per answer. See `ads-copy.ts`: a POLITICAL record
+   *  stamped against *"I confirm this is not political advertising"* is a
+   *  consent record whose wording asserts the opposite of what it records. */
+  currentNoticeText?: { notPolitical?: string; political?: string };
+  /**
+   * Meta's special ad categories as a form: key + the label to render.
+   *
+   * ★SERVED FOR P-09'S REASON — five surfaces derived the rate card's copy
+   * locally and all five were wrong. A local label map here would silently
+   * stop offering any category the api adds.
+   *
+   * ⚠️Never contains ISSUES_ELECTIONS_POLITICS: it is the same fact as the
+   * political declaration shown above it, derived server-side.
+   */
+  specialAdCategoryOptions?: Array<{ key: string; label: string }>;
+  /** What declaring any category costs, shown before the tick (§2.1). */
+  specialAdCategoryConsequence?: string;
   declaredByName?: string;
 }
 
@@ -213,14 +263,17 @@ export interface OptimizerRun {
   weekStart: string;
   proposals: OptimizerProposal[];
   noAdjustmentReason?: string;
-  inputsDigest?: { organicPosts: number; campaignsAnalysed: number; windowDays: number };
+  inputsDigest?: {
+    organicPosts: number;
+    campaignsAnalysed: number;
+    windowDays: number;
+  };
   createdAt: string;
 }
 
 export type RunNowResult =
   | { created: false; reason: "already_ran" | "optimizer_disabled" | "no_data" }
   | { created: true; runId: string; proposalCount: number };
-
 
 // ── The Ask — lead capture, channel-neutral ───────────────────────────────
 
@@ -231,10 +284,28 @@ export type RunNowResult =
  * and this type must not have to change when it does.
  */
 export type AskIdentity =
-  | "first_name" | "last_name" | "email" | "work_email" | "phone" | "work_phone"
-  | "job_title" | "job_function" | "seniority" | "company_name" | "company_size"
-  | "industry" | "city" | "state" | "country" | "postal_code"
-  | "linkedin_profile" | "degree" | "field_of_study" | "school" | "gender" | "custom";
+  | "first_name"
+  | "last_name"
+  | "email"
+  | "work_email"
+  | "phone"
+  | "work_phone"
+  | "job_title"
+  | "job_function"
+  | "seniority"
+  | "company_name"
+  | "company_size"
+  | "industry"
+  | "city"
+  | "state"
+  | "country"
+  | "postal_code"
+  | "linkedin_profile"
+  | "degree"
+  | "field_of_study"
+  | "school"
+  | "gender"
+  | "custom";
 
 /** Which downstream consumer justifies asking. A question that fits none of
  *  these does not belong on the form — the discipline the whole surface is
@@ -242,8 +313,13 @@ export type AskIdentity =
 export type AskQuestionPurpose = "contact" | "qualify" | "route" | "context";
 
 export type AskIntent =
-  | "demo_request" | "consultation" | "newsletter"
-  | "event_registration" | "recruitment" | "b2b_lead" | "custom";
+  | "demo_request"
+  | "consultation"
+  | "newsletter"
+  | "event_registration"
+  | "recruitment"
+  | "b2b_lead"
+  | "custom";
 
 export interface AskQuestion {
   key: string;
@@ -358,7 +434,8 @@ export type VisibilityAbsence =
  * surface to look for a fourth card in the wrong place — which is exactly what
  * happened here once.
  */
-export type VisibilitySource = "google_search" | "google_business_profile" | "google_analytics";
+export type VisibilitySource =
+  "google_search" | "google_business_profile" | "google_analytics";
 
 export type VisibilityFigure =
   | {
@@ -432,13 +509,17 @@ export type LedgerSearch =
       /** False when the window opens before the page went live — the figures
        *  are still this page's, but "since you published" would be wrong. */
       coversFromPublish: boolean;
-      trend?: { clicksChange: number; impressionsChange: number; fromWindowEnd: string };
+      trend?: {
+        clicksChange: number;
+        impressionsChange: number;
+        fromWindowEnd: string;
+      };
     }
   | { state: "unknown"; reason: "awaiting_sync" | "window_predates_publish" };
 
 /** What one published page earned in analytics since it went live. */
-export type LedgerAnalytics
-  = | {
+export type LedgerAnalytics =
+  | {
       state: "measured";
       views: number;
       conversions: number;
@@ -504,8 +585,17 @@ export interface LedgerSummary {
         pagesMeasured: number;
       };
   analytics:
-    | { state: "measured"; views: number; conversions: number; pagesMeasured: number }
-    | { state: "unavailable"; reason: "no_measured_pages"; pagesMeasured: number };
+    | {
+        state: "measured";
+        views: number;
+        conversions: number;
+        pagesMeasured: number;
+      }
+    | {
+        state: "unavailable";
+        reason: "no_measured_pages";
+        pagesMeasured: number;
+      };
 }
 
 export interface ContentLedgerResponse {
@@ -567,7 +657,8 @@ export interface MeasurementHealthResponse {
 
 export const growthApi = {
   /** Recent weekly optimizer runs (newest first, up to 12). */
-  adjustments: () => api.get<{ runs: OptimizerRun[] }>("/v1/growth/adjustments"),
+  adjustments: () =>
+    api.get<{ runs: OptimizerRun[] }>("/v1/growth/adjustments"),
 
   /** Run the optimizer now for the active business. Idempotent per ISO
    *  week; typed no-op reasons (already_ran / optimizer_disabled /
@@ -584,15 +675,17 @@ export const growthApi = {
    *  from an api deployment that predates that code — the board uses it to
    *  suppress its "fix that and approve again" copy, which is wrong for a
    *  refusal no user action can clear. */
-  decide: (runId: string, proposalId: string, decision: "approve" | "dismiss") =>
+  decide: (
+    runId: string,
+    proposalId: string,
+    decision: "approve" | "dismiss",
+  ) =>
     api.post<{
       ok: true;
       status: DecisionStatus;
       failReason?: string;
       notAuthorized?: boolean;
-    }>(
-      `/v1/growth/adjustments/${runId}/proposals/${proposalId}/${decision}`,
-    ),
+    }>(`/v1/growth/adjustments/${runId}/proposals/${proposalId}/${decision}`),
 
   /**
    * What happened, what it means, and what to do next (Outcomes v1).
@@ -606,7 +699,8 @@ export const growthApi = {
    * site traffic carry the page until then, which is the state a business is in
    * for its first months.
    */
-  outcomes: (days = 28) => api.get<OutcomesResponse>(`/v1/growth/outcomes?days=${days}`),
+  outcomes: (days = 28) =>
+    api.get<OutcomesResponse>(`/v1/growth/outcomes?days=${days}`),
 
   /**
    * Found → chosen → convinced → bought, over ONE window.
@@ -654,16 +748,50 @@ export const growthApi = {
    * Self-serve optimizer opt-in / weekly budget envelope / advertising
    * declaration.
    *
-   * `notPolitical: true` records the declaration with server-stamped
-   * provenance (who, when, which wording); `false` WITHDRAWS it by unsetting
-   * the record. The client cannot set declaredAt / declaredByUserId /
+   * ⚠️★WAS A BOOLEAN `notPolitical`, AND THE BOOLEAN COULD NOT SAY THE THING
+   * M-03 EXISTS FOR: that a merchant IS a political advertiser. `true` meant
+   * declared-negative and `false` meant withdrawn, which left the affirmative
+   * with no spelling at all. It is `politicalIntent` now — `"POLITICAL"`,
+   * `"NOT_POLITICAL"`, or `null` to WITHDRAW by unsetting the record.
+   *
+   * The client still cannot set declaredAt / declaredByUserId /
    * noticeVersion — the whole value of the field is that the server knows a
    * real person declared it at a known time under known wording.
+   *
+   * ⚠️AND THE TWO HALVES TRAVEL TOGETHER. The api refuses
+   * `specialAdCategories` without `politicalIntent` (DECLARATION_INCOMPLETE)
+   * so a record cannot end up with halves consented to under different
+   * wordings — and refuses an intent-only PATCH that would ERASE a stored
+   * category answer, for the same reason in reverse.
    */
   updateSettings: (patch: {
     optimizerEnabled?: boolean;
     weeklyBudgetEnvelope?: number | null;
-    notPolitical?: boolean;
+    /**
+     * ⚠️WAS `notPolitical?: boolean` (M-03). The boolean could only ever say
+     * NOT_POLITICAL or withdraw, so nothing could record a business that IS a
+     * political advertiser — and the Meta special ad category derived from it
+     * could never fire. `null` withdraws, which is the unset the old `false`
+     * performed.
+     *
+     * ★b2c does not OFFER "POLITICAL" — Peakhour does not support the
+     * obligations it carries, which is why the declaration card renders that
+     * state read-only. The type admits it because the api must be able to
+     * represent a business support has recorded as one.
+     */
+    politicalIntent?: "POLITICAL" | "NOT_POLITICAL" | null;
+    /**
+     * Meta special ad categories the advertiser self-identifies.
+     *
+     * ★MUST BE SENT WITH `politicalIntent` — the api refuses categories on
+     * their own (DECLARATION_INCOMPLETE), because the declaration is made
+     * against one notice at one moment and cannot be assembled from separate
+     * requests.
+     *
+     * ⚠️`[]` IS AN ANSWER ("asked, none apply"), not an omission. Meta has no
+     * "not answered" value, so the api distinguishes it from absent.
+     */
+    specialAdCategories?: string[];
     /** `null` clears it — and clearing is an unset server-side, so "nobody has
      *  chosen" stays the single reading of absence. */
     winDefinition?: {
@@ -705,7 +833,11 @@ export const growthApi = {
   publishAsk: (
     id: string,
     body: { whatsapp?: { phone: string; message: string }; ctaUrl?: string },
-  ) => api.post<{ ask: Ask; leadDelivery: LeadDelivery }>(`/v1/growth/asks/${id}/publish`, body),
+  ) =>
+    api.post<{ ask: Ask; leadDelivery: LeadDelivery }>(
+      `/v1/growth/asks/${id}/publish`,
+      body,
+    ),
 
   /**
    * Edit the WORDING.
@@ -730,5 +862,6 @@ export const growthApi = {
   syncAsk: (id: string) => api.post<{ ask: Ask }>(`/v1/growth/asks/${id}/sync`),
 
   /** Stop the form collecting, on LinkedIn and here. */
-  archiveAsk: (id: string) => api.post<{ ask: Ask }>(`/v1/growth/asks/${id}/archive`),
+  archiveAsk: (id: string) =>
+    api.post<{ ask: Ask }>(`/v1/growth/asks/${id}/archive`),
 };

@@ -121,6 +121,40 @@ describe("summarizeCronBody", () => {
     expect(summary?.level).toBe("success");
   });
 
+  it("★the version watch names the platforms it is warning about", () => {
+    const body = JSON.stringify({
+      ok: true,
+      data: { warnings: 2, detail: [{ platform: "meta" }, { platform: "x" }] },
+    });
+    const summary = summarizeCronBody("platform-api-version-watch", body);
+    expect(summary?.message).toContain("meta");
+    expect(summary?.message).toContain("x");
+    // ★★AND NOT IN GREEN. A bare string is a success toast, and N platform
+    // sunsets are not a success — this cron logs some of them at `error`
+    // severity. Asserting only on `message` is what let that through.
+    expect(summary?.level).toBe("warning");
+  });
+
+  it("★says nothing needs attention on a real zero", () => {
+    // What this cron has to say most weeks. Rendering nothing would read as a
+    // run that failed to produce anything.
+    const body = JSON.stringify({ ok: true, data: { warnings: 0, detail: [] } });
+    const summary = summarizeCronBody("platform-api-version-watch", body);
+    expect(summary?.message).toMatch(/no platform version deadlines/i);
+    // ★A real zero IS a success — that is the distinction the level carries.
+    expect(summary?.level).not.toBe("warning");
+  });
+
+  it("★★but says NOTHING when the count is absent — that is not a zero", () => {
+    // ⚠️`num()` turns an absent or non-numeric count into 0, and this cron's
+    // zero case is a CONFIDENT CLAIM — "no platform version deadlines need
+    // attention". Making it from a response that carried no count at all is
+    // the one sentence it must never print on no evidence. Every other
+    // summarizer in this file checks the shape first.
+    const body = JSON.stringify({ ok: true, data: { detail: [] } });
+    expect(summarizeCronBody("platform-api-version-watch", body)?.message).toBeFalsy();
+  });
+
   it("warns rather than congratulating when the rollup charged nothing", () => {
     const body = JSON.stringify({ success: true, processed: 0, failed: 0, skipped: 0 });
     const summary = summarizeCronBody("ai-credits-rollup", body);

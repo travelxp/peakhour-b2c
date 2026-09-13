@@ -772,6 +772,48 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
     },
   },
 
+  "platform-api-version-watch": {
+    label: "Watch for platform API sunsets",
+    frequency: "Runs weekly, Mondays at 4am UTC",
+    description:
+      "Checks the versions we pin for LinkedIn, Meta and X against their published sunset and " +
+      "cutoff dates, and logs one line per platform that needs attention. It changes nothing — " +
+      "the deadlines it watches move on the calendar rather than on a commit, so a repository " +
+      "with no changes this month is exactly when they bite.",
+    summarize: (data) => {
+      const d = asRecord(data);
+      if (!d) return null;
+      // ⚠️★AN ABSENT COUNT IS NOT ZERO, and `num()` turns one into zero. Every
+      // other summarizer in this file checks the shape first (see the X
+      // campaign sweep above) for the same reason: this cron's zero case is a
+      // CONFIDENT CLAIM — "no platform version deadlines need attention" — and
+      // making it from a response that carried no count at all is the one
+      // sentence it must never print on no evidence.
+      if (typeof d.warnings !== "number") return null;
+      const n = num(d.warnings);
+      // ★ZERO IS THE ANSWER, NOT THE ABSENCE OF ONE. "Nothing to report" is
+      // what this cron exists to tell you most weeks; rendering nothing would
+      // read as a run that failed to produce anything.
+      if (n === 0) return "No platform version deadlines need attention.";
+      const detail = Array.isArray(d.detail) ? (d.detail as Array<Record<string, unknown>>) : [];
+      const platforms = detail
+        .map((w) => (typeof w.platform === "string" ? w.platform : null))
+        .filter(Boolean);
+      // ⚠️★A BARE STRING IS A GREEN SUCCESS TOAST, and N platform sunsets are
+      // not a success. This cron logs at `error` severity for some of these
+      // and the whole reason it exists is that its deadlines move on the
+      // CALENDAR while nobody commits — surfacing them in the same green as
+      // "nothing needed doing" is the confusion `CronSummary`'s `level` was
+      // added for.
+      return {
+        message:
+          `${n} platform version warning${n === 1 ? "" : "s"}` +
+          (platforms.length > 0 ? `: ${platforms.join(", ")}.` : "."),
+        level: "warning" as const,
+      };
+    },
+  },
+
   // ── Billing + money ────────────────────────────────────────────────
   // Undocumented until now because none of them could be triggered at all
   // (peakhour-api#1017). Which of these need an explicit confirmation is NOT

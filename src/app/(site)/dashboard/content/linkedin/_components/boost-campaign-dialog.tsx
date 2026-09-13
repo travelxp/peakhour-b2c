@@ -6,11 +6,7 @@ import { toast } from "sonner";
 import { ApiError } from "@/lib/api";
 import { LeadFormPicker } from "@/components/ads/lead-form-picker";
 import { growthApi } from "@/lib/api/growth";
-import {
-  LATEST_POLITICAL_DECLARATION_NOTICE,
-  noticeTextFor,
-  POLITICAL_DECLARATION_POLICY_URL,
-} from "@/lib/ads-copy";
+import { POLITICAL_DECLARATION_POLICY_URL, stampableNoticeText } from "@/lib/ads-copy";
 import {
   toastUnhandledApiError,
   toastAdAccountNotAuthorized,
@@ -22,10 +18,7 @@ import {
   ADS_LINKEDIN_PATH,
   LINKEDIN_ADS_PROVIDER,
 } from "@/lib/integrations-connect";
-import {
-  linkedInAdsApi,
-  type BoostObjective,
-} from "@/lib/api/linkedin-ads";
+import { linkedInAdsApi, type BoostObjective } from "@/lib/api/linkedin-ads";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -65,7 +58,10 @@ import { AudiencePreview, useAudienceProposal } from "./audience-preview";
  * the old flow dropped them on /dashboard/settings, several clicks from the
  * post they came to boost.
  */
-const RECONNECT_HREF = reconnectHref("/dashboard/content/linkedin", LINKEDIN_ADS_PROVIDER);
+const RECONNECT_HREF = reconnectHref(
+  "/dashboard/content/linkedin",
+  LINKEDIN_ADS_PROVIDER,
+);
 
 /**
  * Objectives a BOOST can use.
@@ -159,7 +155,14 @@ export function BoostCampaignDialog({
     staleTime: 60_000,
     refetchOnWindowFocus: false,
   });
-  const stampableNotice = noticeTextFor(settings.data?.currentNoticeVersion);
+  // ★SERVED WITH THE VERSION. Was resolved from a local version->text map,
+  // which made an api notice bump take this dialog down until b2c deployed.
+  // ★SERVED WITH THE VERSION, AND IT IS THE *NEGATIVE* ONE. The api serves a
+  // wording per answer since M-03, and this dialog collects exactly one: the
+  // checkbox says the ads are not political. Reading the object itself put
+  // `[object Object]` beside a consent checkbox — tsc caught it here, which
+  // is the argument for widening the type rather than casting at the edge.
+  const stampableNotice = stampableNoticeText("NOT_POLITICAL", settings.data?.currentNoticeText);
   // Latched on a failure a resubmit cannot improve on — the button stays
   // disabled for this dialog instance, and the reason picks its label:
   // "persisted"      PERSIST_FAILED — the draft EXISTS on LinkedIn, so
@@ -167,7 +170,9 @@ export function BoostCampaignDialog({
   // "not_authorized" AD_ACCOUNT_NOT_AUTHORIZED — LinkedIn refuses this
   // ad account for our app; nothing was created and
   // nothing will be until that access is granted.
-  const [blocked, setBlocked] = useState<"persisted" | "not_authorized" | null>(null);
+  const [blocked, setBlocked] = useState<"persisted" | "not_authorized" | null>(
+    null,
+  );
 
   // Round ONCE up front so validation, the displayed cap, and the
   // payload can never disagree (typing "14.7" must not show a x14.7
@@ -193,6 +198,53 @@ export function BoostCampaignDialog({
     // already knew about.
     (objective !== "lead_generation" || askId.length > 0);
 
+  // ⚠️★★AND THE NOTICE MUST ACTUALLY BE ON SCREEN — but that is a SEPARATE
+  // gate from whether the form is filled in correctly.
+  //
+  // The comment beside the checkbox said *"the checkbox below is disabled
+  // when this is absent"*. It was not, and neither was Create: with the local
+  // fallback deleted, a settings query in flight left a PRE-TICKED consent box
+  // with a BLANK label and a live Create button, and `notPolitical: true` went
+  // to LinkedIn as confirmation of wording the advertiser was never shown.
+  //
+  // ⚠️★FOLDING IT INTO `valid` WAS WRONG THOUGH. `valid` also drives the
+  // *Planned cap* figure thirty lines down, so a settings query loading —
+  // which is EVERY first open, the dialog mounts conditionally and the cache
+  // is cold — blanked a budget total that has nothing to do with declarations.
+  // A gate on submission is not a statement about arithmetic.
+  const canDeclare = stampableNotice !== undefined;
+  // ⚠️★AND LOADING IS NOT FAILURE, which the first cut of the label below got
+  // wrong. This dialog mounts conditionally, so the settings cache is COLD on
+  // every first open and the in-flight moment is the ordinary case, not the
+  // exceptional one. Rendering *"this campaign can't be created"* there is a
+  // false alarm on the common path. The `applyToFuture` block thirty lines
+  // down already drew this distinction — `settings.data && !stampableNotice`,
+  // i.e. only claim a problem once we positively KNOW the api answered and
+  // the wording is not in it — and this simply borrows it.
+  const noticeUnavailable = Boolean(settings.data || settings.isError) && !canDeclare;
+
+  // ⚠️★★AND THE ANSWER IS *DERIVED*, NOT GATED — which is where round 2 went
+  // wrong in both directions at once.
+  //
+  // Putting `canDeclare` on the Create button disabled CAMPAIGN CREATION for
+  // a failed settings read, with no retry affordance and no relation to the
+  // thing that failed. That is a bigger outage than the one it prevents:
+  // master's local fallback kept this working, and the declaration is not
+  // what a boost is FOR.
+  //
+  // ★The label under the checkbox already describes the correct behaviour —
+  // *"Left unticked, the campaign is created without a declaration"*. So with
+  // no wording to show, the answer is simply NO DECLARATION. The campaign is
+  // created, LinkedIn may hold EU delivery until one is made in Campaign
+  // Manager or on the Ads page, and nothing is confirmed on the advertiser's
+  // behalf against a sentence they never saw.
+  //
+  // ⚠️It also fixes the split brain: `checked` was forced false while
+  // `notPolitical` stayed true, so the box LOOKED unticked while the
+  // *"left unticked"* warning stayed hidden and the payload still said true —
+  // and the box self-ticked when the query resolved. One value now.
+  const declares = canDeclare && notPolitical;
+
   const boost = useMutation({
     // The declaration answers travel as VARIABLES, not read from state in
     // onSuccess. Inputs stay enabled while the request is in flight, so a
@@ -206,6 +258,9 @@ export function BoostCampaignDialog({
         dailyBudget: budgetNumber,
         currencyCode: currencyCode.trim().toUpperCase(),
         durationDays: durationNumber,
+        // ★`declares`, not the raw checkbox: with no wording on screen this is
+        // false, and the campaign is created WITHOUT a declaration rather than
+        // with one the advertiser never read.
         notPolitical: vars.notPolitical,
         // Only meaningful for lead_generation, and the server refuses that
         // objective without it — see the picker below.
@@ -216,9 +271,14 @@ export function BoostCampaignDialog({
         ...(geo !== undefined ? { geo } : {}),
       }),
     onSuccess: async (_data, vars) => {
+      // Local to this success, not state: it is read once, in the toast a few
+      // lines below, and a re-render must not resurrect it.
+      let durableWriteFailed = false;
       // The Ads Manager list must show the new campaign even within
       // its staleTime window.
-      queryClient.invalidateQueries({ queryKey: ["linkedin-managed-campaigns"] });
+      queryClient.invalidateQueries({
+        queryKey: ["linkedin-managed-campaigns"],
+      });
       // Record the durable declaration only AFTER the boost succeeded, and
       // never block or fail the boost on it: the campaign already carries this
       // answer on its own create call, so a settings write that fails costs
@@ -237,12 +297,31 @@ export function BoostCampaignDialog({
         // the LinkedIn draft already exists. After the cap we stop waiting; the
         // request usually still lands, and the Ads-hub card offers the
         // declaration either way.
+        // ★NO `specialAdCategories` — THIS DIALOG NEVER ASKED.
+        // Sending `[]` would record, on the merchant's behalf, that none of
+        // their ads are housing, credit or employment ads, from a form that
+        // never put the question to them. Omitting it leaves the record
+        // without an answer, which the api reports as undeclared; the Ads-hub
+        // declaration card is where the question is actually asked.
         const write = growthApi
-          .updateSettings({ notPolitical: true })
+          .updateSettings({ politicalIntent: "NOT_POLITICAL" })
           .then((res) => queryClient.setQueryData(["growth-settings"], res))
           .catch(() => {
-            // The campaign is created and already carries this answer, so a
-            // second error toast would bury the one that matters.
+            // ⚠️★SWALLOWED, BUT NO LONGER UNREPORTED.
+            //
+            // A second error TOAST would bury the one that matters, and that
+            // reasoning still holds — but it was being used to say nothing at
+            // all, and the api now has reasons to refuse this write that the
+            // user must act on. DECLARATION_INCOMPLETE fires when the business
+            // has a stored category answer this dialog cannot resend, because
+            // it never asked the question; the tick said *apply to future
+            // campaigns* and nothing was applied.
+            //
+            // ★So it goes in the SUCCESS toast's description, beside the thing
+            // that did work. One toast, both facts, and the campaign — which
+            // carries this answer on its own create call either way — is still
+            // the headline.
+            durableWriteFailed = true;
           });
         await Promise.race([
           write,
@@ -251,8 +330,15 @@ export function BoostCampaignDialog({
       }
       onOpenChange(false);
       toast.success("Draft campaign created on LinkedIn.", {
-        description:
-          "It won't spend until you activate it. Finish targeting, then activate from the Ads Manager.",
+        description: durableWriteFailed
+          ? // ⏸"Check", not "finish": the refusal can be a 409 on a business
+            // with a STANDING political declaration, which lands on the card's
+            // read-only branch where there is nothing to finish — the record is
+            // already in force and this tick was the thing that was wrong. One
+            // sentence has to be true for both causes.
+            "It won't spend until you activate it. We couldn't save this declaration for future " +
+            "campaigns — check your ads declaration on the Ads page."
+          : "It won't spend until you activate it. Finish targeting, then activate from the Ads Manager.",
         action: {
           label: "Open Ads Manager",
           onClick: () => {
@@ -276,7 +362,9 @@ export function BoostCampaignDialog({
         toast.error("Connect (or reconnect) LinkedIn Ads first.", {
           action: {
             label: "Integrations",
-            onClick: () => { window.location.href = RECONNECT_HREF; },
+            onClick: () => {
+              window.location.href = RECONNECT_HREF;
+            },
           },
         });
       } else if (code === "NEEDS_REAUTH") {
@@ -286,7 +374,9 @@ export function BoostCampaignDialog({
             label: "Reconnect",
             // returnTo brings the user back HERE after the OAuth round
             // trip instead of stranding them on Settings.
-            onClick: () => { window.location.href = RECONNECT_HREF; },
+            onClick: () => {
+              window.location.href = RECONNECT_HREF;
+            },
           },
         });
       } else if (code === "AD_ACCOUNT_NOT_AUTHORIZED") {
@@ -303,7 +393,10 @@ export function BoostCampaignDialog({
         // case: once a billing hold is cleared the very same request works,
         // so the button stays live. The helper keeps the request id on the
         // toast — this code is also the api's unattributable-403 catch-all.
-        toastAdAccountForbidden(err, "Boosting isn't possible on this ad account.");
+        toastAdAccountForbidden(
+          err,
+          "Boosting isn't possible on this ad account.",
+        );
       } else if (code === "NO_AD_ACCOUNT") {
         toast.error(
           "Your LinkedIn Ads connection has no ad account — reconnect it, or create an ad account in LinkedIn Campaign Manager first.",
@@ -324,14 +417,19 @@ export function BoostCampaignDialog({
         // but no panel reads a ?campaign= param yet — linking to the hub
         // is what actually works. Row-level deep-linking is a follow-up.
         toast.error("You already have a draft campaign for this post.", {
-          description: "Edit or activate it from the Ads Manager instead of creating a second one.",
+          description:
+            "Edit or activate it from the Ads Manager instead of creating a second one.",
           action: {
             label: "Open Ads Manager",
-            onClick: () => { window.location.href = ADS_LINKEDIN_PATH; },
+            onClick: () => {
+              window.location.href = ADS_LINKEDIN_PATH;
+            },
           },
         });
       } else if (code === "RATE_LIMITED") {
-        toast.error("LinkedIn is rate-limiting us — give it a minute and try again.");
+        toast.error(
+          "LinkedIn is rate-limiting us — give it a minute and try again.",
+        );
       } else if (
         code === "VALIDATION_LEADGEN_FORM_REQUIRED" ||
         code === "ASK_REQUIRED" ||
@@ -339,22 +437,35 @@ export function BoostCampaignDialog({
         code === "ASK_NOT_FOUND"
       ) {
         toast.error("This campaign needs a live lead form.", {
-          description: "Create or publish one under Ads → Lead forms, then boost.",
+          description:
+            "Create or publish one under Ads → Lead forms, then boost.",
           action: {
             label: "Open Lead forms",
-            onClick: () => { window.location.href = ADS_LINKEDIN_PATH; },
+            onClick: () => {
+              window.location.href = ADS_LINKEDIN_PATH;
+            },
           },
         });
-      } else if (code === "ASK_NOT_SERVING" || code === "ASK_WRONG_AD_ACCOUNT") {
+      } else if (
+        code === "ASK_NOT_SERVING" ||
+        code === "ASK_WRONG_AD_ACCOUNT"
+      ) {
         // ★NOT A GENERIC FAILURE. A rejected form leaves a campaign looking
         // perfectly healthy while nothing delivers, so the message has to name
         // the form as the thing to go and look at.
-        toast.error(err instanceof ApiError ? err.message : "That lead form can't be used.", {
-          action: {
-            label: "Open Lead forms",
-            onClick: () => { window.location.href = ADS_LINKEDIN_PATH; },
+        toast.error(
+          err instanceof ApiError
+            ? err.message
+            : "That lead form can't be used.",
+          {
+            action: {
+              label: "Open Lead forms",
+              onClick: () => {
+                window.location.href = ADS_LINKEDIN_PATH;
+              },
+            },
           },
-        });
+        );
       } else {
         // Everything else: friendly copy keyed on the code, with the
         // request id for support. NOT err.message — see toast-errors.ts
@@ -432,8 +543,9 @@ export function BoostCampaignDialog({
           <AudiencePreview geo={geo} onGeoChange={setGeo} />
           {!willTarget && (
             <p className="text-xs text-muted-foreground">
-              We can&apos;t build an audience for this one, so the campaign will be created without
-              targeting — LinkedIn won&apos;t deliver it until you set one from the Ads Manager.
+              We can&apos;t build an audience for this one, so the campaign will
+              be created without targeting — LinkedIn won&apos;t deliver it
+              until you set one from the Ads Manager.
             </p>
           )}
 
@@ -482,7 +594,11 @@ export function BoostCampaignDialog({
           <div className="flex items-start gap-2 rounded-md border bg-muted/30 p-3">
             <Checkbox
               id="boost-not-political"
-              checked={notPolitical}
+              // ★Unticked and disabled with no wording to agree to. Leaving it
+              // ticked would present a confirmation the advertiser cannot read
+              // as already given.
+              checked={declares}
+              disabled={!canDeclare}
               onCheckedChange={(v) => {
                 setNotPolitical(v === true);
                 // Un-ticking the notice must also clear the durable opt-in, or
@@ -495,7 +611,25 @@ export function BoostCampaignDialog({
               htmlFor="boost-not-political"
               className="text-[11px] font-normal leading-relaxed text-muted-foreground"
             >
-              {stampableNotice ?? LATEST_POLITICAL_DECLARATION_NOTICE}{" "}
+              {/* ★NO LOCAL FALLBACK ANY MORE. A hardcoded "latest" notice was
+                  a second copy that could differ from the one being stamped;
+                  showing wording we are not about to record is the failure
+                  the whole version mechanism exists to prevent. The checkbox
+                  is disabled when this is absent, and the campaign is then
+                  created WITHOUT a declaration rather than blocked. */}
+              {stampableNotice ??
+                (noticeUnavailable ? (
+                  <span className="text-warning-on-tint">
+                    We can&apos;t show the declaration wording right now, so this
+                    campaign will be created without a declaration. LinkedIn may
+                    hold delivery to EU audiences until you make one — you can do
+                    that on the Ads page.
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground">
+                    Loading the declaration wording&hellip;
+                  </span>
+                ))}{" "}
               <a
                 href={POLITICAL_DECLARATION_POLICY_URL}
                 target="_blank"
@@ -504,11 +638,11 @@ export function BoostCampaignDialog({
               >
                 Learn more
               </a>
-              {!notPolitical ? (
+              {!declares ? (
                 <span className="mt-1 block text-warning-on-tint">
-                  Left unticked, the campaign is created without a declaration
-                  — LinkedIn may hold delivery to EU audiences until you make
-                  one in Campaign Manager.
+                  Left unticked, the campaign is created without a declaration —
+                  LinkedIn may hold delivery to EU audiences until you make one
+                  in Campaign Manager.
                 </span>
               ) : null}
             </Label>
@@ -519,7 +653,12 @@ export function BoostCampaignDialog({
               pre-filled, so open-then-create inside 300ms is ordinary, and the
               user would never learn the durable option exists. Hidden only
               when we positively KNOW the api is on wording we don't hold. */}
-          {notPolitical && !(settings.data && !stampableNotice) ? (
+          {/* ⚠️★`noticeUnavailable`, NOT `settings.data && !stampableNotice`.
+              The two differ on an ERRORED read, where the second is false and
+              left this opt-in enabled underneath a label saying the wording
+              cannot be shown — offering to persist a declaration that is not
+              being made. The named condition is the one this always wanted. */}
+          {declares && !noticeUnavailable ? (
             <div className="flex items-start gap-2 pl-3">
               <Checkbox
                 id="boost-apply-future"
@@ -532,8 +671,8 @@ export function BoostCampaignDialog({
                 className="text-[11px] font-normal leading-relaxed text-muted-foreground"
               >
                 Also apply this to my future campaigns, including ones created
-                automatically from WhatsApp or by the optimizer. You can withdraw
-                it any time from the Ads hub.
+                automatically from WhatsApp or by the optimizer. You can
+                withdraw it any time from the Ads hub.
               </Label>
             </div>
           ) : null}
@@ -565,7 +704,7 @@ export function BoostCampaignDialog({
           </Button>
           <Button
             type="button"
-            onClick={() => boost.mutate({ notPolitical, applyToFuture })}
+            onClick={() => boost.mutate({ notPolitical: declares, applyToFuture })}
             disabled={!valid || boost.isPending || blocked !== null}
           >
             {boost.isPending

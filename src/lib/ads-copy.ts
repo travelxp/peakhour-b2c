@@ -19,49 +19,52 @@
  */
 
 /**
- * LinkedIn's notice text, KEYED BY THE VERSION IT IS.
+ * ⚠️★★THE NOTICE TEXT USED TO LIVE HERE, KEYED BY VERSION. IT DOES NOT NOW.
  *
- * The text lives here but the version in force is decided by the api
- * (`CURRENT_NOTICE_VERSION`), and nothing used to couple them. That gap was a
- * real hazard, not a tidiness point: bump the version server-side and deploy
- * before the b2c ships the new wording, and the card would tell the user "the
- * notice has been updated, please confirm the current wording" while showing
- * them the OLD text — then stamp the NEW version against it. The record would
- * claim consent to wording the user never saw, which is the one thing this
- * whole feature exists to prevent.
+ * The old comment argued the coupling was a feature: *"an unrecognised
+ * version means we do not have the text the api is asking about, so
+ * `declarationState` returns `unknown` and the card refuses to collect
+ * consent rather than collecting the wrong consent. Add the new wording here
+ * in the same PR that bumps the api."*
  *
- * Keying the text by version closes it: an unrecognised version means we do
- * not have the text the api is asking about, so `declarationState` returns
- * `unknown` and the card refuses to collect consent rather than collecting the
- * wrong consent. Add the new wording here in the same PR that bumps the api.
+ * The refusal was right. The premise was not. "Add it in the same PR" is not
+ * something two repos can do — they deploy separately, and whichever order
+ * they land in there is a window where declaring is impossible: api first and
+ * the card has no wording to show; client first and it sends a shape the api
+ * rejects. The file's own note called it "a DEPLOY problem, not a network
+ * one", which is exactly right and was treated as unavoidable.
  *
- * Verbatim. Not our wording to soften — LinkedIn's Advertising API contract
- * requires an app that creates ads to present this text and pass back what the
- * advertiser confirmed.
+ * It was avoidable. It was two copies of one string. **The api now serves
+ * `currentNoticeText` beside `currentNoticeVersion`**, so a client cannot be
+ * out of step with a string it is handed, and a bump needs no client deploy.
+ * The refusal survives — `declarationState` still returns `unknown` when no
+ * text arrives — it just cannot be triggered by an ordinary release any more.
+ *
+ * ★Same fix as mig 326 moving `USE_CASE_LABELS` onto the rows, and for the
+ * same reason: one side owns it, the other reads it.
  */
-export const POLITICAL_DECLARATION_NOTICES: Record<string, string> = {
-  "linkedin-ttpa-2025-10":
-    "I confirm this is not political advertising. None of my ads qualify as " +
-    "political advertising under the law of the targeted countries, including " +
-    "EU law for ads targeted to the EU. Advertisers must comply with " +
-    "LinkedIn's policies and regulatory requirements.",
-};
+/**
+ * The FRAMING of Meta's category question — ours, and deliberately still here.
+ *
+ * ★THE PER-CATEGORY LABELS ARE SERVED (`specialAdCategoryOptions`) because a
+ * local map goes stale the moment the api adds a category. These two are a
+ * different thing: they are not a list that can drift out of step, they are
+ * how this surface phrases a question, and there is nothing on the api side
+ * for them to disagree with.
+ */
+export const SPECIAL_AD_CATEGORY_QUESTION =
+  "Do any of your ads fall into one of these categories?";
 
 /**
- * The most recent wording we hold, for surfaces that must show SOMETHING.
+ * ★WHY TICKING NOTHING IS AN ANSWER, SAID TO THE USER.
  *
- * Only the Boost dialog uses this, and only for its per-campaign answer —
- * which is passed straight to LinkedIn and never recorded against a version,
- * so a deploy-skew mismatch has no lasting effect. Anything that STAMPS a
- * version must use `noticeTextFor` and refuse when it returns undefined.
+ * Meta has no "not answered" value for `special_ad_categories` — it takes a
+ * category or an empty list. So submitting with none ticked is a positive
+ * statement that none apply, and the form has to say so rather than letting it
+ * read as a question the user skipped.
  */
-export const LATEST_POLITICAL_DECLARATION_NOTICE =
-  POLITICAL_DECLARATION_NOTICES["linkedin-ttpa-2025-10"];
-
-/** The notice for a version, or undefined when we don't hold that wording. */
-export function noticeTextFor(version?: string | null): string | undefined {
-  return version ? POLITICAL_DECLARATION_NOTICES[version] : undefined;
-}
+export const SPECIAL_AD_CATEGORY_NONE_NOTE =
+  "Leave them all unticked if none apply — that is an answer, and we record it as one.";
 
 export const POLITICAL_DECLARATION_POLICY_URL =
   "https://www.linkedin.com/legal/ads-policy";
@@ -87,6 +90,20 @@ export interface AdvertisingDeclaration {
   declaredAt: string;
   declaredByUserId: string;
   noticeVersion: string;
+  /**
+   * Meta's special ad categories, as the merchant answered them.
+   *
+   * ⚠️★ABSENT IS NOT `[]`, AND THE DIFFERENCE IS THE FIELD'S WHOLE POINT.
+   * `[]` is *"I was asked and none of these apply"* — a statement only the
+   * advertiser can make. Absent means this record PREDATES the question, and
+   * the api reports that as undeclared rather than as an empty list. Meta
+   * offers no way to express the difference, so it has to be expressed here.
+   *
+   * ★It is what SEEDS the boxes on a re-confirm. Rendering them unticked for
+   * a merchant who had declared HOUSING and CREDIT, then submitting, sends an
+   * explicit `[]` the api cannot refuse — an erasure two clicks deep.
+   */
+  specialAdCategories?: string[];
 }
 
 export type DeclarationState =
@@ -142,9 +159,88 @@ export type DeclarationState =
  * `CURRENT_NOTICE_VERSION` in the api and silently mis-state every
  * business's status in one direction or the other.
  */
+/**
+ * The two wordings the api serves, one per answer.
+ */
+export interface NoticeText {
+  notPolitical?: string | null;
+  political?: string | null;
+}
+
+/**
+ * The wording a surface is about to STAMP, chosen by the answer it collects.
+ *
+ * ⚠️★A ONE-LINE PROPERTY ACCESS IN JSX IS NOT TESTABLE HERE. This repo has no
+ * component-test stack at all — no testing-library, no jsdom, not one
+ * `.test.tsx` — so `{noticeText.political}` beside a checkbox that records
+ * NOT_POLITICAL would render a sentence the merchant is not agreeing to, and
+ * nothing in the suite could tell. Mutating exactly that survived every test
+ * on this branch.
+ *
+ * ⚠️★AND IT IS NOT CALLED `noticeTextFor`, which is a RETIRED name this file
+ * has a test forbidding. That one was a local version→text MAP — a second copy
+ * of a string the api owns, and keeping the two in step across two deploys is
+ * what made an ordinary notice bump an outage. This holds no copy of anything:
+ * it picks between two strings the api just served. Same neighbourhood,
+ * opposite defect, so it does not get to borrow the banned name.
+ *
+ * ★So the choice is a function, in the file the tests already cover. Getting
+ * it wrong is now a unit-test failure rather than a screenshot nobody takes.
+ */
+/**
+ * Which categories the form should show as ticked, and submit.
+ *
+ * ⚠️★★THIS IS THE ERASURE FIX, AND IT IS HERE BECAUSE IT HAD TO BE TESTABLE.
+ *
+ * The form renders for a SUPERSEDED declaration too — re-confirm wording that
+ * changed — and the boxes started empty because nothing seeded them. A
+ * merchant who had declared HOUSING and CREDIT saw them unticked, and
+ * submitting the re-confirm sent an explicit `[]`.
+ *
+ * ★The api CANNOT refuse that. Its erasure guard fires on an OMITTED field,
+ * and `[]` is a real answer a real form can legitimately produce — *"I was
+ * asked and none of these apply"*. Two clicks turned a housing advertiser
+ * into one who had declared that none of these apply, with a 200 and no
+ * signal anywhere.
+ *
+ * `touched` is `null` until the merchant changes something, which is NOT the
+ * same as `[]`: one means they have not answered, the other that they have
+ * answered *none*.
+ */
+export function selectedCategories(
+  touched: string[] | null,
+  stored: string[] | undefined,
+): string[] {
+  return touched ?? stored ?? [];
+}
+export function stampableNoticeText(
+  answer: "NOT_POLITICAL" | "POLITICAL",
+  served: NoticeText | null | undefined,
+): string | undefined {
+  const text = answer === "POLITICAL" ? served?.political : served?.notPolitical;
+  // ★`""` IS NOT A WORDING. It is falsy and would render as a blank consent
+  // box with a Save button beside it — worse than showing nothing, because it
+  // looks like a form that is simply short.
+  return text ? text : undefined;
+}
 export function declarationState(input: {
   declaration?: AdvertisingDeclaration | null;
   currentNoticeVersion?: string | null;
+  /**
+   * ★THE WORDING, AS THE API SERVED IT. Was resolved here from a local
+   * version->text map; that map was a second copy of a string the api owns,
+   * and keeping the two in step across two deploys is what made an ordinary
+   * notice bump an outage. The guard below is unchanged — only its cause is.
+   *
+   * ⚠️★AND IT IS TWO STRINGS, BECAUSE THERE ARE TWO ANSWERS. A single text
+   * was right while the only thing a merchant could say was *no*. M-03 made
+   * the affirmative declarable, and the one served text read *"I confirm this
+   * is not political advertising"* — so a POLITICAL record was stamped with a
+   * `noticeVersion` whose wording asserts the opposite of what it records.
+   * A consent record that names text contradicting its own answer is worse
+   * than none: it is evidence FOR the wrong thing.
+   */
+  currentNoticeText?: NoticeText | null;
   declaredByName?: string | null;
   failed?: boolean;
 }): DeclarationState {
@@ -157,9 +253,18 @@ export function declarationState(input: {
   // that would record consent to wording we don't hold.
   // No version at all is indistinguishable from a failed read — we have no
   // response to reason about.
-  if (!input.currentNoticeVersion) return { kind: "unknown", reason: "read_failed" };
-  // A version we don't hold text for is a DEPLOY problem, not a network one.
-  if (!noticeTextFor(input.currentNoticeVersion)) {
+  if (!input.currentNoticeVersion)
+    return { kind: "unknown", reason: "read_failed" };
+  // ★A version that arrives WITHOUT its wording. This used to mean "the api
+  // bumped and this client has not deployed" — an ordinary, expected state
+  // that took the feature down every time. Now the text travels with the
+  // version, so reaching here means a genuinely broken or ancient response,
+  // and refusing is right for the original reason: we cannot honestly ask
+  // someone to confirm wording we cannot show them.
+  // ⏸THE NEGATIVE IS THE ONE THIS CARD NEEDS. It is the wording behind the
+  // only answer this surface collects; the affirmative is served for the
+  // surface that asks for it, and its absence must not take this one down.
+  if (!stampableNoticeText("NOT_POLITICAL", input.currentNoticeText)) {
     return { kind: "unknown", reason: "unsupported_notice" };
   }
 
@@ -180,7 +285,8 @@ export function declarationState(input: {
       ...(declaredByName ? { declaredByName } : {}),
     };
   }
-  if (!d || d.politicalIntent !== "NOT_POLITICAL") return { kind: "undeclared" };
+  if (!d || d.politicalIntent !== "NOT_POLITICAL")
+    return { kind: "undeclared" };
 
   if (superseded) {
     return {
@@ -189,7 +295,11 @@ export function declarationState(input: {
       ...(declaredByName ? { declaredByName } : {}),
     };
   }
-  return { kind: "declared", declaredAt: d.declaredAt, ...(declaredByName ? { declaredByName } : {}) };
+  return {
+    kind: "declared",
+    declaredAt: d.declaredAt,
+    ...(declaredByName ? { declaredByName } : {}),
+  };
 }
 
 /**
