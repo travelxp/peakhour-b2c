@@ -196,7 +196,20 @@ export function BoostCampaignDialog({
     // been created — so letting the button through would leave two orphan
     // artefacts in the customer's Campaign Manager for an error the dialog
     // already knew about.
-    (objective !== "lead_generation" || askId.length > 0);
+    (objective !== "lead_generation" || askId.length > 0) &&
+    // ⚠️★★AND THE NOTICE MUST ACTUALLY BE ON SCREEN.
+    //
+    // The comment beside the checkbox said *"the checkbox below is disabled
+    // when this is absent"*. It was not, and neither was Create. With the
+    // local fallback deleted, a settings query in flight — or errored, which
+    // is a refetch away at any moment — left a PRE-TICKED consent box with a
+    // BLANK label and a live Create button, and `notPolitical: true` went to
+    // LinkedIn as a confirmation of wording the advertiser was never shown.
+    //
+    // ★That is the exact failure the version mechanism exists to prevent,
+    // arrived at from the other side: not showing one version's text while
+    // stamping another's, but showing NO text while stamping anyway.
+    stampableNotice !== undefined;
 
   const boost = useMutation({
     // The declaration answers travel as VARIABLES, not read from state in
@@ -221,6 +234,9 @@ export function BoostCampaignDialog({
         ...(geo !== undefined ? { geo } : {}),
       }),
     onSuccess: async (_data, vars) => {
+      // Local to this success, not state: it is read once, in the toast a few
+      // lines below, and a re-render must not resurrect it.
+      let durableWriteFailed = false;
       // The Ads Manager list must show the new campaign even within
       // its staleTime window.
       queryClient.invalidateQueries({
@@ -254,8 +270,21 @@ export function BoostCampaignDialog({
           .updateSettings({ politicalIntent: "NOT_POLITICAL" })
           .then((res) => queryClient.setQueryData(["growth-settings"], res))
           .catch(() => {
-            // The campaign is created and already carries this answer, so a
-            // second error toast would bury the one that matters.
+            // ⚠️★SWALLOWED, BUT NO LONGER UNREPORTED.
+            //
+            // A second error TOAST would bury the one that matters, and that
+            // reasoning still holds — but it was being used to say nothing at
+            // all, and the api now has reasons to refuse this write that the
+            // user must act on. DECLARATION_INCOMPLETE fires when the business
+            // has a stored category answer this dialog cannot resend, because
+            // it never asked the question; the tick said *apply to future
+            // campaigns* and nothing was applied.
+            //
+            // ★So it goes in the SUCCESS toast's description, beside the thing
+            // that did work. One toast, both facts, and the campaign — which
+            // carries this answer on its own create call either way — is still
+            // the headline.
+            durableWriteFailed = true;
           });
         await Promise.race([
           write,
@@ -264,8 +293,10 @@ export function BoostCampaignDialog({
       }
       onOpenChange(false);
       toast.success("Draft campaign created on LinkedIn.", {
-        description:
-          "It won't spend until you activate it. Finish targeting, then activate from the Ads Manager.",
+        description: durableWriteFailed
+          ? "It won't spend until you activate it. ⚠️We couldn't save the declaration for future " +
+            "campaigns — finish it on the Ads page."
+          : "It won't spend until you activate it. Finish targeting, then activate from the Ads Manager.",
         action: {
           label: "Open Ads Manager",
           onClick: () => {
@@ -521,7 +552,11 @@ export function BoostCampaignDialog({
           <div className="flex items-start gap-2 rounded-md border bg-muted/30 p-3">
             <Checkbox
               id="boost-not-political"
-              checked={notPolitical}
+              // ★Unticked and disabled with no wording to agree to. Leaving it
+              // ticked would present a confirmation the advertiser cannot read
+              // as already given.
+              checked={stampableNotice === undefined ? false : notPolitical}
+              disabled={stampableNotice === undefined}
               onCheckedChange={(v) => {
                 setNotPolitical(v === true);
                 // Un-ticking the notice must also clear the durable opt-in, or
@@ -539,7 +574,12 @@ export function BoostCampaignDialog({
                   showing wording we are not about to record is the failure
                   the whole version mechanism exists to prevent. The checkbox
                   below is disabled when this is absent. */}
-              {stampableNotice}{" "}
+              {stampableNotice ?? (
+                <span className="text-warning-on-tint">
+                  We can&apos;t show the declaration wording right now, so this
+                  campaign can&apos;t be created. Try again in a moment.
+                </span>
+              )}{" "}
               <a
                 href={POLITICAL_DECLARATION_POLICY_URL}
                 target="_blank"

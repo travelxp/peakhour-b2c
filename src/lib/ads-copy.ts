@@ -90,6 +90,20 @@ export interface AdvertisingDeclaration {
   declaredAt: string;
   declaredByUserId: string;
   noticeVersion: string;
+  /**
+   * Meta's special ad categories, as the merchant answered them.
+   *
+   * ⚠️★ABSENT IS NOT `[]`, AND THE DIFFERENCE IS THE FIELD'S WHOLE POINT.
+   * `[]` is *"I was asked and none of these apply"* — a statement only the
+   * advertiser can make. Absent means this record PREDATES the question, and
+   * the api reports that as undeclared rather than as an empty list. Meta
+   * offers no way to express the difference, so it has to be expressed here.
+   *
+   * ★It is what SEEDS the boxes on a re-confirm. Rendering them unticked for
+   * a merchant who had declared HOUSING and CREDIT, then submitting, sends an
+   * explicit `[]` the api cannot refuse — an erasure two clicks deep.
+   */
+  specialAdCategories?: string[];
 }
 
 export type DeclarationState =
@@ -173,6 +187,32 @@ export interface NoticeText {
  * ★So the choice is a function, in the file the tests already cover. Getting
  * it wrong is now a unit-test failure rather than a screenshot nobody takes.
  */
+/**
+ * Which categories the form should show as ticked, and submit.
+ *
+ * ⚠️★★THIS IS THE ERASURE FIX, AND IT IS HERE BECAUSE IT HAD TO BE TESTABLE.
+ *
+ * The form renders for a SUPERSEDED declaration too — re-confirm wording that
+ * changed — and the boxes started empty because nothing seeded them. A
+ * merchant who had declared HOUSING and CREDIT saw them unticked, and
+ * submitting the re-confirm sent an explicit `[]`.
+ *
+ * ★The api CANNOT refuse that. Its erasure guard fires on an OMITTED field,
+ * and `[]` is a real answer a real form can legitimately produce — *"I was
+ * asked and none of these apply"*. Two clicks turned a housing advertiser
+ * into one who had declared that none of these apply, with a 200 and no
+ * signal anywhere.
+ *
+ * `touched` is `null` until the merchant changes something, which is NOT the
+ * same as `[]`: one means they have not answered, the other that they have
+ * answered *none*.
+ */
+export function selectedCategories(
+  touched: string[] | null,
+  stored: string[] | undefined,
+): string[] {
+  return touched ?? stored ?? [];
+}
 export function stampableNoticeText(
   answer: "NOT_POLITICAL" | "POLITICAL",
   served: NoticeText | null | undefined,

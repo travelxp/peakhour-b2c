@@ -748,11 +748,21 @@ export const growthApi = {
    * Self-serve optimizer opt-in / weekly budget envelope / advertising
    * declaration.
    *
-   * `notPolitical: true` records the declaration with server-stamped
-   * provenance (who, when, which wording); `false` WITHDRAWS it by unsetting
-   * the record. The client cannot set declaredAt / declaredByUserId /
+   * ⚠️★WAS A BOOLEAN `notPolitical`, AND THE BOOLEAN COULD NOT SAY THE THING
+   * M-03 EXISTS FOR: that a merchant IS a political advertiser. `true` meant
+   * declared-negative and `false` meant withdrawn, which left the affirmative
+   * with no spelling at all. It is `politicalIntent` now — `"POLITICAL"`,
+   * `"NOT_POLITICAL"`, or `null` to WITHDRAW by unsetting the record.
+   *
+   * The client still cannot set declaredAt / declaredByUserId /
    * noticeVersion — the whole value of the field is that the server knows a
    * real person declared it at a known time under known wording.
+   *
+   * ⚠️AND THE TWO HALVES TRAVEL TOGETHER. The api refuses
+   * `specialAdCategories` without `politicalIntent` (DECLARATION_INCOMPLETE)
+   * so a record cannot end up with halves consented to under different
+   * wordings — and refuses an intent-only PATCH that would ERASE a stored
+   * category answer, for the same reason in reverse.
    */
   updateSettings: (patch: {
     optimizerEnabled?: boolean;

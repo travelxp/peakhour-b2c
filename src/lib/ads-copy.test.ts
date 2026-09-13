@@ -19,6 +19,7 @@ import {
   SPECIAL_AD_CATEGORY_QUESTION,
   SPECIAL_AD_CATEGORY_NONE_NOTE,
   stampableNoticeText,
+  selectedCategories,
 } from "./ads-copy";
 import * as adsCopy from "./ads-copy";
 
@@ -433,5 +434,36 @@ describe("stampableNoticeText — the wording a surface is about to record", () 
     expect(stampableNoticeText("NOT_POLITICAL", { notPolitical: "" })).toBeUndefined();
     expect(stampableNoticeText("NOT_POLITICAL", null)).toBeUndefined();
     expect(stampableNoticeText("NOT_POLITICAL", undefined)).toBeUndefined();
+  });
+});
+
+describe("selectedCategories — untouched is not \"none of these apply\"", () => {
+  // ⚠️★★THE ERASURE THIS FIXES WAS TWO CLICKS DEEP AND SILENT. The form
+  // renders for a SUPERSEDED declaration too, the boxes started empty, and
+  // submitting the re-confirm sent an explicit `[]` — which the api CANNOT
+  // refuse, because its erasure guard fires on an omitted field and `[]` is a
+  // real answer a real form can legitimately produce. A housing advertiser
+  // became one who had declared that none of these apply, with a 200.
+
+  it("★★seeds from the stored answer while the merchant has not touched it", () => {
+    expect(selectedCategories(null, ["HOUSING", "CREDIT"])).toEqual(["HOUSING", "CREDIT"]);
+  });
+
+  it("★★an explicit empty selection wins over the stored answer", () => {
+    // Because `[]` IS an answer: *"I was asked and none of these apply."*
+    // Un-ticking everything must be able to mean that, or the merchant can
+    // never retract a category they no longer run ads for.
+    expect(selectedCategories([], ["HOUSING"])).toEqual([]);
+  });
+
+  it("★a touched selection is used as given", () => {
+    expect(selectedCategories(["EMPLOYMENT"], ["HOUSING"])).toEqual(["EMPLOYMENT"]);
+  });
+
+  it("★no stored answer and no touch is an empty form, not an answer", () => {
+    // The caller decides what to do with this: the card omits the field
+    // entirely when the api served no options, so nothing is recorded on the
+    // merchant's behalf by a form that never asked.
+    expect(selectedCategories(null, undefined)).toEqual([]);
   });
 });

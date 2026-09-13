@@ -53,18 +53,48 @@ import {
   formatDeclaredAt,
   SPECIAL_AD_CATEGORY_QUESTION,
   SPECIAL_AD_CATEGORY_NONE_NOTE,
+  selectedCategories,
   stampableNoticeText,
 } from "@/lib/ads-copy";
 
 export function AdvertisingDeclarationCard() {
   const queryClient = useQueryClient();
   const [withdrawOpen, setWithdrawOpen] = useState(false);
+  // ★★THE CATEGORY QUESTION HAS TO BE REACHABLE AFTER DECLARING, and it was
+  // not. The form lives in the not-yet-declared branch only, so a business
+  // that declared through the LinkedIn boost dialog — which never asks about
+  // Meta categories — landed in the read-only `declared` branch with no way
+  // to answer. `resolveSpecialAdCategories` then reports `never_declared`,
+  // every Meta create refuses, and the card says *"automatic campaigns carry
+  // this declaration"* while Meta campaigns cannot run at all.
+  //
+  // ⏸It re-opens the WHOLE form rather than adding a categories-only one: the
+  // api refuses categories without an intent (DECLARATION_INCOMPLETE) so that
+  // a record cannot have halves consented under different wordings. One
+  // notice, one moment, one submission — so answering the second half means
+  // re-affirming the first, with the notice on screen.
+  const [reopen, setReopen] = useState(false);
   const [ticked, setTicked] = useState(false);
   // ★A SET, AND EMPTY IS A REAL VALUE. Submitting with nothing selected
   // sends `specialAdCategories: []` — Meta has no "not answered" value, so
   // "none of these apply" is a statement the merchant makes, not a field
   // they skipped. The copy says so beside the boxes.
-  const [categories, setCategories] = useState<string[]>([]);
+  //
+  // ⚠️★★`null` IS "THE MERCHANT HAS NOT TOUCHED THE BOXES", WHICH IS NOT `[]`.
+  //
+  // It was `[]` initially, and that quietly ERASED stored answers. The form
+  // renders for a SUPERSEDED declaration too — re-confirm wording that
+  // changed — and a merchant who had declared HOUSING and CREDIT saw the
+  // boxes unticked, because nothing seeded them. Submitting the re-confirm
+  // then sent an explicit `[]`, which the api CANNOT refuse: its erase guard
+  // fires on an OMITTED field, and `[]` is a real answer that a real form can
+  // legitimately produce. Two clicks turned a housing advertiser into one
+  // who had declared that none of these apply.
+  //
+  // ★So the stored answer seeds the boxes, derived rather than copied into
+  // state by an effect — this repo's lint forbids `setState` in an effect,
+  // and an effect would also race the query's first resolve.
+  const [categories, setCategories] = useState<string[] | null>(null);
 
   // Shares the cache key with the optimizer board, so declaring on either
   // surface updates both without a refetch.
@@ -92,7 +122,7 @@ export function AdvertisingDeclarationCard() {
               // discriminated result exists to prevent. Omitting it leaves
               // the record undeclared, which is the honest state.
               ...(categoryOptions.length > 0
-                ? { specialAdCategories: categories }
+                ? { specialAdCategories: selected }
                 : {}),
             }
           : { politicalIntent: null },
@@ -103,7 +133,8 @@ export function AdvertisingDeclarationCard() {
       // cannot blank the version and flip this card to "unknown".
       queryClient.setQueryData(["growth-settings"], res);
       setTicked(false);
-      setCategories([]);
+      setCategories(null);
+      setReopen(false);
       toast.success(
         notPolitical
           ? "Declaration recorded — automatic campaigns can now declare on your behalf."
@@ -146,6 +177,14 @@ export function AdvertisingDeclarationCard() {
   // offering any category the api adds (P-09: five surfaces, five wrong
   // answers, all derived locally).
   const categoryOptions = settings.data?.specialAdCategoryOptions ?? [];
+  // ★THE STORED ANSWER SEEDS THE BOXES. Derived, not copied into state: an
+  // effect would race the query's first resolve, and this repo's lint forbids
+  // `setState` inside one. `null` means the merchant has not touched them, so
+  // a re-confirm starts from what they previously said rather than from
+  // nothing — which is what turned an explicit `[]` into a silent erasure.
+  const storedCategories =
+    settings.data?.settings.advertisingDeclaration?.specialAdCategories;
+  const selected = selectedCategories(categories, storedCategories);
   const categoryConsequence = settings.data?.specialAdCategoryConsequence;
 
   const notice = (
@@ -214,7 +253,7 @@ export function AdvertisingDeclarationCard() {
               </Button>
             </div>
           </div>
-        ) : state.kind === "declared" ? (
+        ) : state.kind === "declared" && !reopen ? (
           <div className="flex items-start gap-2">
             <ShieldCheck className="mt-0.5 size-4 shrink-0 text-success-on-tint" />
             <div className="min-w-0 flex-1 space-y-1">
@@ -236,6 +275,30 @@ export function AdvertisingDeclarationCard() {
                 Automatic campaigns — from WhatsApp, or the optimizer — carry
                 this declaration.
               </p>
+              {/* ⚠️★THE HALF THAT IS STILL MISSING, SAID PLAINLY. A declaration
+                  made through the boost dialog has no category answer, and
+                  without one every Meta create refuses — while the line above
+                  says automatic campaigns are covered. LinkedIn campaigns
+                  genuinely are, so this names the platform rather than
+                  contradicting it. */}
+              {categoryOptions.length > 0 && storedCategories === undefined ? (
+                <div className="space-y-1 rounded-md border border-warning/30 bg-warning/15 p-2">
+                  <p className="text-[11px] leading-relaxed text-warning-on-tint">
+                    Meta campaigns also need the special-ad-category answer,
+                    which this declaration doesn&apos;t have yet. Until it does,
+                    Meta campaigns can&apos;t be created. LinkedIn is unaffected.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs"
+                    onClick={() => setReopen(true)}
+                  >
+                    Answer it
+                  </Button>
+                </div>
+              ) : null}
               <Button
                 type="button"
                 variant="ghost"
@@ -348,14 +411,18 @@ export function AdvertisingDeclarationCard() {
                     <div key={key} className="flex items-start gap-2">
                       <Checkbox
                         id={`sac-${key}`}
-                        checked={categories.includes(key)}
+                        checked={selected.includes(key)}
                         disabled={save.isPending}
                         onCheckedChange={(v) =>
-                          setCategories((prev) =>
-                            v === true
-                              ? [...prev, key]
-                              : prev.filter((c) => c !== key),
-                          )
+                          setCategories((prev) => {
+                            // ★First touch starts from what is STORED, not from
+                            // `[]` — otherwise ticking one box silently drops
+                            // every other category the merchant had declared.
+                            const base = selectedCategories(prev, storedCategories);
+                            return v === true
+                              ? [...base, key]
+                              : base.filter((c: string) => c !== key);
+                          })
                         }
                         className="mt-0.5"
                       />
@@ -371,7 +438,15 @@ export function AdvertisingDeclarationCard() {
                 <p className="text-[11px] leading-relaxed text-muted-foreground">
                   {SPECIAL_AD_CATEGORY_NONE_NOTE}
                 </p>
-                {categories.length > 0 ? (
+                {/* ⚠️★GATED ON THE TEXT, NOT ONLY ON THE TICK. Without the
+                    second condition a response that served options but no
+                    consequence rendered an EMPTY amber paragraph — a warning
+                    shape with no warning in it — and the merchant declared a
+                    category without ever seeing that Meta strips lookalikes,
+                    exclusions and sub-city geo from those campaigns. An empty
+                    warning is worse than none: it occupies the place a reader
+                    checks for one. */}
+                {selected.length > 0 && categoryConsequence ? (
                   <p className="text-[11px] leading-relaxed text-warning-on-tint">
                     {categoryConsequence}
                   </p>

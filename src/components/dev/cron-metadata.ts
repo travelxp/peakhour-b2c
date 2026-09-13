@@ -783,6 +783,13 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
     summarize: (data) => {
       const d = asRecord(data);
       if (!d) return null;
+      // ⚠️★AN ABSENT COUNT IS NOT ZERO, and `num()` turns one into zero. Every
+      // other summarizer in this file checks the shape first (see the X
+      // campaign sweep above) for the same reason: this cron's zero case is a
+      // CONFIDENT CLAIM — "no platform version deadlines need attention" — and
+      // making it from a response that carried no count at all is the one
+      // sentence it must never print on no evidence.
+      if (typeof d.warnings !== "number") return null;
       const n = num(d.warnings);
       // ★ZERO IS THE ANSWER, NOT THE ABSENCE OF ONE. "Nothing to report" is
       // what this cron exists to tell you most weeks; rendering nothing would
