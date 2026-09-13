@@ -5,6 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Zap, History, ArrowUpRight, RefreshCw } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -31,6 +32,7 @@ import {
   spendableCap,
   capRecoveryCta,
 } from "@/hooks/use-credits";
+import { peaksPrice } from "@/lib/peaks-price-label";
 import {
   usePeaksPacks,
   buyPack,
@@ -630,12 +632,35 @@ export default function PeaksPage() {
                 <TableBody>
                   {rateCard.useCases.map((u) => (
                     <TableRow key={u.useCase}>
-                      <TableCell className="font-medium">{u.label}</TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {u.minCreditsPerCall > 0 ? u.minCreditsPerCall.toLocaleString() : "—"}
+                      <TableCell className="font-medium">
+                        {u.label}
+                        {u.description && (
+                          <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
+                            {u.description}
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {/* ★"Free", not "—" and not "0". The api derives `free`
+                            precisely so this branch exists: a zero price and a
+                            free task are the same number and a different
+                            promise. A dash reads as "not applicable", which on
+                            the safety check — the one thing we most want a
+                            merchant to know costs nothing — is the opposite of
+                            what it says. */}
+                        {peaksPrice(u).free ? (
+                          <Badge variant="secondary" className="font-medium">
+                            {peaksPrice(u).label}
+                          </Badge>
+                        ) : (
+                          <span className="tabular-nums">{peaksPrice(u).label}</span>
+                        )}
                       </TableCell>
                       <TableCell className="text-right tabular-nums text-muted-foreground">
-                        {u.creditMultiplier}×
+                        {/* A free row has no meaningful multiplier to show, and
+                            "0×" beside "Free" invites the question the badge
+                            just answered. */}
+                        {u.free ? "—" : `${u.creditMultiplier}×`}
                       </TableCell>
                     </TableRow>
                   ))}

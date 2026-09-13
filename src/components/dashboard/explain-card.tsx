@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ApiError } from "@/lib/api";
 import { useCreditsBalance, useCreditsRateCard, getCapStatus } from "@/hooks/use-credits";
+import { peaksCostSentence } from "@/lib/peaks-price-label";
 import { useExplain, type ExplainSurface, type ExplainNarration } from "@/hooks/use-explain";
 
 /** The billable useCase (cfg_ai_models, mongodb migration 164) — used to read
@@ -45,11 +46,16 @@ export function ExplainCard({ surface, resource }: { surface: ExplainSurface; re
   // capped (also shows the nudge proactively, not just reactively).
   const hardCapped = getCapStatus(balance) === "hard" || outOfPeaks;
 
-  // True cost from the rate card (creditMultiplier), NOT a hard-coded guess — the
-  // price lives in cfg_ai_models and ops can retune it. Falls back to unit-less
-  // copy rather than a wrong number while the card loads.
-  const cost = rateCard?.useCases.find((u) => u.useCase === EXPLAIN_USE_CASE)?.creditMultiplier;
-  const costLabel = cost ? `Uses about ${cost} Peaks.` : "Uses Peaks.";
+  // True cost from the rate card, NOT a hard-coded guess — the price lives in
+  // cfg_ai_models and ops can retune it. Falls back to unit-less copy rather
+  // than a wrong number while the card loads.
+  //
+  // ★VIA `peaksCostSentence`, WHICH BRANCHES ON `free`. The old line read
+  // `cost ? … : "Uses Peaks."`, and a free task's multiplier is `0` — falsy —
+  // so this told the merchant a free action costs Peaks, in the sentence
+  // printed BESIDE THE BUTTON before they click it. See the helper's header.
+  const rateRow = rateCard?.useCases.find((u) => u.useCase === EXPLAIN_USE_CASE);
+  const costLabel = peaksCostSentence(rateRow);
 
   const run = (refresh: boolean) => {
     if (hardCapped) return;
@@ -162,7 +168,14 @@ export function ExplainCard({ surface, resource }: { surface: ExplainSurface; re
               </div>
             )}
             <p className="text-xs text-muted-foreground">
-              {cost ? `Regenerating uses about ${cost} more Peaks.` : "Regenerating spends Peaks again."}
+              {/* Same `free`-aware branch as `costLabel` — this line had the
+                  identical `cost ?` bug, and it is the one a merchant reads
+                  before clicking Regenerate. */}
+              {rateRow?.free
+                ? "Regenerating is free."
+                : rateRow
+                  ? `Regenerating uses about ${rateRow.creditMultiplier} more Peaks.`
+                  : "Regenerating spends Peaks again."}
             </p>
           </>
         )}
