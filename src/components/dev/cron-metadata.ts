@@ -772,6 +772,31 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
     },
   },
 
+  "platform-api-version-watch": {
+    label: "Watch for platform API sunsets",
+    frequency: "Runs weekly, Mondays at 4am UTC",
+    description:
+      "Checks the versions we pin for LinkedIn, Meta and X against their published sunset and " +
+      "cutoff dates, and logs one line per platform that needs attention. It changes nothing — " +
+      "the deadlines it watches move on the calendar rather than on a commit, so a repository " +
+      "with no changes this month is exactly when they bite.",
+    summarize: (data) => {
+      const d = asRecord(data);
+      if (!d) return null;
+      const n = num(d.warnings);
+      // ★ZERO IS THE ANSWER, NOT THE ABSENCE OF ONE. "Nothing to report" is
+      // what this cron exists to tell you most weeks; rendering nothing would
+      // read as a run that failed to produce anything.
+      if (n === 0) return "No platform version deadlines need attention.";
+      const detail = Array.isArray(d.detail) ? (d.detail as Array<Record<string, unknown>>) : [];
+      const platforms = detail
+        .map((w) => (typeof w.platform === "string" ? w.platform : null))
+        .filter(Boolean);
+      return `${n} platform version warning${n === 1 ? "" : "s"}` +
+        (platforms.length > 0 ? `: ${platforms.join(", ")}.` : ".");
+    },
+  },
+
   // ── Billing + money ────────────────────────────────────────────────
   // Undocumented until now because none of them could be triggered at all
   // (peakhour-api#1017). Which of these need an explicit confirmation is NOT

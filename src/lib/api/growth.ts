@@ -222,7 +222,10 @@ export interface GrowthSettingsResponse {
    * that this can now only happen on a broken response instead of on every
    * ordinary bump.
    */
-  currentNoticeText?: string;
+  /** ★TWO STRINGS — one per answer. See `ads-copy.ts`: a POLITICAL record
+   *  stamped against *"I confirm this is not political advertising"* is a
+   *  consent record whose wording asserts the opposite of what it records. */
+  currentNoticeText?: { notPolitical?: string; political?: string };
   /**
    * Meta's special ad categories as a form: key + the label to render.
    *

@@ -145,6 +145,44 @@ export type DeclarationState =
  * `CURRENT_NOTICE_VERSION` in the api and silently mis-state every
  * business's status in one direction or the other.
  */
+/**
+ * The two wordings the api serves, one per answer.
+ */
+export interface NoticeText {
+  notPolitical?: string | null;
+  political?: string | null;
+}
+
+/**
+ * The wording a surface is about to STAMP, chosen by the answer it collects.
+ *
+ * ⚠️★A ONE-LINE PROPERTY ACCESS IN JSX IS NOT TESTABLE HERE. This repo has no
+ * component-test stack at all — no testing-library, no jsdom, not one
+ * `.test.tsx` — so `{noticeText.political}` beside a checkbox that records
+ * NOT_POLITICAL would render a sentence the merchant is not agreeing to, and
+ * nothing in the suite could tell. Mutating exactly that survived every test
+ * on this branch.
+ *
+ * ⚠️★AND IT IS NOT CALLED `noticeTextFor`, which is a RETIRED name this file
+ * has a test forbidding. That one was a local version→text MAP — a second copy
+ * of a string the api owns, and keeping the two in step across two deploys is
+ * what made an ordinary notice bump an outage. This holds no copy of anything:
+ * it picks between two strings the api just served. Same neighbourhood,
+ * opposite defect, so it does not get to borrow the banned name.
+ *
+ * ★So the choice is a function, in the file the tests already cover. Getting
+ * it wrong is now a unit-test failure rather than a screenshot nobody takes.
+ */
+export function stampableNoticeText(
+  answer: "NOT_POLITICAL" | "POLITICAL",
+  served: NoticeText | null | undefined,
+): string | undefined {
+  const text = answer === "POLITICAL" ? served?.political : served?.notPolitical;
+  // ★`""` IS NOT A WORDING. It is falsy and would render as a blank consent
+  // box with a Save button beside it — worse than showing nothing, because it
+  // looks like a form that is simply short.
+  return text ? text : undefined;
+}
 export function declarationState(input: {
   declaration?: AdvertisingDeclaration | null;
   currentNoticeVersion?: string | null;
@@ -153,8 +191,16 @@ export function declarationState(input: {
    * version->text map; that map was a second copy of a string the api owns,
    * and keeping the two in step across two deploys is what made an ordinary
    * notice bump an outage. The guard below is unchanged — only its cause is.
+   *
+   * ⚠️★AND IT IS TWO STRINGS, BECAUSE THERE ARE TWO ANSWERS. A single text
+   * was right while the only thing a merchant could say was *no*. M-03 made
+   * the affirmative declarable, and the one served text read *"I confirm this
+   * is not political advertising"* — so a POLITICAL record was stamped with a
+   * `noticeVersion` whose wording asserts the opposite of what it records.
+   * A consent record that names text contradicting its own answer is worse
+   * than none: it is evidence FOR the wrong thing.
    */
-  currentNoticeText?: string | null;
+  currentNoticeText?: NoticeText | null;
   declaredByName?: string | null;
   failed?: boolean;
 }): DeclarationState {
@@ -175,7 +221,10 @@ export function declarationState(input: {
   // version, so reaching here means a genuinely broken or ancient response,
   // and refusing is right for the original reason: we cannot honestly ask
   // someone to confirm wording we cannot show them.
-  if (!input.currentNoticeText) {
+  // ⏸THE NEGATIVE IS THE ONE THIS CARD NEEDS. It is the wording behind the
+  // only answer this surface collects; the affirmative is served for the
+  // surface that asks for it, and its absence must not take this one down.
+  if (!stampableNoticeText("NOT_POLITICAL", input.currentNoticeText)) {
     return { kind: "unknown", reason: "unsupported_notice" };
   }
 

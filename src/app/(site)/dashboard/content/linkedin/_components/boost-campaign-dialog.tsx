@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { ApiError } from "@/lib/api";
 import { LeadFormPicker } from "@/components/ads/lead-form-picker";
 import { growthApi } from "@/lib/api/growth";
-import { POLITICAL_DECLARATION_POLICY_URL } from "@/lib/ads-copy";
+import { POLITICAL_DECLARATION_POLICY_URL, stampableNoticeText } from "@/lib/ads-copy";
 import {
   toastUnhandledApiError,
   toastAdAccountNotAuthorized,
@@ -157,7 +157,12 @@ export function BoostCampaignDialog({
   });
   // ★SERVED WITH THE VERSION. Was resolved from a local version->text map,
   // which made an api notice bump take this dialog down until b2c deployed.
-  const stampableNotice = settings.data?.currentNoticeText;
+  // ★SERVED WITH THE VERSION, AND IT IS THE *NEGATIVE* ONE. The api serves a
+  // wording per answer since M-03, and this dialog collects exactly one: the
+  // checkbox says the ads are not political. Reading the object itself put
+  // `[object Object]` beside a consent checkbox — tsc caught it here, which
+  // is the argument for widening the type rather than casting at the edge.
+  const stampableNotice = stampableNoticeText("NOT_POLITICAL", settings.data?.currentNoticeText);
   // Latched on a failure a resubmit cannot improve on — the button stays
   // disabled for this dialog instance, and the reason picks its label:
   // "persisted"      PERSIST_FAILED — the draft EXISTS on LinkedIn, so

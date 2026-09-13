@@ -53,6 +53,7 @@ import {
   formatDeclaredAt,
   SPECIAL_AD_CATEGORY_QUESTION,
   SPECIAL_AD_CATEGORY_NONE_NOTE,
+  stampableNoticeText,
 } from "@/lib/ads-copy";
 
 export function AdvertisingDeclarationCard() {
@@ -136,7 +137,11 @@ export function AdvertisingDeclarationCard() {
   // ★SERVED, NOT LOOKED UP. The api sends the wording its
   // `currentNoticeVersion` means, so this card cannot show one version's
   // text while stamping another's — and a notice bump needs no deploy here.
-  const noticeText = settings.data?.currentNoticeText;
+  // ★THE NEGATIVE, because that is the only answer this card collects. The
+  // affirmative wording is served for the surface that offers it; rendering
+  // the wrong one beside a checkbox would collect consent to a sentence the
+  // merchant is not agreeing to.
+  const noticeText = stampableNoticeText("NOT_POLITICAL", settings.data?.currentNoticeText);
   // ★AND THE FORM ITSELF IS SERVED. A local label map would silently stop
   // offering any category the api adds (P-09: five surfaces, five wrong
   // answers, all derived locally).

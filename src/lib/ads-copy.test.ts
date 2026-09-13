@@ -18,6 +18,7 @@ import {
   formatDeclaredAt,
   SPECIAL_AD_CATEGORY_QUESTION,
   SPECIAL_AD_CATEGORY_NONE_NOTE,
+  stampableNoticeText,
 } from "./ads-copy";
 import * as adsCopy from "./ads-copy";
 
@@ -34,7 +35,10 @@ const CURRENT = "ads-declaration-2026-09";
  * bump needs no deploy here. What is still worth pinning is the REFUSAL —
  * see the `unknown` cases below.
  */
-const NOTICE = "I confirm this is not political advertising. …";
+// ★THE SERVED SHAPE, not a bare string: one wording per answer. A fixture
+// that keeps the old shape would type-check nothing and pass while the card
+// rendered `[object Object]` beside a consent checkbox.
+const NOTICE = { notPolitical: "I confirm this is not political advertising. …" };
 
 const declaration = {
   politicalIntent: "NOT_POLITICAL" as const,
@@ -299,7 +303,24 @@ describe("★★the refusal survives the map's deletion", () => {
     expect(
       declarationState({
         currentNoticeVersion: CURRENT,
-        currentNoticeText: "",
+        currentNoticeText: { notPolitical: "" },
+      }),
+    ).toEqual({
+      kind: "unknown",
+      reason: "unsupported_notice",
+    });
+  });
+
+  it("★and on an OBJECT that carries only the affirmative wording", () => {
+    // ⚠️The served shape is two strings, and this card collects one of them.
+    // A response with only `political` is not a usable response HERE: the
+    // checkbox would render with no sentence beside it. `currentNoticeText`
+    // being truthy is not the question — the wording this surface is about to
+    // stamp is.
+    expect(
+      declarationState({
+        currentNoticeVersion: CURRENT,
+        currentNoticeText: { political: "I confirm this IS political advertising…" },
       }),
     ).toEqual({
       kind: "unknown",
@@ -381,5 +402,36 @@ describe("the category question framing this surface still owns", () => {
         `${gone} is back — it is a second copy of served data`,
       ).toBeUndefined();
     }
+  });
+});
+
+describe("stampableNoticeText — the wording a surface is about to record", () => {
+  // ⚠️★THIS EXISTS BECAUSE A PROPERTY ACCESS IN JSX IS UNTESTABLE HERE. The
+  // repo has no component-test stack at all — no testing-library, no jsdom,
+  // not one `.test.tsx` — so `{served.political}` beside a checkbox that
+  // records NOT_POLITICAL would show the merchant a sentence they are not
+  // agreeing to, and the suite would stay green. Mutating exactly that
+  // survived every test on this branch until the choice became a function.
+
+  it("★★picks the wording that matches the answer", () => {
+    const served = { notPolitical: "NOT political.", political: "IS political." };
+    expect(stampableNoticeText("NOT_POLITICAL", served)).toBe("NOT political.");
+    expect(stampableNoticeText("POLITICAL", served)).toBe("IS political.");
+  });
+
+  it("★★never falls back to the other answer's wording", () => {
+    // The one failure mode that matters. Showing the affirmative beside a
+    // negative checkbox is not a degraded render — it is consent collected
+    // against a sentence that says the opposite of what gets stored.
+    expect(stampableNoticeText("NOT_POLITICAL", { political: "IS political." })).toBeUndefined();
+    expect(stampableNoticeText("POLITICAL", { notPolitical: "NOT political." })).toBeUndefined();
+  });
+
+  it("★treats an empty string as no wording", () => {
+    // `""` is falsy and would render as a blank consent box with a Save button
+    // beside it — worse than showing nothing, because it looks like a form.
+    expect(stampableNoticeText("NOT_POLITICAL", { notPolitical: "" })).toBeUndefined();
+    expect(stampableNoticeText("NOT_POLITICAL", null)).toBeUndefined();
+    expect(stampableNoticeText("NOT_POLITICAL", undefined)).toBeUndefined();
   });
 });
