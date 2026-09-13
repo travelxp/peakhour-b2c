@@ -46,17 +46,13 @@ import {
 } from "@/components/ui/alert-dialog";
 import { growthApi } from "@/lib/api/growth";
 import {
-  noticeTextFor,
   POLITICAL_DECLARATION_POLICY_URL,
   POLITICAL_DECLARATION_CONSEQUENCE,
   POLITICAL_DECLARATION_WITHDRAW_WARNING,
   declarationState,
   formatDeclaredAt,
-  SPECIAL_AD_CATEGORY_LABELS,
-  SPECIAL_AD_CATEGORY_ORDER,
   SPECIAL_AD_CATEGORY_QUESTION,
   SPECIAL_AD_CATEGORY_NONE_NOTE,
-  SPECIAL_AD_CATEGORY_CONSEQUENCE,
 } from "@/lib/ads-copy";
 
 export function AdvertisingDeclarationCard() {
@@ -86,7 +82,18 @@ export function AdvertisingDeclarationCard() {
     mutationFn: (declare: boolean) =>
       growthApi.updateSettings(
         declare
-          ? { politicalIntent: "NOT_POLITICAL", specialAdCategories: categories }
+          ? {
+              politicalIntent: "NOT_POLITICAL" as const,
+              // ★★ONLY WHEN THE QUESTION WAS ACTUALLY SHOWN. If the api
+              // served no options the checkboxes never rendered, so sending
+              // `[]` would record "none of these apply" from a form that
+              // never asked — the compliance invention the api's
+              // discriminated result exists to prevent. Omitting it leaves
+              // the record undeclared, which is the honest state.
+              ...(categoryOptions.length > 0
+                ? { specialAdCategories: categories }
+                : {}),
+            }
           : { politicalIntent: null },
       ),
     onSuccess: (res, notPolitical) => {
@@ -103,12 +110,15 @@ export function AdvertisingDeclarationCard() {
       );
     },
     onError: () =>
-      toast.error("Couldn't save your declaration. Try again in a moment — nothing was changed."),
+      toast.error(
+        "Couldn't save your declaration. Try again in a moment — nothing was changed.",
+      ),
   });
 
   const state = declarationState({
     declaration: settings.data?.settings.advertisingDeclaration,
     currentNoticeVersion: settings.data?.currentNoticeVersion,
+    currentNoticeText: settings.data?.currentNoticeText,
     declaredByName: settings.data?.declaredByName,
     // `isError` alone is wrong: a failed BACKGROUND refetch sets it while
     // `data` is retained, which would flip a business that has declared to
@@ -123,7 +133,15 @@ export function AdvertisingDeclarationCard() {
   // until we have either data or a definite failure.
   if (!settings.data && !settings.isError) return null;
 
-  const noticeText = noticeTextFor(settings.data?.currentNoticeVersion);
+  // ★SERVED, NOT LOOKED UP. The api sends the wording its
+  // `currentNoticeVersion` means, so this card cannot show one version's
+  // text while stamping another's — and a notice bump needs no deploy here.
+  const noticeText = settings.data?.currentNoticeText;
+  // ★AND THE FORM ITSELF IS SERVED. A local label map would silently stop
+  // offering any category the api adds (P-09: five surfaces, five wrong
+  // answers, all derived locally).
+  const categoryOptions = settings.data?.specialAdCategoryOptions ?? [];
+  const categoryConsequence = settings.data?.specialAdCategoryConsequence;
 
   const notice = (
     <>
@@ -200,7 +218,8 @@ export function AdvertisingDeclarationCard() {
                 {state.declaredByName ? (
                   <>
                     {" "}
-                    by <span className="font-medium">{state.declaredByName}</span>
+                    by{" "}
+                    <span className="font-medium">{state.declaredByName}</span>
                   </>
                 ) : null}
                 {formatDeclaredAt(state.declaredAt) ? (
@@ -209,8 +228,8 @@ export function AdvertisingDeclarationCard() {
                 .
               </p>
               <p className="text-xs text-muted-foreground">
-                Automatic campaigns — from WhatsApp, or the optimizer — carry this
-                declaration.
+                Automatic campaigns — from WhatsApp, or the optimizer — carry
+                this declaration.
               </p>
               <Button
                 type="button"
@@ -252,8 +271,8 @@ export function AdvertisingDeclarationCard() {
                       {state.declaredAt && formatDeclaredAt(state.declaredAt)
                         ? ` on ${formatDeclaredAt(state.declaredAt)}`
                         : ""}
-                      . Until you confirm the current wording, automatic campaigns
-                      fall back to no declaration.
+                      . Until you confirm the current wording, automatic
+                      campaigns fall back to no declaration.
                     </>
                   ) : state.kind === "unknown" ? (
                     // Honest about not knowing rather than showing a confident
@@ -310,11 +329,17 @@ export function AdvertisingDeclarationCard() {
                 lookalikes, exclusions and sub-city geo from these
                 campaigns; finding that out after declaring is finding out
                 too late. */}
-            {state.kind !== "unknown" ? (
+            {/* ★HIDDEN WHEN THE API SERVED NO OPTIONS. A heading with no
+                checkboxes under it reads as a form that failed to load, and
+                submitting then sends `[]` — a declaration nobody was asked
+                for, which is the one thing this question must never do. */}
+            {state.kind !== "unknown" && categoryOptions.length > 0 ? (
               <div className="space-y-2 rounded-md border bg-muted/30 p-3">
-                <p className="text-xs font-medium">{SPECIAL_AD_CATEGORY_QUESTION}</p>
+                <p className="text-xs font-medium">
+                  {SPECIAL_AD_CATEGORY_QUESTION}
+                </p>
                 <div className="space-y-1.5">
-                  {SPECIAL_AD_CATEGORY_ORDER.map((key) => (
+                  {categoryOptions.map(({ key, label }) => (
                     <div key={key} className="flex items-start gap-2">
                       <Checkbox
                         id={`sac-${key}`}
@@ -333,7 +358,7 @@ export function AdvertisingDeclarationCard() {
                         htmlFor={`sac-${key}`}
                         className="text-[11px] font-normal leading-relaxed text-muted-foreground"
                       >
-                        {SPECIAL_AD_CATEGORY_LABELS[key]}
+                        {label}
                       </Label>
                     </div>
                   ))}
@@ -343,7 +368,7 @@ export function AdvertisingDeclarationCard() {
                 </p>
                 {categories.length > 0 ? (
                   <p className="text-[11px] leading-relaxed text-warning-on-tint">
-                    {SPECIAL_AD_CATEGORY_CONSEQUENCE}
+                    {categoryConsequence}
                   </p>
                 ) : null}
               </div>
@@ -356,15 +381,16 @@ export function AdvertisingDeclarationCard() {
                 disabled={!ticked || save.isPending}
                 onClick={() => save.mutate(true)}
               >
-                {save.isPending ? <Loader2 className="mr-1 size-3 animate-spin" /> : null}
+                {save.isPending ? (
+                  <Loader2 className="mr-1 size-3 animate-spin" />
+                ) : null}
                 {state.kind === "superseded" ? "Confirm" : "Save declaration"}
               </Button>
-            ) : state.reason === "unsupported_notice" ? (
-              // No retry: the read succeeded. Re-fetching returns the same
-              // version we don't hold, so a button here would be a dead end
-              // dressed as a remedy.
-              null
-            ) : (
+            ) : state.reason ===
+              "unsupported_notice" ? // No retry: the read succeeded. Re-fetching returns the same
+            // version we don't hold, so a button here would be a dead end
+            // dressed as a remedy.
+            null : (
               // "Try again in a moment" with no way to try is a dead end, and
               // refetchOnWindowFocus is off so tabbing away won't retry.
               <Button

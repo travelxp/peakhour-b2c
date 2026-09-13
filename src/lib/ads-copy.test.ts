@@ -16,18 +16,25 @@ import { describe, it, expect } from "vitest";
 import {
   declarationState,
   formatDeclaredAt,
-  noticeTextFor,
-  POLITICAL_DECLARATION_NOTICES,
-  SPECIAL_AD_CATEGORY_LABELS,
-  SPECIAL_AD_CATEGORY_ORDER,
+  SPECIAL_AD_CATEGORY_QUESTION,
   SPECIAL_AD_CATEGORY_NONE_NOTE,
-  SPECIAL_AD_CATEGORY_CONSEQUENCE,
 } from "./ads-copy";
+import * as adsCopy from "./ads-copy";
 
-// ★The version in force, which moved with M-03. Kept as a constant rather
-// than inlined so the matrix below tests the CURRENT wording rather than a
-// version we happen to still hold the text for.
+// The version in force. It is now just an opaque token to compare a stored
+// declaration against — this file no longer holds any wording keyed by it.
 const CURRENT = "ads-declaration-2026-09";
+
+/**
+ * ★THE WORDING, AS THE API SERVES IT.
+ *
+ * This file used to hold a `Record<version, string>` and these cases proved
+ * the lookup. There is no lookup now: the api sends `currentNoticeText`
+ * beside `currentNoticeVersion`, so the two cannot disagree and a notice
+ * bump needs no deploy here. What is still worth pinning is the REFUSAL —
+ * see the `unknown` cases below.
+ */
+const NOTICE = "I confirm this is not political advertising. …";
 
 const declaration = {
   politicalIntent: "NOT_POLITICAL" as const,
@@ -38,8 +45,19 @@ const declaration = {
 
 describe("declarationState", () => {
   it("undeclared when nothing is stored — the default for every business", () => {
-    expect(declarationState({ currentNoticeVersion: CURRENT })).toEqual({ kind: "undeclared" });
-    expect(declarationState({ declaration: null, currentNoticeVersion: CURRENT })).toEqual({
+    expect(
+      declarationState({
+        currentNoticeVersion: CURRENT,
+        currentNoticeText: NOTICE,
+      }),
+    ).toEqual({ kind: "undeclared" });
+    expect(
+      declarationState({
+        declaration: null,
+        currentNoticeVersion: CURRENT,
+        currentNoticeText: NOTICE,
+      }),
+    ).toEqual({
       kind: "undeclared",
     });
   });
@@ -49,6 +67,7 @@ describe("declarationState", () => {
       declarationState({
         declaration,
         currentNoticeVersion: CURRENT,
+        currentNoticeText: NOTICE,
         declaredByName: "Vanshita Garg",
       }),
     ).toEqual({
@@ -59,8 +78,15 @@ describe("declarationState", () => {
   });
 
   it("declared without a name when the declarer is gone — date alone, not 'unknown user'", () => {
-    const out = declarationState({ declaration, currentNoticeVersion: CURRENT });
-    expect(out).toEqual({ kind: "declared", declaredAt: declaration.declaredAt });
+    const out = declarationState({
+      declaration,
+      currentNoticeVersion: CURRENT,
+      currentNoticeText: NOTICE,
+    });
+    expect(out).toEqual({
+      kind: "declared",
+      declaredAt: declaration.declaredAt,
+    });
   });
 
   it("SUPERSEDED — never rendered as active — when the wording has moved on", () => {
@@ -69,6 +95,7 @@ describe("declarationState", () => {
     const out = declarationState({
       declaration: { ...declaration, noticeVersion: "linkedin-ttpa-2024-01" },
       currentNoticeVersion: CURRENT,
+      currentNoticeText: NOTICE,
       declaredByName: "Vanshita Garg",
     });
     expect(out.kind).toBe("superseded");
@@ -80,7 +107,14 @@ describe("declarationState", () => {
       kind: "unknown",
       reason: "read_failed",
     });
-    expect(declarationState({ declaration, currentNoticeVersion: CURRENT, failed: true })).toEqual({
+    expect(
+      declarationState({
+        declaration,
+        currentNoticeVersion: CURRENT,
+        currentNoticeText: NOTICE,
+        failed: true,
+      }),
+    ).toEqual({
       kind: "unknown",
       reason: "read_failed",
     });
@@ -90,8 +124,12 @@ describe("declarationState", () => {
     // Assuming "still valid" is the assumption that overstates coverage, so
     // the absent-version case must not resolve to `declared`.
     expect(declarationState({ declaration }).kind).toBe("unknown");
-    expect(declarationState({ declaration, currentNoticeVersion: null }).kind).toBe("unknown");
-    expect(declarationState({ declaration, currentNoticeVersion: "" }).kind).toBe("unknown");
+    expect(
+      declarationState({ declaration, currentNoticeVersion: null }).kind,
+    ).toBe("unknown");
+    expect(
+      declarationState({ declaration, currentNoticeVersion: "" }).kind,
+    ).toBe("unknown");
   });
 
   it("gives a POLITICAL declaration its own READ-ONLY state", () => {
@@ -101,6 +139,7 @@ describe("declarationState", () => {
     const out = declarationState({
       declaration: { ...declaration, politicalIntent: "POLITICAL" },
       currentNoticeVersion: CURRENT,
+      currentNoticeText: NOTICE,
       declaredByName: "Vanshita Garg",
     });
     expect(out).toEqual({
@@ -118,8 +157,13 @@ describe("declarationState", () => {
     // `superseded` exists to prevent, and the POLITICAL branch had it because
     // the intent check ran before the version comparison.
     const out = declarationState({
-      declaration: { ...declaration, politicalIntent: "POLITICAL", noticeVersion: "old" },
+      declaration: {
+        ...declaration,
+        politicalIntent: "POLITICAL",
+        noticeVersion: "old",
+      },
       currentNoticeVersion: CURRENT,
+      currentNoticeText: NOTICE,
     });
     expect(out).toEqual({
       kind: "political",
@@ -133,26 +177,36 @@ describe("declarationState", () => {
       declarationState({
         declaration: { ...declaration, politicalIntent: "NOT_DECLARED" },
         currentNoticeVersion: CURRENT,
+        currentNoticeText: NOTICE,
       }),
     ).toEqual({ kind: "undeclared" });
   });
 
-  it("is `unknown`, not `undeclared`, when we don't hold the api's notice text", () => {
-    // The drift hazard: if the api bumps the version and deploys before this
-    // app ships the new wording, collecting consent would stamp the NEW version
-    // against the OLD text the user actually read. Refusing to ask is the only
-    // safe answer, and it must win even with nothing declared — otherwise an
-    // undeclared business gets a Save button that records unseen wording.
-    // And it is a DEPLOY problem, not a network one — the read succeeded, so
-    // "try again" would be a dead end and "campaigns are unaffected" is false.
-    expect(declarationState({ currentNoticeVersion: "linkedin-ttpa-2099-01" })).toEqual({
+  it("is `unknown`, not `undeclared`, when the api sent no notice text", () => {
+    // ⚠️THIS COMMENT USED TO DESCRIBE A MECHANISM THAT NO LONGER EXISTS, which
+    // is the same stale-prose defect this programme keeps finding. It read:
+    // "if the api bumps the version and deploys before this app ships the new
+    // wording, collecting consent would stamp the NEW version against the OLD
+    // text the user actually read." That drift is gone — the wording is served
+    // beside the version, so the two cannot disagree.
+    //
+    // ★THE ASSERTION SURVIVES UNCHANGED, which is why it is worth keeping: a
+    // surface that cannot show the wording it is about to stamp must refuse to
+    // collect consent, and must refuse even with nothing declared — otherwise
+    // an undeclared business gets a Save button that records text nobody read.
+    // What changed is only WHEN it can happen: a broken or ancient response,
+    // not an ordinary release. The read succeeded either way, so "try again"
+    // is still a dead end and "campaigns are unaffected" is still false.
+    expect(
+      declarationState({ currentNoticeVersion: "ads-declaration-2099-01" }),
+    ).toEqual({
       kind: "unknown",
       reason: "unsupported_notice",
     });
     expect(
       declarationState({
         declaration,
-        currentNoticeVersion: "linkedin-ttpa-2099-01",
+        currentNoticeVersion: "ads-declaration-2099-01",
       }),
     ).toEqual({ kind: "unknown", reason: "unsupported_notice" });
   });
@@ -160,7 +214,10 @@ describe("declarationState", () => {
   it("renders nothing confidently when there is no data at all", () => {
     // declarationState({}) must not resolve to `undeclared`: the card would
     // then show an amber warning and a Save button on a failed/paused fetch.
-    expect(declarationState({})).toEqual({ kind: "unknown", reason: "read_failed" });
+    expect(declarationState({})).toEqual({
+      kind: "unknown",
+      reason: "read_failed",
+    });
   });
 
   it("a failed read wins over every other input", () => {
@@ -171,6 +228,7 @@ describe("declarationState", () => {
       declarationState({
         declaration: { ...declaration, noticeVersion: "old" },
         currentNoticeVersion: CURRENT,
+        currentNoticeText: NOTICE,
         failed: true,
       }).kind,
     ).toBe("unknown");
@@ -179,14 +237,20 @@ describe("declarationState", () => {
 
 describe("formatDeclaredAt", () => {
   it("renders a readable date via Intl, not a hardcoded month list", () => {
-    expect(formatDeclaredAt("2026-07-30T09:00:00.000Z", "en-GB")).toBe("30 Jul 2026");
+    expect(formatDeclaredAt("2026-07-30T09:00:00.000Z", "en-GB")).toBe(
+      "30 Jul 2026",
+    );
   });
 
   it("is pinned to UTC, so the day can't shift by the viewer's timezone", () => {
     // Without timeZone: "UTC" this renders "29 Jul" west of UTC-9 — a
     // compliance record showing a different day than it holds.
-    expect(formatDeclaredAt("2026-07-30T01:00:00.000Z", "en-GB")).toBe("30 Jul 2026");
-    expect(formatDeclaredAt("2026-07-30T23:30:00.000Z", "en-GB")).toBe("30 Jul 2026");
+    expect(formatDeclaredAt("2026-07-30T01:00:00.000Z", "en-GB")).toBe(
+      "30 Jul 2026",
+    );
+    expect(formatDeclaredAt("2026-07-30T23:30:00.000Z", "en-GB")).toBe(
+      "30 Jul 2026",
+    );
   });
 
   it("returns empty string on an unparseable date instead of 'Invalid Date'", () => {
@@ -195,111 +259,127 @@ describe("formatDeclaredAt", () => {
   });
 });
 
-describe("the notice text is keyed by the version it is", () => {
-  it("holds wording for the version this app expects the api to stamp", () => {
-    // NOTE: this cannot detect the api bumping its own constant — CURRENT here
-    // is a local literal and nothing compares the two repos. The real guard is
-    // runtime: an unheld version resolves to `unknown` and the card refuses to
-    // collect consent. This only asserts we shipped text for the version we
-    // believe is current.
-    expect(noticeTextFor(CURRENT)).toBeTypeOf("string");
-  });
-
-  it("returns undefined for a version we don't hold, rather than a fallback", () => {
-    // A fallback here would defeat the whole guard: the card would show
-    // wording that is not what the api is about to record.
-    expect(noticeTextFor("linkedin-ttpa-2099-01")).toBeUndefined();
-    expect(noticeTextFor(undefined)).toBeUndefined();
-    expect(noticeTextFor(null)).toBeUndefined();
-    expect(noticeTextFor("")).toBeUndefined();
-  });
-
-  it("is LinkedIn's wording, not a paraphrase", () => {
-    // Guards against a well-meaning edit for tone. The contract requires their
-    // text; softening it would collect consent to something else.
-    const text = POLITICAL_DECLARATION_NOTICES[CURRENT];
-    expect(text).toContain("not political advertising");
-    expect(text).toContain("EU law for ads targeted to the EU");
-    expect(text).toContain("LinkedIn's policies");
-  });
-
-});
-
 /**
- * ── M-03: the notice version moved, and the wording did not ───────────────
+ * ── ⚠️★★THE NOTICE TEXT IS NO LONGER KEYED HERE, AND THAT IS THE FIX ──────
  *
- * ★THE PAIRING RULE THIS FILE EXISTS FOR. `ads-copy.ts` says it: *"an
- * unrecognised version means we do not have the text the api is asking about,
- * so `declarationState` returns `unknown` and the card refuses to collect
- * consent rather than collecting the wrong consent. Add the new wording here
- * in the same PR that bumps the api."*
+ * Three describes used to live here proving a `Record<version, string>`
+ * lookup: that we held wording for the version the api stamps, that an unknown
+ * version returned `undefined`, and that the wording was LinkedIn's verbatim.
+ *
+ * They were good tests of a bad arrangement. The map was a SECOND COPY of a
+ * string the api owns, and keeping two repos in step across two deploys is
+ * what made an ordinary notice bump an outage: api first and the card had no
+ * wording to show, client first and it sent a shape the api rejected. The
+ * file's own note called it *"a DEPLOY problem, not a network one"* — correct,
+ * and treated as unavoidable.
+ *
+ * It was avoidable. `currentNoticeText` now travels with `currentNoticeVersion`.
+ *
+ * ★WHAT SURVIVES IS THE REFUSAL, which was always the valuable half: a surface
+ * that cannot show the wording it is about to stamp must not collect consent.
+ * That property is now tested against the SERVED text rather than a local map,
+ * so it still fires on a broken response and no longer fires on a release.
  */
-describe("the M-03 notice version", () => {
-  it("★we hold the text for the version the api now asks about", () => {
-    // Without this entry the declaration card renders `unknown` and NOBODY can
-    // declare — safe, but broken. It is the half of the pair that is easy to
-    // forget because the api deploys green without it.
-    expect(noticeTextFor("ads-declaration-2026-09")).toBeTruthy();
+describe("★★the refusal survives the map's deletion", () => {
+  it("refuses to collect consent when the api served no wording", () => {
+    // The case the local map used to catch as `unsupported_notice`. It can now
+    // only mean a broken or ancient response — but the answer is the same, and
+    // it must stay the same: never ask someone to confirm text we cannot show.
+    expect(
+      declarationState({
+        currentNoticeVersion: CURRENT,
+        currentNoticeText: undefined,
+      }),
+    ).toEqual({ kind: "unknown", reason: "unsupported_notice" });
   });
 
-  it("★the wording is unchanged from the version it supersedes, ON PURPOSE", () => {
-    // `noticeVersion` identifies the declaration FORM, not this paragraph. The
-    // form now also asks about Meta's special ad categories, so a business that
-    // consented to the old version answered strictly fewer questions — a
-    // re-prompt is correct even though LinkedIn's sentence did not move.
-    //
-    // Pinned because "the text is identical, so why re-prompt" is the
-    // reasonable-sounding change that would silently inherit consent.
-    expect(POLITICAL_DECLARATION_NOTICES["ads-declaration-2026-09"]).toBe(
-      POLITICAL_DECLARATION_NOTICES["linkedin-ttpa-2025-10"],
-    );
+  it("refuses on an EMPTY served wording too, not just a missing key", () => {
+    // `""` is falsy and would render as a blank consent box with a Save button
+    // beside it — worse than refusing, because it looks like a form.
+    expect(
+      declarationState({
+        currentNoticeVersion: CURRENT,
+        currentNoticeText: "",
+      }),
+    ).toEqual({
+      kind: "unknown",
+      reason: "unsupported_notice",
+    });
   });
 
-  it("keeps the superseded wording, so an old record still renders honestly", () => {
-    // Deleting it would turn every business still on the old version from
-    // `superseded` ("please confirm the current wording") into `unknown` ("we
-    // couldn't check") — a worse and less actionable message for a state we
-    // understand perfectly well.
-    expect(noticeTextFor("linkedin-ttpa-2025-10")).toBeTruthy();
+  it("★no longer refuses merely because the version is unfamiliar", () => {
+    // ⚠️THE REGRESSION THIS FILE EXISTS TO PREVENT NOW. Under the old map a
+    // version string we did not recognise took the feature down. With the
+    // wording served, an unrecognised version is ordinary — it is simply the
+    // current one — and the card must render normally.
+    expect(
+      declarationState({
+        currentNoticeVersion:
+          "ads-declaration-2027-04-something-nobody-has-seen",
+        currentNoticeText: NOTICE,
+      }),
+    ).toEqual({ kind: "undeclared" });
+  });
+
+  it("still distinguishes a failed read from an unsupported notice", () => {
+    // Different causes, different remedies: one offers "try again", the other
+    // does not, because re-fetching returns the same broken response.
+    expect(
+      declarationState({
+        currentNoticeVersion: CURRENT,
+        currentNoticeText: NOTICE,
+        failed: true,
+      }),
+    ).toEqual({ kind: "unknown", reason: "read_failed" });
+    expect(declarationState({ currentNoticeText: NOTICE })).toEqual({
+      kind: "unknown",
+      reason: "read_failed",
+    });
+  });
+
+  it("★a stored declaration is still compared against the VERSION, not the text", () => {
+    // The version remains the identity of the form. Serving the wording did not
+    // make it the comparison key — two versions could share wording (M-03's do,
+    // deliberately: the form gained questions the paragraph does not mention),
+    // so comparing text would silently accept a superseded declaration.
+    expect(
+      declarationState({
+        declaration: {
+          ...declaration,
+          noticeVersion: "ads-declaration-2026-01",
+        },
+        currentNoticeVersion: CURRENT,
+        currentNoticeText: NOTICE,
+      }).kind,
+    ).toBe("superseded");
   });
 });
 
-describe("special ad category copy", () => {
-  it("★★offers no ISSUES_ELECTIONS_POLITICS checkbox — it is derived", () => {
-    // It is the same fact as the political declaration shown directly above it
-    // in the same form. A sixth checkbox would let one business answer one
-    // question twice, two different ways, in one submission.
-    expect(SPECIAL_AD_CATEGORY_ORDER).not.toContain("ISSUES_ELECTIONS_POLITICS");
-    expect(SPECIAL_AD_CATEGORY_LABELS).not.toHaveProperty("ISSUES_ELECTIONS_POLITICS");
-  });
-
-  it("every key shown has a label, and every label is shown", () => {
-    // ★BOTH DIRECTIONS. A key with no label renders a blank line beside a
-    // checkbox; a label no order includes is copy nobody ever reads, which is
-    // how a category silently stops being offered.
-    for (const k of SPECIAL_AD_CATEGORY_ORDER) {
-      expect(SPECIAL_AD_CATEGORY_LABELS[k], `no label for ${k}`).toBeTruthy();
-    }
-    expect(Object.keys(SPECIAL_AD_CATEGORY_LABELS).sort()).toEqual([...SPECIAL_AD_CATEGORY_ORDER].sort());
-  });
-
-  it("★covers the five declarable categories, including the two §2.1 gets wrong", () => {
-    // CREDIT is real (§2.1's correction box calls it a bad guess) and
-    // ONLINE_GAMBLING_AND_GAMING is missing from that box entirely.
-    expect([...SPECIAL_AD_CATEGORY_ORDER].sort()).toEqual([
-      "CREDIT",
-      "EMPLOYMENT",
-      "FINANCIAL_PRODUCTS_SERVICES",
-      "HOUSING",
-      "ONLINE_GAMBLING_AND_GAMING",
-    ]);
-  });
-
-  it("★says that ticking nothing is an answer, and what declaring one costs", () => {
+describe("the category question framing this surface still owns", () => {
+  it("★asks a question, and says that ticking nothing answers it", () => {
     // Meta has no "not answered" value, so an empty submission is a positive
-    // statement — the form has to say so rather than letting it read as skipped.
+    // statement — the form must say so rather than letting it read as skipped.
+    expect(SPECIAL_AD_CATEGORY_QUESTION).toMatch(/categories/i);
     expect(SPECIAL_AD_CATEGORY_NONE_NOTE).toMatch(/that is an answer/i);
-    // And the targeting a declared category removes is stated BEFORE the tick.
-    expect(SPECIAL_AD_CATEGORY_CONSEQUENCE).toMatch(/lookalike/i);
+  });
+
+  it("★★holds no per-category labels — those are served", () => {
+    // The half that WOULD drift. A local label map silently stops offering any
+    // category the api adds, with no error anywhere; P-09 is five surfaces
+    // that each derived the same copy locally and each got it wrong.
+    const mod = adsCopy as Record<string, unknown>;
+    for (const gone of [
+      "SPECIAL_AD_CATEGORY_LABELS",
+      "SPECIAL_AD_CATEGORY_ORDER",
+      "SPECIAL_AD_CATEGORY_CONSEQUENCE",
+      "POLITICAL_DECLARATION_NOTICES",
+      "noticeTextFor",
+      "LATEST_POLITICAL_DECLARATION_NOTICE",
+    ]) {
+      expect(
+        mod[gone],
+        `${gone} is back — it is a second copy of served data`,
+      ).toBeUndefined();
+    }
   });
 });

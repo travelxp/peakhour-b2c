@@ -19,93 +19,39 @@
  */
 
 /**
- * LinkedIn's notice text, KEYED BY THE VERSION IT IS.
+ * ⚠️★★THE NOTICE TEXT USED TO LIVE HERE, KEYED BY VERSION. IT DOES NOT NOW.
  *
- * The text lives here but the version in force is decided by the api
- * (`CURRENT_NOTICE_VERSION`), and nothing used to couple them. That gap was a
- * real hazard, not a tidiness point: bump the version server-side and deploy
- * before the b2c ships the new wording, and the card would tell the user "the
- * notice has been updated, please confirm the current wording" while showing
- * them the OLD text — then stamp the NEW version against it. The record would
- * claim consent to wording the user never saw, which is the one thing this
- * whole feature exists to prevent.
+ * The old comment argued the coupling was a feature: *"an unrecognised
+ * version means we do not have the text the api is asking about, so
+ * `declarationState` returns `unknown` and the card refuses to collect
+ * consent rather than collecting the wrong consent. Add the new wording here
+ * in the same PR that bumps the api."*
  *
- * Keying the text by version closes it: an unrecognised version means we do
- * not have the text the api is asking about, so `declarationState` returns
- * `unknown` and the card refuses to collect consent rather than collecting the
- * wrong consent. Add the new wording here in the same PR that bumps the api.
+ * The refusal was right. The premise was not. "Add it in the same PR" is not
+ * something two repos can do — they deploy separately, and whichever order
+ * they land in there is a window where declaring is impossible: api first and
+ * the card has no wording to show; client first and it sends a shape the api
+ * rejects. The file's own note called it "a DEPLOY problem, not a network
+ * one", which is exactly right and was treated as unavoidable.
  *
- * Verbatim. Not our wording to soften — LinkedIn's Advertising API contract
- * requires an app that creates ads to present this text and pass back what the
- * advertiser confirmed.
+ * It was avoidable. It was two copies of one string. **The api now serves
+ * `currentNoticeText` beside `currentNoticeVersion`**, so a client cannot be
+ * out of step with a string it is handed, and a bump needs no client deploy.
+ * The refusal survives — `declarationState` still returns `unknown` when no
+ * text arrives — it just cannot be triggered by an ordinary release any more.
+ *
+ * ★Same fix as mig 326 moving `USE_CASE_LABELS` onto the rows, and for the
+ * same reason: one side owns it, the other reads it.
  */
-export const POLITICAL_DECLARATION_NOTICES: Record<string, string> = {
-  "linkedin-ttpa-2025-10":
-    "I confirm this is not political advertising. None of my ads qualify as " +
-    "political advertising under the law of the targeted countries, including " +
-    "EU law for ads targeted to the EU. Advertisers must comply with " +
-    "LinkedIn's policies and regulatory requirements.",
-  /**
-   * ★THE WORDING IS UNCHANGED, AND THE VERSION STILL MOVED. Worth stating,
-   * because "the text is identical so why re-prompt" is the reasonable-sounding
-   * mistake that would break this.
-   *
-   * `noticeVersion` identifies **the declaration form**, not this paragraph.
-   * The api's form now also asks about Meta's special ad categories
-   * (`specialAdCategories`), so a business that consented to
-   * `linkedin-ttpa-2025-10` answered strictly fewer questions than this version
-   * asks. Re-prompting is correct even though LinkedIn's sentence did not move.
-   *
-   * ⚠️AND THE TWO PARTS ARE NOT CONCATENATED INTO ONE STRING. This text is
-   * LinkedIn's, verbatim, and not ours to extend — see the header. Meta's
-   * category question is separate copy (`SPECIAL_AD_CATEGORY_*` below) shown
-   * beside it, consented to in the same submission.
-   */
-  "ads-declaration-2026-09":
-    "I confirm this is not political advertising. None of my ads qualify as " +
-    "political advertising under the law of the targeted countries, including " +
-    "EU law for ads targeted to the EU. Advertisers must comply with " +
-    "LinkedIn's policies and regulatory requirements.",
-};
-
 /**
- * Meta's special ad categories, as a merchant reads them.
+ * The FRAMING of Meta's category question — ours, and deliberately still here.
  *
- * ── ★WHY THIS IS OUR WORDING WHERE THE NOTICE ABOVE IS NOT ────────────────
- *
- * LinkedIn's contract requires its notice presented verbatim. Meta's
- * requirement is different in kind: the advertiser must **self-identify** the
- * category, and Meta publishes the category NAMES rather than a sentence we
- * must recite. So these labels are ours to make legible — and they must be,
- * because `FINANCIAL_PRODUCTS_SERVICES` is not a question anybody can answer.
- *
- * ⚠️`ISSUES_ELECTIONS_POLITICS` IS NOT HERE. It is the same fact as the
- * political declaration above, derived server-side from `politicalIntent`.
- * Offering it as a sixth checkbox would let one business answer the same
- * question twice, two different ways, in one form.
- *
- * Keys match the api's `DECLARABLE_SPECIAL_AD_CATEGORIES` exactly; a key that
- * drifts is rejected by the PATCH rather than silently dropped.
+ * ★THE PER-CATEGORY LABELS ARE SERVED (`specialAdCategoryOptions`) because a
+ * local map goes stale the moment the api adds a category. These two are a
+ * different thing: they are not a list that can drift out of step, they are
+ * how this surface phrases a question, and there is nothing on the api side
+ * for them to disagree with.
  */
-export const SPECIAL_AD_CATEGORY_LABELS: Record<string, string> = {
-  HOUSING: "Housing — property for sale or rent, mortgages, or housing services",
-  EMPLOYMENT: "Employment — job ads, recruitment, or career services",
-  CREDIT: "Credit — credit cards, loans, financing, or car leasing",
-  FINANCIAL_PRODUCTS_SERVICES:
-    "Financial products and services — banking, insurance, investments, or savings",
-  ONLINE_GAMBLING_AND_GAMING:
-    "Online gambling and gaming — betting, casino, lottery, or real-money games",
-};
-
-/** The order they are shown in. A `Record` has no guaranteed order to rely on. */
-export const SPECIAL_AD_CATEGORY_ORDER = [
-  "HOUSING",
-  "EMPLOYMENT",
-  "CREDIT",
-  "FINANCIAL_PRODUCTS_SERVICES",
-  "ONLINE_GAMBLING_AND_GAMING",
-] as const;
-
 export const SPECIAL_AD_CATEGORY_QUESTION =
   "Do any of your ads fall into one of these categories?";
 
@@ -119,37 +65,6 @@ export const SPECIAL_AD_CATEGORY_QUESTION =
  */
 export const SPECIAL_AD_CATEGORY_NONE_NOTE =
   "Leave them all unticked if none apply — that is an answer, and we record it as one.";
-
-/**
- * ⚠️What declaring a category COSTS, stated before the tick rather than
- * discovered afterwards.
- *
- * Meta removes targeting tools for these campaigns (plan §2.1): no lookalike
- * audiences, no saved audiences, no exclusions, no sub-city geography, and age
- * is forced to 18-65+ across all genders with a minimum 15-mile radius. A
- * merchant who ticks one and then finds their audiences refused deserves to
- * have been told first.
- */
-export const SPECIAL_AD_CATEGORY_CONSEQUENCE =
-  "Meta limits targeting for these campaigns — no lookalike audiences, saved " +
-  "audiences or exclusions, no targeting below city level, and ages are set to " +
-  "18-65+ for everyone. We'll tell you when a suggested audience can't be used.";
-
-/**
- * The most recent wording we hold, for surfaces that must show SOMETHING.
- *
- * Only the Boost dialog uses this, and only for its per-campaign answer —
- * which is passed straight to LinkedIn and never recorded against a version,
- * so a deploy-skew mismatch has no lasting effect. Anything that STAMPS a
- * version must use `noticeTextFor` and refuse when it returns undefined.
- */
-export const LATEST_POLITICAL_DECLARATION_NOTICE =
-  POLITICAL_DECLARATION_NOTICES["linkedin-ttpa-2025-10"];
-
-/** The notice for a version, or undefined when we don't hold that wording. */
-export function noticeTextFor(version?: string | null): string | undefined {
-  return version ? POLITICAL_DECLARATION_NOTICES[version] : undefined;
-}
 
 export const POLITICAL_DECLARATION_POLICY_URL =
   "https://www.linkedin.com/legal/ads-policy";
@@ -233,6 +148,13 @@ export type DeclarationState =
 export function declarationState(input: {
   declaration?: AdvertisingDeclaration | null;
   currentNoticeVersion?: string | null;
+  /**
+   * ★THE WORDING, AS THE API SERVED IT. Was resolved here from a local
+   * version->text map; that map was a second copy of a string the api owns,
+   * and keeping the two in step across two deploys is what made an ordinary
+   * notice bump an outage. The guard below is unchanged — only its cause is.
+   */
+  currentNoticeText?: string | null;
   declaredByName?: string | null;
   failed?: boolean;
 }): DeclarationState {
@@ -245,9 +167,15 @@ export function declarationState(input: {
   // that would record consent to wording we don't hold.
   // No version at all is indistinguishable from a failed read — we have no
   // response to reason about.
-  if (!input.currentNoticeVersion) return { kind: "unknown", reason: "read_failed" };
-  // A version we don't hold text for is a DEPLOY problem, not a network one.
-  if (!noticeTextFor(input.currentNoticeVersion)) {
+  if (!input.currentNoticeVersion)
+    return { kind: "unknown", reason: "read_failed" };
+  // ★A version that arrives WITHOUT its wording. This used to mean "the api
+  // bumped and this client has not deployed" — an ordinary, expected state
+  // that took the feature down every time. Now the text travels with the
+  // version, so reaching here means a genuinely broken or ancient response,
+  // and refusing is right for the original reason: we cannot honestly ask
+  // someone to confirm wording we cannot show them.
+  if (!input.currentNoticeText) {
     return { kind: "unknown", reason: "unsupported_notice" };
   }
 
@@ -268,7 +196,8 @@ export function declarationState(input: {
       ...(declaredByName ? { declaredByName } : {}),
     };
   }
-  if (!d || d.politicalIntent !== "NOT_POLITICAL") return { kind: "undeclared" };
+  if (!d || d.politicalIntent !== "NOT_POLITICAL")
+    return { kind: "undeclared" };
 
   if (superseded) {
     return {
@@ -277,7 +206,11 @@ export function declarationState(input: {
       ...(declaredByName ? { declaredByName } : {}),
     };
   }
-  return { kind: "declared", declaredAt: d.declaredAt, ...(declaredByName ? { declaredByName } : {}) };
+  return {
+    kind: "declared",
+    declaredAt: d.declaredAt,
+    ...(declaredByName ? { declaredByName } : {}),
+  };
 }
 
 /**
