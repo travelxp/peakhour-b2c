@@ -799,8 +799,18 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       const platforms = detail
         .map((w) => (typeof w.platform === "string" ? w.platform : null))
         .filter(Boolean);
-      return `${n} platform version warning${n === 1 ? "" : "s"}` +
-        (platforms.length > 0 ? `: ${platforms.join(", ")}.` : ".");
+      // ⚠️★A BARE STRING IS A GREEN SUCCESS TOAST, and N platform sunsets are
+      // not a success. This cron logs at `error` severity for some of these
+      // and the whole reason it exists is that its deadlines move on the
+      // CALENDAR while nobody commits — surfacing them in the same green as
+      // "nothing needed doing" is the confusion `CronSummary`'s `level` was
+      // added for.
+      return {
+        message:
+          `${n} platform version warning${n === 1 ? "" : "s"}` +
+          (platforms.length > 0 ? `: ${platforms.join(", ")}.` : "."),
+        level: "warning" as const,
+      };
     },
   },
 

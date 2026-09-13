@@ -44,6 +44,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { ApiError } from "@/lib/api";
 import { growthApi } from "@/lib/api/growth";
 import {
   POLITICAL_DECLARATION_POLICY_URL,
@@ -141,9 +142,19 @@ export function AdvertisingDeclarationCard() {
           : "Declaration withdrawn.",
       );
     },
-    onError: () =>
+    onError: (err) =>
       toast.error(
-        "Couldn't save your declaration. Try again in a moment — nothing was changed.",
+        // ⚠️★"TRY AGAIN IN A MOMENT" IS A LIE FOR THE ONE ERROR THIS FORM CAN
+        // CAUSE BY ITSELF. If the api serves no `specialAdCategoryOptions` the
+        // boxes never render, so the PATCH omits the field — and the api
+        // refuses an intent-only write that would ERASE a stored category
+        // answer (DECLARATION_INCOMPLETE). Retrying re-sends exactly the same
+        // request, forever. It is not a transient failure and must not be
+        // dressed as one.
+        err instanceof ApiError && err.code === "DECLARATION_INCOMPLETE"
+          ? "We can't show the Meta category question right now, and saving without it would " +
+            "erase the answer you already gave. Reload the page and try again — nothing was changed."
+          : "Couldn't save your declaration. Try again in a moment — nothing was changed.",
       ),
   });
 
@@ -281,23 +292,43 @@ export function AdvertisingDeclarationCard() {
                   says automatic campaigns are covered. LinkedIn campaigns
                   genuinely are, so this names the platform rather than
                   contradicting it. */}
-              {categoryOptions.length > 0 && storedCategories === undefined ? (
-                <div className="space-y-1 rounded-md border border-warning/30 bg-warning/15 p-2">
-                  <p className="text-[11px] leading-relaxed text-warning-on-tint">
-                    Meta campaigns also need the special-ad-category answer,
-                    which this declaration doesn&apos;t have yet. Until it does,
-                    Meta campaigns can&apos;t be created. LinkedIn is unaffected.
-                  </p>
+              {categoryOptions.length > 0 ? (
+                storedCategories === undefined ? (
+                  <div className="space-y-1 rounded-md border border-warning/30 bg-warning/15 p-2">
+                    <p className="text-[11px] leading-relaxed text-warning-on-tint">
+                      Meta campaigns also need the special-ad-category answer,
+                      which this declaration doesn&apos;t have yet. Until it does,
+                      Meta campaigns can&apos;t be created. LinkedIn is unaffected.
+                    </p>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => setReopen(true)}
+                    >
+                      Answer it
+                    </Button>
+                  </div>
+                ) : (
+                  // ⚠️★AND AN ANSWER ALREADY GIVEN MUST BE AMENDABLE. Gating
+                  // the affordance on `undefined` left the only route to
+                  // changing it as WITHDRAWING the whole declaration — a
+                  // merchant who stops running credit ads should not have to
+                  // retract a legal statement to say so, and `[]` counts as
+                  // an answer here too.
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="h-7 px-2 text-xs"
+                    className="h-7 px-2 text-xs text-muted-foreground"
                     onClick={() => setReopen(true)}
                   >
-                    Answer it
+                    {storedCategories.length > 0
+                      ? `Meta categories: ${storedCategories.length} declared — change`
+                      : "Meta categories: none declared — change"}
                   </Button>
-                </div>
+                )
               ) : null}
               <Button
                 type="button"
@@ -317,23 +348,38 @@ export function AdvertisingDeclarationCard() {
         ) : (
           <div className="space-y-2">
             <div className="flex items-start gap-2">
-              {state.kind === "unknown" ? (
+              {/* ⚠️★REOPEN IS NOT AN ALARM. The amber icon and the copy below
+                  are written for a business with NO declaration in force;
+                  shown to one that is amending a standing declaration they
+                  contradict the line the merchant just clicked away from. */}
+              {reopen ? (
+                <ShieldCheck className="mt-0.5 size-4 shrink-0 text-success-on-tint" />
+              ) : state.kind === "unknown" ? (
                 <ShieldQuestion className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
               ) : (
                 <ShieldAlert className="mt-0.5 size-4 shrink-0 text-warning-on-tint" />
               )}
               <div className="min-w-0 flex-1 space-y-1">
                 <p className="text-sm font-medium">
-                  {state.kind === "superseded"
-                    ? "Please confirm the current wording"
-                    : state.kind === "unknown"
-                      ? state.reason === "unsupported_notice"
-                        ? "This notice has changed"
-                        : "We couldn't check your advertising declaration"
-                      : "Advertising declaration"}
+                  {reopen
+                    ? "Answer the Meta category question"
+                    : state.kind === "superseded"
+                      ? "Please confirm the current wording"
+                      : state.kind === "unknown"
+                        ? state.reason === "unsupported_notice"
+                          ? "This notice has changed"
+                          : "We couldn't check your advertising declaration"
+                        : "Advertising declaration"}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {state.kind === "superseded" ? (
+                  {reopen ? (
+                    <>
+                      Your declaration stays in force. Meta also needs the
+                      special-ad-category answer, and the two are recorded
+                      together as one declaration — so confirm the wording
+                      again below and it will be saved in one go.
+                    </>
+                  ) : state.kind === "superseded" ? (
                     <>
                       LinkedIn has updated this notice since you declared
                       {state.declaredAt && formatDeclaredAt(state.declaredAt)
@@ -464,7 +510,11 @@ export function AdvertisingDeclarationCard() {
                 {save.isPending ? (
                   <Loader2 className="mr-1 size-3 animate-spin" />
                 ) : null}
-                {state.kind === "superseded" ? "Confirm" : "Save declaration"}
+                {reopen
+                  ? "Save"
+                  : state.kind === "superseded"
+                    ? "Confirm"
+                    : "Save declaration"}
               </Button>
             ) : state.reason ===
               "unsupported_notice" ? // No retry: the read succeeded. Re-fetching returns the same
@@ -488,6 +538,30 @@ export function AdvertisingDeclarationCard() {
                 Try again
               </Button>
             )}
+            {/* ★A WAY BACK OUT. `reopen` was a one-way door: a merchant who
+                clicked it to look, or clicked it by mistake, had no route back
+                to the standing declaration short of reloading the page. A
+                sibling rather than a branch, so it cannot disturb the
+                `state.reason` narrowing the retry button above depends on. */}
+            {reopen ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="ml-2 text-muted-foreground"
+                disabled={save.isPending}
+                onClick={() => {
+                  setReopen(false);
+                  setTicked(false);
+                  // ★The in-progress selection is discarded, not kept. Keeping
+                  // it would leave the boxes showing an answer the merchant
+                  // backed out of, the next time they opened this.
+                  setCategories(null);
+                }}
+              >
+                Cancel
+              </Button>
+            ) : null}
           </div>
         )}
       </CardContent>

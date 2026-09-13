@@ -196,20 +196,32 @@ export function BoostCampaignDialog({
     // been created — so letting the button through would leave two orphan
     // artefacts in the customer's Campaign Manager for an error the dialog
     // already knew about.
-    (objective !== "lead_generation" || askId.length > 0) &&
-    // ⚠️★★AND THE NOTICE MUST ACTUALLY BE ON SCREEN.
-    //
-    // The comment beside the checkbox said *"the checkbox below is disabled
-    // when this is absent"*. It was not, and neither was Create. With the
-    // local fallback deleted, a settings query in flight — or errored, which
-    // is a refetch away at any moment — left a PRE-TICKED consent box with a
-    // BLANK label and a live Create button, and `notPolitical: true` went to
-    // LinkedIn as a confirmation of wording the advertiser was never shown.
-    //
-    // ★That is the exact failure the version mechanism exists to prevent,
-    // arrived at from the other side: not showing one version's text while
-    // stamping another's, but showing NO text while stamping anyway.
-    stampableNotice !== undefined;
+    (objective !== "lead_generation" || askId.length > 0);
+
+  // ⚠️★★AND THE NOTICE MUST ACTUALLY BE ON SCREEN — but that is a SEPARATE
+  // gate from whether the form is filled in correctly.
+  //
+  // The comment beside the checkbox said *"the checkbox below is disabled
+  // when this is absent"*. It was not, and neither was Create: with the local
+  // fallback deleted, a settings query in flight left a PRE-TICKED consent box
+  // with a BLANK label and a live Create button, and `notPolitical: true` went
+  // to LinkedIn as confirmation of wording the advertiser was never shown.
+  //
+  // ⚠️★FOLDING IT INTO `valid` WAS WRONG THOUGH. `valid` also drives the
+  // *Planned cap* figure thirty lines down, so a settings query loading —
+  // which is EVERY first open, the dialog mounts conditionally and the cache
+  // is cold — blanked a budget total that has nothing to do with declarations.
+  // A gate on submission is not a statement about arithmetic.
+  const canDeclare = stampableNotice !== undefined;
+  // ⚠️★AND LOADING IS NOT FAILURE, which the first cut of the label below got
+  // wrong. This dialog mounts conditionally, so the settings cache is COLD on
+  // every first open and the in-flight moment is the ordinary case, not the
+  // exceptional one. Rendering *"this campaign can't be created"* there is a
+  // false alarm on the common path. The `applyToFuture` block thirty lines
+  // down already drew this distinction — `settings.data && !stampableNotice`,
+  // i.e. only claim a problem once we positively KNOW the api answered and
+  // the wording is not in it — and this simply borrows it.
+  const noticeUnavailable = Boolean(settings.data || settings.isError) && !canDeclare;
 
   const boost = useMutation({
     // The declaration answers travel as VARIABLES, not read from state in
@@ -294,8 +306,13 @@ export function BoostCampaignDialog({
       onOpenChange(false);
       toast.success("Draft campaign created on LinkedIn.", {
         description: durableWriteFailed
-          ? "It won't spend until you activate it. ⚠️We couldn't save the declaration for future " +
-            "campaigns — finish it on the Ads page."
+          ? // ⏸"Check", not "finish": the refusal can be a 409 on a business
+            // with a STANDING political declaration, which lands on the card's
+            // read-only branch where there is nothing to finish — the record is
+            // already in force and this tick was the thing that was wrong. One
+            // sentence has to be true for both causes.
+            "It won't spend until you activate it. We couldn't save this declaration for future " +
+            "campaigns — check your ads declaration on the Ads page."
           : "It won't spend until you activate it. Finish targeting, then activate from the Ads Manager.",
         action: {
           label: "Open Ads Manager",
@@ -574,12 +591,17 @@ export function BoostCampaignDialog({
                   showing wording we are not about to record is the failure
                   the whole version mechanism exists to prevent. The checkbox
                   below is disabled when this is absent. */}
-              {stampableNotice ?? (
-                <span className="text-warning-on-tint">
-                  We can&apos;t show the declaration wording right now, so this
-                  campaign can&apos;t be created. Try again in a moment.
-                </span>
-              )}{" "}
+              {stampableNotice ??
+                (noticeUnavailable ? (
+                  <span className="text-warning-on-tint">
+                    We can&apos;t show the declaration wording right now, so this
+                    campaign can&apos;t be created. Try again in a moment.
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground">
+                    Loading the declaration wording&hellip;
+                  </span>
+                ))}{" "}
               <a
                 href={POLITICAL_DECLARATION_POLICY_URL}
                 target="_blank"
@@ -650,7 +672,7 @@ export function BoostCampaignDialog({
           <Button
             type="button"
             onClick={() => boost.mutate({ notPolitical, applyToFuture })}
-            disabled={!valid || boost.isPending || blocked !== null}
+            disabled={!valid || !canDeclare || boost.isPending || blocked !== null}
           >
             {boost.isPending
               ? "Creating…"

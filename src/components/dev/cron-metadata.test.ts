@@ -129,15 +129,20 @@ describe("summarizeCronBody", () => {
     const summary = summarizeCronBody("platform-api-version-watch", body);
     expect(summary?.message).toContain("meta");
     expect(summary?.message).toContain("x");
+    // ★★AND NOT IN GREEN. A bare string is a success toast, and N platform
+    // sunsets are not a success — this cron logs some of them at `error`
+    // severity. Asserting only on `message` is what let that through.
+    expect(summary?.level).toBe("warning");
   });
 
   it("★says nothing needs attention on a real zero", () => {
     // What this cron has to say most weeks. Rendering nothing would read as a
     // run that failed to produce anything.
     const body = JSON.stringify({ ok: true, data: { warnings: 0, detail: [] } });
-    expect(summarizeCronBody("platform-api-version-watch", body)?.message).toMatch(
-      /no platform version deadlines/i,
-    );
+    const summary = summarizeCronBody("platform-api-version-watch", body);
+    expect(summary?.message).toMatch(/no platform version deadlines/i);
+    // ★A real zero IS a success — that is the distinction the level carries.
+    expect(summary?.level).not.toBe("warning");
   });
 
   it("★★but says NOTHING when the count is absent — that is not a zero", () => {
