@@ -109,7 +109,21 @@ export function useAudiencePlan(opts?: { onPlanned?: (res: AudiencePlanResponse)
          * covered is the rule underneath it: `deriveQuoteState` withholds
          * a lapsed receipt, and `quoteTokenFor` refuses to attach one.
          */
-        queryClient.invalidateQueries({ queryKey: ["peaks-quote"] });
+        // ⚠️⚠️`resetQueries`, NOT `invalidateQueries` (review round 3, and
+        // round 2 got this wrong). `invalidateQueries` marks the query
+        // stale and refetches it -- but it KEEPS `data` until the refetch
+        // returns. `deriveQuoteState` withholds only on EXPIRY, never on
+        // an error, so throughout that window -- and for ever if the
+        // re-quote itself fails -- the REFUSED token was still handed
+        // out and still attached to the next press. Every press 409s,
+        // where sending nothing would have succeeded at the live card.
+        //
+        // ★SO THE RECEIPT IS DISCARDED, NOT MERELY DOUBTED. `resetQueries`
+        // drops the cached data and refetches the active query, which is
+        // exactly the intent: we have positive evidence this receipt is
+        // bad, and R1.1 says the safe fallback is ABSENCE -- no token
+        // bills the live card and succeeds.
+        queryClient.resetQueries({ queryKey: ["peaks-quote"] });
         toast.error("That price has changed.", {
           description:
             err instanceof ApiError && err.message

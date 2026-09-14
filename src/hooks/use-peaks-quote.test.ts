@@ -112,7 +112,7 @@ describe("★★whose problem it is — the api distinguishes these and so must 
     expect(s.reason).toBe("unreachable");
   });
 
-  it("★an error never produces a quote — there is nothing to render a price from", () => {
+  it("★an error over NO receipt produces no quote", () => {
     const s = deriveQuoteState({
       ...base,
       error: new ApiError("ACTION_NOT_PRICED", "x", 502),
@@ -257,5 +257,46 @@ describe("★a quote in hand beats a background refetch (round 1)", () => {
   it("★but DOES report loading on a refetch that has nothing to fall back on", () => {
     const s = deriveQuoteState({ ...base, isFetching: true });
     expect(s.loading).toBe(true);
+  });
+});
+
+describe("★★an error over a LIVE receipt — the rule the vacuous test named wrongly (round 3)", () => {
+  it("★★does NOT withhold a receipt we still hold, and that is deliberate", () => {
+    // ⚠️⚠️THIS REPLACES AN ASSERTION THAT COULD NOT FAIL. Its sibling was
+    // called *"an error never produces a quote"* and passed only because
+    // the shared fixture carries `data: undefined` — so it asserted the
+    // absence of something that was never there. The rule it named was
+    // NEVER IMPLEMENTED, and nothing noticed for two rounds.
+    //
+    // ★AND THE RULE IT NAMED IS NOT THE ONE WE WANT. A failed REFRESH is
+    // not evidence that the receipt in hand is bad: R1.5 is that a quote
+    // in hand beats a background refetch, and withholding on any error
+    // would blank a good price on one dropped packet — the defect R1.5
+    // exists to have fixed, re-entered through the error branch.
+    //
+    // ★THE ONE THING THAT IS EVIDENCE A RECEIPT IS BAD is the api
+    // REFUSING it, and a 409 is not visible here at all — it arrives on
+    // the ACT, not on the quote. So it is handled where it lands, by
+    // dropping the receipt from the cache (`use-audience-plan.ts`,
+    // `resetQueries`), and not by reading `error` in this function.
+    const s = deriveQuoteState({
+      ...base,
+      data: QUOTE,
+      error: new Error("socket hang up"),
+    });
+    expect(s.quote).toBe(QUOTE);
+    expect(s.reason).toBe("unreachable");
+  });
+
+  it("★and a LAPSED receipt under the same error is still withheld", () => {
+    // The two rules compose in the one direction that matters: an error
+    // does not withhold, and expiry always does.
+    const s = deriveQuoteState({
+      ...base,
+      data: QUOTE,
+      now: QUOTE.expiresAt + 1,
+      error: new Error("socket hang up"),
+    });
+    expect(s.quote).toBeUndefined();
   });
 });

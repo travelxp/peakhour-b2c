@@ -28,7 +28,19 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
  */
 
 const h = vi.hoisted(() => ({
-  calls: [] as Array<{ url: string; init: RequestInit }>,
+  /**
+   * ⚠️★`headers` IS A SNAPSHOT, NOT `init.headers` (review round 3).
+   * `request` builds ONE headers object and passes the same reference to
+   * both the first attempt and the CSRF retry, mutating it in between —
+   * so every captured `init` aliases one object and per-attempt
+   * assertions could not distinguish attempt 0 from attempt 1. Copying
+   * at capture is what makes `headersOf(0)` mean what it says.
+   */
+  calls: [] as Array<{
+    url: string;
+    init: RequestInit;
+    headers: Record<string, string>;
+  }>,
   /**
    * Queued answers from the CSRF endpoint; `null` means it replied WITHOUT
    * a token, which is what `getCsrfToken` turns into `null`. Empty queue
@@ -52,7 +64,11 @@ vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
       { status: 200, headers: { "content-type": "application/json" } },
     );
   }
-  h.calls.push({ url: String(url), init });
+  h.calls.push({
+    url: String(url),
+    init,
+    headers: { ...((init.headers ?? {}) as Record<string, string>) },
+  });
   if (h.rejectCsrfTimes > 0) {
     h.rejectCsrfTimes -= 1;
     return new Response(
@@ -75,7 +91,7 @@ process.env.NEXT_PUBLIC_API_URL = "https://api.test";
 const { api, clearCsrfToken } = await import("./api");
 
 function headersOf(index = 0): Record<string, string> {
-  const raw = h.calls[index]!.init.headers as Record<string, string>;
+  const raw = h.calls[index]!.headers;
   const out: Record<string, string> = {};
   for (const [k, v] of Object.entries(raw)) out[k.toLowerCase()] = v;
   return out;
@@ -167,7 +183,16 @@ describe("★★the caller CSRF header is stripped even when we hold none (round
     h.rejectCsrfTimes = 1;
     await api.post("/v1/x", { a: 1 }, { "x-csrf-token": "forged" });
     expect(h.calls).toHaveLength(2);
-    const retry = h.calls[1]!.init.headers as Record<string, string>;
+    // ⚠️★PER ATTEMPT, WHICH IS ONLY MEANINGFUL BECAUSE THE DOUBLE NOW
+    // SNAPSHOTS (round 3). `request` passes ONE headers object to both
+    // fetches and mutates it in between, so before the snapshot these two
+    // assertions read the same object and the first could not fail.
+    //
+    // ★THE FIRST ATTEMPT CARRIED NO TOKEN AT ALL — the CSRF fetch answered
+    // null — and the forged one was stripped anyway, which is R2.6. The
+    // retry is where a token first appears, and there is exactly one.
+    expect(headersOf(0)["x-csrf-token"]).toBeUndefined();
+    const retry = h.calls[1]!.headers;
     const csrfKeys = Object.keys(retry).filter((k) => k.toLowerCase() === "x-csrf-token");
     expect(csrfKeys).toHaveLength(1);
     expect(headersOf(1)["x-csrf-token"]).toBe("csrf-real");

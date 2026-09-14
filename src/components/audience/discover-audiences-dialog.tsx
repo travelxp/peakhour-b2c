@@ -272,6 +272,20 @@ export function PriceLine({ price }: { price: ReturnType<typeof usePeaksQuote> }
     );
   }
 
+  // ⚠️★THE FLAG, NOT A RE-DERIVATION (review round 3). This fell straight
+  // through to the fallback, which is `!quote && !loading` — and that is
+  // NOT what `unavailable` means. `unavailable` also requires `enabled`,
+  // precisely so a surface nobody has opened does not render *we couldn't
+  // check the price*; re-deriving it two components away dropped the one
+  // clause the flag exists for. ★It was computed, documented at length and
+  // tested, and read by NOTHING — §0.4 scaffolding inside a hook that was
+  // written in this PR. Read here now, so the rule has one home.
+  //
+  // ⏸MUTATION: INERT. Deleting this line leaves the suite green -- the
+  // flag is tested, its CONSUMPTION is a component branch and nothing here
+  // renders components. Recorded rather than left to look covered.
+  if (!price.unavailable) return null;
+
   return (
     <p className="text-xs text-muted-foreground" aria-live="polite">
       {/* ⚠️NO NUMBER AND NO "Free". We do not know, and these failures differ
@@ -282,7 +296,17 @@ export function PriceLine({ price }: { price: ReturnType<typeof usePeaksQuote> }
         ? // ⚠️A LAPSED RECEIPT IS WITHHELD, NOT SENT (round 1): the api
           // answers 409 and the act never runs. The refetch normally makes
           // this invisible; if a merchant sees it, the refresh is failing.
-          "Checking the price again…"
+          //
+          // ⚠️★THE COPY SAID "Checking the price again…" AND NOTHING WAS
+          // CHECKING (review round 3). Reaching this line means `loading`
+          // was false, and `loading` is `isFetching && !quote` over a
+          // withheld quote — so `isFetching` is false here by
+          // construction. The sentence was not merely wrong when the
+          // browser was offline and the query PAUSED; it was wrong every
+          // time it rendered. ★A reassurance that is structurally
+          // unfalsifiable is worse than the bad news it replaces: the
+          // merchant waits for a refresh that is not running.
+          "That price expired and we couldn't get a fresh one just now — this uses Peaks."
         : price.reason === "not_priced"
           ? "We can't show the price for this right now — it still uses Peaks."
           : "We couldn't check the price just now — this uses Peaks."}
