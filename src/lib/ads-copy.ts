@@ -66,6 +66,46 @@ export const SPECIAL_AD_CATEGORY_QUESTION =
 export const SPECIAL_AD_CATEGORY_NONE_NOTE =
   "Leave them all unticked if none apply — that is an answer, and we record it as one.";
 
+/**
+ * The country half of the declaration, asked only of a POLITICAL advertiser.
+ *
+ * ── ★WHY ONLY THEM ───────────────────────────────────────────────────────
+ *
+ * Meta requires `special_ad_category_country` whenever any category is set,
+ * and documents a tax-country fallback for HOUSING, EMPLOYMENT and
+ * FINANCIAL_PRODUCTS_SERVICES. `ISSUES_ELECTIONS_POLITICS` has **no**
+ * default, so it is the one answer that cannot be left out — and it is the
+ * one this form has never been able to collect at all.
+ *
+ * ⏸Asking every declarant would also create a problem the api cannot express:
+ * there is no way to CLEAR a stored country list (omitting it hits the
+ * erase guard), so a field offered to everyone would be a field nobody could
+ * empty. Asking only where it is mandatory keeps the only route out — an
+ * explicit withdrawal, which unsets the whole record — sufficient.
+ */
+export const SPECIAL_AD_CATEGORY_COUNTRY_QUESTION = "Which countries are these ads for?";
+
+export const SPECIAL_AD_CATEGORY_COUNTRY_HELP =
+  "Two-letter country codes, separated by commas — GB, IE, US. This is the " +
+  "list Meta is told the declaration covers.";
+
+/**
+ * The EU prohibition, exactly as the api serves it.
+ *
+ * ⚠️★NOT DERIVED HERE, AND THE THREE-WAY SPLIT IS WHY. Meta says *"the EU and
+ * associated territories"* and publishes no list; the api holds the EU 27 as a
+ * fact of EU law and the EEA three as a READING, and a country in neither is
+ * **not cleared** — Meta's phrase has a residue nobody has enumerated. A local
+ * copy of those lists would state our interpretation as fact in one more
+ * place, which is P-09's lesson, and the split is the part that would be
+ * flattened first.
+ */
+export interface EuPoliticalAdsBan {
+  bannedCountries?: string[];
+  uncertainCountries?: string[];
+  since?: string;
+}
+
 export const POLITICAL_DECLARATION_POLICY_URL =
   "https://www.linkedin.com/legal/ads-policy";
 
@@ -104,6 +144,17 @@ export interface AdvertisingDeclaration {
    * explicit `[]` the api cannot refuse — an erasure two clicks deep.
    */
   specialAdCategories?: string[];
+  /**
+   * The countries the declaration covers — Meta's
+   * `special_ad_category_country` (M-17).
+   *
+   * ⚠️★ABSENT AND `[]` ARE **NOT** TWO ANSWERS HERE, WHICH INVERTS THE FIELD
+   * ONE LINE UP. There is no advertising in no countries: an empty list is
+   * not a statement a merchant can make, it is a list that cannot be sent,
+   * and the database refuses it (`minItems: 1`). A reader carrying the
+   * sibling's rule across one line gets this backwards.
+   */
+  specialAdCategoryCountries?: string[];
 }
 
 export type DeclarationState =
@@ -213,6 +264,193 @@ export function selectedCategories(
 ): string[] {
   return touched ?? stored ?? [];
 }
+/**
+ * Turn what a merchant typed into country codes, and say what did not parse.
+ *
+ * ★IT RETURNS BOTH HALVES rather than dropping the bad ones. Silently
+ * discarding *"France"* from `GB, France, IE` would record a narrower
+ * declaration than the merchant wrote and tell them nothing — on a field
+ * whose whole purpose is to say which jurisdictions they are advertising in.
+ *
+ * ★UPPERCASED AND DE-DUPLICATED, because the api's uniqueness check runs on
+ * the NORMALISED values: `gb, GB` is one country typed twice, and sending it
+ * would be a 400 that reads as a validation bug rather than a typo.
+ */
+export function parseCountryCodes(input: string): { codes: string[]; invalid: string[] } {
+  const codes: string[] = [];
+  const invalid: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of input.split(/[,\s]+/)) {
+    const token = raw.trim();
+    if (!token) continue;
+    if (!/^[A-Za-z]{2}$/.test(token)) {
+      invalid.push(token);
+      continue;
+    }
+    const code = token.toUpperCase();
+    if (seen.has(code)) continue;
+    seen.add(code);
+    codes.push(code);
+  }
+  return { codes, invalid };
+}
+
+/**
+ * Which of the countries a merchant is about to declare are refused, and
+ * which we cannot tell them about.
+ *
+ * ⚠️★THIS IS THE LIVE PREVIEW, NOT THE AUTHORITATIVE ANSWER. The api serves
+ * `politicalAdsRefused` for the declaration already ON RECORD; this one runs
+ * while the merchant is still typing, where a round trip per keystroke is not
+ * a design. Both read the SAME served lists, so they cannot disagree about
+ * which countries are in which bucket.
+ *
+ * ★A COUNTRY IN NEITHER BUCKET IS NOT CLEARED, and there is no third array
+ * saying it is. The caller has to render that as *"we have no reason to think
+ * so"* rather than as an all-clear — Meta's phrase has a residue nobody has
+ * enumerated.
+ *
+ * ⏸Returns empty buckets when the api served no lists, which reads as *"we
+ * cannot tell you"* rather than as *"nothing is banned"* — and the caller
+ * renders the difference.
+ */
+export function euPoliticalAdsVerdict(
+  codes: readonly string[],
+  ban: EuPoliticalAdsBan | null | undefined,
+): { banned: string[]; uncertain: string[]; known: boolean } {
+  const bannedList = ban?.bannedCountries ?? [];
+  const uncertainList = ban?.uncertainCountries ?? [];
+  const known = bannedList.length > 0;
+  const banned: string[] = [];
+  const uncertain: string[] = [];
+  for (const code of codes) {
+    if (bannedList.includes(code)) banned.push(code);
+    else if (uncertainList.includes(code)) uncertain.push(code);
+  }
+  return { banned, uncertain, known };
+}
+
+/**
+ * Which countries the form should show, and submit.
+ *
+ * ★THE SIBLING OF `selectedCategories`, AND IT INHERITS THE ERASURE FIX: the
+ * form renders for a SUPERSEDED declaration too, and boxes that start empty
+ * send an answer the merchant did not give. `null` means *"not touched"*,
+ * which is not the same as an empty list.
+ *
+ * ⚠️AND THE EMPTY CASE MEANS SOMETHING DIFFERENT HERE. For categories, `[]` is
+ * *"asked, none apply"* and IS submitted. An empty country list cannot be
+ * submitted at all — the api's `.min(1)` refuses it — so the caller must treat
+ * empty as *"not answered yet"* and block the save. `declarationBlockedBecause`
+ * is where that lives.
+ */
+export function selectedCountries(
+  touched: string[] | null,
+  stored: string[] | undefined,
+): string[] {
+  return touched ?? stored ?? [];
+}
+
+/**
+ * Why the Save button cannot be pressed yet, or `null` when it can.
+ *
+ * ★A REASON RATHER THAN A BOOLEAN, because the card has to SAY which thing is
+ * missing. A disabled button with no explanation is the shape this file
+ * already refuses for `unsupported_notice`: a dead end the user cannot act on.
+ *
+ * ⚠️★AND IT IS HERE RATHER THAN IN JSX BECAUSE THIS REPO CANNOT TEST JSX. No
+ * testing-library, no jsdom, not one `.test.tsx` — the same reason
+ * `stampableNoticeText` exists. A `disabled={...}` expression assembled inline
+ * would let a POLITICAL declaration be submitted with no country, which the
+ * api refuses with a 400 the merchant cannot act on, and nothing in the suite
+ * could tell.
+ */
+export type DeclarationBlocker =
+  /** No answer chosen yet. */
+  | "no_answer"
+  /** The notice for the chosen answer was not served — we cannot ask. */
+  | "no_notice_text"
+  /** Chosen, but the notice has not been confirmed. */
+  | "not_confirmed"
+  /** POLITICAL with no country. Meta gives that category no default, so the
+   *  declaration could never produce a campaign and the api refuses it. */
+  | "country_missing"
+  /** Something in the country box is not a two-letter code. */
+  | "country_invalid";
+
+export function declarationBlockedBecause(input: {
+  answer: "NOT_POLITICAL" | "POLITICAL" | null;
+  confirmed: boolean;
+  countries: readonly string[];
+  invalidCountries: readonly string[];
+  noticeText?: NoticeText | null;
+}): DeclarationBlocker | null {
+  if (!input.answer) return "no_answer";
+  if (!stampableNoticeText(input.answer, input.noticeText)) return "no_notice_text";
+  // ⚠️★THE COUNTRY CHECKS COME BEFORE THE CONFIRMATION TICK, and the order is
+  // deliberate: a merchant who ticks the notice and then finds the button
+  // still dead has been told nothing. Naming the missing field while they are
+  // still filling the form is the point of returning a reason at all.
+  if (input.answer === "POLITICAL") {
+    if (input.invalidCountries.length > 0) return "country_invalid";
+    if (input.countries.length === 0) return "country_missing";
+  }
+  if (!input.confirmed) return "not_confirmed";
+  return null;
+}
+
+/**
+ * Whether the Meta half of a standing declaration is still unanswered.
+ *
+ * ⚠️★NOT GATED ON THE SERVED OPTION LIST, and it was. The card's amber
+ * *"Meta campaigns also need the special-ad-category answer"* banner rendered
+ * only when `specialAdCategoryOptions` arrived — so on any response that did
+ * not carry them, the warning vanished while the reassuring line above it
+ * (*"automatic campaigns carry this declaration"*) stayed. The merchant was
+ * told they were covered, in the one state where they are not.
+ *
+ * ★The WARNING is about the record; the *Answer it* BUTTON is about the form.
+ * Only the button needs the options, because only the button leads somewhere
+ * that requires them.
+ */
+export function metaCategoryAnswerMissing(
+  declaration: AdvertisingDeclaration | null | undefined,
+): boolean {
+  if (!declaration) return false;
+  if (declaration.politicalIntent === "NOT_DECLARED") return false;
+  return declaration.specialAdCategories === undefined;
+}
+
+/**
+ * What to say after a declaration saves.
+ *
+ * ⚠️★★THE OLD MESSAGE WAS FALSE FOR META, AND SAID SO IN THE ONE PLACE A
+ * MERCHANT READS AFTER ACTING. It was *"Declaration recorded — automatic
+ * campaigns can now declare on your behalf"*, unconditionally. For a record
+ * with no special-ad-category answer that is true of LinkedIn and false of
+ * Meta: `resolveSpecialAdCategories` reports `never_declared` and every Meta
+ * create refuses. The boost dialog writes exactly that record, so the toast
+ * has been wrong on that path since M-03.
+ *
+ * ★And a POLITICAL declaration gets its own, because *"can now declare on your
+ * behalf"* reads as an all-clear on the one answer that carries restrictions.
+ */
+export function declarationSavedMessage(
+  intent: "NOT_POLITICAL" | "POLITICAL",
+  hasCategoryAnswer: boolean,
+): string {
+  if (intent === "POLITICAL") {
+    return (
+      "Recorded. Your campaigns will carry the political category, and we'll tell you " +
+      "where they can't run."
+    );
+  }
+  return hasCategoryAnswer
+    ? "Declaration recorded — automatic campaigns can now declare on your behalf."
+    : "Declaration recorded for LinkedIn. Meta campaigns still need the special-ad-category " +
+        "answer before they can be created.";
+}
+
 export function stampableNoticeText(
   answer: "NOT_POLITICAL" | "POLITICAL",
   served: NoticeText | null | undefined,

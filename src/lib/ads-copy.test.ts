@@ -20,6 +20,12 @@ import {
   SPECIAL_AD_CATEGORY_NONE_NOTE,
   stampableNoticeText,
   selectedCategories,
+  parseCountryCodes,
+  selectedCountries,
+  euPoliticalAdsVerdict,
+  declarationBlockedBecause,
+  metaCategoryAnswerMissing,
+  declarationSavedMessage,
 } from "./ads-copy";
 import * as adsCopy from "./ads-copy";
 
@@ -465,5 +471,271 @@ describe("selectedCategories — untouched is not \"none of these apply\"", () =
     // entirely when the api served no options, so nothing is recorded on the
     // merchant's behalf by a form that never asked.
     expect(selectedCategories(null, undefined)).toEqual([]);
+  });
+});
+
+/**
+ * ── M-17: the country a declaration cannot be sent without ────────────────
+ *
+ * Everything below is pure on purpose. This repo has no component-test stack
+ * — no testing-library, no jsdom, not one `.test.tsx` — so a rule that lives
+ * in JSX is a rule nothing can check. `stampableNoticeText` exists for that
+ * reason and these follow it: the card decides nothing it cannot be tested on.
+ */
+
+describe("parseCountryCodes", () => {
+  it("★uppercases and de-duplicates, because the api's uniqueness check is on the NORMALISED value", () => {
+    // `gb, GB` is one country typed twice. Sent as two, the api 400s on a
+    // uniqueness refinement — an error that reads as a validation bug rather
+    // than as the typo it is.
+    expect(parseCountryCodes("gb, GB, ie")).toEqual({ codes: ["GB", "IE"], invalid: [] });
+  });
+
+  it("★★names what did not parse rather than dropping it", () => {
+    // ⚠️Silently discarding "France" would record a NARROWER declaration than
+    // the merchant wrote, on a field whose whole purpose is to say which
+    // jurisdictions they advertise in — and tell them nothing.
+    expect(parseCountryCodes("GB, France, IE")).toEqual({
+      codes: ["GB", "IE"],
+      invalid: ["France"],
+    });
+  });
+
+  it("accepts commas, spaces or both, and ignores empty gaps", () => {
+    expect(parseCountryCodes("GB IE").codes).toEqual(["GB", "IE"]);
+    expect(parseCountryCodes("GB,,  IE,").codes).toEqual(["GB", "IE"]);
+    expect(parseCountryCodes("").codes).toEqual([]);
+    expect(parseCountryCodes("   ").invalid).toEqual([]);
+  });
+
+  it("★refuses the alpha-3 code and the country name — the two things people type", () => {
+    expect(parseCountryCodes("FRA").codes).toEqual([]);
+    expect(parseCountryCodes("FRA").invalid).toEqual(["FRA"]);
+    expect(parseCountryCodes("F").invalid).toEqual(["F"]);
+    expect(parseCountryCodes("1!").invalid).toEqual(["1!"]);
+  });
+});
+
+describe("selectedCountries — and how it differs from selectedCategories", () => {
+  it("★seeds from the stored answer while untouched", () => {
+    // The form renders for a SUPERSEDED declaration too. A box that starts
+    // empty here is worse than the category case: the api refuses an omitted
+    // country list on a record that has one, so the re-confirm simply 400s.
+    expect(selectedCountries(null, ["GB"])).toEqual(["GB"]);
+  });
+
+  it("★a touched selection is used as given", () => {
+    expect(selectedCountries(["IE"], ["GB"])).toEqual(["IE"]);
+  });
+
+  it("★★an explicit empty list is NOT an answer here, unlike the categories", () => {
+    // ⚠️THE INVERSION. `selectedCategories([], ["HOUSING"])` is `[]` and that
+    // IS an answer — *"asked, none apply"*. There is no advertising in no
+    // countries, so this one returns `[]` for the caller to BLOCK on rather
+    // than to submit. `declarationBlockedBecause` is where that happens.
+    expect(selectedCountries([], ["GB"])).toEqual([]);
+  });
+});
+
+describe("★★euPoliticalAdsVerdict — three outcomes, not two", () => {
+  const ban = {
+    bannedCountries: ["FR", "DE"],
+    uncertainCountries: ["NO", "IS", "LI"],
+    since: "2025-10-06",
+  };
+
+  it("names the EU states as banned", () => {
+    expect(euPoliticalAdsVerdict(["FR", "GB"], ban)).toEqual({
+      banned: ["FR"],
+      uncertain: [],
+      known: true,
+    });
+  });
+
+  it("★★EEA is UNCERTAIN, not banned — that is a reading, not Meta's word", () => {
+    // ⚠️Meta says *"the EU and associated territories"* and publishes no list.
+    // Calling Norway banned states our interpretation as Meta's; calling it
+    // clear under-warns on a country Meta may well refuse.
+    expect(euPoliticalAdsVerdict(["NO"], ban)).toEqual({
+      banned: [],
+      uncertain: ["NO"],
+      known: true,
+    });
+  });
+
+  it("★a country on neither list appears in NEITHER bucket", () => {
+    // ⚠️It is NOT reported as cleared, and there is no third array saying so.
+    // The caller has to render that as *"we have no reason to think so"*.
+    expect(euPoliticalAdsVerdict(["US", "IN"], ban)).toEqual({
+      banned: [],
+      uncertain: [],
+      known: true,
+    });
+  });
+
+  it("★★`known: false` when the api served no lists — that is not 'nothing is banned'", () => {
+    // ⚠️An api that predates M-17 serves no lists. Empty buckets would then
+    // read identically to *"we checked and none are banned"*, which is the
+    // all-clear an absence must never become. The flag is what lets the card
+    // say *"we can't check these right now"* instead of saying nothing.
+    expect(euPoliticalAdsVerdict(["FR"], undefined)).toEqual({
+      banned: [],
+      uncertain: [],
+      known: false,
+    });
+    expect(euPoliticalAdsVerdict(["FR"], { since: "2025-10-06" }).known).toBe(false);
+  });
+});
+
+describe("★★★declarationBlockedBecause — why the Save button is dead", () => {
+  const text = { notPolitical: "no", political: "yes" };
+  const base = {
+    answer: "NOT_POLITICAL" as const,
+    confirmed: true,
+    countries: [] as string[],
+    invalidCountries: [] as string[],
+    noticeText: text,
+  };
+
+  it("nothing blocks a confirmed non-political answer", () => {
+    expect(declarationBlockedBecause(base)).toBeNull();
+  });
+
+  it("no answer chosen", () => {
+    expect(declarationBlockedBecause({ ...base, answer: null })).toBe("no_answer");
+  });
+
+  it("★the notice for the CHOSEN answer must exist, not just any notice", () => {
+    // ⚠️A response carrying only the negative wording must not let a POLITICAL
+    // declaration be stamped: the record would name a `noticeVersion` whose
+    // served text asserts the opposite of what it stores.
+    expect(
+      declarationBlockedBecause({
+        ...base,
+        answer: "POLITICAL",
+        countries: ["GB"],
+        noticeText: { notPolitical: "no" },
+      }),
+    ).toBe("no_notice_text");
+  });
+
+  it("★★★a POLITICAL answer with no country is blocked", () => {
+    // Meta gives ISSUES_ELECTIONS_POLITICS no tax-country default, so the api
+    // refuses it. Letting the button fire would turn a form the merchant can
+    // fix into a 400 they cannot.
+    expect(declarationBlockedBecause({ ...base, answer: "POLITICAL" })).toBe(
+      "country_missing",
+    );
+  });
+
+  it("★★a NON-political answer is NOT blocked by a missing country", () => {
+    // ⚠️The over-refusal this must not become. Meta defaults the tax country
+    // for housing, employment and financial services, so demanding one here
+    // would block a declaration that works.
+    expect(declarationBlockedBecause(base)).toBeNull();
+  });
+
+  it("★an unparseable country blocks before the tick is even considered", () => {
+    // ⚠️ORDER MATTERS: a merchant who ticks the notice and then finds the
+    // button still dead has been told nothing. Naming the bad field while they
+    // are still filling the form is the point of returning a reason at all.
+    expect(
+      declarationBlockedBecause({
+        ...base,
+        answer: "POLITICAL",
+        confirmed: false,
+        countries: ["GB"],
+        invalidCountries: ["France"],
+      }),
+    ).toBe("country_invalid");
+  });
+
+  it("the notice still has to be confirmed", () => {
+    expect(declarationBlockedBecause({ ...base, confirmed: false })).toBe(
+      "not_confirmed",
+    );
+  });
+
+  it("★a confirmed POLITICAL answer with a country is allowed, EU ban or not", () => {
+    // ⚠️THE VERDICT DOES NOT BLOCK. A declaration is a legal statement and must
+    // be recordable even where we already know the campaigns cannot run —
+    // refusing to store *"I am a political advertiser in France"* would leave
+    // the merchant unable to tell the truth. The card WARNS instead.
+    expect(
+      declarationBlockedBecause({
+        ...base,
+        answer: "POLITICAL",
+        countries: ["FR"],
+      }),
+    ).toBeNull();
+  });
+});
+
+describe("★★metaCategoryAnswerMissing", () => {
+  const declared = (over = {}) => ({
+    politicalIntent: "NOT_POLITICAL" as const,
+    declaredAt: "2026-09-14T00:00:00.000Z",
+    declaredByUserId: "u1",
+    noticeVersion: "v1",
+    ...over,
+  });
+
+  it("★★★true for a declaration that never answered the category question", () => {
+    // ⚠️THE STATE THE WARNING EXISTS FOR. The boost dialog writes exactly this
+    // record — political tick, no Meta categories — and every Meta create then
+    // refuses while the card says *"automatic campaigns carry this
+    // declaration"* directly above.
+    expect(metaCategoryAnswerMissing(declared())).toBe(true);
+  });
+
+  it("★false once answered, INCLUDING with an empty list", () => {
+    // `[]` is *"asked, none apply"* — a real answer, and the distinction the
+    // whole field exists to preserve.
+    expect(metaCategoryAnswerMissing(declared({ specialAdCategories: [] }))).toBe(false);
+    expect(
+      metaCategoryAnswerMissing(declared({ specialAdCategories: ["HOUSING"] })),
+    ).toBe(false);
+  });
+
+  it("false when there is no declaration at all", () => {
+    // Nothing to warn about: the card's undeclared branch already says so, and
+    // a second warning there would be noise on a state that is not a problem.
+    expect(metaCategoryAnswerMissing(undefined)).toBe(false);
+    expect(metaCategoryAnswerMissing(null)).toBe(false);
+  });
+
+  it("false for NOT_DECLARED, which is not a declaration either", () => {
+    expect(metaCategoryAnswerMissing(declared({ politicalIntent: "NOT_DECLARED" }))).toBe(
+      false,
+    );
+  });
+});
+
+describe("★★★declarationSavedMessage — the toast was false for Meta", () => {
+  it("★★does NOT claim automatic campaigns are covered when the category answer is missing", () => {
+    // ⚠️THE DEFECT. The old toast said *"automatic campaigns can now declare on
+    // your behalf"* unconditionally. For a record with no special-ad-category
+    // answer that is true of LinkedIn and FALSE of Meta —
+    // `resolveSpecialAdCategories` reports `never_declared` and every Meta
+    // create refuses. The boost dialog writes exactly that record, so the
+    // message has been wrong on that path since M-03.
+    const msg = declarationSavedMessage("NOT_POLITICAL", false);
+    expect(msg).not.toMatch(/automatic campaigns can now declare/i);
+    expect(msg).toMatch(/LinkedIn/);
+    expect(msg).toMatch(/special-ad-category/);
+  });
+
+  it("keeps the original message when the answer IS there", () => {
+    expect(declarationSavedMessage("NOT_POLITICAL", true)).toMatch(
+      /automatic campaigns can now declare/i,
+    );
+  });
+
+  it("★★a POLITICAL declaration never gets an all-clear", () => {
+    // *"Can now declare on your behalf"* reads as coverage on the one answer
+    // that carries restrictions and refusals.
+    const msg = declarationSavedMessage("POLITICAL", true);
+    expect(msg).not.toMatch(/automatic campaigns can now declare/i);
+    expect(msg).toMatch(/political category/i);
   });
 });

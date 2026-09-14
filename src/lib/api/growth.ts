@@ -236,9 +236,51 @@ export interface GrowthSettingsResponse {
    * ⚠️Never contains ISSUES_ELECTIONS_POLITICS: it is the same fact as the
    * political declaration shown above it, derived server-side.
    */
-  specialAdCategoryOptions?: Array<{ key: string; label: string }>;
-  /** What declaring any category costs, shown before the tick (§2.1). */
-  specialAdCategoryConsequence?: string;
+  /**
+   * ⚠️★★AND THE COST IS NOW PER OPTION, NOT A SIBLING STRING (M-17).
+   *
+   * `specialAdCategoryConsequence` is GONE. It served one sentence for all
+   * five options — *"no lookalikes, no exclusions, no sub-city geo"* — and
+   * Meta's restrictions guide names only HOUSING, EMPLOYMENT and
+   * FINANCIAL_PRODUCTS_SERVICES. `ONLINE_GAMBLING_AND_GAMING` does not appear
+   * on that page at all, so the shared sentence asserted a restriction with no
+   * source beside a checkbox a merchant was about to tick.
+   *
+   * ⏸Pre-launch, so it is deleted rather than kept beside the new shape.
+   */
+  specialAdCategoryOptions?: Array<{
+    key: string;
+    label: string;
+    consequence: string;
+  }>;
+  /**
+   * Where Meta has stopped allowing political ads — SERVED, never derived.
+   *
+   * ⚠️★A READING, AND THE SPLIT IS THE PART THAT MATTERS. Meta says *"the EU
+   * and associated territories"* and publishes no list, so the api holds the
+   * EU 27 as a fact of EU law and the EEA three as an interpretation. A
+   * country in NEITHER list is not cleared — the phrase has a residue nobody
+   * has enumerated — and a local copy of these lists would state our
+   * interpretation as fact in one more place (P-09).
+   *
+   * ⏸Absent on an api that predates M-17, which reads as *"we cannot tell
+   * you"* rather than as *"nothing is banned"*. `euPoliticalAdsVerdict`
+   * reports that with `known: false`.
+   */
+  euPoliticalAdsBan?: {
+    bannedCountries?: string[];
+    uncertainCountries?: string[];
+    since?: string;
+  };
+  /**
+   * The verdict on the declaration ALREADY ON RECORD, computed server-side.
+   *
+   * ★Absent when there is nothing to judge — a business with no political
+   * declaration gets no key rather than an empty verdict, because
+   * `{banned: [], uncertain: []}` reads as a clearance for a question nobody
+   * asked. Same rule the declaration itself follows.
+   */
+  politicalAdsRefused?: { banned: string[]; uncertain: string[] };
   declaredByName?: string;
 }
 
@@ -792,6 +834,22 @@ export const growthApi = {
      * "not answered" value, so the api distinguishes it from absent.
      */
     specialAdCategories?: string[];
+    /**
+     * The countries the declaration covers (M-17).
+     *
+     * ⚠️★REQUIRED WITH `politicalIntent: "POLITICAL"`, and the api 400s without
+     * it: Meta gives `ISSUES_ELECTIONS_POLITICS` no tax-country default, so a
+     * political declaration naming no country could never produce a campaign.
+     *
+     * ⚠️★AND `[]` IS NOT AN ANSWER, WHICH INVERTS THE FIELD ABOVE. The api's
+     * `.min(1)` refuses an empty list — there is no advertising in no
+     * countries — so omit the field rather than sending `[]`.
+     *
+     * ⏸OMITTING IT ON A RECORD THAT HAS ONE IS AN ERASE, and the api refuses
+     * that too. The card seeds the box from the stored value for exactly that
+     * reason, the way it already does for the categories.
+     */
+    specialAdCategoryCountries?: string[];
     /** `null` clears it — and clearing is an unset server-side, so "nobody has
      *  chosen" stays the single reading of absence. */
     winDefinition?: {

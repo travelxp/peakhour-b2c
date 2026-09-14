@@ -33,6 +33,8 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -54,7 +56,15 @@ import {
   formatDeclaredAt,
   SPECIAL_AD_CATEGORY_QUESTION,
   SPECIAL_AD_CATEGORY_NONE_NOTE,
+  SPECIAL_AD_CATEGORY_COUNTRY_QUESTION,
+  SPECIAL_AD_CATEGORY_COUNTRY_HELP,
   selectedCategories,
+  selectedCountries,
+  parseCountryCodes,
+  euPoliticalAdsVerdict,
+  declarationBlockedBecause,
+  metaCategoryAnswerMissing,
+  declarationSavedMessage,
   stampableNoticeText,
 } from "@/lib/ads-copy";
 
@@ -76,6 +86,36 @@ export function AdvertisingDeclarationCard() {
   // re-affirming the first, with the notice on screen.
   const [reopen, setReopen] = useState(false);
   const [ticked, setTicked] = useState(false);
+  /**
+   * ⚠️★★M-17: THE ANSWER IS NOW A CHOICE, NOT A TICK.
+   *
+   * This card's own comment used to read *"b2c does not OFFER POLITICAL —
+   * Peakhour does not support the obligations it carries"*, and the effect was
+   * that a political advertiser could not tell the truth here: they ticked
+   * *"this is not political advertising"*, or they left the record absent and
+   * every autonomous campaign sent NOT_DECLARED. Neither is a declaration.
+   *
+   * ★Declaring it does NOT mean we take on the obligations. It means the
+   * category reaches Meta, the platforms' political-ads rules apply, and we
+   * tell them where the ads cannot run. The affirmative notice says exactly
+   * that, and it is the api's wording rather than ours to soften.
+   *
+   * ⏸A RADIO RATHER THAN A SECOND CHECKBOX. Two checkboxes have a state where
+   * both are ticked, and the thing being recorded is one answer to one
+   * question. `null` is *"not chosen"*, which is neither answer.
+   */
+  const [answer, setAnswer] = useState<"NOT_POLITICAL" | "POLITICAL" | null>(null);
+  /**
+   * ★RAW TEXT, PARSED ON EVERY RENDER rather than parsed into state.
+   *
+   * Holding the parsed codes in state would fight the input: a merchant midway
+   * through typing `IE` has written `I`, which is not a code, and a
+   * parse-on-change would either drop it or refuse it while they were still
+   * typing. `null` means untouched, exactly as `categories` does, so a
+   * superseded POLITICAL declaration re-confirms from what it stored rather
+   * than from an empty box.
+   */
+  const [countryText, setCountryText] = useState<string | null>(null);
   // ★A SET, AND EMPTY IS A REAL VALUE. Submitting with nothing selected
   // sends `specialAdCategories: []` — Meta has no "not answered" value, so
   // "none of these apply" is a statement the merchant makes, not a field
@@ -115,7 +155,12 @@ export function AdvertisingDeclarationCard() {
       growthApi.updateSettings(
         declare
           ? {
-              politicalIntent: "NOT_POLITICAL" as const,
+              // ⚠️★M-17: WHICHEVER ANSWER WAS CHOSEN, not a hardcoded one.
+              // The `declare` boolean used to mean NOT_POLITICAL because that
+              // was the only answer this card could give.
+              politicalIntent: (answer ?? "NOT_POLITICAL") as
+                | "NOT_POLITICAL"
+                | "POLITICAL",
               // ★★ONLY WHEN THE QUESTION WAS ACTUALLY SHOWN. If the api
               // served no options the checkboxes never rendered, so sending
               // `[]` would record "none of these apply" from a form that
@@ -125,20 +170,45 @@ export function AdvertisingDeclarationCard() {
               ...(categoryOptions.length > 0
                 ? { specialAdCategories: selected }
                 : {}),
+              // ⚠️★★AND THE COUNTRIES, WHICH ARE NEVER SENT EMPTY.
+              //
+              // The api's `.min(1)` refuses `[]` — there is no advertising in
+              // no countries — so an empty list is OMITTED rather than sent,
+              // and the Save button is already blocked in the one state where
+              // that matters (`country_missing`). Sending `[]` here would turn
+              // a blocked form into a 400 the merchant cannot act on.
+              //
+              // ⏸This is the exact INVERSE of the line above: `[]` is a real
+              // answer for categories and must be sent; `[]` is not an answer
+              // here and must not be.
+              ...(countries.length > 0
+                ? { specialAdCategoryCountries: countries }
+                : {}),
             }
           : { politicalIntent: null },
       ),
-    onSuccess: (res, notPolitical) => {
+    onSuccess: (res, declared) => {
       // PATCH returns the same envelope as GET (currentNoticeVersion +
       // declaredByName included), so writing it straight into the cache
       // cannot blank the version and flip this card to "unknown".
       queryClient.setQueryData(["growth-settings"], res);
       setTicked(false);
       setCategories(null);
+      setCountryText(null);
+      setAnswer(null);
       setReopen(false);
+      // ⚠️★★THE OLD MESSAGE WAS FALSE FOR META AND SAID SO IN THE ONE PLACE A
+      // MERCHANT READS AFTER ACTING: *"automatic campaigns can now declare on
+      // your behalf"*, unconditionally. For a record with no
+      // special-ad-category answer that is true of LinkedIn and false of Meta,
+      // and the boost dialog writes exactly that record. The wording now comes
+      // from a tested function rather than a ternary in JSX.
       toast.success(
-        notPolitical
-          ? "Declaration recorded — automatic campaigns can now declare on your behalf."
+        declared
+          ? declarationSavedMessage(
+              (answer ?? "NOT_POLITICAL") as "NOT_POLITICAL" | "POLITICAL",
+              res.settings.advertisingDeclaration?.specialAdCategories !== undefined,
+            )
           : "Declaration withdrawn.",
       );
     },
@@ -200,11 +270,21 @@ export function AdvertisingDeclarationCard() {
   // ★SERVED, NOT LOOKED UP. The api sends the wording its
   // `currentNoticeVersion` means, so this card cannot show one version's
   // text while stamping another's — and a notice bump needs no deploy here.
-  // ★THE NEGATIVE, because that is the only answer this card collects. The
-  // affirmative wording is served for the surface that offers it; rendering
-  // the wrong one beside a checkbox would collect consent to a sentence the
-  // merchant is not agreeing to.
-  const noticeText = stampableNoticeText("NOT_POLITICAL", settings.data?.currentNoticeText);
+  //
+  // ⚠️★★M-17: IT FOLLOWS THE CHOSEN ANSWER NOW. It was pinned to the negative
+  // because that was the only answer this card could collect; with both on
+  // offer, a fixed wording would show *"I confirm this is not political
+  // advertising"* beside a radio that records POLITICAL — a consent record
+  // whose text asserts the opposite of what it stores, which is the exact
+  // defect `currentNoticeText` was split into two strings to prevent.
+  //
+  // ⏸Before an answer is chosen there is nothing to stamp, so nothing is
+  // shown: `declarationBlockedBecause` returns `no_answer` and the Save button
+  // is dead. A default of the negative would put a sentence on screen that the
+  // merchant has not chosen and might not agree with.
+  const noticeText = answer
+    ? stampableNoticeText(answer, settings.data?.currentNoticeText)
+    : undefined;
   // ★AND THE FORM ITSELF IS SERVED. A local label map would silently stop
   // offering any category the api adds (P-09: five surfaces, five wrong
   // answers, all derived locally).
@@ -217,7 +297,37 @@ export function AdvertisingDeclarationCard() {
   const storedCategories =
     settings.data?.settings.advertisingDeclaration?.specialAdCategories;
   const selected = selectedCategories(categories, storedCategories);
-  const categoryConsequence = settings.data?.specialAdCategoryConsequence;
+
+  // ── M-17 ────────────────────────────────────────────────────────────────
+  //
+  // ⏸The stored countries seed the box for the same reason the stored
+  // categories seed the checkboxes: this form renders for a SUPERSEDED
+  // declaration too, and a box that starts empty sends an answer the merchant
+  // did not give. Here it would be worse than an erasure — the api refuses an
+  // omitted country list on a record that has one, so the re-confirm would
+  // simply 400.
+  const storedCountries =
+    settings.data?.settings.advertisingDeclaration?.specialAdCategoryCountries;
+  const countryInput =
+    countryText ?? (storedCountries ?? []).join(", ");
+  const parsedCountries = parseCountryCodes(countryInput);
+  const countries = selectedCountries(
+    countryText === null ? null : parsedCountries.codes,
+    storedCountries,
+  );
+  const euBan = settings.data?.euPoliticalAdsBan;
+  // ⏸THE LIVE PREVIEW, while the merchant is still typing. The api serves
+  // `politicalAdsRefused` for the declaration already on record; both read the
+  // same served lists, so they cannot disagree about which bucket a country is
+  // in.
+  const euVerdict = euPoliticalAdsVerdict(countries, euBan);
+  const blocked = declarationBlockedBecause({
+    answer,
+    confirmed: ticked,
+    countries,
+    invalidCountries: countryText === null ? [] : parsedCountries.invalid,
+    noticeText: settings.data?.currentNoticeText,
+  });
 
   const notice = (
     <>
@@ -252,10 +362,18 @@ export function AdvertisingDeclarationCard() {
                 ) : null}
                 .
               </p>
+              {/* ⚠️★★M-17 CHANGED WHY THIS IS READ-ONLY, AND THE OLD REASON
+                  WAS NO LONGER TRUE. It said *"Peakhour doesn't support the
+                  extra obligations political advertising carries"* — written
+                  when this card could not RECORD the answer either. It can
+                  now, so the sentence read as a refusal to serve rather than
+                  as what it is: a legal statement is not retracted by
+                  re-ticking a box. */}
               <p className="text-xs text-muted-foreground">
-                Peakhour doesn&apos;t support the extra obligations political
-                advertising carries, so this can&apos;t be changed here — only
-                withdrawn.
+                A declaration like this isn&apos;t changed by re-ticking a box —
+                withdraw it and declare again. The platforms&apos; political
+                advertising rules apply to these campaigns, and meeting them
+                is between you and the platform.
                 {state.superseded ? (
                   <>
                     {" "}
@@ -265,6 +383,30 @@ export function AdvertisingDeclarationCard() {
                   </>
                 ) : null}
               </p>
+              {/* ── ★★THE VERDICT, FROM THE API RATHER THAN COMPUTED HERE ──
+                  This one is about the declaration ON RECORD, so the server
+                  answers it: `politicalAdsRefused` is absent when there is
+                  nothing to judge, which is why there is no empty state under
+                  it. The live preview in the form above reads the same served
+                  lists, so the two cannot disagree. */}
+              {storedCountries && storedCountries.length > 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  Countries: {storedCountries.join(", ")}
+                </p>
+              ) : null}
+              {settings.data?.politicalAdsRefused?.banned.length ? (
+                <p className="text-xs text-warning-on-tint">
+                  Meta won&apos;t run political ads in{" "}
+                  {settings.data.politicalAdsRefused.banned.join(", ")}.
+                </p>
+              ) : null}
+              {settings.data?.politicalAdsRefused?.uncertain.length ? (
+                <p className="text-xs text-muted-foreground">
+                  We can&apos;t tell you whether Meta&apos;s EU ban covers{" "}
+                  {settings.data.politicalAdsRefused.uncertain.join(", ")} —
+                  Meta doesn&apos;t publish which territories it counts.
+                </p>
+              ) : null}
               {/* An exit, not a tick-box. Withdrawal UNSETS the record — a
                   retraction rather than a new legal claim — so it is the one
                   change this surface can safely offer. Without it a business
@@ -313,14 +455,34 @@ export function AdvertisingDeclarationCard() {
                   says automatic campaigns are covered. LinkedIn campaigns
                   genuinely are, so this names the platform rather than
                   contradicting it. */}
-              {categoryOptions.length > 0 ? (
-                storedCategories === undefined ? (
-                  <div className="space-y-1 rounded-md border border-warning/30 bg-warning/15 p-2">
-                    <p className="text-[11px] leading-relaxed text-warning-on-tint">
-                      Meta campaigns also need the special-ad-category answer,
-                      which this declaration doesn&apos;t have yet. Until it does,
-                      Meta campaigns can&apos;t be created. LinkedIn is unaffected.
-                    </p>
+              {/* ⚠️★★★THE WARNING IS NOT GATED ON THE SERVED OPTION LIST, AND
+                  IT WAS. Both the banner and the *Answer it* button sat inside
+                  `categoryOptions.length > 0`, so on any response that did not
+                  carry the options — an api that predates the field, a partial
+                  envelope, a deploy gap — the warning VANISHED while the
+                  reassuring line above it (*"automatic campaigns carry this
+                  declaration"*) stayed. The merchant was told they were
+                  covered in the one state where they are not.
+
+                  ★The WARNING is about the RECORD; the BUTTON is about the
+                  FORM. Only the button needs the options, because only the
+                  button leads somewhere that requires them — and a button that
+                  opens a form with no checkboxes sends no categories, which
+                  the api refuses with an error the merchant cannot act on.
+
+                  ⏸`metaCategoryAnswerMissing` is in ads-copy.ts, tested. The
+                  condition it replaces was `storedCategories === undefined`
+                  inline, which is the same rule spelled one way in one file. */}
+              {metaCategoryAnswerMissing(
+                settings.data?.settings.advertisingDeclaration,
+              ) ? (
+                <div className="space-y-1 rounded-md border border-warning/30 bg-warning/15 p-2">
+                  <p className="text-[11px] leading-relaxed text-warning-on-tint">
+                    Meta campaigns also need the special-ad-category answer,
+                    which this declaration doesn&apos;t have yet. Until it does,
+                    Meta campaigns can&apos;t be created. LinkedIn is unaffected.
+                  </p>
+                  {categoryOptions.length > 0 ? (
                     <Button
                       type="button"
                       variant="ghost"
@@ -330,8 +492,11 @@ export function AdvertisingDeclarationCard() {
                     >
                       Answer it
                     </Button>
-                  </div>
-                ) : (
+                  ) : null}
+                </div>
+              ) : null}
+              {categoryOptions.length > 0 && storedCategories !== undefined ? (
+                (
                   // ⚠️★AND AN ANSWER ALREADY GIVEN MUST BE AMENDABLE. Gating
                   // the affordance on `undefined` left the only route to
                   // changing it as WITHDRAWING the whole declaration — a
@@ -350,6 +515,15 @@ export function AdvertisingDeclarationCard() {
                       : "Meta categories: none declared — change"}
                   </Button>
                 )
+              ) : null}
+              {/* ⏸THE COUNTRIES THIS DECLARATION COVERS, when it has any.
+                  Shown read-only: the only route to changing them is the one
+                  that created them — a POLITICAL declaration — and the only
+                  route out of that is an explicit withdrawal. */}
+              {storedCountries && storedCountries.length > 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  Countries: {storedCountries.join(", ")}
+                </p>
               ) : null}
               <Button
                 type="button"
@@ -437,21 +611,167 @@ export function AdvertisingDeclarationCard() {
               </div>
             </div>
 
+            {/* ── ⚠️★★M-17: THE ANSWER, AND THERE ARE TWO OF THEM ─────────
+                This was a single checkbox reading *"I confirm this is not
+                political advertising"*, so a political advertiser could not
+                tell the truth on this surface at all — they ticked a sentence
+                that was false, or left the record absent and every autonomous
+                campaign sent NOT_DECLARED. Neither is a declaration.
+
+                ★A RADIO, NOT A SECOND CHECKBOX: two checkboxes have a state
+                where both are ticked, and this is one answer to one question.
+
+                ⏸Nothing is preselected. A default would put an unchosen legal
+                statement on screen with its notice text under it. */}
             {state.kind !== "unknown" ? (
-              <div className="flex items-start gap-2 rounded-md border bg-muted/30 p-3">
-                <Checkbox
-                  id="ads-not-political"
-                  checked={ticked}
-                  onCheckedChange={(v) => setTicked(v === true)}
+              <div className="space-y-2 rounded-md border bg-muted/30 p-3">
+                <RadioGroup
+                  value={answer ?? ""}
+                  onValueChange={(v) => {
+                    setAnswer(v as "NOT_POLITICAL" | "POLITICAL");
+                    // ★THE CONFIRMATION IS DROPPED WHEN THE ANSWER CHANGES.
+                    // A tick carried across would be consent to the wording of
+                    // the OTHER answer, which is the whole reason the api
+                    // serves two texts rather than one.
+                    setTicked(false);
+                  }}
                   disabled={save.isPending}
-                  className="mt-0.5"
-                />
-                <Label
-                  htmlFor="ads-not-political"
-                  className="text-[11px] font-normal leading-relaxed text-muted-foreground"
                 >
-                  {notice}
+                  <div className="flex items-start gap-2">
+                    <RadioGroupItem
+                      value="NOT_POLITICAL"
+                      id="ads-answer-not-political"
+                      className="mt-0.5"
+                    />
+                    <Label
+                      htmlFor="ads-answer-not-political"
+                      className="text-xs font-normal leading-relaxed"
+                    >
+                      None of my ads are political, electoral or about social
+                      issues.
+                    </Label>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <RadioGroupItem
+                      value="POLITICAL"
+                      id="ads-answer-political"
+                      className="mt-0.5"
+                    />
+                    <Label
+                      htmlFor="ads-answer-political"
+                      className="text-xs font-normal leading-relaxed"
+                    >
+                      My ads ARE political, electoral or about social issues.
+                    </Label>
+                  </div>
+                </RadioGroup>
+
+                {/* ⚠️★THE NOTICE FOLLOWS THE ANSWER. Rendering the negative
+                    wording beside a radio that records POLITICAL would stamp a
+                    consent record whose text asserts the opposite of what it
+                    stores — the defect `currentNoticeText` was split in two to
+                    prevent. Nothing is shown until an answer is chosen. */}
+                {answer && noticeText ? (
+                  <div className="flex items-start gap-2 border-t pt-2">
+                    <Checkbox
+                      id="ads-confirm-notice"
+                      checked={ticked}
+                      onCheckedChange={(v) => setTicked(v === true)}
+                      disabled={save.isPending}
+                      className="mt-0.5"
+                    />
+                    <Label
+                      htmlFor="ads-confirm-notice"
+                      className="text-[11px] font-normal leading-relaxed text-muted-foreground"
+                    >
+                      {notice}
+                    </Label>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
+            {/* ── ⚠️★★★M-17: THE COUNTRY, WITHOUT WHICH THIS CANNOT BE SENT ──
+                Meta requires `special_ad_category_country` whenever a category
+                is set, and documents a tax-country fallback for housing,
+                employment and financial services ONLY.
+                `ISSUES_ELECTIONS_POLITICS` gets no default — so a political
+                declaration naming no country could never produce a campaign,
+                and the api refuses to store one.
+
+                ⏸ASKED ONLY OF THE POLITICAL ANSWER. For every other category
+                Meta fills it in, and there is no way to CLEAR a stored country
+                list once written (omitting it is an erase the api refuses) —
+                so a field offered to everyone would be a field nobody could
+                empty. */}
+            {state.kind !== "unknown" && answer === "POLITICAL" ? (
+              <div className="space-y-2 rounded-md border bg-muted/30 p-3">
+                <Label
+                  htmlFor="ads-sac-countries"
+                  className="text-xs font-medium"
+                >
+                  {SPECIAL_AD_CATEGORY_COUNTRY_QUESTION}
                 </Label>
+                <Input
+                  id="ads-sac-countries"
+                  value={countryInput}
+                  onChange={(e) => setCountryText(e.target.value)}
+                  disabled={save.isPending}
+                  placeholder="GB, IE"
+                  className="h-8 text-xs"
+                  autoComplete="off"
+                />
+                <p className="text-[11px] leading-relaxed text-muted-foreground">
+                  {SPECIAL_AD_CATEGORY_COUNTRY_HELP}
+                </p>
+                {/* ⚠️★WHAT DID NOT PARSE IS NAMED, not silently dropped.
+                    Discarding "France" from `GB, France, IE` would record a
+                    narrower declaration than the merchant wrote and tell them
+                    nothing. */}
+                {blocked === "country_invalid" ? (
+                  <p className="text-[11px] leading-relaxed text-destructive">
+                    {parsedCountries.invalid.join(", ")} — country codes are two
+                    letters, like GB or IE.
+                  </p>
+                ) : null}
+                {/* ── ★THE EU PROHIBITION, BEFORE THE TICK ─────────────────
+                    Meta has not allowed political ads in the EU since
+                    2025-10-06. A surface that collected this declaration
+                    without saying so would collect consent for something we
+                    already know cannot run. */}
+                {euVerdict.banned.length > 0 ? (
+                  <p className="text-[11px] leading-relaxed text-warning-on-tint">
+                    Meta hasn&apos;t allowed political ads in the EU since{" "}
+                    {euBan?.since ?? "October 2025"}, so campaigns for{" "}
+                    {euVerdict.banned.join(", ")} won&apos;t run. You can still
+                    record the declaration.
+                  </p>
+                ) : null}
+                {/* ⚠️★★AND THE ONES WE CANNOT ANSWER FOR, SAID SEPARATELY.
+                    Meta's phrase is *"the EU and associated territories"* and
+                    it publishes no list; the EEA reading is ours. Folding
+                    these into the line above would state our interpretation as
+                    Meta's — and dropping them would under-warn on countries
+                    Meta may well refuse. */}
+                {euVerdict.uncertain.length > 0 ? (
+                  <p className="text-[11px] leading-relaxed text-muted-foreground">
+                    Meta&apos;s ban covers &quot;the EU and associated
+                    territories&quot; and it doesn&apos;t publish which those
+                    are, so we can&apos;t tell you whether{" "}
+                    {euVerdict.uncertain.join(", ")} counts. Check with Meta
+                    before you spend.
+                  </p>
+                ) : null}
+                {/* ⏸AND A COUNTRY IN NEITHER LIST IS NOT CLEARED. Nothing is
+                    rendered for it: an all-clear is the one thing an absence
+                    must never be read as, and there is no served list that
+                    would justify one. */}
+                {!euVerdict.known && countries.length > 0 ? (
+                  <p className="text-[11px] leading-relaxed text-muted-foreground">
+                    We can&apos;t check these against Meta&apos;s restrictions
+                    right now.
+                  </p>
+                ) : null}
               </div>
             ) : null}
 
@@ -474,7 +794,7 @@ export function AdvertisingDeclarationCard() {
                   {SPECIAL_AD_CATEGORY_QUESTION}
                 </p>
                 <div className="space-y-1.5">
-                  {categoryOptions.map(({ key, label }) => (
+                  {categoryOptions.map(({ key, label, consequence }) => (
                     <div key={key} className="flex items-start gap-2">
                       <Checkbox
                         id={`sac-${key}`}
@@ -493,39 +813,66 @@ export function AdvertisingDeclarationCard() {
                         }
                         className="mt-0.5"
                       />
-                      <Label
-                        htmlFor={`sac-${key}`}
-                        className="text-[11px] font-normal leading-relaxed text-muted-foreground"
-                      >
-                        {label}
-                      </Label>
+                      <div className="min-w-0 flex-1">
+                        <Label
+                          htmlFor={`sac-${key}`}
+                          className="text-[11px] font-normal leading-relaxed text-muted-foreground"
+                        >
+                          {label}
+                        </Label>
+                        {/* ⚠️★★M-17: THE COST IS PER OPTION NOW, AND IT MOVED
+                            HERE BECAUSE META VARIES IT BY CATEGORY.
+
+                            One shared sentence sat under the whole group and
+                            said *"no lookalikes, no exclusions, no sub-city
+                            geo"*. Meta's restrictions guide names HOUSING,
+                            EMPLOYMENT and FINANCIAL_PRODUCTS_SERVICES —
+                            ONLINE_GAMBLING_AND_GAMING does not appear on it at
+                            all. So the shared sentence asserted a restriction
+                            with no source, beside the checkbox a merchant was
+                            about to tick.
+
+                            ⏸SHOWN ONLY FOR A TICKED OPTION. Five costs under
+                            five unticked boxes is a wall nobody reads, and the
+                            one that matters is the one they just chose. */}
+                        {selected.includes(key) && consequence ? (
+                          <p className="mt-1 text-[11px] leading-relaxed text-warning-on-tint">
+                            {consequence}
+                          </p>
+                        ) : null}
+                      </div>
                     </div>
                   ))}
                 </div>
                 <p className="text-[11px] leading-relaxed text-muted-foreground">
                   {SPECIAL_AD_CATEGORY_NONE_NOTE}
                 </p>
-                {/* ⚠️★GATED ON THE TEXT, NOT ONLY ON THE TICK. Without the
-                    second condition a response that served options but no
-                    consequence rendered an EMPTY amber paragraph — a warning
-                    shape with no warning in it — and the merchant declared a
-                    category without ever seeing that Meta strips lookalikes,
-                    exclusions and sub-city geo from those campaigns. An empty
-                    warning is worse than none: it occupies the place a reader
-                    checks for one. */}
-                {selected.length > 0 && categoryConsequence ? (
-                  <p className="text-[11px] leading-relaxed text-warning-on-tint">
-                    {categoryConsequence}
-                  </p>
-                ) : null}
+                {/* ⏸THE SHARED CONSEQUENCE PARAGRAPH IS GONE, and its guard
+                    with it. It was gated on `selected.length > 0 &&
+                    categoryConsequence` so a response serving options but no
+                    consequence could not render an EMPTY amber paragraph — *"a
+                    warning shape with no warning in it"*. That reasoning still
+                    holds and now lives per option, where `consequence &&`
+                    does the same job for the same reason. */}
               </div>
             ) : null}
 
+            {/* ⚠️★★A DISABLED BUTTON WITH NO EXPLANATION IS A DEAD END, which
+                this file already refuses for `unsupported_notice`. With two
+                answers and a country field there are now four ways to be
+                un-saveable, and `declarationBlockedBecause` names which —
+                tested, because this repo cannot test JSX. */}
+            {state.kind !== "unknown" && blocked === "country_missing" ? (
+              <p className="text-[11px] leading-relaxed text-muted-foreground">
+                Add at least one country. Meta gives political ads no default,
+                so a declaration without one can&apos;t create a campaign.
+              </p>
+            ) : null}
             {state.kind !== "unknown" ? (
               <Button
                 type="button"
                 size="sm"
-                disabled={!ticked || save.isPending}
+                disabled={blocked !== null || save.isPending}
                 onClick={() => save.mutate(true)}
               >
                 {save.isPending ? (
@@ -578,6 +925,12 @@ export function AdvertisingDeclarationCard() {
                   // it would leave the boxes showing an answer the merchant
                   // backed out of, the next time they opened this.
                   setCategories(null);
+                  // ⏸AND THE TWO M-17 FIELDS. A retained `answer` is the worst
+                  // of the three to leave behind: it is the legal statement,
+                  // and re-opening the form pre-selected on a choice the
+                  // merchant backed out of is how it gets made by accident.
+                  setCountryText(null);
+                  setAnswer(null);
                 }}
               >
                 Cancel
