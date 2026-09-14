@@ -66,6 +66,8 @@ import {
   metaCategoryAnswerMissing,
   declarationSavedMessage,
   declarationBlockedMessage,
+  confirmationHolds,
+  type DeclarationConfirmation,
   stampableNoticeText,
 } from "@/lib/ads-copy";
 
@@ -86,7 +88,24 @@ export function AdvertisingDeclarationCard() {
   // notice, one moment, one submission — so answering the second half means
   // re-affirming the first, with the notice on screen.
   const [reopen, setReopen] = useState(false);
-  const [ticked, setTicked] = useState(false);
+  /**
+   * ⚠️★★★NOT A BOOLEAN, AND ROUND 2 IS WHY IT COULD NOT STAY ONE.
+   *
+   * A tick is consent to a SPECIFIC sentence. Round 2 cleared a boolean
+   * `ticked` at every entry point and on every answer change, which closed the
+   * routes a MERCHANT can take — and round 3 found the two the DATA takes,
+   * because this card re-renders on every background refetch:
+   *
+   *   • a refetch can flip the record to SUPERSEDED mid-session, switching the
+   *     form to the political wording under a tick given for the negative one;
+   *   • a refetch can bring NEW wording, swapping the checkbox label under a
+   *     tick given for the old version.
+   *
+   * ★Storing what the confirmation was FOR makes both impossible without
+   * anybody remembering to clear anything — which is the part the boolean got
+   * wrong twice. `confirmationHolds` is in ads-copy.ts, tested.
+   */
+  const [confirmed, setConfirmed] = useState<DeclarationConfirmation | null>(null);
   /**
    * ⚠️★★M-17: THE ANSWER IS NOW A CHOICE, NOT A TICK.
    *
@@ -207,7 +226,7 @@ export function AdvertisingDeclarationCard() {
       // declaredByName included), so writing it straight into the cache
       // cannot blank the version and flip this card to "unknown".
       queryClient.setQueryData(["growth-settings"], res);
-      setTicked(false);
+      setConfirmed(null);
       setCategories(null);
       setCountryText(null);
       setAnswer(null);
@@ -306,19 +325,45 @@ export function AdvertisingDeclarationCard() {
    * refetch. Held raw it would outrank `state.kind` and keep a re-confirm form
    * open over a record that had stopped being superseded.
    */
+  // ⚠️★★AND NOT ONLY WHEN SUPERSEDED (review round 3). A STANDING political
+  // record can be missing its special-ad-category answer too — the political
+  // answer does not exempt a business from the other five categories — and
+  // that state showed the warning with NO BUTTON to act on it, while the
+  // `declared` branch has offered *Answer it* for the identical state since
+  // M-03. A warning whose only remedy is on another branch is a warning the
+  // merchant cannot take.
+  //
+  // ⏸Re-declaring a standing POLITICAL re-stamps `declaredAt` and
+  // `declaredByUserId`, and that is correct rather than tolerated: the
+  // merchant is making the declaration again, with the notice on screen, which
+  // is exactly what the `amending` path already does for the negative answer —
+  // *"answering the second half means re-affirming the first"*.
+  const politicalNeedsCategories = metaCategoryAnswerMissing(
+    settings.data?.settings.advertisingDeclaration,
+  );
   const reconfirmingPolitical =
-    reopen && state.kind === "political" && state.superseded;
+    reopen &&
+    state.kind === "political" &&
+    (state.superseded || politicalNeedsCategories);
   /**
    * ⚠️★A RE-CONFIRM IS NOT A CHOICE, so the radio is not offered during one.
    *
-   * Re-confirming means *"the wording changed; do you still say this?"* — the
-   * answer is already on record. Offering the radio would put a DOWNGRADE on
-   * screen (POLITICAL → NOT_POLITICAL), which the api refuses with a 409 by
-   * design: *"a checkbox does not retract a legal statement"*. A control whose
-   * only other setting is an error is not a choice, it is a trap.
+   * Re-confirming means *"you already said this; is it still true under the
+   * current wording, and have you answered the rest?"* — the answer is on
+   * record. Offering the radio would put a DOWNGRADE on screen (POLITICAL →
+   * NOT_POLITICAL) inside a form labelled *confirm*.
+   *
+   * ⚠️★AND THE API WOULD ACCEPT IT, which a first draft of this comment had
+   * backwards. It claimed the 409 made the downgrade harmless — but the api's
+   * rule-0 guard is gated on `standing`, and a SUPERSEDED record is not
+   * standing, so on the very state this form exists for the downgrade goes
+   * straight through. ★So hiding the radio is not belt-and-braces over an api
+   * refusal; **it is the only thing standing between a re-confirm and a
+   * silent retraction.** A comment that credits a guard elsewhere is how a
+   * real one here gets deleted as redundant.
    *
    * ★Withdrawal is still one click away, in the branch this one replaces, and
-   * that is the deliberate route out.
+   * that is the deliberate route out — deliberate being the point.
    */
   /**
    * Open the form, from whichever affordance.
@@ -335,9 +380,15 @@ export function AdvertisingDeclarationCard() {
    * twice and the third site is where they were forgotten.
    */
   const openForm = () => {
-    setTicked(false);
+    setConfirmed(null);
     setAnswer(null);
     setCountryText(null);
+    // ⏸AND THE CATEGORIES (review round 3). `onSuccess` and Cancel reset all
+    // four; this reset three. An abandoned draft of `[]` would seed the next
+    // form and submit a SILENT ERASURE — the exact two-clicks-deep defect
+    // `selectedCategories` was written to close, arriving through the one
+    // reset site that did not list it.
+    setCategories(null);
     setReopen(true);
   };
 
@@ -405,6 +456,14 @@ export function AdvertisingDeclarationCard() {
   // same served lists, so they cannot disagree about which bucket a country is
   // in.
   const euVerdict = euPoliticalAdsVerdict(countries, euBan);
+  // ★DERIVED, NEVER STORED. A tick that was given for another answer or
+  // another notice version simply stops holding — no effect, no cleanup, no
+  // site to forget.
+  const ticked = confirmationHolds(
+    confirmed,
+    answerInForce,
+    settings.data?.currentNoticeVersion,
+  );
   const blocked = declarationBlockedBecause({
     answer: answerInForce,
     confirmed: ticked,
@@ -511,17 +570,19 @@ export function AdvertisingDeclarationCard() {
                   created until it is re-made with one. LinkedIn is unaffected.
                 </p>
               ) : null}
-              {/* ⚠️★★AND A WAY TO RE-CONFIRM, WHICH DID NOT EXIST. The copy
-                  above already says autonomous campaigns are sending no
+              {/* ⚠️★★AND A WAY BACK INTO THE FORM, WHICH DID NOT EXIST. The
+                  copy above already says autonomous campaigns are sending no
                   declaration at all under a superseded notice — and offered
                   nothing but Withdraw to fix it. Withdrawing to restate the
                   same thing destroys the provenance of a legal statement in
                   order to repeat it.
 
-                  ⏸OFFERED ONLY WHEN SUPERSEDED. A standing declaration has
+                  ⏸TWO REASONS TO OFFER IT, and they need different words: the
+                  wording changed, or the Meta category half was never
+                  answered. A standing declaration with both in order has
                   nothing to re-confirm, and a button suggesting otherwise
                   invites re-ticking a legal statement for no reason. */}
-              {state.superseded ? (
+              {state.superseded || politicalNeedsCategories ? (
                 <Button
                   type="button"
                   size="sm"
@@ -529,7 +590,9 @@ export function AdvertisingDeclarationCard() {
                   disabled={save.isPending}
                   onClick={openForm}
                 >
-                  Confirm the current wording
+                  {state.superseded
+                    ? "Confirm the current wording"
+                    : "Answer the Meta category question"}
                 </Button>
               ) : null}
               {/* An exit, not a tick-box. Withdrawal UNSETS the record — a
@@ -681,8 +744,13 @@ export function AdvertisingDeclarationCard() {
               )}
               <div className="min-w-0 flex-1 space-y-1">
                 <p className="text-sm font-medium">
+                  {/* ⏸TWO REASONS REACH THIS FORM NOW (review round 3), and a
+                      heading that names the wrong one tells the merchant to
+                      look for a change that did not happen. */}
                   {reconfirmingPolitical
-                    ? "Please confirm the current wording"
+                    ? state.kind === "political" && state.superseded
+                      ? "Please confirm the current wording"
+                      : "Answer the Meta category question"
                     : amending
                       ? "Answer the Meta category question"
                       : state.kind === "superseded"
@@ -695,15 +763,24 @@ export function AdvertisingDeclarationCard() {
                 </p>
                 <p className="text-xs text-muted-foreground">
                   {reconfirmingPolitical ? (
-                    <>
-                      The notice has been reworded since you declared
-                      {state.kind === "political" && state.declaredAt &&
-                      formatDeclaredAt(state.declaredAt)
-                        ? ` on ${formatDeclaredAt(state.declaredAt)}`
-                        : ""}
-                      . Until you confirm it, automatic campaigns send no
-                      declaration at all.
-                    </>
+                    state.kind === "political" && state.superseded ? (
+                      <>
+                        The notice has been reworded since you declared
+                        {state.kind === "political" && state.declaredAt &&
+                        formatDeclaredAt(state.declaredAt)
+                          ? ` on ${formatDeclaredAt(state.declaredAt)}`
+                          : ""}
+                        . Until you confirm it, automatic campaigns send no
+                        declaration at all.
+                      </>
+                    ) : (
+                      <>
+                        Your declaration stays in force. Meta also needs the
+                        special-ad-category answer, and the two are recorded
+                        together as one declaration — so confirm the wording
+                        again below and it will be saved in one go.
+                      </>
+                    )
                   ) : amending ? (
                     <>
                       Your declaration stays in force. Meta also needs the
@@ -778,11 +855,12 @@ export function AdvertisingDeclarationCard() {
                   value={answer ?? ""}
                   onValueChange={(v) => {
                     setAnswer(v as "NOT_POLITICAL" | "POLITICAL");
-                    // ★THE CONFIRMATION IS DROPPED WHEN THE ANSWER CHANGES.
-                    // A tick carried across would be consent to the wording of
-                    // the OTHER answer, which is the whole reason the api
-                    // serves two texts rather than one.
-                    setTicked(false);
+                    // ⏸NO LONGER NEEDS TO DROP THE CONFIRMATION — it records
+                    // which answer it was given for, so it stops holding on its
+                    // own. Kept as a `setConfirmed(null)` anyway so a stale
+                    // record cannot linger in state and reappear if the
+                    // merchant switches back and forth.
+                    setConfirmed(null);
                     // ⏸AND THE COUNTRY TEXT, which the radio HIDES rather than
                     // unmounts-and-clears. Leaving it meant a merchant could
                     // type `FR`, switch to NOT_POLITICAL, and save a
@@ -834,7 +912,16 @@ export function AdvertisingDeclarationCard() {
                     <Checkbox
                       id="ads-confirm-notice"
                       checked={ticked}
-                      onCheckedChange={(v) => setTicked(v === true)}
+                      onCheckedChange={(v) =>
+                        setConfirmed(
+                          v === true && answerInForce && settings.data?.currentNoticeVersion
+                            ? {
+                                answer: answerInForce,
+                                noticeVersion: settings.data.currentNoticeVersion,
+                              }
+                            : null,
+                        )
+                      }
                       disabled={save.isPending}
                       className="mt-0.5"
                     />
@@ -899,10 +986,23 @@ export function AdvertisingDeclarationCard() {
                     already know cannot run. */}
                 {euVerdict.banned.length > 0 ? (
                   <p className="text-[11px] leading-relaxed text-warning-on-tint">
-                    Meta hasn&apos;t allowed political ads in the EU since{" "}
-                    {euBan?.since ?? "October 2025"}, so campaigns for{" "}
-                    {euVerdict.banned.join(", ")} won&apos;t run. You can still
-                    record the declaration.
+                    {/* ⚠️★THE FALLBACK WAS A SECOND STATEMENT OF THE DATE
+                        (review round 3). *"October 2025"* sat beside a served
+                        `since`, so the sentence read one way or the other
+                        depending on the envelope — the exact defect the api
+                        half removed from the notice wording, reproduced in the
+                        client that reads it.
+
+                        ⏸AND THE DATE STAYS ISO rather than being formatted.
+                        `toLocaleDateString` would render differently per
+                        viewer, and this repo has been red on en-US CI for
+                        exactly that. The clause is simply dropped when the api
+                        serves no date: the ban is the fact, the date is
+                        detail. */}
+                    Meta doesn&apos;t allow political ads in the EU
+                    {euBan?.since ? ` (since ${euBan.since})` : ""}, so
+                    campaigns for {euVerdict.banned.join(", ")} won&apos;t run.
+                    You can still record the declaration.
                   </p>
                 ) : null}
                 {/* ⚠️★★AND THE ONES WE CANNOT ANSWER FOR, SAID SEPARATELY.
@@ -1052,7 +1152,9 @@ export function AdvertisingDeclarationCard() {
                     superseded branch already avoids two lines down, for the
                     same reason. */}
                 {reconfirmingPolitical
-                  ? "Confirm"
+                  ? state.kind === "political" && state.superseded
+                    ? "Confirm"
+                    : "Save"
                   : amending
                     ? "Save"
                     : state.kind === "superseded"
@@ -1104,7 +1206,7 @@ export function AdvertisingDeclarationCard() {
                 disabled={save.isPending}
                 onClick={() => {
                   setReopen(false);
-                  setTicked(false);
+                  setConfirmed(null);
                   // ★The in-progress selection is discarded, not kept. Keeping
                   // it would leave the boxes showing an answer the merchant
                   // backed out of, the next time they opened this.

@@ -383,6 +383,56 @@ export type DeclarationBlocker =
   /** Something in the country box is not a two-letter code. */
   | "country_invalid";
 
+/**
+ * What a merchant actually confirmed, rather than THAT they confirmed.
+ *
+ * ── ⚠️★★★A BOOLEAN `ticked` CANNOT SURVIVE A BACKGROUND REFETCH ──────────
+ *
+ * Round 2 cleared the tick at every entry point to the form and on every
+ * answer change, which closed the routes a MERCHANT can take. Review round 3
+ * found the two the DATA takes, and this card re-renders on every refetch:
+ *
+ *   1. `reconfirmingPolitical` turns true when a refetch reveals the notice
+ *      was superseded — mid-session, with `reopen` already set — so a tick
+ *      given for the NOT_POLITICAL wording is still set when the form
+ *      switches to the POLITICAL one. Save is live, and stamps consent to a
+ *      sentence the merchant never saw. ⏸Reachable: the win dialog calls
+ *      `invalidateQueries(["growth-settings"])`.
+ *   2. A refetch that brings NEW wording swaps the checkbox label underneath
+ *      a tick that was given for the old one, and Save stamps the new
+ *      `noticeVersion` as confirmed.
+ *
+ * ★Both are the same defect: **a tick is consent to a specific sentence, and
+ * a boolean does not record which sentence.** So the card stores what the
+ * confirmation was FOR, and this decides whether it still holds. Nothing has
+ * to remember to clear it, which is what made the boolean fail twice.
+ *
+ * ⏸`noticeVersion` rather than the text itself: the version IS the identity of
+ * the wording — that is the whole reason the field exists and the reason a
+ * bump re-prompts. Comparing the strings would re-prompt on a whitespace edit
+ * the api never versioned.
+ */
+export interface DeclarationConfirmation {
+  answer: "NOT_POLITICAL" | "POLITICAL";
+  noticeVersion: string;
+}
+
+export function confirmationHolds(
+  confirmed: DeclarationConfirmation | null,
+  answer: "NOT_POLITICAL" | "POLITICAL" | null,
+  noticeVersion: string | null | undefined,
+): boolean {
+  // ⏸ONLY THE NULL-SAFETY CHECK. A first cut also tested `!answer` and
+  // `!noticeVersion`, and the mutation suite proved both redundant by refusing
+  // to die when they were removed: the equality comparisons below already
+  // return false for a null answer or an absent version. Defensive code that
+  // nothing can reach is the shape this programme keeps deleting, so it is
+  // deleted rather than explained — the cases it was written for are still
+  // pinned, through the comparison that actually decides them.
+  if (!confirmed) return false;
+  return confirmed.answer === answer && confirmed.noticeVersion === noticeVersion;
+}
+
 export function declarationBlockedBecause(input: {
   answer: "NOT_POLITICAL" | "POLITICAL" | null;
   confirmed: boolean;

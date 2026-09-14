@@ -27,6 +27,7 @@ import {
   metaCategoryAnswerMissing,
   declarationSavedMessage,
   declarationBlockedMessage,
+  confirmationHolds,
 } from "./ads-copy";
 import * as adsCopy from "./ads-copy";
 
@@ -805,5 +806,37 @@ describe("★★declarationSavedMessage — the political answer does not exempt
 
   it("keeps the political wording once the category half is answered", () => {
     expect(declarationSavedMessage("POLITICAL", true)).toMatch(/political category/i);
+  });
+});
+
+describe("★★★confirmationHolds — a tick is consent to a SPECIFIC sentence", () => {
+  const given = { answer: "NOT_POLITICAL" as const, noticeVersion: "v1" };
+
+  it("holds for the same answer under the same wording", () => {
+    expect(confirmationHolds(given, "NOT_POLITICAL", "v1")).toBe(true);
+  });
+
+  it("★★★stops holding when the ANSWER changes underneath it", () => {
+    // ⚠️REVIEW ROUND 3. A boolean `ticked` survived a BACKGROUND REFETCH that
+    // flipped the record to superseded mid-session: the form switched to the
+    // political wording, the tick stayed set, and Save stamped consent to a
+    // sentence the merchant had never seen. Round 2 had closed every route a
+    // MERCHANT can take and none of the routes the DATA takes.
+    expect(confirmationHolds(given, "POLITICAL", "v1")).toBe(false);
+  });
+
+  it("★★★stops holding when the WORDING is re-versioned underneath it", () => {
+    // ⚠️The other data route: a refetch brings new wording, the checkbox label
+    // swaps, and the tick given for the old version stamps the new one.
+    expect(confirmationHolds(given, "NOT_POLITICAL", "v2")).toBe(false);
+  });
+
+  it("★never holds with nothing to compare against", () => {
+    // ⏸An absent version is indistinguishable from a failed read, and consent
+    // that cannot name what it was given for is not consent.
+    expect(confirmationHolds(given, "NOT_POLITICAL", undefined)).toBe(false);
+    expect(confirmationHolds(given, "NOT_POLITICAL", null)).toBe(false);
+    expect(confirmationHolds(given, null, "v1")).toBe(false);
+    expect(confirmationHolds(null, "NOT_POLITICAL", "v1")).toBe(false);
   });
 });
