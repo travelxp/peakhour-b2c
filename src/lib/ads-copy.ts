@@ -320,7 +320,12 @@ export function euPoliticalAdsVerdict(
 ): { banned: string[]; uncertain: string[]; known: boolean } {
   const bannedList = ban?.bannedCountries ?? [];
   const uncertainList = ban?.uncertainCountries ?? [];
-  const known = bannedList.length > 0;
+  // ⚠️★DERIVED FROM **EITHER** LIST (review round 1). It read
+  // `bannedList.length > 0`, so an envelope carrying the EEA list and no EU
+  // one rendered the uncertain warning AND *"we can't check these right
+  // now"* — at the same time, about the same country. A flag that says we
+  // know nothing, beside a sentence proving we know something.
+  const known = bannedList.length > 0 || uncertainList.length > 0;
   const banned: string[] = [];
   const uncertain: string[] = [];
   for (const code of codes) {
@@ -413,6 +418,50 @@ export function declarationBlockedBecause(input: {
  * Only the button needs the options, because only the button leads somewhere
  * that requires them.
  */
+/**
+ * What to tell a merchant about a Save button that will not move, or `null`
+ * when the form itself already says it.
+ *
+ * ⚠️★ONLY ONE REASON HAD COPY (review round 1), and the one that was missing
+ * is the only one the merchant cannot fix: `no_notice_text` leaves the
+ * confirm checkbox unrendered — because there is no wording to confirm — and
+ * the Save button dead, with **nothing on screen explaining either**. It is
+ * reachable on a real response: `declarationState` gates on the NEGATIVE
+ * wording alone, so an envelope serving `notPolitical` and not `political`
+ * renders the whole form and then silently refuses the political answer.
+ *
+ * ⏸`no_answer` and `not_confirmed` return `null` DELIBERATELY. The radio with
+ * nothing selected and the unticked box are the message; a line of text
+ * saying *"choose an answer"* under an unanswered question is noise, and this
+ * card already refuses a *"reload the page"* remedy for the same reason —
+ * a message that tells the reader what they can already see is not help.
+ */
+export function declarationBlockedMessage(
+  blocked: DeclarationBlocker | null,
+): string | null {
+  switch (blocked) {
+    case "country_missing":
+      return (
+        "Add at least one country. Meta gives political ads no default, so a declaration " +
+        "without one can't create a campaign."
+      );
+    case "no_notice_text":
+      // ★NO REMEDY OFFERED, because there is none the merchant can take —
+      // the same honesty the `unsupported_notice` state already shows, where
+      // a retry button would re-fetch the same envelope.
+      return (
+        "We can't show the wording for that answer right now, so we can't ask you to confirm " +
+        "it. Nothing has been changed. Contact support if this persists."
+      );
+    case "country_invalid":
+      // ⏸The card names the offending tokens beside the input, which is more
+      // use than a generic line here would be.
+      return null;
+    default:
+      return null;
+  }
+}
+
 export function metaCategoryAnswerMissing(
   declaration: AdvertisingDeclaration | null | undefined,
 ): boolean {

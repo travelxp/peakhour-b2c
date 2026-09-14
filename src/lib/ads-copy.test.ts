@@ -26,6 +26,7 @@ import {
   declarationBlockedBecause,
   metaCategoryAnswerMissing,
   declarationSavedMessage,
+  declarationBlockedMessage,
 } from "./ads-copy";
 import * as adsCopy from "./ads-copy";
 
@@ -737,5 +738,55 @@ describe("★★★declarationSavedMessage — the toast was false for Meta", ()
     const msg = declarationSavedMessage("POLITICAL", true);
     expect(msg).not.toMatch(/automatic campaigns can now declare/i);
     expect(msg).toMatch(/political category/i);
+  });
+});
+
+describe("★★declarationBlockedMessage — the one reason nobody could act on", () => {
+  it("★★★explains `no_notice_text`, which left the form silent", () => {
+    // ⚠️REVIEW ROUND 1. Only `country_missing` had copy, and the missing one
+    // is the only reason the merchant cannot fix: with no wording for the
+    // chosen answer the confirm checkbox is not rendered AT ALL, so the Save
+    // button is dead with nothing on screen explaining either.
+    //
+    // ★It is reachable on a real response: `declarationState` gates on the
+    // NEGATIVE wording alone, so an envelope serving `notPolitical` and not
+    // `political` renders the whole form and then silently refuses the
+    // political answer.
+    const msg = declarationBlockedMessage("no_notice_text");
+    expect(msg).toBeTruthy();
+    expect(msg).toMatch(/nothing has been changed/i);
+    // ⏸NO REMEDY OFFERED, because there is none the merchant can take — the
+    // same honesty this file already shows for `unsupported_notice`, where a
+    // retry button would re-fetch the same envelope.
+    expect(msg).not.toMatch(/try again|reload|refresh/i);
+  });
+
+  it("explains a missing country", () => {
+    expect(declarationBlockedMessage("country_missing")).toMatch(/at least one country/i);
+  });
+
+  it("★says NOTHING for the two the form already shows", () => {
+    // ⏸The empty radio and the unticked box ARE the message. A line of text
+    // saying *"choose an answer"* under an unanswered question is noise, and
+    // this card refuses a remedy that tells the reader what they can see.
+    expect(declarationBlockedMessage("no_answer")).toBeNull();
+    expect(declarationBlockedMessage("not_confirmed")).toBeNull();
+    expect(declarationBlockedMessage(null)).toBeNull();
+  });
+
+  it("says nothing for an invalid country, which is named beside the input", () => {
+    expect(declarationBlockedMessage("country_invalid")).toBeNull();
+  });
+});
+
+describe("★euPoliticalAdsVerdict — `known` comes from EITHER list", () => {
+  it("★★an envelope with only the uncertain list still counts as known", () => {
+    // ⚠️REVIEW ROUND 1: `known` derived from `bannedCountries` alone, so this
+    // envelope rendered the uncertain warning AND *"we can't check these right
+    // now"* — at the same time, about the same country. A flag saying we know
+    // nothing, beside a sentence proving we know something.
+    expect(
+      euPoliticalAdsVerdict(["NO"], { uncertainCountries: ["NO"] }),
+    ).toEqual({ banned: [], uncertain: ["NO"], known: true });
   });
 });

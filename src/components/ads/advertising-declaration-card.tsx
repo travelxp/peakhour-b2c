@@ -65,6 +65,7 @@ import {
   declarationBlockedBecause,
   metaCategoryAnswerMissing,
   declarationSavedMessage,
+  declarationBlockedMessage,
   stampableNoticeText,
 } from "@/lib/ads-copy";
 
@@ -158,7 +159,7 @@ export function AdvertisingDeclarationCard() {
               // ⚠️★M-17: WHICHEVER ANSWER WAS CHOSEN, not a hardcoded one.
               // The `declare` boolean used to mean NOT_POLITICAL because that
               // was the only answer this card could give.
-              politicalIntent: (answer ?? "NOT_POLITICAL") as
+              politicalIntent: (answerInForce ?? "NOT_POLITICAL") as
                 | "NOT_POLITICAL"
                 | "POLITICAL",
               // ★★ONLY WHEN THE QUESTION WAS ACTUALLY SHOWN. If the api
@@ -181,7 +182,21 @@ export function AdvertisingDeclarationCard() {
               // ⏸This is the exact INVERSE of the line above: `[]` is a real
               // answer for categories and must be sent; `[]` is not an answer
               // here and must not be.
-              ...(countries.length > 0
+              //
+              // ⚠️★★AND GATED ON THE ANSWER, NOT ONLY ON THE LIST BEING
+              // NON-EMPTY (review round 1). `countries` is seeded from the
+              // STORED value and from a text box that the radio hides rather
+              // than clears, so a merchant who typed `FR`, switched to
+              // NOT_POLITICAL and saved sent a jurisdiction claim from a
+              // hidden field — recording, on a not-political declaration,
+              // where they run political ads. The api accepts it (countries
+              // are optional for that answer) and its erase guard then
+              // refuses every later write that does not repeat it.
+              //
+              // ★The field is asked of one answer, so it is sent for one
+              // answer. Clearing the text box on change is done as well, and
+              // is the weaker half: it cannot help with a STORED list.
+              ...(answerInForce === "POLITICAL" && countries.length > 0
                 ? { specialAdCategoryCountries: countries }
                 : {}),
             }
@@ -206,7 +221,7 @@ export function AdvertisingDeclarationCard() {
       toast.success(
         declared
           ? declarationSavedMessage(
-              (answer ?? "NOT_POLITICAL") as "NOT_POLITICAL" | "POLITICAL",
+              (answerInForce ?? "NOT_POLITICAL") as "NOT_POLITICAL" | "POLITICAL",
               res.settings.advertisingDeclaration?.specialAdCategories !== undefined,
             )
           : "Declaration withdrawn.",
@@ -221,7 +236,19 @@ export function AdvertisingDeclarationCard() {
         // answer (DECLARATION_INCOMPLETE). Retrying re-sends exactly the same
         // request, forever. It is not a transient failure and must not be
         // dressed as one.
-        err instanceof ApiError && err.code === "DECLARATION_INCOMPLETE"
+        // ⚠️★★DECLARATION_STANDING IS NEWLY REACHABLE FROM THIS CARD (review
+        // round 1). The api 409s when a standing POLITICAL declaration is
+        // asked to become anything else — rule 0: *"a checkbox does not
+        // retract a legal statement"* — and until this change nothing here
+        // could WRITE a POLITICAL record, so the branch was unreachable and
+        // the error fell through to *"Try again in a moment"*. Retrying
+        // re-sends the same request for ever, and the remedy is a different
+        // action rather than a repeated one.
+        err instanceof ApiError && err.code === "DECLARATION_STANDING"
+          ? "This business is recorded as a political advertiser. That's a legal statement and " +
+            "a checkbox doesn't retract it — withdraw it first, then declare again. Nothing " +
+            "was changed."
+          : err instanceof ApiError && err.code === "DECLARATION_INCOMPLETE"
           ? // ⚠️★NO REMEDY IS OFFERED, BECAUSE THERE ISN'T ONE THE MERCHANT CAN
             // TAKE. The first cut said *reload the page*, which is the same
             // dead-end-dressed-as-a-remedy this file refuses for the
@@ -260,6 +287,42 @@ export function AdvertisingDeclarationCard() {
   });
 
   const amending = reopen && state.kind === "declared";
+  /**
+   * ⚠️★★★A POLITICAL RECORD COULD NEVER BE RE-CONFIRMED (review round 1).
+   *
+   * The `political` branch is rendered FIRST and is read-only, so a POLITICAL
+   * declaration whose notice had been superseded had exactly one route back:
+   * withdraw the whole record and declare again. That is not a re-confirm —
+   * it destroys the provenance of a legal statement in order to restate it —
+   * and while it sat there, `resolvePoliticalIntent` was sending NOT_DECLARED
+   * on every autonomous create, which the branch's own copy says out loud.
+   *
+   * ⏸It also made the *"re-confirms from what it stored"* argument for seeding
+   * the country box describe a form nobody could open. The comment was true
+   * about the code and false about the product.
+   *
+   * ★RE-VALIDATED AGAINST THE CURRENT STATE, exactly as `amending` is: this
+   * is a flag a merchant set once, and the card re-renders on every background
+   * refetch. Held raw it would outrank `state.kind` and keep a re-confirm form
+   * open over a record that had stopped being superseded.
+   */
+  const reconfirmingPolitical =
+    reopen && state.kind === "political" && state.superseded;
+  /**
+   * ⚠️★A RE-CONFIRM IS NOT A CHOICE, so the radio is not offered during one.
+   *
+   * Re-confirming means *"the wording changed; do you still say this?"* — the
+   * answer is already on record. Offering the radio would put a DOWNGRADE on
+   * screen (POLITICAL → NOT_POLITICAL), which the api refuses with a 409 by
+   * design: *"a checkbox does not retract a legal statement"*. A control whose
+   * only other setting is an error is not a choice, it is a trap.
+   *
+   * ★Withdrawal is still one click away, in the branch this one replaces, and
+   * that is the deliberate route out.
+   */
+  const answerInForce: "NOT_POLITICAL" | "POLITICAL" | null = reconfirmingPolitical
+    ? "POLITICAL"
+    : answer;
 
   // Not `isLoading`: that is pending AND fetching, so a paused/offline fetch
   // leaves it false with no data, and `declarationState` would then render a
@@ -282,8 +345,8 @@ export function AdvertisingDeclarationCard() {
   // shown: `declarationBlockedBecause` returns `no_answer` and the Save button
   // is dead. A default of the negative would put a sentence on screen that the
   // merchant has not chosen and might not agree with.
-  const noticeText = answer
-    ? stampableNoticeText(answer, settings.data?.currentNoticeText)
+  const noticeText = answerInForce
+    ? stampableNoticeText(answerInForce, settings.data?.currentNoticeText)
     : undefined;
   // ★AND THE FORM ITSELF IS SERVED. A local label map would silently stop
   // offering any category the api adds (P-09: five surfaces, five wrong
@@ -322,7 +385,7 @@ export function AdvertisingDeclarationCard() {
   // in.
   const euVerdict = euPoliticalAdsVerdict(countries, euBan);
   const blocked = declarationBlockedBecause({
-    answer,
+    answer: answerInForce,
     confirmed: ticked,
     countries,
     invalidCountries: countryText === null ? [] : parsedCountries.invalid,
@@ -346,7 +409,10 @@ export function AdvertisingDeclarationCard() {
   return (
     <Card>
       <CardContent className="p-4">
-        {state.kind === "political" ? (
+        {/* ⏸`!reconfirmingPolitical` lets the form below take over for a
+            superseded political record. Every other political state stays
+            read-only: a standing declaration is withdrawn, not re-ticked. */}
+        {state.kind === "political" && !reconfirmingPolitical ? (
           // READ-ONLY. Political advertising carries obligations Peakhour does
           // not support, so this must not offer the tick-box that would
           // overwrite a legal statement in one click.
@@ -406,6 +472,44 @@ export function AdvertisingDeclarationCard() {
                   {settings.data.politicalAdsRefused.uncertain.join(", ")} —
                   Meta doesn&apos;t publish which territories it counts.
                 </p>
+              ) : null}
+              {/* ⚠️★★THE SAME MISSING-CATEGORY WARNING AS THE `declared`
+                  BRANCH, AND IT WAS ONLY THERE (review round 1). A POLITICAL
+                  declaration stored without a special-ad-category answer —
+                  which this card can now produce, if the api served no options
+                  when it was made — resolves `never_declared` and blocks every
+                  Meta create, silently, on the one branch that never warned
+                  about it. The political answer does not exempt a business
+                  from the OTHER five categories. */}
+              {metaCategoryAnswerMissing(
+                settings.data?.settings.advertisingDeclaration,
+              ) ? (
+                <p className="text-xs text-warning-on-tint">
+                  Meta campaigns also need the special-ad-category answer, which
+                  this declaration doesn&apos;t have — so they can&apos;t be
+                  created until it is re-made with one. LinkedIn is unaffected.
+                </p>
+              ) : null}
+              {/* ⚠️★★AND A WAY TO RE-CONFIRM, WHICH DID NOT EXIST. The copy
+                  above already says autonomous campaigns are sending no
+                  declaration at all under a superseded notice — and offered
+                  nothing but Withdraw to fix it. Withdrawing to restate the
+                  same thing destroys the provenance of a legal statement in
+                  order to repeat it.
+
+                  ⏸OFFERED ONLY WHEN SUPERSEDED. A standing declaration has
+                  nothing to re-confirm, and a button suggesting otherwise
+                  invites re-ticking a legal statement for no reason. */}
+              {state.superseded ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  disabled={save.isPending}
+                  onClick={() => setReopen(true)}
+                >
+                  Confirm the current wording
+                </Button>
               ) : null}
               {/* An exit, not a tick-box. Withdrawal UNSETS the record — a
                   retraction rather than a new legal claim — so it is the one
@@ -556,9 +660,11 @@ export function AdvertisingDeclarationCard() {
               )}
               <div className="min-w-0 flex-1 space-y-1">
                 <p className="text-sm font-medium">
-                  {amending
-                    ? "Answer the Meta category question"
-                    : state.kind === "superseded"
+                  {reconfirmingPolitical
+                    ? "Please confirm the current wording"
+                    : amending
+                      ? "Answer the Meta category question"
+                      : state.kind === "superseded"
                       ? "Please confirm the current wording"
                       : state.kind === "unknown"
                         ? state.reason === "unsupported_notice"
@@ -567,7 +673,17 @@ export function AdvertisingDeclarationCard() {
                         : "Advertising declaration"}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {amending ? (
+                  {reconfirmingPolitical ? (
+                    <>
+                      The notice has been reworded since you declared
+                      {state.kind === "political" && state.declaredAt &&
+                      formatDeclaredAt(state.declaredAt)
+                        ? ` on ${formatDeclaredAt(state.declaredAt)}`
+                        : ""}
+                      . Until you confirm it, automatic campaigns send no
+                      declaration at all.
+                    </>
+                  ) : amending ? (
                     <>
                       Your declaration stays in force. Meta also needs the
                       special-ad-category answer, and the two are recorded
@@ -625,6 +741,18 @@ export function AdvertisingDeclarationCard() {
                 statement on screen with its notice text under it. */}
             {state.kind !== "unknown" ? (
               <div className="space-y-2 rounded-md border bg-muted/30 p-3">
+                {/* ⏸REPLACED BY A STATEMENT DURING A RE-CONFIRM — see
+                    `answerInForce`. The answer is already on record; the only
+                    other setting the radio could offer is one the api refuses
+                    with a 409. */}
+                {reconfirmingPolitical ? (
+                  <p className="text-xs">
+                    You&apos;re re-confirming that your ads{" "}
+                    <span className="font-medium">ARE</span> political,
+                    electoral or about social issues. To say something else,
+                    withdraw the declaration first.
+                  </p>
+                ) : (
                 <RadioGroup
                   value={answer ?? ""}
                   onValueChange={(v) => {
@@ -634,6 +762,14 @@ export function AdvertisingDeclarationCard() {
                     // the OTHER answer, which is the whole reason the api
                     // serves two texts rather than one.
                     setTicked(false);
+                    // ⏸AND THE COUNTRY TEXT, which the radio HIDES rather than
+                    // unmounts-and-clears. Leaving it meant a merchant could
+                    // type `FR`, switch to NOT_POLITICAL, and save a
+                    // jurisdiction claim from a field that was no longer on
+                    // screen. ★The submit is gated on the answer as well —
+                    // this half cannot help with a list seeded from a STORED
+                    // declaration, which is why it is not the fix on its own.
+                    setCountryText(null);
                   }}
                   disabled={save.isPending}
                 >
@@ -665,13 +801,14 @@ export function AdvertisingDeclarationCard() {
                     </Label>
                   </div>
                 </RadioGroup>
+                )}
 
                 {/* ⚠️★THE NOTICE FOLLOWS THE ANSWER. Rendering the negative
                     wording beside a radio that records POLITICAL would stamp a
                     consent record whose text asserts the opposite of what it
                     stores — the defect `currentNoticeText` was split in two to
                     prevent. Nothing is shown until an answer is chosen. */}
-                {answer && noticeText ? (
+                {answerInForce && noticeText ? (
                   <div className="flex items-start gap-2 border-t pt-2">
                     <Checkbox
                       id="ads-confirm-notice"
@@ -704,7 +841,7 @@ export function AdvertisingDeclarationCard() {
                 list once written (omitting it is an erase the api refuses) —
                 so a field offered to everyone would be a field nobody could
                 empty. */}
-            {state.kind !== "unknown" && answer === "POLITICAL" ? (
+            {state.kind !== "unknown" && answerInForce === "POLITICAL" ? (
               <div className="space-y-2 rounded-md border bg-muted/30 p-3">
                 <Label
                   htmlFor="ads-sac-countries"
@@ -862,10 +999,21 @@ export function AdvertisingDeclarationCard() {
                 answers and a country field there are now four ways to be
                 un-saveable, and `declarationBlockedBecause` names which —
                 tested, because this repo cannot test JSX. */}
-            {state.kind !== "unknown" && blocked === "country_missing" ? (
+            {/* ⚠️★ONLY ONE REASON HAD COPY (review round 1), and the missing
+                one is the only reason the merchant cannot act on:
+                `no_notice_text` leaves the confirm checkbox unrendered —
+                there is no wording to confirm — and the Save button dead,
+                with nothing on screen explaining either. It is reachable on a
+                real response, because `declarationState` gates on the
+                NEGATIVE wording alone: an envelope serving `notPolitical` and
+                not `political` renders this whole form and then silently
+                refuses the political answer.
+
+                ⏸`no_answer` and `not_confirmed` return null on purpose — the
+                empty radio and the unticked box ARE the message. */}
+            {state.kind !== "unknown" && declarationBlockedMessage(blocked) ? (
               <p className="text-[11px] leading-relaxed text-muted-foreground">
-                Add at least one country. Meta gives political ads no default,
-                so a declaration without one can&apos;t create a campaign.
+                {declarationBlockedMessage(blocked)}
               </p>
             ) : null}
             {state.kind !== "unknown" ? (
