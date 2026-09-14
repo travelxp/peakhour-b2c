@@ -248,7 +248,17 @@ export function DiscoverAudiencesDialog({
  * sentence is worse off than one who can; a merchant who cannot declare at
  * all is worse off than both."*
  */
-function PriceLine({ price }: { price: ReturnType<typeof usePeaksQuote> }) {
+export function PriceLine({ price }: { price: ReturnType<typeof usePeaksQuote> }) {
+  // ★A PRICE IN HAND IS RENDERED FIRST (review round 1). `loading` was read
+  // before `quote`, so a window-focus refetch — on by default, against a
+  // five-minute staleTime — replaced a price already on screen with
+  // "working out what this costs" while the button stayed pressable. The
+  // hook no longer reports `loading` while it holds a quote; this order is
+  // the second half of the same fix, so neither alone can put it back.
+  if (price.quote) {
+    return <QuotedPrice quote={price.quote} />;
+  }
+
   if (price.loading) {
     return (
       <p className="text-xs text-muted-foreground" aria-live="polite">
@@ -257,31 +267,37 @@ function PriceLine({ price }: { price: ReturnType<typeof usePeaksQuote> }) {
     );
   }
 
-  if (!price.quote) {
-    return (
-      <p className="text-xs text-muted-foreground" aria-live="polite">
-        {/* ⚠️NO NUMBER AND NO "Free". We do not know, and the two failures
-            below differ in whose problem it is — the api distinguishes them
-            and a client that collapsed them would have an operator debugging
-            a seeding gap as a client bug. */}
-        {price.reason === "not_priced"
+  return (
+    <p className="text-xs text-muted-foreground" aria-live="polite">
+      {/* ⚠️NO NUMBER AND NO "Free". We do not know, and these failures differ
+          in whose problem it is — the api distinguishes them and a client
+          that collapsed them would have an operator debugging a seeding gap
+          as a client bug. */}
+      {price.reason === "expired"
+        ? // ⚠️A LAPSED RECEIPT IS WITHHELD, NOT SENT (round 1): the api
+          // answers 409 and the act never runs. The refetch normally makes
+          // this invisible; if a merchant sees it, the refresh is failing.
+          "Checking the price again…"
+        : price.reason === "not_priced"
           ? "We can't show the price for this right now — it still uses Peaks."
           : "We couldn't check the price just now — this uses Peaks."}
-      </p>
-    );
-  }
+    </p>
+  );
+}
 
+/** The price itself, once we hold a receipt for it. */
+function QuotedPrice({ quote }: { quote: NonNullable<ReturnType<typeof usePeaksQuote>["quote"]> }) {
   return (
     <div className="space-y-1">
-      <p className="text-xs text-muted-foreground">{quoteCostSentence(price.quote)}</p>
+      <p className="text-xs text-muted-foreground">{quoteCostSentence(quote)}</p>
       {/* ★THE BREAKDOWN, WHEN THE TOTAL IS MADE OF MORE THAN ONE ACT. The api
           serves it precisely so a merchant asked to accept 40 Peaks can see it
           is two acts at 20 — *"a bare total invites the support question this
           feature exists to prevent"*. Hidden for a single-line quote, where it
           would only repeat the number above it. */}
-      {!price.quote.free && price.quote.breakdown.length > 1 && (
+      {!quote.free && quote.breakdown.length > 1 && (
         <ul className="text-xs text-muted-foreground">
-          {price.quote.breakdown.map((line) => (
+          {quote.breakdown.map((line) => (
             <li key={line.useCase} className="flex justify-between gap-4">
               <span>{line.label}</span>
               {/* Each LINE branches on its own `free` too: a total can be

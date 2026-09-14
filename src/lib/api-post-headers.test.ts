@@ -95,4 +95,29 @@ describe("★★api.post — a caller header reaches the request", () => {
     await api.post("/v1/x", { a: 1 }, { "X-CSRF-Token": "forged" });
     expect(headersOf()["x-csrf-token"]).toBe("csrf-abc");
   });
+
+  it.each([["x-csrf-token"], ["X-Csrf-Token"], ["X-CSRF-TOKEN"]])(
+    "★★…in ANY casing, including %s (round 1)",
+    async (key) => {
+      // ⚠️THE MERGE IS CASE-SENSITIVE AND `headers` IS A PLAIN OBJECT, so a
+      // caller using a different spelling left a SECOND key — and `fetch`
+      // joins duplicate header names with a comma, producing
+      // `x-csrf-token: forged, real`. The built-in CSRF retry rewrites only
+      // the canonical spelling, so it could not clear it either.
+      //
+      // ★LATENT (no caller does this today) AND IT IS THE GUARANTEE THAT
+      // JUSTIFIED THE PARAMETER, so it is made true rather than documented as
+      // holding for one spelling. The first version of this file tested that
+      // one spelling and would have passed throughout.
+      await api.post("/v1/x", { a: 1 }, { [key]: "forged" });
+      const sent = headersOf();
+      expect(sent["x-csrf-token"]).toBe("csrf-abc");
+      // ★AND EXACTLY ONE KEY SURVIVES. Asserting the value alone passes on a
+      // comma-joined pair whose first half happens to be right.
+      const csrfKeys = Object.keys(h.calls[0]!.init.headers as Record<string, string>).filter(
+        (k) => k.toLowerCase() === "x-csrf-token",
+      );
+      expect(csrfKeys).toHaveLength(1);
+    },
+  );
 });

@@ -51,7 +51,7 @@ export interface PeaksQuoteState {
    * route's own comment: *"Collapsing both into one status is how a seeding gap
    * gets debugged as a client bug."*
    */
-  reason: "unknown_action" | "not_priced" | "unreachable" | undefined;
+  reason: "unknown_action" | "not_priced" | "unreachable" | "expired" | undefined;
 }
 
 export function usePeaksQuote(action: PeaksActionKey, enabled: boolean): PeaksQuoteState {
@@ -76,10 +76,33 @@ export function usePeaksQuote(action: PeaksActionKey, enabled: boolean): PeaksQu
      * itself, which on this surface takes the better part of a minute.
      */
     staleTime: 5 * 60 * 1000,
+    /**
+     * WARN KEPT FRESH WHILE THE SURFACE IS OPEN (review round 1), because a
+     * LAPSED receipt is worse than none: the api answers 409 and the act
+     * never runs, so a dialog left open past the TTL would fail on every
+     * press. A quote is one GET with no model call behind it; five minutes
+     * against a fifteen-minute token means what we hold is never more than
+     * a third of the way through its life.
+     */
+    refetchInterval: enabled ? 5 * 60 * 1000 : false,
   });
 
   return deriveQuoteState({
     enabled,
+    /**
+     * ⏸READ DURING RENDER, DELIBERATELY, AND THE RULE IS RIGHT IN GENERAL.
+     * "Is this receipt still valid" is a question about the clock, and the only
+     * pure alternatives are worse: a `now` in state needs a timer re-rendering
+     * this subtree every second to stay honest, and a value captured once goes
+     * stale exactly when it matters.
+     *
+     * ★THE IMPURITY IS BOUNDED. A stale read here can only mean we render a
+     * price a moment longer than we should; `refetchInterval` replaces the
+     * receipt every five minutes against a fifteen-minute TTL, so the window
+     * this could be wrong in is one the refetch has already closed.
+     */
+    // eslint-disable-next-line react-hooks/purity
+    now: Date.now(),
     // ⚠️`isFetching`, NOT `isPending` — see the header and `deriveQuoteState`.
     isFetching: query.isFetching,
     data: query.data,
@@ -102,17 +125,38 @@ export function deriveQuoteState(input: {
   isFetching: boolean;
   data: BindingPeaksQuote | undefined;
   error: unknown;
+  /** Injected so expiry is testable without a clock. */
+  now: number;
 }): PeaksQuoteState {
   const code = input.error instanceof ApiError ? input.error.code : undefined;
+  /**
+   * WARN A LAPSED RECEIPT IS WITHHELD, NOT HANDED OUT (review round 1).
+   * `quotedAction` answers 409 and the handler never runs, so sending a dead
+   * token FAILS THE ACT -- strictly worse than sending none, which charges
+   * the live card and succeeds. The refetch above makes this rare; this is
+   * what happens when the refetch itself has been failing.
+   *
+   * STAR AND THE PRICE GOES WITH IT. Rendering the number off a receipt we
+   * will not send is the false-price-at-the-moment-of-the-ask this row
+   * exists to remove, one refresh later.
+   */
+  const expired = !!input.data && input.data.expiresAt <= input.now;
+  const quote = expired ? undefined : input.data;
   return {
-    quote: input.data,
-    loading: input.isFetching,
+    quote,
+    // STAR A QUOTE IN HAND BEATS A BACKGROUND REFETCH (round 1). `loading`
+    // was read first by the renderer, so a window-focus refetch replaced a
+    // price already on screen with 'working out what this costs' while the
+    // button stayed pressable -- a surface that forgets what it knows.
+    loading: input.isFetching && !quote,
     // ★ASKED, NOT FETCHING, AND NOTHING TO SHOW FOR IT. `enabled` is part of
     // it because a surface that has not opened has not asked — reporting
     // `unavailable` there would render "we couldn't check the price" on a
     // dialog nobody has opened.
-    unavailable: input.enabled && !input.isFetching && !input.data,
-    reason: input.error
+    unavailable: input.enabled && !input.isFetching && !quote,
+    reason: expired
+      ? "expired"
+      : input.error
       ? code === "UNKNOWN_ACTION"
         ? "unknown_action"
         : code === "ACTION_NOT_PRICED"

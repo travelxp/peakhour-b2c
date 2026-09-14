@@ -18,6 +18,10 @@ import type { BindingPeaksQuote } from "@/lib/api/peaks";
  * here, which is why the derivation is a pure function.
  */
 
+
+/** A fixed clock, so expiry is a fact of the input rather than of the run. */
+const NOW = 1_780_000_000_000;
+
 const QUOTE = {
   action: "growth.propose_audiences",
   useCase: "growth.campaign_plan",
@@ -31,10 +35,16 @@ const QUOTE = {
   free: false,
   source: "code",
   token: "signed.receipt",
-  expiresAt: Date.now() + 900_000,
+  expiresAt: NOW + 900_000,
 } as BindingPeaksQuote;
 
-const base = { enabled: true, isFetching: false, data: undefined, error: undefined };
+const base = {
+  enabled: true,
+  isFetching: false,
+  data: undefined,
+  error: undefined,
+  now: NOW,
+};
 
 describe("★★deriveQuoteState — loading, priced, or honestly unavailable", () => {
   it("★★a CLOSED surface is none of the three", () => {
@@ -104,5 +114,51 @@ describe("★★whose problem it is — the api distinguishes these and so must 
       error: new ApiError("ACTION_NOT_PRICED", "x", 502),
     });
     expect(s.quote).toBeUndefined();
+  });
+});
+
+describe("★★an EXPIRED receipt is withheld, never sent (round 1)", () => {
+  it("★★withholds the quote once `expiresAt` has passed", () => {
+    // ⚠️THE PREMISE THIS CLIENT WAS BUILT ON WAS WRONG. A lapsed token is not
+    // billed at the live rate card — `quotedAction` answers **409
+    // QUOTE_NOT_HONOURED and the handler never runs**. So sending a dead
+    // receipt FAILS THE ACT, which is strictly worse than sending none.
+    const s = deriveQuoteState({ ...base, data: QUOTE, now: QUOTE.expiresAt + 1 });
+    expect(s.quote).toBeUndefined();
+    expect(s.reason).toBe("expired");
+  });
+
+  it("★and the PRICE goes with it — we do not show a number we won't honour", () => {
+    // Rendering the figure off a receipt we will not send is the
+    // false-price-at-the-moment-of-the-ask this row exists to remove, one
+    // refresh later.
+    const s = deriveQuoteState({ ...base, data: QUOTE, now: QUOTE.expiresAt + 1 });
+    expect(s.quote?.peaks).toBeUndefined();
+    expect(s.unavailable).toBe(true);
+  });
+
+  it("★a receipt one millisecond short of expiry is still good", () => {
+    // The boundary, because `<=` and `<` are one character apart and one of
+    // them throws away a usable quote on every tick.
+    const s = deriveQuoteState({ ...base, data: QUOTE, now: QUOTE.expiresAt - 1 });
+    expect(s.quote).toBe(QUOTE);
+    expect(s.reason).toBeUndefined();
+  });
+});
+
+describe("★a quote in hand beats a background refetch (round 1)", () => {
+  it("★★does not report `loading` while it holds a price", () => {
+    // ⚠️Window-focus refetch is on by default. Reporting `loading` here
+    // replaced a price already on screen with "working out what this costs"
+    // while the button stayed pressable — a surface that forgets what it
+    // knows, on the one screen where the number is the point.
+    const s = deriveQuoteState({ ...base, data: QUOTE, isFetching: true });
+    expect(s.quote).toBe(QUOTE);
+    expect(s.loading).toBe(false);
+  });
+
+  it("★but DOES report loading on a refetch that has nothing to fall back on", () => {
+    const s = deriveQuoteState({ ...base, isFetching: true });
+    expect(s.loading).toBe(true);
   });
 });

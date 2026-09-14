@@ -359,6 +359,11 @@ export const audiencesApi = {
      * a price. A surface that DID show one and then omits this has quoted
      * a number it is not holding itself to -- which is the whole failure
      * requirement 4 exists to prevent.
+     *
+     * WARN AND AN EXPIRED TOKEN IS NOT THE SAME AS AN ABSENT ONE (round 1).
+     * Absent means charge the live card and succeed; EXPIRED means 409 and
+     * the handler never runs. A caller must withhold a lapsed receipt rather
+     * than send it -- see `usePeaksQuote`, which will not hand one out.
      */
     quoteToken?: string,
   ) =>

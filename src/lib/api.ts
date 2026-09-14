@@ -114,6 +114,19 @@ class ApiClient {
     if (method !== "GET" && method !== "HEAD" && method !== "OPTIONS") {
       const token = await getCsrfToken();
       if (token) {
+        // WARN CASE-INSENSITIVE, BECAUSE THE MERGE ABOVE IS NOT (review round
+        // 1). `headers` is a plain object, so a caller passing
+        // `x-csrf-token` leaves a SECOND key here -- and `fetch` joins
+        // duplicate header names with a comma, producing
+        // `x-csrf-token: forged, real`, which the built-in CSRF retry cannot
+        // clear because it only ever rewrites the canonical spelling.
+        //
+        // STAR LATENT TODAY (no caller does this) AND IT IS THE GUARANTEE
+        // THAT JUSTIFIED ADDING A HEADERS PARAMETER AT ALL, so it is made
+        // true rather than documented as holding for one spelling.
+        for (const key of Object.keys(headers)) {
+          if (key.toLowerCase() === "x-csrf-token") delete headers[key];
+        }
         headers["X-CSRF-Token"] = token;
       }
     }
@@ -299,7 +312,8 @@ class ApiClient {
    *
    * ⏸ORDERING, STATED PRECISELY BECAUSE "it merges" is not precise enough:
    * `request` applies caller headers OVER the content type and then sets the
-   * CSRF token, so CSRF cannot be overridden from here and the content type
+   * CSRF token, so CSRF cannot be overridden from here — in ANY casing,
+   * which review round 1 found was true of only one — and the content type
    * can. Neither matters for a quote receipt; both would matter to whoever
    * reaches for this next.
    */

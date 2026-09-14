@@ -94,9 +94,21 @@ export interface BindingPeaksQuote extends PeaksQuote {
    * remove.
    */
   token: string;
-  /** Epoch milliseconds. After this the api refuses the token and the act is
-   *  charged at the live rate card — so a surface holding one must re-quote
-   *  rather than send a lapsed receipt. */
+  /**
+   * Epoch milliseconds.
+   *
+   * ⚠️★★AFTER THIS THE API REFUSES THE ACT — IT DOES NOT FALL BACK TO THE
+   * LIVE RATE CARD (review round 1). This said it did, in three places, and
+   * the whole client error story was built on it. `quotedAction` answers
+   * **409 `QUOTE_NOT_HONOURED` and the handler never runs**: *"nothing has
+   * been charged and nothing generated, so a re-quote costs the merchant one
+   * round trip."*
+   *
+   * ★SO A LAPSED RECEIPT IS WORSE THAN NO RECEIPT. Sending none charges the
+   * live card and the act succeeds; sending a dead one fails the act
+   * outright. A surface holding a quote must keep it fresh or withhold it —
+   * never send it and hope.
+   */
   expiresAt: number;
 }
 

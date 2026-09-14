@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { quoteCostSentence, quotePrice, peaksPrice } from "@/lib/peaks-price-label";
+import { formatPeaks } from "@/lib/pricing";
 
 /**
  * ★★THE PRICE BEFORE THE ASK (P-10, §7.0.1 requirement 4).
@@ -64,8 +65,14 @@ describe("quotePrice — the figure on its own", () => {
     expect(quotePrice(freeButPriced)).toEqual({ label: "Free", free: true });
   });
 
-  it("groups a large figure the way a merchant reads one", () => {
-    expect(quotePrice({ free: false, peaks: 12000 }).label).toBe("12,000");
+  it("★groups a large figure through the PINNED formatter", () => {
+    // ⚠️COMPUTED, NOT HARDCODED (round 1). A literal "12,000" passes against
+    // a bare `toLocaleString()` on an en-US host and fails on an en-IN one,
+    // which is the host-locale drift `pricing.ts` pinned en-US to remove —
+    // so the literal would have asserted the defect away. The sibling test in
+    // `peaks-price-label.test.ts` already computes it.
+    expect(quotePrice({ free: false, peaks: 12000 }).label).toBe(formatPeaks(12000));
+    expect(quoteCostSentence({ free: false, peaks: 12000 })).toContain(formatPeaks(12000));
   });
 });
 

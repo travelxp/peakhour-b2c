@@ -1,4 +1,5 @@
 import type { RateCardUseCase } from "@/hooks/use-credits";
+import { formatPeaks } from "@/lib/pricing";
 
 /**
  * What a task's price says to the merchant.
@@ -93,7 +94,11 @@ export function quoteCostSentence(
 ): string {
   if (!quote) return "Uses Peaks.";
   if (quote.free) return "Free — you are never charged for this.";
-  return `Costs ${quote.peaks.toLocaleString()} Peaks.`;
+  // WARN `formatPeaks`, NOT A BARE `toLocaleString()` (round 1). The default
+  // locale is the host's, so an en-IN merchant reads 'Costs 1,00,000 Peaks.'
+  // beside '100,000' rendered by the pricing card two components away --
+  // which `pricing.ts` pinned en-US for in the first place.
+  return `Costs ${formatPeaks(quote.peaks)} Peaks.`;
 }
 
 /**
@@ -106,5 +111,5 @@ export function quoteCostSentence(
  */
 export function quotePrice(quote: { free: boolean; peaks: number }): PeaksPrice {
   if (quote.free) return { label: "Free", free: true };
-  return { label: quote.peaks.toLocaleString(), free: false };
+  return { label: formatPeaks(quote.peaks), free: false };
 }

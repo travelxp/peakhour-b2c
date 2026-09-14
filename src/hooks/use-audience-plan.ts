@@ -56,6 +56,36 @@ export function useAudiencePlan(opts?: { onPlanned?: (res: AudiencePlanResponse)
     onError: (err, variables) => {
       const code = err instanceof ApiError ? err.code : undefined;
       /**
+       * WARN A REFUSED QUOTE IS THE MERCHANT'S TO FIX, AND WITHOUT THIS IT
+       * WAS NOT (review round 1). `quotedAction` answers 409
+       * `QUOTE_NOT_HONOURED` and the handler never runs -- nothing charged,
+       * nothing generated. Falling through to `toastUnhandledApiError`
+       * classified it PERMANENT and showed a non-dismissable 'contact
+       * support and quote reference X', discarding the api's own sentence:
+       * *'That price quote has expired. Ask for a fresh quote and confirm
+       * the new price.'*
+       *
+       * STAR THE API'S MESSAGE IS RENDERED RATHER THAN REPLACED. It varies
+       * by reason -- expired, wrong action, unverifiable -- and
+       * `quoteFailureMessage` exists precisely so every route says the same
+       * thing about the same failure. A second wording here would be a
+       * second source for one answer.
+       *
+       * OMITTED THE SURFACE RE-QUOTES ON ITS OWN (`usePeaksQuote` refetches
+       * while open and withholds a lapsed receipt), so reaching this branch
+       * means the refresh itself has been failing. Pressing again after one
+       * is the honest instruction either way.
+       */
+      if (code === "QUOTE_NOT_HONOURED") {
+        toast.error("That price has changed.", {
+          description:
+            err instanceof ApiError && err.message
+              ? err.message
+              : "Ask for a fresh quote and confirm the new price.",
+        });
+        return;
+      }
+      /**
        * ★THE CHANNEL THE REQUEST WAS FOR, NOT A CONSTANT.
        *
        * The hook threads `platform` all the way into the request and then said

@@ -32,6 +32,9 @@ import {
 } from "@/lib/api/audiences";
 import { useAudienceSets } from "@/hooks/use-audience-library";
 import { useAudiencePlan, planRefusalCopy } from "@/hooks/use-audience-plan";
+import { usePeaksQuote } from "@/hooks/use-peaks-quote";
+import { PriceLine } from "@/components/audience/discover-audiences-dialog";
+import { PEAKS_ACTIONS } from "@/lib/api/peaks";
 import {
   audienceShape,
   channelNotes,
@@ -158,6 +161,19 @@ export function UseSavedAudienceDialog({
    * modal that hangs for forty seconds before showing anything reads as broken.
    * Stored recommendations render instantly; a fresh run is a button.
    */
+  /**
+   * ⚠️★THE SECOND BUTTON ON THE SAME WRAPPED ROUTE (review round 1).
+   * `POST /v1/audiences/plan` is fired from HERE as well, and requirement 4
+   * had been met on one of the two — so a merchant reaching the engine from
+   * a campaign was charged without ever seeing a price, which is the exact
+   * state this row exists to end.
+   *
+   * ★ONE HOOK AND ONE RENDERER, NOT A SECOND COPY. §7.0.1's own correction
+   * box is about five surfaces deriving one rule five ways; a second price
+   * component here would be the sixth.
+   */
+  const price = usePeaksQuote(PEAKS_ACTIONS.proposeAudiences, open);
+
   const plan = useAudiencePlan({
     onPlanned: (res) => {
       if (res.refusal) {
@@ -400,7 +416,13 @@ export function UseSavedAudienceDialog({
                     <button
                       type="button"
                       disabled={plan.isPending}
-                      onClick={() => plan.mutate({ objective: planObjective, platform })}
+                      onClick={() =>
+                        plan.mutate({
+                          objective: planObjective,
+                          platform,
+                          ...(price.quote ? { quoteToken: price.quote.token } : {}),
+                        })
+                      }
                       className="text-xs font-medium text-primary hover:underline disabled:opacity-60"
                     >
                       {plan.isPending ? "Working…" : "Work out fresh ones"}
@@ -437,6 +459,9 @@ export function UseSavedAudienceDialog({
                             ? plan.mutate({
                                 objective: planObjective,
                                 platform,
+                                ...(price.quote
+                                  ? { quoteToken: price.quote.token }
+                                  : {}),
                               })
                             : setDiscoverOpen(true)
                         }
@@ -448,6 +473,11 @@ export function UseSavedAudienceDialog({
                             nothing for that long reads as broken. */}
                         {plan.isPending ? "Working out who to target…" : "Get recommendations"}
                       </Button>
+                      {/* ★THE PRICE, BEFORE THE ASK — the same renderer the
+                          Audiences dialog uses, not a second one. Both buttons
+                          above fire the same wrapped route, and requirement 4
+                          was met on one of them until review round 1. */}
+                      {!planObjective ? null : <PriceLine price={price} />}
                     </div>
                   ) : null
                 }
