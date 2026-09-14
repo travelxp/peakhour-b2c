@@ -790,3 +790,20 @@ describe("★euPoliticalAdsVerdict — `known` comes from EITHER list", () => {
     ).toEqual({ banned: [], uncertain: ["NO"], known: true });
   });
 });
+
+describe("★★declarationSavedMessage — the political answer does not exempt the categories", () => {
+  it("★★★a POLITICAL save with no category answer says Meta still can't run", () => {
+    // ⚠️REVIEW ROUND 2. The political branch returned BEFORE consulting
+    // `hasCategoryAnswer`, so this record was told *"we'll tell you where they
+    // can't run"* — a sentence about which campaigns work — while
+    // `resolveSpecialAdCategories` reported `never_declared` and NONE of them
+    // could be created. The card's own warning contradicted it one render later.
+    const msg = declarationSavedMessage("POLITICAL", false);
+    expect(msg).toMatch(/special-ad-category/);
+    expect(msg).not.toMatch(/we'll tell you where/i);
+  });
+
+  it("keeps the political wording once the category half is answered", () => {
+    expect(declarationSavedMessage("POLITICAL", true)).toMatch(/political category/i);
+  });
+});

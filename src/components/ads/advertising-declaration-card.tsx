@@ -320,6 +320,27 @@ export function AdvertisingDeclarationCard() {
    * ★Withdrawal is still one click away, in the branch this one replaces, and
    * that is the deliberate route out.
    */
+  /**
+   * Open the form, from whichever affordance.
+   *
+   * ⚠️★★EVERY ENTRY POINT CLEARS THE DRAFT, and `setReopen(true)` on its own
+   * did not (review round 2). `onSuccess` and Cancel both reset all three
+   * fields; the two buttons that OPEN the form reset none, so a tick given
+   * for the NOT_POLITICAL wording could carry into a POLITICAL re-confirm and
+   * leave Save immediately live — consent to a sentence the merchant had not
+   * been shown for the answer being recorded.
+   *
+   * ⏸It needs a mid-session change of state to reach, which is why it is worth
+   * a function rather than a comment: the three resets were already written
+   * twice and the third site is where they were forgotten.
+   */
+  const openForm = () => {
+    setTicked(false);
+    setAnswer(null);
+    setCountryText(null);
+    setReopen(true);
+  };
+
   const answerInForce: "NOT_POLITICAL" | "POLITICAL" | null = reconfirmingPolitical
     ? "POLITICAL"
     : answer;
@@ -506,7 +527,7 @@ export function AdvertisingDeclarationCard() {
                   size="sm"
                   className="h-7 px-2 text-xs"
                   disabled={save.isPending}
-                  onClick={() => setReopen(true)}
+                  onClick={openForm}
                 >
                   Confirm the current wording
                 </Button>
@@ -592,7 +613,7 @@ export function AdvertisingDeclarationCard() {
                       variant="ghost"
                       size="sm"
                       className="h-7 px-2 text-xs"
-                      onClick={() => setReopen(true)}
+                      onClick={openForm}
                     >
                       Answer it
                     </Button>
@@ -612,7 +633,7 @@ export function AdvertisingDeclarationCard() {
                     variant="ghost"
                     size="sm"
                     className="h-7 px-2 text-xs text-muted-foreground"
-                    onClick={() => setReopen(true)}
+                    onClick={openForm}
                   >
                     {storedCategories.length > 0
                       ? `Meta categories: ${storedCategories.length} declared — change`
@@ -1026,11 +1047,17 @@ export function AdvertisingDeclarationCard() {
                 {save.isPending ? (
                   <Loader2 className="mr-1 size-3 animate-spin" />
                 ) : null}
-                {amending
-                  ? "Save"
-                  : state.kind === "superseded"
-                    ? "Confirm"
-                    : "Save declaration"}
+                {/* ⏸A re-confirm is not a first declaration, and said *"Save
+                    declaration"* (review round 2) — the same word the
+                    superseded branch already avoids two lines down, for the
+                    same reason. */}
+                {reconfirmingPolitical
+                  ? "Confirm"
+                  : amending
+                    ? "Save"
+                    : state.kind === "superseded"
+                      ? "Confirm"
+                      : "Save declaration"}
               </Button>
             ) : state.reason ===
               "unsupported_notice" ? // No retry: the read succeeded. Re-fetching returns the same
@@ -1058,8 +1085,17 @@ export function AdvertisingDeclarationCard() {
                 clicked it to look, or clicked it by mistake, had no route back
                 to the standing declaration short of reloading the page. A
                 sibling rather than a branch, so it cannot disturb the
-                `state.reason` narrowing the retry button above depends on. */}
-            {amending ? (
+                `state.reason` narrowing the retry button above depends on.
+
+                ⚠️★★AND THE POLITICAL RE-CONFIRM NEEDED IT MORE, NOT LESS
+                (review round 2). That form REPLACES the read-only branch, so
+                entering it takes the Withdraw button off screen as well —
+                and it is the one form that can be un-saveable for a reason
+                the merchant cannot fix (`no_notice_text`, or a
+                DECLARATION_INCOMPLETE from an envelope with no category
+                options). Gated on `amending` alone, that was a trap with no
+                exit but a page reload. */}
+            {amending || reconfirmingPolitical ? (
               <Button
                 type="button"
                 variant="ghost"

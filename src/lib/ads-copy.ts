@@ -488,16 +488,33 @@ export function declarationSavedMessage(
   intent: "NOT_POLITICAL" | "POLITICAL",
   hasCategoryAnswer: boolean,
 ): string {
+  // ⚠️★★THE CATEGORY HALF IS CHECKED FOR **BOTH** ANSWERS (review round 2).
+  // The political branch returned before consulting `hasCategoryAnswer`, so a
+  // POLITICAL declaration saved without one was told *"we'll tell you where
+  // they can't run"* — a sentence about which campaigns work — while
+  // `resolveSpecialAdCategories` reported `never_declared` and NONE of them
+  // could be created. The card's own warning contradicted it one render later.
+  //
+  // ★The political answer does not exempt a business from the other five
+  // categories, and the message has no business implying it does.
+  if (!hasCategoryAnswer) {
+    return (
+      "Declaration recorded for LinkedIn. Meta campaigns still need the special-ad-category " +
+      "answer before they can be created."
+    );
+  }
   if (intent === "POLITICAL") {
     return (
       "Recorded. Your campaigns will carry the political category, and we'll tell you " +
       "where they can't run."
     );
   }
-  return hasCategoryAnswer
-    ? "Declaration recorded — automatic campaigns can now declare on your behalf."
-    : "Declaration recorded for LinkedIn. Meta campaigns still need the special-ad-category " +
-        "answer before they can be created.";
+  // ⏸NO TERNARY HERE ANY MORE. Hoisting the missing-category case above the
+  // political one left `hasCategoryAnswer ? … : …` with an UNREACHABLE false
+  // branch — the early return has already taken it. The mutation suite is what
+  // said so: replacing the condition with `true` stopped killing anything,
+  // which is the signature of a branch nothing can reach.
+  return "Declaration recorded — automatic campaigns can now declare on your behalf.";
 }
 
 export function stampableNoticeText(
