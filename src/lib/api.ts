@@ -288,10 +288,26 @@ class ApiClient {
     return { data: json.data as T, meta: (json.meta as Record<string, unknown>) ?? {} };
   }
 
-  post<T>(path: string, body?: unknown) {
+  /**
+   * POST JSON.
+   *
+   * ★`headers` IS OPTIONAL AND IS NOT A GENERAL ESCAPE HATCH. It exists for
+   * `x-peaks-quote` (P-10): a signed receipt of the price a merchant was shown,
+   * which has to travel WITH the act it prices and cannot go in the body —
+   * every quoted route's body is its own shape, and a price field inside it
+   * would be a number the client could edit.
+   *
+   * ⏸ORDERING, STATED PRECISELY BECAUSE "it merges" is not precise enough:
+   * `request` applies caller headers OVER the content type and then sets the
+   * CSRF token, so CSRF cannot be overridden from here and the content type
+   * can. Neither matters for a quote receipt; both would matter to whoever
+   * reaches for this next.
+   */
+  post<T>(path: string, body?: unknown, headers?: Record<string, string>) {
     return this.request<T>(path, {
       method: "POST",
       body: body ? JSON.stringify(body) : undefined,
+      ...(headers ? { headers } : {}),
     });
   }
 

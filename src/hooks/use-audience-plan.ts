@@ -37,8 +37,16 @@ export function useAudiencePlan(opts?: { onPlanned?: (res: AudiencePlanResponse)
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (body: { objective: AudienceObjective; platform?: string }) =>
-      audiencesApi.plan(body),
+    mutationFn: ({
+      quoteToken,
+      ...body
+    }: {
+      objective: AudienceObjective;
+      platform?: string;
+      /** The receipt for the price the merchant just accepted (P-10).
+       *  Absent means no price was shown, which is a different act. */
+      quoteToken?: string;
+    }) => audiencesApi.plan(body, quoteToken),
     onSuccess: (res) => {
       // Every planned audience is a library row now, so every list of them is
       // stale the moment this returns.
