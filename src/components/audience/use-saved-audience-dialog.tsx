@@ -32,7 +32,7 @@ import {
 } from "@/lib/api/audiences";
 import { useAudienceSets } from "@/hooks/use-audience-library";
 import { useAudiencePlan, planRefusalCopy } from "@/hooks/use-audience-plan";
-import { usePeaksQuote } from "@/hooks/use-peaks-quote";
+import { usePeaksQuote, quoteTokenFor } from "@/hooks/use-peaks-quote";
 import { PriceLine } from "@/components/audience/discover-audiences-dialog";
 import { PEAKS_ACTIONS } from "@/lib/api/peaks";
 import {
@@ -413,20 +413,49 @@ export function UseSavedAudienceDialog({
                   // above an empty section is the same click as the panel
                   // below it, twice.
                   recommended.length > 0 && planObjective ? (
-                    <button
-                      type="button"
-                      disabled={plan.isPending}
-                      onClick={() =>
-                        plan.mutate({
-                          objective: planObjective,
-                          platform,
-                          ...(price.quote ? { quoteToken: price.quote.token } : {}),
-                        })
-                      }
-                      className="text-xs font-medium text-primary hover:underline disabled:opacity-60"
-                    >
-                      {plan.isPending ? "Working…" : "Work out fresh ones"}
-                    </button>
+                    /* WARN THE PRICE TRAVELS WITH THE BUTTON (review round
+                       2). Round 1 put the price in this Section `empty` slot
+                       and this button in its `action` slot -- and `Section`
+                       renders `children.length > 0 ? children : empty`, so
+                       THE TWO CAN NEVER BE ON SCREEN TOGETHER. `action`
+                       shows only when `recommended.length > 0`; `empty` only
+                       when it is 0. A merchant who already had
+                       recommendations pressed a priced button with no price
+                       anywhere near it -- and the receipt was still sent: a
+                       signed token for a figure they were never shown, which
+                       is the precise failure requirement 4 exists to remove
+                       and which R1.3 reported as removed.
+
+                       STAR THE PLACEMENT IS THE GUARD, because this repo has
+                       no DOM test harness at all -- no @testing-library/react,
+                       no jsdom, not one .test.tsx -- so *the price renders
+                       beside the button* cannot be asserted here, and saying
+                       otherwise would be a guard credited to a checker that
+                       does not look. What CAN be asserted is that a receipt
+                       is attached only while we hold a live one, and
+                       `quoteTokenFor` is that, tested.
+
+                       ⏸MUTATION: INERT. Deleting the `<PriceLine/>` below
+                       leaves the suite green, and that is the honest
+                       statement of what a placement can be worth here —
+                       not a claim that it is checked. */
+                    <div className="flex flex-col items-end gap-0.5">
+                      <button
+                        type="button"
+                        disabled={plan.isPending}
+                        onClick={() =>
+                          plan.mutate({
+                            objective: planObjective,
+                            platform,
+                            ...quoteTokenFor(price),
+                          })
+                        }
+                        className="text-xs font-medium text-primary hover:underline disabled:opacity-60"
+                      >
+                        {plan.isPending ? "Working…" : "Work out fresh ones"}
+                      </button>
+                      <PriceLine price={price} />
+                    </div>
                   ) : null
                 }
                 empty={
@@ -459,9 +488,7 @@ export function UseSavedAudienceDialog({
                             ? plan.mutate({
                                 objective: planObjective,
                                 platform,
-                                ...(price.quote
-                                  ? { quoteToken: price.quote.token }
-                                  : {}),
+                                ...quoteTokenFor(price),
                               })
                             : setDiscoverOpen(true)
                         }

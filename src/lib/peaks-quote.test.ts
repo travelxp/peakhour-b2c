@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { quoteCostSentence, quotePrice, peaksPrice } from "@/lib/peaks-price-label";
 import { formatPeaks } from "@/lib/pricing";
 
@@ -86,6 +86,70 @@ describe("★the quote and rate-card renderers agree about free", () => {
     );
     expect(quotePrice(freeButPriced).label).toBe(
       peaksPrice({ free: true, minCreditsPerCall: 10 }).label,
+    );
+  });
+});
+
+describe("★★the PINNED formatter, proven against the host locale (round 2)", () => {
+  /**
+   * ── ⚠️★★WHY A SPY AND NOT A LITERAL, AND THE MUTATION RUN IS THE REASON
+   *
+   * `formatPeaks` pins **en-US**, and the host this suite runs on IS en-US
+   * — so `(12000).toLocaleString()` and `formatPeaks(12000)` produce the
+   * SAME STRING here. Swapping the pinned formatter for a bare
+   * `toLocaleString()` therefore left both renderers green, and only the
+   * mutation run knew. The sibling test above computes its expectation
+   * through `formatPeaks` precisely so it is not a hardcoded literal, and
+   * that still does not help: both sides of the comparison move together.
+   *
+   * ★THE DEFECT ONLY SHOWS ON AN en-IN HOST, which is the one place this
+   * suite never runs — the same shape as a date assertion that is green
+   * locally and red on CI, one locale later. What distinguishes the two
+   * calls EVERYWHERE is not the output, it is the ARGUMENT: the pinned
+   * call names a locale and the host-locale call names nothing. So that
+   * is what is asserted.
+   */
+  function assertNeverFormatsWithoutALocale(render: () => unknown) {
+    const spy = vi.spyOn(Number.prototype, "toLocaleString");
+    try {
+      render();
+      // ⚠️A RENDERER THAT FORMATTED NOTHING would pass the loop below
+      // vacuously — nought calls, nought bad calls.
+      expect(spy).toHaveBeenCalled();
+      for (const call of spy.mock.calls) {
+        expect(call.length).toBeGreaterThan(0);
+      }
+    } finally {
+      spy.mockRestore();
+    }
+  }
+
+  it("★★quoteCostSentence names the locale it formats in", () => {
+    assertNeverFormatsWithoutALocale(() =>
+      quoteCostSentence({ free: false, peaks: 12000 }),
+    );
+  });
+
+  it("★★quotePrice names the locale it formats in", () => {
+    assertNeverFormatsWithoutALocale(() => quotePrice({ free: false, peaks: 12000 }));
+  });
+
+  it("★★and so does peaksPrice — the renderer this pair must AGREE with", () => {
+    // ⚠️★FOUND BY THIS VERY RUN, AND IT WAS NOT THIS ROW’S CODE.
+    // `peaksPrice` read a BARE `toLocaleString()` while `quotePrice`,
+    // eight lines below it in the same file, was pinned -- so on an
+    // en-IN browser the rate card rendered "1,00,000" beside a quote
+    // reading "100,000". That is the precise inconsistency
+    // `pricing.ts` pinned a locale to END: *"prices and Peaks used to
+    // run through different code paths, so an en-IN host rendered
+    // ₹2,49,999 beside 100,000"*.
+    //
+    // ★AND ITS OWN TEST COULD NOT SEE IT: it asserted against
+    // `(1500).toLocaleString()`, a bare call on BOTH sides of the
+    // comparison, so the expectation moved with the host exactly as
+    // the thing it was checking did.
+    assertNeverFormatsWithoutALocale(() =>
+      peaksPrice({ free: false, minCreditsPerCall: 12000 }),
     );
   });
 });

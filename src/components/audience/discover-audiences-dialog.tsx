@@ -5,9 +5,10 @@ import { toast } from "sonner";
 import { Check, Sparkles } from "lucide-react";
 import { critiqueTone } from "@/lib/audience-library-rules";
 import { useAudiencePlan, planRefusalCopy } from "@/hooks/use-audience-plan";
-import { usePeaksQuote } from "@/hooks/use-peaks-quote";
+import { usePeaksQuote, quoteTokenFor } from "@/hooks/use-peaks-quote";
 import { PEAKS_ACTIONS } from "@/lib/api/peaks";
 import { quoteCostSentence } from "@/lib/peaks-price-label";
+import { formatPeaks } from "@/lib/pricing";
 import {
   AUDIENCE_OBJECTIVES,
   type AudienceObjective,
@@ -202,7 +203,11 @@ export function DiscoverAudiencesDialog({
                     // could not quote — see the footer copy, which then does
                     // not claim a number either. Sending a token we never
                     // showed would be worse than sending none.
-                    ...(price.quote ? { quoteToken: price.quote.token } : {}),
+                    //
+                    // WARN ONE FUNCTION, THREE CALL SITES (review round 2).
+                    // This spread was written out longhand at each of them,
+                    // and requirement 4 was met at two of the three.
+                    ...quoteTokenFor(price),
                   })
                 } disabled={plan.isPending}>
                 {/* Named rather than a spinner-with-"Loading": this really does
@@ -302,7 +307,24 @@ function QuotedPrice({ quote }: { quote: NonNullable<ReturnType<typeof usePeaksQ
               <span>{line.label}</span>
               {/* Each LINE branches on its own `free` too: a total can be
                   billable while one of its parts is not. */}
-              <span>{line.free ? "Free" : `${line.peaks.toLocaleString()} Peaks`}</span>
+              {/* WARN THE PINNED FORMATTER, NOT A BARE `toLocaleString()`
+                  (review round 2). Round 1 fixed exactly this in
+                  `quoteCostSentence` -- the sentence rendered four lines
+                  above these rows -- and left the rows themselves reading
+                  the HOST locale. An en-IN merchant saw *Costs 100,000
+                  Peaks.* over *1,00,000 Peaks*: the same number twice, in
+                  two notations, in the one place the breakdown exists to
+                  make the total legible. It differs between the server and
+                  client render too, which is a hydration mismatch.
+
+                  ⏸MUTATION: INERT. Swapping this back for a bare
+                  `toLocaleString()` leaves the suite GREEN — there is no
+                  DOM test harness in this repo at all, so nothing renders
+                  this element. Recorded rather than left to look covered.
+                  The same rule IS killed where it is testable, in
+                  `peaks-quote.test.ts`, by asserting that the formatter is
+                  never called without naming a locale. */}
+              <span>{line.free ? "Free" : `${formatPeaks(line.peaks)} Peaks`}</span>
             </li>
           ))}
         </ul>

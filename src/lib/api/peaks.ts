@@ -115,7 +115,20 @@ export interface BindingPeaksQuote extends PeaksQuote {
 /** The whole priced menu. `unpriced` is an operator problem, not a client one
  *  — an empty array is the healthy state. */
 export interface PeaksActionMenu {
-  actions: PeaksQuote[];
+  /**
+   * WARN NAMED `quotes`, BECAUSE THAT IS WHAT THE API SENDS (review round 2).
+   * This said `actions`. `quoteAllActions` returns `{ quotes, unpriced }` and
+   * the route hands that straight to `ok()`, so the first caller would have
+   * read `undefined` and crashed on `.map`.
+   *
+   * STAR AND tsc COULD NOT SEE IT, which is the part worth keeping. `api.get<T>`
+   * ASSERTS the response shape rather than checking it, so a field name that
+   * drifts from the api is compile-clean until something renders it. The body
+   * of this PR called this method written-and-unused and offered to delete it;
+   * review found it was also WRONG, which is a different and worse fact -- an
+   * unused method that LOOKS right is the one somebody reaches for next.
+   */
+  quotes: PeaksQuote[];
   unpriced: string[];
 }
 

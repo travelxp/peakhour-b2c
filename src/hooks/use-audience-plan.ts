@@ -77,6 +77,39 @@ export function useAudiencePlan(opts?: { onPlanned?: (res: AudiencePlanResponse)
        * is the honest instruction either way.
        */
       if (code === "QUOTE_NOT_HONOURED") {
+        /**
+         * WARN AND THE REFUSED RECEIPT IS THROWN AWAY (review round 2).
+         * Without this the quote stayed in cache: `staleTime` is five
+         * minutes, and both `shouldFetchOnMount` and
+         * `shouldFetchOptionally` require `isStale` -- so neither pressing
+         * again nor closing and reopening the dialog refetched. The client
+         * re-sent the SAME refused token on every press for up to five
+         * minutes, while the toast told the merchant to ask for a fresh
+         * quote. The instruction was honest and the client ignored it.
+         *
+         * STAR EXPIRY IS NOT THE ONLY REASON A TOKEN IS REFUSED, which is
+         * why the refetch loop did not already cover this.
+         * `verifyQuoteToken` answers `malformed`, `bad_signature`,
+         * `action_mismatch` or `expired` -- and only the last is visible to
+         * a client reading `expiresAt`. A receipt refused after a secret
+         * rotation is still FRESH by its own clock, so `deriveQuoteState`
+         * goes on handing it out for ever. The api refusal is the only
+         * evidence it is bad, so it is what has to invalidate it.
+         *
+         * OMITTED THE WHOLE NAMESPACE, NOT ONE KEY. This hook is told the
+         * objective and the platform, never the action key the quote was
+         * filed under -- and a refusal is evidence about our receipts in
+         * general rather than about one of them. There is one quoted action
+         * today, so the prefix and the key name the same query anyway.
+         *
+         * ⏸MUTATION: INERT. Deleting this line leaves the suite green —
+         * there is no test file for this hook, because exercising it needs
+         * a QueryClient provider and this repo has no DOM harness to mount
+         * one in. Recorded rather than left to look covered. What IS
+         * covered is the rule underneath it: `deriveQuoteState` withholds
+         * a lapsed receipt, and `quoteTokenFor` refuses to attach one.
+         */
+        queryClient.invalidateQueries({ queryKey: ["peaks-quote"] });
         toast.error("That price has changed.", {
           description:
             err instanceof ApiError && err.message

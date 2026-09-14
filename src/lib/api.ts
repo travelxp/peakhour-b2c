@@ -66,6 +66,20 @@ export function clearCsrfToken(): void {
   csrfToken = null;
 }
 
+/**
+ * Remove any CSRF header a caller supplied, in whatever casing.
+ *
+ * WARN `headers` IS A PLAIN OBJECT AND THE MERGE INTO IT IS CASE-SENSITIVE,
+ * so `x-csrf-token` and `X-CSRF-Token` are two keys -- and `fetch` joins
+ * duplicate header names with a comma rather than picking one. Setting ours
+ * without clearing theirs sends `x-csrf-token: forged, real`.
+ */
+function stripCsrfHeader(headers: Record<string, string>): void {
+  for (const key of Object.keys(headers)) {
+    if (key.toLowerCase() === "x-csrf-token") delete headers[key];
+  }
+}
+
 class ApiClient {
   private baseUrl: string;
 
@@ -112,21 +126,19 @@ class ApiClient {
 
     // Add CSRF token for state-changing requests
     if (method !== "GET" && method !== "HEAD" && method !== "OPTIONS") {
+      // WARN STRIPPED UNCONDITIONALLY, NOT ONLY WHEN WE HOLD A TOKEN (review
+      // round 2). Round 1 put this inside `if (token)` -- and `getCsrfToken`
+      // is best-effort and answers null on any failure, so on exactly that
+      // path a caller forged `x-csrf-token` survived into the request. That
+      // is the ONE path where nothing of ours would have overwritten it, and
+      // it is the path the guard skipped.
+      //
+      // STAR A CALLER NEVER SUPPLIES THIS HEADER, in any casing, whatever we
+      // hold. That is the guarantee which justified the `headers` parameter,
+      // and it cannot be conditional on our own success.
+      stripCsrfHeader(headers);
       const token = await getCsrfToken();
       if (token) {
-        // WARN CASE-INSENSITIVE, BECAUSE THE MERGE ABOVE IS NOT (review round
-        // 1). `headers` is a plain object, so a caller passing
-        // `x-csrf-token` leaves a SECOND key here -- and `fetch` joins
-        // duplicate header names with a comma, producing
-        // `x-csrf-token: forged, real`, which the built-in CSRF retry cannot
-        // clear because it only ever rewrites the canonical spelling.
-        //
-        // STAR LATENT TODAY (no caller does this) AND IT IS THE GUARANTEE
-        // THAT JUSTIFIED ADDING A HEADERS PARAMETER AT ALL, so it is made
-        // true rather than documented as holding for one spelling.
-        for (const key of Object.keys(headers)) {
-          if (key.toLowerCase() === "x-csrf-token") delete headers[key];
-        }
         headers["X-CSRF-Token"] = token;
       }
     }
@@ -169,6 +181,13 @@ class ApiClient {
         clearCsrfToken();
         const retryToken = await getCsrfToken();
         if (retryToken) {
+          // STAR NO STRIP HERE, AND THAT IS DELIBERATE (review round 2).
+          // `stripCsrfHeader` above runs for every non-GET request before
+          // the first attempt, so anything reaching this retry has already
+          // had a caller CSRF header removed. A second strip could never
+          // fire, and a guard that cannot fire is worse than none: it reads
+          // as protection and mutation-tests as INERT. The invariant it
+          // would restate is named here instead.
           headers["X-CSRF-Token"] = retryToken;
           const retryRes = await fetch(url, {
             credentials: "include",

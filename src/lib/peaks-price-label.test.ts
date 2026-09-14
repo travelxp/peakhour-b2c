@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { peaksPrice, peaksCostSentence } from "./peaks-price-label";
+import { formatPeaks } from "@/lib/pricing";
 
 /**
  * ★THE TRANSPARENCY RULE, AS A SPEC.
@@ -33,9 +34,14 @@ describe("peaksPrice — the rate card's figure", () => {
     expect(peaksPrice({ free: false, minCreditsPerCall: 0 }).free).toBe(false);
   });
 
-  it("groups thousands, so a big number is readable", () => {
+  it("groups thousands through the PINNED formatter, so a big number is readable", () => {
+    // ⚠️AGAINST `formatPeaks`, NOT A BARE `toLocaleString()` (round 2).
+    // Both sides of this comparison used to be host-locale calls, so it
+    // passed on every host and could not distinguish a pinned renderer
+    // from an unpinned one — which is how `peaksPrice` stayed unpinned
+    // while its two siblings in the same file were fixed in round 1.
     expect(peaksPrice({ free: false, minCreditsPerCall: 1500 }).label).toBe(
-      (1500).toLocaleString(),
+      formatPeaks(1500),
     );
   });
 });

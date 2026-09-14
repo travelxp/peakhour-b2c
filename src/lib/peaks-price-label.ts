@@ -44,7 +44,19 @@ export interface PeaksPrice {
  */
 export function peaksPrice(u: Pick<RateCardUseCase, "free" | "minCreditsPerCall">): PeaksPrice {
   if (u.free) return { label: "Free", free: true };
-  return { label: u.minCreditsPerCall.toLocaleString(), free: false };
+  // WARN THE PINNED FORMATTER (review round 2). This read a BARE
+  // `toLocaleString()` -- the HOST locale -- while `quotePrice` sixty
+  // lines below it was pinned to en-US, so on an en-IN browser the rate
+  // card rendered "1,00,000" beside a quote reading "100,000".
+  // `pricing.ts` pinned a locale to END exactly that: *prices and Peaks
+  // used to run through different code paths, so an en-IN host rendered
+  // a rupee price in Indian grouping beside an allowance in Western*.
+  //
+  // STAR ITS OWN TEST COULD NOT SEE IT, which is why a MUTATION found it
+  // and review did not: the assertion compared against
+  // `(1500).toLocaleString()` -- a bare call on BOTH sides -- so the
+  // expectation drifted with the host in step with the code it checked.
+  return { label: formatPeaks(u.minCreditsPerCall), free: false };
 }
 
 /**

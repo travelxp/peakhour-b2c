@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { ApiError } from "@/lib/api";
-import { deriveQuoteState } from "./use-peaks-quote";
+import {
+  deriveQuoteState,
+  quoteTokenFor,
+  QUOTE_CLOCK_SKEW_MS,
+} from "./use-peaks-quote";
 import type { BindingPeaksQuote } from "@/lib/api/peaks";
 
 /**
@@ -137,12 +141,105 @@ describe("★★an EXPIRED receipt is withheld, never sent (round 1)", () => {
     expect(s.unavailable).toBe(true);
   });
 
-  it("★a receipt one millisecond short of expiry is still good", () => {
+  it("★a receipt one millisecond short of the SKEW MARGIN is still good", () => {
     // The boundary, because `<=` and `<` are one character apart and one of
-    // them throws away a usable quote on every tick.
-    const s = deriveQuoteState({ ...base, data: QUOTE, now: QUOTE.expiresAt - 1 });
+    // them throws away a usable quote on every tick. WARN THE EDGE MOVED IN
+    // ROUND 2: the margin is subtracted from `expiresAt`, so *still good*
+    // now means a millisecond short of `expiresAt - QUOTE_CLOCK_SKEW_MS`.
+    const s = deriveQuoteState({
+      ...base,
+      data: QUOTE,
+      now: QUOTE.expiresAt - QUOTE_CLOCK_SKEW_MS - 1,
+    });
     expect(s.quote).toBe(QUOTE);
     expect(s.reason).toBeUndefined();
+  });
+
+  it("★★withholds a receipt INSIDE the margin, before it is strictly expired", () => {
+    // WARN THE DIRECTION IS DELIBERATE (round 2). By its own clock this
+    // receipt is still valid; by a server clock thirty seconds ahead it is
+    // not. Withholding early costs one GET. Handing it out costs the ACT:
+    // 409 QUOTE_NOT_HONOURED, and nothing runs.
+    const s = deriveQuoteState({
+      ...base,
+      data: QUOTE,
+      now: QUOTE.expiresAt - QUOTE_CLOCK_SKEW_MS,
+    });
+    expect(s.quote).toBeUndefined();
+    expect(s.reason).toBe("expired");
+  });
+
+  it("★★the margin is THIRTY SECONDS, stated rather than read back", () => {
+    // ⚠️THE MUTATION RUN FOUND THIS, AND IT IS THE FIXTURE-GAP SHAPE.
+    // The two cases above compute `now` FROM `QUOTE_CLOCK_SKEW_MS`, so
+    // they move with it: setting the constant to 0 left both of them
+    // green, because the expectation slid along with the thing it was
+    // meant to pin. ★A guard whose expectation is derived from what it
+    // guards proves the RELATION and never the VALUE.
+    expect(QUOTE_CLOCK_SKEW_MS).toBe(30_000);
+    // And the consequence, stated in a literal the constant cannot move:
+    // fifteen seconds before the stamp is INSIDE a thirty-second margin.
+    const s = deriveQuoteState({
+      ...base,
+      data: QUOTE,
+      now: QUOTE.expiresAt - 15_000,
+    });
+    expect(s.quote).toBeUndefined();
+    expect(s.reason).toBe("expired");
+  });
+});
+
+describe("★★an error outranks an expiry (round 2)", () => {
+  it("★★a failing refetch over a lapsed receipt reports the ERROR, not expiry", () => {
+    // WARN BOTH ARE TRUE AT ONCE, and react-query makes that the NORMAL
+    // case: it keeps the last successful `data` while a refetch fails.
+    // Answering "expired" renders *Checking the price again...*, which
+    // reads as progress -- so a merchant whose rate-card row an operator
+    // deactivated watches a reassuring sentence for ever instead of being
+    // told we cannot price this.
+    const s = deriveQuoteState({
+      ...base,
+      data: QUOTE,
+      now: QUOTE.expiresAt + 1,
+      error: new ApiError("ACTION_NOT_PRICED", "no active row", 502),
+    });
+    expect(s.reason).toBe("not_priced");
+    expect(s.quote).toBeUndefined();
+  });
+
+  it("★and a lapsed receipt with NO error is still `expired`", () => {
+    const s = deriveQuoteState({ ...base, data: QUOTE, now: QUOTE.expiresAt + 1 });
+    expect(s.reason).toBe("expired");
+  });
+});
+
+describe("★★quoteTokenFor — the receipt is attached only while we hold one", () => {
+  it("★★attaches the token when the quote is live", () => {
+    const s = deriveQuoteState({ ...base, data: QUOTE });
+    expect(quoteTokenFor(s)).toEqual({ quoteToken: "signed.receipt" });
+  });
+
+  it("★★attaches NOTHING once the receipt has lapsed — absent beats dead", () => {
+    // WARN THE ASYMMETRY IS THE WHOLE RULE (R1.1). No receipt charges the
+    // live rate card and the act SUCCEEDS; a dead receipt is answered 409
+    // and the act never runs. So the fallback is omission, never the token
+    // we happen to be holding.
+    const s = deriveQuoteState({ ...base, data: QUOTE, now: QUOTE.expiresAt + 1 });
+    expect(quoteTokenFor(s)).toEqual({});
+  });
+
+  it("attaches nothing when there is no quote at all", () => {
+    expect(quoteTokenFor(deriveQuoteState(base))).toEqual({});
+  });
+
+  it("★spreads to nothing, so a caller payload is left unchanged", () => {
+    // ★THE SHAPE MATTERS, not only the value: every call site SPREADS this
+    // into a mutation payload, and `{ quoteToken: undefined }` would send
+    // the key with an undefined value rather than omit the key.
+    const s = deriveQuoteState(base);
+    expect(Object.keys({ objective: "awareness", ...quoteTokenFor(s) })).toEqual([
+      "objective",
+    ]);
   });
 });
 

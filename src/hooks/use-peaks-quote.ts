@@ -111,6 +111,17 @@ export function usePeaksQuote(action: PeaksActionKey, enabled: boolean): PeaksQu
 }
 
 /**
+ * How early a receipt is treated as lapsed, to absorb the difference between
+ * the clock of the server that minted it and the browser reading it
+ * (review round 2).
+ *
+ * STAR THIRTY SECONDS AGAINST A FIFTEEN-MINUTE TTL is 3% of the life of a
+ * quote -- small enough that it never costs a merchant a usable price, large
+ * enough to cover the ordinary difference between two machines.
+ */
+export const QUOTE_CLOCK_SKEW_MS = 30 * 1000;
+
+/**
  * The three states, derived from what react-query reports.
  *
  * ★EXPORTED AND PURE SO IT CAN BE TESTED AT ALL. The rule that matters here
@@ -140,7 +151,21 @@ export function deriveQuoteState(input: {
    * will not send is the false-price-at-the-moment-of-the-ask this row
    * exists to remove, one refresh later.
    */
-  const expired = !!input.data && input.data.expiresAt <= input.now;
+  // WARN A MARGIN, NOT A SKEW FIX (review round 2). `expiresAt` is minted by
+  // the SERVER and compared against the BROWSER clock, and the two failure
+  // directions are not symmetric: a browser clock that runs FAST withholds a
+  // receipt slightly early and costs one GET, while one that runs SLOW hands
+  // out a receipt the api has already stopped honouring -- and R1.1 is that
+  // sending a dead token FAILS THE ACT outright, where sending none succeeds
+  // at the live card. So the cheap direction is taken deliberately.
+  //
+  // STAR IT DOES NOT SOLVE REAL SKEW and is not claimed to. A clock minutes
+  // out is still wrong here, and can only be fixed where the token is READ.
+  // What this closes is the last seconds of a receipt life -- exactly the
+  // window `refetchInterval` cannot help with, because reaching it at all
+  // means the refresh has been failing.
+  const expired =
+    !!input.data && input.data.expiresAt - QUOTE_CLOCK_SKEW_MS <= input.now;
   const quote = expired ? undefined : input.data;
   return {
     quote,
@@ -154,14 +179,47 @@ export function deriveQuoteState(input: {
     // `unavailable` there would render "we couldn't check the price" on a
     // dialog nobody has opened.
     unavailable: input.enabled && !input.isFetching && !quote,
-    reason: expired
-      ? "expired"
-      : input.error
+    // WARN AN ERROR OUTRANKS AN EXPIRY (review round 2). Both are true at
+    // once in the normal case -- react-query keeps the last successful
+    // `data` while a refetch fails -- and the first cut answered
+    // "expired", which this surface renders as *"Checking the price
+    // again..."*. That reads as PROGRESS. When the refetch is failing for
+    // a reason that will not clear on its own (an ACTION_NOT_PRICED row an
+    // operator deactivated, a network that is down), the merchant watches
+    // a reassuring sentence for ever instead of being told we cannot price
+    // this. The error is the more specific answer, so it is the one given.
+    reason: input.error
       ? code === "UNKNOWN_ACTION"
         ? "unknown_action"
         : code === "ACTION_NOT_PRICED"
           ? "not_priced"
           : "unreachable"
-      : undefined,
+      : expired
+        ? "expired"
+        : undefined,
   };
+}
+
+/**
+ * The receipt to send with the act, as a payload fragment.
+ *
+ * -- WARN WHY THIS IS A FUNCTION AND NOT A SPREAD AT THE CALL SITE --------
+ *
+ * Because it WAS a spread at three call sites, and requirement 4 was met at
+ * two of them. `...(price.quote ? { quoteToken: price.quote.token } : {})` is
+ * a rule -- *send the receipt only while we are actually holding one* --
+ * written out longhand everywhere it applies, which is the shape section
+ * 7.0.1 correction box is entirely about: *five surfaces deriving one rule
+ * five ways*, and all five were wrong.
+ *
+ * STAR AND THE RULE IS LOAD-BEARING IN BOTH DIRECTIONS. Omitting the receipt
+ * charges the live rate card and SUCCEEDS; sending a lapsed one is answered
+ * **409 QUOTE_NOT_HONOURED and the act never runs** (R1.1). Reading
+ * `price.quote` -- which `deriveQuoteState` withholds once lapsed -- and
+ * never the raw response, is the whole of the rule.
+ */
+export function quoteTokenFor(price: Pick<PeaksQuoteState, "quote">): {
+  quoteToken?: string;
+} {
+  return price.quote ? { quoteToken: price.quote.token } : {};
 }

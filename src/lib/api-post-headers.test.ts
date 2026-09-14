@@ -29,6 +29,14 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const h = vi.hoisted(() => ({
   calls: [] as Array<{ url: string; init: RequestInit }>,
+  /**
+   * Queued answers from the CSRF endpoint; `null` means it replied WITHOUT
+   * a token, which is what `getCsrfToken` turns into `null`. Empty queue
+   * falls back to a healthy token, so every existing case is unchanged.
+   */
+  csrf: [] as Array<string | null>,
+  /** How many write attempts answer CSRF_INVALID before one succeeds. */
+  rejectCsrfTimes: 0,
 }));
 
 vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
@@ -36,12 +44,22 @@ vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
   // `getCsrfToken` actually reads, and record nothing so `calls` holds only the
   // request under test.
   if (String(url).includes("/v1/auth/csrf/token")) {
-    return new Response(JSON.stringify({ ok: true, data: { csrf_token: "csrf-abc" } }), {
-      status: 200,
-      headers: { "content-type": "application/json" },
-    });
+    const next = h.csrf.length > 0 ? h.csrf.shift()! : "csrf-abc";
+    return new Response(
+      JSON.stringify(
+        next === null ? { ok: true, data: {} } : { ok: true, data: { csrf_token: next } },
+      ),
+      { status: 200, headers: { "content-type": "application/json" } },
+    );
   }
   h.calls.push({ url: String(url), init });
+  if (h.rejectCsrfTimes > 0) {
+    h.rejectCsrfTimes -= 1;
+    return new Response(
+      JSON.stringify({ ok: false, error: { code: "CSRF_INVALID", message: "bad csrf" } }),
+      { status: 403, headers: { "content-type": "application/json" } },
+    );
+  }
   return new Response(JSON.stringify({ ok: true, data: { fine: true } }), {
     status: 200,
     headers: { "content-type": "application/json" },
@@ -54,7 +72,7 @@ vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
 // the first run of this file did.
 process.env.NEXT_PUBLIC_API_URL = "https://api.test";
 
-const { api } = await import("./api");
+const { api, clearCsrfToken } = await import("./api");
 
 function headersOf(index = 0): Record<string, string> {
   const raw = h.calls[index]!.init.headers as Record<string, string>;
@@ -65,6 +83,12 @@ function headersOf(index = 0): Record<string, string> {
 
 beforeEach(() => {
   h.calls = [];
+  h.csrf = [];
+  h.rejectCsrfTimes = 0;
+  // ⚠️THE TOKEN IS CACHED IN MODULE SCOPE, so without this a case that
+  // needs the CSRF fetch to FAIL would silently be handed the token an
+  // earlier case warmed — and would pass while proving nothing.
+  clearCsrfToken();
 });
 
 describe("★★api.post — a caller header reaches the request", () => {
@@ -120,4 +144,32 @@ describe("★★api.post — a caller header reaches the request", () => {
       expect(csrfKeys).toHaveLength(1);
     },
   );
+});
+
+describe("★★the caller CSRF header is stripped even when we hold none (round 2)", () => {
+  it("★★strips a forged header on the path where the CSRF fetch FAILED", async () => {
+    // ⚠️ROUND 1 PUT THE STRIP INSIDE `if (token)`. `getCsrfToken` is
+    // best-effort and answers null on any failure — so on exactly that
+    // path a caller header survived into the request. It is the ONE path
+    // where nothing of ours would have overwritten it, and it is the path
+    // the guard skipped.
+    h.csrf = [null];
+    await api.post("/v1/x", { a: 1 }, { "x-csrf-token": "forged" });
+    expect(headersOf()["x-csrf-token"]).toBeUndefined();
+  });
+
+  it("★★and the CSRF_INVALID retry still leaves exactly one key", async () => {
+    // The retry assigns the canonical spelling to the SAME headers object.
+    // This is the end-to-end statement of the invariant — the strip before
+    // the first attempt is what makes the retry safe, and there is
+    // deliberately no second strip down there to be inert.
+    h.csrf = [null, "csrf-real"];
+    h.rejectCsrfTimes = 1;
+    await api.post("/v1/x", { a: 1 }, { "x-csrf-token": "forged" });
+    expect(h.calls).toHaveLength(2);
+    const retry = h.calls[1]!.init.headers as Record<string, string>;
+    const csrfKeys = Object.keys(retry).filter((k) => k.toLowerCase() === "x-csrf-token");
+    expect(csrfKeys).toHaveLength(1);
+    expect(headersOf(1)["x-csrf-token"]).toBe("csrf-real");
+  });
 });
