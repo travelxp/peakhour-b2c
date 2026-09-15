@@ -66,6 +66,20 @@ export function clearCsrfToken(): void {
   csrfToken = null;
 }
 
+/**
+ * Remove any CSRF header a caller supplied, in whatever casing.
+ *
+ * WARN `headers` IS A PLAIN OBJECT AND THE MERGE INTO IT IS CASE-SENSITIVE,
+ * so `x-csrf-token` and `X-CSRF-Token` are two keys -- and `fetch` joins
+ * duplicate header names with a comma rather than picking one. Setting ours
+ * without clearing theirs sends `x-csrf-token: forged, real`.
+ */
+function stripCsrfHeader(headers: Record<string, string>): void {
+  for (const key of Object.keys(headers)) {
+    if (key.toLowerCase() === "x-csrf-token") delete headers[key];
+  }
+}
+
 class ApiClient {
   private baseUrl: string;
 
@@ -112,6 +126,17 @@ class ApiClient {
 
     // Add CSRF token for state-changing requests
     if (method !== "GET" && method !== "HEAD" && method !== "OPTIONS") {
+      // WARN STRIPPED UNCONDITIONALLY, NOT ONLY WHEN WE HOLD A TOKEN (review
+      // round 2). Round 1 put this inside `if (token)` -- and `getCsrfToken`
+      // is best-effort and answers null on any failure, so on exactly that
+      // path a caller forged `x-csrf-token` survived into the request. That
+      // is the ONE path where nothing of ours would have overwritten it, and
+      // it is the path the guard skipped.
+      //
+      // STAR A CALLER NEVER SUPPLIES THIS HEADER, in any casing, whatever we
+      // hold. That is the guarantee which justified the `headers` parameter,
+      // and it cannot be conditional on our own success.
+      stripCsrfHeader(headers);
       const token = await getCsrfToken();
       if (token) {
         headers["X-CSRF-Token"] = token;
@@ -156,6 +181,13 @@ class ApiClient {
         clearCsrfToken();
         const retryToken = await getCsrfToken();
         if (retryToken) {
+          // STAR NO STRIP HERE, AND THAT IS DELIBERATE (review round 2).
+          // `stripCsrfHeader` above runs for every non-GET request before
+          // the first attempt, so anything reaching this retry has already
+          // had a caller CSRF header removed. A second strip could never
+          // fire, and a guard that cannot fire is worse than none: it reads
+          // as protection and mutation-tests as INERT. The invariant it
+          // would restate is named here instead.
           headers["X-CSRF-Token"] = retryToken;
           const retryRes = await fetch(url, {
             credentials: "include",
@@ -288,10 +320,27 @@ class ApiClient {
     return { data: json.data as T, meta: (json.meta as Record<string, unknown>) ?? {} };
   }
 
-  post<T>(path: string, body?: unknown) {
+  /**
+   * POST JSON.
+   *
+   * ★`headers` IS OPTIONAL AND IS NOT A GENERAL ESCAPE HATCH. It exists for
+   * `x-peaks-quote` (P-10): a signed receipt of the price a merchant was shown,
+   * which has to travel WITH the act it prices and cannot go in the body —
+   * every quoted route's body is its own shape, and a price field inside it
+   * would be a number the client could edit.
+   *
+   * ⏸ORDERING, STATED PRECISELY BECAUSE "it merges" is not precise enough:
+   * `request` applies caller headers OVER the content type and then sets the
+   * CSRF token, so CSRF cannot be overridden from here — in ANY casing,
+   * which review round 1 found was true of only one — and the content type
+   * can. Neither matters for a quote receipt; both would matter to whoever
+   * reaches for this next.
+   */
+  post<T>(path: string, body?: unknown, headers?: Record<string, string>) {
     return this.request<T>(path, {
       method: "POST",
       body: body ? JSON.stringify(body) : undefined,
+      ...(headers ? { headers } : {}),
     });
   }
 

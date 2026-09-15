@@ -5,6 +5,10 @@ import { toast } from "sonner";
 import { Check, Sparkles } from "lucide-react";
 import { critiqueTone } from "@/lib/audience-library-rules";
 import { useAudiencePlan, planRefusalCopy } from "@/hooks/use-audience-plan";
+import { usePeaksQuote, quoteTokenFor } from "@/hooks/use-peaks-quote";
+import { PEAKS_ACTIONS } from "@/lib/api/peaks";
+import { quoteCostSentence } from "@/lib/peaks-price-label";
+import { formatPeaks } from "@/lib/pricing";
 import {
   AUDIENCE_OBJECTIVES,
   type AudienceObjective,
@@ -40,9 +44,21 @@ import {
  * where the correction is recorded as a stated fact rather than a one-off
  * override.
  *
- * ★IT SPENDS NOTHING AND TOUCHES NO CAMPAIGN. The result is a set of named,
+ * ★IT MOVES NO BUDGET AND TOUCHES NO CAMPAIGN. The result is a set of named,
  * reusable library rows. Putting one on a campaign is a separate act, and
  * activating that campaign is a further one.
+ *
+ * ⚠️★AND IT IS NOT FREE. This said "IT SPENDS NOTHING", which is true of the
+ * merchant's AD BUDGET and false of their Peaks: the api wraps this route in
+ * `quotedAction("growth.propose_audiences")` and it bills two useCases. A
+ * merchant reading "spends nothing" beside a button that costs them is
+ * exactly the false-price-at-the-moment-of-the-ask that §7.0.1's correction
+ * box records `ExplainCard` making, on a surface where the number is larger.
+ *
+ * ★SO THE PRICE IS SHOWN BEFORE THE ASK (§7.0.1 requirement 4, §7.9's
+ * largest), and the QUOTE'S RECEIPT travels with the act — so the figure the
+ * merchant accepted is the figure they are charged, even if ops edits the
+ * rate card in between.
  */
 
 /** What each objective means, in the customer's terms rather than the ad
@@ -78,6 +94,16 @@ export function DiscoverAudiencesDialog({
   platform?: string;
 }) {
   const [objective, setObjective] = useState<AudienceObjective>("lead_generation");
+  /**
+   * ★QUOTED WHEN THE DIALOG OPENS, NOT WHEN THE PAGE RENDERS. The token's TTL
+   * should start when the merchant is about to act — a receipt minted with
+   * the page is already old by the time they choose an objective.
+   *
+   * ⏸AND IT DOES NOT DEPEND ON THE OBJECTIVE. `growth.propose_audiences` is
+   * one registry action whatever this push is for, so re-quoting per
+   * objective would mint four receipts to use one.
+   */
+  const price = usePeaksQuote(PEAKS_ACTIONS.proposeAudiences, open);
   const [result, setResult] = useState<AudiencePlanResponse | null>(null);
 
   const plan = useAudiencePlan({
@@ -148,6 +174,12 @@ export function DiscoverAudiencesDialog({
           </div>
         )}
 
+        {/* ★THE PRICE, BEFORE THE ASK — and only while there is still an ask
+            to make. Once `result` is set the act has happened and the charge
+            is on the Peaks history; repeating the price there would read as a
+            second one. */}
+        {!result && <PriceLine price={price} />}
+
         <DialogFooter>
           {result ? (
             <Button type="button" onClick={() => close(false)}>
@@ -163,7 +195,21 @@ export function DiscoverAudiencesDialog({
               >
                 Cancel
               </Button>
-              <Button type="button" onClick={() => plan.mutate({ objective, platform })} disabled={plan.isPending}>
+              <Button type="button" onClick={() =>
+                  plan.mutate({
+                    objective,
+                    platform,
+                    // ★THE RECEIPT FOR THE PRICE ON SCREEN. Absent when we
+                    // could not quote — see the footer copy, which then does
+                    // not claim a number either. Sending a token we never
+                    // showed would be worse than sending none.
+                    //
+                    // WARN ONE FUNCTION, THREE CALL SITES (review round 2).
+                    // This spread was written out longhand at each of them,
+                    // and requirement 4 was met at two of the three.
+                    ...quoteTokenFor(price),
+                  })
+                } disabled={plan.isPending}>
                 {/* Named rather than a spinner-with-"Loading": this really does
                     take the better part of a minute — a model call plus up to
                     four rounds of platform lookups and reach counts — and a
@@ -186,6 +232,130 @@ export function DiscoverAudiencesDialog({
  * is all there was" — so the discarded ideas are counted, and the refusal, when
  * there is one, is a sentence rather than an empty list.
  */
+/**
+ * What this costs, in one line, before the merchant presses anything.
+ *
+ * ── ⚠️★★THE FOUR STATES, AND THE FOURTH IS THE ONE THAT GETS DROPPED ────
+ *
+ * `Free` · a number · *we are working it out* · **we could not price it**.
+ * The advertising-declaration card's post-mortem names the same shape and the
+ * same mistake: *"a consent surface has four states and the fourth is 'we do
+ * not know yet'; treating it as either of the other three is how a form
+ * collects an answer nobody gave."* Here the equivalent is quoting a price we
+ * do not have.
+ *
+ * ★AND THE BUTTON STAYS LIVE WHEN WE CANNOT PRICE IT. The merchant can still
+ * act; they are simply told we could not show the price first, and the act
+ * then bills at the live rate card — which is exactly what happened on every
+ * metered button before this existed. Disabling it would turn a transparency
+ * feature into an outage, which is the chain §7.0.1's own correction box
+ * says was priced wrongly the first time: *"a merchant who cannot see a cost
+ * sentence is worse off than one who can; a merchant who cannot declare at
+ * all is worse off than both."*
+ */
+export function PriceLine({ price }: { price: ReturnType<typeof usePeaksQuote> }) {
+  // ★A PRICE IN HAND IS RENDERED FIRST (review round 1). `loading` was read
+  // before `quote`, so a window-focus refetch — on by default, against a
+  // five-minute staleTime — replaced a price already on screen with
+  // "working out what this costs" while the button stayed pressable. The
+  // hook no longer reports `loading` while it holds a quote; this order is
+  // the second half of the same fix, so neither alone can put it back.
+  if (price.quote) {
+    return <QuotedPrice quote={price.quote} />;
+  }
+
+  if (price.loading) {
+    return (
+      <p className="text-xs text-muted-foreground" aria-live="polite">
+        Working out what this costs…
+      </p>
+    );
+  }
+
+  // ⚠️★THE FLAG, NOT A RE-DERIVATION (review round 3). This fell straight
+  // through to the fallback, which is `!quote && !loading` — and that is
+  // NOT what `unavailable` means. `unavailable` also requires `enabled`,
+  // precisely so a surface nobody has opened does not render *we couldn't
+  // check the price*; re-deriving it two components away dropped the one
+  // clause the flag exists for. ★It was computed, documented at length and
+  // tested, and read by NOTHING — §0.4 scaffolding inside a hook that was
+  // written in this PR. Read here now, so the rule has one home.
+  //
+  // ⏸MUTATION: INERT. Deleting this line leaves the suite green -- the
+  // flag is tested, its CONSUMPTION is a component branch and nothing here
+  // renders components. Recorded rather than left to look covered.
+  if (!price.unavailable) return null;
+
+  return (
+    <p className="text-xs text-muted-foreground" aria-live="polite">
+      {/* ⚠️NO NUMBER AND NO "Free". We do not know, and these failures differ
+          in whose problem it is — the api distinguishes them and a client
+          that collapsed them would have an operator debugging a seeding gap
+          as a client bug. */}
+      {price.reason === "expired"
+        ? // ⚠️A LAPSED RECEIPT IS WITHHELD, NOT SENT (round 1): the api
+          // answers 409 and the act never runs. The refetch normally makes
+          // this invisible; if a merchant sees it, the refresh is failing.
+          //
+          // ⚠️★THE COPY SAID "Checking the price again…" AND NOTHING WAS
+          // CHECKING (review round 3). Reaching this line means `loading`
+          // was false, and `loading` is `isFetching && !quote` over a
+          // withheld quote — so `isFetching` is false here by
+          // construction. The sentence was not merely wrong when the
+          // browser was offline and the query PAUSED; it was wrong every
+          // time it rendered. ★A reassurance that is structurally
+          // unfalsifiable is worse than the bad news it replaces: the
+          // merchant waits for a refresh that is not running.
+          "That price expired and we couldn't get a fresh one just now — this uses Peaks."
+        : price.reason === "not_priced"
+          ? "We can't show the price for this right now — it still uses Peaks."
+          : "We couldn't check the price just now — this uses Peaks."}
+    </p>
+  );
+}
+
+/** The price itself, once we hold a receipt for it. */
+function QuotedPrice({ quote }: { quote: NonNullable<ReturnType<typeof usePeaksQuote>["quote"]> }) {
+  return (
+    <div className="space-y-1">
+      <p className="text-xs text-muted-foreground">{quoteCostSentence(quote)}</p>
+      {/* ★THE BREAKDOWN, WHEN THE TOTAL IS MADE OF MORE THAN ONE ACT. The api
+          serves it precisely so a merchant asked to accept 40 Peaks can see it
+          is two acts at 20 — *"a bare total invites the support question this
+          feature exists to prevent"*. Hidden for a single-line quote, where it
+          would only repeat the number above it. */}
+      {!quote.free && quote.breakdown.length > 1 && (
+        <ul className="text-xs text-muted-foreground">
+          {quote.breakdown.map((line) => (
+            <li key={line.useCase} className="flex justify-between gap-4">
+              <span>{line.label}</span>
+              {/* Each LINE branches on its own `free` too: a total can be
+                  billable while one of its parts is not. */}
+              {/* WARN THE PINNED FORMATTER, NOT A BARE `toLocaleString()`
+                  (review round 2). Round 1 fixed exactly this in
+                  `quoteCostSentence` -- the sentence rendered four lines
+                  above these rows -- and left the rows themselves reading
+                  the HOST locale. An en-IN merchant saw *Costs 100,000
+                  Peaks.* over *1,00,000 Peaks*: the same number twice, in
+                  two notations, in the one place the breakdown exists to
+                  make the total legible. It differs between the server and
+                  client render too, which is a hydration mismatch.
+
+                  ⏸MUTATION: INERT. Swapping this back for a bare
+                  `toLocaleString()` leaves the suite GREEN — there is no
+                  DOM test harness in this repo at all, so nothing renders
+                  this element. Recorded rather than left to look covered.
+                  The same rule IS killed where it is testable, in
+                  `peaks-quote.test.ts`, by asserting that the formatter is
+                  never called without naming a locale. */}
+              <span>{line.free ? "Free" : `${formatPeaks(line.peaks)} Peaks`}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
 function PlanSummary({ result }: { result: AudiencePlanResponse }) {
   const lost =
     (result.strategist?.rejected?.length ?? 0) + (result.strategist?.dropped?.length ?? 0);

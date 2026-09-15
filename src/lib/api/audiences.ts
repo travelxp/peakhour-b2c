@@ -348,8 +348,30 @@ export const audiencesApi = {
    * per org and why this is an explicit action rather than something a page
    * fires on mount.
    */
-  plan: (body: { objective: AudienceObjective; platform?: string; geo?: string[] }) =>
-    api.post<AudiencePlanResponse>("/v1/audiences/plan", body),
+  plan: (
+    body: { objective: AudienceObjective; platform?: string; geo?: string[] },
+    /**
+     * The signed receipt of the price the merchant was shown (P-10).
+     *
+     * OPTIONAL, AND ITS ABSENCE IS NOT A DEFAULT. Without it the api
+     * charges the LIVE rate card, which is the behaviour every caller had
+     * before quotes existed and is correct for a caller that never showed
+     * a price. A surface that DID show one and then omits this has quoted
+     * a number it is not holding itself to -- which is the whole failure
+     * requirement 4 exists to prevent.
+     *
+     * WARN AND AN EXPIRED TOKEN IS NOT THE SAME AS AN ABSENT ONE (round 1).
+     * Absent means charge the live card and succeed; EXPIRED means 409 and
+     * the handler never runs. A caller must withhold a lapsed receipt rather
+     * than send it -- see `usePeaksQuote`, which will not hand one out.
+     */
+    quoteToken?: string,
+  ) =>
+    api.post<AudiencePlanResponse>(
+      "/v1/audiences/plan",
+      body,
+      quoteToken ? { "x-peaks-quote": quoteToken } : undefined,
+    ),
 
   correctProfile: (corrections: CorrectionInput[]) =>
     api.patch<{ profile: AudienceProfile }>("/v1/audiences/profile", { corrections }),

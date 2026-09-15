@@ -32,6 +32,9 @@ import {
 } from "@/lib/api/audiences";
 import { useAudienceSets } from "@/hooks/use-audience-library";
 import { useAudiencePlan, planRefusalCopy } from "@/hooks/use-audience-plan";
+import { usePeaksQuote, quoteTokenFor } from "@/hooks/use-peaks-quote";
+import { PriceLine } from "@/components/audience/discover-audiences-dialog";
+import { PEAKS_ACTIONS } from "@/lib/api/peaks";
 import {
   audienceShape,
   channelNotes,
@@ -158,6 +161,19 @@ export function UseSavedAudienceDialog({
    * modal that hangs for forty seconds before showing anything reads as broken.
    * Stored recommendations render instantly; a fresh run is a button.
    */
+  /**
+   * ⚠️★THE SECOND BUTTON ON THE SAME WRAPPED ROUTE (review round 1).
+   * `POST /v1/audiences/plan` is fired from HERE as well, and requirement 4
+   * had been met on one of the two — so a merchant reaching the engine from
+   * a campaign was charged without ever seeing a price, which is the exact
+   * state this row exists to end.
+   *
+   * ★ONE HOOK AND ONE RENDERER, NOT A SECOND COPY. §7.0.1's own correction
+   * box is about five surfaces deriving one rule five ways; a second price
+   * component here would be the sixth.
+   */
+  const price = usePeaksQuote(PEAKS_ACTIONS.proposeAudiences, open);
+
   const plan = useAudiencePlan({
     onPlanned: (res) => {
       if (res.refusal) {
@@ -397,14 +413,49 @@ export function UseSavedAudienceDialog({
                   // above an empty section is the same click as the panel
                   // below it, twice.
                   recommended.length > 0 && planObjective ? (
-                    <button
-                      type="button"
-                      disabled={plan.isPending}
-                      onClick={() => plan.mutate({ objective: planObjective, platform })}
-                      className="text-xs font-medium text-primary hover:underline disabled:opacity-60"
-                    >
-                      {plan.isPending ? "Working…" : "Work out fresh ones"}
-                    </button>
+                    /* WARN THE PRICE TRAVELS WITH THE BUTTON (review round
+                       2). Round 1 put the price in this Section `empty` slot
+                       and this button in its `action` slot -- and `Section`
+                       renders `children.length > 0 ? children : empty`, so
+                       THE TWO CAN NEVER BE ON SCREEN TOGETHER. `action`
+                       shows only when `recommended.length > 0`; `empty` only
+                       when it is 0. A merchant who already had
+                       recommendations pressed a priced button with no price
+                       anywhere near it -- and the receipt was still sent: a
+                       signed token for a figure they were never shown, which
+                       is the precise failure requirement 4 exists to remove
+                       and which R1.3 reported as removed.
+
+                       STAR THE PLACEMENT IS THE GUARD, because this repo has
+                       no DOM test harness at all -- no @testing-library/react,
+                       no jsdom, not one .test.tsx -- so *the price renders
+                       beside the button* cannot be asserted here, and saying
+                       otherwise would be a guard credited to a checker that
+                       does not look. What CAN be asserted is that a receipt
+                       is attached only while we hold a live one, and
+                       `quoteTokenFor` is that, tested.
+
+                       ⏸MUTATION: INERT. Deleting the `<PriceLine/>` below
+                       leaves the suite green, and that is the honest
+                       statement of what a placement can be worth here —
+                       not a claim that it is checked. */
+                    <div className="flex flex-col items-end gap-0.5">
+                      <button
+                        type="button"
+                        disabled={plan.isPending}
+                        onClick={() =>
+                          plan.mutate({
+                            objective: planObjective,
+                            platform,
+                            ...quoteTokenFor(price),
+                          })
+                        }
+                        className="text-xs font-medium text-primary hover:underline disabled:opacity-60"
+                      >
+                        {plan.isPending ? "Working…" : "Work out fresh ones"}
+                      </button>
+                      <PriceLine price={price} />
+                    </div>
                   ) : null
                 }
                 empty={
@@ -437,6 +488,7 @@ export function UseSavedAudienceDialog({
                             ? plan.mutate({
                                 objective: planObjective,
                                 platform,
+                                ...quoteTokenFor(price),
                               })
                             : setDiscoverOpen(true)
                         }
@@ -448,6 +500,11 @@ export function UseSavedAudienceDialog({
                             nothing for that long reads as broken. */}
                         {plan.isPending ? "Working out who to target…" : "Get recommendations"}
                       </Button>
+                      {/* ★THE PRICE, BEFORE THE ASK — the same renderer the
+                          Audiences dialog uses, not a second one. Both buttons
+                          above fire the same wrapped route, and requirement 4
+                          was met on one of them until review round 1. */}
+                      {!planObjective ? null : <PriceLine price={price} />}
                     </div>
                   ) : null
                 }
