@@ -1,5 +1,5 @@
 /**
- * ★★M-13 — WHICH `/v1/meta-ads` ROUTES A b2c SURFACE MAY CALL.
+ * ★★M-13 — WHICH META ADS ROUTES A b2c SURFACE MAY CALL.
  *
  * ── WHY THIS FILE EXISTS, AND WHY IT IS NOT A CLIENT ──────────────────────
  *
@@ -15,38 +15,49 @@
  * it is not started. So the removal half of M-13 is work that does not exist,
  * and this file is not it.
  *
- * ── ★WHAT IT IS INSTEAD ──────────────────────────────────────────────────
+ * ── ⚠️⚠️★★THE PREFIX IS `/v1/meta/ads`, AND THE ROW'S IS NOT A URL ────────
+ *
+ * **Review round 1, and it made the first version of this guard inert.** The
+ * ledger row, and a dozen comments in peakhour-api, write the surface as
+ * `/v1/meta-ads` — which is the **source directory**, `src/v1/routes/meta-ads/`.
+ * The router is mounted `v1.route("/meta/ads", metaAdsRoutes)` on a Hono app
+ * with `.basePath("/v1")`, so nothing has ever been served at `/v1/meta-ads`.
+ * b2c's own clients had it right all along: `lib/api/linkedin-ads.ts` calls
+ * `/v1/linkedin/ads/...` and `lib/api/x-ads.ts` calls `/v1/x/ads/...`.
+ *
+ * ★A GUARD KEYED ON A PREFIX NOTHING SERVES MATCHES NOTHING, and it reports
+ * that as a pass — the exact *"green for the same reason a broken scanner is
+ * green"* shape this file's test was written to refuse, arriving in the
+ * constant rather than in the logic. Proved by dropping a probe that called
+ * the deleted passthrough at its real path: **8 passed, 0 failed.** The
+ * cross-repo case below now reads the MOUNT, not just the sub-paths, because
+ * the version that read only sub-paths could not see this.
+ *
+ * ── ★WHAT THIS FILE IS ───────────────────────────────────────────────────
  *
  * The invariant, at the place the next author will act. When M-16 builds the
- * Meta panel, the obvious move is to wire it to whatever `/v1/meta-ads`
+ * Meta panel, the obvious move is to wire it to whatever the Meta ads router
  * offers. Two of those routes were a **passthrough** — they handed the request
  * to Meta and wrote nothing locally — and a campaign created that way exists
  * at Meta and **does not exist here**: unmonitored by `ad-campaign-monitor`,
  * unbillable, and invisible to the kill switch and the spend caps.
- *
- * So the list below is the contract, not a convenience: a panel built from
- * `META_ADS_MANAGED_ROUTES` cannot reach a surface the monitor cannot see, and
- * `meta-ads-surface.test.ts` fails if a b2c file names anything else.
- *
- * ── ⏸THE ROUTES ARE PATH TEMPLATES, NOT URLS ─────────────────────────────
- *
- * `:campaignId` and friends are api-side parameter names, kept verbatim so a
- * reader can find the handler by grepping the sibling repo. The test checks
- * exactly that, against `peakhour-api`'s own route file.
  */
 
-/** Every `/v1/meta-ads` route that records what it did in `ad_campaigns`, or reads. */
+/** The router's mount, `basePath` included. Pinned against the api in the test. */
+export const META_ADS_PREFIX = "/v1/meta/ads";
+
+/** Every Meta ads route that records what it did in `ad_campaigns`, or reads. */
 export const META_ADS_MANAGED_ROUTES = [
-  "/v1/meta-ads/ad-accounts",
-  "/v1/meta-ads/datasets",
-  "/v1/meta-ads/datasets/selected",
-  "/v1/meta-ads/campaigns",
-  "/v1/meta-ads/campaigns/:campaignId/status",
-  "/v1/meta-ads/ad-sets",
-  "/v1/meta-ads/ad-sets/:adSetId/status",
-  "/v1/meta-ads/ads",
-  "/v1/meta-ads/ads/:adId/status",
-  "/v1/meta-ads/analytics",
+  `${META_ADS_PREFIX}/ad-accounts`,
+  `${META_ADS_PREFIX}/datasets`,
+  `${META_ADS_PREFIX}/datasets/selected`,
+  `${META_ADS_PREFIX}/campaigns`,
+  `${META_ADS_PREFIX}/campaigns/:campaignId/status`,
+  `${META_ADS_PREFIX}/ad-sets`,
+  `${META_ADS_PREFIX}/ad-sets/:adSetId/status`,
+  `${META_ADS_PREFIX}/ads`,
+  `${META_ADS_PREFIX}/ads/:adId/status`,
+  `${META_ADS_PREFIX}/analytics`,
 ] as const;
 
 /**
@@ -64,15 +75,10 @@ export const META_ADS_MANAGED_ROUTES = [
  * a special ad category makes the managed path refuse. The managed surface is
  * `/v1/audiences`.
  */
-export const META_ADS_DELETED_ROUTES = [
-  "/v1/meta-ads/audiences",
-] as const;
-
-/** Matches any `/v1/meta-ads…` path that appears in a source file. */
-const META_ADS_PATH = /\/v1\/meta-ads(?:\/[A-Za-z0-9_\-:${}.]+)*/g;
+export const META_ADS_DELETED_ROUTES = [`${META_ADS_PREFIX}/audiences`] as const;
 
 /**
- * Every `/v1/meta-ads` path named in `text`, de-duplicated and in source order.
+ * Matches any Meta-ads path that appears in a source file.
  *
  * ⚠️★DELIBERATELY NOT AN AST WALK OR AN IMPORT GRAPH. The thing being
  * prevented is a fetch to a passthrough route, and a path that reaches the
@@ -80,7 +86,15 @@ const META_ADS_PATH = /\/v1\/meta-ads(?:\/[A-Za-z0-9_\-:${}.]+)*/g;
  * template with an interpolated id, or a `queryKey` built from a constant.
  * The cost is that a path inside a COMMENT counts too; that is the safe
  * direction, and the one case it produces in practice is this file's own
- * header, which the test scans around by name.
+ * header, which the test scans around by path.
+ *
+ * ⏸`/v1/meta/whatsapp` AND `/v1/meta/content` ARE SIBLING MOUNTS and must not
+ * match — `/ads` is required, so they do not.
+ */
+const META_ADS_PATH = /\/v1\/meta\/ads(?:\/[A-Za-z0-9_\-:${}.]+)*/g;
+
+/**
+ * Every Meta-ads path named in `text`, de-duplicated and in source order.
  */
 export function findMetaAdsPaths(text: string): string[] {
   return [...new Set(text.match(META_ADS_PATH) ?? [])];
@@ -90,9 +104,11 @@ export function findMetaAdsPaths(text: string): string[] {
  * Whether `path` is one a b2c surface may call.
  *
  * ⚠️COMPARED AGAINST THE TEMPLATE'S SHAPE, not by string equality: a real call
- * site writes `/v1/meta-ads/campaigns/${id}/status`, which equals no entry in
+ * site writes `/v1/meta/ads/campaigns/${id}/status`, which equals no entry in
  * the list. Each segment matches literally unless the template's segment is a
- * `:param`, in which case anything non-empty matches.
+ * `:param`, in which case anything non-empty matches — and the segment COUNTS
+ * must agree, or every path that merely *starts* with a managed one is waved
+ * through.
  */
 export function isManagedMetaAdsPath(path: string): boolean {
   return META_ADS_MANAGED_ROUTES.some((template) => matchesTemplate(path, template));
@@ -107,4 +123,34 @@ function matchesTemplate(path: string, template: string): boolean {
     if (segment.startsWith(":")) return got.length > 0;
     return segment === got;
   });
+}
+
+/**
+ * The URL for a managed route, with its `:params` filled in.
+ *
+ * ★WITHOUT THIS THE CONTRACT CANNOT ACTUALLY BE USED (review round 1). The
+ * list is `:param` templates, so a panel *"built from
+ * `META_ADS_MANAGED_ROUTES`"* would still have to hand-write a literal
+ * somewhere to interpolate an id — and a hand-written literal is exactly the
+ * thing the guard refuses. M-16 calls this instead.
+ *
+ * Throws on an unknown template or a missing param, because a URL assembled
+ * from a typo 404s at Meta's expense rather than ours.
+ */
+export function metaAdsUrl(
+  template: (typeof META_ADS_MANAGED_ROUTES)[number],
+  params: Readonly<Record<string, string>> = {},
+): string {
+  if (!(META_ADS_MANAGED_ROUTES as readonly string[]).includes(template)) {
+    throw new Error(`${template} is not a managed Meta ads route`);
+  }
+  return template
+    .split("/")
+    .map((segment) => {
+      if (!segment.startsWith(":")) return segment;
+      const value = params[segment.slice(1)];
+      if (!value) throw new Error(`metaAdsUrl(${template}) needs a value for ${segment}`);
+      return encodeURIComponent(value);
+    })
+    .join("/");
 }
