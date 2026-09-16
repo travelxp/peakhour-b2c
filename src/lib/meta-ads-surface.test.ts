@@ -8,7 +8,9 @@ import {
   META_ADS_DELETED_ROUTES,
   findMetaAdsPaths,
   findForbiddenSurfaceImports,
+  isBareMetaAdsMount,
   isManagedMetaAdsPath,
+  COMPOSABLE_EXPORTS,
   metaAdsUrl,
 } from "./meta-ads-surface";
 import { ADS_CHANNELS } from "@/app/(site)/dashboard/ads/ads-channels";
@@ -92,7 +94,14 @@ describe("★★M-13 — b2c points at no Meta passthrough", () => {
   it("★★M-13 b2c no source file names a Meta ads path outside the managed list", () => {
     const refused = scanned
       .map((f) => ({ file: rel(f), paths: findMetaAdsPaths(readFileSync(f, "utf8")) }))
-      .flatMap((x) => x.paths.filter((p) => !isManagedMetaAdsPath(p)).map((p) => `${x.file}: ${p}`));
+      .flatMap((x) =>
+        x.paths
+          // ⏸THE BARE MOUNT IS PROSE (review round 3) — no handler sits at it,
+          // so naming it reaches nothing, and refusing it pointed authors at a
+          // list that cannot contain the prefix.
+          .filter((p) => !isBareMetaAdsMount(p) && !isManagedMetaAdsPath(p))
+          .map((p) => `${x.file}: ${p}`),
+      );
     // ⏸REFUSED, NOT *NAMED* (review round 1). The first cut refused every
     // Meta-ads path including the managed ones, under a message that said
     // only the unmanaged ones were forbidden — so M-16 wiring the panel to
@@ -190,6 +199,49 @@ describe("★★M-13 — b2c points at no Meta passthrough", () => {
     expect(findForbiddenSurfaceImports(elsewhere)).toEqual([]);
   });
 
+  it("★★M-13 b2c a NAMESPACE import is all of them, and a default beside a named one still counts", () => {
+    // ⚠️⚠️★REVIEW ROUND 3. The round-2 regex required a pure `{ … }` clause, so
+    // the two most idiomatic bypasses in this repo both returned `[]`:
+    // `import * as surface from …` (then `surface.META_ADS_PREFIX`, which names
+    // nothing the scan can see) and `import api, { … } from …`. Both are
+    // established b2c style — `import * as React` across `components/ui/*`, and
+    // default+named in `components/emoji-picker.tsx`.
+    const namespaced = 'import * as surface from "@/lib/meta-ads-surface";';
+    expect(findForbiddenSurfaceImports(namespaced).sort()).toEqual(
+      [...COMPOSABLE_EXPORTS].sort(),
+    );
+    const defaultPlusNamed =
+      'import api, { META_ADS_DELETED_ROUTES } from "@/lib/meta-ads-surface";';
+    expect(findForbiddenSurfaceImports(defaultPlusNamed)).toEqual(["META_ADS_DELETED_ROUTES"]);
+  });
+
+  it("★★M-13 b2c and it does not depend on how DEEP the importing file is", () => {
+    // ⚠️⚠️★REVIEW ROUND 3, AND THE ONE FILE THIS GUARD EXISTS FOR WALKED PAST
+    // IT. The round-2 matcher enumerated three specifier spellings, and the
+    // relative one was reachable only from a file one level under `src/`.
+    // M-16's panel lives at `src/app/(site)/dashboard/ads/_components/`, whose
+    // specifier is five `..` deep.
+    const deep = 'import { META_ADS_PREFIX } from "../../../../../lib/meta-ads-surface";';
+    expect(findForbiddenSurfaceImports(deep)).toEqual(["META_ADS_PREFIX"]);
+    // ⏸AND A RE-EXPORT BARREL, which is invisible twice over: the barrel's own
+    // import is missed, and every downstream importer then names the barrel.
+    const barrel = 'export { META_ADS_PREFIX } from "@/lib/meta-ads-surface";';
+    expect(findForbiddenSurfaceImports(barrel)).toEqual(["META_ADS_PREFIX"]);
+  });
+
+  it("★★M-13 b2c the bare mount is prose, not a call, and is not refused", () => {
+    // ⚠️★REVIEW ROUND 3. `findMetaAdsPaths` matches the mount on its own, and
+    // no template has four segments — so any docblock saying where the router
+    // lives failed the suite, pointing its author at a list that cannot contain
+    // the prefix. Nothing is served at the bare mount, so naming it reaches
+    // nothing.
+    expect(findMetaAdsPaths("the router is mounted at /v1/meta/ads.")).toEqual([
+      META_ADS_PREFIX,
+    ]);
+    expect(isBareMetaAdsMount(META_ADS_PREFIX)).toBe(true);
+    expect(isBareMetaAdsMount(`${META_ADS_PREFIX}/audiences`)).toBe(false);
+  });
+
   it("★★M-13 b2c a template path with an interpolated id is still matched, not waved through", () => {
     // ⚠️★A CALL SITE DOES NOT WRITE `:campaignId`. It writes `${campaignId}`,
     // and a string-equality check against the template would call every real
@@ -282,8 +334,13 @@ describe("★★M-13 — the prefix and the routes are peakhour-api's, not ours"
     console.warn(`[m13] no peakhour-api checkout at ${SIBLING_REPO} — cross-repo cases SKIPPED`);
   }
 
-  function readSibling(path: string): string | null {
-    if (!siblingRepoPresent) return null;
+  /**
+   * ⚠️★CALLED INSIDE EACH CASE, NOT IN THE `describe` BODY (review round 3).
+   * A throw during collection fails the WHOLE FILE, so an api-side refactor
+   * would have taken down the fifteen b2c-only cases along with these three —
+   * and those fifteen are the guard that still works when the sibling moves.
+   */
+  function readSibling(path: string): string {
     if (!existsSync(path)) {
       throw new Error(
         `[m13] peakhour-api is checked out but ${path} is missing. This is NOT a skip: the ` +
@@ -294,12 +351,10 @@ describe("★★M-13 — the prefix and the routes are peakhour-api's, not ours"
     return readFileSync(path, "utf8");
   }
 
-  const routesIndex = readSibling(SIBLING_ROUTES_INDEX);
-  const routeFile = readSibling(SIBLING_ROUTE_FILE);
-
-  it.skipIf(routesIndex === null)(
+  it.skipIf(!siblingRepoPresent)(
     "★★M-13 b2c META_ADS_PREFIX is the mount the api actually serves",
     () => {
+      const routesIndex = readSibling(SIBLING_ROUTES_INDEX);
       // ⚠️⚠️★THE CASE ROUND 1 EXISTS FOR. The list used to be keyed on
       // `/v1/meta-ads` — the api's source DIRECTORY, and the ledger row's
       // wording — while the router is mounted `/meta/ads` under
@@ -313,11 +368,12 @@ describe("★★M-13 — the prefix and the routes are peakhour-api's, not ours"
     },
   );
 
-  it.skipIf(routeFile === null)(
+  it.skipIf(!siblingRepoPresent)(
     "★★M-13 b2c every managed route has a handler in peakhour-api's meta-ads route file",
     () => {
+      const routeFile = readSibling(SIBLING_ROUTE_FILE);
       const missing = META_ADS_MANAGED_ROUTES.filter(
-        (route) => !routeFile!.includes(`"${route.replace(META_ADS_PREFIX, "")}"`),
+        (route) => !routeFile.includes(`"${route.replace(META_ADS_PREFIX, "")}"`),
       );
       expect(
         missing,
@@ -326,15 +382,16 @@ describe("★★M-13 — the prefix and the routes are peakhour-api's, not ours"
     },
   );
 
-  it.skipIf(routeFile === null)(
+  it.skipIf(!siblingRepoPresent)(
     "★★M-13 b2c and the sibling read is the route file, not some other file that happens to exist",
     () => {
       // ⚠️★NON-VACUITY AGAIN: `includes` over an empty string is false for
       // every route, so the case above would report "all missing" — but over
       // a file that is not the route file it could just as easily report
       // nothing missing by accident. Pin what was read.
-      expect(routeFile!).toContain('app.post("/campaigns"');
-      expect(routeFile!.length).toBeGreaterThan(1000);
+      const routeFile = readSibling(SIBLING_ROUTE_FILE);
+      expect(routeFile).toContain('app.post("/campaigns"');
+      expect(routeFile.length).toBeGreaterThan(1000);
     },
   );
 });

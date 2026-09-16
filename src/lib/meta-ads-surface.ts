@@ -74,6 +74,15 @@ export const META_ADS_MANAGED_ROUTES = [
  * uses — so a panel wired to it would have offered a merchant audiences that
  * a special ad category makes the managed path refuse. The managed surface is
  * `/v1/audiences`.
+ *
+ * ⚠️⚠️★★"DELETED" IS A CLAIM ABOUT **peakhour-api#1369**, WHICH IS OPEN
+ * (review round 3). Until it merges, the api still serves both — and the
+ * denylist is right either way: before the merge they are the unmonitored
+ * passthrough this row exists to close, and after it they are a 404. ★What is
+ * deliberately NOT asserted is their ABSENCE from the api's route file, because
+ * that case would be red on `master` until #1369 lands, and a test that is red
+ * on purpose is a test somebody disables. **Owed once #1369 merges:** one
+ * `expect(routeFile).not.toContain('"/audiences"')` in the cross-repo block.
  */
 export const META_ADS_DELETED_ROUTES = [`${META_ADS_PREFIX}/audiences`] as const;
 
@@ -113,34 +122,64 @@ export function findMetaAdsPaths(text: string): string[] {
 }
 
 /**
- * This module's own name, as a file under `src/` would import it.
+ * Any `import`/`export … from "<specifier>"` whose specifier IS this module.
  *
- * ⏸BOTH SPELLINGS, because b2c uses the `@/` alias almost everywhere and a
- * relative import from `src/lib/` is still legal — and a guard that knows only
- * the common one is bypassed by the uncommon one.
+ * ⚠️⚠️★★MATCHED BY SUFFIX, NOT BY AN ENUMERATION OF SPELLINGS (review round 3).
+ * The first cut listed three — `@/lib/…`, `./…`, `../lib/…` — and the third is
+ * reachable only from a file one level under `src/`. **The Meta panel M-16 will
+ * build lives at `src/app/(site)/dashboard/ads/_components/`**, whose relative
+ * specifier is `../../../../../lib/meta-ads-surface`, which matched nothing.
+ * ★A guard whose coverage depends on the DEPTH of the importing file is a guard
+ * the one file it was written for walks straight past.
+ *
+ * ⏸`export … from` TOO, because a re-export barrel is invisible twice over: the
+ * barrel's own import is missed, and every downstream importer then names the
+ * barrel rather than this module.
  */
-const SURFACE_MODULE = /from\s+["'](?:@\/lib\/meta-ads-surface|\.\/meta-ads-surface|\.\.\/lib\/meta-ads-surface)["']/;
+const SURFACE_SPECIFIER = /["'][^"']*\/meta-ads-surface(?:\.tsx?)?["']/;
+const MODULE_BINDING =
+  /\b(?:import|export)\b([\s\S]{0,400}?)\bfrom\s*["'][^"']*\/meta-ads-surface(?:\.tsx?)?["']/g;
 
 /**
  * Exports no b2c surface may import, because importing one lets a caller build
  * a URL this file's path scan cannot see.
  *
- * ★`META_ADS_MANAGED_ROUTES` AND `metaAdsUrl` ARE DELIBERATELY NOT HERE — they
- * are the sanctioned path, and `metaAdsUrl` refuses a route that is not on the
- * managed list at the type level AND at runtime. The two below are the raw
- * materials: the prefix composes any path at all, and the deleted list is a
- * ready-made passthrough URL sitting behind an index.
+ * ★`metaAdsUrl` IS DELIBERATELY NOT HERE — it is the sanctioned path, and it
+ * refuses a route that is not on the managed list at the type level AND at
+ * runtime. `META_ADS_MANAGED_ROUTES` is not here either, and ⚠️★that is a
+ * JUDGEMENT rather than a guarantee (review round 3): every entry in it is the
+ * prefix plus a suffix, so
+ * `META_ADS_MANAGED_ROUTES[0].replace("/ad-accounts", "") + "/audiences"`
+ * reconstructs the deleted URL with no literal and no forbidden import. **This
+ * check does not make that impossible, and an earlier version of this comment
+ * said it did.** What it does is remove the ORDINARY ways — an import of the
+ * prefix, or of a ready-made passthrough URL sitting behind an index.
  */
 export const COMPOSABLE_EXPORTS = ["META_ADS_PREFIX", "META_ADS_DELETED_ROUTES"] as const;
 
-/** Which composable exports `text` imports from this module, if any. */
+/**
+ * Which composable exports `text` takes from this module, if any.
+ *
+ * ⚠️★A NAMESPACE IMPORT IS ALL OF THEM (review round 3). `import * as surface
+ * from "@/lib/meta-ads-surface"` grants `surface.META_ADS_PREFIX` without
+ * naming it, and the round-2 regex required a pure `{ … }` clause — so it saw
+ * neither that nor `import api, { META_ADS_DELETED_ROUTES } from …`. Both are
+ * established b2c style (`import * as React` across `components/ui/*`;
+ * default+named in `components/emoji-picker.tsx`).
+ */
 export function findForbiddenSurfaceImports(text: string): string[] {
-  const imports = [...text.matchAll(/import\s*\{([^}]*)\}\s*from\s*["']([^"']+)["']/g)];
   const found = new Set<string>();
-  for (const [whole, names] of imports) {
-    if (!SURFACE_MODULE.test(whole)) continue;
-    for (const name of names.split(",")) {
-      const bare = name.split(" as ")[0]!.replace(/^\s*type\s+/, "").trim();
+  for (const [whole, clause] of text.matchAll(MODULE_BINDING)) {
+    if (!SURFACE_SPECIFIER.test(whole)) continue;
+    if (/\*\s*as\s+\w+/.test(clause)) {
+      // The namespace binding reaches every export, including both below.
+      for (const name of COMPOSABLE_EXPORTS) found.add(name);
+      continue;
+    }
+    const named = /\{([\s\S]*?)\}/.exec(clause);
+    if (!named) continue;
+    for (const entry of named[1]!.split(",")) {
+      const bare = entry.split(/\bas\b/)[0]!.replace(/^\s*type\s+/, "").trim();
       if ((COMPOSABLE_EXPORTS as readonly string[]).includes(bare)) found.add(bare);
     }
   }
@@ -159,6 +198,21 @@ export function findForbiddenSurfaceImports(text: string): string[] {
  */
 export function isManagedMetaAdsPath(path: string): boolean {
   return META_ADS_MANAGED_ROUTES.some((template) => matchesTemplate(path, template));
+}
+
+/**
+ * The mount with no route after it — `/v1/meta/ads` on its own.
+ *
+ * ⚠️★PROSE, NOT A CALL (review round 3). No handler is mounted at the bare
+ * prefix, so naming it cannot reach a passthrough; but the extractor matches it
+ * and no template has four segments, so the scan refused any docblock that
+ * mentioned where the router lives — under a message pointing the author at a
+ * list that **cannot** contain the prefix. ★That is the guard firing on the one
+ * thing it exists to permit, for the third time in three rounds, and the fix
+ * for that is always to weaken it.
+ */
+export function isBareMetaAdsMount(path: string): boolean {
+  return path === META_ADS_PREFIX;
 }
 
 function matchesTemplate(path: string, template: string): boolean {
