@@ -78,26 +78,73 @@ export const META_ADS_MANAGED_ROUTES = [
 export const META_ADS_DELETED_ROUTES = [`${META_ADS_PREFIX}/audiences`] as const;
 
 /**
- * Matches any Meta-ads path that appears in a source file.
+ * Matches any Meta-ads path spelled out in a source file.
  *
- * ⚠️★DELIBERATELY NOT AN AST WALK OR AN IMPORT GRAPH. The thing being
- * prevented is a fetch to a passthrough route, and a path that reaches the
- * network reaches this regex first — whether it is a string literal, a
- * template with an interpolated id, or a `queryKey` built from a constant.
- * The cost is that a path inside a COMMENT counts too; that is the safe
- * direction, and the one case it produces in practice is this file's own
- * header, which the test scans around by path.
+ * ⚠️★DELIBERATELY NOT AN AST WALK. The thing being prevented is a fetch to a
+ * passthrough route, and a path SPELLED OUT reaches this regex first — a
+ * string literal, a template with an interpolated id, a `queryKey` built from
+ * one. The cost is that a path inside a COMMENT counts too; that is the safe
+ * direction, and the two files allowed to name one are excluded by path.
  *
- * ⏸`/v1/meta/whatsapp` AND `/v1/meta/content` ARE SIBLING MOUNTS and must not
- * match — `/ads` is required, so they do not.
+ * ⚠️⚠️★★WHAT IT CANNOT SEE, AND WHAT COVERS THAT INSTEAD (review round 2). A
+ * path COMPOSED from this module's own exports leaves no literal behind:
+ * `` api.get(`${META_ADS_PREFIX}/audiences`) `` and
+ * `api.get(META_ADS_DELETED_ROUTES[0])` both type-check, both call the deleted
+ * passthrough, and both return `[]` from here. ★An earlier version of this
+ * comment claimed *"a queryKey built from a constant"* was covered; it is
+ * exactly the case that is not. `findForbiddenSurfaceImports` covers it, from
+ * the other end — a file that cannot import the raw prefix cannot compose one.
+ *
+ * ⏸`/v1/meta/whatsapp` and `/v1/meta/content` are sibling mounts and must not
+ * match; nor must a future `/v1/meta/adsets`, which the first cut DID match,
+ * yielding a bare `/v1/meta/ads` it then refused as unmanaged — the guard
+ * firing on a path the file never wrote. Hence the boundary.
+ *
+ * ⏸AND `.` IS NOT A PATH CHARACTER. It was in the class, so a sentence-final
+ * period made `…/campaigns.` — a managed route refused for its punctuation.
  */
-const META_ADS_PATH = /\/v1\/meta\/ads(?:\/[A-Za-z0-9_\-:${}.]+)*/g;
+const META_ADS_PATH = /\/v1\/meta\/ads(?![A-Za-z0-9_-])(?:\/[A-Za-z0-9_\-:${}]+)*/g;
 
 /**
  * Every Meta-ads path named in `text`, de-duplicated and in source order.
  */
 export function findMetaAdsPaths(text: string): string[] {
   return [...new Set(text.match(META_ADS_PATH) ?? [])];
+}
+
+/**
+ * This module's own name, as a file under `src/` would import it.
+ *
+ * ⏸BOTH SPELLINGS, because b2c uses the `@/` alias almost everywhere and a
+ * relative import from `src/lib/` is still legal — and a guard that knows only
+ * the common one is bypassed by the uncommon one.
+ */
+const SURFACE_MODULE = /from\s+["'](?:@\/lib\/meta-ads-surface|\.\/meta-ads-surface|\.\.\/lib\/meta-ads-surface)["']/;
+
+/**
+ * Exports no b2c surface may import, because importing one lets a caller build
+ * a URL this file's path scan cannot see.
+ *
+ * ★`META_ADS_MANAGED_ROUTES` AND `metaAdsUrl` ARE DELIBERATELY NOT HERE — they
+ * are the sanctioned path, and `metaAdsUrl` refuses a route that is not on the
+ * managed list at the type level AND at runtime. The two below are the raw
+ * materials: the prefix composes any path at all, and the deleted list is a
+ * ready-made passthrough URL sitting behind an index.
+ */
+export const COMPOSABLE_EXPORTS = ["META_ADS_PREFIX", "META_ADS_DELETED_ROUTES"] as const;
+
+/** Which composable exports `text` imports from this module, if any. */
+export function findForbiddenSurfaceImports(text: string): string[] {
+  const imports = [...text.matchAll(/import\s*\{([^}]*)\}\s*from\s*["']([^"']+)["']/g)];
+  const found = new Set<string>();
+  for (const [whole, names] of imports) {
+    if (!SURFACE_MODULE.test(whole)) continue;
+    for (const name of names.split(",")) {
+      const bare = name.split(" as ")[0]!.replace(/^\s*type\s+/, "").trim();
+      if ((COMPOSABLE_EXPORTS as readonly string[]).includes(bare)) found.add(bare);
+    }
+  }
+  return [...found];
 }
 
 /**

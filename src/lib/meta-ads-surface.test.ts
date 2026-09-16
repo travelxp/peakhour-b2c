@@ -7,6 +7,7 @@ import {
   META_ADS_MANAGED_ROUTES,
   META_ADS_DELETED_ROUTES,
   findMetaAdsPaths,
+  findForbiddenSurfaceImports,
   isManagedMetaAdsPath,
   metaAdsUrl,
 } from "./meta-ads-surface";
@@ -57,6 +58,7 @@ function sourceFiles(dir: string, out: string[] = []): string[] {
   return out;
 }
 
+const SIBLING_REPO = fileURLToPath(new URL("../../../peakhour-api", import.meta.url));
 const SIBLING_ROUTES_INDEX = fileURLToPath(
   new URL("../../../peakhour-api/src/v1/routes/index.ts", import.meta.url),
 );
@@ -136,8 +138,56 @@ describe("★★M-13 — b2c points at no Meta passthrough", () => {
     const other = [
       'api.get("/v1/meta/whatsapp/conversations");',
       'api.get("/v1/meta/content/posts");',
+      // ⚠️⚠️★AND A MOUNT THAT MERELY STARTS WITH `ads` (review round 2). The
+      // first cut's `(?:\/…)*` was zero-or-more with no right boundary, so
+      // `/v1/meta/adsets/…` yielded a bare `/v1/meta/ads` — which the scan then
+      // refused as unmanaged, naming a path the file never wrote. That is the
+      // guard firing on the one thing it exists to permit, and the fix for
+      // that is always to weaken it.
+      'api.get("/v1/meta/adsets/1");',
     ].join("\n");
     expect(findMetaAdsPaths(other)).toEqual([]);
+  });
+
+  it("★★M-13 b2c a managed route is not refused for its PUNCTUATION", () => {
+    // ⚠️★`.` WAS IN THE SEGMENT CLASS (review round 2), so a sentence-final
+    // period produced `/v1/meta/ads/campaigns.` — six characters that make a
+    // managed route unmanaged, reported against a file whose only sin was a
+    // full stop. A path is segments; a full stop is prose.
+    expect(findMetaAdsPaths("see /v1/meta/ads/campaigns.")).toEqual([
+      `${META_ADS_PREFIX}/campaigns`,
+    ]);
+    expect(isManagedMetaAdsPath(`${META_ADS_PREFIX}/campaigns`)).toBe(true);
+  });
+
+  it("★★M-13 b2c no source file imports the raw prefix or the deleted list", () => {
+    // ⚠️⚠️★★THE HOLE THE PATH SCAN CANNOT SEE (review round 2), and this PR's
+    // own premise made it likely: *"M-16's panel imports this."* Composing a
+    // URL from the exports leaves NO literal —
+    // `` api.get(`${META_ADS_PREFIX}/audiences`) `` and
+    // `api.get(META_ADS_DELETED_ROUTES[0])` both type-check, both call the
+    // deleted passthrough, and both return `[]` from `findMetaAdsPaths`.
+    // ★A file that cannot import the raw materials cannot compose one.
+    const offenders = scanned
+      .map((f) => ({ file: rel(f), names: findForbiddenSurfaceImports(readFileSync(f, "utf8")) }))
+      .filter((x) => x.names.length > 0)
+      .map((x) => `${x.file}: ${x.names.join(", ")}`);
+    expect(
+      offenders,
+      "import META_ADS_MANAGED_ROUTES and metaAdsUrl instead — they refuse a deleted route",
+    ).toEqual([]);
+  });
+
+  it("★★M-13 b2c and the import check SAYS SO when there is something to find", () => {
+    // The paired non-vacuity case, in both directions.
+    const bad = 'import { META_ADS_PREFIX } from "@/lib/meta-ads-surface";';
+    const alsoBad = 'import { metaAdsUrl, META_ADS_DELETED_ROUTES } from "./meta-ads-surface";';
+    const good = 'import { metaAdsUrl, META_ADS_MANAGED_ROUTES } from "@/lib/meta-ads-surface";';
+    const elsewhere = 'import { META_ADS_PREFIX } from "@/lib/some-other-module";';
+    expect(findForbiddenSurfaceImports(bad)).toEqual(["META_ADS_PREFIX"]);
+    expect(findForbiddenSurfaceImports(alsoBad)).toEqual(["META_ADS_DELETED_ROUTES"]);
+    expect(findForbiddenSurfaceImports(good)).toEqual([]);
+    expect(findForbiddenSurfaceImports(elsewhere)).toEqual([]);
   });
 
   it("★★M-13 b2c a template path with an interpolated id is still matched, not waved through", () => {
@@ -210,15 +260,38 @@ describe("★★M-13 — the ads hub has no Meta tab, and that is why there is n
 describe("★★M-13 — the prefix and the routes are peakhour-api's, not ours", () => {
   /**
    * ⏸THE SIBLING CHECKOUT, OR A SKIP — `cron-metadata.test.ts`'s rule, for its
-   * reason: a b2c-only clone should still have a green suite. ONLY the read
-   * may skip, and ⚠️★IT WARNS WHEN IT DOES (review round 1): a silent skip is
-   * indistinguishable from a pass, and if the api half moved either file
-   * these cases would report green for ever with nothing checked.
+   * reason: a b2c-only clone should still have a green suite.
+   *
+   * ⚠️⚠️★★THE SKIP IS KEYED ON THE CHECKOUT, NOT ON THE FILE (review round 2).
+   * It used to be `existsSync(<the 2,165-line route file>)`, which the
+   * companion api PR is actively editing — so a refactor splitting that file
+   * into `campaigns.ts` / `ad-sets.ts` would have made all three cross-repo
+   * cases skip, under a warning saying *"checkout not found"* that was simply
+   * false, in a repo with no PR CI where that line is scrollback. The
+   * non-vacuity pins added in round 1 live INSIDE the successful-read branch,
+   * so nothing would have caught it and `META_ADS_MANAGED_ROUTES` would have
+   * stopped being checked against the api for ever.
+   *
+   * ★The precedent this file cites anchors on `peakhour-api/vercel.json` at
+   * the repo ROOT, which is exactly why its skip can only mean *no checkout*.
+   * **A missing checkout skips; a missing FILE inside a present checkout
+   * fails.**
    */
+  const siblingRepoPresent = existsSync(SIBLING_REPO);
+  if (!siblingRepoPresent) {
+    console.warn(`[m13] no peakhour-api checkout at ${SIBLING_REPO} — cross-repo cases SKIPPED`);
+  }
+
   function readSibling(path: string): string | null {
-    if (existsSync(path)) return readFileSync(path, "utf8");
-    console.warn(`[m13] peakhour-api checkout not found at ${path} — cross-repo cases SKIPPED`);
-    return null;
+    if (!siblingRepoPresent) return null;
+    if (!existsSync(path)) {
+      throw new Error(
+        `[m13] peakhour-api is checked out but ${path} is missing. This is NOT a skip: the ` +
+          `Meta ads router moved or was renamed, and META_ADS_MANAGED_ROUTES is now checked ` +
+          `against nothing. Point this test at the new file.`,
+      );
+    }
+    return readFileSync(path, "utf8");
   }
 
   const routesIndex = readSibling(SIBLING_ROUTES_INDEX);
