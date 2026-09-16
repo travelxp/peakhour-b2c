@@ -10,6 +10,25 @@
  * Only channels that HAVE a panel belong here. A connector that is merely
  * catalogued (meta_ads, google_ads) stays out until its panel exists —
  * otherwise the selector would offer a tab that renders nothing.
+ *
+ * ── ★★M-13: WHEN `meta_ads` JOINS, WHICH ROUTES ITS PANEL MAY CALL ───────
+ *
+ * `lib/meta-ads-surface.ts` holds that list, and `meta-ads-surface.test.ts`
+ * fails the moment a b2c file names anything outside it. The distinction is
+ * not stylistic: two of the api's Meta ads routes were a **passthrough** —
+ * they handed the request to Meta and wrote no `ad_campaigns` row — and a
+ * campaign created that way exists at Meta and does not exist here, so
+ * `ad-campaign-monitor`, the spend caps and the merchant's kill switch cannot
+ * see it at all. Those two are deleted; the rest record what they did.
+ *
+ * ⏸NO ROUTE PATH IS SPELLED OUT IN THIS FILE, DELIBERATELY. The guard refuses
+ * the literal anywhere under `src/`, comments included — the next author reads
+ * a path out of prose as readily as out of code, and the contract module is
+ * meant to be the one place it is written down.
+ *
+ * ⏸The Meta panel itself is **M-16**, and the guard's ADS_CHANNELS case is
+ * written to fail when it lands — so whoever adds the entry below has to go
+ * and confirm the panel was built from the managed list.
  */
 
 /**
