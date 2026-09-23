@@ -373,6 +373,23 @@ export function metaFigureText(
  */
 export const META_INSIGHTS_MAX_CAMPAIGNS = 50;
 
+/**
+ * The line under the KPI cards saying what the totals cover, or `null` when
+ * they cover every listed campaign.
+ *
+ * ⚠️#571 R3: when the LIST is itself truncated, "of 500" is a count of what was
+ * read, not of the account — and the truncation notice below says there are
+ * more. "500+" keeps the two sentences on one screen from disagreeing.
+ */
+export function metaCoverageLine(requested: number, listed: number, listTruncated: boolean): string | null {
+  if (requested >= listed) return null;
+  const of = listTruncated ? `${listed}+` : `${listed}`;
+  return (
+    `Figures cover the first ${requested} of ${of} campaigns — each campaign's figures cost ` +
+    `calls to Meta, so this view asks for no more than ${META_INSIGHTS_MAX_CAMPAIGNS}.`
+  );
+}
+
 /** The campaign ids the panel requests figures for: the first `META_INSIGHTS_MAX_CAMPAIGNS`. */
 export function metaInsightsIds(ids: readonly string[]): string[] {
   return ids.slice(0, META_INSIGHTS_MAX_CAMPAIGNS);

@@ -18,6 +18,7 @@ import {
   metaKpiText,
   metaFigureText,
   metaInsightsIds,
+  metaCoverageLine,
   META_INSIGHTS_MAX_CAMPAIGNS,
   metaLaunchChargeSentence,
   metaMinorToMajor,
@@ -361,7 +362,20 @@ describe("★★#571 R1.2 the insights read is capped at the old cost, and says 
       "utf8",
     );
     expect(src).not.toMatch(/totals above cover only these/);
-    expect(src).toMatch(/Figures cover the first \{insightIds\.length\} of \{campaignIds\.length\}/);
+    // The coverage sentence is built in ONE place, from the list's own flag.
+    expect(src).toContain("metaCoverageLine(insightIds.length, campaignIds.length, campaigns.data?.truncated === true)");
+  });
+
+  it("★★#571 R3 the coverage line says '500+' when the list itself stopped early", () => {
+    // "first 50 of 500" under a notice saying the account has more is the
+    // two-totals-on-one-screen shape R2.1 was about, one sentence over.
+    expect(metaCoverageLine(50, 500, true)).toMatch(/first 50 of 500\+ campaigns/);
+    expect(metaCoverageLine(50, 120, false)).toMatch(/first 50 of 120 campaigns/);
+  });
+
+  it("★R3 no coverage line when the figures cover every listed campaign", () => {
+    expect(metaCoverageLine(20, 20, false)).toBeNull();
+    expect(metaCoverageLine(0, 0, false)).toBeNull();
   });
 });
 

@@ -52,7 +52,7 @@ import {
   metaKpiText,
   metaFigureText,
   metaInsightsIds,
-  META_INSIGHTS_MAX_CAMPAIGNS,
+  metaCoverageLine,
   sumReported,
   type MetaKpiState,
 } from "@/lib/meta-ads-view";
@@ -298,6 +298,8 @@ function CampaignsSection({ account }: { account: MetaAdAccount }) {
   //  META_INSIGHTS_MAX_CAMPAIGNS only — see its note on what each id costs.
   const insightIds = useMemo(() => metaInsightsIds(campaignIds), [campaignIds]);
   const insightSet = useMemo(() => new Set(insightIds), [insightIds]);
+  // ★#571 R3: "500+" when the list itself stopped early — see metaCoverageLine.
+  const coverageLine = metaCoverageLine(insightIds.length, campaignIds.length, campaigns.data?.truncated === true);
 
   const insights = useQuery({
     queryKey: ["meta-ads-insights", account.id, insightIds.join(",")],
@@ -357,11 +359,9 @@ function CampaignsSection({ account }: { account: MetaAdAccount }) {
         <Kpi title="Impressions" total={impressions} state={kpiState} render={(n) => n.toLocaleString("en-US")} />
         <Kpi title="Clicks" total={clicks} state={kpiState} render={(n) => n.toLocaleString("en-US")} />
       </div>
-      {insightIds.length < campaignIds.length ? (
+      {coverageLine ? (
         <p className="text-xs text-muted-foreground" role="status">
-          Figures cover the first {insightIds.length} of {campaignIds.length} campaigns — each
-          campaign&apos;s figures cost calls to Meta, so this view asks for no more than{" "}
-          {META_INSIGHTS_MAX_CAMPAIGNS}.
+          {coverageLine}
         </p>
       ) : null}
       {insights.isError ? (
