@@ -987,7 +987,13 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       const d = asRecord(data);
       if (!d || typeof d.eventsUploaded !== "number") return null;
       const configured = num(d.businessesConfigured);
-      if (configured === 0) return "Nothing to send — no business has chosen a Meta dataset.";
+      const considered = num(d.businessesConsidered);
+      // ⚠️REVIEW R3.2 — `configured === 0` alone said "no business has chosen
+      //  a dataset" when some HAD (considered > 0, but Meta ads switched off),
+      //  and returned green before the `budgetHit` check below could run.
+      if (considered === 0 && d.budgetHit !== true) {
+        return "Nothing to send — no business has chosen a Meta dataset.";
+      }
       const sent = `${num(d.eventsUploaded)} ${plural(num(d.eventsUploaded), "purchase")} sent for ${configured} ${configured === 1 ? "business" : "businesses"}`;
       const skipped = asRecord(d.skipped) ?? {};
       const drifted = Object.entries(skipped).filter(
@@ -998,8 +1004,17 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       if (d.budgetHit === true) warnings.push("the run stopped at its time budget");
       if (num(d.eventsUploaded) > num(d.ordersMarked)) warnings.push("some sent purchases were not marked and will be sent again");
       if (drifted.length > 0) warnings.push(`unexpected skips (${drifted.map(([r]) => r).join(", ")}) — the sweep's query and mapper disagree`);
-      if (warnings.length === 0) return `${sent}.`;
-      return { message: `${sent}, but ${warnings.join("; ")}.`, level: "warning" as const };
+      // ⏸NEUTRAL, NOT A WARNING: a business with a dataset and no ads
+      //  connection to send it with is usually a merchant who switched Meta
+      //  ads off, and the sweep honours that on purpose. When the budget cut
+      //  the run short, that warning already accounts for the gap.
+      const idle = considered - configured;
+      const note =
+        idle > 0 && d.budgetHit !== true
+          ? ` ${idle} ${idle === 1 ? "business has" : "businesses have"} a dataset but no active Meta ads connection to send it with.`
+          : "";
+      if (warnings.length === 0) return `${sent}.${note}`;
+      return { message: `${sent}, but ${warnings.join("; ")}.${note}`, level: "warning" as const };
     },
   },
   /**

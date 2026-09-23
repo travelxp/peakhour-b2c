@@ -264,9 +264,12 @@ describe("★★M-16 R1.3 the KPI cards never claim what we did not ask", () => 
     expect(metaKpiText(s, undefined, String)).toBe("No campaigns");
   });
 
-  it("★★M-16 only a COMPLETED insights read may say 'Not reported'", () => {
+  it("★★M-16 only a COMPLETED insights read may say it has no figures", () => {
     expect(metaKpiState(base)).toBe("ready");
-    expect(metaKpiText("ready", undefined, String)).toBe("Not reported");
+    expect(metaKpiText("ready", undefined, String)).toBe("No figures");
+    // ★★R3.1: no claim that Meta withheld anything — a campaign that did not
+    //  deliver may return no row at all, and that is not an omission.
+    expect(metaKpiText("ready", undefined, String)).not.toMatch(/report/i);
     expect(metaKpiText("ready", { total: 12, reported: 1, of: 1 }, (n) => `#${n}`)).toBe("#12");
   });
 });
@@ -278,9 +281,9 @@ describe("★★M-16 R2.1 a table cell obeys the cards' rule", () => {
     expect(metaFigureText("error", undefined, money)).toBe("Unavailable");
   });
 
-  it("★M-16 R2.1 loading is blank, a completed read without a figure is 'Not reported'", () => {
+  it("★M-16 R2.1 loading is blank, a completed read without a figure is 'No figures'", () => {
     expect(metaFigureText("loading", undefined, money)).toBe("");
-    expect(metaFigureText("ready", undefined, money)).toBe("Not reported");
+    expect(metaFigureText("ready", undefined, money)).toBe("No figures");
     expect(metaFigureText("ready", 12, money)).toBe("$12");
   });
 
@@ -297,7 +300,7 @@ describe("★★M-16 R2.1 a table cell obeys the cards' rule", () => {
     //  own paired cases: "in expression position" cannot tell a comment's
     //  `ABSENT IS NOT ZERO: "…"` from a ternary's `: "…"`. The panel's comments
     //  were rephrased instead, which is the safe direction.
-    expect(panel).not.toMatch(/Not reported/);
+    expect(panel).not.toMatch(/Not reported|No figures/);
   });
 
   it("★M-16 R2.1 and that check SAYS SO for a real copy", () => {

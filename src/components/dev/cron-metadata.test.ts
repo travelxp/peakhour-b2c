@@ -627,9 +627,26 @@ describe("meta-conversion-sweep summary", () => {
   });
 
   it("★M-16 no chosen dataset is a plain no-op, not a failure", () => {
-    const s = run({ businessesConfigured: 0, eventsUploaded: 0, ordersMarked: 0 });
+    const s = run({ businessesConsidered: 0, businessesConfigured: 0, eventsUploaded: 0, ordersMarked: 0 });
     expect(s?.message).toMatch(/no business has chosen a Meta dataset/);
     expect(s?.level).not.toBe("warning");
+  });
+
+  it("★★M-16 R3.2 businesses that chose a dataset but switched ads off are NOT 'none chose'", () => {
+    // considered counts a dataset on ANY active facebook row; configured only
+    // those whose ADS connection carries it. The first cut read configured
+    // alone and told the operator nobody had chosen a dataset.
+    const s = run({ businessesConsidered: 2, businessesConfigured: 0, eventsUploaded: 0, ordersMarked: 0 });
+    expect(s?.message).not.toMatch(/no business has chosen/);
+    expect(s?.message).toMatch(/2 businesses have a dataset but no active Meta ads connection/);
+    // ⏸Neutral: honouring the merchant's switch is correct behaviour.
+    expect(s?.level).not.toBe("warning");
+  });
+
+  it("★★M-16 R3.2 a run that hit its budget before ANY configured business still warns", () => {
+    const s = run({ businessesConsidered: 4, businessesConfigured: 0, eventsUploaded: 0, ordersMarked: 0, budgetHit: true });
+    expect(s?.level).toBe("warning");
+    expect(s?.message).toMatch(/time budget/);
   });
 
   it("★★M-16 a filled per-business cap WARNS — the tail is lost, not delayed", () => {

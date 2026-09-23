@@ -324,7 +324,13 @@ export function metaKpiText(
   if (state === "loading") return null;
   if (state === "error") return "Unavailable";
   if (state === "none") return "No campaigns";
-  return total ? render(total.total) : "Not reported";
+  // ⚠️REVIEW R3.1 — "Not reported" asserted that Meta WITHHELD a figure. A
+  //  campaign that did not deliver in the window may simply get no insights
+  //  row, and Meta's docs (checked 2026-09-23: /marketing-api/insights and its
+  //  best-practices page) do not say which it returns — an empty `data` or a
+  //  zero row. Without a live account neither reading is measured, so the text
+  //  claims neither: "No figures" is true under both.
+  return total ? render(total.total) : "No figures";
 }
 
 /**

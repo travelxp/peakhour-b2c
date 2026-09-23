@@ -805,7 +805,7 @@ function Kpi({
             <p className="mt-1 text-2xl font-bold tabular-nums">{text}</p>
             {state === "ready" && total && total.reported < total.of ? (
               <p className="mt-1 text-xs text-muted-foreground">
-                Meta reported this for {total.reported} of {total.of} campaigns.
+                Meta returned figures for {total.reported} of {total.of} campaigns — a campaign that did not deliver in this window may return none.
               </p>
             ) : null}
           </>
