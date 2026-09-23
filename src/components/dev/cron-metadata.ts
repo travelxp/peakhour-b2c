@@ -964,6 +964,60 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       "Refreshes long-lived Meta tokens for connections nothing has touched recently, so a dormant account doesn't quietly expire and need reconnecting.",
   },
   /**
+   * ★★M-16 — THIS WAS THE RED TEST ON b2c MASTER, for the reason the block below
+   * records for three others: api#1373 (M-09) scheduled the cron, the coverage
+   * test reads the api's cron directory off disk, and b2c has no PR CI, so the
+   * notification went unread. It is also the Meta ads tab's own cron.
+   */
+  "meta-conversion-sweep": {
+    label: "Send purchases to Meta",
+    frequency: "Runs daily at 3pm UTC",
+    description:
+      "Sends orders that came from a Meta ad click to the conversions dataset each business chose, so Meta can credit its ads. Does nothing for a business that has not chosen a dataset. Charges no Peaks.",
+    /**
+     * ⚠️★THREE OUTCOMES THAT MUST NOT TOAST GREEN, from the api's own result
+     * type: `perBusinessCapHit` is M-09's R3.1 — a daily cron against a
+     * seven-day window LOSES the tail rather than delaying it; `budgetHit` is a
+     * run cut short; and every mapper skip reason except `no_source_url` is
+     * structurally zero, so a non-zero one means the query and the mapper have
+     * drifted apart. `eventsUploaded > ordersMarked` is the fourth: those
+     * orders are at Meta and will be sent again.
+     */
+    summarize: (data) => {
+      const d = asRecord(data);
+      if (!d || typeof d.eventsUploaded !== "number") return null;
+      const configured = num(d.businessesConfigured);
+      const considered = num(d.businessesConsidered);
+      // ⚠️REVIEW R3.2 — `configured === 0` alone said "no business has chosen
+      //  a dataset" when some HAD (considered > 0, but Meta ads switched off),
+      //  and returned green before the `budgetHit` check below could run.
+      if (considered === 0 && d.budgetHit !== true) {
+        return "Nothing to send — no business has chosen a Meta dataset.";
+      }
+      const sent = `${num(d.eventsUploaded)} ${plural(num(d.eventsUploaded), "purchase")} sent for ${configured} ${configured === 1 ? "business" : "businesses"}`;
+      const skipped = asRecord(d.skipped) ?? {};
+      const drifted = Object.entries(skipped).filter(
+        ([reason, n]) => reason !== "no_source_url" && typeof n === "number" && n > 0,
+      );
+      const warnings: string[] = [];
+      if (d.perBusinessCapHit === true) warnings.push("a business hit the per-run cap, so its oldest purchases may age out of Meta's 7-day window");
+      if (d.budgetHit === true) warnings.push("the run stopped at its time budget");
+      if (num(d.eventsUploaded) > num(d.ordersMarked)) warnings.push("some sent purchases were not marked and will be sent again");
+      if (drifted.length > 0) warnings.push(`unexpected skips (${drifted.map(([r]) => r).join(", ")}) — the sweep's query and mapper disagree`);
+      // ⏸NEUTRAL, NOT A WARNING: a business with a dataset and no ads
+      //  connection to send it with is usually a merchant who switched Meta
+      //  ads off, and the sweep honours that on purpose. When the budget cut
+      //  the run short, that warning already accounts for the gap.
+      const idle = considered - configured;
+      const note =
+        idle > 0 && d.budgetHit !== true
+          ? ` ${idle} ${idle === 1 ? "business has" : "businesses have"} a dataset but no active Meta ads connection to send it with.`
+          : "";
+      if (warnings.length === 0) return `${sent}.${note}`;
+      return { message: `${sent}, but ${warnings.join("; ")}.${note}`, level: "warning" as const };
+    },
+  },
+  /**
    * ★★THESE THREE WERE THE RED TEST ON MASTER, and the test was right.
    * `cron-metadata.test.ts` reads peakhour-api's cron directory OFF DISK and
    * asserts every scheduled cron has a friendly label here — so the api adding

@@ -7,13 +7,14 @@
  * `@deprecated`; b2c stops pointing at them"*, and its definition of done is
  * **"no surface creates a campaign invisible to the monitor."**
  *
- * ⚠️★**b2c HAS NEVER POINTED AT THEM.** There is no `lib/api/meta-ads.ts`, no
- * `meta-ads-panel.tsx`, and no `meta_ads` entry in `ADS_CHANNELS` — the ads hub
- * registry says so itself: *"a connector that is merely catalogued (meta_ads,
- * google_ads) stays out until its panel exists."* The Meta panel is **M-16**,
- * a row added precisely because the ledger had no row for any channel UI, and
- * it is not started. So the removal half of M-13 is work that does not exist,
- * and this file is not it.
+ * ⚠️★**b2c HAD NEVER POINTED AT THEM.** When M-13 landed there was no
+ * `lib/api/meta-ads.ts`, no `meta-ads-panel.tsx`, and no `meta_ads` entry in
+ * `ADS_CHANNELS`, so the removal half of M-13 was work that did not exist, and
+ * this file is not it.
+ *
+ * ✅**M-16 built all three**, and built them against this file: the client
+ * turns every path into a request through `metaAdsUrl`, and the panel names no
+ * path at all. `meta-ads-surface.test.ts` checks both.
  *
  * ── ⚠️⚠️★★THE PREFIX IS `/v1/meta/ads`, AND THE ROW'S IS NOT A URL ────────
  *
@@ -75,14 +76,10 @@ export const META_ADS_MANAGED_ROUTES = [
  * a special ad category makes the managed path refuse. The managed surface is
  * `/v1/audiences`.
  *
- * ⚠️⚠️★★"DELETED" IS A CLAIM ABOUT **peakhour-api#1369**, WHICH IS OPEN
- * (review round 3). Until it merges, the api still serves both — and the
- * denylist is right either way: before the merge they are the unmonitored
- * passthrough this row exists to close, and after it they are a 404. ★What is
- * deliberately NOT asserted is their ABSENCE from the api's route file, because
- * that case would be red on `master` until #1369 lands, and a test that is red
- * on purpose is a test somebody disables. **Owed once #1369 merges:** one
- * `expect(routeFile).not.toContain('"/audiences"')` in the cross-repo block.
+ * ✅"DELETED" WAS A CLAIM ABOUT **peakhour-api#1369**, which merged on
+ * 2026-09-16. Their ABSENCE from the api's route file is now asserted in the
+ * cross-repo block (M-16) — it was deliberately not asserted while #1369 was
+ * open, because a test red on purpose is a test somebody disables.
  */
 export const META_ADS_DELETED_ROUTES = [`${META_ADS_PREFIX}/audiences`] as const;
 
