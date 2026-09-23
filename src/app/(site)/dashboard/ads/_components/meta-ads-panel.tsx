@@ -88,6 +88,18 @@ import { ADS_CHANNEL_PARAM, type AdsChannelKey } from "../ads-channels";
 const ACCOUNT_PARAM = "adAccount";
 const INSIGHTS_DAYS = 30;
 
+/**
+ * ⚠️★EVERY READ HERE SPENDS META'S RATE BUDGET, so none is refetched on a bare
+ * tab focus. react-query's default `staleTime` is 0, and `/analytics` costs TWO
+ * serial Graph calls per campaign id (the api's own note on
+ * `MAX_ANALYTICS_CAMPAIGNS`) — so a 50-campaign account would fire ~100 Graph
+ * calls every time the merchant switched back to this tab. That is M-11's
+ * quota hazard arriving from the client. A status change still invalidates
+ * the lists at once, and the CronToolbar still refreshes on demand.
+ */
+const LIST_STALE_MS = 60_000;
+const INSIGHTS_STALE_MS = 5 * 60_000;
+
 interface ApiIntegration {
   provider: string;
   connected?: boolean;
@@ -177,6 +189,7 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
     queryKey: ["meta-ads-accounts"],
     queryFn: () => metaAdsApi.listAdAccounts(),
     retry: false,
+    staleTime: LIST_STALE_MS,
   });
 
   // The X panel's rule, for its reason: build the URL from useSearchParams
@@ -275,6 +288,7 @@ function CampaignsSection({ account }: { account: MetaAdAccount }) {
     queryKey: ["meta-ads-campaigns", account.id],
     queryFn: () => metaAdsApi.listCampaigns(account.id),
     retry: false,
+    staleTime: LIST_STALE_MS,
   });
   const campaignList = campaigns.data?.campaigns;
   const campaignIds = useMemo(() => (campaignList ?? []).map((c) => c.id), [campaignList]);
@@ -287,6 +301,7 @@ function CampaignsSection({ account }: { account: MetaAdAccount }) {
     },
     enabled: campaignIds.length > 0,
     retry: false,
+    staleTime: INSIGHTS_STALE_MS,
   });
 
   const byCampaign = useMemo(
@@ -435,6 +450,7 @@ function AdSetRows({
     queryKey: ["meta-ads-adsets", account.id, campaign.id],
     queryFn: () => metaAdsApi.listAdSets(account.id, campaign.id),
     retry: false,
+    staleTime: LIST_STALE_MS,
   });
 
   if (adSets.isLoading) return <MessageRow depth={1} text="Loading ad sets…" />;
@@ -494,6 +510,7 @@ function AdRows({
     queryKey: ["meta-ads-ads", account.id, adSet.id],
     queryFn: () => metaAdsApi.listAds(account.id, adSet.id),
     retry: false,
+    staleTime: LIST_STALE_MS,
   });
 
   if (ads.isLoading) return <MessageRow depth={2} text="Loading ads…" />;
