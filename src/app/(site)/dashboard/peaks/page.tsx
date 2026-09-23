@@ -600,8 +600,13 @@ export default function PeaksPage() {
               <div>
                 <CardTitle className="text-base">Rate Card</CardTitle>
                 <CardDescription className="mt-1">
-                  How many Peaks each AI feature uses per activation.
-                  Actual usage varies by output length.
+                  {/* ⚠️"Actual usage varies by output length" was here, and
+                      it is false: `peaksForUsageRow` charges the row's price
+                      flat — or the quote the merchant accepted — and reads no
+                      token count at all. */}
+                  The Peaks each task costs when it runs — or, for an
+                  outcome, each time it happens. The price does not depend on
+                  how long the output is.
                 </CardDescription>
               </div>
               {rateLoading && (
@@ -625,8 +630,13 @@ export default function PeaksPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Feature</TableHead>
-                    <TableHead className="text-right">Min Peaks / call</TableHead>
-                    <TableHead className="text-right">Rate multiplier</TableHead>
+                    {/* ★ONE PRICE COLUMN. This was "Min Peaks / call" beside
+                        "Rate multiplier", and the first read a field no priced
+                        row sets — so it said 0 for every paid act — while the
+                        second held the real price under a name implying it
+                        multiplies something. The rollup charges the
+                        multiplier flat, per act; see `peaksPrice`. */}
+                    <TableHead className="text-right">Peaks</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -655,12 +665,6 @@ export default function PeaksPage() {
                         ) : (
                           <span className="tabular-nums">{peaksPrice(u).label}</span>
                         )}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums text-muted-foreground">
-                        {/* A free row has no meaningful multiplier to show, and
-                            "0×" beside "Free" invites the question the badge
-                            just answered. */}
-                        {u.free ? "—" : `${u.creditMultiplier}×`}
                       </TableCell>
                     </TableRow>
                   ))}

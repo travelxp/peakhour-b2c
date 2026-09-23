@@ -10,6 +10,7 @@ import { formatPeaks } from "@/lib/pricing";
  *
  *   - The Peaks rate card rendered a free task's price as **"—"**, because it
  *     branched on `minCreditsPerCall > 0`. A dash reads as "not applicable".
+ *     (⚠️And it read the wrong FIELD for a priced one — see `peaksPrice`.)
  *   - `ExplainCard` rendered **"Uses Peaks."** for a free task, because
  *     `cost ? … : …` treats a multiplier of `0` as falsy. That one is worse:
  *     it is shown beside the button, BEFORE the merchant clicks, and it says a
@@ -41,8 +42,19 @@ export interface PeaksPrice {
  * the row from before it was made free), which is exactly the state
  * `linkedin.lead_qualify` and `growth.ask_design` are in today. Reading the
  * number first would put a price on both.
+ *
+ * ⚠️⚠️★★THE NUMBER IS `creditMultiplier`, BECAUSE THAT IS WHAT IS CHARGED.
+ * This read `minCreditsPerCall`, and **no priced row carries one**: measured on
+ * the dev catalog 2026-09-23, all 70 priced merchant-facing useCases (58 tasks,
+ * 12 outcomes) omit it, so `getRateCard`'s `?? 0` sent 0 and the card printed
+ * **"0" as the price of every paid act** — with the real figure one column
+ * over, labelled a *"rate multiplier"*. The zod field's own words are *"Absent
+ * = no floor beyond creditMultiplier"*, and the rollup's `peaksForUsageRow`
+ * charges `creditMultiplier` flat per act and never reads the floor at all.
+ * ★The tests passed `minCreditsPerCall: 30` — a fixture no real row matches,
+ * which is why a green suite agreed with a card that priced everything at 0.
  */
-export function peaksPrice(u: Pick<RateCardUseCase, "free" | "minCreditsPerCall">): PeaksPrice {
+export function peaksPrice(u: Pick<RateCardUseCase, "free" | "creditMultiplier">): PeaksPrice {
   if (u.free) return { label: "Free", free: true };
   // WARN THE PINNED FORMATTER (review round 2). This read a BARE
   // `toLocaleString()` -- the HOST locale -- while `quotePrice` sixty
@@ -56,7 +68,7 @@ export function peaksPrice(u: Pick<RateCardUseCase, "free" | "minCreditsPerCall"
   // and review did not: the assertion compared against
   // `(1500).toLocaleString()` -- a bare call on BOTH sides -- so the
   // expectation drifted with the host in step with the code it checked.
-  return { label: formatPeaks(u.minCreditsPerCall), free: false };
+  return { label: formatPeaks(u.creditMultiplier), free: false };
 }
 
 /**
