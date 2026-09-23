@@ -8,8 +8,9 @@
  * route, no new nav item.
  *
  * Only channels that HAVE a panel belong here. A connector that is merely
- * catalogued (meta_ads, google_ads) stays out until its panel exists —
- * otherwise the selector would offer a tab that renders nothing.
+ * catalogued (google_ads) stays out until its panel exists — otherwise the
+ * selector would offer a tab that renders nothing. (`meta_ads` joined in M-16,
+ * with its panel.)
  *
  * ── ★★M-13: WHEN `meta_ads` JOINS, WHICH ROUTES ITS PANEL MAY CALL ───────
  *
@@ -22,14 +23,46 @@
  * see it at all. Those two are deleted; the rest record what they did.
  *
  * ⏸NO ROUTE PATH IS SPELLED OUT IN THIS FILE, DELIBERATELY. The guard refuses
- * the literal anywhere under `src/`, comments included — the next author reads
- * a path out of prose as readily as out of code, and the contract module is
- * meant to be the one place it is written down.
+ * an UNMANAGED literal anywhere under `src/`, comments included — the next
+ * author reads a path out of prose as readily as out of code. Paths are written
+ * in the contract module and in the one client, `lib/api/meta-ads.ts`, which
+ * builds every one through `metaAdsUrl`.
  *
- * ⏸The Meta panel itself is **M-16**, and the guard's ADS_CHANNELS case is
- * written to fail when it lands — so whoever adds the entry below has to go
- * and confirm the panel was built from the managed list.
+ * ✅The Meta panel is **M-16**, and it has landed. The guard's ADS_CHANNELS case
+ * was written to fail when it did; it now asserts the opposite — that `meta`
+ * is registered AND that its panel reaches Meta only through that client.
  */
+
+import { flattenMetaIntegration } from "@/lib/integrations-meta";
+
+/**
+ * The provider keys the hub counts as connected, from `/v1/integrations`.
+ *
+ * ⚠️★★EXPANDED FIRST (M-16). The api reports Meta as ONE `facebook` row whose
+ * ads capability is a virtual `meta_ads` row derived by
+ * `flattenMetaIntegration` — the expansion /dashboard/integrations already
+ * uses. Matching the raw list against `meta_ads` finds nothing, so a merchant
+ * whose only ad channel is Meta would open onto an empty LinkedIn tab.
+ *
+ * `needs_reauth` counts: the connection exists, and the panel belongs on
+ * screen with a reconnect banner rather than a Connect empty state. ⏸The
+ * flattened row keeps the parent's `status`, which is what lets a stale
+ * Facebook connection still select the Meta tab.
+ */
+export function connectedAdsProviderKeys(
+  integrations: readonly {
+    provider: string;
+    connected?: boolean;
+    status?: string;
+    account?: { extra?: Record<string, unknown> };
+  }[],
+): Set<string> {
+  const set = new Set<string>();
+  for (const i of flattenMetaIntegration([...integrations])) {
+    if (i.connected === true || i.status === "needs_reauth") set.add(i.provider);
+  }
+  return set;
+}
 
 /**
  * Shape each registry entry must satisfy. The exported `AdsChannelDef` and
@@ -83,6 +116,32 @@ export const ADS_CHANNELS = [
     crons: ["x-ads-metrics-sync"],
     invalidateQueryKeys: [["x-ads-analytics"], ["x-ads-campaigns"]],
     ownedParams: ["account"],
+  },
+  /**
+   * ★★M-16. `providerKey` is the VIRTUAL `meta_ads` row, not `facebook`: the
+   * api reports one `facebook` connection and `flattenMetaIntegration` derives
+   * the ads capability from it. So the hub expands before it matches — see
+   * `connectedAdsProviderKeys` below — or a merchant with only Meta connected
+   * opens onto an empty LinkedIn tab.
+   *
+   * `meta-conversion-sweep` is here because this panel's dataset card is the
+   * only way that sweep can ever have something to send; `ad-campaign-monitor`
+   * because it is what watches a managed Meta campaign's spend.
+   */
+  {
+    key: "meta",
+    label: "Meta Ads",
+    providerKey: "meta_ads",
+    description:
+      "See and pause your Facebook and Instagram campaigns, and choose where purchases from Meta ads are reported.",
+    crons: ["ad-campaign-monitor", "meta-conversion-sweep"],
+    invalidateQueryKeys: [
+      ["meta-ads-campaigns"],
+      ["meta-ads-insights"],
+      ["meta-ads-dataset"],
+      ["content-hub-integrations"],
+    ],
+    ownedParams: ["adAccount"],
   },
 ] as const satisfies readonly AdsChannelShape[];
 

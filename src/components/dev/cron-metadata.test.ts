@@ -593,3 +593,78 @@ describe("linkedin-post-sync summary", () => {
     expect(s?.message).toMatch(/reconnect/i);
   });
 });
+
+/**
+ * ★★M-16 — THE META CONVERSION SWEEP, whose missing label had master red.
+ *
+ * The fixture is the api's `MetaConversionSweepResult` field for field
+ * (`services/meta/conversion-sweep.ts`), not a shape invented to fit the
+ * summarizer: an invented fixture is how a summarizer ends up agreeing with
+ * itself about a field the api never sends.
+ */
+describe("meta-conversion-sweep summary", () => {
+  const clean = {
+    businessesConsidered: 3,
+    businessesConfigured: 2,
+    ordersConsidered: 9,
+    eventsUploaded: 9,
+    ordersMarked: 9,
+    skipped: {
+      no_click: 0, no_click_time: 0, outside_window: 0, future_dated: 0,
+      no_value: 0, no_currency: 0, no_order_time: 0, no_source_url: 0,
+    },
+    batches: 2,
+    budgetHit: false,
+    perBusinessCapHit: false,
+  };
+  const run = (over: Record<string, unknown>) =>
+    summarizeCronBody("meta-conversion-sweep", JSON.stringify({ ok: true, data: { ...clean, ...over } }));
+
+  it("★M-16 a clean run is green and says what it sent", () => {
+    const s = run({});
+    expect(s?.level).not.toBe("warning");
+    expect(s?.message).toContain("9 purchases sent for 2 businesses");
+  });
+
+  it("★M-16 no chosen dataset is a plain no-op, not a failure", () => {
+    const s = run({ businessesConfigured: 0, eventsUploaded: 0, ordersMarked: 0 });
+    expect(s?.message).toMatch(/no business has chosen a Meta dataset/);
+    expect(s?.level).not.toBe("warning");
+  });
+
+  it("★★M-16 a filled per-business cap WARNS — the tail is lost, not delayed", () => {
+    const s = run({ perBusinessCapHit: true });
+    expect(s?.level).toBe("warning");
+    expect(s?.message).toMatch(/7-day window/);
+  });
+
+  it("★M-16 a run cut short by its budget warns", () => {
+    expect(run({ budgetHit: true })?.level).toBe("warning");
+  });
+
+  it("★M-16 uploaded-but-unmarked warns — those orders go again", () => {
+    const s = run({ ordersMarked: 7 });
+    expect(s?.level).toBe("warning");
+    expect(s?.message).toMatch(/sent again/);
+  });
+
+  it("★★M-16 a structurally-zero skip reason that moved warns, naming it", () => {
+    const s = run({ skipped: { ...clean.skipped, no_currency: 2 } });
+    expect(s?.level).toBe("warning");
+    expect(s?.message).toContain("no_currency");
+  });
+
+  it("★★M-16 but `no_source_url` is the one reason MEANT to move, and does not warn", () => {
+    // ⚠️THE ALARM DIRECTION. The api's own comment: "the only count here that
+    // is MEANT to move is `no_source_url`". A summarizer warning on every
+    // non-zero skip would cry wolf on an ordinary storefront outcome.
+    const s = run({ skipped: { ...clean.skipped, no_source_url: 4 } });
+    expect(s?.level).not.toBe("warning");
+  });
+
+  it("★M-16 a body without the counter defers to the generic toast", () => {
+    expect(
+      summarizeCronBody("meta-conversion-sweep", JSON.stringify({ ok: true, data: {} })),
+    ).toBeNull();
+  });
+});

@@ -5,6 +5,7 @@ import {
   getAdsChannel,
   nextAdsHubSearch,
   resolveAdsChannel,
+  connectedAdsProviderKeys,
 } from "./ads-channels";
 
 const NONE = new Set<string>();
@@ -31,7 +32,7 @@ describe("resolveAdsChannel", () => {
   });
 
   it("ignores an unknown or empty param instead of rendering a blank hub", () => {
-    expect(resolveAdsChannel("meta", new Set(["x_ads"]))).toBe("x");
+    expect(resolveAdsChannel("google", new Set(["x_ads"]))).toBe("x");
     expect(resolveAdsChannel("", new Set(["x_ads"]))).toBe("x");
     // Keys are matched exactly — no case folding.
     expect(resolveAdsChannel("LinkedIn", new Set(["x_ads"]))).toBe("x");
@@ -63,7 +64,7 @@ describe("ADS_CHANNELS registry", () => {
   it("carries the provider keys the Content hub catalog routes from", () => {
     // Regression guard: these must match cfg_integrations.key /
     // int_connections.provider, or the hub can't tell connected from not.
-    expect(ADS_CHANNELS.map((c) => c.providerKey)).toEqual(["linkedin_ads", "x_ads"]);
+    expect(ADS_CHANNELS.map((c) => c.providerKey)).toEqual(["linkedin_ads", "x_ads", "meta_ads"]);
   });
 });
 
@@ -91,13 +92,70 @@ describe("nextAdsHubSearch", () => {
   });
 
   it("overwrites an invalid or absent channel", () => {
-    expect(nextAdsHubSearch(search("channel=meta"), "x")).toBe("channel=x");
+    expect(nextAdsHubSearch(search("channel=google"), "x")).toBe("channel=x");
     expect(nextAdsHubSearch(search(""), "x")).toBe("channel=x");
   });
 
   it("accepts Next's ReadonlyURLSearchParams shape (toString only)", () => {
     expect(nextAdsHubSearch({ toString: () => "channel=x&account=a1" }, "linkedin")).toBe(
       "channel=linkedin",
+    );
+  });
+});
+
+/**
+ * ★★M-16 — the hub must EXPAND the `facebook` row before it matches.
+ *
+ * The api reports Meta as one `facebook` connection. The ads capability is the
+ * virtual `meta_ads` row `flattenMetaIntegration` derives from it — connected
+ * only when the parent is, the Ads capability is not switched off, and at least
+ * one ad account exists. Fixtures are the api's shape: `account.extra` carrying
+ * `capabilities` and `adAccounts`.
+ */
+describe("★★M-16 connectedAdsProviderKeys", () => {
+  const facebook = (over: Record<string, unknown> = {}, extra: Record<string, unknown> = {}) => ({
+    provider: "facebook",
+    connected: true,
+    status: "active",
+    account: { extra: { adAccounts: [{ id: "act_1", name: "Main" }], capabilities: {}, ...extra } },
+    ...over,
+  });
+
+  it("★★M-16 a Facebook connection with an ad account counts as meta_ads", () => {
+    expect(connectedAdsProviderKeys([facebook()]).has("meta_ads")).toBe(true);
+  });
+
+  it("★★M-16 and so a Meta-only org opens on the Meta tab, not an empty LinkedIn one", () => {
+    // THE DEFECT, END TO END. Matching the raw list, the set is {facebook} and
+    // resolveAdsChannel falls back to the first registered channel.
+    expect(resolveAdsChannel(null, connectedAdsProviderKeys([facebook()]))).toBe("meta");
+  });
+
+  it("★M-16 no ad account is not an ads connection", () => {
+    expect(connectedAdsProviderKeys([facebook({}, { adAccounts: [] })]).has("meta_ads")).toBe(false);
+  });
+
+  it("★M-16 the Ads capability switched off is not an ads connection", () => {
+    const off = facebook({}, { capabilities: { ads: { enabled: false } } });
+    expect(connectedAdsProviderKeys([off]).has("meta_ads")).toBe(false);
+  });
+
+  it("★★M-16 a STALE Facebook connection still selects the Meta tab — the panel shows reconnect", () => {
+    const stale = facebook({ connected: false, status: "needs_reauth" });
+    expect(connectedAdsProviderKeys([stale]).has("meta_ads")).toBe(true);
+  });
+
+  it("★M-16 other providers pass through untouched", () => {
+    const keys = connectedAdsProviderKeys([
+      { provider: "x_ads", connected: true },
+      { provider: "linkedin_ads", connected: false, status: "active" },
+    ]);
+    expect([...keys]).toEqual(["x_ads"]);
+  });
+
+  it("★M-16 leaving the Meta tab drops its ad-account param", () => {
+    expect(nextAdsHubSearch(new URLSearchParams("channel=meta&adAccount=act_1"), "x")).toBe(
+      "channel=x",
     );
   });
 });
