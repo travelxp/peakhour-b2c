@@ -17,8 +17,6 @@ import {
   metaKpiState,
   metaKpiText,
   metaFigureText,
-  metaListMayBeTruncated,
-  META_LIST_PAGE_SIZE,
   metaLaunchChargeSentence,
   metaMinorToMajor,
   metaNotServingBecause,
@@ -325,11 +323,24 @@ describe("★★M-16 R2.2 the not-serving note names what the parent IS", () => 
   });
 });
 
-describe("★★M-16 R1.4 a list at the api's page size may be truncated", () => {
-  it("★M-16 R1.4 fewer than a page is complete, a full page is not known to be", () => {
-    expect(metaListMayBeTruncated(META_LIST_PAGE_SIZE - 1)).toBe(false);
-    expect(metaListMayBeTruncated(META_LIST_PAGE_SIZE)).toBe(true);
-    expect(metaListMayBeTruncated(0)).toBe(false);
+describe("★★the panel reads the api's truncated flag, never a count (api#1409)", () => {
+  const panel = () =>
+    readFileSync(
+      fileURLToPath(new URL("../app/(site)/dashboard/ads/_components/meta-ads-panel.tsx", import.meta.url)),
+      "utf8",
+    );
+
+  it("★★each of the three lists shows its notice from `.truncated`", () => {
+    const src = panel();
+    for (const q of ["campaigns", "adSets", "ads"]) {
+      expect(src, q).toContain(`${q}.data?.truncated === true`);
+    }
+  });
+
+  it("★★and no notice is decided by comparing a length to a page size", () => {
+    // ⚠️The rule this replaced: a list of exactly 50 read as "maybe more",
+    //  which is the alarm direction once the route follows the cursor.
+    expect(panel()).not.toMatch(/length\s*>=\s*\d+|PAGE_SIZE/);
   });
 });
 
@@ -377,19 +388,12 @@ describe("★★M-16 — the copies are peakhour-api's, checked against its sour
     expect([...ISO_ZERO_DECIMAL_NOT_IN_META_TABLE].sort()).toEqual(api);
   });
 
-  it.skipIf(!present)("★★M-16 R1.4 the page size is the one getCampaigns, getAdSets and getAds read — and none paginates", () => {
-    const src = read(HELPER);
-    for (const fn of ["getCampaigns", "getAdSets", "getAds"]) {
-      const start = src.indexOf(`export async function ${fn}(`);
-      expect(start, `${fn} not found in the api helper`).toBeGreaterThan(-1);
-      const next = src.indexOf("\nexport ", start + 1);
-      const body = src.slice(start, next === -1 ? undefined : next);
-      const m = /limit = (\d+)/.exec(body);
-      expect(m, `${fn} has no default limit`).not.toBeNull();
-      expect(Number(m![1]), fn).toBe(META_LIST_PAGE_SIZE);
-      // ⏸The notice exists BECAUSE these read one page. When the api learns to
-      //  follow `paging.next`, this fails — and the notice should go with it.
-      expect(body, `${fn} now paginates — drop the truncation notice`).not.toMatch(/paging/);
+  it.skipIf(!present)("★★the api's three list routes return the truncated flag the panel reads", () => {
+    // ⏸THE MERGE ORDER, AS A TEST: red against an api checkout that predates
+    //  api#1409, which is the deploy this client needs.
+    const routes = read(ROUTES);
+    for (const key of ["campaigns", "adSets", "ads"]) {
+      expect(routes, key).toMatch(new RegExp(`return ok\\(c, \\{ ${key}, truncated \\}\\)`));
     }
   });
 

@@ -51,8 +51,6 @@ import {
   metaKpiState,
   metaKpiText,
   metaFigureText,
-  metaListMayBeTruncated,
-  META_LIST_PAGE_SIZE,
   sumReported,
   type MetaKpiState,
 } from "@/lib/meta-ads-view";
@@ -436,10 +434,10 @@ function CampaignsSection({ account }: { account: MetaAdAccount }) {
         </CardContent>
       </Card>
 
-      {metaListMayBeTruncated(campaignIds.length) ? (
+      {campaigns.data?.truncated === true ? (
         <p className="text-xs text-warning-on-tint" role="status">
-          Showing the first {META_LIST_PAGE_SIZE} campaigns Meta returned — this account may have
-          more, and the totals above cover only these.
+          Showing the first {campaignIds.length} campaigns — this account has more than this view
+          reads, and the totals above cover only these.
         </p>
       ) : null}
 
@@ -478,8 +476,8 @@ function AdSetRows({
 
   return (
     <>
-      {metaListMayBeTruncated(list.length) ? (
-        <MessageRow depth={1} text={`Showing the first ${META_LIST_PAGE_SIZE} ad sets — this campaign may have more.`} />
+      {adSets.data?.truncated === true ? (
+        <MessageRow depth={1} text={`Showing the first ${list.length} ad sets — this campaign has more.`} />
       ) : null}
       {list.map((s) => {
         const open = expanded.has(s.id);
@@ -539,8 +537,8 @@ function AdRows({
 
   return (
     <>
-      {metaListMayBeTruncated(list.length) ? (
-        <MessageRow depth={2} text={`Showing the first ${META_LIST_PAGE_SIZE} ads — this ad set may have more.`} />
+      {ads.data?.truncated === true ? (
+        <MessageRow depth={2} text={`Showing the first ${list.length} ads — this ad set has more.`} />
       ) : null}
       {list.map((a) => (
         <NodeRow

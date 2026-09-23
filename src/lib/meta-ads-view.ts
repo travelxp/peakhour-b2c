@@ -352,16 +352,12 @@ export function metaFigureText(
 }
 
 /**
- * ⚠️★THE API READS ONE PAGE OF 50 AND STOPS (review R1.4). `getCampaigns`,
- * `getAdSets` and `getAds` in peakhour-api's `helpers/meta-ads.ts` each ask
- * Graph for `limit=50` and follow no cursor — unlike `getAdAccounts` and
- * `getAdsPixels`, which paginate. So a list of exactly 50 may be the first 50
- * of more, and the spend total covers only those. Pinned against the api's
- * source in `meta-ads-view.test.ts`. ⏸The fix is pagination in the api; until
- * then the panel says so rather than presenting 50 as all.
+ * ★WHETHER A LIST IS COMPLETE IS THE API'S ANSWER, NOT A COUNT (api#1409).
+ *
+ * This file held `META_LIST_PAGE_SIZE = 50` and `metaListMayBeTruncated`,
+ * which guessed "maybe more" from a list of exactly 50 — right only while the
+ * api read one page. The list routes now follow Meta's cursor and return
+ * `truncated`, true only when Meta offered a page they did not fetch; a count
+ * would now call a complete 50-row account truncated. Deleted, not kept
+ * beside the flag (pre-launch: the newest version, and nothing else).
  */
-export const META_LIST_PAGE_SIZE = 50;
-
-export function metaListMayBeTruncated(count: number): boolean {
-  return count >= META_LIST_PAGE_SIZE;
-}
