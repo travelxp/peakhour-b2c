@@ -352,6 +352,17 @@ describe("★★#571 R1.2 the insights read is capped at the old cost, and says 
     expect(src).not.toContain("metaAdsApi.insights(campaignIds,");
     expect(src).toContain("insightSet.has(c.id)");
   });
+
+  it("★★R2.1 no notice claims the totals cover the LISTED campaigns — only the coverage line speaks for them", () => {
+    // The truncation notice said "the totals above cover only these" N while
+    // the cards summed the first 50: two notices on one screen disagreeing.
+    const src = readFileSync(
+      fileURLToPath(new URL("../app/(site)/dashboard/ads/_components/meta-ads-panel.tsx", import.meta.url)),
+      "utf8",
+    );
+    expect(src).not.toMatch(/totals above cover only these/);
+    expect(src).toMatch(/Figures cover the first \{insightIds\.length\} of \{campaignIds\.length\}/);
+  });
 });
 
 describe("★★the panel reads the api's truncated flag, never a count (api#1409)", () => {

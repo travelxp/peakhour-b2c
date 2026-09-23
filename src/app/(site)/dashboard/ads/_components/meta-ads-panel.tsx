@@ -451,9 +451,13 @@ function CampaignsSection({ account }: { account: MetaAdAccount }) {
       </Card>
 
       {campaigns.data?.truncated === true ? (
+        // ⚠️#571 R2.1: this notice speaks for the LIST only. It said the totals
+        //  "cover only these" N campaigns while the cards summed the first
+        //  META_INSIGHTS_MAX_CAMPAIGNS — two notices on one screen disagreeing.
+        //  What the totals cover is said once, by the coverage line above.
         <p className="text-xs text-warning-on-tint" role="status">
           Showing the first {campaignIds.length} campaigns — this account has more than this view
-          reads, and the totals above cover only these.
+          reads.
         </p>
       ) : null}
 
