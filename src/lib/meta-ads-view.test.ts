@@ -14,6 +14,10 @@ import {
   metaBudgetLabel,
   metaCurrencyOffsetDecimals,
   metaInsightsRange,
+  metaKpiState,
+  metaKpiText,
+  metaListMayBeTruncated,
+  META_LIST_PAGE_SIZE,
   metaLaunchChargeSentence,
   metaMinorToMajor,
   metaNotServingBecause,
@@ -205,8 +209,72 @@ describe("★★M-16 errors", () => {
 describe("★M-16 insights range", () => {
   it("★M-16 is date-only, which is all the api's regex accepts", () => {
     const [start, end] = metaInsightsRange(30, new Date("2026-09-23T18:00:00Z"));
-    expect(start).toBe("2026-08-24");
+    expect(start).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     expect(end).toBe("2026-09-23");
+  });
+
+  it("★★M-16 R1.5 holds EXACTLY `days` dates — Meta's time_range is inclusive at both ends", () => {
+    // It read 2026-08-24..2026-09-23: 31 dates under a "30d" label.
+    const [start, end] = metaInsightsRange(30, new Date("2026-09-23T18:00:00Z"));
+    expect(start).toBe("2026-08-25");
+    const dates = (Date.parse(end) - Date.parse(start)) / 86_400_000 + 1;
+    expect(dates).toBe(30);
+  });
+});
+
+describe("★★M-16 R1.3 the KPI cards never claim what we did not ask", () => {
+  const base = {
+    campaignsPending: false,
+    campaignsError: false,
+    campaignCount: 3,
+    insightsPending: false,
+    insightsError: false,
+  };
+
+  it("★★M-16 R1.3 while CAMPAIGNS load, the cards are loading — not 'Not reported'", () => {
+    // The insights query is disabled until campaigns arrive, and a disabled
+    // query's isLoading is false in v5 — which is what said "Not reported".
+    // ⚠️THE INPUT THE PANEL ACTUALLY PASSES: while campaigns load, the id list
+    //  is EMPTY (so `campaignCount` is 0) and the disabled insights query is
+    //  pending. A first cut passed `campaignCount: 3` here — a state the panel
+    //  cannot be in — and a mutation deleting the campaigns-pending check
+    //  SURVIVED it, because the count routed around the check. With the real
+    //  input, dropping the check says "No campaigns" about an account whose
+    //  campaigns have not arrived yet.
+    expect(
+      metaKpiState({ ...base, campaignsPending: true, campaignCount: 0, insightsPending: true }),
+    ).toBe("loading");
+    expect(metaKpiText("loading", undefined, String)).toBeNull();
+  });
+
+  it("★★M-16 R1.3 a failed campaign read is an error, not 'Not reported'", () => {
+    const s = metaKpiState({ ...base, campaignsError: true, insightsPending: true });
+    expect(s).toBe("error");
+    expect(metaKpiText(s, undefined, String)).toBe("Unavailable");
+  });
+
+  it("★M-16 a failed insights read is an error too", () => {
+    expect(metaKpiState({ ...base, insightsError: true })).toBe("error");
+  });
+
+  it("★M-16 no campaigns says so", () => {
+    const s = metaKpiState({ ...base, campaignCount: 0, insightsPending: true });
+    expect(s).toBe("none");
+    expect(metaKpiText(s, undefined, String)).toBe("No campaigns");
+  });
+
+  it("★★M-16 only a COMPLETED insights read may say 'Not reported'", () => {
+    expect(metaKpiState(base)).toBe("ready");
+    expect(metaKpiText("ready", undefined, String)).toBe("Not reported");
+    expect(metaKpiText("ready", { total: 12, reported: 1, of: 1 }, (n) => `#${n}`)).toBe("#12");
+  });
+});
+
+describe("★★M-16 R1.4 a list at the api's page size may be truncated", () => {
+  it("★M-16 R1.4 fewer than a page is complete, a full page is not known to be", () => {
+    expect(metaListMayBeTruncated(META_LIST_PAGE_SIZE - 1)).toBe(false);
+    expect(metaListMayBeTruncated(META_LIST_PAGE_SIZE)).toBe(true);
+    expect(metaListMayBeTruncated(0)).toBe(false);
   });
 });
 
@@ -252,6 +320,22 @@ describe("★★M-16 — the copies are peakhour-api's, checked against its sour
     const api = setMembers(src, "ISO_ZERO_DECIMAL_NOT_IN_META_TABLE");
     expect(api.length).toBeGreaterThan(5);
     expect([...ISO_ZERO_DECIMAL_NOT_IN_META_TABLE].sort()).toEqual(api);
+  });
+
+  it.skipIf(!present)("★★M-16 R1.4 the page size is the one getCampaigns, getAdSets and getAds read — and none paginates", () => {
+    const src = read(HELPER);
+    for (const fn of ["getCampaigns", "getAdSets", "getAds"]) {
+      const start = src.indexOf(`export async function ${fn}(`);
+      expect(start, `${fn} not found in the api helper`).toBeGreaterThan(-1);
+      const next = src.indexOf("\nexport ", start + 1);
+      const body = src.slice(start, next === -1 ? undefined : next);
+      const m = /limit = (\d+)/.exec(body);
+      expect(m, `${fn} has no default limit`).not.toBeNull();
+      expect(Number(m![1]), fn).toBe(META_LIST_PAGE_SIZE);
+      // ⏸The notice exists BECAUSE these read one page. When the api learns to
+      //  follow `paging.next`, this fails — and the notice should go with it.
+      expect(body, `${fn} now paginates — drop the truncation notice`).not.toMatch(/paging/);
+    }
   });
 
   it.skipIf(!present)("★★M-16 the batch size is the api's analytics cap", () => {

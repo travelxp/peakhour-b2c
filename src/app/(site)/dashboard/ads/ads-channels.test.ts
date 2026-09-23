@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import {
   ADS_CHANNELS,
   isAdsChannelKey,
@@ -6,6 +8,7 @@ import {
   nextAdsHubSearch,
   resolveAdsChannel,
   connectedAdsProviderKeys,
+  metaAdsConnectionState,
 } from "./ads-channels";
 
 const NONE = new Set<string>();
@@ -151,6 +154,57 @@ describe("★★M-16 connectedAdsProviderKeys", () => {
       { provider: "linkedin_ads", connected: false, status: "active" },
     ]);
     expect([...keys]).toEqual(["x_ads"]);
+  });
+
+  it("★★M-16 R1.2 a STALE connection with Ads switched off is NOT a Meta ads connection", () => {
+    // `flattenMetaIntegration` copies the parent's status onto every virtual
+    // row, so this came out as a `needs_reauth` meta_ads and the hub opened a
+    // Pages-only merchant on the Meta tab behind a reconnect banner.
+    const stale = facebook(
+      { connected: false, status: "needs_reauth" },
+      { capabilities: { ads: { enabled: false } } },
+    );
+    expect(connectedAdsProviderKeys([stale]).has("meta_ads")).toBe(false);
+    expect(metaAdsConnectionState([stale])).toBe("absent");
+  });
+
+  it("★★M-16 R1.2 nor is a stale connection with no ad account", () => {
+    const stale = facebook({ connected: false, status: "needs_reauth" }, { adAccounts: [] });
+    expect(connectedAdsProviderKeys([stale]).has("meta_ads")).toBe(false);
+    expect(metaAdsConnectionState([stale])).toBe("absent");
+  });
+
+  it("★★M-16 R1.2 but a stale Pages capability still counts for PAGES — the rule is per capability", () => {
+    const stale = facebook(
+      { connected: false, status: "needs_reauth" },
+      { adAccounts: [], pages: [{ pageId: "p1", pageName: "Shop" }] },
+    );
+    const keys = connectedAdsProviderKeys([stale]);
+    expect(keys.has("facebook_pages")).toBe(true);
+    expect(keys.has("meta_ads")).toBe(false);
+  });
+
+  it("★M-16 the panel's gate: connected wins over a stale sibling row, and reauth is reported", () => {
+    const live = facebook();
+    const stale = facebook({ connected: false, status: "needs_reauth" });
+    expect(metaAdsConnectionState([stale, live])).toBe("connected");
+    expect(metaAdsConnectionState([stale])).toBe("needs_reauth");
+    expect(metaAdsConnectionState([])).toBe("absent");
+    expect(metaAdsConnectionState([{ provider: "x_ads", connected: true }])).toBe("absent");
+  });
+
+  it("★★M-16 R1.6 every query the Meta panel makes is refreshed by the channel's cron toolbar", () => {
+    // DERIVED FROM THE PANEL'S SOURCE, so a sixth query added later cannot be
+    // forgotten here the way the ad-set and ad levels were.
+    const src = readFileSync(
+      fileURLToPath(new URL("./_components/meta-ads-panel.tsx", import.meta.url)),
+      "utf8",
+    );
+    const prefixes = [...new Set([...src.matchAll(/queryKey: \["(meta-ads-[a-z-]+)"/g)].map((m) => m[1]!))];
+    expect(prefixes.length, "found no Meta query keys in the panel — wrong file?").toBeGreaterThan(4);
+    const meta = ADS_CHANNELS.find((c) => c.key === "meta")!;
+    const refreshed: readonly string[] = meta.invalidateQueryKeys.map((k) => k[0]);
+    expect(prefixes.filter((p) => !refreshed.includes(p))).toEqual([]);
   });
 
   it("★M-16 leaving the Meta tab drops its ad-account param", () => {

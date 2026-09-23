@@ -662,6 +662,25 @@ describe("meta-conversion-sweep summary", () => {
     expect(s?.level).not.toBe("warning");
   });
 
+  it.skipIf(scheduled === null)(
+    "★★M-16 R1.1 the frequency says the hour vercel.json actually schedules",
+    () => {
+      // ⚠️It said "3:15pm UTC" against `0 15 * * *` — 15:00. A label read off
+      // the schedule by eye is the defect; pin the pair so neither can move alone.
+      const config = JSON.parse(readFileSync(VERCEL_JSON, "utf8")) as {
+        crons: Array<{ path: string; schedule: string }>;
+      };
+      const entry = config.crons.find((c) => c.path === "/v1/cron/meta-conversion-sweep");
+      expect(entry, "meta-conversion-sweep is not scheduled in vercel.json").toBeDefined();
+      const m = /^(\d+) (\d+) \* \* \*$/.exec(entry!.schedule);
+      expect(m, `not a daily schedule: ${entry!.schedule}`).not.toBeNull();
+      const [minute, hour] = [Number(m![1]), Number(m![2])];
+      const h12 = hour % 12 === 0 ? 12 : hour % 12;
+      const clock = `${h12}${minute ? `:${String(minute).padStart(2, "0")}` : ""}${hour < 12 ? "am" : "pm"}`;
+      expect(CRON_METADATA["meta-conversion-sweep"].frequency).toBe(`Runs daily at ${clock} UTC`);
+    },
+  );
+
   it("★M-16 a body without the counter defers to the generic toast", () => {
     expect(
       summarizeCronBody("meta-conversion-sweep", JSON.stringify({ ok: true, data: {} })),

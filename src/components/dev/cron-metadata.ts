@@ -971,7 +971,7 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
    */
   "meta-conversion-sweep": {
     label: "Send purchases to Meta",
-    frequency: "Runs daily at 3:15pm UTC",
+    frequency: "Runs daily at 3pm UTC",
     description:
       "Sends orders that came from a Meta ad click to the conversions dataset each business chose, so Meta can credit its ads. Does nothing for a business that has not chosen a dataset. Charges no Peaks.",
     /**

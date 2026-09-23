@@ -253,9 +253,70 @@ export function metaAdsNeedsReconnect(err: unknown): boolean {
  * `[startDate, endDate]` for the last `days` days, as the date-only strings the
  * api's `^\d{4}-\d{2}-\d{2}$` accepts — X's panel records that a full ISO
  * timestamp 400s and every KPI silently renders "—".
+ *
+ * ⚠️★BOTH ENDS ARE INCLUSIVE (review R1.5). Meta's `time_range` counts `since`
+ * and `until` both, so `now − days` to `now` is `days + 1` days — a "30d" KPI
+ * that read 31, about 3% above Ads Manager's own 30-day figure. The start is
+ * `days − 1` back, so the window holds exactly `days` dates.
  */
 export function metaInsightsRange(days: number, now: Date = new Date()): [string, string] {
   const end = now.toISOString().slice(0, 10);
-  const start = new Date(now.getTime() - days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const start = new Date(now.getTime() - (days - 1) * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   return [start, end];
+}
+
+// ── KPIs and list completeness ───────────────────────────────────────────
+
+export type MetaKpiState = "loading" | "error" | "none" | "ready";
+
+/**
+ * Which state the KPI cards are in.
+ *
+ * ⚠️★`isLoading` IS NOT ENOUGH, AND REVIEW R1.3 IS WHY. The insights query is
+ * DISABLED until the campaign list arrives, and a disabled query reports
+ * `isLoading: false` in react-query v5 — so while campaigns loaded, and after
+ * they FAILED, the cards said "Not reported": a claim about Meta made while we
+ * had not asked it. The campaign read is consulted first, and a failure of
+ * either read is its own state.
+ */
+export function metaKpiState(q: {
+  campaignsPending: boolean;
+  campaignsError: boolean;
+  campaignCount: number;
+  insightsPending: boolean;
+  insightsError: boolean;
+}): MetaKpiState {
+  if (q.campaignsError) return "error";
+  if (q.campaignsPending) return "loading";
+  if (q.campaignCount === 0) return "none";
+  if (q.insightsError) return "error";
+  if (q.insightsPending) return "loading";
+  return "ready";
+}
+
+/** The figure a KPI card shows, or `null` for a skeleton. */
+export function metaKpiText(
+  state: MetaKpiState,
+  total: ReportedTotal | undefined,
+  render: (n: number) => string,
+): string | null {
+  if (state === "loading") return null;
+  if (state === "error") return "Unavailable";
+  if (state === "none") return "No campaigns";
+  return total ? render(total.total) : "Not reported";
+}
+
+/**
+ * ⚠️★THE API READS ONE PAGE OF 50 AND STOPS (review R1.4). `getCampaigns`,
+ * `getAdSets` and `getAds` in peakhour-api's `helpers/meta-ads.ts` each ask
+ * Graph for `limit=50` and follow no cursor — unlike `getAdAccounts` and
+ * `getAdsPixels`, which paginate. So a list of exactly 50 may be the first 50
+ * of more, and the spend total covers only those. Pinned against the api's
+ * source in `meta-ads-view.test.ts`. ⏸The fix is pagination in the api; until
+ * then the panel says so rather than presenting 50 as all.
+ */
+export const META_LIST_PAGE_SIZE = 50;
+
+export function metaListMayBeTruncated(count: number): boolean {
+  return count >= META_LIST_PAGE_SIZE;
 }

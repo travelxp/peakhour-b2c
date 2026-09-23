@@ -30,7 +30,6 @@ import {
 } from "@/components/ui/table";
 import { EmptyState } from "@/components/molecules/empty-state";
 import { useCreditsRateCard } from "@/hooks/use-credits";
-import { flattenMetaIntegration } from "@/lib/integrations-meta";
 import {
   metaAdsApi,
   type MetaAdAccount,
@@ -49,9 +48,14 @@ import {
   metaLaunchChargeSentence,
   metaNotServingBecause,
   metaStatusToggle,
+  metaKpiState,
+  metaKpiText,
+  metaListMayBeTruncated,
+  META_LIST_PAGE_SIZE,
   sumReported,
+  type MetaKpiState,
 } from "@/lib/meta-ads-view";
-import { ADS_CHANNEL_PARAM, type AdsChannelKey } from "../ads-channels";
+import { ADS_CHANNEL_PARAM, metaAdsConnectionState, type AdsChannelKey } from "../ads-channels";
 
 /**
  * ★★M-16 — the Meta (Facebook + Instagram) panel, inside the shared Ads hub
@@ -114,20 +118,17 @@ export function MetaAdsPanel({ channelKey }: { channelKey: AdsChannelKey }) {
     staleTime: 30_000,
   });
 
-  // ★THE API REPORTS ONE `facebook` CONNECTION, NOT A `meta_ads` ONE. The ads
-  //  capability is a virtual row that `flattenMetaIntegration` derives — the
-  //  same expansion /dashboard/integrations uses — so reading `meta_ads`
-  //  straight off the list would find nothing and tell a connected merchant to
-  //  connect.
-  const metaAds = useMemo(
-    () =>
-      flattenMetaIntegration(integrations.data?.integrations ?? []).find(
-        (i) => i.provider === "meta_ads",
-      ),
+  // ★THE API REPORTS ONE `facebook` CONNECTION, NOT A `meta_ads` ONE, so the
+  //  ads capability is derived — by the SAME rule the hub uses to pick this tab
+  //  (`metaAdsConnectionState`), so the two cannot disagree. ⚠️Review R1.2: a
+  //  stale connection counts only if its Ads capability is on and it has an ad
+  //  account; otherwise this is "Connect Meta", not a reconnect banner.
+  const state = useMemo(
+    () => metaAdsConnectionState(integrations.data?.integrations ?? []),
     [integrations.data],
   );
-  const needsReauth = metaAds?.status === "needs_reauth";
-  const isConnected = metaAds?.connected === true || needsReauth;
+  const needsReauth = state === "needs_reauth";
+  const isConnected = state !== "absent";
 
   if (integrations.isLoading) return <SkeletonStack />;
 
@@ -334,13 +335,22 @@ function CampaignsSection({ account }: { account: MetaAdAccount }) {
   const pendingId = setStatus.isPending ? setStatus.variables?.id : undefined;
 
   const launchRow = rateCard.data?.useCases.find((u) => u.useCase === META_LAUNCH_USE_CASE);
+  // ⚠️Review R1.3 — the campaign read is consulted before the insights one; see
+  //  `metaKpiState` for why `insights.isLoading` alone said "Not reported".
+  const kpiState = metaKpiState({
+    campaignsPending: campaigns.isPending,
+    campaignsError: campaigns.isError,
+    campaignCount: campaignIds.length,
+    insightsPending: insights.isPending,
+    insightsError: insights.isError,
+  });
 
   return (
     <div className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-3">
-        <Kpi title={`Spend (${INSIGHTS_DAYS}d)`} total={spend} loading={insights.isLoading} render={(n) => formatMetaMoney(n, account.currency)} />
-        <Kpi title="Impressions" total={impressions} loading={insights.isLoading} render={(n) => n.toLocaleString("en-US")} />
-        <Kpi title="Clicks" total={clicks} loading={insights.isLoading} render={(n) => n.toLocaleString("en-US")} />
+        <Kpi title={`Spend (${INSIGHTS_DAYS}d)`} total={spend} state={kpiState} render={(n) => formatMetaMoney(n, account.currency)} />
+        <Kpi title="Impressions" total={impressions} state={kpiState} render={(n) => n.toLocaleString("en-US")} />
+        <Kpi title="Clicks" total={clicks} state={kpiState} render={(n) => n.toLocaleString("en-US")} />
       </div>
       {insights.isError ? (
         <p className="text-xs text-muted-foreground" role="status">
@@ -427,6 +437,13 @@ function CampaignsSection({ account }: { account: MetaAdAccount }) {
         </CardContent>
       </Card>
 
+      {metaListMayBeTruncated(campaignIds.length) ? (
+        <p className="text-xs text-warning-on-tint" role="status">
+          Showing the first {META_LIST_PAGE_SIZE} campaigns Meta returned — this account may have
+          more, and the totals above cover only these.
+        </p>
+      ) : null}
+
       {/* ★§7.0.1 requirement 4 — the price is on screen BEFORE any switch is
           pressed, from the rate card's own row, never a number typed here. */}
       <p className="text-xs text-muted-foreground">{metaLaunchChargeSentence(launchRow)}</p>
@@ -462,6 +479,9 @@ function AdSetRows({
 
   return (
     <>
+      {metaListMayBeTruncated(list.length) ? (
+        <MessageRow depth={1} text={`Showing the first ${META_LIST_PAGE_SIZE} ad sets — this campaign may have more.`} />
+      ) : null}
       {list.map((s) => {
         const open = expanded.has(s.id);
         return (
@@ -520,6 +540,9 @@ function AdRows({
 
   return (
     <>
+      {metaListMayBeTruncated(list.length) ? (
+        <MessageRow depth={2} text={`Showing the first ${META_LIST_PAGE_SIZE} ads — this ad set may have more.`} />
+      ) : null}
       {list.map((a) => (
         <NodeRow
           key={a.id}
@@ -758,18 +781,19 @@ function DatasetCard({ account }: { account: MetaAdAccount }) {
 function Kpi({
   title,
   total,
-  loading,
+  state,
   render,
 }: {
   title: string;
   total: ReturnType<typeof sumReported>;
-  loading: boolean;
+  state: MetaKpiState;
   render: (n: number) => string;
 }) {
+  const text = metaKpiText(state, total, render);
   return (
     <Card>
       <CardContent className="p-5">
-        {loading ? (
+        {text === null ? (
           <div className="space-y-2">
             <Skeleton className="h-3 w-24" />
             <Skeleton className="h-8 w-16" />
@@ -779,10 +803,8 @@ function Kpi({
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{title}</p>
             {/* ★ABSENT IS NOT ZERO: "Not reported" when Meta sent nothing, and
                 a partial total says how partial rather than posing as whole. */}
-            <p className="mt-1 text-2xl font-bold tabular-nums">
-              {total ? render(total.total) : "Not reported"}
-            </p>
-            {total && total.reported < total.of ? (
+            <p className="mt-1 text-2xl font-bold tabular-nums">{text}</p>
+            {state === "ready" && total && total.reported < total.of ? (
               <p className="mt-1 text-xs text-muted-foreground">
                 Meta reported this for {total.reported} of {total.of} campaigns.
               </p>
