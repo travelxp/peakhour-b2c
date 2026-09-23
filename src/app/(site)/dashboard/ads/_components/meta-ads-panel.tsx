@@ -51,8 +51,8 @@ import {
   metaKpiState,
   metaKpiText,
   metaFigureText,
-  metaListMayBeTruncated,
-  META_LIST_PAGE_SIZE,
+  metaInsightsIds,
+  metaCoverageLine,
   sumReported,
   type MetaKpiState,
 } from "@/lib/meta-ads-view";
@@ -294,14 +294,20 @@ function CampaignsSection({ account }: { account: MetaAdAccount }) {
   });
   const campaignList = campaigns.data?.campaigns;
   const campaignIds = useMemo(() => (campaignList ?? []).map((c) => c.id), [campaignList]);
+  // ⚠️R1.2 (b2c#571): figures are requested for the first
+  //  META_INSIGHTS_MAX_CAMPAIGNS only — see its note on what each id costs.
+  const insightIds = useMemo(() => metaInsightsIds(campaignIds), [campaignIds]);
+  const insightSet = useMemo(() => new Set(insightIds), [insightIds]);
+  // ★#571 R3: "500+" when the list itself stopped early — see metaCoverageLine.
+  const coverageLine = metaCoverageLine(insightIds.length, campaignIds.length, campaigns.data?.truncated === true);
 
   const insights = useQuery({
-    queryKey: ["meta-ads-insights", account.id, campaignIds.join(",")],
+    queryKey: ["meta-ads-insights", account.id, insightIds.join(",")],
     queryFn: () => {
       const [start, end] = metaInsightsRange(INSIGHTS_DAYS);
-      return metaAdsApi.insights(campaignIds, start, end);
+      return metaAdsApi.insights(insightIds, start, end);
     },
-    enabled: campaignIds.length > 0,
+    enabled: insightIds.length > 0,
     retry: false,
     staleTime: INSIGHTS_STALE_MS,
   });
@@ -313,9 +319,9 @@ function CampaignsSection({ account }: { account: MetaAdAccount }) {
   // ★Summed over every campaign, INCLUDING those Meta sent no row for — a
   //  campaign with no insights row is a campaign Meta did not report, and the
   //  total says how many of them it covers rather than hiding the gap.
-  const spend = sumReported(campaignIds.map((id) => byCampaign.get(id)?.spend));
-  const impressions = sumReported(campaignIds.map((id) => byCampaign.get(id)?.impressions));
-  const clicks = sumReported(campaignIds.map((id) => byCampaign.get(id)?.clicks));
+  const spend = sumReported(insightIds.map((id) => byCampaign.get(id)?.spend));
+  const impressions = sumReported(insightIds.map((id) => byCampaign.get(id)?.impressions));
+  const clicks = sumReported(insightIds.map((id) => byCampaign.get(id)?.clicks));
 
   // Variables carry the account so a mid-flight switch cannot redirect this
   // invalidation to the newly selected account — X's panel's rule.
@@ -353,6 +359,11 @@ function CampaignsSection({ account }: { account: MetaAdAccount }) {
         <Kpi title="Impressions" total={impressions} state={kpiState} render={(n) => n.toLocaleString("en-US")} />
         <Kpi title="Clicks" total={clicks} state={kpiState} render={(n) => n.toLocaleString("en-US")} />
       </div>
+      {coverageLine ? (
+        <p className="text-xs text-muted-foreground" role="status">
+          {coverageLine}
+        </p>
+      ) : null}
       {insights.isError ? (
         <p className="text-xs text-muted-foreground" role="status">
           {metaAdsErrorMessage(insights.error, "Meta didn't return performance figures just now.")}
@@ -408,8 +419,11 @@ function CampaignsSection({ account }: { account: MetaAdAccount }) {
                         budget={metaBudgetLabel(c, account.currency, "campaign").text}
                         // ⚠️R2.1: the cards' state, not a local ternary — a
                         //  failed read is "Unavailable" here too.
-                        spend={metaFigureText(kpiState, cSpend, (n) =>
-                          formatMetaMoney(n, account.currency),
+                        spend={metaFigureText(
+                          kpiState,
+                          cSpend,
+                          (n) => formatMetaMoney(n, account.currency),
+                          insightSet.has(c.id),
                         )}
                         note={null}
                         open={open}
@@ -436,10 +450,14 @@ function CampaignsSection({ account }: { account: MetaAdAccount }) {
         </CardContent>
       </Card>
 
-      {metaListMayBeTruncated(campaignIds.length) ? (
+      {campaigns.data?.truncated === true ? (
+        // ⚠️#571 R2.1: this notice speaks for the LIST only. It said the totals
+        //  "cover only these" N campaigns while the cards summed the first
+        //  META_INSIGHTS_MAX_CAMPAIGNS — two notices on one screen disagreeing.
+        //  What the totals cover is said once, by the coverage line above.
         <p className="text-xs text-warning-on-tint" role="status">
-          Showing the first {META_LIST_PAGE_SIZE} campaigns Meta returned — this account may have
-          more, and the totals above cover only these.
+          Showing the first {campaignIds.length} campaigns — this account has more than this view
+          reads.
         </p>
       ) : null}
 
@@ -478,8 +496,8 @@ function AdSetRows({
 
   return (
     <>
-      {metaListMayBeTruncated(list.length) ? (
-        <MessageRow depth={1} text={`Showing the first ${META_LIST_PAGE_SIZE} ad sets — this campaign may have more.`} />
+      {adSets.data?.truncated === true ? (
+        <MessageRow depth={1} text={`Showing the first ${list.length} ad sets — this campaign has more.`} />
       ) : null}
       {list.map((s) => {
         const open = expanded.has(s.id);
@@ -539,8 +557,8 @@ function AdRows({
 
   return (
     <>
-      {metaListMayBeTruncated(list.length) ? (
-        <MessageRow depth={2} text={`Showing the first ${META_LIST_PAGE_SIZE} ads — this ad set may have more.`} />
+      {ads.data?.truncated === true ? (
+        <MessageRow depth={2} text={`Showing the first ${list.length} ads — this ad set has more.`} />
       ) : null}
       {list.map((a) => (
         <NodeRow

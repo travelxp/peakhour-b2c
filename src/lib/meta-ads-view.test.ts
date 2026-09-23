@@ -17,8 +17,9 @@ import {
   metaKpiState,
   metaKpiText,
   metaFigureText,
-  metaListMayBeTruncated,
-  META_LIST_PAGE_SIZE,
+  metaInsightsIds,
+  metaCoverageLine,
+  META_INSIGHTS_MAX_CAMPAIGNS,
   metaLaunchChargeSentence,
   metaMinorToMajor,
   metaNotServingBecause,
@@ -325,11 +326,77 @@ describe("★★M-16 R2.2 the not-serving note names what the parent IS", () => 
   });
 });
 
-describe("★★M-16 R1.4 a list at the api's page size may be truncated", () => {
-  it("★M-16 R1.4 fewer than a page is complete, a full page is not known to be", () => {
-    expect(metaListMayBeTruncated(META_LIST_PAGE_SIZE - 1)).toBe(false);
-    expect(metaListMayBeTruncated(META_LIST_PAGE_SIZE)).toBe(true);
-    expect(metaListMayBeTruncated(0)).toBe(false);
+describe("★★#571 R1.2 the insights read is capped at the old cost, and says so", () => {
+  it("★★R1.2 at most two analytics batches — what the panel cost when the list stopped at 50", () => {
+    expect(META_INSIGHTS_MAX_CAMPAIGNS).toBeLessThanOrEqual(2 * META_ANALYTICS_BATCH);
+    const ids = Array.from({ length: 500 }, (_, i) => `c${i}`);
+    expect(metaInsightsIds(ids)).toHaveLength(META_INSIGHTS_MAX_CAMPAIGNS);
+    expect(metaInsightsIds(ids)[0]).toBe("c0");
+  });
+
+  it("★R1.2 fewer campaigns than the cap are all requested", () => {
+    expect(metaInsightsIds(["a", "b"])).toEqual(["a", "b"]);
+  });
+
+  it("★★R1.2 a campaign we never asked about is 'Not loaded', never 'No figures'", () => {
+    // "No figures" is a statement about what Meta answered.
+    expect(metaFigureText("ready", undefined, String, false)).toBe("Not loaded");
+    expect(metaFigureText("ready", undefined, String, true)).toBe("No figures");
+  });
+
+  it("★★R1.2 the panel requests, totals and labels by the capped list", () => {
+    const src = readFileSync(
+      fileURLToPath(new URL("../app/(site)/dashboard/ads/_components/meta-ads-panel.tsx", import.meta.url)),
+      "utf8",
+    );
+    expect(src).toContain("metaAdsApi.insights(insightIds,");
+    expect(src).not.toContain("metaAdsApi.insights(campaignIds,");
+    expect(src).toContain("insightSet.has(c.id)");
+  });
+
+  it("★★R2.1 no notice claims the totals cover the LISTED campaigns — only the coverage line speaks for them", () => {
+    // The truncation notice said "the totals above cover only these" N while
+    // the cards summed the first 50: two notices on one screen disagreeing.
+    const src = readFileSync(
+      fileURLToPath(new URL("../app/(site)/dashboard/ads/_components/meta-ads-panel.tsx", import.meta.url)),
+      "utf8",
+    );
+    expect(src).not.toMatch(/totals above cover only these/);
+    // The coverage sentence is built in ONE place, from the list's own flag.
+    expect(src).toContain("metaCoverageLine(insightIds.length, campaignIds.length, campaigns.data?.truncated === true)");
+  });
+
+  it("★★#571 R3 the coverage line says '500+' when the list itself stopped early", () => {
+    // "first 50 of 500" under a notice saying the account has more is the
+    // two-totals-on-one-screen shape R2.1 was about, one sentence over.
+    expect(metaCoverageLine(50, 500, true)).toMatch(/first 50 of 500\+ campaigns/);
+    expect(metaCoverageLine(50, 120, false)).toMatch(/first 50 of 120 campaigns/);
+  });
+
+  it("★R3 no coverage line when the figures cover every listed campaign", () => {
+    expect(metaCoverageLine(20, 20, false)).toBeNull();
+    expect(metaCoverageLine(0, 0, false)).toBeNull();
+  });
+});
+
+describe("★★the panel reads the api's truncated flag, never a count (api#1409)", () => {
+  const panel = () =>
+    readFileSync(
+      fileURLToPath(new URL("../app/(site)/dashboard/ads/_components/meta-ads-panel.tsx", import.meta.url)),
+      "utf8",
+    );
+
+  it("★★each of the three lists shows its notice from `.truncated`", () => {
+    const src = panel();
+    for (const q of ["campaigns", "adSets", "ads"]) {
+      expect(src, q).toContain(`${q}.data?.truncated === true`);
+    }
+  });
+
+  it("★★and no notice is decided by comparing a length to a page size", () => {
+    // ⚠️The rule this replaced: a list of exactly 50 read as "maybe more",
+    //  which is the alarm direction once the route follows the cursor.
+    expect(panel()).not.toMatch(/length\s*>=\s*\d+|PAGE_SIZE/);
   });
 });
 
@@ -377,19 +444,12 @@ describe("★★M-16 — the copies are peakhour-api's, checked against its sour
     expect([...ISO_ZERO_DECIMAL_NOT_IN_META_TABLE].sort()).toEqual(api);
   });
 
-  it.skipIf(!present)("★★M-16 R1.4 the page size is the one getCampaigns, getAdSets and getAds read — and none paginates", () => {
-    const src = read(HELPER);
-    for (const fn of ["getCampaigns", "getAdSets", "getAds"]) {
-      const start = src.indexOf(`export async function ${fn}(`);
-      expect(start, `${fn} not found in the api helper`).toBeGreaterThan(-1);
-      const next = src.indexOf("\nexport ", start + 1);
-      const body = src.slice(start, next === -1 ? undefined : next);
-      const m = /limit = (\d+)/.exec(body);
-      expect(m, `${fn} has no default limit`).not.toBeNull();
-      expect(Number(m![1]), fn).toBe(META_LIST_PAGE_SIZE);
-      // ⏸The notice exists BECAUSE these read one page. When the api learns to
-      //  follow `paging.next`, this fails — and the notice should go with it.
-      expect(body, `${fn} now paginates — drop the truncation notice`).not.toMatch(/paging/);
+  it.skipIf(!present)("★★the api's three list routes return the truncated flag the panel reads", () => {
+    // ⏸THE MERGE ORDER, AS A TEST: red against an api checkout that predates
+    //  api#1409, which is the deploy this client needs.
+    const routes = read(ROUTES);
+    for (const key of ["campaigns", "adSets", "ads"]) {
+      expect(routes, key).toMatch(new RegExp(`return ok\\(c, \\{ ${key}, truncated \\}\\)`));
     }
   });
 

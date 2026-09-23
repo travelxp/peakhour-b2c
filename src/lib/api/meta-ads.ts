@@ -19,6 +19,10 @@ import { metaAdsUrl } from "@/lib/meta-ads-surface";
  * flow. A create button that makes an empty campaign shell is worse than none.
  * This panel reads, pauses, activates and chooses the conversions dataset.
  *
+ * ★Each list read returns `truncated` (api#1409): the route follows Meta's cursor
+ * and says whether it stopped before the end. The panel reads that flag — never
+ * a count.
+ *
  * Types mirror `peakhour-api/src/v1/helpers/meta-ads.ts`, including its rule
  * that **an insights figure that is absent is one Meta did not report — never
  * zero**.
@@ -120,18 +124,18 @@ export const metaAdsApi = {
     api.get<{ accounts: MetaAdAccount[] }>(metaAdsUrl("/v1/meta/ads/ad-accounts")),
 
   listCampaigns: (adAccountId: string) =>
-    api.get<{ campaigns: MetaCampaign[] }>(metaAdsUrl("/v1/meta/ads/campaigns"), {
+    api.get<{ campaigns: MetaCampaign[]; truncated: boolean }>(metaAdsUrl("/v1/meta/ads/campaigns"), {
       adAccountId,
     }),
 
   listAdSets: (adAccountId: string, campaignId: string) =>
-    api.get<{ adSets: MetaAdSet[] }>(metaAdsUrl("/v1/meta/ads/ad-sets"), {
+    api.get<{ adSets: MetaAdSet[]; truncated: boolean }>(metaAdsUrl("/v1/meta/ads/ad-sets"), {
       adAccountId,
       campaignId,
     }),
 
   listAds: (adAccountId: string, adSetId: string) =>
-    api.get<{ ads: MetaAd[] }>(metaAdsUrl("/v1/meta/ads/ads"), { adAccountId, adSetId }),
+    api.get<{ ads: MetaAd[]; truncated: boolean }>(metaAdsUrl("/v1/meta/ads/ads"), { adAccountId, adSetId }),
 
   /**
    * One request per 25 ids, merged. ⚠️A failed batch fails the whole read
