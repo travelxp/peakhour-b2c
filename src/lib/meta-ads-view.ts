@@ -346,9 +346,36 @@ export function metaFigureText(
   state: MetaKpiState,
   value: number | undefined,
   render: (n: number) => string,
+  /** False for a campaign past `META_INSIGHTS_MAX_CAMPAIGNS` — we never asked. */
+  requested = true,
 ): string {
+  // ★"NOT LOADED", NOT "NO FIGURES": the second is a statement about what Meta
+  //  answered, and for this campaign Meta was never asked.
+  if (!requested) return "Not loaded";
   const total = value === undefined ? undefined : { total: value, reported: 1, of: 1 };
   return metaKpiText(state, total, render) ?? "";
+}
+
+/**
+ * ⚠️★★HOW MANY CAMPAIGNS THE PANEL ASKS META FOR FIGURES ON (b2c#571 R1.2).
+ *
+ * `/analytics` costs TWO serial Graph calls per campaign id (the api's note on
+ * `MAX_ANALYTICS_CAMPAIGNS`). While the list read one page, that was at most
+ * 50 ids = 2 requests = ~100 Graph calls per panel load. api#1409 lets the list
+ * return up to 500, and asking for all of them would be 20 requests and ~1,000
+ * Graph calls on every load — M-11's quota hazard, arriving from the client,
+ * and one throttled batch fails every KPI card at once.
+ *
+ * So the read is capped at the old cost, and the panel SAYS it covers only
+ * these: a total over the first 50 presented as the account's is a smaller
+ * number that looks true. ⏸The fix that removes the cap is an account-level
+ * insights route (one call per page, not two per campaign) — owed to the api.
+ */
+export const META_INSIGHTS_MAX_CAMPAIGNS = 50;
+
+/** The campaign ids the panel requests figures for: the first `META_INSIGHTS_MAX_CAMPAIGNS`. */
+export function metaInsightsIds(ids: readonly string[]): string[] {
+  return ids.slice(0, META_INSIGHTS_MAX_CAMPAIGNS);
 }
 
 /**

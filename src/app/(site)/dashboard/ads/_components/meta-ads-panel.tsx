@@ -51,6 +51,8 @@ import {
   metaKpiState,
   metaKpiText,
   metaFigureText,
+  metaInsightsIds,
+  META_INSIGHTS_MAX_CAMPAIGNS,
   sumReported,
   type MetaKpiState,
 } from "@/lib/meta-ads-view";
@@ -292,14 +294,18 @@ function CampaignsSection({ account }: { account: MetaAdAccount }) {
   });
   const campaignList = campaigns.data?.campaigns;
   const campaignIds = useMemo(() => (campaignList ?? []).map((c) => c.id), [campaignList]);
+  // ⚠️R1.2 (b2c#571): figures are requested for the first
+  //  META_INSIGHTS_MAX_CAMPAIGNS only — see its note on what each id costs.
+  const insightIds = useMemo(() => metaInsightsIds(campaignIds), [campaignIds]);
+  const insightSet = useMemo(() => new Set(insightIds), [insightIds]);
 
   const insights = useQuery({
-    queryKey: ["meta-ads-insights", account.id, campaignIds.join(",")],
+    queryKey: ["meta-ads-insights", account.id, insightIds.join(",")],
     queryFn: () => {
       const [start, end] = metaInsightsRange(INSIGHTS_DAYS);
-      return metaAdsApi.insights(campaignIds, start, end);
+      return metaAdsApi.insights(insightIds, start, end);
     },
-    enabled: campaignIds.length > 0,
+    enabled: insightIds.length > 0,
     retry: false,
     staleTime: INSIGHTS_STALE_MS,
   });
@@ -311,9 +317,9 @@ function CampaignsSection({ account }: { account: MetaAdAccount }) {
   // ★Summed over every campaign, INCLUDING those Meta sent no row for — a
   //  campaign with no insights row is a campaign Meta did not report, and the
   //  total says how many of them it covers rather than hiding the gap.
-  const spend = sumReported(campaignIds.map((id) => byCampaign.get(id)?.spend));
-  const impressions = sumReported(campaignIds.map((id) => byCampaign.get(id)?.impressions));
-  const clicks = sumReported(campaignIds.map((id) => byCampaign.get(id)?.clicks));
+  const spend = sumReported(insightIds.map((id) => byCampaign.get(id)?.spend));
+  const impressions = sumReported(insightIds.map((id) => byCampaign.get(id)?.impressions));
+  const clicks = sumReported(insightIds.map((id) => byCampaign.get(id)?.clicks));
 
   // Variables carry the account so a mid-flight switch cannot redirect this
   // invalidation to the newly selected account — X's panel's rule.
@@ -351,6 +357,13 @@ function CampaignsSection({ account }: { account: MetaAdAccount }) {
         <Kpi title="Impressions" total={impressions} state={kpiState} render={(n) => n.toLocaleString("en-US")} />
         <Kpi title="Clicks" total={clicks} state={kpiState} render={(n) => n.toLocaleString("en-US")} />
       </div>
+      {insightIds.length < campaignIds.length ? (
+        <p className="text-xs text-muted-foreground" role="status">
+          Figures cover the first {insightIds.length} of {campaignIds.length} campaigns — each
+          campaign&apos;s figures cost calls to Meta, so this view asks for no more than{" "}
+          {META_INSIGHTS_MAX_CAMPAIGNS}.
+        </p>
+      ) : null}
       {insights.isError ? (
         <p className="text-xs text-muted-foreground" role="status">
           {metaAdsErrorMessage(insights.error, "Meta didn't return performance figures just now.")}
@@ -406,8 +419,11 @@ function CampaignsSection({ account }: { account: MetaAdAccount }) {
                         budget={metaBudgetLabel(c, account.currency, "campaign").text}
                         // ⚠️R2.1: the cards' state, not a local ternary — a
                         //  failed read is "Unavailable" here too.
-                        spend={metaFigureText(kpiState, cSpend, (n) =>
-                          formatMetaMoney(n, account.currency),
+                        spend={metaFigureText(
+                          kpiState,
+                          cSpend,
+                          (n) => formatMetaMoney(n, account.currency),
+                          insightSet.has(c.id),
                         )}
                         note={null}
                         open={open}

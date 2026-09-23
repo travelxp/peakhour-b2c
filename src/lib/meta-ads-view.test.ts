@@ -17,6 +17,8 @@ import {
   metaKpiState,
   metaKpiText,
   metaFigureText,
+  metaInsightsIds,
+  META_INSIGHTS_MAX_CAMPAIGNS,
   metaLaunchChargeSentence,
   metaMinorToMajor,
   metaNotServingBecause,
@@ -320,6 +322,35 @@ describe("★★M-16 R2.2 the not-serving note names what the parent IS", () => 
     expect(metaNotServingBecause("ACTIVE", { campaign: "IN_PROCESS" })).toBe(
       "Not serving — its campaign is not active.",
     );
+  });
+});
+
+describe("★★#571 R1.2 the insights read is capped at the old cost, and says so", () => {
+  it("★★R1.2 at most two analytics batches — what the panel cost when the list stopped at 50", () => {
+    expect(META_INSIGHTS_MAX_CAMPAIGNS).toBeLessThanOrEqual(2 * META_ANALYTICS_BATCH);
+    const ids = Array.from({ length: 500 }, (_, i) => `c${i}`);
+    expect(metaInsightsIds(ids)).toHaveLength(META_INSIGHTS_MAX_CAMPAIGNS);
+    expect(metaInsightsIds(ids)[0]).toBe("c0");
+  });
+
+  it("★R1.2 fewer campaigns than the cap are all requested", () => {
+    expect(metaInsightsIds(["a", "b"])).toEqual(["a", "b"]);
+  });
+
+  it("★★R1.2 a campaign we never asked about is 'Not loaded', never 'No figures'", () => {
+    // "No figures" is a statement about what Meta answered.
+    expect(metaFigureText("ready", undefined, String, false)).toBe("Not loaded");
+    expect(metaFigureText("ready", undefined, String, true)).toBe("No figures");
+  });
+
+  it("★★R1.2 the panel requests, totals and labels by the capped list", () => {
+    const src = readFileSync(
+      fileURLToPath(new URL("../app/(site)/dashboard/ads/_components/meta-ads-panel.tsx", import.meta.url)),
+      "utf8",
+    );
+    expect(src).toContain("metaAdsApi.insights(insightIds,");
+    expect(src).not.toContain("metaAdsApi.insights(campaignIds,");
+    expect(src).toContain("insightSet.has(c.id)");
   });
 });
 
