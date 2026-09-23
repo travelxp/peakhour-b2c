@@ -82,10 +82,10 @@ describe("★the quote and rate-card renderers agree about free", () => {
     // different sources — that is precisely how the last pair came to disagree,
     // and why the agreement is asserted rather than assumed.
     expect(quotePrice(free).label).toBe(
-      peaksPrice({ free: true, minCreditsPerCall: 0 }).label,
+      peaksPrice({ free: true, creditMultiplier: 0 }).label,
     );
     expect(quotePrice(freeButPriced).label).toBe(
-      peaksPrice({ free: true, minCreditsPerCall: 10 }).label,
+      peaksPrice({ free: true, creditMultiplier: 10 }).label,
     );
   });
 });
@@ -149,7 +149,7 @@ describe("★★the PINNED formatter, proven against the host locale (round 2)",
     // comparison, so the expectation moved with the host exactly as
     // the thing it was checking did.
     assertNeverFormatsWithoutALocale(() =>
-      peaksPrice({ free: false, minCreditsPerCall: 12000 }),
+      peaksPrice({ free: false, creditMultiplier: 12000 }),
     );
   });
 });

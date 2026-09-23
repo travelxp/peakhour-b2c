@@ -47,8 +47,17 @@ export type CreditsBalance = { unlimited: true; plan: string } | MeteredBalance;
 export interface RateCardUseCase {
   useCase: string;
   label: string;
+  /**
+   * ★THE PRICE — Peaks charged per act (per event, for an outcome row). The
+   * rollup's `peaksForUsageRow` charges exactly this, flat.
+   *
+   * ⚠️The api also sends `minCreditsPerCall`, and it is DELIBERATELY NOT
+   * DECLARED HERE: no billing path reads it and no priced row sets it, so it
+   * arrives as 0 — and `peaksPrice` rendered that 0 as the price of every paid
+   * act on the rate card. A field this type cannot name is one no surface can
+   * mistake for the price again.
+   */
   creditMultiplier: number;
-  minCreditsPerCall: number;
   /** cfg_products.pillar; null = cross-product. */
   pillar: string | null;
   /**
