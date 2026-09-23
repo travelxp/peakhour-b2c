@@ -16,6 +16,7 @@ import {
   metaInsightsRange,
   metaKpiState,
   metaKpiText,
+  metaFigureText,
   metaListMayBeTruncated,
   META_LIST_PAGE_SIZE,
   metaLaunchChargeSentence,
@@ -267,6 +268,57 @@ describe("★★M-16 R1.3 the KPI cards never claim what we did not ask", () => 
     expect(metaKpiState(base)).toBe("ready");
     expect(metaKpiText("ready", undefined, String)).toBe("Not reported");
     expect(metaKpiText("ready", { total: 12, reported: 1, of: 1 }, (n) => `#${n}`)).toBe("#12");
+  });
+});
+
+describe("★★M-16 R2.1 a table cell obeys the cards' rule", () => {
+  const money = (n: number) => `$${n}`;
+
+  it("★★M-16 R2.1 a FAILED insights read is 'Unavailable' in the row, not 'Not reported'", () => {
+    expect(metaFigureText("error", undefined, money)).toBe("Unavailable");
+  });
+
+  it("★M-16 R2.1 loading is blank, a completed read without a figure is 'Not reported'", () => {
+    expect(metaFigureText("loading", undefined, money)).toBe("");
+    expect(metaFigureText("ready", undefined, money)).toBe("Not reported");
+    expect(metaFigureText("ready", 12, money)).toBe("$12");
+  });
+
+  it("★★M-16 R2.1 the panel spells 'Not reported' nowhere itself — every figure goes through the helper", () => {
+    // ⚠️R1.3 fixed the cards and left the rows with their own ternary: the
+    // one-place-of-two shape. A quoted copy in the panel is the next place.
+    const panel = readFileSync(
+      fileURLToPath(new URL("../app/(site)/dashboard/ads/_components/meta-ads-panel.tsx", import.meta.url)),
+      "utf8",
+    );
+    expect(panel).toContain("metaFigureText(");
+    // ⚠️ANYWHERE IN THE FILE, COMMENTS INCLUDED — M-13's policy for Meta paths,
+    //  for its reason. Two narrower versions were tried and both failed their
+    //  own paired cases: "in expression position" cannot tell a comment's
+    //  `ABSENT IS NOT ZERO: "…"` from a ternary's `: "…"`. The panel's comments
+    //  were rephrased instead, which is the safe direction.
+    expect(panel).not.toMatch(/Not reported/);
+  });
+
+  it("★M-16 R2.1 and that check SAYS SO for a real copy", () => {
+    expect(/Not reported/.test('spend={v !== undefined ? fmt(v) : "Not reported"}')).toBe(true);
+  });
+});
+
+describe("★★M-16 R2.2 the not-serving note names what the parent IS", () => {
+  it("★★M-16 R2.2 an ARCHIVED campaign is not called paused — it has no switch to resume", () => {
+    expect(metaNotServingBecause("ACTIVE", { campaign: "ARCHIVED" })).toBe(
+      "Not serving — its campaign is archived.",
+    );
+    expect(metaNotServingBecause("ACTIVE", { campaign: "ACTIVE", adSet: "DELETED" })).toBe(
+      "Not serving — its ad set is deleted.",
+    );
+  });
+
+  it("★M-16 R2.2 an unknown status is 'not active', never a guess at 'paused'", () => {
+    expect(metaNotServingBecause("ACTIVE", { campaign: "IN_PROCESS" })).toBe(
+      "Not serving — its campaign is not active.",
+    );
   });
 });
 

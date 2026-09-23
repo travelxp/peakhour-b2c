@@ -155,12 +155,33 @@ export function metaNotServingBecause(
 ): string | null {
   if (own !== "ACTIVE") return null;
   if (ancestors.campaign !== undefined && ancestors.campaign !== "ACTIVE") {
-    return "Not serving — its campaign is paused.";
+    return `Not serving — its campaign is ${metaStatusWord(ancestors.campaign)}.`;
   }
   if (ancestors.adSet !== undefined && ancestors.adSet !== "ACTIVE") {
-    return "Not serving — its ad set is paused.";
+    return `Not serving — its ad set is ${metaStatusWord(ancestors.adSet)}.`;
   }
   return null;
+}
+
+/**
+ * The parent's status, in words.
+ *
+ * ⚠️★NOT ALWAYS "PAUSED" (review R2.2). An ARCHIVED or DELETED parent printed
+ * "its campaign is paused", which sends a merchant looking for a paused
+ * campaign to resume — and that row has no switch, because `metaStatusToggle`
+ * offers none for either. The sentence names what the parent actually is.
+ */
+function metaStatusWord(status: string): string {
+  switch (status) {
+    case "PAUSED":
+      return "paused";
+    case "ARCHIVED":
+      return "archived";
+    case "DELETED":
+      return "deleted";
+    default:
+      return "not active";
+  }
 }
 
 // ── The price before the ask (§7.0.1 requirement 4) ──────────────────────
@@ -304,6 +325,24 @@ export function metaKpiText(
   if (state === "error") return "Unavailable";
   if (state === "none") return "No campaigns";
   return total ? render(total.total) : "Not reported";
+}
+
+/**
+ * One campaign's figure in a table cell, by the same rule as the cards; `""`
+ * while loading.
+ *
+ * ⚠️★REVIEW R2.1 — THE ONE-PLACE-OF-TWO SHAPE. R1.3 fixed the cards and left
+ * the ROWS reading `value ?? "Not reported"`, so a failed insights read put
+ * "Not reported" on every campaign — a claim about Meta made without an answer
+ * from it — directly under cards that correctly said "Unavailable".
+ */
+export function metaFigureText(
+  state: MetaKpiState,
+  value: number | undefined,
+  render: (n: number) => string,
+): string {
+  const total = value === undefined ? undefined : { total: value, reported: 1, of: 1 };
+  return metaKpiText(state, total, render) ?? "";
 }
 
 /**

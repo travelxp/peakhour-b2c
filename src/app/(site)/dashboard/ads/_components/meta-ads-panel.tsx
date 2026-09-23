@@ -50,6 +50,7 @@ import {
   metaStatusToggle,
   metaKpiState,
   metaKpiText,
+  metaFigureText,
   metaListMayBeTruncated,
   META_LIST_PAGE_SIZE,
   sumReported,
@@ -336,7 +337,7 @@ function CampaignsSection({ account }: { account: MetaAdAccount }) {
 
   const launchRow = rateCard.data?.useCases.find((u) => u.useCase === META_LAUNCH_USE_CASE);
   // ⚠️Review R1.3 — the campaign read is consulted before the insights one; see
-  //  `metaKpiState` for why `insights.isLoading` alone said "Not reported".
+  //  `metaKpiState` for why `insights.isLoading` alone claimed Meta had reported nothing.
   const kpiState = metaKpiState({
     campaignsPending: campaigns.isPending,
     campaignsError: campaigns.isError,
@@ -405,13 +406,11 @@ function CampaignsSection({ account }: { account: MetaAdAccount }) {
                         name={c.name}
                         status={c.status}
                         budget={metaBudgetLabel(c, account.currency, "campaign").text}
-                        spend={
-                          cSpend !== undefined
-                            ? formatMetaMoney(cSpend, account.currency)
-                            : insights.isLoading
-                              ? ""
-                              : "Not reported"
-                        }
+                        // ⚠️R2.1: the cards' state, not a local ternary — a
+                        //  failed read is "Unavailable" here too.
+                        spend={metaFigureText(kpiState, cSpend, (n) =>
+                          formatMetaMoney(n, account.currency),
+                        )}
                         note={null}
                         open={open}
                         onExpand={() =>
@@ -801,7 +800,7 @@ function Kpi({
         ) : (
           <>
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{title}</p>
-            {/* ★ABSENT IS NOT ZERO: "Not reported" when Meta sent nothing, and
+            {/* ★ABSENT IS NOT ZERO: an absent figure is named as unreported, never as 0, and
                 a partial total says how partial rather than posing as whole. */}
             <p className="mt-1 text-2xl font-bold tabular-nums">{text}</p>
             {state === "ready" && total && total.reported < total.of ? (
