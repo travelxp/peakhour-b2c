@@ -352,6 +352,14 @@ describe("ad-campaign-monitor summary", () => {
     });
   });
 
+  it("\u2605a problem beside an unrefreshed finish still says the finish (b2c#573 round 3)", () => {
+    // Reachable: a row the platform never heard of ends without refreshing.
+    expect(summarize({ ticked: 3, refreshed: 0, ended: 2, failed: 1 })).toEqual({
+      message: "1 errored. 2 finished.",
+      level: "warning",
+    });
+  });
+
   it("\u2605\u2605an empty batch is only empty if nothing is truncated or unswept (b2c#573 round 3)", () => {
     expect(summarize({ ticked: 0, refreshed: 0, truncated: true })).toEqual({
       message: "0 campaigns checked. More remain \u2014 run again.",
