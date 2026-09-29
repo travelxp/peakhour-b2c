@@ -39,9 +39,11 @@ import {
   detailChannels,
   gapSentence,
   historyLine,
+  knownPlatformLabel,
   originIsOurs,
   originLabel,
   outcomeLine,
+  platformLabel,
   reachReading,
   refreshability,
   resolutionReach,
@@ -536,5 +538,17 @@ describe("critiqueTone", () => {
     for (const s of ["info", "warn"] as const) {
       expect(critiqueTone(s).lead.endsWith(":")).toBe(true);
     }
+  });
+});
+
+describe("platformLabel / knownPlatformLabel — own keys only (D-01 round 3)", () => {
+  it("★★an inherited key is not a label — it never prints a function's source", () => {
+    expect(platformLabel("constructor")).toBe("constructor");
+    expect(platformLabel("toString")).toBe("toString");
+    expect(knownPlatformLabel("constructor")).toBeUndefined();
+  });
+  it("PASS: a known platform is labelled", () => {
+    expect(platformLabel("linkedin")).toBe("LinkedIn");
+    expect(knownPlatformLabel("google_ads")).toBe("Google Ads");
   });
 });

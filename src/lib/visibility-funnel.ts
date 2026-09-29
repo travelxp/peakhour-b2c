@@ -1,4 +1,10 @@
-import type { VisibilityAbsence, VisibilityResponse, VisibilityStage } from "@/lib/api/growth";
+import type {
+  VisibilityAbsence,
+  VisibilityFigure,
+  VisibilityResponse,
+  VisibilityStage,
+} from "@/lib/api/growth";
+import { knownPlatformLabel } from "@/lib/audience-library-rules";
 
 /**
  * What the visibility funnel SAYS — the phrasing rules, with no React in them.
@@ -48,6 +54,65 @@ export function absenceText(reason: VisibilityAbsence): string {
   return ABSENCE_TEXT[reason] ?? "not available";
 }
 
+const SOURCE_LABEL: Record<string, string> = {
+  google_search: "Google Search",
+  google_business_profile: "Business Profile",
+  google_analytics: "Your website",
+};
+
+/**
+ * An ad platform's row label — "LinkedIn ads", "Google Ads".
+ *
+ * ★FROM THE ONE PLATFORM TABLE (`audience-library-rules`), not a second copy:
+ * a rename edited in one table would name the same platform two ways on one
+ * screen. ★AND NEVER THE WIRE VALUE — an unknown platform gets generic words.
+ */
+export function paidFigureLabel(platform: string | undefined): string {
+  const name = platform ? knownPlatformLabel(platform) : undefined;
+  if (!name) return "Ads on another platform";
+  return /\bads$/i.test(name) ? name : `${name} ads`;
+}
+
+/**
+ * The row label for one figure.
+ *
+ * ★NEVER THE RAW WIRE VALUE. The two repos deploy separately, so this build can
+ * meet a source — or an ad platform — it has no label for, and
+ * `google_business_profile` in a merchant-facing list is worse than a generic
+ * word. ★A PAID FIGURE IS LABELLED BY ITS PLATFORM (D-01): every one of them
+ * has `source: "paid_ads"`, so the source alone would print "Your ads" twice
+ * in one stage. The one without a platform is the failed read.
+ */
+export function figureLabel(f: Pick<VisibilityFigure, "source" | "platform" | "available">): string {
+  if (f.source === "paid_ads") {
+    // ★THE FAILED READ IS THE UNAVAILABLE FIGURE WITH NO PLATFORM — keyed on
+    // both, so an ANSWERED figure missing its platform is never dressed as it.
+    // ★AND NOT "YOUR ads": the api emits it whenever the read throws, for a
+    // business that has never advertised too, and "your" claims they exist.
+    if (!f.available && !f.platform) return "Ads";
+    return paidFigureLabel(f.platform);
+  }
+  return SOURCE_LABEL[f.source] ?? "Another source";
+}
+
+/**
+ * A React key for one figure within its stage.
+ *
+ * ★`source` ALONE IS NOT UNIQUE ANY MORE. A business advertising on two
+ * platforms gets two `paid_ads` figures in each paid stage, and keying by
+ * source made them one element to React — a duplicate-key warning, and a row
+ * that can be dropped or reused on the next render.
+ */
+export function figureKey(f: Pick<VisibilityFigure, "source" | "platform" | "available">): string {
+  if (f.platform) return `${f.source}:${f.platform}`;
+  // ★A PAID FIGURE WITH NO PLATFORM IS EITHER THE FAILED READ OR AN ANSWERED
+  // ONE MISSING ITS PLATFORM (`figureLabel` tells them apart), and both would
+  // key to the bare source — the duplicate key this function exists to stop.
+  // ★"#", NOT ":" — a platform can be any string, even "unavailable", so the
+  // fallback keys live in a namespace no platform key can reach.
+  return f.source === "paid_ads" ? `${f.source}#${f.available ? "no-platform" : "unavailable"}` : f.source;
+}
+
 /**
  * What a stage with no total should say instead of a number.
  *
@@ -72,6 +137,15 @@ export function incompleteLine(stage: VisibilityStage): string {
   }
   if (blocking.some((f) => !f.available && f.reason === "needs_reconnect")) {
     return "Reconnect Google to see this";
+  }
+  // ★A SOURCE THAT STOPPED IS NOT ONE WE ARE WAITING ON. "Waiting on a
+  // connection" above a row saying "stopped updating" is the true-row,
+  // false-headline mismatch this function exists to prevent — and paid
+  // figures (D-01) make a stale blocker common rather than rare.
+  // ★EVERY blocker, not SOME: over a mix (our own `unavailable`, or a source
+  // still gathering) "stopped updating" blames the one that stopped for all.
+  if (blocking.every((f) => !f.available && f.reason === "stale")) {
+    return "Some of this stopped updating";
   }
   return "Waiting on a connection";
 }

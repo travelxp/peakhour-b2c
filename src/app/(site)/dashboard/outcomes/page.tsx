@@ -28,6 +28,7 @@ import { WhatCountsAsAWinDialog } from "@/components/growth/what-counts-as-a-win
 import { VisibilityFunnel } from "@/components/growth/visibility-funnel";
 import { useAuth } from "@/providers/auth-provider";
 import { growthApi, type OutcomesResponse } from "@/lib/api/growth";
+import { paidNote, paidStaleNote } from "@/lib/outcomes-paid";
 import { platformLabel } from "@/lib/audience-library-rules";
 
 /**
@@ -423,19 +424,22 @@ function OutcomesBody({ data }: { data: OutcomesResponse }) {
                 <Figure
                   label="Saw your ads"
                   value={NUM.format(reach.paid.impressions)}
-                  note={
-                    `${reach.paid.campaigns} campaign${reach.paid.campaigns === 1 ? "" : "s"}` +
-                    (reach.paid.currency
-                      ? ` · ${reach.paid.currency} ${NUM.format(Math.round(reach.paid.spend))} spent`
-                      : "")
-                  }
+                  // ★NULL SPEND IS A REFUSAL, NOT A ZERO (D-01) — see paidNote.
+                  note={paidNote(reach.paid)}
                 />
               )}
               {attention.paid && (
                 <Figure
                   label="Clicked an ad"
                   value={NUM.format(attention.paid.clicks)}
-                  note={attention.paid.ctrPct !== null ? `${attention.paid.ctrPct}% of who saw them` : undefined}
+                  note={
+                    [
+                      attention.paid.ctrPct !== null ? `${attention.paid.ctrPct}% of who saw them` : null,
+                      paidStaleNote(reach.paid),
+                    ]
+                      .filter(Boolean)
+                      .join(" · ") || undefined
+                  }
                 />
               )}
             </CardContent>

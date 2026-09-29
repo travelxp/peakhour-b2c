@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   absenceText,
   brandLine,
+  figureKey,
+  figureLabel,
   incompleteLine,
   partialLine,
   shortestSpan,
@@ -316,5 +318,118 @@ describe("absenceText — a reason this build has never heard of", () => {
     // not — leaving a row with a warning triangle and nothing next to it, which
     // says less than saying nothing would.
     expect(absenceText("quota_exhausted" as never)).toBe("not available");
+  });
+});
+
+describe("figureLabel / figureKey — paid figures (D-01)", () => {
+  it("★labels a paid figure by its PLATFORM, never by the shared source", () => {
+    expect(figureLabel({ source: "paid_ads", platform: "linkedin", available: true })).toBe("LinkedIn ads");
+    expect(figureLabel({ source: "paid_ads", platform: "meta", available: true })).toBe("Meta ads");
+    // ★NOT "Google Ads ads" — the shared table already says "Ads".
+    expect(figureLabel({ source: "paid_ads", platform: "google_ads", available: true })).toBe("Google Ads");
+    expect(figureLabel({ source: "paid_ads", platform: "linkedin", available: true })).not.toBe(
+      figureLabel({ source: "paid_ads", platform: "meta", available: true }),
+    );
+  });
+
+  it("★never prints a wire value — an unknown platform or source gets generic words", () => {
+    expect(figureLabel({ source: "paid_ads", platform: "tiktok", available: true })).toBe("Ads on another platform");
+    expect(figureLabel({ source: "paid_ads", available: false })).toBe("Ads");
+    expect(figureLabel({ source: "somewhere_new" as never, available: true })).toBe("Another source");
+    expect(figureLabel({ source: "google_business_profile", available: true })).toBe("Business Profile");
+  });
+
+  it("★★never prints a prototype name as a platform", () => {
+    expect(figureLabel({ source: "paid_ads", platform: "constructor", available: true })).toBe(
+      "Ads on another platform",
+    );
+    expect(figureLabel({ source: "paid_ads", platform: "toString", available: true })).toBe(
+      "Ads on another platform",
+    );
+  });
+
+  it("★the failed read does not claim the business HAS ads", () => {
+    expect(figureLabel({ source: "paid_ads", available: false })).not.toMatch(/your/i);
+  });
+
+  it("★an ANSWERED paid figure with no platform is never dressed as the failed read", () => {
+    expect(figureLabel({ source: "paid_ads", available: true })).toBe("Ads on another platform");
+    expect(figureLabel({ source: "paid_ads", available: true })).not.toBe(
+      figureLabel({ source: "paid_ads", available: false }),
+    );
+  });
+
+  it("★two paid figures in one stage get two keys; an organic figure keeps its source", () => {
+    const keys = [
+      figureKey({ source: "paid_ads", platform: "linkedin", available: true }),
+      figureKey({ source: "paid_ads", platform: "meta", available: true }),
+      figureKey({ source: "paid_ads", available: false }),
+      // ★ROUND 2: an answered paid figure missing its platform must not share
+      // the failed read's key.
+      figureKey({ source: "paid_ads", available: true }),
+      figureKey({ source: "google_search", available: true }),
+    ];
+    expect(new Set(keys).size).toBe(5);
+    expect(keys[4]).toBe("google_search");
+    // ★A platform literally named "unavailable" cannot reach the failed read's key.
+    expect(figureKey({ source: "paid_ads", platform: "unavailable", available: true })).not.toBe(
+      figureKey({ source: "paid_ads", available: false }),
+    );
+  });
+});
+
+describe("incompleteLine — a STALE blocker (D-01 round 1)", () => {
+  it("★★says it STOPPED, not that we are waiting on a connection", () => {
+    const line = incompleteLine(
+      stage({
+        total: undefined,
+        incomplete: "awaiting_data",
+        figures: [
+          { source: "google_search", available: true, value: 4000, days: 28 },
+          { source: "paid_ads", platform: "linkedin", available: false, reason: "stale" },
+        ],
+      }),
+    );
+    expect(line).toBe("Some of this stopped updating");
+    expect(line).not.toMatch(/waiting/i);
+  });
+  it("PASS: a pending blocker still reads as waiting", () => {
+    expect(
+      incompleteLine(
+        stage({
+          total: undefined,
+          incomplete: "awaiting_data",
+          figures: [{ source: "google_search", available: false, reason: "pending" }],
+        }),
+      ),
+    ).toBe("Waiting on a connection");
+  });
+  it("★★a stale blocker beside OUR failure does not blame the stale one for both (round 3)", () => {
+    const line = incompleteLine(
+      stage({
+        total: undefined,
+        incomplete: "awaiting_data",
+        figures: [
+          { source: "google_search", available: false, reason: "unavailable" },
+          { source: "paid_ads", platform: "linkedin", available: false, reason: "stale" },
+        ],
+      }),
+    );
+    expect(line).not.toBe("Some of this stopped updating");
+  });
+
+  it("PASS: reconnect still outranks stale — it names the fix", () => {
+    expect(
+      incompleteLine(
+        stage({
+          total: undefined,
+          incomplete: "awaiting_data",
+          figures: [
+            { source: "google_search", available: false, reason: "needs_reconnect" },
+            { source: "paid_ads", platform: "meta", available: false, reason: "stale" },
+          ],
+        }),
+      ),
+    ).toBe("Reconnect Google to see this");
   });
 });
