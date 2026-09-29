@@ -51,7 +51,7 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
     label: "Check ad campaigns",
     frequency: "Runs hourly (at :15 past)",
     description:
-      "Refreshes ad campaigns' spend from the platform, pauses one that has reached the total budget you set, and stops one that has passed its end date. Up to 40 campaigns per run; X campaigns are handled by their own sync.",
+      "Refreshes ad campaigns' spend from the platform, pauses one that has reached the total budget you set, and stops one that has passed its end date. Up to 40 campaigns per run, across LinkedIn, Meta and X.",
     summarize: (data) => {
       const d = data as
         | {
@@ -66,6 +66,8 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
             notFound?: number;
             unswept?: number;
             skippedUnreadable?: number;
+            haltBlocked?: number;
+            healthStatusUnread?: number;
             truncated?: boolean;
           }
         | null;
@@ -98,9 +100,17 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       // errored rows went unmentioned beside one blocked flight end. Ordered
       // worst-first; all of them said.
       const problems: string[] = [];
+      // ★WORST FIRST (b2c#573 round 1): a halted business whose campaigns could
+      // not be stopped — the kill switch was pulled and the money has not
+      // stopped. The api returns it on a 200; a first cut never read it.
+      if (num(d.haltBlocked) > 0) {
+        problems.push(`${d.haltBlocked} belong to a HALTED business and could NOT be stopped — they may still be spending`);
+      }
+      // ★"THE AD PLATFORM", NOT "CAMPAIGN MANAGER" (b2c#573 round 1): X and
+      // Meta campaigns reach this branch now, and Campaign Manager is LinkedIn's.
       if (num(d.flightEndBlocked) > 0) {
         problems.push(
-          `${d.flightEndBlocked} passed the end date and could NOT be stopped — check Campaign Manager`,
+          `${d.flightEndBlocked} passed the end date and could NOT be stopped — check the ad platform`,
         );
       }
       if (num(d.failed) > 0) problems.push(`${d.failed} errored`);
@@ -110,6 +120,7 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
         problems.push(`${d.rowNotUpdated} stopped on the platform but not updated here`);
       }
       if (num(d.unswept) > 0) problems.push(`${d.unswept} in a status nothing monitors`);
+      if (num(d.healthStatusUnread) > 0) problems.push(`${d.healthStatusUnread} whose platform status could not be read`);
       const unreadable = num(d.notFound) + num(d.skippedUnreadable);
       if (unreadable > 0) problems.push(`${unreadable} could not be read`);
 

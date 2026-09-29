@@ -207,7 +207,7 @@ describe("ad-campaign-monitor summary", () => {
     // worst-first; all of them said.
     expect(summarize({ ticked: 5, refreshed: 5, failed: 35, flightEndBlocked: 1 })).toEqual({
       message:
-        "1 passed the end date and could NOT be stopped \u2014 check Campaign Manager; 35 errored.",
+        "1 passed the end date and could NOT be stopped \u2014 check the ad platform; 35 errored.",
       level: "warning",
     });
   });
@@ -215,7 +215,7 @@ describe("ad-campaign-monitor summary", () => {
   it("\u2605leads with campaigns it could not stop", () => {
     expect(summarize({ ticked: 40, refreshed: 40, flightEndBlocked: 2, unmonitorable: 1 })).toEqual({
       message:
-        "2 passed the end date and could NOT be stopped \u2014 check Campaign Manager; 1 could not be checked at all.",
+        "2 passed the end date and could NOT be stopped \u2014 check the ad platform; 1 could not be checked at all.",
       level: "warning",
     });
   });
@@ -290,6 +290,42 @@ describe("ad-campaign-monitor summary", () => {
       message: "40 could not be read. More remain \u2014 run again.",
       level: "warning",
     });
+  });
+
+  it("\u2605counts every per-row outcome in the batch \u2014 each one alone at ticked:0 (b2c#573 round 1)", () => {
+    // Pinning one counter proved one. Each of the four non-ticked outcomes,
+    // alone, must still be a batch that did something, with `truncated` said.
+    for (const [key, sentence] of [
+      ["skippedUnreadable", "40 could not be read."],
+      ["notFound", "40 could not be read."],
+      ["unmonitorable", "40 could not be checked at all."],
+      ["failed", "40 errored."],
+    ] as const) {
+      expect(summarize({ ticked: 0, refreshed: 0, [key]: 40, truncated: true }), key).toEqual({
+        message: `${sentence} More remain \u2014 run again.`,
+        level: "warning",
+      });
+    }
+  });
+
+  it("\u2605\u2605a halted business whose campaigns could not be stopped leads, and is never green (b2c#573 round 1)", () => {
+    expect(summarize({ ticked: 5, refreshed: 5, haltBlocked: 2, flightEndBlocked: 1 })).toEqual({
+      message:
+        "2 belong to a HALTED business and could NOT be stopped \u2014 they may still be spending; 1 passed the end date and could NOT be stopped \u2014 check the ad platform.",
+      level: "warning",
+    });
+  });
+
+  it("\u2605an unreadable platform status is said, not a green success (b2c#573 round 1)", () => {
+    expect(summarize({ ticked: 5, refreshed: 5, healthStatusUnread: 3 })).toEqual({
+      message: "3 whose platform status could not be read.",
+      level: "warning",
+    });
+  });
+
+  it("\u2605the description no longer says X is handled elsewhere \u2014 its sync is deleted", () => {
+    expect(CRON_METADATA["ad-campaign-monitor"]!.description).not.toMatch(/own sync/);
+    expect(CRON_METADATA["ad-campaign-monitor"]!.description).toMatch(/\bX\b/);
   });
 
   it("distinguishes an empty batch from a batch that did nothing", () => {

@@ -207,6 +207,21 @@ describe("★★M-16 connectedAdsProviderKeys", () => {
     expect(prefixes.filter((p) => !refreshed.includes(p))).toEqual([]);
   });
 
+  it("★★b2c#573 every query the X panel makes is refreshed by the channel's cron toolbar", () => {
+    // Derived from the panel's source, as the Meta case above is — including
+    // the connection-state query, which a monitor tick can change.
+    const src = readFileSync(
+      fileURLToPath(new URL("./_components/x-ads-panel.tsx", import.meta.url)),
+      "utf8",
+    );
+    const prefixes = [...new Set([...src.matchAll(/queryKey: \[\s*"([a-z-]+)"/g)].map((m) => m[1]!))];
+    expect(prefixes, "the X panel's query keys").toContain("content-hub-integrations");
+    expect(prefixes.length, "found too few X query keys — wrong file?").toBeGreaterThan(3);
+    const x = ADS_CHANNELS.find((c) => c.key === "x")!;
+    const refreshed: readonly string[] = x.invalidateQueryKeys.map((k) => k[0]);
+    expect(prefixes.filter((p) => !refreshed.includes(p))).toEqual([]);
+  });
+
   it("★M-16 leaving the Meta tab drops its ad-account param", () => {
     expect(nextAdsHubSearch(new URLSearchParams("channel=meta&adAccount=act_1"), "x")).toBe(
       "channel=x",
