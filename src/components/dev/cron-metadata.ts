@@ -184,11 +184,12 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
 
       const tail = d.truncated ? " More remain — run again." : "";
       const open = findings.length > 0 ? ` Open findings: ${findings.join("; ")}.` : "";
-      // ★EMPTY IS DECIDED LAST, FROM THE BATCH THE API REPORTS: no row, no
-      // problem, no finding, no truncation. An older api has no `batch`;
-      // `ticked` stands in, and every other per-row outcome there is a problem.
-      const rows = typeof d.batch === "number" ? d.batch : num(d.ticked);
-      if (rows === 0 && problems.length === 0 && findings.length === 0 && !d.truncated) {
+      // ★EMPTY IS DECIDED LAST: no row ticked, no problem, no finding, no
+      // truncation. `ticked` suffices because every other row is a problem —
+      // including one of an outcome this summary does not know, which `batch`
+      // reveals above. (A `batch` term here sat behind that problem and could
+      // be deleted unseen; the mutation run said so.)
+      if (num(d.ticked) === 0 && problems.length === 0 && findings.length === 0 && !d.truncated) {
         return "No campaigns needed checking.";
       }
       if (problems.length > 0) {
