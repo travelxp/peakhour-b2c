@@ -77,17 +77,6 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
       if (typeof d?.ticked !== "number") return null;
 
-      // ★ALL FIVE MUTUALLY-EXCLUSIVE PER-ROW OUTCOMES. Reading the sweep's loop:
-      // `skippedUnreadable`, one of {notFound, unmonitorable, ticked}, or
-      // `failed` increments per row. (A sixth, `skippedOtherWriter`, went with
-      // the X exclusion when X joined the sweep, 2026-09-29.)
-      const batch =
-        num(d.ticked) +
-        num(d.unmonitorable) +
-        num(d.failed) +
-        num(d.notFound) +
-        num(d.skippedUnreadable);
-
       const plural = (n: number) => (n === 1 ? "" : "s");
       const one = (n: number) => n === 1;
 
@@ -162,11 +151,14 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       if (num(d.haltStopped) > 0) done.push(`${d.haltStopped} stopped by the advertising kill switch`);
 
       const tail = d.truncated ? " More remain — run again." : "";
-      // ★EMPTY IS DECIDED LAST (review of b2c#573 round 3): only a tick with no
-      // rows, no problem of any kind and no truncation. A hand-listed set of
-      // exceptions ahead of the problems would swallow the next counter added
-      // outside the batch, as it swallowed `truncated` and `unswept` before.
-      if (batch === 0 && problems.length === 0 && !d.truncated) return "No campaigns needed checking.";
+      // ★EMPTY IS DECIDED LAST (review of b2c#573 round 3): no row ticked, no
+      // problem of any kind, no truncation. A hand-listed set of exceptions
+      // ahead of the problems would swallow the next counter added outside the
+      // batch, as it swallowed `truncated` and `unswept` before. ★`ticked`
+      // ALONE: every other per-row outcome (failed, notFound, unmonitorable,
+      // skippedUnreadable) is itself a problem, so a batch sum here was a
+      // guard behind a stronger one — its terms could be deleted unseen.
+      if (num(d.ticked) === 0 && problems.length === 0 && !d.truncated) return "No campaigns needed checking.";
       if (problems.length > 0) {
         // The good news follows the problems, and is left out only when there
         // is none: a partial halt says both halves.
