@@ -160,8 +160,20 @@ export const ADS_CHANNELS = [
     label: "X Ads",
     providerKey: "x_ads",
     description: "Launch and manage promoted-tweet campaigns on X.",
-    crons: ["x-ads-metrics-sync"],
-    invalidateQueryKeys: [["x-ads-analytics"], ["x-ads-campaigns"]],
+    // The campaign monitor watches X campaigns now — spend against the budget
+    // cap, flight end, auto-pause (api, 2026-09-29). It writes our own
+    // `ad_campaigns` rows; the panel's numbers come live from X, so the chip
+    // refreshes the panel, not a dataset the monitor fills.
+    crons: ["ad-campaign-monitor"],
+    // ★EVERY QUERY THE PANEL MAKES (b2c#573 round 1), incl. the connection
+    // state: a tick can mark the X connection needs_reauth.
+    invalidateQueryKeys: [
+      ["x-ads-analytics"],
+      ["x-ads-campaigns"],
+      ["x-ads-accounts"],
+      ["x-ads-funding"],
+      ["content-hub-integrations"],
+    ],
     ownedParams: ["account"],
   },
   /**

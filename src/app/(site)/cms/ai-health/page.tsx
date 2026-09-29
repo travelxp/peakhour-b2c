@@ -87,7 +87,6 @@ export default function AiHealthPage() {
         "performance-sync",
         "x-metrics-sync",
         "x-mentions-sync",
-        "x-ads-metrics-sync",
         "sync-ai-models",
         "pipeline-run-janitor",
       ]}

@@ -124,7 +124,6 @@ export default function ContentChannelsHubPage() {
         "linkedin-post-sync",
         "performance-sync",
         "x-metrics-sync",
-        "x-ads-metrics-sync",
       ]}
       onTriggered={() =>
         queryClient.invalidateQueries({ queryKey: ["content-hub-integrations"] })

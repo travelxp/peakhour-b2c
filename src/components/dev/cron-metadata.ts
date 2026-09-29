@@ -51,7 +51,7 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
     label: "Check ad campaigns",
     frequency: "Runs hourly (at :15 past)",
     description:
-      "Refreshes ad campaigns' spend from the platform, pauses one that has reached the total budget you set, and stops one that has passed its end date. Up to 40 campaigns per run; X campaigns are handled by their own sync.",
+      "Refreshes ad campaigns' spend from the platform, pauses one that has reached the total budget you set, and stops one that has passed its end date. Up to 40 campaigns per run, on every platform Peakhour manages ads on (LinkedIn, Meta and X today); a campaign on any other platform is reported as one that could not be checked.",
     summarize: (data) => {
       const d = data as
         | {
@@ -66,28 +66,32 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
             notFound?: number;
             unswept?: number;
             skippedUnreadable?: number;
-            skippedOtherWriter?: number;
+            haltBlocked?: number;
+            haltStopped?: number;
+            healthStatusUnread?: number;
             truncated?: boolean;
           }
         | null;
       const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
       if (typeof d?.ticked !== "number") return null;
 
-      // ★ALL SIX MUTUALLY-EXCLUSIVE PER-ROW OUTCOMES. Reading the sweep's loop:
-      // exactly one of {skippedUnreadable, skippedOtherWriter}, one of
-      // {notFound, unmonitorable, ticked}, or `failed` increments per row. A
-      // first cut summed five and omitted `skippedOtherWriter`, so a batch of
-      // forty X campaigns reported "No campaigns needed checking." — and
-      // swallowed `truncated` with it, because the empty-batch answer returns
-      // before the truncation check.
+      // ★ALL FIVE MUTUALLY-EXCLUSIVE PER-ROW OUTCOMES. Reading the sweep's loop:
+      // `skippedUnreadable`, one of {notFound, unmonitorable, ticked}, or
+      // `failed` increments per row. (A sixth, `skippedOtherWriter`, went with
+      // the X exclusion when X joined the sweep, 2026-09-29.) Omitting one made a
+      // whole batch report "No campaigns needed checking." — and swallowed
+      // `truncated` with it, because the empty-batch answer returns before the
+      // truncation check.
       const batch =
         num(d.ticked) +
         num(d.unmonitorable) +
         num(d.failed) +
         num(d.notFound) +
-        num(d.skippedUnreadable) +
-        num(d.skippedOtherWriter);
-      if (batch === 0) return "No campaigns needed checking.";
+        num(d.skippedUnreadable);
+      // ★ONLY A TRULY EMPTY TICK IS EMPTY (b2c#573 round 3): a tick that ran out
+      // of time before its first row still has `truncated`, and rows in a
+      // status nothing monitors are counted outside the batch.
+      if (batch === 0 && !d.truncated && num(d.unswept) === 0) return "No campaigns needed checking.";
 
       const plural = (n: number) => (n === 1 ? "" : "s");
 
@@ -100,9 +104,20 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       // errored rows went unmentioned beside one blocked flight end. Ordered
       // worst-first; all of them said.
       const problems: string[] = [];
+      // ★WORST FIRST (b2c#573 round 1): a halted business whose campaigns could
+      // not be stopped — the kill switch was pulled and the money has not
+      // stopped. The api returns it on a 200; a first cut never read it.
+      if (num(d.haltBlocked) > 0) {
+        const one = num(d.haltBlocked) === 1;
+        problems.push(
+          `${d.haltBlocked} ${one ? "belongs" : "belong"} to a HALTED business and could NOT be stopped — ${one ? "it" : "they"} may still be spending`,
+        );
+      }
+      // ★"THE AD PLATFORM", NOT "CAMPAIGN MANAGER" (b2c#573 round 1): X and
+      // Meta campaigns reach this branch now, and Campaign Manager is LinkedIn's.
       if (num(d.flightEndBlocked) > 0) {
         problems.push(
-          `${d.flightEndBlocked} passed the end date and could NOT be stopped — check Campaign Manager`,
+          `${d.flightEndBlocked} passed the end date and could NOT be stopped — check the ad platform`,
         );
       }
       if (num(d.failed) > 0) problems.push(`${d.failed} errored`);
@@ -112,6 +127,11 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
         problems.push(`${d.rowNotUpdated} stopped on the platform but not updated here`);
       }
       if (num(d.unswept) > 0) problems.push(`${d.unswept} in a status nothing monitors`);
+      // ★A PROBLEM, NOT A NOTE (round 3, reversing round 2). The api also sets
+      // this on `no_connection`, a failed analytics read and a row with no
+      // launch date — where spend was NOT read and the cap NOT evaluated.
+      const unread = num(d.healthStatusUnread);
+      if (unread > 0) problems.push(`${unread} could not be looked up on the platform`);
       const unreadable = num(d.notFound) + num(d.skippedUnreadable);
       if (unreadable > 0) problems.push(`${unreadable} could not be read`);
 
@@ -125,7 +145,8 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       // never heard of end without ever refreshing.
       const refreshed = num(d.refreshed);
       const done: string[] = [];
-      if (refreshed > 0 || (num(d.ended) === 0 && num(d.autoPaused) === 0)) {
+      const acted = num(d.ended) + num(d.autoPaused) + num(d.haltStopped) > 0;
+      if (refreshed > 0 || !acted) {
         done.push(`${refreshed} campaign${plural(refreshed)} checked`);
       }
       if (num(d.autoPaused) > 0) {
@@ -134,10 +155,18 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
         );
       }
       if (num(d.ended) > 0) done.push(`${d.ended} finished`);
+      // ★THE KILL SWITCH WORKING IS NEWS (b2c#573 round 2): the operator who
+      // pulled it is who presses this chip.
+      if (num(d.haltStopped) > 0) done.push(`${d.haltStopped} stopped by the advertising kill switch`);
 
       const tail = d.truncated ? " More remain — run again." : "";
       if (problems.length > 0) {
-        return { message: `${problems.join("; ")}.${tail}`, level: "warning" as const };
+        // ★THE GOOD NEWS TOO, AFTER THE PROBLEMS (round 3). Returning the
+        // problems alone hid every pause, stop and halt beside them — a partial
+        // halt said only the one campaign that could not be stopped. Omitted
+        // only when it would say nothing ("0 campaigns checked").
+        const good = refreshed > 0 || acted ? ` ${done.join(", ")}.` : "";
+        return { message: `${problems.join("; ")}.${good}${tail}`, level: "warning" as const };
       }
       const message = `${done.join(", ")}.${tail}`;
       // A capped tick is not hourly enforcement for the tail of the queue.
@@ -712,16 +741,6 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       const synced = num(asRecord(data)?.synced);
       if (synced === 0) return "Mentions refreshed — no active accounts yet.";
       return "Mentions refreshed.";
-    },
-  },
-  "x-ads-metrics-sync": {
-    label: "Sync X ad metrics",
-    frequency: "Runs every hour",
-    description: "Refreshes performance numbers on your active X ad campaigns.",
-    summarize: (data) => {
-      const synced = num(asRecord(data)?.synced);
-      if (synced === 0) return "X ad metrics refreshed — no active campaigns yet.";
-      return "X ad metrics refreshed.";
     },
   },
   "ask-weekly-digest": {
