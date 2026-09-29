@@ -323,18 +323,27 @@ describe("absenceText — a reason this build has never heard of", () => {
 
 describe("figureLabel / figureKey — paid figures (D-01)", () => {
   it("★labels a paid figure by its PLATFORM, never by the shared source", () => {
-    expect(figureLabel({ source: "paid_ads", platform: "linkedin" })).toBe("LinkedIn ads");
-    expect(figureLabel({ source: "paid_ads", platform: "meta" })).toBe("Meta ads");
-    expect(figureLabel({ source: "paid_ads", platform: "linkedin" })).not.toBe(
-      figureLabel({ source: "paid_ads", platform: "meta" }),
+    expect(figureLabel({ source: "paid_ads", platform: "linkedin", available: true })).toBe("LinkedIn ads");
+    expect(figureLabel({ source: "paid_ads", platform: "meta", available: true })).toBe("Meta ads");
+    // ★NOT "Google Ads ads" — the shared table already says "Ads".
+    expect(figureLabel({ source: "paid_ads", platform: "google_ads", available: true })).toBe("Google Ads");
+    expect(figureLabel({ source: "paid_ads", platform: "linkedin", available: true })).not.toBe(
+      figureLabel({ source: "paid_ads", platform: "meta", available: true }),
     );
   });
 
   it("★never prints a wire value — an unknown platform or source gets generic words", () => {
-    expect(figureLabel({ source: "paid_ads", platform: "tiktok" })).toBe("Ads on another platform");
-    expect(figureLabel({ source: "paid_ads" })).toBe("Your ads");
-    expect(figureLabel({ source: "somewhere_new" as never })).toBe("Another source");
-    expect(figureLabel({ source: "google_business_profile" })).toBe("Business Profile");
+    expect(figureLabel({ source: "paid_ads", platform: "tiktok", available: true })).toBe("Ads on another platform");
+    expect(figureLabel({ source: "paid_ads", available: false })).toBe("Your ads");
+    expect(figureLabel({ source: "somewhere_new" as never, available: true })).toBe("Another source");
+    expect(figureLabel({ source: "google_business_profile", available: true })).toBe("Business Profile");
+  });
+
+  it("★an ANSWERED paid figure with no platform is never dressed as the failed read", () => {
+    expect(figureLabel({ source: "paid_ads", available: true })).toBe("Ads on another platform");
+    expect(figureLabel({ source: "paid_ads", available: true })).not.toBe(
+      figureLabel({ source: "paid_ads", available: false }),
+    );
   });
 
   it("★two paid figures in one stage get two keys; an organic figure keeps its source", () => {
@@ -346,5 +355,47 @@ describe("figureLabel / figureKey — paid figures (D-01)", () => {
     ];
     expect(new Set(keys).size).toBe(4);
     expect(keys[3]).toBe("google_search");
+  });
+});
+
+describe("incompleteLine — a STALE blocker (D-01 round 1)", () => {
+  it("★★says it STOPPED, not that we are waiting on a connection", () => {
+    const line = incompleteLine(
+      stage({
+        total: undefined,
+        incomplete: "awaiting_data",
+        figures: [
+          { source: "google_search", available: true, value: 4000, days: 28 },
+          { source: "paid_ads", platform: "linkedin", available: false, reason: "stale" },
+        ],
+      }),
+    );
+    expect(line).toBe("Some of this stopped updating");
+    expect(line).not.toMatch(/waiting/i);
+  });
+  it("PASS: a pending blocker still reads as waiting", () => {
+    expect(
+      incompleteLine(
+        stage({
+          total: undefined,
+          incomplete: "awaiting_data",
+          figures: [{ source: "google_search", available: false, reason: "pending" }],
+        }),
+      ),
+    ).toBe("Waiting on a connection");
+  });
+  it("PASS: reconnect still outranks stale — it names the fix", () => {
+    expect(
+      incompleteLine(
+        stage({
+          total: undefined,
+          incomplete: "awaiting_data",
+          figures: [
+            { source: "google_search", available: false, reason: "needs_reconnect" },
+            { source: "paid_ads", platform: "meta", available: false, reason: "stale" },
+          ],
+        }),
+      ),
+    ).toBe("Reconnect Google to see this");
   });
 });

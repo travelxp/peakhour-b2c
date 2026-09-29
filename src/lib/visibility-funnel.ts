@@ -4,6 +4,7 @@ import type {
   VisibilityResponse,
   VisibilityStage,
 } from "@/lib/api/growth";
+import { knownPlatformLabel } from "@/lib/audience-library-rules";
 
 /**
  * What the visibility funnel SAYS — the phrasing rules, with no React in them.
@@ -59,12 +60,18 @@ const SOURCE_LABEL: Record<string, string> = {
   google_analytics: "Your website",
 };
 
-const PAID_PLATFORM_LABEL: Record<string, string> = {
-  linkedin: "LinkedIn ads",
-  meta: "Meta ads",
-  x: "X ads",
-  google_ads: "Google Ads",
-};
+/**
+ * An ad platform's row label — "LinkedIn ads", "Google Ads".
+ *
+ * ★FROM THE ONE PLATFORM TABLE (`audience-library-rules`), not a second copy:
+ * a rename edited in one table would name the same platform two ways on one
+ * screen. ★AND NEVER THE WIRE VALUE — an unknown platform gets generic words.
+ */
+export function paidFigureLabel(platform: string | undefined): string {
+  const name = platform ? knownPlatformLabel(platform) : undefined;
+  if (!name) return "Ads on another platform";
+  return /\bads$/i.test(name) ? name : `${name} ads`;
+}
 
 /**
  * The row label for one figure.
@@ -76,10 +83,12 @@ const PAID_PLATFORM_LABEL: Record<string, string> = {
  * has `source: "paid_ads"`, so the source alone would print "Your ads" twice
  * in one stage. The one without a platform is the failed read.
  */
-export function figureLabel(f: Pick<VisibilityFigure, "source" | "platform">): string {
+export function figureLabel(f: Pick<VisibilityFigure, "source" | "platform" | "available">): string {
   if (f.source === "paid_ads") {
-    if (!f.platform) return "Your ads";
-    return PAID_PLATFORM_LABEL[f.platform] ?? "Ads on another platform";
+    // ★THE FAILED READ IS THE UNAVAILABLE FIGURE WITH NO PLATFORM — keyed on
+    // both, so an ANSWERED figure missing its platform is never dressed as it.
+    if (!f.available && !f.platform) return "Your ads";
+    return paidFigureLabel(f.platform);
   }
   return SOURCE_LABEL[f.source] ?? "Another source";
 }
@@ -120,6 +129,13 @@ export function incompleteLine(stage: VisibilityStage): string {
   }
   if (blocking.some((f) => !f.available && f.reason === "needs_reconnect")) {
     return "Reconnect Google to see this";
+  }
+  // ★A SOURCE THAT STOPPED IS NOT ONE WE ARE WAITING ON. "Waiting on a
+  // connection" above a row saying "stopped updating" is the true-row,
+  // false-headline mismatch this function exists to prevent — and paid
+  // figures (D-01) make a stale blocker common rather than rare.
+  if (blocking.some((f) => !f.available && f.reason === "stale")) {
+    return "Some of this stopped updating";
   }
   return "Waiting on a connection";
 }

@@ -29,15 +29,6 @@ export type ProposalStatus =
 export type DecisionStatus =
   "approved" | "dismissed" | "applied" | "failed" | "retryable";
 
-/**
- * Outcomes (v1).
- *
- * ★THE ABSENCES ARE TYPED, WHICH IS THE WHOLE POINT OF THIS SHAPE. `paid: null`
- * is "this business has no paid channel", not "zero"; `conversions.configured:
- * false` carries a REASON and no count, so no client can render a business
- * nobody has ever counted a win for as one that had none. Those are different
- * facts and only one of them is a verdict on the customer's marketing.
- */
 /** One ad platform's figures over the outcomes window (api `rollupPaid`). */
 export interface PaidChannel {
   platform: string;
@@ -52,6 +43,15 @@ export interface PaidChannel {
   lastReadAt: string | null;
 }
 
+/**
+ * Outcomes (v1).
+ *
+ * ★THE ABSENCES ARE TYPED, WHICH IS THE WHOLE POINT OF THIS SHAPE. `paid: null`
+ * is "this business has no paid channel", not "zero"; `conversions.configured:
+ * false` carries a REASON and no count, so no client can render a business
+ * nobody has ever counted a win for as one that had none. Those are different
+ * facts and only one of them is a verdict on the customer's marketing.
+ */
 export interface OutcomesResponse {
   period: { days: number; since: string; until: string };
   reach: {

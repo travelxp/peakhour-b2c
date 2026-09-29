@@ -28,6 +28,7 @@ import { WhatCountsAsAWinDialog } from "@/components/growth/what-counts-as-a-win
 import { VisibilityFunnel } from "@/components/growth/visibility-funnel";
 import { useAuth } from "@/providers/auth-provider";
 import { growthApi, type OutcomesResponse } from "@/lib/api/growth";
+import { paidNote } from "@/lib/outcomes-paid";
 import { platformLabel } from "@/lib/audience-library-rules";
 
 /**
@@ -423,16 +424,8 @@ function OutcomesBody({ data }: { data: OutcomesResponse }) {
                 <Figure
                   label="Saw your ads"
                   value={NUM.format(reach.paid.impressions)}
-                  note={
-                    `${reach.paid.campaigns} campaign${reach.paid.campaigns === 1 ? "" : "s"}` +
-                    // ★NULL SPEND IS A REFUSAL, NOT A ZERO (D-01): the api
-                    // will not add two currencies, so it says which it is.
-                    (reach.paid.currency && reach.paid.spend !== null
-                      ? ` · ${reach.paid.currency} ${NUM.format(Math.round(reach.paid.spend))} spent`
-                      : reach.paid.spend === null
-                        ? " · spend is in more than one currency"
-                        : "")
-                  }
+                  // ★NULL SPEND IS A REFUSAL, NOT A ZERO (D-01) — see paidNote.
+                  note={paidNote(reach.paid)}
                 />
               )}
               {attention.paid && (

@@ -56,7 +56,6 @@ const ABSENCE_ICON: Record<VisibilityAbsence, { icon: typeof PlugZap; className?
   unavailable: { icon: HelpCircle },
 };
 
-
 const NUM = new Intl.NumberFormat("en-US");
 
 function StageCard({ stage, windowDays }: { stage: VisibilityStage; windowDays: number }) {

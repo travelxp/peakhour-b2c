@@ -196,6 +196,12 @@ export function platformLabel(platform: string): string {
   return PLATFORM_LABEL[platform] ?? platform;
 }
 
+/** The label for a platform this build KNOWS, or undefined — for a caller that
+ *  must never print a wire value (the funnel's paid rows). */
+export function knownPlatformLabel(platform: string): string | undefined {
+  return PLATFORM_LABEL[platform];
+}
+
 /**
  * The shape of the audience, in business language, ready to render as chips.
  *
