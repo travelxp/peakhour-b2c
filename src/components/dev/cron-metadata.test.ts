@@ -310,6 +310,12 @@ describe("ad-campaign-monitor summary", () => {
         message: `${sentence} More remain \u2014 run again.`,
         level: "warning",
       });
+      // \u2605AND UNTRUNCATED (round 3): `truncated` now skips the empty-batch
+      // answer by itself, so only this form proves the counter is in the batch.
+      expect(summarize({ ticked: 0, refreshed: 0, [key]: 40 }), `${key}, untruncated`).toEqual({
+        message: sentence,
+        level: "warning",
+      });
     }
   });
 
