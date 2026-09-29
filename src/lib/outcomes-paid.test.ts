@@ -92,6 +92,18 @@ describe("paidNote", () => {
     expect(note).toBe("1 campaign · spent LinkedIn ads USD 40 · some ad figures stopped updating");
   });
 
+  it("★an UNKNOWN spend with no impressions is still 'the rest' — it may not be zero", () => {
+    const note = paidNote(
+      paid({
+        campaigns: 1,
+        spend: null,
+        currency: undefined,
+        byChannel: [ch({}), ch({ platform: "meta", impressions: 0, spend: null, currency: undefined, campaigns: 0 })],
+      }),
+    );
+    expect(note).toBe("1 campaign · spent LinkedIn ads USD 40 (the rest couldn't be totalled)");
+  });
+
   it("PASS: an api that sends no byChannel still gets a sentence (this build merges first)", () => {
     expect(paidNote(paid({ spend: null, currency: undefined, byChannel: undefined }))).toBe(
       "1 campaign · spend couldn't be totalled in one currency",
