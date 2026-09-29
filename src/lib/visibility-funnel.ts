@@ -87,7 +87,9 @@ export function figureLabel(f: Pick<VisibilityFigure, "source" | "platform" | "a
   if (f.source === "paid_ads") {
     // ★THE FAILED READ IS THE UNAVAILABLE FIGURE WITH NO PLATFORM — keyed on
     // both, so an ANSWERED figure missing its platform is never dressed as it.
-    if (!f.available && !f.platform) return "Your ads";
+    // ★AND NOT "YOUR ads": the api emits it whenever the read throws, for a
+    // business that has never advertised too, and "your" claims they exist.
+    if (!f.available && !f.platform) return "Ads";
     return paidFigureLabel(f.platform);
   }
   return SOURCE_LABEL[f.source] ?? "Another source";
@@ -101,8 +103,12 @@ export function figureLabel(f: Pick<VisibilityFigure, "source" | "platform" | "a
  * source made them one element to React — a duplicate-key warning, and a row
  * that can be dropped or reused on the next render.
  */
-export function figureKey(f: Pick<VisibilityFigure, "source" | "platform">): string {
-  return f.platform ? `${f.source}:${f.platform}` : f.source;
+export function figureKey(f: Pick<VisibilityFigure, "source" | "platform" | "available">): string {
+  if (f.platform) return `${f.source}:${f.platform}`;
+  // ★A PAID FIGURE WITH NO PLATFORM IS EITHER THE FAILED READ OR AN ANSWERED
+  // ONE MISSING ITS PLATFORM (`figureLabel` tells them apart), and both would
+  // key to the bare source — the duplicate key this function exists to stop.
+  return f.source === "paid_ads" ? `${f.source}:${f.available ? "?" : "unavailable"}` : f.source;
 }
 
 /**

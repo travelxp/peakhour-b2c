@@ -199,7 +199,9 @@ export function platformLabel(platform: string): string {
 /** The label for a platform this build KNOWS, or undefined — for a caller that
  *  must never print a wire value (the funnel's paid rows). */
 export function knownPlatformLabel(platform: string): string | undefined {
-  return PLATFORM_LABEL[platform];
+  // ★OWN KEYS ONLY: `PLATFORM_LABEL["constructor"]` is `Object`, which is
+  // truthy and would render as "function Object() { [native code] } ads".
+  return Object.hasOwn(PLATFORM_LABEL, platform) ? PLATFORM_LABEL[platform] : undefined;
 }
 
 /**

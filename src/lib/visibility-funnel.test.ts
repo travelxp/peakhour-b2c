@@ -334,9 +334,22 @@ describe("figureLabel / figureKey — paid figures (D-01)", () => {
 
   it("★never prints a wire value — an unknown platform or source gets generic words", () => {
     expect(figureLabel({ source: "paid_ads", platform: "tiktok", available: true })).toBe("Ads on another platform");
-    expect(figureLabel({ source: "paid_ads", available: false })).toBe("Your ads");
+    expect(figureLabel({ source: "paid_ads", available: false })).toBe("Ads");
     expect(figureLabel({ source: "somewhere_new" as never, available: true })).toBe("Another source");
     expect(figureLabel({ source: "google_business_profile", available: true })).toBe("Business Profile");
+  });
+
+  it("★★never prints a prototype name as a platform", () => {
+    expect(figureLabel({ source: "paid_ads", platform: "constructor", available: true })).toBe(
+      "Ads on another platform",
+    );
+    expect(figureLabel({ source: "paid_ads", platform: "toString", available: true })).toBe(
+      "Ads on another platform",
+    );
+  });
+
+  it("★the failed read does not claim the business HAS ads", () => {
+    expect(figureLabel({ source: "paid_ads", available: false })).not.toMatch(/your/i);
   });
 
   it("★an ANSWERED paid figure with no platform is never dressed as the failed read", () => {
@@ -348,13 +361,16 @@ describe("figureLabel / figureKey — paid figures (D-01)", () => {
 
   it("★two paid figures in one stage get two keys; an organic figure keeps its source", () => {
     const keys = [
-      figureKey({ source: "paid_ads", platform: "linkedin" }),
-      figureKey({ source: "paid_ads", platform: "meta" }),
-      figureKey({ source: "paid_ads" }),
-      figureKey({ source: "google_search" }),
+      figureKey({ source: "paid_ads", platform: "linkedin", available: true }),
+      figureKey({ source: "paid_ads", platform: "meta", available: true }),
+      figureKey({ source: "paid_ads", available: false }),
+      // ★ROUND 2: an answered paid figure missing its platform must not share
+      // the failed read's key.
+      figureKey({ source: "paid_ads", available: true }),
+      figureKey({ source: "google_search", available: true }),
     ];
-    expect(new Set(keys).size).toBe(4);
-    expect(keys[3]).toBe("google_search");
+    expect(new Set(keys).size).toBe(5);
+    expect(keys[4]).toBe("google_search");
   });
 });
 

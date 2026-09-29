@@ -1,4 +1,4 @@
-import type { OutcomesResponse } from "@/lib/api/growth";
+import type { OutcomesResponse, PaidChannel } from "@/lib/api/growth";
 import { paidFigureLabel } from "@/lib/visibility-funnel";
 
 const NUM = new Intl.NumberFormat("en-US");
@@ -19,22 +19,33 @@ const NUM = new Intl.NumberFormat("en-US");
  */
 export function paidNote(paid: NonNullable<OutcomesResponse["reach"]["paid"]>): string {
   const parts = [`${paid.campaigns} campaign${paid.campaigns === 1 ? "" : "s"}`];
+  const channels = paid.byChannel ?? [];
   if (paid.spend !== null && paid.currency) {
     parts.push(`${paid.currency} ${NUM.format(Math.round(paid.spend))} spent`);
   } else {
-    const per = (paid.byChannel ?? [])
-      .filter((ch) => ch.spend !== null && ch.currency)
-      .map((ch) => `${paidFigureLabel(ch.platform)} ${ch.currency} ${NUM.format(Math.round(ch.spend!))}`);
-    // ★A PARTIAL LIST SAYS IT IS PARTIAL — naming two channels' spend and
-    // omitting a third reads as the whole of it.
-    const rest = (paid.byChannel ?? []).some((ch) => ch.spend === null || !ch.currency);
+    // ★ONE PARTITION, OVER THE CHANNELS THAT MOVED — the api's own rule
+    // (\`totalPaid\`). A stale channel that neither served nor spent carries a
+    // bookkept 0; listing it printed "Meta ads EUR 0", a zero nobody measured.
+    // An unknown spend may not be zero, so it stays and is "the rest".
+    const moving = channels.filter((ch) => ch.impressions > 0 || ch.spend === null || ch.spend > 0);
+    const totalled: Array<PaidChannel & { spend: number; currency: string }> = [];
+    let rest = false;
+    for (const ch of moving) {
+      // ★BOTH FIELDS, ON PURPOSE: the api pairs them, but the repos deploy
+      // apart, and a currency beside no amount must never print as one.
+      if (ch.spend !== null && ch.currency) totalled.push({ ...ch, spend: ch.spend, currency: ch.currency });
+      else rest = true;
+    }
+    const per = totalled.map(
+      (ch) => `${paidFigureLabel(ch.platform)} ${ch.currency} ${NUM.format(Math.round(ch.spend))}`,
+    );
     parts.push(
       per.length > 0
         ? `spent ${per.join(", ")}${rest ? " (the rest couldn't be totalled)" : ""}`
         : "spend couldn't be totalled in one currency",
     );
   }
-  if ((paid.byChannel ?? []).some((ch) => ch.stale)) {
+  if (channels.some((ch) => ch.stale)) {
     parts.push("some ad figures stopped updating");
   }
   return parts.join(" · ");

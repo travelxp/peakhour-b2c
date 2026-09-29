@@ -71,8 +71,10 @@ export interface OutcomesResponse {
        *  is present exactly when this is a number. */
       spend: number | null;
       currency?: string;
-      /** One entry per ad platform that served inside the window. */
-      byChannel: PaidChannel[];
+      /** One entry per ad platform that served, spent or went stale inside the
+       *  window. ★OPTIONAL because this build merges BEFORE the api that sends
+       *  it (D-01) — every reader must treat it as possibly absent. */
+      byChannel?: PaidChannel[];
     } | null;
     site: {
       sessions: number;
