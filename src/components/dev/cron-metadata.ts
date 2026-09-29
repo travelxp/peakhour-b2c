@@ -57,6 +57,7 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
         | {
             ticked?: number;
             batch?: number;
+            visited?: number;
             refreshed?: number;
             autoPaused?: number;
             ended?: number;
@@ -122,9 +123,8 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       const hasSpendUnread = typeof d.spendUnread === "number";
       if (hasSpendUnread && num(d.spendUnread) > 0) {
         const n = num(d.spendUnread);
-        problems.push(
-          `${n} had no spend read this run, so ${pick(n, "its budget cap was", "their budget caps were")} checked only against stored spend`,
-        );
+        // "Any" budget cap (round 3): not every campaign has one.
+        problems.push(`${n} had no spend read this run — any budget cap was checked only against stored spend`);
       } else if (!hasSpendUnread && num(d.healthStatusUnread) > 0) {
         problems.push(`${d.healthStatusUnread} could not be looked up on the platform — spend may not have been read`);
       }
@@ -141,11 +141,16 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       const unloadable = num(d.notFound) + num(d.skippedUnreadable);
       if (unloadable > 0) problems.push(`${count(unloadable, "campaign record", "campaign records")} could not be loaded`);
       // ★A ROW WITH AN OUTCOME THIS TOAST DOES NOT KNOW IS STILL A ROW (review
-      // of b2c#575): the api's `batch` minus the outcomes read here. Not on a
-      // truncated run, whose batch includes rows the clock left unvisited.
-      if (typeof d.batch === "number" && !d.truncated) {
+      // of b2c#575): the rows the api REACHED (`visited`) minus the outcomes
+      // read here. ★NOT SKIPPED ON A CAPPED RUN (round 3): under load every run
+      // is capped, and skipping it there skipped it when it mattered. An older
+      // api has only `batch`, which counts rows the clock never reached — so
+      // that fallback still stands down when truncated.
+      const reached =
+        typeof d.visited === "number" ? d.visited : typeof d.batch === "number" && !d.truncated ? d.batch : undefined;
+      if (reached !== undefined) {
         const known = num(d.ticked) + num(d.failed) + num(d.unmonitorable) + unloadable;
-        const unknown = d.batch - known;
+        const unknown = reached - known;
         if (unknown > 0) problems.push(`${count(unknown, "row", "rows")} had an outcome this summary does not recognise`);
       }
       if (num(d.unswept) > 0) problems.push(`${d.unswept} in a status nothing monitors`);
@@ -154,14 +159,14 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
 
       // Open findings: about campaigns that ARE watched.
       const findings: string[] = [];
-      if (typeof d.driftUncapped === "number") {
-        // The rest of the drift is the other direction: active here, and the
-        // platform says it is not delivering.
-        const rest = num(h.statusDrift) - num(d.driftUncapped);
-        if (rest > 0) findings.push(`${count(rest, "is", "are")} active here but not delivering on the ad platform`);
-      } else if (num(h.statusDrift) > 0) {
-        // An older api counts both directions as one number: words true both ways.
-        findings.push(`${count(num(h.statusDrift), "has a status", "have a status")} that differs from the ad platform's`);
+      // ★THE REST OF THE DRIFT IN WORDS TRUE BOTH WAYS (round 3): it is not
+      // only "active here, not delivering". A claim merely HELD this tick can
+      // point either way, and naming it the harmless way filed a paused row
+      // that may be serving uncapped as a green finding. (Its row, if unread,
+      // is also statusUnwatched — the amber problem above.)
+      const driftRest = num(h.statusDrift) - num(d.driftUncapped);
+      if (driftRest > 0) {
+        findings.push(`${count(driftRest, "has a status", "have a status")} that differs from the ad platform's`);
       }
       if (num(h.noDelivery) > 0) findings.push(`${h.noDelivery} not delivering`);
       if (num(h.zeroConversions) > 0) findings.push(`${h.zeroConversions} with no conversions`);
