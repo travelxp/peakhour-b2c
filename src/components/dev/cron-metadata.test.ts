@@ -593,3 +593,114 @@ describe("linkedin-post-sync summary", () => {
     expect(s?.message).toMatch(/reconnect/i);
   });
 });
+
+/**
+ * ★★M-16 — THE META CONVERSION SWEEP, whose missing label had master red.
+ *
+ * The fixture is the api's `MetaConversionSweepResult` field for field
+ * (`services/meta/conversion-sweep.ts`), not a shape invented to fit the
+ * summarizer: an invented fixture is how a summarizer ends up agreeing with
+ * itself about a field the api never sends.
+ */
+describe("meta-conversion-sweep summary", () => {
+  const clean = {
+    businessesConsidered: 3,
+    businessesConfigured: 2,
+    ordersConsidered: 9,
+    eventsUploaded: 9,
+    ordersMarked: 9,
+    skipped: {
+      no_click: 0, no_click_time: 0, outside_window: 0, future_dated: 0,
+      no_value: 0, no_currency: 0, no_order_time: 0, no_source_url: 0,
+    },
+    batches: 2,
+    budgetHit: false,
+    perBusinessCapHit: false,
+  };
+  const run = (over: Record<string, unknown>) =>
+    summarizeCronBody("meta-conversion-sweep", JSON.stringify({ ok: true, data: { ...clean, ...over } }));
+
+  it("★M-16 a clean run is green and says what it sent", () => {
+    const s = run({});
+    expect(s?.level).not.toBe("warning");
+    expect(s?.message).toContain("9 purchases sent for 2 businesses");
+  });
+
+  it("★M-16 no chosen dataset is a plain no-op, not a failure", () => {
+    const s = run({ businessesConsidered: 0, businessesConfigured: 0, eventsUploaded: 0, ordersMarked: 0 });
+    expect(s?.message).toMatch(/no business has chosen a Meta dataset/);
+    expect(s?.level).not.toBe("warning");
+  });
+
+  it("★★M-16 R3.2 businesses that chose a dataset but switched ads off are NOT 'none chose'", () => {
+    // considered counts a dataset on ANY active facebook row; configured only
+    // those whose ADS connection carries it. The first cut read configured
+    // alone and told the operator nobody had chosen a dataset.
+    const s = run({ businessesConsidered: 2, businessesConfigured: 0, eventsUploaded: 0, ordersMarked: 0 });
+    expect(s?.message).not.toMatch(/no business has chosen/);
+    expect(s?.message).toMatch(/2 businesses have a dataset but no active Meta ads connection/);
+    // ⏸Neutral: honouring the merchant's switch is correct behaviour.
+    expect(s?.level).not.toBe("warning");
+  });
+
+  it("★★M-16 R3.2 a run that hit its budget before ANY configured business still warns", () => {
+    const s = run({ businessesConsidered: 4, businessesConfigured: 0, eventsUploaded: 0, ordersMarked: 0, budgetHit: true });
+    expect(s?.level).toBe("warning");
+    expect(s?.message).toMatch(/time budget/);
+  });
+
+  it("★★M-16 a filled per-business cap WARNS — the tail is lost, not delayed", () => {
+    const s = run({ perBusinessCapHit: true });
+    expect(s?.level).toBe("warning");
+    expect(s?.message).toMatch(/7-day window/);
+  });
+
+  it("★M-16 a run cut short by its budget warns", () => {
+    expect(run({ budgetHit: true })?.level).toBe("warning");
+  });
+
+  it("★M-16 uploaded-but-unmarked warns — those orders go again", () => {
+    const s = run({ ordersMarked: 7 });
+    expect(s?.level).toBe("warning");
+    expect(s?.message).toMatch(/sent again/);
+  });
+
+  it("★★M-16 a structurally-zero skip reason that moved warns, naming it", () => {
+    const s = run({ skipped: { ...clean.skipped, no_currency: 2 } });
+    expect(s?.level).toBe("warning");
+    expect(s?.message).toContain("no_currency");
+  });
+
+  it("★★M-16 but `no_source_url` is the one reason MEANT to move, and does not warn", () => {
+    // ⚠️THE ALARM DIRECTION. The api's own comment: "the only count here that
+    // is MEANT to move is `no_source_url`". A summarizer warning on every
+    // non-zero skip would cry wolf on an ordinary storefront outcome.
+    const s = run({ skipped: { ...clean.skipped, no_source_url: 4 } });
+    expect(s?.level).not.toBe("warning");
+  });
+
+  it.skipIf(scheduled === null)(
+    "★★M-16 R1.1 the frequency says the hour vercel.json actually schedules",
+    () => {
+      // ⚠️It said "3:15pm UTC" against `0 15 * * *` — 15:00. A label read off
+      // the schedule by eye is the defect; pin the pair so neither can move alone.
+      const config = JSON.parse(readFileSync(VERCEL_JSON, "utf8")) as {
+        crons: Array<{ path: string; schedule: string }>;
+      };
+      const entry = config.crons.find((c) => c.path === "/v1/cron/meta-conversion-sweep");
+      expect(entry, "meta-conversion-sweep is not scheduled in vercel.json").toBeDefined();
+      const m = /^(\d+) (\d+) \* \* \*$/.exec(entry!.schedule);
+      expect(m, `not a daily schedule: ${entry!.schedule}`).not.toBeNull();
+      const [minute, hour] = [Number(m![1]), Number(m![2])];
+      const h12 = hour % 12 === 0 ? 12 : hour % 12;
+      const clock = `${h12}${minute ? `:${String(minute).padStart(2, "0")}` : ""}${hour < 12 ? "am" : "pm"}`;
+      expect(CRON_METADATA["meta-conversion-sweep"].frequency).toBe(`Runs daily at ${clock} UTC`);
+    },
+  );
+
+  it("★M-16 a body without the counter defers to the generic toast", () => {
+    expect(
+      summarizeCronBody("meta-conversion-sweep", JSON.stringify({ ok: true, data: {} })),
+    ).toBeNull();
+  });
+});

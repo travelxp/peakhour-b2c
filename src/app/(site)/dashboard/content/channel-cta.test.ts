@@ -5,6 +5,7 @@ import {
   STATIC_DASHBOARD_PATHS,
 } from "./channel-cta";
 import type { ChannelConfig } from "./channels.config";
+import { ADS_CHANNELS } from "../ads/ads-channels";
 
 const STATIC = new Map<string, string>([
   ["linkedin_content", "/dashboard/content/linkedin"],
@@ -41,17 +42,18 @@ describe("resolveChannelCta", () => {
 
   it("(c) connected + no path anywhere → Connected, managed via Integrations", () => {
     // This is the NORMAL state for the Meta capability rows (facebook_pages,
-    // instagram, meta_ads) and wordpress: /dashboard/integrations IS where you
+    // instagram) and wordpress: /dashboard/integrations IS where you
     // manage them. The action must stay enabled — only the label changes.
     const r = resolveChannelCta(
-      chan({ status: "available", dashboardPath: undefined, providerKey: "meta_ads" }),
+      chan({ status: "available", dashboardPath: undefined, providerKey: "facebook_pages" }),
       { connected: true },
       STATIC,
     );
     expect(r.isConnected).toBe(true);
     expect(r.dashboardPath).toBeUndefined();
     expect(r.manageViaIntegrations).toBe(true);
-    // meta_ads is integrations-managed BY DESIGN, so no dev warning.
+    // facebook_pages is integrations-managed BY DESIGN, so no dev warning.
+    // (meta_ads WAS the example here until M-16 gave it a panel.)
     expect(r.configGap).toBe(false);
   });
 
@@ -279,5 +281,31 @@ describe("resolveChannelCta — showsComingSoon", () => {
     // into the one hub with the channel pre-selected.
     expect(STATIC_DASHBOARD_PATHS.get("linkedin_ads")).toBe("/dashboard/ads?channel=linkedin");
     expect(STATIC_DASHBOARD_PATHS.get("x_ads")).toBe("/dashboard/ads?channel=x");
+  });
+
+  it("★★M-16 every Ads hub channel's static Manage path opens its own tab", () => {
+    // The registry's own contract: adding a channel means pointing its
+    // channels.config dashboardPath at /dashboard/ads?channel=<key>. Checked
+    // from the REGISTRY outward, so a fourth channel cannot be added without
+    // its deep-link — which is exactly what meta_ads lacked until M-16.
+    for (const c of ADS_CHANNELS) {
+      expect(STATIC_DASHBOARD_PATHS.get(c.providerKey), c.providerKey).toBe(
+        `/dashboard/ads?channel=${c.key}`,
+      );
+    }
+    expect(ADS_CHANNELS.some((c) => c.providerKey === "meta_ads")).toBe(true);
+  });
+
+  it("★★M-16 a connected meta_ads is no longer 'managed via Integrations'", () => {
+    // The catalog row has no path until mongodb mig 358 runs; the static map
+    // must carry the Manage button to the hub in the meantime.
+    const r = resolveChannelCta(
+      chan({ status: "available", dashboardPath: undefined, providerKey: "meta_ads" }),
+      { connected: true },
+      STATIC_DASHBOARD_PATHS,
+    );
+    expect(r.dashboardPath).toBe("/dashboard/ads?channel=meta");
+    expect(r.manageViaIntegrations).toBe(false);
+    expect(INTEGRATIONS_MANAGED_PROVIDERS.has("meta_ads")).toBe(false);
   });
 });

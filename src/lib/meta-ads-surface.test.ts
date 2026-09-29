@@ -296,15 +296,52 @@ describe("★★M-13 — metaAdsUrl, so a panel never has to write a literal", (
 });
 
 // ══════════════════════════════════════════════════════════════════════════
-describe("★★M-13 — the ads hub has no Meta tab, and that is why there is nothing to unwire", () => {
-  it("★★M-13 b2c ADS_CHANNELS registers no Meta channel — the panel is M-16 and is not started", () => {
-    // ★THE FACT THE WHOLE ROW TURNED ON. *"b2c stops pointing at them"*
-    // assumes a surface that no row creates; §9's own UI box says so. When
-    // M-16 lands, this case fails — deliberately, so its author has to come
-    // here and confirm the panel was built from META_ADS_MANAGED_ROUTES.
-    expect(ADS_CHANNELS.map((c) => c.providerKey)).not.toContain("meta_ads");
-    // ⏸PAIRED, because `[]` would satisfy the line above.
-    expect(ADS_CHANNELS.length).toBeGreaterThan(0);
+describe("★★M-16 — the ads hub HAS a Meta tab, and it reaches Meta only through the client", () => {
+  /**
+   * ★THIS BLOCK USED TO ASSERT THE OPPOSITE, AND WAS WRITTEN TO. M-13's case
+   * read *"ADS_CHANNELS registers no Meta channel — the panel is M-16 and is
+   * not started"*, and was designed to fail the day M-16 landed so its author
+   * had to come here and confirm the panel was built from the managed list.
+   * These cases are that confirmation, made checkable rather than claimed.
+   */
+  const CLIENT = "src/lib/api/meta-ads.ts";
+  const PANEL = "src/app/(site)/dashboard/ads/_components/meta-ads-panel.tsx";
+  const readRel = (p: string) => readFileSync(join(SRC, "..", p), "utf8");
+
+  it("★★M-16 b2c ADS_CHANNELS registers the Meta channel", () => {
+    expect(ADS_CHANNELS.map((c) => c.providerKey)).toContain("meta_ads");
+  });
+
+  it("★★M-16 b2c the panel reaches Meta through `metaAdsApi` and names no Meta path itself", () => {
+    const panel = readRel(PANEL);
+    expect(panel).toMatch(/import\s*\{[^}]*\bmetaAdsApi\b[^}]*\}\s*from\s*"@\/lib\/api\/meta-ads"/);
+    // ⚠️★THE BARE MOUNT IS EXCLUDED, AS THE GLOBAL SCAN EXCLUDES IT. A first cut
+    //  refused it here, and a PASS mutation — a comment saying where the router
+    //  is mounted — went red: M-13 round 3's *"the guard firing on the one
+    //  thing it exists to permit"*, re-made in the case written to extend it.
+    expect(findMetaAdsPaths(panel).filter((p) => !isBareMetaAdsMount(p))).toEqual([]);
+    // ⏸PAIRED: the file read is the panel, not an empty or unrelated one.
+    expect(panel).toContain("export function MetaAdsPanel");
+  });
+
+  it("★★M-16 b2c every Meta path in the client is built by metaAdsUrl, not handed to `api` raw", () => {
+    // ⚠️The global scan above permits a MANAGED literal anywhere, so
+    // `api.get("/v1/meta/ads/campaigns")` would pass it. This is what makes the
+    // client the one place a path is turned into a request, through the
+    // function that refuses a route off the managed list at runtime too.
+    const client = readRel(CLIENT);
+    const literals = [...client.matchAll(/["'`](\/v1\/meta\/ads[^"'`]*)["'`]/g)];
+    expect(literals.length, "the client names no Meta path at all — wrong file?").toBeGreaterThan(5);
+    const bare = literals.filter((m) => !/metaAdsUrl\(\s*$/.test(client.slice(0, m.index)));
+    expect(bare.map((m) => m[1])).toEqual([]);
+  });
+
+  it("★★M-16 b2c and that check SAYS SO when there is something to find", () => {
+    // The paired non-vacuity case, on the same regex and the same slice test.
+    const src = 'api.get("/v1/meta/ads/campaigns"); api.get(metaAdsUrl("/v1/meta/ads/ads"));';
+    const literals = [...src.matchAll(/["'`](\/v1\/meta\/ads[^"'`]*)["'`]/g)];
+    const bare = literals.filter((m) => !/metaAdsUrl\(\s*$/.test(src.slice(0, m.index)));
+    expect(bare.map((m) => m[1])).toEqual(["/v1/meta/ads/campaigns"]);
   });
 });
 
@@ -392,6 +429,30 @@ describe("★★M-13 — the prefix and the routes are peakhour-api's, not ours"
       const routeFile = readSibling(SIBLING_ROUTE_FILE);
       expect(routeFile).toContain('app.post("/campaigns"');
       expect(routeFile.length).toBeGreaterThan(1000);
+    },
+  );
+
+  it.skipIf(!siblingRepoPresent)(
+    "★★M-16 b2c the deleted passthrough is GONE from the api, not merely unlisted here",
+    () => {
+      // ★OWED SINCE M-13 AND PAID NOW. The contract module's own note: *"Owed
+      // once #1369 merges: one `expect(routeFile).not.toContain('"/audiences"')`
+      // in the cross-repo block."* api#1369 merged 2026-09-16. Deliberately not
+      // written before, because a test red on purpose is a test somebody
+      // disables.
+      const routeFile = readSibling(SIBLING_ROUTE_FILE);
+      for (const deleted of META_ADS_DELETED_ROUTES) {
+        const sub = deleted.replace(META_ADS_PREFIX, "");
+        // The note's own assertion. ⏸Measured safe on api `e917e309`: the
+        //  route file's tombstone names the deleted path only in backticks and
+        //  with its prefix (`POST /v1/meta/ads/audiences`), never as `"/audiences"`.
+        expect(routeFile).not.toContain(`"${sub}"`);
+        // And the registration shape, which a re-add in any quote style hits.
+        expect(routeFile).not.toMatch(new RegExp(`app\\.(get|post|put|patch|delete)\\(\\s*["'\`]${sub}["'\`]`));
+      }
+      // ⏸PAIRED with a live registration in the same shape, so the regex is
+      //  known to match a real one and is not vacuous.
+      expect(routeFile).toMatch(/app\.(get|post|put|patch|delete)\(\s*["'`]\/campaigns["'`]/);
     },
   );
 });

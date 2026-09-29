@@ -2,7 +2,7 @@
 
 /**
  * Ads hub — ONE surface for every ad channel, selected with a tab filter
- * rather than a route per platform (`?channel=linkedin|x`). Each channel
+ * rather than a route per platform (`?channel=linkedin|x|meta`). Each channel
  * contributes a panel under `_components/` and an entry in
  * `ads-channels.ts`; the Content hub's "Manage" deep-links here with the
  * channel pre-selected.
@@ -26,9 +26,11 @@ import { OAuthConnectResult } from "@/components/integrations/oauth-connect-resu
 import { BusinessProfileSummary } from "@/components/audience/business-profile-summary";
 import { LinkedInAdsPanel } from "./_components/linkedin-ads-panel";
 import { XAdsPanel } from "./_components/x-ads-panel";
+import { MetaAdsPanel } from "./_components/meta-ads-panel";
 import {
   ADS_CHANNELS,
   ADS_CHANNEL_PARAM,
+  connectedAdsProviderKeys,
   getAdsChannel,
   isAdsChannelKey,
   nextAdsHubSearch,
@@ -40,6 +42,8 @@ interface ApiIntegration {
   provider: string;
   connected?: boolean;
   status?: string;
+  /** Carries the Meta capability toggles and ad accounts the expansion reads. */
+  account?: { extra?: Record<string, unknown> };
 }
 
 /**
@@ -54,6 +58,7 @@ const PANELS: Record<
 > = {
   linkedin: LinkedInAdsPanel,
   x: XAdsPanel,
+  meta: MetaAdsPanel,
 };
 
 /** Every channel's crons — used while the resolved channel isn't known yet. */
@@ -98,14 +103,13 @@ function AdsHub() {
 
   // needs_reauth counts as connected for channel-picking: the connection
   // exists, and the panel shows a reconnect banner rather than a dead end.
+  // ★M-16: the Meta `facebook` row is EXPANDED into its capability rows first,
+  //  or `meta_ads` is never found — see `connectedAdsProviderKeys`.
   const integrationList = integrations.data?.integrations;
-  const connectedProviderKeys = useMemo(() => {
-    const set = new Set<string>();
-    for (const i of integrationList ?? []) {
-      if (i.connected === true || i.status === "needs_reauth") set.add(i.provider);
-    }
-    return set;
-  }, [integrationList]);
+  const connectedProviderKeys = useMemo(
+    () => connectedAdsProviderKeys(integrationList ?? []),
+    [integrationList],
+  );
 
   // Errored (not merely pending) means we can't assert connected-ness either
   // way; `isPending` is false on error in TanStack v5, so check both.
@@ -162,7 +166,7 @@ function AdsHub() {
 
   // Pin the resolved channel into the URL once connections are KNOWN. Buys
   // three things: the panel can't silently switch under the user when a
-  // focus-refetch changes connection state, an invalid `?channel=meta` gets
+  // focus-refetch changes connection state, an invalid `?channel=google` gets
   // normalised away instead of lingering, and the tab highlight stops depending
   // on a pending router transition.
   //

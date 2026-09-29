@@ -8,8 +8,9 @@
  * route, no new nav item.
  *
  * Only channels that HAVE a panel belong here. A connector that is merely
- * catalogued (meta_ads, google_ads) stays out until its panel exists —
- * otherwise the selector would offer a tab that renders nothing.
+ * catalogued (google_ads) stays out until its panel exists — otherwise the
+ * selector would offer a tab that renders nothing. (`meta_ads` joined in M-16,
+ * with its panel.)
  *
  * ── ★★M-13: WHEN `meta_ads` JOINS, WHICH ROUTES ITS PANEL MAY CALL ───────
  *
@@ -22,14 +23,93 @@
  * see it at all. Those two are deleted; the rest record what they did.
  *
  * ⏸NO ROUTE PATH IS SPELLED OUT IN THIS FILE, DELIBERATELY. The guard refuses
- * the literal anywhere under `src/`, comments included — the next author reads
- * a path out of prose as readily as out of code, and the contract module is
- * meant to be the one place it is written down.
+ * an UNMANAGED literal anywhere under `src/`, comments included — the next
+ * author reads a path out of prose as readily as out of code. Paths are written
+ * in the contract module and in the one client, `lib/api/meta-ads.ts`, which
+ * builds every one through `metaAdsUrl`.
  *
- * ⏸The Meta panel itself is **M-16**, and the guard's ADS_CHANNELS case is
- * written to fail when it lands — so whoever adds the entry below has to go
- * and confirm the panel was built from the managed list.
+ * ✅The Meta panel is **M-16**, and it has landed. The guard's ADS_CHANNELS case
+ * was written to fail when it did; it now asserts the opposite — that `meta`
+ * is registered AND that its panel reaches Meta only through that client.
  */
+
+import { META_VIRTUAL_CARDS, type MetaVirtualCard } from "@/lib/integrations-meta";
+
+/**
+ * The provider keys the hub counts as connected, from `/v1/integrations`.
+ *
+ * ⚠️★★EXPANDED FIRST (M-16). The api reports Meta as ONE `facebook` row whose
+ * ads capability is a virtual `meta_ads` row derived by
+ * `flattenMetaIntegration` — the expansion /dashboard/integrations already
+ * uses. Matching the raw list against `meta_ads` finds nothing, so a merchant
+ * whose only ad channel is Meta would open onto an empty LinkedIn tab.
+ *
+ * `needs_reauth` counts: the connection exists, and the panel belongs on
+ * screen with a reconnect banner rather than a Connect empty state.
+ *
+ * ⚠️★★BUT ONLY FOR A CAPABILITY THE STALE CONNECTION ACTUALLY HAS (review
+ * R1.2). `flattenMetaIntegration` copies the parent's `status` onto EVERY
+ * virtual row, so a stale Pages-only connection — Ads switched off, no ad
+ * account — came out as a `needs_reauth` `meta_ads`, and the hub opened it on
+ * the Meta tab behind a reconnect banner instead of saying "Connect Meta".
+ * A stale virtual row counts only if it would be connected once reconnected:
+ * the capability is not switched off and its resources exist, the same two
+ * conditions the flattening applies to a LIVE row.
+ */
+export function connectedAdsProviderKeys(integrations: readonly AdsIntegrationRow[]): Set<string> {
+  const set = new Set<string>();
+  for (const i of integrations) {
+    if (i.provider === "facebook") {
+      for (const card of META_VIRTUAL_CARDS) {
+        if (metaCapabilityState(i, card) !== "absent") set.add(card.virtualProvider);
+      }
+      continue;
+    }
+    if (i.connected === true || i.status === "needs_reauth") set.add(i.provider);
+  }
+  return set;
+}
+
+/** The slice of a `/v1/integrations` row the hub and the Meta panel read. */
+export interface AdsIntegrationRow {
+  provider: string;
+  connected?: boolean;
+  status?: string;
+  account?: { extra?: Record<string, unknown> };
+}
+
+/**
+ * One Meta capability of one `facebook` row: live, stale-but-real, or absent.
+ *
+ * ★THE ONE RULE both the hub's channel pick and the Meta panel's gate read, so
+ * the two cannot disagree about whether a merchant is connected — which is what
+ * R1.2 found them able to do through `status`.
+ */
+export function metaCapabilityState(
+  row: AdsIntegrationRow,
+  card: MetaVirtualCard,
+): "connected" | "needs_reauth" | "absent" {
+  if (row.provider !== "facebook") return "absent";
+  const extra = (row.account?.extra ?? {}) as Record<string, unknown>;
+  const caps = (extra.capabilities ?? {}) as Record<string, { enabled?: boolean } | undefined>;
+  const usable = card.hasResources(extra) && caps[card.capabilityKey]?.enabled !== false;
+  if (!usable) return "absent";
+  if (row.connected === true) return "connected";
+  if (row.status === "needs_reauth") return "needs_reauth";
+  return "absent";
+}
+
+/** The Meta ADS capability across every `facebook` row: the best state any has. */
+export function metaAdsConnectionState(
+  integrations: readonly AdsIntegrationRow[],
+): "connected" | "needs_reauth" | "absent" {
+  const card = META_VIRTUAL_CARDS.find((c) => c.virtualProvider === "meta_ads");
+  if (!card) return "absent";
+  const states = integrations.map((i) => metaCapabilityState(i, card));
+  if (states.includes("connected")) return "connected";
+  if (states.includes("needs_reauth")) return "needs_reauth";
+  return "absent";
+}
 
 /**
  * Shape each registry entry must satisfy. The exported `AdsChannelDef` and
@@ -83,6 +163,37 @@ export const ADS_CHANNELS = [
     crons: ["x-ads-metrics-sync"],
     invalidateQueryKeys: [["x-ads-analytics"], ["x-ads-campaigns"]],
     ownedParams: ["account"],
+  },
+  /**
+   * ★★M-16. `providerKey` is the VIRTUAL `meta_ads` row, not `facebook`: the
+   * api reports one `facebook` connection and `flattenMetaIntegration` derives
+   * the ads capability from it. So the hub expands before it matches — see
+   * `connectedAdsProviderKeys` below — or a merchant with only Meta connected
+   * opens onto an empty LinkedIn tab.
+   *
+   * `meta-conversion-sweep` is here because this panel's dataset card is the
+   * only way that sweep can ever have something to send; `ad-campaign-monitor`
+   * because it is what watches a managed Meta campaign's spend.
+   */
+  {
+    key: "meta",
+    label: "Meta Ads",
+    providerKey: "meta_ads",
+    description:
+      "See and pause your Facebook and Instagram campaigns, and choose where purchases from Meta ads are reported.",
+    crons: ["ad-campaign-monitor", "meta-conversion-sweep"],
+    // ⚠️Every level the table can show (review R1.6): the monitor can pause a
+    //  campaign, and an expanded ad set's "not serving" note reads its parent.
+    invalidateQueryKeys: [
+      ["meta-ads-accounts"],
+      ["meta-ads-campaigns"],
+      ["meta-ads-adsets"],
+      ["meta-ads-ads"],
+      ["meta-ads-insights"],
+      ["meta-ads-dataset"],
+      ["content-hub-integrations"],
+    ],
+    ownedParams: ["adAccount"],
   },
 ] as const satisfies readonly AdsChannelShape[];
 
