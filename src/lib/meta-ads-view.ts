@@ -346,22 +346,62 @@ export function metaFigureText(
   state: MetaKpiState,
   value: number | undefined,
   render: (n: number) => string,
+  /** False for a campaign past `META_INSIGHTS_MAX_CAMPAIGNS` — we never asked. */
+  requested = true,
 ): string {
+  // ★"NOT LOADED", NOT "NO FIGURES": the second is a statement about what Meta
+  //  answered, and for this campaign Meta was never asked.
+  if (!requested) return "Not loaded";
   const total = value === undefined ? undefined : { total: value, reported: 1, of: 1 };
   return metaKpiText(state, total, render) ?? "";
 }
 
 /**
- * ⚠️★THE API READS ONE PAGE OF 50 AND STOPS (review R1.4). `getCampaigns`,
- * `getAdSets` and `getAds` in peakhour-api's `helpers/meta-ads.ts` each ask
- * Graph for `limit=50` and follow no cursor — unlike `getAdAccounts` and
- * `getAdsPixels`, which paginate. So a list of exactly 50 may be the first 50
- * of more, and the spend total covers only those. Pinned against the api's
- * source in `meta-ads-view.test.ts`. ⏸The fix is pagination in the api; until
- * then the panel says so rather than presenting 50 as all.
+ * ⚠️★★HOW MANY CAMPAIGNS THE PANEL ASKS META FOR FIGURES ON (b2c#571 R1.2).
+ *
+ * `/analytics` costs TWO serial Graph calls per campaign id (the api's note on
+ * `MAX_ANALYTICS_CAMPAIGNS`). While the list read one page, that was at most
+ * 50 ids = 2 requests = ~100 Graph calls per panel load. api#1409 lets the list
+ * return up to 500, and asking for all of them would be 20 requests and ~1,000
+ * Graph calls on every load — M-11's quota hazard, arriving from the client,
+ * and one throttled batch fails every KPI card at once.
+ *
+ * So the read is capped at the old cost, and the panel SAYS it covers only
+ * these: a total over the first 50 presented as the account's is a smaller
+ * number that looks true. ⏸The fix that removes the cap is an account-level
+ * insights route (one call per page, not two per campaign) — owed to the api.
  */
-export const META_LIST_PAGE_SIZE = 50;
+export const META_INSIGHTS_MAX_CAMPAIGNS = 50;
 
-export function metaListMayBeTruncated(count: number): boolean {
-  return count >= META_LIST_PAGE_SIZE;
+/**
+ * The line under the KPI cards saying what the totals cover, or `null` when
+ * they cover every listed campaign.
+ *
+ * ⚠️#571 R3: when the LIST is itself truncated, "of 500" is a count of what was
+ * read, not of the account — and the truncation notice below says there are
+ * more. "500+" keeps the two sentences on one screen from disagreeing.
+ */
+export function metaCoverageLine(requested: number, listed: number, listTruncated: boolean): string | null {
+  if (requested >= listed) return null;
+  const of = listTruncated ? `${listed}+` : `${listed}`;
+  return (
+    `Figures cover the first ${requested} of ${of} campaigns — each campaign's figures cost ` +
+    `calls to Meta, so this view asks for no more than ${META_INSIGHTS_MAX_CAMPAIGNS}.`
+  );
 }
+
+/** The campaign ids the panel requests figures for: the first `META_INSIGHTS_MAX_CAMPAIGNS`. */
+export function metaInsightsIds(ids: readonly string[]): string[] {
+  return ids.slice(0, META_INSIGHTS_MAX_CAMPAIGNS);
+}
+
+/**
+ * ★WHETHER A LIST IS COMPLETE IS THE API'S ANSWER, NOT A COUNT (api#1409).
+ *
+ * This file held `META_LIST_PAGE_SIZE = 50` and `metaListMayBeTruncated`,
+ * which guessed "maybe more" from a list of exactly 50 — right only while the
+ * api read one page. The list routes now follow Meta's cursor and return
+ * `truncated`, true only when Meta offered a page they did not fetch; a count
+ * would now call a complete 50-row account truncated. Deleted, not kept
+ * beside the flag (pre-launch: the newest version, and nothing else).
+ */
