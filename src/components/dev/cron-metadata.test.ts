@@ -331,6 +331,13 @@ describe("ad-campaign-monitor summary", () => {
     });
   });
 
+  it("\u2605the note survives beside a problem, too (b2c#573 round 2)", () => {
+    expect(summarize({ ticked: 5, refreshed: 3, failed: 2, healthStatusUnread: 1 })).toEqual({
+      message: "2 errored. The platform status of 1 campaign could not be read.",
+      level: "warning",
+    });
+  });
+
   it("\u2605\u2605the kill switch working is reported, not \u201c0 campaigns checked\u201d (b2c#573 round 2)", () => {
     expect(summarize({ ticked: 12, refreshed: 0, haltStopped: 12 })).toBe(
       "12 stopped by the advertising kill switch.",
