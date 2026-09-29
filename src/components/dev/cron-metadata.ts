@@ -88,7 +88,10 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
         num(d.failed) +
         num(d.notFound) +
         num(d.skippedUnreadable);
-      if (batch === 0) return "No campaigns needed checking.";
+      // ★ONLY A TRULY EMPTY TICK IS EMPTY (b2c#573 round 3): a tick that ran out
+      // of time before its first row still has `truncated`, and rows in a
+      // status nothing monitors are counted outside the batch.
+      if (batch === 0 && !d.truncated && num(d.unswept) === 0) return "No campaigns needed checking.";
 
       const plural = (n: number) => (n === 1 ? "" : "s");
 
@@ -124,6 +127,11 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
         problems.push(`${d.rowNotUpdated} stopped on the platform but not updated here`);
       }
       if (num(d.unswept) > 0) problems.push(`${d.unswept} in a status nothing monitors`);
+      // ★A PROBLEM, NOT A NOTE (round 3, reversing round 2). The api also sets
+      // this on `no_connection`, a failed analytics read and a row with no
+      // launch date — where spend was NOT read and the cap NOT evaluated.
+      const unread = num(d.healthStatusUnread);
+      if (unread > 0) problems.push(`${unread} could not be looked up on the platform`);
       const unreadable = num(d.notFound) + num(d.skippedUnreadable);
       if (unreadable > 0) problems.push(`${unreadable} could not be read`);
 
@@ -137,7 +145,8 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       // never heard of end without ever refreshing.
       const refreshed = num(d.refreshed);
       const done: string[] = [];
-      if (refreshed > 0 || (num(d.ended) === 0 && num(d.autoPaused) === 0 && num(d.haltStopped) === 0)) {
+      const acted = num(d.ended) + num(d.autoPaused) + num(d.haltStopped) > 0;
+      if (refreshed > 0 || !acted) {
         done.push(`${refreshed} campaign${plural(refreshed)} checked`);
       }
       if (num(d.autoPaused) > 0) {
@@ -147,23 +156,19 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       }
       if (num(d.ended) > 0) done.push(`${d.ended} finished`);
       // ★THE KILL SWITCH WORKING IS NEWS (b2c#573 round 2): the operator who
-      // pulled it is who presses this chip, and "0 campaigns checked." could
-      // not tell them whether it had.
+      // pulled it is who presses this chip.
       if (num(d.haltStopped) > 0) done.push(`${d.haltStopped} stopped by the advertising kill switch`);
-
-      // ★A NOTE, NOT A PROBLEM (round 2): an unread platform STATUS leaves the
-      // spend read and the cap enforced — nobody has stopped watching. As a
-      // problem it returned before the good news and hid every pause and stop.
-      const unread = num(d.healthStatusUnread);
-      const note =
-        unread > 0 ? ` The platform status of ${unread} campaign${plural(unread)} could not be read.` : "";
 
       const tail = d.truncated ? " More remain — run again." : "";
       if (problems.length > 0) {
-        return { message: `${problems.join("; ")}.${note}${tail}`, level: "warning" as const };
+        // ★THE GOOD NEWS TOO, AFTER THE PROBLEMS (round 3). Returning the
+        // problems alone hid every pause, stop and halt beside them — a partial
+        // halt said only the one campaign that could not be stopped. Omitted
+        // only when it would say nothing ("0 campaigns checked").
+        const good = refreshed > 0 || acted ? ` ${done.join(", ")}.` : "";
+        return { message: `${problems.join("; ")}.${good}${tail}`, level: "warning" as const };
       }
-      const message = `${done.join(", ")}.${note}${tail}`;
-      if (note) return { message, level: "warning" as const };
+      const message = `${done.join(", ")}.${tail}`;
       // A capped tick is not hourly enforcement for the tail of the queue.
       return d.truncated ? { message, level: "warning" as const } : message;
     },

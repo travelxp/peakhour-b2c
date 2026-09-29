@@ -207,7 +207,7 @@ describe("ad-campaign-monitor summary", () => {
     // worst-first; all of them said.
     expect(summarize({ ticked: 5, refreshed: 5, failed: 35, flightEndBlocked: 1 })).toEqual({
       message:
-        "1 passed the end date and could NOT be stopped \u2014 check the ad platform; 35 errored.",
+        "1 passed the end date and could NOT be stopped \u2014 check the ad platform; 35 errored. 5 campaigns checked.",
       level: "warning",
     });
   });
@@ -215,7 +215,7 @@ describe("ad-campaign-monitor summary", () => {
   it("\u2605leads with campaigns it could not stop", () => {
     expect(summarize({ ticked: 40, refreshed: 40, flightEndBlocked: 2, unmonitorable: 1 })).toEqual({
       message:
-        "2 passed the end date and could NOT be stopped \u2014 check the ad platform; 1 could not be checked at all.",
+        "2 passed the end date and could NOT be stopped \u2014 check the ad platform; 1 could not be checked at all. 40 campaigns checked.",
       level: "warning",
     });
   });
@@ -232,16 +232,21 @@ describe("ad-campaign-monitor summary", () => {
 
   it("\u2605surfaces each remaining counter on its own, so none can be dropped unseen", () => {
     // Asserted one at a time: with two set, the higher-priority branch answers
-    // and deleting the lower one entirely would still pass.
-    expect(msg({ ticked: 40, refreshed: 40, unmonitorable: 3 })).toBe("3 could not be checked at all.");
-    expect(msg({ ticked: 3, refreshed: 3, rowNotUpdated: 2 })).toBe(
+    // and deleting the lower one entirely would still pass. (`refreshed: 0`
+    // since b2c#573 round 3, which appends the good news after the problems:
+    // the problem sentence alone is what each line isolates.)
+    expect(msg({ ticked: 40, refreshed: 0, unmonitorable: 3 })).toBe("3 could not be checked at all.");
+    expect(msg({ ticked: 3, refreshed: 0, rowNotUpdated: 2 })).toBe(
       "2 stopped on the platform but not updated here.",
     );
-    expect(msg({ ticked: 5, refreshed: 5, unswept: 2 })).toBe("2 in a status nothing monitors.");
-    expect(msg({ ticked: 5, refreshed: 5, notFound: 1 })).toBe("1 could not be read.");
-    expect(msg({ ticked: 5, refreshed: 5, skippedUnreadable: 2 })).toBe("2 could not be read.");
-    expect(msg({ ticked: 5, refreshed: 5, notFound: 1, skippedUnreadable: 2 })).toBe(
+    expect(msg({ ticked: 5, refreshed: 0, unswept: 2 })).toBe("2 in a status nothing monitors.");
+    expect(msg({ ticked: 5, refreshed: 0, notFound: 1 })).toBe("1 could not be read.");
+    expect(msg({ ticked: 5, refreshed: 0, skippedUnreadable: 2 })).toBe("2 could not be read.");
+    expect(msg({ ticked: 5, refreshed: 0, notFound: 1, skippedUnreadable: 2 })).toBe(
       "3 could not be read.",
+    );
+    expect(msg({ ticked: 5, refreshed: 0, healthStatusUnread: 2 })).toBe(
+      "2 could not be looked up on the platform.",
     );
   });
 
@@ -311,42 +316,64 @@ describe("ad-campaign-monitor summary", () => {
   it("\u2605\u2605a halted business whose campaigns could not be stopped leads, and is never green (b2c#573 round 1)", () => {
     expect(summarize({ ticked: 5, refreshed: 5, haltBlocked: 2, flightEndBlocked: 1 })).toEqual({
       message:
-        "2 belong to a HALTED business and could NOT be stopped \u2014 they may still be spending; 1 passed the end date and could NOT be stopped \u2014 check the ad platform.",
+        "2 belong to a HALTED business and could NOT be stopped \u2014 they may still be spending; 1 passed the end date and could NOT be stopped \u2014 check the ad platform. 5 campaigns checked.",
       level: "warning",
     });
   });
 
-  it("\u2605an unreadable platform status is said, not a green success (b2c#573 round 1)", () => {
-    expect(summarize({ ticked: 5, refreshed: 5, healthStatusUnread: 3 })).toEqual({
-      message: "5 campaigns checked. The platform status of 3 campaigns could not be read.",
+  it("\u2605\u2605a campaign that could not be looked up is a problem \u2014 its spend may not have been read (b2c#573 round 3)", () => {
+    // The api sets healthStatusUnread on no_connection and a failed analytics
+    // read too, where no cap was evaluated; those rows raise nothing else.
+    expect(summarize({ ticked: 70, refreshed: 30, healthStatusUnread: 40 })).toEqual({
+      message: "40 could not be looked up on the platform. 30 campaigns checked.",
       level: "warning",
     });
   });
 
-  it("\u2605\u2605\u2026and it does not hide the pauses and stops beside it (b2c#573 round 2)", () => {
+  it("\u2605\u2605\u2026and a problem does not hide the pauses and stops beside it (b2c#573 round 3)", () => {
     expect(summarize({ ticked: 40, refreshed: 40, autoPaused: 2, ended: 3, healthStatusUnread: 1 })).toEqual({
-      message:
-        "40 campaigns checked, 2 paused at their budget caps, 3 finished. The platform status of 1 campaign could not be read.",
+      message: "1 could not be looked up on the platform. 40 campaigns checked, 2 paused at their budget caps, 3 finished.",
       level: "warning",
     });
   });
 
-  it("\u2605the note survives beside a problem, too (b2c#573 round 2)", () => {
-    expect(summarize({ ticked: 5, refreshed: 3, failed: 2, healthStatusUnread: 1 })).toEqual({
-      message: "2 errored. The platform status of 1 campaign could not be read.",
+  it("\u2605\u2605a partial halt says both halves (b2c#573 round 3)", () => {
+    expect(summarize({ ticked: 12, refreshed: 12, haltStopped: 11, haltBlocked: 1 })).toEqual({
+      message:
+        "1 belongs to a HALTED business and could NOT be stopped \u2014 it may still be spending. 12 campaigns checked, 11 stopped by the advertising kill switch.",
+      level: "warning",
+    });
+  });
+
+  it("\u2605a problem beside nothing done does not add \u201c0 campaigns checked\u201d (b2c#573 round 3)", () => {
+    expect(summarize({ ticked: 0, refreshed: 0, failed: 40 })).toEqual({
+      message: "40 errored.",
+      level: "warning",
+    });
+  });
+
+  it("\u2605\u2605an empty batch is only empty if nothing is truncated or unswept (b2c#573 round 3)", () => {
+    expect(summarize({ ticked: 0, refreshed: 0, truncated: true })).toEqual({
+      message: "0 campaigns checked. More remain \u2014 run again.",
+      level: "warning",
+    });
+    expect(summarize({ ticked: 0, refreshed: 0, unswept: 3 })).toEqual({
+      message: "3 in a status nothing monitors.",
       level: "warning",
     });
   });
 
   it("\u2605\u2605the kill switch working is reported, not \u201c0 campaigns checked\u201d (b2c#573 round 2)", () => {
-    expect(summarize({ ticked: 12, refreshed: 0, haltStopped: 12 })).toBe(
-      "12 stopped by the advertising kill switch.",
+    // The api's halt return sets refreshed:true (round 3: the payload this
+    // test first pinned, refreshed:0, is one the api cannot produce).
+    expect(summarize({ ticked: 12, refreshed: 12, haltStopped: 12 })).toBe(
+      "12 campaigns checked, 12 stopped by the advertising kill switch.",
     );
   });
 
   it("\u2605one halted campaign is singular (b2c#573 round 2)", () => {
     expect(summarize({ ticked: 1, refreshed: 1, haltBlocked: 1 })).toEqual({
-      message: "1 belongs to a HALTED business and could NOT be stopped \u2014 it may still be spending.",
+      message: "1 belongs to a HALTED business and could NOT be stopped \u2014 it may still be spending. 1 campaign checked.",
       level: "warning",
     });
   });

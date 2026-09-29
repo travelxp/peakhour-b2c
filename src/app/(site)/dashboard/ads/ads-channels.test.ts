@@ -193,35 +193,25 @@ describe("★★M-16 connectedAdsProviderKeys", () => {
     expect(metaAdsConnectionState([{ provider: "x_ads", connected: true }])).toBe("absent");
   });
 
-  it("★★M-16 R1.6 every query the Meta panel makes is refreshed by the channel's cron toolbar", () => {
-    // DERIVED FROM THE PANEL'S SOURCE, so a sixth query added later cannot be
-    // forgotten here the way the ad-set and ad levels were.
-    const src = readFileSync(
-      fileURLToPath(new URL("./_components/meta-ads-panel.tsx", import.meta.url)),
-      "utf8",
-    );
-    const prefixes = [...new Set([...src.matchAll(/queryKey: \["(meta-ads-[a-z-]+)"/g)].map((m) => m[1]!))];
-    expect(prefixes.length, "found no Meta query keys in the panel — wrong file?").toBeGreaterThan(4);
-    const meta = ADS_CHANNELS.find((c) => c.key === "meta")!;
-    const refreshed: readonly string[] = meta.invalidateQueryKeys.map((k) => k[0]);
-    expect(prefixes.filter((p) => !refreshed.includes(p))).toEqual([]);
-  });
-
   /**
-   * ★★b2c#573 round 2: ONE helper, EVERY channel, BOTH directions. The Meta
-   * case above reads only single-line `meta-ads-*` keys; the X panel already
-   * writes `queryKey: [` over two lines. And a key the registry refreshes but
-   * no panel reads is a rename nobody followed.
+   * ★★b2c#573 round 2: ONE helper, EVERY channel, BOTH directions (it
+   * replaces M-16's Meta-only R1.6 case, round 3). A key the registry refreshes
+   * but no panel reads is a rename nobody followed.
+   *
+   * ⚠️SCOPE, STATED (round 3): the panel FILE's literal keys. Queries in
+   * child components (the LinkedIn account picker, lead forms, targeting
+   * dialog) are theirs to refresh, and a non-literal key (`xKeys.all`) is
+   * invisible here.
    */
   const panelQueryPrefixes = (key: string) => {
     const src = readFileSync(
       fileURLToPath(new URL(`./_components/${key}-ads-panel.tsx`, import.meta.url)),
       "utf8",
     );
-    return [...new Set([...src.matchAll(/queryKey: \[\s*"([a-z-]+)"/g)].map((m) => m[1]!))];
+    return [...new Set([...src.matchAll(/queryKey: \[\s*"([a-z0-9_-]+)"/g)].map((m) => m[1]!))];
   };
   for (const channel of ADS_CHANNELS) {
-    it(`★★b2c#573 the ${channel.key} toolbar refreshes exactly the queries its panel makes`, () => {
+    it(`★★b2c#573 the ${channel.key} toolbar refreshes exactly the queries its panel file makes`, () => {
       const prefixes = panelQueryPrefixes(channel.key);
       expect(prefixes, "the panel's query keys").toContain("content-hub-integrations");
       const refreshed: readonly string[] = channel.invalidateQueryKeys.map((k) => k[0]);
