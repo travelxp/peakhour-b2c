@@ -184,10 +184,17 @@ export const CHANNELS: readonly ChannelConfig[] = [
   {
     slug: "meta-ads",
     name: "Meta Ads",
-    description: "Launch and optimize Facebook/Instagram campaigns.",
+    description: "See, pause and activate your Facebook and Instagram campaigns.",
     category: "Ads",
     providerKey: "meta_ads",
     status: "available",
+    // ★M-16: managed in the Ads hub, like LinkedIn and X. The api's
+    //  seed-platform-catalog reads this path, and mongodb mig 358 applies it to
+    //  existing catalogs. ⏸`status` is deliberately NOT promoted here: the Meta
+    //  app is on Development access until 0-D/M-14, so Meta serves the ads API
+    //  only to its own app roles — advertising it as live to every merchant
+    //  would offer a channel that answers them with errors.
+    dashboardPath: "/dashboard/ads?channel=meta",
   },
   {
     slug: "google-ads",

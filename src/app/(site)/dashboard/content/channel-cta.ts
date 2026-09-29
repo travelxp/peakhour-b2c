@@ -46,7 +46,7 @@ import { hasConnection } from "@/lib/integration-card-state";
  *    stranding the user on the OAuth grid.
  *  - `manageViaIntegrations`: connected, but the channel has NO in-app surface
  *    of its own. That is normal, not broken, for the Meta capability rows
- *    (facebook_pages / instagram / meta_ads, expanded by
+ *    (facebook_pages / instagram, expanded by
  *    flattenMetaIntegration) and for wordpress: /dashboard/integrations IS
  *    their management screen — capability toggles, resources, Disconnect. The
  *    row must still be clickable; only the LABEL changes, so landing on the
@@ -67,7 +67,8 @@ import { hasConnection } from "@/lib/integration-card-state";
 /**
  * Providers whose management surface legitimately IS /dashboard/integrations —
  * they have no screen of their own, by design:
- *  - the Meta capability rows expanded by flattenMetaIntegration, whose
+ *  - the Meta capability rows expanded by flattenMetaIntegration (pages and
+ *    instagram — ⏸NOT meta_ads since M-16, which is managed in the Ads hub), whose
  *    toggles / resources / Disconnect all live on the integrations card, and
  *  - wordpress, managed from the plugin side plus that same card.
  *  - shopify, whose install and reconnect both run through Shopify's own
@@ -82,7 +83,7 @@ import { hasConnection } from "@/lib/integration-card-state";
 export const INTEGRATIONS_MANAGED_PROVIDERS: ReadonlySet<string> = new Set([
   "facebook_pages",
   "instagram",
-  "meta_ads",
+  // ⏸"meta_ads" left in M-16 — the Ads hub is its management screen now.
   "wordpress",
   "shopify",
 ]);
