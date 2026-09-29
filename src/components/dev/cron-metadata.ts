@@ -66,27 +66,25 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
             notFound?: number;
             unswept?: number;
             skippedUnreadable?: number;
-            skippedOtherWriter?: number;
             truncated?: boolean;
           }
         | null;
       const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
       if (typeof d?.ticked !== "number") return null;
 
-      // ★ALL SIX MUTUALLY-EXCLUSIVE PER-ROW OUTCOMES. Reading the sweep's loop:
-      // exactly one of {skippedUnreadable, skippedOtherWriter}, one of
-      // {notFound, unmonitorable, ticked}, or `failed` increments per row. A
-      // first cut summed five and omitted `skippedOtherWriter`, so a batch of
-      // forty X campaigns reported "No campaigns needed checking." — and
-      // swallowed `truncated` with it, because the empty-batch answer returns
-      // before the truncation check.
+      // ★ALL FIVE MUTUALLY-EXCLUSIVE PER-ROW OUTCOMES. Reading the sweep's loop:
+      // `skippedUnreadable`, one of {notFound, unmonitorable, ticked}, or
+      // `failed` increments per row. (A sixth, `skippedOtherWriter`, went with
+      // the X exclusion when X joined the sweep, 2026-09-29.) Omitting one made a
+      // whole batch report "No campaigns needed checking." — and swallowed
+      // `truncated` with it, because the empty-batch answer returns before the
+      // truncation check.
       const batch =
         num(d.ticked) +
         num(d.unmonitorable) +
         num(d.failed) +
         num(d.notFound) +
-        num(d.skippedUnreadable) +
-        num(d.skippedOtherWriter);
+        num(d.skippedUnreadable);
       if (batch === 0) return "No campaigns needed checking.";
 
       const plural = (n: number) => (n === 1 ? "" : "s");
@@ -712,16 +710,6 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       const synced = num(asRecord(data)?.synced);
       if (synced === 0) return "Mentions refreshed — no active accounts yet.";
       return "Mentions refreshed.";
-    },
-  },
-  "x-ads-metrics-sync": {
-    label: "Sync X ad metrics",
-    frequency: "Runs every hour",
-    description: "Refreshes performance numbers on your active X ad campaigns.",
-    summarize: (data) => {
-      const synced = num(asRecord(data)?.synced);
-      if (synced === 0) return "X ad metrics refreshed — no active campaigns yet.";
-      return "X ad metrics refreshed.";
     },
   },
   "ask-weekly-digest": {

@@ -283,13 +283,11 @@ describe("ad-campaign-monitor summary", () => {
     });
   });
 
-  it("\u2605counts an all-X batch as work, not as an empty one", () => {
-    // `skippedOtherWriter` is one of the six mutually-exclusive per-row
-    // outcomes. Omitting it from the batch total made a tick of forty X
-    // campaigns report "No campaigns needed checking." — and swallowed
-    // `truncated` with it, because the empty answer returns first.
-    expect(summarize({ ticked: 0, refreshed: 0, skippedOtherWriter: 40, truncated: true })).toEqual({
-      message: "0 campaigns checked. More remain \u2014 run again.",
+  it("\u2605counts an all-unreadable batch as work, not as an empty one", () => {
+    // Every per-row outcome belongs in the batch total. (The X-exclusion
+    // counter this case used to pin is gone: X is swept, 2026-09-29.)
+    expect(summarize({ ticked: 0, refreshed: 0, skippedUnreadable: 40, truncated: true })).toEqual({
+      message: "40 could not be read. More remain \u2014 run again.",
       level: "warning",
     });
   });

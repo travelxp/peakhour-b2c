@@ -160,7 +160,8 @@ export const ADS_CHANNELS = [
     label: "X Ads",
     providerKey: "x_ads",
     description: "Launch and manage promoted-tweet campaigns on X.",
-    crons: ["x-ads-metrics-sync"],
+    // The campaign monitor is X's writer now (api, 2026-09-29).
+    crons: ["ad-campaign-monitor"],
     invalidateQueryKeys: [["x-ads-analytics"], ["x-ads-campaigns"]],
     ownedParams: ["account"],
   },

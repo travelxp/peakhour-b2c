@@ -156,7 +156,6 @@ function IntegrationEventsInner() {
           "performance-sync",
           "x-metrics-sync",
           "x-mentions-sync",
-          "x-ads-metrics-sync",
         ]}
         onTriggered={() =>
           queryClient.invalidateQueries({ queryKey: ["cms-integration-events"] })
