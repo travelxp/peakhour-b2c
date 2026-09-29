@@ -246,7 +246,7 @@ describe("ad-campaign-monitor summary", () => {
       "3 campaign records could not be loaded.",
     );
     expect(msg({ ticked: 5, refreshed: 0, healthStatusUnread: 2 })).toBe(
-      "2 with an unread platform status.",
+      "2 could not be looked up on the platform \u2014 spend may not have been read.",
     );
   });
 
@@ -328,9 +328,9 @@ describe("ad-campaign-monitor summary", () => {
   });
 
   it("\u2605\u2605no spend read means no cap checked \u2014 said as that, from api#1419's spendUnread", () => {
-    expect(summarize({ ticked: 70, refreshed: 30, spendUnread: 40, healthStatusUnread: 40 })).toEqual({
-      message:
-        "40 had no spend read, so their budget caps were not checked; 40 with an unread platform status. 30 campaigns checked.",
+    // statusOnlyUnread is disjoint from spendUnread: the 40 are counted once.
+    expect(summarize({ ticked: 70, refreshed: 30, spendUnread: 40, healthStatusUnread: 40, statusOnlyUnread: 0 })).toEqual({
+      message: "40 had no spend read, so their budget caps were not checked. 30 campaigns checked.",
       level: "warning",
     });
     expect(msg({ ticked: 1, refreshed: 0, spendUnread: 1 })).toBe(
@@ -338,38 +338,52 @@ describe("ad-campaign-monitor summary", () => {
     );
   });
 
-  it("\u2605an unread status on a row whose spend WAS read does not claim the cap went unchecked", () => {
-    // The api sets healthStatusUnread there too; the two counts overlap.
-    expect(summarize({ ticked: 40, refreshed: 40, healthStatusUnread: 1 })).toEqual({
-      message: "1 with an unread platform status. 40 campaigns checked.",
+  it("\u2605\u2605an api without spendUnread still warns, in the older hedged words (review of b2c#575)", () => {
+    expect(summarize({ ticked: 40, refreshed: 30, healthStatusUnread: 10 })).toEqual({
+      message: "10 could not be looked up on the platform \u2014 spend may not have been read. 30 campaigns checked.",
       level: "warning",
     });
   });
 
-  it("\u2605\u2605the Sentinel's open findings are not a green toast (review of b2c#573 round 3)", () => {
-    expect(summarize({ ticked: 40, refreshed: 40, health: { statusDrift: 3, noDelivery: 6, zeroConversions: 2 } })).toEqual({
-      message:
-        "3 are running on the ad platform but not in Peakhour \u2014 they may be spending uncapped; 6 not delivering; 2 with no conversions. 40 campaigns checked.",
-      level: "warning",
-    });
+  it("\u2605an unread status on a row whose spend WAS read is an open finding, not a fault", () => {
+    expect(summarize({ ticked: 40, refreshed: 40, spendUnread: 0, healthStatusUnread: 1, statusOnlyUnread: 1 })).toBe(
+      "40 campaigns checked. Open findings: 1 with an unread platform status.",
+    );
+  });
+
+  it("\u2605\u2605the Sentinel's open findings are said, and do not turn a clean run amber (review of b2c#575)", () => {
+    // Standing advice, carried tick to tick: running again cannot clear it.
+    expect(summarize({ ticked: 40, refreshed: 40, spendUnread: 0, health: { statusDrift: 3, noDelivery: 6, zeroConversions: 2 } })).toBe(
+      "40 campaigns checked. Open findings: 3 have a status that differs from the ad platform's; 6 not delivering; 2 with no conversions.",
+    );
+    // Drift is counted in BOTH directions, so its words must be true both ways.
     expect(msg({ ticked: 1, refreshed: 1, health: { statusDrift: 1 } })).toBe(
-      "1 is running on the ad platform but not in Peakhour \u2014 it may be spending uncapped. 1 campaign checked.",
+      "1 campaign checked. Open findings: 1 has a status that differs from the ad platform's.",
     );
     expect(summarize({ ticked: 40, refreshed: 40, health: { statusDrift: 0, noDelivery: 0, zeroConversions: 0 } })).toBe(
       "40 campaigns checked.",
     );
   });
 
-  it("\u2605worst first: unmonitored rows before a status the Sentinel could not read", () => {
-    expect(msg({ ticked: 30, refreshed: 30, notFound: 10, healthStatusUnread: 30 })).toBe(
-      "10 campaign records could not be loaded; 30 with an unread platform status. 30 campaigns checked.",
+  it("\u2605\u2026but beside a fault they follow it, in the amber toast", () => {
+    expect(summarize({ ticked: 5, refreshed: 4, failed: 1, health: { noDelivery: 2 } })).toEqual({
+      message: "1 errored. 4 campaigns checked. Open findings: 2 not delivering.",
+      level: "warning",
+    });
+  });
+
+  it("\u2605worst first: money leaving, caps unchecked, rows unread, then our record behind", () => {
+    expect(msg({ ticked: 30, refreshed: 20, rowNotUpdated: 1, notFound: 10, spendUnread: 2, flightEndBlocked: 1 })).toBe(
+      "1 passed the end date and could NOT be stopped \u2014 check the ad platform; 2 had no spend read, so their budget caps were not checked; 10 campaign records could not be loaded; 1 stopped on the platform but not updated here. 20 campaigns checked.",
     );
   });
 
-  it("\u2605\u2605empty is decided last \u2014 an out-of-batch finding at batch 0 is still said", () => {
-    expect(msg({ ticked: 0, refreshed: 0, health: { statusDrift: 2 } })).toBe(
-      "2 are running on the ad platform but not in Peakhour \u2014 they may be spending uncapped.",
-    );
+  it("\u2605\u2605empty comes from the batch the api reports, not from the counters (review of b2c#575)", () => {
+    // A row with an outcome this code does not know is still a row.
+    expect(msg({ batch: 3, ticked: 0, refreshed: 0 })).toBe("0 campaigns checked.");
+    expect(msg({ batch: 0, ticked: 0, refreshed: 0 })).toBe("No campaigns needed checking.");
+    // An older api has no batch: ticked stands in.
+    expect(msg({ ticked: 0, refreshed: 0 })).toBe("No campaigns needed checking.");
   });
 
   it("\u2605\u2605\u2026and a problem does not hide the pauses and stops beside it (b2c#573 round 3)", () => {

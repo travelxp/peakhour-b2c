@@ -211,13 +211,12 @@ describe("★★M-16 connectedAdsProviderKeys", () => {
     // ★A KEY INSIDE `invalidateQueries({ queryKey })` IS NOT A QUERY THE PANEL
     // MAKES (review of b2c#573 round 3): counting it would make a stale
     // invalidation look like a live query and pin the registry to it.
-    return [
-      ...new Set(
-        [...src.matchAll(/queryKey: \[\s*"([a-z0-9_-]+)"/g)]
-          .filter((m) => !/\b\w+Queries\(\s*\{\s*$/.test(src.slice(Math.max(0, m.index! - 60), m.index)))
-          .map((m) => m[1]!),
-      ),
-    ];
+    // ★THE WHOLE CALL IS REMOVED, NOT A LOOKBACK (review of b2c#575): a
+    // 60-character lookback missed `{ exact: true, queryKey }`, a
+    // `refetchType` first, or a comment between. Filter objects hold no
+    // nested braces, so `[^}]*` spans the whole argument.
+    const made = src.replace(/\b\w+Queries\(\s*\{[^}]*\}\s*\)/g, "");
+    return [...new Set([...made.matchAll(/queryKey: \[\s*"([a-z0-9_-]+)"/g)].map((m) => m[1]!))];
   };
   /**
    * ★A FLOOR PER PANEL (review of b2c#573 round 3), as M-16's Meta case had:
@@ -235,6 +234,12 @@ describe("★★M-16 connectedAdsProviderKeys", () => {
       "queryClient.invalidateQueries({",
       '  queryKey: ["x-ads-stale-2"],',
       "});",
+      'queryClient.invalidateQueries({ exact: true, queryKey: ["x-ads-stale-3"] });',
+      'queryClient.refetchQueries({ refetchType: "all", queryKey: ["x-ads-stale-4"] });',
+      "queryClient.invalidateQueries({",
+      "  // a comment between the brace and the key",
+      '  queryKey: ["x-ads-stale-5"],',
+      "});",
     ].join("\n");
     expect(queryPrefixesIn(src)).toEqual(["x-ads-live", "x-ads-multi"]);
   });
@@ -243,9 +248,10 @@ describe("★★M-16 connectedAdsProviderKeys", () => {
     it(`★★b2c#573 the ${channel.key} toolbar refreshes exactly the queries its panel file makes`, () => {
       const prefixes = panelQueryPrefixes(channel.key);
       expect(prefixes, "the panel's query keys").toContain("content-hub-integrations");
-      expect(prefixes.length, "too few query keys — did they move to a child?").toBeGreaterThanOrEqual(
-        MIN_PANEL_QUERIES[channel.key] ?? Infinity,
-      );
+      // A new channel needs its own floor, and is told so (review of b2c#575).
+      const floor = MIN_PANEL_QUERIES[channel.key];
+      expect(floor, `add a MIN_PANEL_QUERIES floor for "${channel.key}"`).toBeTypeOf("number");
+      expect(prefixes.length, "too few query keys — did they move to a child?").toBeGreaterThanOrEqual(floor!);
       const refreshed: readonly string[] = channel.invalidateQueryKeys.map((k) => k[0]);
       expect(prefixes.filter((p) => !refreshed.includes(p)), "made but not refreshed").toEqual([]);
       expect(refreshed.filter((p) => !prefixes.includes(p)), "refreshed but never made").toEqual([]);
