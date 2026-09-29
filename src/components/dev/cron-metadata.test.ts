@@ -289,8 +289,8 @@ describe("ad-campaign-monitor summary", () => {
   });
 
   it("\u2605counts an all-unreadable batch as work, not as an empty one", () => {
-    // Every per-row outcome belongs in the batch total. (The X-exclusion
-    // counter this case used to pin is gone: X is swept, 2026-09-29.)
+    // A batch of unreadable rows is work, not an empty tick: each such row is
+    // a problem, and `truncated` is said beside it.
     expect(summarize({ ticked: 0, refreshed: 0, skippedUnreadable: 40, truncated: true })).toEqual({
       message: "40 campaign records could not be loaded. More remain \u2014 run again.",
       level: "warning",
@@ -310,8 +310,8 @@ describe("ad-campaign-monitor summary", () => {
         message: `${sentence} More remain \u2014 run again.`,
         level: "warning",
       });
-      // \u2605AND UNTRUNCATED (round 3): `truncated` now skips the empty-batch
-      // answer by itself, so only this form proves the counter is in the batch.
+      // \u2605AND UNTRUNCATED: `truncated` skips the empty answer by itself, so
+      // only this form proves the counter is SAID (it is a problem) at ticked 0.
       expect(summarize({ ticked: 0, refreshed: 0, [key]: 40 }), `${key}, untruncated`).toEqual({
         message: sentence,
         level: "warning",
@@ -330,11 +330,11 @@ describe("ad-campaign-monitor summary", () => {
   it("\u2605\u2605no spend read means no cap checked \u2014 said as that, from api#1419's spendUnread", () => {
     // statusOnlyUnread is disjoint from spendUnread: the 40 are counted once.
     expect(summarize({ ticked: 70, refreshed: 30, spendUnread: 40, healthStatusUnread: 40, statusOnlyUnread: 0 })).toEqual({
-      message: "40 had no spend read, so their budget caps were not checked. 30 campaigns checked.",
+      message: "40 had no spend read this run, so their budget caps were checked only against stored spend. 30 campaigns checked.",
       level: "warning",
     });
     expect(msg({ ticked: 1, refreshed: 0, spendUnread: 1 })).toBe(
-      "1 had no spend read, so its budget cap was not checked.",
+      "1 had no spend read this run, so its budget cap was checked only against stored spend.",
     );
   });
 
@@ -374,13 +374,44 @@ describe("ad-campaign-monitor summary", () => {
 
   it("\u2605worst first: money leaving, caps unchecked, rows unread, then our record behind", () => {
     expect(msg({ ticked: 30, refreshed: 20, rowNotUpdated: 1, notFound: 10, spendUnread: 2, flightEndBlocked: 1 })).toBe(
-      "1 passed the end date and could NOT be stopped \u2014 check the ad platform; 2 had no spend read, so their budget caps were not checked; 10 campaign records could not be loaded; 1 stopped on the platform but not updated here. 20 campaigns checked.",
+      "1 passed the end date and could NOT be stopped \u2014 check the ad platform; 2 had no spend read this run, so their budget caps were checked only against stored spend; 10 campaign records could not be loaded; 1 stopped on the platform but not updated here. 20 campaigns checked.",
+    );
+  });
+
+  it("\u2605\u2605drift that is serving uncapped is a problem; the other direction is a finding (api#1419)", () => {
+    expect(summarize({ ticked: 40, refreshed: 38, spendUnread: 0, driftUncapped: 1, health: { statusDrift: 3 } })).toEqual({
+      message:
+        "1 is not active here but serving on the ad platform \u2014 no budget cap or end date is enforced. 38 campaigns checked. Open findings: 2 are active here but not delivering on the ad platform.",
+      level: "warning",
+    });
+    expect(msg({ ticked: 2, refreshed: 2, driftUncapped: 0, health: { statusDrift: 1 } })).toBe(
+      "2 campaigns checked. Open findings: 1 is active here but not delivering on the ad platform.",
+    );
+  });
+
+  it("\u2605\u2605a row not active here whose status could not be read is a problem \u2014 nobody knows if it serves", () => {
+    expect(summarize({ ticked: 10, refreshed: 8, spendUnread: 0, statusUnwatched: 2 })).toEqual({
+      message: "2 not active here could not be checked on the ad platform \u2014 whether they are serving is unknown. 8 campaigns checked.",
+      level: "warning",
+    });
+    expect(msg({ ticked: 1, refreshed: 0, spendUnread: 0, statusUnwatched: 1 })).toBe(
+      "1 not active here could not be checked on the ad platform \u2014 whether it is serving is unknown.",
+    );
+  });
+
+  it("\u2605rows of an unknown outcome are said, but not on a truncated run", () => {
+    expect(msg({ batch: 40, ticked: 35, refreshed: 35, failed: 2 })).toBe(
+      "2 errored; 3 rows had an outcome this summary does not recognise. 35 campaigns checked.",
+    );
+    // The clock left rows unvisited: the batch overcounts, "More remain" says it.
+    expect(msg({ batch: 40, ticked: 35, refreshed: 35, truncated: true })).toBe(
+      "35 campaigns checked. More remain \u2014 run again.",
     );
   });
 
   it("\u2605\u2605empty comes from the batch the api reports, not from the counters (review of b2c#575)", () => {
-    // A row with an outcome this code does not know is still a row.
-    expect(msg({ batch: 3, ticked: 0, refreshed: 0 })).toBe("0 campaigns checked.");
+    // A row with an outcome this code does not know is still a row \u2014 and said.
+    expect(msg({ batch: 3, ticked: 0, refreshed: 0 })).toBe("3 rows had an outcome this summary does not recognise.");
     expect(msg({ batch: 0, ticked: 0, refreshed: 0 })).toBe("No campaigns needed checking.");
     // An older api has no batch: ticked stands in.
     expect(msg({ ticked: 0, refreshed: 0 })).toBe("No campaigns needed checking.");
@@ -389,7 +420,7 @@ describe("ad-campaign-monitor summary", () => {
   it("\u2605\u2605\u2026and a problem does not hide the pauses and stops beside it (b2c#573 round 3)", () => {
     expect(summarize({ ticked: 40, refreshed: 40, autoPaused: 2, ended: 3, spendUnread: 1 })).toEqual({
       message:
-        "1 had no spend read, so its budget cap was not checked. 40 campaigns checked, 2 paused at their budget caps, 3 finished.",
+        "1 had no spend read this run, so its budget cap was checked only against stored spend. 40 campaigns checked, 2 paused at their budget caps, 3 finished.",
       level: "warning",
     });
   });

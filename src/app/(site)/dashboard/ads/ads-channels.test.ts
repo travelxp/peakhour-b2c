@@ -207,22 +207,62 @@ describe("★★M-16 connectedAdsProviderKeys", () => {
     queryPrefixesIn(
       readFileSync(fileURLToPath(new URL(`./_components/${key}-ads-panel.tsx`, import.meta.url)), "utf8"),
     );
-  const queryPrefixesIn = (src: string) => {
-    // ★A KEY INSIDE `invalidateQueries({ queryKey })` IS NOT A QUERY THE PANEL
-    // MAKES (review of b2c#573 round 3): counting it would make a stale
-    // invalidation look like a live query and pin the registry to it.
-    // ★THE WHOLE CALL IS REMOVED, NOT A LOOKBACK (review of b2c#575): a
-    // 60-character lookback missed `{ exact: true, queryKey }`, a
-    // `refetchType` first, or a comment between. Filter objects hold no
-    // nested braces, so `[^}]*` spans the whole argument.
-    const made = src.replace(/\b\w+Queries\(\s*\{[^}]*\}\s*\)/g, "");
-    return [...new Set([...made.matchAll(/queryKey: \[\s*"([a-z0-9_-]+)"/g)].map((m) => m[1]!))];
-  };
   /**
-   * ★A FLOOR PER PANEL (review of b2c#573 round 3), as M-16's Meta case had:
-   * a panel whose queries moved into a child component would otherwise pass
-   * on an almost empty set, with the registry trimmed to match.
+   * The keys a panel file MAKES queries with. ★A SCANNER, NOT A REGEX (review
+   * of b2c#575 round 2): each `queryKey:` belongs to the nearest enclosing
+   * call that names a query API. Inside useQuery / useQueries /
+   * useSuspenseQuery / useInfiniteQuery / queryOptions it is a query the panel
+   * makes; inside any other query-cache call (invalidate/refetch/cancel/
+   * remove/reset/set…Queries, setQueriesData, useIsFetching …) it is not.
+   * Strings and comments are skipped, so a brace or paren inside one does not
+   * move the nesting. A regex stripper deleted `useQueries` keys and missed
+   * a key holding an object.
    */
+  const MAKES = /^(useQuery|useQueries|useSuspenseQuery|useSuspenseQueries|useInfiniteQuery|useSuspenseInfiniteQuery|queryOptions|infiniteQueryOptions)$/;
+  const QUERY_API = /Quer(y|ies)|Fetching|Mutating/;
+  const queryPrefixesIn = (src: string) => {
+    const out = new Set<string>();
+    // One entry per open ( [ {: the called name for a call's "(", else null.
+    const open: Array<string | null> = [];
+    let i = 0;
+    while (i < src.length) {
+      const ch = src[i]!;
+      if (ch === "/" && src[i + 1] === "/") {
+        const nl = src.indexOf("\n", i);
+        i = nl < 0 ? src.length : nl;
+        continue;
+      }
+      if (ch === "/" && src[i + 1] === "*") {
+        const end = src.indexOf("*/", i + 2);
+        i = end < 0 ? src.length : end + 2;
+        continue;
+      }
+      if (ch === '"' || ch === "'" || ch === "`") {
+        let j = i + 1;
+        while (j < src.length && src[j] !== ch) j += src[j] === "\\" ? 2 : 1;
+        i = j + 1;
+        continue;
+      }
+      if (ch === "(") {
+        const name = /([A-Za-z_$][\w$]*)\s*$/.exec(src.slice(Math.max(0, i - 80), i));
+        open.push(name ? name[1]! : null);
+      } else if (ch === "[" || ch === "{") {
+        open.push(null);
+      } else if (ch === ")" || ch === "]" || ch === "}") {
+        open.pop();
+      } else if (src.startsWith("queryKey", i) && !/[\w$]/.test(src[i - 1] ?? "")) {
+        const key = /^queryKey\s*:\s*\[\s*"([a-z0-9_-]+)"/.exec(src.slice(i, i + 200));
+        if (key) {
+          const owner = [...open].reverse().find((n): n is string => n !== null && (MAKES.test(n) || QUERY_API.test(n)));
+          if (!owner || MAKES.test(owner)) out.add(key[1]!);
+        }
+        i += "queryKey".length;
+        continue;
+      }
+      i++;
+    }
+    return [...out];
+  };
   it("★the scrape counts queries a panel MAKES, not keys it only invalidates", () => {
     const src = [
       'useQuery({ queryKey: ["x-ads-live"], queryFn })',
@@ -230,6 +270,7 @@ describe("★★M-16 connectedAdsProviderKeys", () => {
       '  queryKey: [',
       '    "x-ads-multi", id],',
       "})",
+      'useQueries({ queries: ids.map((id) => ({ queryKey: ["x-ads-stats", id], queryFn })) })',
       'queryClient.invalidateQueries({ queryKey: ["x-ads-stale"] });',
       "queryClient.invalidateQueries({",
       '  queryKey: ["x-ads-stale-2"],',
@@ -237,12 +278,21 @@ describe("★★M-16 connectedAdsProviderKeys", () => {
       'queryClient.invalidateQueries({ exact: true, queryKey: ["x-ads-stale-3"] });',
       'queryClient.refetchQueries({ refetchType: "all", queryKey: ["x-ads-stale-4"] });',
       "queryClient.invalidateQueries({",
-      "  // a comment between the brace and the key",
+      "  // a comment (with parens) between the brace and the key",
       '  queryKey: ["x-ads-stale-5"],',
       "});",
+      'queryClient.invalidateQueries({ queryKey: ["x-ads-stale-6", { accountId }] });',
+      'queryClient.setQueriesData({ queryKey: ["x-ads-stale-7"] }, updater);',
+      'const busy = useIsFetching({ queryKey: ["x-ads-stale-8"] });',
+      '// useQuery({ queryKey: ["x-ads-commented"] })',
     ].join("\n");
-    expect(queryPrefixesIn(src)).toEqual(["x-ads-live", "x-ads-multi"]);
+    expect(queryPrefixesIn(src)).toEqual(["x-ads-live", "x-ads-multi", "x-ads-stats"]);
   });
+  /**
+   * ★A FLOOR PER PANEL (review of b2c#573 round 3), as M-16's Meta case had:
+   * a panel whose queries moved into a child component would otherwise pass
+   * on an almost empty set, with the registry trimmed to match.
+   */
   const MIN_PANEL_QUERIES: Record<string, number> = { linkedin: 2, meta: 7, x: 5 };
   for (const channel of ADS_CHANNELS) {
     it(`★★b2c#573 the ${channel.key} toolbar refreshes exactly the queries its panel file makes`, () => {
