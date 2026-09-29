@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import ts from "typescript";
 import {
   ADS_CHANNELS,
   isAdsChannelKey,
@@ -203,17 +204,103 @@ describe("★★M-16 connectedAdsProviderKeys", () => {
    * dialog) are theirs to refresh, and a non-literal key (`xKeys.all`) is
    * invisible here.
    */
-  const panelQueryPrefixes = (key: string) => {
-    const src = readFileSync(
-      fileURLToPath(new URL(`./_components/${key}-ads-panel.tsx`, import.meta.url)),
-      "utf8",
+  const panelQueryPrefixes = (key: string) =>
+    queryPrefixesIn(
+      readFileSync(fileURLToPath(new URL(`./_components/${key}-ads-panel.tsx`, import.meta.url)), "utf8"),
     );
-    return [...new Set([...src.matchAll(/queryKey: \[\s*"([a-z0-9_-]+)"/g)].map((m) => m[1]!))];
+  /**
+   * The keys a panel file MAKES queries with. ★THE TYPESCRIPT PARSER, NOT A
+   * HAND LEXER (review of b2c#575 round 3): an apostrophe in JSX text or a
+   * quote in a regex literal made the hand lexer swallow real queries. Each
+   * `queryKey: [...]` belongs to its nearest enclosing call: one of the
+   * query-CACHE operations below reads or clears queries made elsewhere;
+   * anything else — useQuery, useQueries, fetchQuery, prefetchQuery, a
+   * wrapper hook — makes one.
+   */
+  const CACHE_OPS = new Set([
+    "invalidateQueries", "refetchQueries", "cancelQueries", "removeQueries", "resetQueries",
+    "setQueryData", "setQueriesData", "getQueryData", "getQueriesData", "getQueryState",
+    "useIsFetching", "useIsMutating", "isFetching", "isMutating",
+  ]);
+  const queryPrefixesIn = (src: string) => {
+    const file = ts.createSourceFile("panel.tsx", src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+    const callee = (e: ts.Expression) =>
+      ts.isIdentifier(e) ? e.text : ts.isPropertyAccessExpression(e) ? e.name.text : undefined;
+    const out = new Set<string>();
+    const visit = (node: ts.Node): void => {
+      if (
+        ts.isPropertyAssignment(node) &&
+        ts.isIdentifier(node.name) &&
+        node.name.text === "queryKey" &&
+        ts.isArrayLiteralExpression(node.initializer)
+      ) {
+        const first = node.initializer.elements[0];
+        if (first && ts.isStringLiteralLike(first)) {
+          let owner: ts.Node | undefined = node.parent;
+          while (owner && !ts.isCallExpression(owner)) owner = owner.parent;
+          const name = owner && ts.isCallExpression(owner) ? callee(owner.expression) : undefined;
+          if (!name || !CACHE_OPS.has(name)) out.add(first.text);
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(file);
+    return [...out];
   };
+  it("★the scrape counts queries a panel MAKES, not keys it only invalidates", () => {
+    const src = [
+      'useQuery({ queryKey: ["x-ads-live"], queryFn })',
+      "useQuery({",
+      '  queryKey: [',
+      '    "x-ads-multi", id],',
+      "})",
+      'useQueries({ queries: ids.map((id) => ({ queryKey: ["x-ads-stats", id], queryFn })) })',
+      'queryClient.invalidateQueries({ queryKey: ["x-ads-stale"] });',
+      "queryClient.invalidateQueries({",
+      '  queryKey: ["x-ads-stale-2"],',
+      "});",
+      'queryClient.invalidateQueries({ exact: true, queryKey: ["x-ads-stale-3"] });',
+      'queryClient.refetchQueries({ refetchType: "all", queryKey: ["x-ads-stale-4"] });',
+      "queryClient.invalidateQueries({",
+      "  // a comment (with parens) between the brace and the key",
+      '  queryKey: ["x-ads-stale-5"],',
+      "});",
+      'queryClient.invalidateQueries({ queryKey: ["x-ads-stale-6", { accountId }] });',
+      'queryClient.setQueriesData({ queryKey: ["x-ads-stale-7"] }, updater);',
+      'const busy = useIsFetching({ queryKey: ["x-ads-stale-8"] });',
+      '// useQuery({ queryKey: ["x-ads-commented"] })',
+      // Round 3: an apostrophe in JSX text and a quote in a regex literal
+      // swallowed the hand lexer's next real query.
+      "const Note = () => <p>We can't reach X right now.</p>;",
+      'const ok = /["(]/.test(s);',
+      'useQuery({ queryKey: ["x-ads-after-jsx"], queryFn })',
+      // Round 3: fetch/prefetch and wrapper hooks MAKE queries.
+      'queryClient.fetchQuery({ queryKey: ["x-ads-fetched"], queryFn });',
+      'useAdsQuery({ queryKey: ["x-ads-wrapped"] });',
+    ].join("\n");
+    expect(queryPrefixesIn(src)).toEqual([
+      "x-ads-live",
+      "x-ads-multi",
+      "x-ads-stats",
+      "x-ads-after-jsx",
+      "x-ads-fetched",
+      "x-ads-wrapped",
+    ]);
+  });
+  /**
+   * ★A FLOOR PER PANEL (review of b2c#573 round 3), as M-16's Meta case had:
+   * a panel whose queries moved into a child component would otherwise pass
+   * on an almost empty set, with the registry trimmed to match.
+   */
+  const MIN_PANEL_QUERIES: Record<string, number> = { linkedin: 2, meta: 7, x: 5 };
   for (const channel of ADS_CHANNELS) {
     it(`★★b2c#573 the ${channel.key} toolbar refreshes exactly the queries its panel file makes`, () => {
       const prefixes = panelQueryPrefixes(channel.key);
       expect(prefixes, "the panel's query keys").toContain("content-hub-integrations");
+      // A new channel needs its own floor, and is told so (review of b2c#575).
+      const floor = MIN_PANEL_QUERIES[channel.key];
+      expect(floor, `add a MIN_PANEL_QUERIES floor for "${channel.key}"`).toBeTypeOf("number");
+      expect(prefixes.length, "too few query keys — did they move to a child?").toBeGreaterThanOrEqual(floor!);
       const refreshed: readonly string[] = channel.invalidateQueryKeys.map((k) => k[0]);
       expect(prefixes.filter((p) => !refreshed.includes(p)), "made but not refreshed").toEqual([]);
       expect(refreshed.filter((p) => !prefixes.includes(p)), "refreshed but never made").toEqual([]);

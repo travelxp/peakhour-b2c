@@ -231,8 +231,8 @@ describe("ad-campaign-monitor summary", () => {
   });
 
   it("\u2605surfaces each remaining counter on its own, so none can be dropped unseen", () => {
-    // Asserted one at a time: with two set, the higher-priority branch answers
-    // and deleting the lower one entirely would still pass. (`refreshed: 0`
+    // Asserted one at a time: every problem is joined into one message, so a
+    // line with two counters set could not say which one a deletion dropped. (`refreshed: 0`
     // since b2c#573 round 3, which appends the good news after the problems:
     // the problem sentence alone is what each line isolates.)
     expect(msg({ ticked: 40, refreshed: 0, unmonitorable: 3 })).toBe("3 could not be checked at all.");
@@ -240,13 +240,13 @@ describe("ad-campaign-monitor summary", () => {
       "2 stopped on the platform but not updated here.",
     );
     expect(msg({ ticked: 5, refreshed: 0, unswept: 2 })).toBe("2 in a status nothing monitors.");
-    expect(msg({ ticked: 5, refreshed: 0, notFound: 1 })).toBe("1 could not be read.");
-    expect(msg({ ticked: 5, refreshed: 0, skippedUnreadable: 2 })).toBe("2 could not be read.");
+    expect(msg({ ticked: 5, refreshed: 0, notFound: 1 })).toBe("1 campaign record could not be loaded.");
+    expect(msg({ ticked: 5, refreshed: 0, skippedUnreadable: 2 })).toBe("2 campaign records could not be loaded.");
     expect(msg({ ticked: 5, refreshed: 0, notFound: 1, skippedUnreadable: 2 })).toBe(
-      "3 could not be read.",
+      "3 campaign records could not be loaded.",
     );
     expect(msg({ ticked: 5, refreshed: 0, healthStatusUnread: 2 })).toBe(
-      "2 could not be looked up on the platform.",
+      "2 could not be looked up on the platform \u2014 spend may not have been read.",
     );
   });
 
@@ -289,10 +289,10 @@ describe("ad-campaign-monitor summary", () => {
   });
 
   it("\u2605counts an all-unreadable batch as work, not as an empty one", () => {
-    // Every per-row outcome belongs in the batch total. (The X-exclusion
-    // counter this case used to pin is gone: X is swept, 2026-09-29.)
+    // A batch of unreadable rows is work, not an empty tick: each such row is
+    // a problem, and `truncated` is said beside it.
     expect(summarize({ ticked: 0, refreshed: 0, skippedUnreadable: 40, truncated: true })).toEqual({
-      message: "40 could not be read. More remain \u2014 run again.",
+      message: "40 campaign records could not be loaded. More remain \u2014 run again.",
       level: "warning",
     });
   });
@@ -301,8 +301,8 @@ describe("ad-campaign-monitor summary", () => {
     // Pinning one counter proved one. Each of the four non-ticked outcomes,
     // alone, must still be a batch that did something, with `truncated` said.
     for (const [key, sentence] of [
-      ["skippedUnreadable", "40 could not be read."],
-      ["notFound", "40 could not be read."],
+      ["skippedUnreadable", "40 campaign records could not be loaded."],
+      ["notFound", "40 campaign records could not be loaded."],
       ["unmonitorable", "40 could not be checked at all."],
       ["failed", "40 errored."],
     ] as const) {
@@ -310,8 +310,8 @@ describe("ad-campaign-monitor summary", () => {
         message: `${sentence} More remain \u2014 run again.`,
         level: "warning",
       });
-      // \u2605AND UNTRUNCATED (round 3): `truncated` now skips the empty-batch
-      // answer by itself, so only this form proves the counter is in the batch.
+      // \u2605AND UNTRUNCATED: `truncated` skips the empty answer by itself, so
+      // only this form proves the counter is SAID (it is a problem) at ticked 0.
       expect(summarize({ ticked: 0, refreshed: 0, [key]: 40 }), `${key}, untruncated`).toEqual({
         message: sentence,
         level: "warning",
@@ -327,18 +327,110 @@ describe("ad-campaign-monitor summary", () => {
     });
   });
 
-  it("\u2605\u2605a campaign that could not be looked up is a problem \u2014 its spend may not have been read (b2c#573 round 3)", () => {
-    // The api sets healthStatusUnread on no_connection and a failed analytics
-    // read too, where no cap was evaluated; those rows raise nothing else.
-    expect(summarize({ ticked: 70, refreshed: 30, healthStatusUnread: 40 })).toEqual({
-      message: "40 could not be looked up on the platform. 30 campaigns checked.",
+  it("\u2605\u2605no spend read means no cap checked \u2014 said as that, from api#1419's spendUnread", () => {
+    // statusOnlyUnread is disjoint from spendUnread: the 40 are counted once.
+    expect(summarize({ ticked: 70, refreshed: 30, spendUnread: 40, healthStatusUnread: 40, statusOnlyUnread: 0 })).toEqual({
+      message: "40 had no spend read this run \u2014 any budget cap was checked only against stored spend. 30 campaigns checked.",
+      level: "warning",
+    });
+    expect(msg({ ticked: 1, refreshed: 0, spendUnread: 1 })).toBe(
+      "1 had no spend read this run \u2014 any budget cap was checked only against stored spend.",
+    );
+  });
+
+  it("\u2605\u2605an api without spendUnread still warns, in the older hedged words (review of b2c#575)", () => {
+    expect(summarize({ ticked: 40, refreshed: 30, healthStatusUnread: 10 })).toEqual({
+      message: "10 could not be looked up on the platform \u2014 spend may not have been read. 30 campaigns checked.",
       level: "warning",
     });
   });
 
+  it("\u2605an unread status on a row whose spend WAS read is an open finding, not a fault", () => {
+    expect(summarize({ ticked: 40, refreshed: 40, spendUnread: 0, healthStatusUnread: 1, statusOnlyUnread: 1 })).toBe(
+      "40 campaigns checked. Open findings: 1 with an unread platform status.",
+    );
+  });
+
+  it("\u2605\u2605the Sentinel's open findings are said, and do not turn a clean run amber (review of b2c#575)", () => {
+    // Standing advice, carried tick to tick: running again cannot clear it.
+    expect(summarize({ ticked: 40, refreshed: 40, spendUnread: 0, health: { statusDrift: 3, noDelivery: 6, zeroConversions: 2 } })).toBe(
+      "40 campaigns checked. Open findings: 3 have a status that differs from the ad platform's; 6 not delivering; 2 with no conversions.",
+    );
+    // Drift is counted in BOTH directions, so its words must be true both ways.
+    expect(msg({ ticked: 1, refreshed: 1, health: { statusDrift: 1 } })).toBe(
+      "1 campaign checked. Open findings: 1 has a status that differs from the ad platform's.",
+    );
+    expect(summarize({ ticked: 40, refreshed: 40, health: { statusDrift: 0, noDelivery: 0, zeroConversions: 0 } })).toBe(
+      "40 campaigns checked.",
+    );
+  });
+
+  it("\u2605\u2026but beside a fault they follow it, in the amber toast", () => {
+    expect(summarize({ ticked: 5, refreshed: 4, failed: 1, health: { noDelivery: 2 } })).toEqual({
+      message: "1 errored. 4 campaigns checked. Open findings: 2 not delivering.",
+      level: "warning",
+    });
+  });
+
+  it("\u2605worst first: money leaving, caps unchecked, rows unread, then our record behind", () => {
+    expect(msg({ ticked: 30, refreshed: 20, rowNotUpdated: 1, notFound: 10, spendUnread: 2, flightEndBlocked: 1 })).toBe(
+      "1 passed the end date and could NOT be stopped \u2014 check the ad platform; 2 had no spend read this run \u2014 any budget cap was checked only against stored spend; 10 campaign records could not be loaded; 1 stopped on the platform but not updated here. 20 campaigns checked.",
+    );
+  });
+
+  it("\u2605\u2605drift that is serving uncapped is a problem; the other direction is a finding (api#1419)", () => {
+    expect(summarize({ ticked: 40, refreshed: 38, spendUnread: 0, driftUncapped: 1, health: { statusDrift: 3 } })).toEqual({
+      message:
+        "1 is not active here but serving on the ad platform \u2014 no budget cap or end date is enforced. 38 campaigns checked. Open findings: 2 have a status that differs from the ad platform's.",
+      level: "warning",
+    });
+    expect(msg({ ticked: 2, refreshed: 2, driftUncapped: 0, health: { statusDrift: 1 } })).toBe(
+      "2 campaigns checked. Open findings: 1 has a status that differs from the ad platform's.",
+    );
+  });
+
+  it("\u2605\u2605a row not active here whose status could not be read is a problem \u2014 nobody knows if it serves", () => {
+    expect(summarize({ ticked: 10, refreshed: 8, spendUnread: 0, statusUnwatched: 2 })).toEqual({
+      message: "2 not active here could not be checked on the ad platform \u2014 whether they are serving is unknown. 8 campaigns checked.",
+      level: "warning",
+    });
+    expect(msg({ ticked: 1, refreshed: 0, spendUnread: 0, statusUnwatched: 1 })).toBe(
+      "1 not active here could not be checked on the ad platform \u2014 whether it is serving is unknown.",
+    );
+  });
+
+  it("\u2605\u2605rows of an unknown outcome are said from visited \u2014 even on a capped run (round 3)", () => {
+    // Under load every run is capped (truncated); visited is what was reached.
+    expect(msg({ batch: 40, visited: 40, ticked: 37, refreshed: 37, truncated: true })).toBe(
+      "3 rows had an outcome this summary does not recognise. 37 campaigns checked. More remain \u2014 run again.",
+    );
+    expect(msg({ batch: 40, visited: 30, ticked: 30, refreshed: 30, truncated: true })).toBe(
+      "30 campaigns checked. More remain \u2014 run again.",
+    );
+  });
+
+  it("\u2605rows of an unknown outcome are said, but not on a truncated run", () => {
+    expect(msg({ batch: 40, ticked: 35, refreshed: 35, failed: 2 })).toBe(
+      "2 errored; 3 rows had an outcome this summary does not recognise. 35 campaigns checked.",
+    );
+    // The clock left rows unvisited: the batch overcounts, "More remain" says it.
+    expect(msg({ batch: 40, ticked: 35, refreshed: 35, truncated: true })).toBe(
+      "35 campaigns checked. More remain \u2014 run again.",
+    );
+  });
+
+  it("\u2605\u2605empty is ticked, no problem, no finding \u2014 and a batch row of unknown outcome is a problem, not emptiness", () => {
+    // A row with an outcome this code does not know is still a row \u2014 and said.
+    expect(msg({ batch: 3, ticked: 0, refreshed: 0 })).toBe("3 rows had an outcome this summary does not recognise.");
+    expect(msg({ batch: 0, ticked: 0, refreshed: 0 })).toBe("No campaigns needed checking.");
+    // An older api has no batch: ticked stands in.
+    expect(msg({ ticked: 0, refreshed: 0 })).toBe("No campaigns needed checking.");
+  });
+
   it("\u2605\u2605\u2026and a problem does not hide the pauses and stops beside it (b2c#573 round 3)", () => {
-    expect(summarize({ ticked: 40, refreshed: 40, autoPaused: 2, ended: 3, healthStatusUnread: 1 })).toEqual({
-      message: "1 could not be looked up on the platform. 40 campaigns checked, 2 paused at their budget caps, 3 finished.",
+    expect(summarize({ ticked: 40, refreshed: 40, autoPaused: 2, ended: 3, spendUnread: 1 })).toEqual({
+      message:
+        "1 had no spend read this run \u2014 any budget cap was checked only against stored spend. 40 campaigns checked, 2 paused at their budget caps, 3 finished.",
       level: "warning",
     });
   });
