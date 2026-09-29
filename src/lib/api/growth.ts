@@ -40,6 +40,9 @@ export interface PaidChannel {
   conversions: number | null;
   campaigns: number;
   stale: boolean;
+  /** Whether this channel counts toward a total (api `rollupPaid`). Absent
+   *  from an api that predates it. */
+  moved?: boolean;
   lastReadAt: string | null;
 }
 

@@ -108,7 +108,9 @@ export function figureKey(f: Pick<VisibilityFigure, "source" | "platform" | "ava
   // ★A PAID FIGURE WITH NO PLATFORM IS EITHER THE FAILED READ OR AN ANSWERED
   // ONE MISSING ITS PLATFORM (`figureLabel` tells them apart), and both would
   // key to the bare source — the duplicate key this function exists to stop.
-  return f.source === "paid_ads" ? `${f.source}:${f.available ? "?" : "unavailable"}` : f.source;
+  // ★"#", NOT ":" — a platform can be any string, even "unavailable", so the
+  // fallback keys live in a namespace no platform key can reach.
+  return f.source === "paid_ads" ? `${f.source}#${f.available ? "no-platform" : "unavailable"}` : f.source;
 }
 
 /**
@@ -140,7 +142,9 @@ export function incompleteLine(stage: VisibilityStage): string {
   // connection" above a row saying "stopped updating" is the true-row,
   // false-headline mismatch this function exists to prevent — and paid
   // figures (D-01) make a stale blocker common rather than rare.
-  if (blocking.some((f) => !f.available && f.reason === "stale")) {
+  // ★EVERY blocker, not SOME: over a mix (our own `unavailable`, or a source
+  // still gathering) "stopped updating" blames the one that stopped for all.
+  if (blocking.every((f) => !f.available && f.reason === "stale")) {
     return "Some of this stopped updating";
   }
   return "Waiting on a connection";

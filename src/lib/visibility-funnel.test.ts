@@ -371,6 +371,10 @@ describe("figureLabel / figureKey — paid figures (D-01)", () => {
     ];
     expect(new Set(keys).size).toBe(5);
     expect(keys[4]).toBe("google_search");
+    // ★A platform literally named "unavailable" cannot reach the failed read's key.
+    expect(figureKey({ source: "paid_ads", platform: "unavailable", available: true })).not.toBe(
+      figureKey({ source: "paid_ads", available: false }),
+    );
   });
 });
 
@@ -400,6 +404,20 @@ describe("incompleteLine — a STALE blocker (D-01 round 1)", () => {
       ),
     ).toBe("Waiting on a connection");
   });
+  it("★★a stale blocker beside OUR failure does not blame the stale one for both (round 3)", () => {
+    const line = incompleteLine(
+      stage({
+        total: undefined,
+        incomplete: "awaiting_data",
+        figures: [
+          { source: "google_search", available: false, reason: "unavailable" },
+          { source: "paid_ads", platform: "linkedin", available: false, reason: "stale" },
+        ],
+      }),
+    );
+    expect(line).not.toBe("Some of this stopped updating");
+  });
+
   it("PASS: reconnect still outranks stale — it names the fix", () => {
     expect(
       incompleteLine(

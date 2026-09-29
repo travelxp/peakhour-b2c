@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { paidNote } from "./outcomes-paid";
+import { paidNote, paidStaleNote } from "./outcomes-paid";
 import type { OutcomesResponse, PaidChannel } from "@/lib/api/growth";
 
 /**
@@ -48,8 +48,9 @@ describe("paidNote", () => {
 
   it("★★a campaign with NO currency is not called 'more than one currency'", () => {
     const note = paidNote(paid({ spend: null, currency: undefined, byChannel: [ch({ spend: null, currency: undefined })] }));
-    expect(note).toBe("1 campaign · spend couldn't be totalled in one currency");
-    expect(note).not.toMatch(/more than one/);
+    // ★ROUND 3: and not "in one currency" either — that still implies a conflict.
+    expect(note).toBe("1 campaign · spend couldn't be totalled");
+    expect(note).not.toMatch(/more than one|in one currency/);
   });
 
   it("★a partial per-channel list SAYS it is partial", () => {
@@ -85,7 +86,7 @@ describe("paidNote", () => {
         campaigns: 1,
         spend: null,
         currency: undefined,
-        byChannel: [ch({}), ch({ platform: "meta", impressions: 0, spend: 0, currency: "EUR", stale: true, campaigns: 0 })],
+        byChannel: [ch({}), ch({ platform: "meta", impressions: 0, spend: 0, currency: "EUR", stale: true, campaigns: 0, moved: false })],
       }),
     );
     expect(note).not.toMatch(/EUR 0/);
@@ -106,8 +107,33 @@ describe("paidNote", () => {
 
   it("PASS: an api that sends no byChannel still gets a sentence (this build merges first)", () => {
     expect(paidNote(paid({ spend: null, currency: undefined, byChannel: undefined }))).toBe(
-      "1 campaign · spend couldn't be totalled in one currency",
+      "1 campaign · spend couldn't be totalled",
     );
+  });
+
+  it("★★the api on MASTER (a number, no currency) is not called a refusal — this build meets it first", () => {
+    // That api totalled the spend; it just had no currency to name. It always
+    // printed only the campaign count, and must still.
+    expect(paidNote(paid({ spend: 120, currency: undefined, byChannel: undefined }))).toBe("1 campaign");
+  });
+
+  it("★★a channel the api says did NOT move is skipped — the rule is the api's, not ours", () => {
+    const note = paidNote(
+      paid({
+        campaigns: 1,
+        spend: null,
+        currency: undefined,
+        // Impressions and spend look "moved" here on purpose: only the flag decides.
+        byChannel: [ch({ moved: true }), ch({ platform: "meta", spend: 9, currency: "EUR", moved: false })],
+      }),
+    );
+    expect(note).toBe("1 campaign · spent LinkedIn ads USD 40");
+  });
+
+  it("paidStaleNote serves both figures, and is null when nothing is stale", () => {
+    expect(paidStaleNote(paid({ byChannel: [ch({ stale: true })] }))).toBe("some ad figures stopped updating");
+    expect(paidStaleNote(paid({}))).toBeNull();
+    expect(paidStaleNote(null)).toBeNull();
   });
 
   it("★says a channel STOPPED UPDATING, beside the figure it shrinks", () => {
