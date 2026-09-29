@@ -64,6 +64,21 @@ describe("paidNote", () => {
     expect(note).toBe("2 campaigns · spent LinkedIn ads USD 40 (the rest couldn't be totalled)");
   });
 
+  it("★★a channel with a currency but NO spend is never printed as an amount — the repos deploy apart", () => {
+    // The api pairs them (currency present exactly when spend is a number), but
+    // this build can meet an api that does not; "USD NaN" or "USD 0" would be a
+    // figure nobody measured.
+    const note = paidNote(
+      paid({
+        campaigns: 2,
+        spend: null,
+        currency: undefined,
+        byChannel: [ch({}), ch({ platform: "meta", spend: null, currency: "EUR" })],
+      }),
+    );
+    expect(note).toBe("2 campaigns · spent LinkedIn ads USD 40 (the rest couldn't be totalled)");
+  });
+
   it("★says a channel STOPPED UPDATING, beside the figure it shrinks", () => {
     expect(paidNote(paid({ byChannel: [ch({ stale: true })] }))).toBe(
       "1 campaign · USD 40 spent · some ad figures stopped updating",
