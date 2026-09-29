@@ -203,17 +203,49 @@ describe("★★M-16 connectedAdsProviderKeys", () => {
    * dialog) are theirs to refresh, and a non-literal key (`xKeys.all`) is
    * invisible here.
    */
-  const panelQueryPrefixes = (key: string) => {
-    const src = readFileSync(
-      fileURLToPath(new URL(`./_components/${key}-ads-panel.tsx`, import.meta.url)),
-      "utf8",
+  const panelQueryPrefixes = (key: string) =>
+    queryPrefixesIn(
+      readFileSync(fileURLToPath(new URL(`./_components/${key}-ads-panel.tsx`, import.meta.url)), "utf8"),
     );
-    return [...new Set([...src.matchAll(/queryKey: \[\s*"([a-z0-9_-]+)"/g)].map((m) => m[1]!))];
+  const queryPrefixesIn = (src: string) => {
+    // ★A KEY INSIDE `invalidateQueries({ queryKey })` IS NOT A QUERY THE PANEL
+    // MAKES (review of b2c#573 round 3): counting it would make a stale
+    // invalidation look like a live query and pin the registry to it.
+    return [
+      ...new Set(
+        [...src.matchAll(/queryKey: \[\s*"([a-z0-9_-]+)"/g)]
+          .filter((m) => !/\b\w+Queries\(\s*\{\s*$/.test(src.slice(Math.max(0, m.index! - 60), m.index)))
+          .map((m) => m[1]!),
+      ),
+    ];
   };
+  /**
+   * ★A FLOOR PER PANEL (review of b2c#573 round 3), as M-16's Meta case had:
+   * a panel whose queries moved into a child component would otherwise pass
+   * on an almost empty set, with the registry trimmed to match.
+   */
+  it("★the scrape counts queries a panel MAKES, not keys it only invalidates", () => {
+    const src = [
+      'useQuery({ queryKey: ["x-ads-live"], queryFn })',
+      "useQuery({",
+      '  queryKey: [',
+      '    "x-ads-multi", id],',
+      "})",
+      'queryClient.invalidateQueries({ queryKey: ["x-ads-stale"] });',
+      "queryClient.invalidateQueries({",
+      '  queryKey: ["x-ads-stale-2"],',
+      "});",
+    ].join("\n");
+    expect(queryPrefixesIn(src)).toEqual(["x-ads-live", "x-ads-multi"]);
+  });
+  const MIN_PANEL_QUERIES: Record<string, number> = { linkedin: 2, meta: 7, x: 5 };
   for (const channel of ADS_CHANNELS) {
     it(`★★b2c#573 the ${channel.key} toolbar refreshes exactly the queries its panel file makes`, () => {
       const prefixes = panelQueryPrefixes(channel.key);
       expect(prefixes, "the panel's query keys").toContain("content-hub-integrations");
+      expect(prefixes.length, "too few query keys — did they move to a child?").toBeGreaterThanOrEqual(
+        MIN_PANEL_QUERIES[channel.key] ?? Infinity,
+      );
       const refreshed: readonly string[] = channel.invalidateQueryKeys.map((k) => k[0]);
       expect(prefixes.filter((p) => !refreshed.includes(p)), "made but not refreshed").toEqual([]);
       expect(refreshed.filter((p) => !prefixes.includes(p)), "refreshed but never made").toEqual([]);

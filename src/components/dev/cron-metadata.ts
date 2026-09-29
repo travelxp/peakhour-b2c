@@ -68,7 +68,9 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
             skippedUnreadable?: number;
             haltBlocked?: number;
             haltStopped?: number;
+            spendUnread?: number;
             healthStatusUnread?: number;
+            health?: { statusDrift?: number; noDelivery?: number; zeroConversions?: number };
             truncated?: boolean;
           }
         | null;
@@ -78,97 +80,100 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       // ★ALL FIVE MUTUALLY-EXCLUSIVE PER-ROW OUTCOMES. Reading the sweep's loop:
       // `skippedUnreadable`, one of {notFound, unmonitorable, ticked}, or
       // `failed` increments per row. (A sixth, `skippedOtherWriter`, went with
-      // the X exclusion when X joined the sweep, 2026-09-29.) Omitting one made a
-      // whole batch report "No campaigns needed checking." — and swallowed
-      // `truncated` with it, because the empty-batch answer returns before the
-      // truncation check.
+      // the X exclusion when X joined the sweep, 2026-09-29.)
       const batch =
         num(d.ticked) +
         num(d.unmonitorable) +
         num(d.failed) +
         num(d.notFound) +
         num(d.skippedUnreadable);
-      // ★ONLY A TRULY EMPTY TICK IS EMPTY (b2c#573 round 3): a tick that ran out
-      // of time before its first row still has `truncated`, and rows in a
-      // status nothing monitors are counted outside the batch.
-      if (batch === 0 && !d.truncated && num(d.unswept) === 0) return "No campaigns needed checking.";
 
       const plural = (n: number) => (n === 1 ? "" : "s");
+      const one = (n: number) => n === 1;
 
       // ★EVERY OUTCOME THAT MEANS "NOBODY IS WATCHING THIS CAMPAIGN" IS
       // COLLECTED, NOT JUST THE WORST ONE. Each of them otherwise hides inside a
-      // green "40 campaigns checked." A first cut read two of the seven, so a
-      // tick where every single row threw reported {ticked: 0, failed: 40} as
-      // "0 campaigns checked." — a success toast over forty logged errors. A
-      // later cut read all of them but returned on the FIRST, so thirty-five
-      // errored rows went unmentioned beside one blocked flight end. Ordered
-      // worst-first; all of them said.
+      // green "40 campaigns checked." Ordered by what is at stake: money that
+      // may still be leaving first, then rows nobody looked at, then open
+      // findings, then a status the Sentinel could not read.
+      //
+      // ★ONE WORD PER REMEDY (review of b2c#573 round 3): "checked at all",
+      // "looked up" and "read" were near-synonyms for three different fixes.
       const problems: string[] = [];
-      // ★WORST FIRST (b2c#573 round 1): a halted business whose campaigns could
-      // not be stopped — the kill switch was pulled and the money has not
-      // stopped. The api returns it on a 200; a first cut never read it.
+      const h = d.health ?? {};
       if (num(d.haltBlocked) > 0) {
-        const one = num(d.haltBlocked) === 1;
+        const n = num(d.haltBlocked);
         problems.push(
-          `${d.haltBlocked} ${one ? "belongs" : "belong"} to a HALTED business and could NOT be stopped — ${one ? "it" : "they"} may still be spending`,
+          `${n} ${one(n) ? "belongs" : "belong"} to a HALTED business and could NOT be stopped — ${one(n) ? "it" : "they"} may still be spending`,
         );
       }
-      // ★"THE AD PLATFORM", NOT "CAMPAIGN MANAGER" (b2c#573 round 1): X and
-      // Meta campaigns reach this branch now, and Campaign Manager is LinkedIn's.
+      // "The ad platform", not Campaign Manager: X and Meta reach this too.
       if (num(d.flightEndBlocked) > 0) {
         problems.push(
           `${d.flightEndBlocked} passed the end date and could NOT be stopped — check the ad platform`,
         );
       }
+      // ★RUNNING THERE, NOT HERE (the Sentinel's status drift): a row paused or
+      // draft in Peakhour that the platform is serving has no cap enforced.
+      if (num(h.statusDrift) > 0) {
+        const n = num(h.statusDrift);
+        problems.push(
+          `${n} ${one(n) ? "is" : "are"} running on the ad platform but not in Peakhour — ${one(n) ? "it" : "they"} may be spending uncapped`,
+        );
+      }
+      // ★NO SPEND READ = NO CAP CHECKED (api#1419): no connection, a failed
+      // analytics read, or no launch date. `healthStatusUnread` cannot say this
+      // — it is also set on rows whose spend WAS read.
+      if (num(d.spendUnread) > 0) {
+        const n = num(d.spendUnread);
+        problems.push(
+          `${n} had no spend read, so ${one(n) ? "its budget cap was" : "their budget caps were"} not checked`,
+        );
+      }
       if (num(d.failed) > 0) problems.push(`${d.failed} errored`);
       if (num(d.unmonitorable) > 0) problems.push(`${d.unmonitorable} could not be checked at all`);
+      const unloadable = num(d.notFound) + num(d.skippedUnreadable);
+      if (unloadable > 0) problems.push(`${unloadable} campaign record${plural(unloadable)} could not be loaded`);
       if (num(d.rowNotUpdated) > 0) {
         // The OPPOSITE failure: spend has stopped, our record has not caught up.
         problems.push(`${d.rowNotUpdated} stopped on the platform but not updated here`);
       }
       if (num(d.unswept) > 0) problems.push(`${d.unswept} in a status nothing monitors`);
-      // ★A PROBLEM, NOT A NOTE (round 3, reversing round 2). The api also sets
-      // this on `no_connection`, a failed analytics read and a row with no
-      // launch date — where spend was NOT read and the cap NOT evaluated.
-      const unread = num(d.healthStatusUnread);
-      if (unread > 0) problems.push(`${unread} could not be looked up on the platform`);
-      const unreadable = num(d.notFound) + num(d.skippedUnreadable);
-      if (unreadable > 0) problems.push(`${unreadable} could not be read`);
+      if (num(h.noDelivery) > 0) problems.push(`${h.noDelivery} not delivering`);
+      if (num(h.zeroConversions) > 0) problems.push(`${h.zeroConversions} with no conversions`);
+      if (num(d.healthStatusUnread) > 0) {
+        problems.push(`${d.healthStatusUnread} with an unread platform status`);
+      }
 
       // ★`refreshed`, NOT `ticked`, IS THE NUMBER THAT MEANS ANYTHING: a tick
-      // that returned early evaluated no budget at all. But zero refreshed is
-      // NOT a fault on its own — a business whose campaigns are all drafts is
-      // the normal newly-onboarded state, and `/boost` creates drafts. So it
-      // reports rather than warns, and it does not lead when there is nothing
-      // to report: "0 campaigns checked, 12 finished." is a sentence that
-      // contradicts itself, and it is reachable — the rows the platform has
-      // never heard of end without ever refreshing.
+      // that returned early evaluated no budget at all. Zero refreshed is NOT a
+      // fault on its own — a business whose campaigns are all drafts is the
+      // normal newly-onboarded state — so it reports rather than warns.
       const refreshed = num(d.refreshed);
       const done: string[] = [];
-      const acted = num(d.ended) + num(d.autoPaused) + num(d.haltStopped) > 0;
-      if (refreshed > 0 || !acted) {
-        done.push(`${refreshed} campaign${plural(refreshed)} checked`);
-      }
+      if (refreshed > 0) done.push(`${refreshed} campaign${plural(refreshed)} checked`);
       if (num(d.autoPaused) > 0) {
         done.push(
           `${d.autoPaused} paused at ${num(d.autoPaused) === 1 ? "its budget cap" : "their budget caps"}`,
         );
       }
       if (num(d.ended) > 0) done.push(`${d.ended} finished`);
-      // ★THE KILL SWITCH WORKING IS NEWS (b2c#573 round 2): the operator who
-      // pulled it is who presses this chip.
+      // The kill switch working is news: the operator who pulled it presses this chip.
       if (num(d.haltStopped) > 0) done.push(`${d.haltStopped} stopped by the advertising kill switch`);
 
       const tail = d.truncated ? " More remain — run again." : "";
+      // ★EMPTY IS DECIDED LAST (review of b2c#573 round 3): only a tick with no
+      // rows, no problem of any kind and no truncation. A hand-listed set of
+      // exceptions ahead of the problems would swallow the next counter added
+      // outside the batch, as it swallowed `truncated` and `unswept` before.
+      if (batch === 0 && problems.length === 0 && !d.truncated) return "No campaigns needed checking.";
       if (problems.length > 0) {
-        // ★THE GOOD NEWS TOO, AFTER THE PROBLEMS (round 3). Returning the
-        // problems alone hid every pause, stop and halt beside them — a partial
-        // halt said only the one campaign that could not be stopped. Omitted
-        // only when it would say nothing ("0 campaigns checked").
-        const good = refreshed > 0 || acted ? ` ${done.join(", ")}.` : "";
+        // The good news follows the problems, and is left out only when there
+        // is none: a partial halt says both halves.
+        const good = done.length > 0 ? ` ${done.join(", ")}.` : "";
         return { message: `${problems.join("; ")}.${good}${tail}`, level: "warning" as const };
       }
-      const message = `${done.join(", ")}.${tail}`;
+      const message = `${(done.length > 0 ? done : ["0 campaigns checked"]).join(", ")}.${tail}`;
       // A capped tick is not hourly enforcement for the tail of the queue.
       return d.truncated ? { message, level: "warning" as const } : message;
     },
