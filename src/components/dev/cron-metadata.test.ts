@@ -318,7 +318,28 @@ describe("ad-campaign-monitor summary", () => {
 
   it("\u2605an unreadable platform status is said, not a green success (b2c#573 round 1)", () => {
     expect(summarize({ ticked: 5, refreshed: 5, healthStatusUnread: 3 })).toEqual({
-      message: "3 whose platform status could not be read.",
+      message: "5 campaigns checked. The platform status of 3 campaigns could not be read.",
+      level: "warning",
+    });
+  });
+
+  it("\u2605\u2605\u2026and it does not hide the pauses and stops beside it (b2c#573 round 2)", () => {
+    expect(summarize({ ticked: 40, refreshed: 40, autoPaused: 2, ended: 3, healthStatusUnread: 1 })).toEqual({
+      message:
+        "40 campaigns checked, 2 paused at their budget caps, 3 finished. The platform status of 1 campaign could not be read.",
+      level: "warning",
+    });
+  });
+
+  it("\u2605\u2605the kill switch working is reported, not \u201c0 campaigns checked\u201d (b2c#573 round 2)", () => {
+    expect(summarize({ ticked: 12, refreshed: 0, haltStopped: 12 })).toBe(
+      "12 stopped by the advertising kill switch.",
+    );
+  });
+
+  it("\u2605one halted campaign is singular (b2c#573 round 2)", () => {
+    expect(summarize({ ticked: 1, refreshed: 1, haltBlocked: 1 })).toEqual({
+      message: "1 belongs to a HALTED business and could NOT be stopped \u2014 it may still be spending.",
       level: "warning",
     });
   });

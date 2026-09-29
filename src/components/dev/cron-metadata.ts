@@ -51,7 +51,7 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
     label: "Check ad campaigns",
     frequency: "Runs hourly (at :15 past)",
     description:
-      "Refreshes ad campaigns' spend from the platform, pauses one that has reached the total budget you set, and stops one that has passed its end date. Up to 40 campaigns per run, across LinkedIn, Meta and X.",
+      "Refreshes ad campaigns' spend from the platform, pauses one that has reached the total budget you set, and stops one that has passed its end date. Up to 40 campaigns per run, on every platform Peakhour manages ads on (LinkedIn, Meta and X today); a campaign on any other platform is reported as one that could not be checked.",
     summarize: (data) => {
       const d = data as
         | {
@@ -67,6 +67,7 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
             unswept?: number;
             skippedUnreadable?: number;
             haltBlocked?: number;
+            haltStopped?: number;
             healthStatusUnread?: number;
             truncated?: boolean;
           }
@@ -104,7 +105,10 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       // not be stopped — the kill switch was pulled and the money has not
       // stopped. The api returns it on a 200; a first cut never read it.
       if (num(d.haltBlocked) > 0) {
-        problems.push(`${d.haltBlocked} belong to a HALTED business and could NOT be stopped — they may still be spending`);
+        const one = num(d.haltBlocked) === 1;
+        problems.push(
+          `${d.haltBlocked} ${one ? "belongs" : "belong"} to a HALTED business and could NOT be stopped — ${one ? "it" : "they"} may still be spending`,
+        );
       }
       // ★"THE AD PLATFORM", NOT "CAMPAIGN MANAGER" (b2c#573 round 1): X and
       // Meta campaigns reach this branch now, and Campaign Manager is LinkedIn's.
@@ -120,7 +124,6 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
         problems.push(`${d.rowNotUpdated} stopped on the platform but not updated here`);
       }
       if (num(d.unswept) > 0) problems.push(`${d.unswept} in a status nothing monitors`);
-      if (num(d.healthStatusUnread) > 0) problems.push(`${d.healthStatusUnread} whose platform status could not be read`);
       const unreadable = num(d.notFound) + num(d.skippedUnreadable);
       if (unreadable > 0) problems.push(`${unreadable} could not be read`);
 
@@ -134,7 +137,7 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       // never heard of end without ever refreshing.
       const refreshed = num(d.refreshed);
       const done: string[] = [];
-      if (refreshed > 0 || (num(d.ended) === 0 && num(d.autoPaused) === 0)) {
+      if (refreshed > 0 || (num(d.ended) === 0 && num(d.autoPaused) === 0 && num(d.haltStopped) === 0)) {
         done.push(`${refreshed} campaign${plural(refreshed)} checked`);
       }
       if (num(d.autoPaused) > 0) {
@@ -143,12 +146,24 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
         );
       }
       if (num(d.ended) > 0) done.push(`${d.ended} finished`);
+      // ★THE KILL SWITCH WORKING IS NEWS (b2c#573 round 2): the operator who
+      // pulled it is who presses this chip, and "0 campaigns checked." could
+      // not tell them whether it had.
+      if (num(d.haltStopped) > 0) done.push(`${d.haltStopped} stopped by the advertising kill switch`);
+
+      // ★A NOTE, NOT A PROBLEM (round 2): an unread platform STATUS leaves the
+      // spend read and the cap enforced — nobody has stopped watching. As a
+      // problem it returned before the good news and hid every pause and stop.
+      const unread = num(d.healthStatusUnread);
+      const note =
+        unread > 0 ? ` The platform status of ${unread} campaign${plural(unread)} could not be read.` : "";
 
       const tail = d.truncated ? " More remain — run again." : "";
       if (problems.length > 0) {
-        return { message: `${problems.join("; ")}.${tail}`, level: "warning" as const };
+        return { message: `${problems.join("; ")}.${note}${tail}`, level: "warning" as const };
       }
-      const message = `${done.join(", ")}.${tail}`;
+      const message = `${done.join(", ")}.${note}${tail}`;
+      if (note) return { message, level: "warning" as const };
       // A capped tick is not hourly enforcement for the tail of the queue.
       return d.truncated ? { message, level: "warning" as const } : message;
     },

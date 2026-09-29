@@ -207,20 +207,28 @@ describe("★★M-16 connectedAdsProviderKeys", () => {
     expect(prefixes.filter((p) => !refreshed.includes(p))).toEqual([]);
   });
 
-  it("★★b2c#573 every query the X panel makes is refreshed by the channel's cron toolbar", () => {
-    // Derived from the panel's source, as the Meta case above is — including
-    // the connection-state query, which a monitor tick can change.
+  /**
+   * ★★b2c#573 round 2: ONE helper, EVERY channel, BOTH directions. The Meta
+   * case above reads only single-line `meta-ads-*` keys; the X panel already
+   * writes `queryKey: [` over two lines. And a key the registry refreshes but
+   * no panel reads is a rename nobody followed.
+   */
+  const panelQueryPrefixes = (key: string) => {
     const src = readFileSync(
-      fileURLToPath(new URL("./_components/x-ads-panel.tsx", import.meta.url)),
+      fileURLToPath(new URL(`./_components/${key}-ads-panel.tsx`, import.meta.url)),
       "utf8",
     );
-    const prefixes = [...new Set([...src.matchAll(/queryKey: \[\s*"([a-z-]+)"/g)].map((m) => m[1]!))];
-    expect(prefixes, "the X panel's query keys").toContain("content-hub-integrations");
-    expect(prefixes.length, "found too few X query keys — wrong file?").toBeGreaterThan(3);
-    const x = ADS_CHANNELS.find((c) => c.key === "x")!;
-    const refreshed: readonly string[] = x.invalidateQueryKeys.map((k) => k[0]);
-    expect(prefixes.filter((p) => !refreshed.includes(p))).toEqual([]);
-  });
+    return [...new Set([...src.matchAll(/queryKey: \[\s*"([a-z-]+)"/g)].map((m) => m[1]!))];
+  };
+  for (const channel of ADS_CHANNELS) {
+    it(`★★b2c#573 the ${channel.key} toolbar refreshes exactly the queries its panel makes`, () => {
+      const prefixes = panelQueryPrefixes(channel.key);
+      expect(prefixes, "the panel's query keys").toContain("content-hub-integrations");
+      const refreshed: readonly string[] = channel.invalidateQueryKeys.map((k) => k[0]);
+      expect(prefixes.filter((p) => !refreshed.includes(p)), "made but not refreshed").toEqual([]);
+      expect(refreshed.filter((p) => !prefixes.includes(p)), "refreshed but never made").toEqual([]);
+    });
+  }
 
   it("★M-16 leaving the Meta tab drops its ad-account param", () => {
     expect(nextAdsHubSearch(new URLSearchParams("channel=meta&adAccount=act_1"), "x")).toBe(
