@@ -425,9 +425,13 @@ function OutcomesBody({ data }: { data: OutcomesResponse }) {
                   value={NUM.format(reach.paid.impressions)}
                   note={
                     `${reach.paid.campaigns} campaign${reach.paid.campaigns === 1 ? "" : "s"}` +
-                    (reach.paid.currency
+                    // ★NULL SPEND IS A REFUSAL, NOT A ZERO (D-01): the api
+                    // will not add two currencies, so it says which it is.
+                    (reach.paid.currency && reach.paid.spend !== null
                       ? ` · ${reach.paid.currency} ${NUM.format(Math.round(reach.paid.spend))} spent`
-                      : "")
+                      : reach.paid.spend === null
+                        ? " · spend is in more than one currency"
+                        : "")
                   }
                 />
               )}

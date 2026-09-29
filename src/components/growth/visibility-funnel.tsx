@@ -7,6 +7,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   absenceText,
   brandLine,
+  figureKey,
+  figureLabel,
   incompleteLine,
   partialLine,
 } from "@/lib/visibility-funnel";
@@ -54,19 +56,6 @@ const ABSENCE_ICON: Record<VisibilityAbsence, { icon: typeof PlugZap; className?
   unavailable: { icon: HelpCircle },
 };
 
-const SOURCE_LABEL: Record<string, string> = {
-  google_search: "Google Search",
-  google_business_profile: "Business Profile",
-  google_analytics: "Your website",
-};
-
-/** ★NEVER THE RAW WIRE VALUE. The two repos deploy separately, so this build
- *  can meet a source it has no label for — and `google_business_profile` in a
- *  merchant-facing list is worse than a generic word. The same forward-compat
- *  hole was closed for the absence text and its icon two lines below. */
-function sourceLabel(source: string): string {
-  return SOURCE_LABEL[source] ?? "Another source";
-}
 
 const NUM = new Intl.NumberFormat("en-US");
 
@@ -90,10 +79,10 @@ function StageCard({ stage, windowDays }: { stage: VisibilityStage; windowDays: 
 
       <ul className="mt-1 space-y-1">
         {stage.figures.map((f) => {
-          const label = sourceLabel(f.source);
+          const label = figureLabel(f);
           if (f.available) {
             return (
-              <li key={f.source} className="flex justify-between gap-2 text-xs">
+              <li key={figureKey(f)} className="flex justify-between gap-2 text-xs">
                 <span className="text-muted-foreground">{label}</span>
                 <span className="tabular-nums">{NUM.format(f.value)}</span>
               </li>
@@ -105,7 +94,7 @@ function StageCard({ stage, windowDays }: { stage: VisibilityStage; windowDays: 
           // disappearing, the opposite of this component's own contract.
           const { icon: Icon, className } = ABSENCE_ICON[f.reason] ?? { icon: HelpCircle };
           return (
-            <li key={f.source} className="flex justify-between gap-2 text-xs">
+            <li key={figureKey(f)} className="flex justify-between gap-2 text-xs">
               <span className="text-muted-foreground">{label}</span>
               <span className="flex items-center gap-1 text-muted-foreground">
                 <Icon className={`size-3 ${className ?? ""}`} aria-hidden />

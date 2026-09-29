@@ -1,4 +1,9 @@
-import type { VisibilityAbsence, VisibilityResponse, VisibilityStage } from "@/lib/api/growth";
+import type {
+  VisibilityAbsence,
+  VisibilityFigure,
+  VisibilityResponse,
+  VisibilityStage,
+} from "@/lib/api/growth";
 
 /**
  * What the visibility funnel SAYS — the phrasing rules, with no React in them.
@@ -46,6 +51,49 @@ export function absenceText(reason: VisibilityAbsence): string {
   // source row with a warning triangle and nothing next to it, which is a row
   // that says less than saying nothing would.
   return ABSENCE_TEXT[reason] ?? "not available";
+}
+
+const SOURCE_LABEL: Record<string, string> = {
+  google_search: "Google Search",
+  google_business_profile: "Business Profile",
+  google_analytics: "Your website",
+};
+
+const PAID_PLATFORM_LABEL: Record<string, string> = {
+  linkedin: "LinkedIn ads",
+  meta: "Meta ads",
+  x: "X ads",
+  google_ads: "Google Ads",
+};
+
+/**
+ * The row label for one figure.
+ *
+ * ★NEVER THE RAW WIRE VALUE. The two repos deploy separately, so this build can
+ * meet a source — or an ad platform — it has no label for, and
+ * `google_business_profile` in a merchant-facing list is worse than a generic
+ * word. ★A PAID FIGURE IS LABELLED BY ITS PLATFORM (D-01): every one of them
+ * has `source: "paid_ads"`, so the source alone would print "Your ads" twice
+ * in one stage. The one without a platform is the failed read.
+ */
+export function figureLabel(f: Pick<VisibilityFigure, "source" | "platform">): string {
+  if (f.source === "paid_ads") {
+    if (!f.platform) return "Your ads";
+    return PAID_PLATFORM_LABEL[f.platform] ?? "Ads on another platform";
+  }
+  return SOURCE_LABEL[f.source] ?? "Another source";
+}
+
+/**
+ * A React key for one figure within its stage.
+ *
+ * ★`source` ALONE IS NOT UNIQUE ANY MORE. A business advertising on two
+ * platforms gets two `paid_ads` figures in each paid stage, and keying by
+ * source made them one element to React — a duplicate-key warning, and a row
+ * that can be dropped or reused on the next render.
+ */
+export function figureKey(f: Pick<VisibilityFigure, "source" | "platform">): string {
+  return f.platform ? `${f.source}:${f.platform}` : f.source;
 }
 
 /**

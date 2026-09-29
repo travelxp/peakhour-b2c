@@ -38,6 +38,20 @@ export type DecisionStatus =
  * nobody has ever counted a win for as one that had none. Those are different
  * facts and only one of them is a verdict on the customer's marketing.
  */
+/** One ad platform's figures over the outcomes window (api `rollupPaid`). */
+export interface PaidChannel {
+  platform: string;
+  impressions: number;
+  clicks: number;
+  spend: number | null;
+  currency?: string;
+  /** Null where the platform does not report conversions — absent, not zero. */
+  conversions: number | null;
+  campaigns: number;
+  stale: boolean;
+  lastReadAt: string | null;
+}
+
 export interface OutcomesResponse {
   period: { days: number; since: string; until: string };
   reach: {
@@ -53,8 +67,12 @@ export interface OutcomesResponse {
     paid: {
       impressions: number;
       campaigns: number;
-      spend: number;
+      /** ★NULL when the channels disagree on a currency (D-01) — `currency`
+       *  is present exactly when this is a number. */
+      spend: number | null;
       currency?: string;
+      /** One entry per ad platform that served inside the window. */
+      byChannel: PaidChannel[];
     } | null;
     site: {
       sessions: number;
@@ -477,18 +495,26 @@ export type VisibilityAbsence =
  * happened here once.
  */
 export type VisibilitySource =
-  "google_search" | "google_business_profile" | "google_analytics";
+  | "google_search"
+  | "google_business_profile"
+  | "google_analytics"
+  /** One figure PER AD PLATFORM (D-01), the platform carried as data — so a
+   *  stage can hold several of these, and `source` alone is not a key. */
+  | "paid_ads";
 
 export type VisibilityFigure =
   | {
       source: VisibilitySource;
+      /** `ad_campaigns.platform`, on a `paid_ads` figure. Absent on the one
+       *  that says the paid read itself failed. */
+      platform?: string;
       available: true;
       value: number;
       /** Days inside the window this source actually reported. Short of
        *  `period.days` means the stage is `partial`. */
       days: number;
     }
-  | { source: VisibilitySource; available: false; reason: VisibilityAbsence };
+  | { source: VisibilitySource; platform?: string; available: false; reason: VisibilityAbsence };
 
 export interface VisibilityStage {
   key: "found" | "chosen" | "convinced";

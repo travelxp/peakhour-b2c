@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   absenceText,
   brandLine,
+  figureKey,
+  figureLabel,
   incompleteLine,
   partialLine,
   shortestSpan,
@@ -316,5 +318,33 @@ describe("absenceText — a reason this build has never heard of", () => {
     // not — leaving a row with a warning triangle and nothing next to it, which
     // says less than saying nothing would.
     expect(absenceText("quota_exhausted" as never)).toBe("not available");
+  });
+});
+
+describe("figureLabel / figureKey — paid figures (D-01)", () => {
+  it("★labels a paid figure by its PLATFORM, never by the shared source", () => {
+    expect(figureLabel({ source: "paid_ads", platform: "linkedin" })).toBe("LinkedIn ads");
+    expect(figureLabel({ source: "paid_ads", platform: "meta" })).toBe("Meta ads");
+    expect(figureLabel({ source: "paid_ads", platform: "linkedin" })).not.toBe(
+      figureLabel({ source: "paid_ads", platform: "meta" }),
+    );
+  });
+
+  it("★never prints a wire value — an unknown platform or source gets generic words", () => {
+    expect(figureLabel({ source: "paid_ads", platform: "tiktok" })).toBe("Ads on another platform");
+    expect(figureLabel({ source: "paid_ads" })).toBe("Your ads");
+    expect(figureLabel({ source: "somewhere_new" as never })).toBe("Another source");
+    expect(figureLabel({ source: "google_business_profile" })).toBe("Business Profile");
+  });
+
+  it("★two paid figures in one stage get two keys; an organic figure keeps its source", () => {
+    const keys = [
+      figureKey({ source: "paid_ads", platform: "linkedin" }),
+      figureKey({ source: "paid_ads", platform: "meta" }),
+      figureKey({ source: "paid_ads" }),
+      figureKey({ source: "google_search" }),
+    ];
+    expect(new Set(keys).size).toBe(4);
+    expect(keys[3]).toBe("google_search");
   });
 });
