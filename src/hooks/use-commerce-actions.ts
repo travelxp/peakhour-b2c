@@ -10,9 +10,11 @@ import {
   ACTIONABLE_STATUSES,
   executeErrorToast,
   executeToast,
+  REVERT_SUCCESS_TOAST,
   revertErrorToast,
   type ActionFailure,
 } from "@/lib/commerce-action-status";
+import type { ActivityItem } from "@/hooks/use-commerce-activity";
 import { showToast } from "@/lib/show-toast";
 
 /**
@@ -27,29 +29,14 @@ import { showToast } from "@/lib/show-toast";
 
 export type CapabilityMode = "execute" | "stage" | "advisory" | "unavailable";
 
-export interface ActionablePrediction {
-  metric: string;
-  value?: number;
-  valueMinor?: number;
-  currency?: string;
-  confidence?: number;
-}
-
-export interface ActionableItem {
-  id: string;
-  agent: string;
-  title: string;
-  status: string;
-  sourceType: string | null;
-  prediction: ActionablePrediction | null;
-  at: string;
+/** One pending-execution row: the activity item's fields (`failure` included,
+ *  declared once there) plus its channel and resolved capability — the api's
+ *  own shape, `ActionableItem extends ActivityItem` (review round 3). */
+export interface ActionableItem extends ActivityItem {
   channel: string | null;
   /** The resolved capability (execute vs stage + honest reason), or null for an
    *  agent that performs no store write. */
   capability: { mode: CapabilityMode; reason: string } | null;
-  /** Why it did not end `executed` (mongodb mig 366): on `failed` and
-   *  `outcome_unknown`, and kept on a later `reverted`. Decide by `status`. */
-  failure?: ActionFailure | null;
 }
 
 export const ACTIONS_KEY = "commerce-actions";
@@ -116,7 +103,7 @@ export function useRevertAction() {
   const invalidate = useInvalidateActions();
   return useMutation<{ status: string }, ApiError, string>({
     mutationFn: (id) => api.post<{ status: string }>(`/v1/commerce/actions/${id}/revert`, {}),
-    onSuccess: () => toast.success("Reverted"),
+    onSuccess: () => showToast(REVERT_SUCCESS_TOAST),
     // ★UNDO_SETTLING is a wait, shown as one (review round 1).
     onError: (e) => showToast(revertErrorToast(e)),
     onSettled: () => invalidate(),

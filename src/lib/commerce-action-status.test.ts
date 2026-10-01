@@ -7,6 +7,7 @@ import {
   executeToast,
   failureLine,
   proposeErrorToast,
+  REVERT_SUCCESS_TOAST,
   revertErrorToast,
   revertLabel,
   statusMeta,
@@ -52,8 +53,8 @@ describe("statusMeta — one table for the list and the digest", () => {
     expect(statusMeta("failed").label).toBe("Failed");
   });
 
-  it("an unknown status shows as itself, never as something it is not", () => {
-    expect(statusMeta("something_new")).toEqual({ label: "something_new", verb: "something_new", tone: "outline" });
+  it("an unknown status shows as itself, humanised — never as something it is not (round 3)", () => {
+    expect(statusMeta("something_new")).toEqual({ label: "Something new", verb: "something new", tone: "outline" });
   });
 
   it("★a MISSING status is 'updated', not a crash (review round 1)", () => {
@@ -106,6 +107,10 @@ describe("failureLine — decided by status, never by whether failure is present
     expect(failureLine("outcome_unknown", { detail: 'Store said "busy"' })).toBe(
       'We couldn\'t confirm your store applied this. Store said "busy". Undo it to be sure.',
     );
+    // Curly closing quotes count too (round 3).
+    expect(failureLine("outcome_unknown", { detail: "Store said \u201cbusy.\u201d" })).toBe(
+      "We couldn't confirm your store applied this. Store said \u201cbusy.\u201d Undo it to be sure.",
+    );
     // …and one that already ends a sentence inside its closing mark keeps it.
     expect(failureLine("outcome_unknown", { detail: "(Timed out.)" })).toBe(
       "We couldn't confirm your store applied this. (Timed out.) Undo it to be sure.",
@@ -114,7 +119,7 @@ describe("failureLine — decided by status, never by whether failure is present
 
   it("★★the DIGEST, which has no undo button, says where the undo is (review round 2)", () => {
     expect(failureLine("outcome_unknown", { detail: "timeout" }, { undoHere: false })).toBe(
-      "We couldn't confirm your store applied this. timeout. Undo it from Ready to ship to be sure.",
+      "We couldn't confirm your store applied this. timeout. You can undo it from Autopilot to be sure.",
     );
   });
 
@@ -153,7 +158,7 @@ describe("executeToast — what Ship it says", () => {
   it("★a status this build does not know is a warning that names it, not a green 'Done'", () => {
     const t = executeToast({ status: "something_new" });
     expect(t.kind).toBe("warning");
-    expect(t.title).toContain("something_new");
+    expect(t.title).toBe("The action is now something new");
   });
 
   it("★an answer with NO status still produces a toast (review round 1)", () => {
@@ -213,16 +218,20 @@ describe("proposeErrorToast — a live markdown is not 'try again'", () => {
     });
   });
 
-  it("PASS: a server failure, or no message, keeps 'try again'", () => {
+  it("PASS: a server failure, or no message of the api's own, keeps 'try again' (round 3)", () => {
     expect(proposeErrorToast({ code: "INTERNAL", status: 500, message: "boom" }).description).toBe("Please try again shortly.");
-    expect(proposeErrorToast({ code: "BAD_REQUEST", status: 400, message: "" }).description).toBe("Please try again shortly.");
+    // What api.ts actually produces with no envelope message, and for a CDN's non-JSON 4xx:
+    expect(proposeErrorToast({ code: "UNKNOWN", status: 400, message: "Request failed" }).description).toBe("Please try again shortly.");
+    expect(proposeErrorToast({ code: "PARSE_ERROR", status: 429, message: "Server returned non-JSON response (429)" }).description).toBe(
+      "Please try again shortly.",
+    );
     expect(proposeErrorToast({}).description).toBe("Please try again shortly.");
   });
 });
 
 describe("executeErrorToast — when Ship it itself is refused", () => {
   it("★★CONFLICT never shows the raw ledger key (review round 2)", () => {
-    const t = executeErrorToast({ code: "CONFLICT", message: "Action is outcome_unknown, not executable" });
+    const t = executeErrorToast({ code: "CONFLICT", status: 409, message: "Action is outcome_unknown, not executable" });
     expect(t).toEqual({
       kind: "warning",
       title: "This action has already moved on",
@@ -232,11 +241,30 @@ describe("executeErrorToast — when Ship it itself is refused", () => {
   });
 
   it("PASS: the long-standing refusals read as before", () => {
-    expect(executeErrorToast({ code: "AUTONOMY_DISABLED" }).title).toBe("Raise this agent to Approve (L2) before it can ship");
-    expect(executeErrorToast({ code: "KILL_SWITCH" }).title).toBe("The kill switch is on — turn it off to ship actions");
-    expect(executeErrorToast({ code: "GUARDRAIL" }).title).toBe("A guardrail blocked this action");
-    expect(executeErrorToast({ code: "GRANT_MISSING", message: "Approve it in Shopify" }).title).toBe("Approve it in Shopify");
-    expect(executeErrorToast({})).toEqual({ kind: "error", title: "Couldn't ship this action" });
+    expect(executeErrorToast({ code: "AUTONOMY_DISABLED", status: 403 }).title).toBe("Raise this agent to Approve (L2) before it can ship");
+    expect(executeErrorToast({ code: "KILL_SWITCH", status: 423 }).title).toBe("The kill switch is on — turn it off to ship actions");
+    expect(executeErrorToast({ code: "GUARDRAIL", status: 422 }).title).toBe("A guardrail blocked this action");
+    expect(executeErrorToast({ code: "GRANT_MISSING", status: 409, message: "Approve it in Shopify" }).title).toBe("Approve it in Shopify");
+    expect(executeErrorToast({ code: "UNKNOWN", status: 400 })).toEqual({ kind: "error", title: "Couldn't ship this action" });
+  });
+
+  it.each([
+    ["a gateway timeout's HTML (PARSE_ERROR 504)", { code: "PARSE_ERROR", status: 504, message: "Server returned non-JSON response (504)" }],
+    ["a 502 with an envelope", { code: "UNKNOWN", status: 502, message: "Bad gateway" }],
+    ["no reply at all (fetch's TypeError)", { message: "Failed to fetch" }],
+    ["a status-0 reply", { code: "UNKNOWN", status: 0, message: "x" }],
+  ])("★★%s may have shipped: a WARNING that names Ready to ship, not 'couldn't ship' (round 3)", (_l, e) => {
+    expect(executeErrorToast(e)).toEqual({
+      kind: "warning",
+      title: "We couldn't confirm Ship it went through",
+      description: "Check Ready to ship: if it shows as Unconfirmed, you can undo it there.",
+    });
+  });
+});
+
+describe("REVERT_SUCCESS_TOAST — true of an unconfirmed row too", () => {
+  it("★says the store is back as it was, never that a change was reverted (round 3)", () => {
+    expect(REVERT_SUCCESS_TOAST).toEqual({ kind: "success", title: "Undone", description: "Your store is back as it was before this action." });
   });
 });
 

@@ -19,8 +19,6 @@
 
 import type { ToastSpec } from "@/lib/show-toast";
 
-export type { ToastSpec };
-
 export type BadgeTone = "secondary" | "outline" | "warning";
 
 /** Why an execution did not end `executed` — `cmrc_actions.failure`. */
@@ -61,7 +59,14 @@ const META: Record<string, StatusMeta> = {
  *  something it is not — and a missing one as "updated", never a crash. */
 export function statusMeta(status: unknown): StatusMeta {
   const key = typeof status === "string" && status ? status : "";
-  return META[key] ?? { label: key || "Updated", verb: key || "updated", tone: "outline" };
+  if (META[key]) return META[key];
+  // ★Humanised (round 3): "needs_review" reads "Needs review", not the raw key.
+  const words = key.replace(/_/g, " ").trim();
+  return {
+    label: words ? words.charAt(0).toUpperCase() + words.slice(1) : "Updated",
+    verb: words || "updated",
+    tone: "outline",
+  };
 }
 
 /** The Badge props for a tone. ★ONE place for what "warning" looks like:
@@ -80,7 +85,7 @@ function asSentence(detail: string | undefined | null): string {
   const d = (detail ?? "").trim();
   if (!d) return "";
   // Terminal punctuation, then any closing marks: "(ETIMEDOUT)" still needs one.
-  return /[.!?…]["')\]]*$/.test(d) ? d : `${d}.`;
+  return /[.!?…]["')\]”’]*$/.test(d) ? d : `${d}.`;
 }
 
 /**
@@ -97,7 +102,8 @@ export function failureLine(
 ): string | null {
   const detail = asSentence(failure?.detail);
   if (status === "outcome_unknown") {
-    const undo = opts.undoHere ? "Undo it to be sure." : "Undo it from Ready to ship to be sure.";
+    // The digest is on Command Center; the undo is on Autopilot (round 3).
+    const undo = opts.undoHere ? "Undo it to be sure." : "You can undo it from Autopilot to be sure.";
     return `We couldn't confirm your store applied this.${detail ? ` ${detail}` : ""} ${undo}`;
   }
   if (status === "failed") {
@@ -177,7 +183,15 @@ export function proposeErrorToast(e: { code?: string; message?: string; status?:
   // ★A 4xx refusal is the server's answer, written for the merchant ("That
   //  product isn't in the current markdown plan …"); only a server failure,
   //  or no message, is "try again" (review round 2).
-  const refusal = typeof e.status === "number" && e.status >= 400 && e.status < 500 && e.message;
+  // ★The api's OWN message only (round 3): `api.ts` fills "Request failed"
+  //  when an envelope has none, and a CDN's non-JSON 4xx is PARSE_ERROR.
+  const refusal =
+    typeof e.status === "number" &&
+    e.status >= 400 &&
+    e.status < 500 &&
+    e.code !== "PARSE_ERROR" &&
+    e.message &&
+    e.message !== "Request failed";
   return {
     kind: "error",
     title: "Couldn't propose markdown",
@@ -187,7 +201,20 @@ export function proposeErrorToast(e: { code?: string; message?: string; status?:
 
 /** What to tell the merchant when "Ship it" itself is refused (an HTTP error,
  *  not an outcome). */
-export function executeErrorToast(e: { code?: string; message?: string }): ToastSpec {
+export function executeErrorToast(e: { code?: string; message?: string; status?: number }): ToastSpec {
+  // ⚠️★A 5xx, A NON-JSON REPLY OR NO REPLY AT ALL IS NOT "COULDN'T SHIP"
+  //  (round 3): a gateway timeout or a dropped connection can come after the
+  //  server sent the store write, which it then records as unconfirmed.
+  //  ⏸By status alone: a non-JSON 4xx (a CDN or WAF refusing) never reached
+  //  the api, so nothing ran, and a non-JSON 5xx is caught by its status.
+  const inTransit = typeof e.status !== "number" || e.status === 0 || e.status >= 500;
+  if (inTransit) {
+    return {
+      kind: "warning",
+      title: "We couldn't confirm Ship it went through",
+      description: "Check Ready to ship: if it shows as Unconfirmed, you can undo it there.",
+    };
+  }
   switch (e.code) {
     case "AUTONOMY_DISABLED":
       return { kind: "error", title: "Raise this agent to Approve (L2) before it can ship" };
@@ -204,6 +231,15 @@ export function executeErrorToast(e: { code?: string; message?: string }): Toast
       return { kind: "error", title: e.message || "Couldn't ship this action" };
   }
 }
+
+/** What a successful undo says. ★True of every undoable row (round 3): an
+ *  unconfirmed write that never landed has nothing to revert, and the store
+ *  is still back as it was before the action. */
+export const REVERT_SUCCESS_TOAST: ToastSpec = {
+  kind: "success",
+  title: "Undone",
+  description: "Your store is back as it was before this action.",
+};
 
 /** The undo button's label: an unconfirmed write may have nothing to
  *  revert, so its button says what it is for. */
