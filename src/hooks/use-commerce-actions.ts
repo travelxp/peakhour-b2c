@@ -6,6 +6,7 @@ import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
 import { ACTIVITY_KEY } from "@/hooks/use-commerce-activity";
 import { AUTONOMY_KEY } from "@/hooks/use-commerce-autonomy";
+import { ACTIONABLE_STATUSES, executeToast, type ActionFailure } from "@/lib/commerce-action-status";
 
 /**
  * Commerce pending-execution surface (GET /v1/commerce/actions + approve /
@@ -39,15 +40,16 @@ export interface ActionableItem {
   /** The resolved capability (execute vs stage + honest reason), or null for an
    *  agent that performs no store write. */
   capability: { mode: CapabilityMode; reason: string } | null;
+  /** Why it did not end `executed` (mongodb mig 366): on `failed` and
+   *  `outcome_unknown`, and kept on a later `reverted`. Decide by `status`. */
+  failure?: ActionFailure | null;
 }
 
 export const ACTIONS_KEY = "commerce-actions";
 
 /** The actions a merchant can act on — proposals to approve, approved to ship,
- *  shipped to revert. Newest first. */
-export function useCommerceActions(
-  statuses: string[] = ["proposed", "approved", "executed", "staged"],
-) {
+ *  shipped (or unconfirmed) to revert. Newest first. */
+export function useCommerceActions(statuses: readonly string[] = ACTIONABLE_STATUSES) {
   const { isAuthenticated, org } = useAuth();
   const status = statuses.join(",");
   return useQuery<{ items: ActionableItem[] }>({
@@ -87,19 +89,14 @@ export function useApproveAction() {
  *  capability matrix); the server returns the resulting ledger status. */
 export function useExecuteAction() {
   const invalidate = useInvalidateActions();
-  return useMutation<{ status: string }, ApiError, string>({
-    mutationFn: (id) => api.post<{ status: string }>(`/v1/commerce/actions/${id}/execute`, {}),
+  return useMutation<{ status: string; failure?: ActionFailure }, ApiError, string>({
+    mutationFn: (id) =>
+      api.post<{ status: string; failure?: ActionFailure }>(`/v1/commerce/actions/${id}/execute`, {}),
     onSuccess: (res) => {
-      if (res.status === "executed") toast.success("Shipped — applied to your store");
-      else if (res.status === "staged")
-        toast.success("Staged", {
-          description: "Prepared as advisory — live apply isn't available on this channel yet.",
-        });
-      else if (res.status === "failed")
-        toast.error("Couldn't apply on the store", {
-          description: "Nothing was changed. Please try again shortly.",
-        });
-      else toast.success("Done");
+      // ★One decision, in `executeToast`: an unknown outcome is a warning
+      //  that names the undo, never a green "Done" (mongodb mig 366).
+      const t = executeToast(res);
+      toast[t.kind](t.title, t.description ? { description: t.description } : undefined);
     },
     onError: (e) => {
       if (e.code === "AUTONOMY_DISABLED")
@@ -113,7 +110,9 @@ export function useExecuteAction() {
   });
 }
 
-/** Undo an executed or staged action (clears the real store change first). */
+/** Undo an executed, unconfirmed or staged action (puts the store back first).
+ *  An unconfirmed one answers UNDO_SETTLING for a few minutes; its message says
+ *  when to try again, and is shown as it comes. */
 export function useRevertAction() {
   const invalidate = useInvalidateActions();
   return useMutation<{ status: string }, ApiError, string>({
