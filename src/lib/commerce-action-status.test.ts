@@ -3,10 +3,12 @@ import {
   ACTIONABLE_STATUSES,
   badgeProps,
   canRevert,
+  executeErrorToast,
   executeToast,
   failureLine,
   proposeErrorToast,
   revertErrorToast,
+  revertLabel,
   statusMeta,
 } from "./commerce-action-status";
 
@@ -97,6 +99,25 @@ describe("failureLine — decided by status, never by whether failure is present
     expect(failureLine("outcome_unknown", null)).toBe("We couldn't confirm your store applied this. Undo it to be sure.");
   });
 
+  it("★★a detail ending in a CLOSING MARK still gets its full stop (review round 2)", () => {
+    expect(failureLine("outcome_unknown", { detail: "Request failed (ETIMEDOUT)" })).toBe(
+      "We couldn't confirm your store applied this. Request failed (ETIMEDOUT). Undo it to be sure.",
+    );
+    expect(failureLine("outcome_unknown", { detail: 'Store said "busy"' })).toBe(
+      'We couldn\'t confirm your store applied this. Store said "busy". Undo it to be sure.',
+    );
+    // …and one that already ends a sentence inside its closing mark keeps it.
+    expect(failureLine("outcome_unknown", { detail: "(Timed out.)" })).toBe(
+      "We couldn't confirm your store applied this. (Timed out.) Undo it to be sure.",
+    );
+  });
+
+  it("★★the DIGEST, which has no undo button, says where the undo is (review round 2)", () => {
+    expect(failureLine("outcome_unknown", { detail: "timeout" }, { undoHere: false })).toBe(
+      "We couldn't confirm your store applied this. timeout. Undo it from Ready to ship to be sure.",
+    );
+  });
+
   it("★the detail ends in exactly one full stop, whatever it ended in", () => {
     expect(failureLine("outcome_unknown", { detail: "Timed out." })).toBe(
       "We couldn't confirm your store applied this. Timed out. Undo it to be sure.",
@@ -153,11 +174,8 @@ describe("executeToast — what Ship it says", () => {
 describe("revertErrorToast — a settling undo is a wait, not a failure", () => {
   it("★★UNDO_SETTLING is a warning carrying the server's 'try again in about N minutes'", () => {
     const message = "Your store may still be applying this change, so it can't be undone yet. Try again in about 4 minutes — nothing was changed.";
-    expect(revertErrorToast({ code: "UNDO_SETTLING", message })).toEqual({
-      kind: "warning",
-      title: "Not yet — your store may still be applying this",
-      description: message,
-    });
+    // The title does not repeat the reason the server's text already gives.
+    expect(revertErrorToast({ code: "UNDO_SETTLING", message })).toEqual({ kind: "warning", title: "Not yet", description: message });
   });
   it("PASS: any other refusal is an error in the server's words, or a fallback", () => {
     expect(revertErrorToast({ code: "REVERT_FAILED", message: "Couldn't undo the action on the store" })).toEqual({
@@ -177,11 +195,54 @@ describe("proposeErrorToast — a live markdown is not 'try again'", () => {
     expect(t.title).not.toMatch(/already has/);
   });
 
-  it("PASS: any other failure keeps the old copy", () => {
-    expect(proposeErrorToast({ code: "INTERNAL", message: "boom" })).toEqual({
-      kind: "error",
-      title: "Couldn't propose markdown",
-      description: "Please try again shortly.",
+  it("★★a markdown mid-write (executing) is a WAIT: it cannot be undone and is not in Ready to ship", () => {
+    const t = proposeErrorToast({ code: "LIVE_MARKDOWN", message: "…Undo it before…", details: { actionId: "a", status: "executing" } });
+    expect(t).toEqual({
+      kind: "warning",
+      title: "Can't propose another markdown for this product",
+      description: "A markdown for it is being applied right now. Try again in a minute.",
     });
   });
+
+  it("★★a 4xx refusal keeps the SERVER'S words — retrying will not change it (review round 2)", () => {
+    const message = "That product isn't in the current markdown plan (it may be selling fine, or discounts are disabled).";
+    expect(proposeErrorToast({ code: "NOT_FOUND", status: 404, message })).toEqual({
+      kind: "error",
+      title: "Couldn't propose markdown",
+      description: message,
+    });
+  });
+
+  it("PASS: a server failure, or no message, keeps 'try again'", () => {
+    expect(proposeErrorToast({ code: "INTERNAL", status: 500, message: "boom" }).description).toBe("Please try again shortly.");
+    expect(proposeErrorToast({ code: "BAD_REQUEST", status: 400, message: "" }).description).toBe("Please try again shortly.");
+    expect(proposeErrorToast({}).description).toBe("Please try again shortly.");
+  });
+});
+
+describe("executeErrorToast — when Ship it itself is refused", () => {
+  it("★★CONFLICT never shows the raw ledger key (review round 2)", () => {
+    const t = executeErrorToast({ code: "CONFLICT", message: "Action is outcome_unknown, not executable" });
+    expect(t).toEqual({
+      kind: "warning",
+      title: "This action has already moved on",
+      description: "The list has been refreshed to show where it stands.",
+    });
+    expect(JSON.stringify(t)).not.toContain("outcome_unknown");
+  });
+
+  it("PASS: the long-standing refusals read as before", () => {
+    expect(executeErrorToast({ code: "AUTONOMY_DISABLED" }).title).toBe("Raise this agent to Approve (L2) before it can ship");
+    expect(executeErrorToast({ code: "KILL_SWITCH" }).title).toBe("The kill switch is on — turn it off to ship actions");
+    expect(executeErrorToast({ code: "GUARDRAIL" }).title).toBe("A guardrail blocked this action");
+    expect(executeErrorToast({ code: "GRANT_MISSING", message: "Approve it in Shopify" }).title).toBe("Approve it in Shopify");
+    expect(executeErrorToast({})).toEqual({ kind: "error", title: "Couldn't ship this action" });
+  });
+});
+
+describe("revertLabel — what the undo button says", () => {
+  it("★an unconfirmed write's button says what it is for", () => {
+    expect(revertLabel("outcome_unknown")).toBe("Undo to be sure");
+  });
+  it.each([["executed"], ["staged"]])("PASS: %s is Revert", (s) => expect(revertLabel(s)).toBe("Revert"));
 });

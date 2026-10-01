@@ -17,6 +17,10 @@
  * Pure (no React, no toasts) so it is unit-tested in node.
  */
 
+import type { ToastSpec } from "@/lib/show-toast";
+
+export type { ToastSpec };
+
 export type BadgeTone = "secondary" | "outline" | "warning";
 
 /** Why an execution did not end `executed` — `cmrc_actions.failure`. */
@@ -75,7 +79,8 @@ export function badgeProps(tone: BadgeTone): { variant: "secondary" | "outline";
 function asSentence(detail: string | undefined | null): string {
   const d = (detail ?? "").trim();
   if (!d) return "";
-  return /[.!?…)"']$/.test(d) ? d : `${d}.`;
+  // Terminal punctuation, then any closing marks: "(ETIMEDOUT)" still needs one.
+  return /[.!?…]["')\]]*$/.test(d) ? d : `${d}.`;
 }
 
 /**
@@ -83,10 +88,17 @@ function asSentence(detail: string | undefined | null): string {
  * then the store's own account. Null for every other status — including
  * `reverted`, whose `failure` is history.
  */
-export function failureLine(status: string, failure: ActionFailure | null | undefined): string | null {
+export function failureLine(
+  status: string,
+  failure: ActionFailure | null | undefined,
+  /** Whether THIS surface has the undo button. The digest does not, so it
+   *  names where the undo is (review round 2). */
+  opts: { undoHere: boolean } = { undoHere: true },
+): string | null {
   const detail = asSentence(failure?.detail);
   if (status === "outcome_unknown") {
-    return `We couldn't confirm your store applied this.${detail ? ` ${detail}` : ""} Undo it to be sure.`;
+    const undo = opts.undoHere ? "Undo it to be sure." : "Undo it from Ready to ship to be sure.";
+    return `We couldn't confirm your store applied this.${detail ? ` ${detail}` : ""} ${undo}`;
   }
   if (status === "failed") {
     // ⚠️★"NOTHING WAS CHANGED" ONLY WHERE THE ROW SAYS WHY (review round 1).
@@ -97,12 +109,6 @@ export function failureLine(status: string, failure: ActionFailure | null | unde
       : "This change didn't complete, and Peakhour has no record of why.";
   }
   return null;
-}
-
-export interface ToastSpec {
-  kind: "success" | "warning" | "error";
-  title: string;
-  description?: string;
 }
 
 /** What to tell the merchant after "Ship it", from the server's answer. */
@@ -145,19 +151,62 @@ export function revertErrorToast(e: { code?: string; message?: string }): ToastS
   if (e.code === "UNDO_SETTLING") {
     // ★A WAIT, NOT A FAILURE (review round 1): the store may still be
     //  applying the write; the server's message says when to try again.
-    return { kind: "warning", title: "Not yet — your store may still be applying this", description: e.message };
+    return { kind: "warning", title: "Not yet", description: e.message };
   }
   return { kind: "error", title: e.message || "Couldn't revert this action" };
 }
 
 /** What to tell the merchant when proposing a markdown fails. */
-export function proposeErrorToast(e: { code?: string; message?: string }): ToastSpec {
+export function proposeErrorToast(e: { code?: string; message?: string; status?: number; details?: unknown }): ToastSpec {
   if (e.code === "LIVE_MARKDOWN") {
+    // ★An `executing` markdown cannot be undone and is not in Ready to ship:
+    //  it is mid-write, so the answer is to wait (review round 2).
+    if ((e.details as { status?: unknown } | undefined)?.status === "executing") {
+      return {
+        kind: "warning",
+        title: "Can't propose another markdown for this product",
+        description: "A markdown for it is being applied right now. Try again in a minute.",
+      };
+    }
     // ★Retrying never helps: the existing markdown has to be undone first
     //  (one live markdown per product, api#1434). ★A NEUTRAL title (review
     //  round 1): the standing markdown may be one whose result is unknown,
     //  and the server's description says which.
     return { kind: "warning", title: "Can't propose another markdown for this product", description: e.message };
   }
-  return { kind: "error", title: "Couldn't propose markdown", description: "Please try again shortly." };
+  // ★A 4xx refusal is the server's answer, written for the merchant ("That
+  //  product isn't in the current markdown plan …"); only a server failure,
+  //  or no message, is "try again" (review round 2).
+  const refusal = typeof e.status === "number" && e.status >= 400 && e.status < 500 && e.message;
+  return {
+    kind: "error",
+    title: "Couldn't propose markdown",
+    description: refusal ? e.message : "Please try again shortly.",
+  };
+}
+
+/** What to tell the merchant when "Ship it" itself is refused (an HTTP error,
+ *  not an outcome). */
+export function executeErrorToast(e: { code?: string; message?: string }): ToastSpec {
+  switch (e.code) {
+    case "AUTONOMY_DISABLED":
+      return { kind: "error", title: "Raise this agent to Approve (L2) before it can ship" };
+    case "KILL_SWITCH":
+      return { kind: "error", title: "The kill switch is on — turn it off to ship actions" };
+    case "GUARDRAIL":
+      return { kind: "error", title: "A guardrail blocked this action" };
+    case "CONFLICT":
+      // ★The server's text names the raw ledger key ("Action is
+      //  outcome_unknown, …"), review round 2: the row has moved on, so say
+      //  that and let the refreshed list show where it stands.
+      return { kind: "warning", title: "This action has already moved on", description: "The list has been refreshed to show where it stands." };
+    default:
+      return { kind: "error", title: e.message || "Couldn't ship this action" };
+  }
+}
+
+/** The undo button's label: an unconfirmed write may have nothing to
+ *  revert, so its button says what it is for. */
+export function revertLabel(status: string): string {
+  return status === "outcome_unknown" ? "Undo to be sure" : "Revert";
 }

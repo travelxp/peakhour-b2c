@@ -1,5 +1,12 @@
 import { toast } from "sonner";
-import type { ToastSpec } from "@/lib/commerce-action-status";
+
+/** A toast, decided by pure code and shown by `showToast` — so the decision
+ *  can be unit-tested without sonner. */
+export interface ToastSpec {
+  kind: "success" | "warning" | "error";
+  title: string;
+  description?: string;
+}
 
 /** Show a `ToastSpec` — the one place a spec becomes a sonner call. */
 export function showToast(t: ToastSpec): void {

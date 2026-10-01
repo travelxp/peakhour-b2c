@@ -59,7 +59,8 @@ function ActivityRow({ item }: { item: ActivityItem }) {
   // ★One table for the digest and the list (`statusMeta`), so `staged` —
   //  missing here before — and `outcome_unknown` read the same in both.
   const meta = statusMeta(item.status);
-  const failure = failureLine(item.status, item.failure);
+  // The digest has no undo button, so the line says where it is.
+  const failure = failureLine(item.status, item.failure, { undoHere: false });
 
   return (
     <li className="flex items-start justify-between gap-3 px-4 py-3">

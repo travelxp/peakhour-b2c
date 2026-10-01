@@ -6,7 +6,13 @@ import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
 import { ACTIVITY_KEY } from "@/hooks/use-commerce-activity";
 import { AUTONOMY_KEY } from "@/hooks/use-commerce-autonomy";
-import { ACTIONABLE_STATUSES, executeToast, revertErrorToast, type ActionFailure } from "@/lib/commerce-action-status";
+import {
+  ACTIONABLE_STATUSES,
+  executeErrorToast,
+  executeToast,
+  revertErrorToast,
+  type ActionFailure,
+} from "@/lib/commerce-action-status";
 import { showToast } from "@/lib/show-toast";
 
 /**
@@ -98,14 +104,7 @@ export function useExecuteAction() {
       //  that names the undo, never a green "Done" (mongodb mig 366).
       showToast(executeToast(res));
     },
-    onError: (e) => {
-      if (e.code === "AUTONOMY_DISABLED")
-        toast.error("Raise this agent to Approve (L2) before it can ship");
-      else if (e.code === "KILL_SWITCH")
-        toast.error("The kill switch is on — turn it off to ship actions");
-      else if (e.code === "GUARDRAIL") toast.error("A guardrail blocked this action");
-      else toast.error(e.message || "Couldn't ship this action");
-    },
+    onError: (e) => showToast(executeErrorToast(e)),
     onSettled: () => invalidate(),
   });
 }

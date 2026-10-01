@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useLocale } from "@/hooks/use-locale";
 import { agentLabel } from "@/lib/commerce-agents";
 import { minorToMajor } from "@/lib/money";
-import { badgeProps, canRevert, failureLine, statusMeta } from "@/lib/commerce-action-status";
+import { badgeProps, canRevert, failureLine, revertLabel, statusMeta } from "@/lib/commerce-action-status";
 import {
   useCommerceActions,
   useApproveAction,
@@ -24,7 +24,8 @@ import {
  *   proposed  → Approve (makes it shippable)
  *   approved  → Ship it (executes for real, or stages advisory per the
  *               capability matrix — the row shows which BEFORE the click)
- *   executed / staged → Revert
+ *   executed / staged → Revert; outcome_unknown (a write that may have
+ *               applied, mongodb mig 366) → "Undo to be sure"
  * Every mutation is optimistic-free (the list refetches on settle); only the row
  * in flight is disabled. Hides entirely when nothing is pending (the Autopilot
  * page already shows the connect / autonomy context).
@@ -177,7 +178,7 @@ function ActionRow({
         )}
         {canRevert(item.status) && (
           <Button size="sm" variant="ghost" disabled={busy} onClick={onRevert}>
-            <Undo2 aria-hidden="true" className="size-3.5" /> {item.status === "outcome_unknown" ? "Undo to be sure" : "Revert"}
+            <Undo2 aria-hidden="true" className="size-3.5" /> {revertLabel(item.status)}
           </Button>
         )}
       </div>
