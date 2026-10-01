@@ -6,7 +6,8 @@ import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
 import { ACTIVITY_KEY } from "@/hooks/use-commerce-activity";
 import { AUTONOMY_KEY } from "@/hooks/use-commerce-autonomy";
-import { ACTIONABLE_STATUSES, executeToast, type ActionFailure } from "@/lib/commerce-action-status";
+import { ACTIONABLE_STATUSES, executeToast, revertErrorToast, type ActionFailure } from "@/lib/commerce-action-status";
+import { showToast } from "@/lib/show-toast";
 
 /**
  * Commerce pending-execution surface (GET /v1/commerce/actions + approve /
@@ -95,8 +96,7 @@ export function useExecuteAction() {
     onSuccess: (res) => {
       // ★One decision, in `executeToast`: an unknown outcome is a warning
       //  that names the undo, never a green "Done" (mongodb mig 366).
-      const t = executeToast(res);
-      toast[t.kind](t.title, t.description ? { description: t.description } : undefined);
+      showToast(executeToast(res));
     },
     onError: (e) => {
       if (e.code === "AUTONOMY_DISABLED")
@@ -118,7 +118,8 @@ export function useRevertAction() {
   return useMutation<{ status: string }, ApiError, string>({
     mutationFn: (id) => api.post<{ status: string }>(`/v1/commerce/actions/${id}/revert`, {}),
     onSuccess: () => toast.success("Reverted"),
-    onError: (e) => toast.error(e.message || "Couldn't revert this action"),
+    // ★UNDO_SETTLING is a wait, shown as one (review round 1).
+    onError: (e) => showToast(revertErrorToast(e)),
     onSettled: () => invalidate(),
   });
 }

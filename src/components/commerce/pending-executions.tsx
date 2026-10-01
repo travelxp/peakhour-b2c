@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useLocale } from "@/hooks/use-locale";
 import { agentLabel } from "@/lib/commerce-agents";
 import { minorToMajor } from "@/lib/money";
-import { canRevert, failureLine, statusMeta } from "@/lib/commerce-action-status";
+import { badgeProps, canRevert, failureLine, statusMeta } from "@/lib/commerce-action-status";
 import {
   useCommerceActions,
   useApproveAction,
@@ -134,10 +134,7 @@ function ActionRow({
             )}
           </div>
         </div>
-        <Badge
-          variant={meta.tone === "warning" ? "outline" : meta.tone}
-          className={meta.tone === "warning" ? "shrink-0 border-warning/40 bg-warning/10 text-warning-on-tint" : "shrink-0"}
-        >
+        <Badge {...badgeProps(meta.tone)}>
           {meta.label}
         </Badge>
       </div>

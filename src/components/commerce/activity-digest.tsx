@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useLocale } from "@/hooks/use-locale";
 import { agentLabel } from "@/lib/commerce-agents";
 import { useCommerceActivity, type ActivityItem } from "@/hooks/use-commerce-activity";
-import { failureLine, statusMeta } from "@/lib/commerce-action-status";
+import { badgeProps, failureLine, statusMeta } from "@/lib/commerce-action-status";
 
 /**
  * Command Center "What Peakhour did" digest — the recent ledger feed (api#839).
@@ -71,10 +71,7 @@ function ActivityRow({ item }: { item: ActivityItem }) {
         <p className="mt-0.5 text-xs text-muted-foreground">{formatRelativeTime(item.at)}</p>
         {failure && <p className="mt-0.5 text-xs text-warning-on-tint">{failure}</p>}
       </div>
-      <Badge
-        variant={meta.tone === "warning" ? "outline" : meta.tone}
-        className={meta.tone === "warning" ? "shrink-0 border-warning/40 bg-warning/10 text-warning-on-tint" : "shrink-0"}
-      >
+      <Badge {...badgeProps(meta.tone)}>
         {meta.verb}
       </Badge>
     </li>
