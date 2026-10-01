@@ -6,6 +6,16 @@ import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
 import { ACTIVITY_KEY } from "@/hooks/use-commerce-activity";
 import { AUTONOMY_KEY } from "@/hooks/use-commerce-autonomy";
+import {
+  ACTIONABLE_STATUSES,
+  executeErrorToast,
+  executeToast,
+  REVERT_SUCCESS_TOAST,
+  revertErrorToast,
+  type ActionFailure,
+} from "@/lib/commerce-action-status";
+import type { ActivityItem } from "@/hooks/use-commerce-activity";
+import { showToast } from "@/lib/show-toast";
 
 /**
  * Commerce pending-execution surface (GET /v1/commerce/actions + approve /
@@ -19,22 +29,10 @@ import { AUTONOMY_KEY } from "@/hooks/use-commerce-autonomy";
 
 export type CapabilityMode = "execute" | "stage" | "advisory" | "unavailable";
 
-export interface ActionablePrediction {
-  metric: string;
-  value?: number;
-  valueMinor?: number;
-  currency?: string;
-  confidence?: number;
-}
-
-export interface ActionableItem {
-  id: string;
-  agent: string;
-  title: string;
-  status: string;
-  sourceType: string | null;
-  prediction: ActionablePrediction | null;
-  at: string;
+/** One pending-execution row: the activity item's fields (`failure` included,
+ *  declared once there) plus its channel and resolved capability — the api's
+ *  own shape, `ActionableItem extends ActivityItem` (review round 3). */
+export interface ActionableItem extends ActivityItem {
   channel: string | null;
   /** The resolved capability (execute vs stage + honest reason), or null for an
    *  agent that performs no store write. */
@@ -44,10 +42,8 @@ export interface ActionableItem {
 export const ACTIONS_KEY = "commerce-actions";
 
 /** The actions a merchant can act on — proposals to approve, approved to ship,
- *  shipped to revert. Newest first. */
-export function useCommerceActions(
-  statuses: string[] = ["proposed", "approved", "executed", "staged"],
-) {
+ *  shipped (or unconfirmed) to revert. Newest first. */
+export function useCommerceActions(statuses: readonly string[] = ACTIONABLE_STATUSES) {
   const { isAuthenticated, org } = useAuth();
   const status = statuses.join(",");
   return useQuery<{ items: ActionableItem[] }>({
@@ -87,39 +83,29 @@ export function useApproveAction() {
  *  capability matrix); the server returns the resulting ledger status. */
 export function useExecuteAction() {
   const invalidate = useInvalidateActions();
-  return useMutation<{ status: string }, ApiError, string>({
-    mutationFn: (id) => api.post<{ status: string }>(`/v1/commerce/actions/${id}/execute`, {}),
+  return useMutation<{ status: string; failure?: ActionFailure }, ApiError, string>({
+    mutationFn: (id) =>
+      api.post<{ status: string; failure?: ActionFailure }>(`/v1/commerce/actions/${id}/execute`, {}),
     onSuccess: (res) => {
-      if (res.status === "executed") toast.success("Shipped — applied to your store");
-      else if (res.status === "staged")
-        toast.success("Staged", {
-          description: "Prepared as advisory — live apply isn't available on this channel yet.",
-        });
-      else if (res.status === "failed")
-        toast.error("Couldn't apply on the store", {
-          description: "Nothing was changed. Please try again shortly.",
-        });
-      else toast.success("Done");
+      // ★One decision, in `executeToast`: an unknown outcome is a warning
+      //  that names the undo, never a green "Done" (mongodb mig 366).
+      showToast(executeToast(res));
     },
-    onError: (e) => {
-      if (e.code === "AUTONOMY_DISABLED")
-        toast.error("Raise this agent to Approve (L2) before it can ship");
-      else if (e.code === "KILL_SWITCH")
-        toast.error("The kill switch is on — turn it off to ship actions");
-      else if (e.code === "GUARDRAIL") toast.error("A guardrail blocked this action");
-      else toast.error(e.message || "Couldn't ship this action");
-    },
+    onError: (e) => showToast(executeErrorToast(e)),
     onSettled: () => invalidate(),
   });
 }
 
-/** Undo an executed or staged action (clears the real store change first). */
+/** Undo an executed, unconfirmed or staged action (puts the store back first).
+ *  An unconfirmed one answers UNDO_SETTLING for a few minutes; its message says
+ *  when to try again, and is shown as it comes. */
 export function useRevertAction() {
   const invalidate = useInvalidateActions();
   return useMutation<{ status: string }, ApiError, string>({
     mutationFn: (id) => api.post<{ status: string }>(`/v1/commerce/actions/${id}/revert`, {}),
-    onSuccess: () => toast.success("Reverted"),
-    onError: (e) => toast.error(e.message || "Couldn't revert this action"),
+    onSuccess: () => showToast(REVERT_SUCCESS_TOAST),
+    // ★UNDO_SETTLING is a wait, shown as one (review round 1).
+    onError: (e) => showToast(revertErrorToast(e)),
     onSettled: () => invalidate(),
   });
 }

@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
+import type { ActionFailure } from "@/lib/commerce-action-status";
 
 /**
  * Commerce "engine did this" activity — recent agent actions from the ledger
@@ -22,8 +23,10 @@ export interface ActivityItem {
     currency?: string;
     confidence?: number;
   } | null;
-  /** ISO timestamp of the decision/creation. */
+  /** ISO timestamp of the latest lifecycle stamp. */
   at: string;
+  /** Why it did not end `executed` (mongodb mig 366). Decide by `status`. */
+  failure?: ActionFailure | null;
 }
 
 interface ActivityResponse {

@@ -22,6 +22,8 @@ import { useLocale } from "@/hooks/use-locale";
 import { minorToMajor } from "@/lib/money";
 import { PageShell } from "@/components/dashboard/page-shell";
 import { emptyPlanCopy, partialPlanCopy } from "@/lib/pricing-empty-copy";
+import { proposeErrorToast } from "@/lib/commerce-action-status";
+import { showToast } from "@/lib/show-toast";
 import {
   usePricer,
   usePricerBrief,
@@ -209,8 +211,11 @@ function PriceGrid({
             description: `${p.title || "Product"} — the Pricer logged the intent.`,
           });
         },
-        onError: () =>
-          toast.error("Couldn't propose markdown", { description: "Please try again shortly." }),
+        onError: (e) => {
+          // ★A product with a live markdown answers 409 LIVE_MARKDOWN, which
+          //  a retry never fixes (api#1434): say so, in the server's words.
+          showToast(proposeErrorToast(e));
+        },
       });
     },
     [propose],

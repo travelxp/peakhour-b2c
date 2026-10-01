@@ -1,6 +1,6 @@
 "use client";
 
-import { PackageCheck, Zap, FileClock, Undo2 } from "lucide-react";
+import { PackageCheck, Zap, FileClock, Undo2, AlertTriangle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useLocale } from "@/hooks/use-locale";
 import { agentLabel } from "@/lib/commerce-agents";
 import { minorToMajor } from "@/lib/money";
+import { badgeProps, canRevert, failureLine, revertLabel, statusMeta } from "@/lib/commerce-action-status";
 import {
   useCommerceActions,
   useApproveAction,
@@ -23,7 +24,8 @@ import {
  *   proposed  → Approve (makes it shippable)
  *   approved  → Ship it (executes for real, or stages advisory per the
  *               capability matrix — the row shows which BEFORE the click)
- *   executed / staged → Revert
+ *   executed / staged → Revert; outcome_unknown (a write that may have
+ *               applied, mongodb mig 366) → "Undo to be sure"
  * Every mutation is optimistic-free (the list refetches on settle); only the row
  * in flight is disabled. Hides entirely when nothing is pending (the Autopilot
  * page already shows the connect / autonomy context).
@@ -90,12 +92,6 @@ export function PendingExecutions() {
   );
 }
 
-const STATUS_TONE: Record<string, "secondary" | "outline"> = {
-  proposed: "outline",
-  approved: "secondary",
-  executed: "secondary",
-  staged: "outline",
-};
 
 function ActionRow({
   item,
@@ -124,6 +120,8 @@ function ActionRow({
   // For an approved action, the capability tells us whether shipping applies
   // live or stages advisory — surface it honestly BEFORE the click.
   const willStage = item.status === "approved" && item.capability?.mode !== "execute";
+  const meta = statusMeta(item.status);
+  const failure = failureLine(item.status, item.failure);
 
   return (
     <li className="px-4 py-3">
@@ -137,10 +135,19 @@ function ActionRow({
             )}
           </div>
         </div>
-        <Badge variant={STATUS_TONE[item.status] ?? "outline"} className="shrink-0 capitalize">
-          {item.status}
+        <Badge {...badgeProps(meta.tone)}>
+          {meta.label}
         </Badge>
       </div>
+
+      {/* What a write that did not land says — and, for an unconfirmed one,
+          that the undo is the way to be sure (mongodb mig 366). */}
+      {failure && (
+        <p className="mt-1.5 flex items-start gap-1 text-xs text-warning-on-tint">
+          <AlertTriangle aria-hidden="true" className="mt-0.5 size-3 shrink-0" />
+          {failure}
+        </p>
+      )}
 
       {/* Honest capability note on an approved action that will only stage. */}
       {willStage && item.capability && (
@@ -169,9 +176,9 @@ function ActionRow({
             )}
           </Button>
         )}
-        {(item.status === "executed" || item.status === "staged") && (
+        {canRevert(item.status) && (
           <Button size="sm" variant="ghost" disabled={busy} onClick={onRevert}>
-            <Undo2 aria-hidden="true" className="size-3.5" /> Revert
+            <Undo2 aria-hidden="true" className="size-3.5" /> {revertLabel(item.status)}
           </Button>
         )}
       </div>

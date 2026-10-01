@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api, type ApiError } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
 import { ACTIVITY_KEY } from "@/hooks/use-commerce-activity";
 
@@ -106,7 +106,8 @@ export interface ProposePricingResult {
 export function useProposePricing() {
   const qc = useQueryClient();
   const { org } = useAuth();
-  return useMutation<ProposePricingResult, Error, string>({
+  // ★ApiError, so a caller reads `code` (LIVE_MARKDOWN) without a cast.
+  return useMutation<ProposePricingResult, ApiError, string>({
     mutationFn: (sourceProductId: string) =>
       api.post<ProposePricingResult>("/v1/commerce/pricer/propose", { sourceProductId }),
     onSettled: () => {

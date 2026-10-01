@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useLocale } from "@/hooks/use-locale";
 import { agentLabel } from "@/lib/commerce-agents";
 import { useCommerceActivity, type ActivityItem } from "@/hooks/use-commerce-activity";
+import { badgeProps, failureLine, statusMeta } from "@/lib/commerce-action-status";
 
 /**
  * Command Center "What Peakhour did" digest — the recent ledger feed (api#839).
@@ -14,16 +15,6 @@ import { useCommerceActivity, type ActivityItem } from "@/hooks/use-commerce-act
  * on error (no store) and shows an all-quiet state when empty.
  */
 
-/** Past-tense verb + badge tone per ledger status. */
-const STATUS_META: Record<string, { verb: string; tone: "secondary" | "outline" }> = {
-  approved: { verb: "approved", tone: "secondary" },
-  executed: { verb: "shipped", tone: "secondary" },
-  rejected: { verb: "dismissed", tone: "outline" },
-  reverted: { verb: "reverted", tone: "outline" },
-  proposed: { verb: "proposed", tone: "outline" },
-  executing: { verb: "running", tone: "secondary" },
-  failed: { verb: "failed", tone: "outline" },
-};
 
 export function ActivityDigest() {
   const { data, isLoading, isError } = useCommerceActivity();
@@ -65,7 +56,11 @@ export function ActivityDigest() {
 
 function ActivityRow({ item }: { item: ActivityItem }) {
   const { formatRelativeTime } = useLocale();
-  const meta = STATUS_META[item.status] ?? { verb: item.status, tone: "outline" as const };
+  // ★One table for the digest and the list (`statusMeta`), so `staged` —
+  //  missing here before — and `outcome_unknown` read the same in both.
+  const meta = statusMeta(item.status);
+  // The digest has no undo button, so the line says where it is.
+  const failure = failureLine(item.status, item.failure, { undoHere: false });
 
   return (
     <li className="flex items-start justify-between gap-3 px-4 py-3">
@@ -75,8 +70,9 @@ function ActivityRow({ item }: { item: ActivityItem }) {
           <span className="text-muted-foreground">— {item.title}</span>
         </p>
         <p className="mt-0.5 text-xs text-muted-foreground">{formatRelativeTime(item.at)}</p>
+        {failure && <p className="mt-0.5 text-xs text-warning-on-tint">{failure}</p>}
       </div>
-      <Badge variant={meta.tone} className="shrink-0">
+      <Badge {...badgeProps(meta.tone)}>
         {meta.verb}
       </Badge>
     </li>
