@@ -37,7 +37,8 @@ import { useCmsJobs, useCmsJobDetail, useCmsJobKinds } from "@/hooks/use-jobs";
 import {
   childrenModeFor,
   effectiveKind,
-  isUnknownKind,
+  failedWithoutData,
+  ignoredKind,
   kindSelectOptions,
   kindsStateOf,
   resolveShowChildren,
@@ -60,7 +61,7 @@ export default function CmsJobsPage() {
   // A chosen kind a refetch dropped is ignored, not reset: it may be back in
   // the next answer (round 2). The hint below says so and offers a clear.
   const kind = effectiveKind(kindChoice, kindsState);
-  const unknownKind = isUnknownKind(kindChoice, kindsState);
+  const ignored = ignoredKind(kindChoice, kindsState);
   const kindOptions = kindSelectOptions(kindsState);
   const [status, setStatus] = useState("all");
   const [orgId, setOrgId] = useState("");
@@ -96,7 +97,9 @@ export default function CmsJobsPage() {
     return () => clearTimeout(t);
   }, [orgId, businessId]);
 
-  const { data, isLoading, error } = useCmsJobs({
+  // `isPending`, not `isLoading` (cms#175): a paused list query (offline) is
+  // pending with no data but not "loading", and must not read as empty.
+  const { data, isPending, isPaused: listPaused, error, errorUpdatedAt } = useCmsJobs({
     days,
     limit: PAGE_SIZE,
     offset: page * PAGE_SIZE,
@@ -107,6 +110,16 @@ export default function CmsJobsPage() {
     showChildren,
   });
 
+  // ★Never loaded, and failed at least once (round 1): `error` alone is reset
+  //  by each 30s retry, which flickered the failed row back to skeletons.
+  const listFailed = failedWithoutData({ data, errorUpdatedAt });
+  // The last error, held through a retry that resets `error` (round 3), so the
+  // banner keeps saying what failed. Adjusted during render, not in an effect.
+  const [lastListError, setLastListError] = useState<Error | null>(null);
+  if (error && error !== lastListError) setLastListError(error as Error);
+  // Paused with nothing loaded: waiting, not loading (round 1). Rows already
+  // on screen during a paused refresh need no notice.
+  const listWaiting = !data && listPaused && !listFailed;
   const rows = data?.rows || [];
   const total = data?.total || 0;
   const lastPage = Math.max(0, Math.ceil(total / PAGE_SIZE) - 1);
@@ -127,9 +140,12 @@ export default function CmsJobsPage() {
         </p>
       </div>
 
-      {error && (
+      {(error || listFailed) && (
         <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive-on-tint">
-          Failed to load jobs: {(error as Error).message}
+          {data
+            ? <>Couldn&apos;t refresh the jobs: {(error as Error).message}. Showing the last copy.</>
+            : <>Failed to load jobs: {(error ?? lastListError)?.message ?? "unknown error"}.{" "}
+                {error ? null : listPaused ? "Waiting for the network, or for this tab to be in focus, to try again." : "Trying again…"}</>}
         </div>
       )}
 
@@ -157,6 +173,9 @@ export default function CmsJobsPage() {
               <SelectItem value="all">All kinds</SelectItem>
               {kindsState.status === "pending" && (
                 <SelectItem value="__loading" disabled>Loading kinds…</SelectItem>
+              )}
+              {kindsState.status === "paused" && (
+                <SelectItem value="__waiting" disabled>Kinds will load when this tab can fetch…</SelectItem>
               )}
               {kindOptions.map((k) => (
                 <SelectItem key={k} value={k}>{k}</SelectItem>
@@ -190,14 +209,30 @@ export default function CmsJobsPage() {
           >
             {showChildren ? "Children shown ✓" : "Show children"}
           </Button>
-          {unknownKind && (
+          {ignored && (
             <div className="col-span-full flex items-center gap-2 text-sm text-muted-foreground">
               <span>
-                &ldquo;{kindChoice}&rdquo; isn&apos;t in the latest list of job kinds, so all kinds are shown.
+                {ignored === "unknown" ? (
+                  <>&ldquo;{kindChoice}&rdquo; isn&apos;t in the latest list of job kinds, so all kinds are shown.</>
+                ) : (
+                  <>&ldquo;{kindChoice}&rdquo; isn&apos;t among the job kinds read just now (the full list couldn&apos;t be read), so all kinds are shown.</>
+                )}
               </span>
               <Button variant="link" size="sm" className="h-auto p-0" onClick={() => setKind("all")}>
                 Clear
               </Button>
+            </div>
+          )}
+          {!ignored && kindsState.status === "success" && !kindsState.complete && (
+            <div className="col-span-full text-sm text-muted-foreground">
+              The full list of job kinds couldn&apos;t be read just now, so the kind filter may be missing some; it is checked again every minute while this tab is in view.
+            </div>
+          )}
+          {/* Paused kinds (round 2): reachable here with no kind chosen — the
+              list says its own wait in its table row. */}
+          {kindsState.status === "paused" && (
+            <div className="col-span-full text-sm text-muted-foreground">
+              The job kinds will load once the network is back, or this tab is in focus.
             </div>
           )}
           {kindsState.status === "error" && (
@@ -206,7 +241,7 @@ export default function CmsJobsPage() {
             </div>
           )}
           <div className="col-span-full flex items-center justify-end text-sm text-muted-foreground">
-            {isLoading ? "Loading…" : `${total.toLocaleString()} matches`}
+            {listFailed ? "—" : listWaiting ? "Waiting…" : isPending ? "Loading…" : `${total.toLocaleString()} matches`}
           </div>
         </CardContent>
       </Card>
@@ -227,7 +262,21 @@ export default function CmsJobsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isLoading ? (
+              {listFailed ? (
+                // Never read is not empty: the banner above says why. Kept
+                // through the 30s retries (round 1), which reset `error`.
+                <TableRow>
+                  <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
+                    The jobs couldn&apos;t be loaded.
+                  </TableCell>
+                </TableRow>
+              ) : listWaiting ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
+                    Waiting for the network, or for this tab to be in focus.
+                  </TableCell>
+                </TableRow>
+              ) : isPending ? (
                 [0, 1, 2, 3, 4].map((i) => (
                   <TableRow key={i}>
                     <TableCell colSpan={8}><Skeleton className="h-5 w-full" /></TableCell>
@@ -294,13 +343,22 @@ export default function CmsJobsPage() {
 // ── Drilldown ──────────────────────────────────────────────────
 
 function JobDrilldown({ id }: { id: string }) {
-  const { data, isLoading, error } = useCmsJobDetail(id);
+  // `isPending` (round 1): a paused detail query is not "loading", and fell
+  // through to a blank sheet. A failure with nothing loaded stays one through
+  // a focus refetch, which resets `error` (round 2).
+  const { data, isPending, isPaused, error, errorUpdatedAt } = useCmsJobDetail(id);
+  const failed = failedWithoutData({ data, errorUpdatedAt });
+  // The last error, held through a retry (round 3): a purged job's 404 keeps
+  // its wording instead of reading "trying again".
+  const [lastError, setLastError] = useState<Error | null>(null);
+  if (error && error !== lastError) setLastError(error as Error);
+  const shownError = (error ?? lastError) as Error | null;
 
-  if (isLoading) {
+  if (isPending && !failed) {
     return (
       <>
         <SheetHeader>
-          <SheetTitle>Loading job…</SheetTitle>
+          <SheetTitle>{isPaused ? "Waiting for the network, or for this tab to be in focus…" : "Loading job…"}</SheetTitle>
           <SheetDescription className="font-mono text-xs">{id}</SheetDescription>
         </SheetHeader>
         <div className="mt-6 space-y-3">
@@ -311,7 +369,7 @@ function JobDrilldown({ id }: { id: string }) {
       </>
     );
   }
-  if (error) {
+  if (failed) {
     return (
       <>
         <SheetHeader>
@@ -319,9 +377,11 @@ function JobDrilldown({ id }: { id: string }) {
           <SheetDescription className="font-mono text-xs">{id}</SheetDescription>
         </SheetHeader>
         <div className="mt-6 rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive-on-tint">
-          {(error as Error).message.includes("404")
+          {shownError?.message.includes("404")
             ? "This job has been purged or rolled off (TTL: 90 days for finished jobs)."
-            : `Failed to load job: ${(error as Error).message}`}
+            : `Failed to load job: ${shownError?.message ?? "unknown error"}.${
+                error ? "" : isPaused ? " Waiting for the network, or for this tab to be in focus, to try again." : " Trying again…"
+              }`}
         </div>
       </>
     );
@@ -336,6 +396,13 @@ function JobDrilldown({ id }: { id: string }) {
           <span className="font-mono text-xs">{data._id}</span> · created {formatDateTime(data.createdAt)}
         </SheetDescription>
       </SheetHeader>
+      {/* A failed refresh over a loaded job (round 3): the sheet keeps the last
+          copy, and its 5s poll stops on an error — say both. */}
+      {error && (
+        <div className="mt-4 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive-on-tint">
+          Couldn&apos;t refresh this job: {(error as Error).message}. Showing the last copy; it no longer updates on its own.
+        </div>
+      )}
 
       <div className="mt-6 space-y-4 text-sm">
         {/* Status block */}

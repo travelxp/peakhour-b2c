@@ -5,40 +5,59 @@
  * to make in the other.
  */
 
-/** What the kinds query has said so far. */
-export type KindsState = { status: "pending" } | { status: "error" } | { status: "success"; kinds: readonly string[] };
+/**
+ * What the kinds query has said so far. `paused`: no data and not fetching —
+ * offline, or a retry waiting for this tab to be focused (cms#175). Not an
+ * error; the page says it is waiting. `complete` is the api's flag (api#1442).
+ */
+export type KindsState =
+  | { status: "pending" }
+  | { status: "paused" }
+  | { status: "error" }
+  | { status: "success"; kinds: readonly string[]; complete: boolean };
+
+/**
+ * ★A QUERY THAT FAILED AND HOLDS NOTHING (b2c#579 rounds 2-3), through its
+ * retries: each refetch resets `error` and `status`, but `errorUpdatedAt`
+ * stays, and react-query sets it whenever a query errors. The one rule for
+ * the kinds, the list and the drilldown.
+ */
+export function failedWithoutData(query: { data?: unknown; errorUpdatedAt: number }): boolean {
+  return query.data === undefined && query.errorUpdatedAt > 0;
+}
 
 /**
  * The kinds query as a `KindsState`. Data wins over an error: a failed
  * background refetch keeps the kinds already loaded, and must not drop a
- * working filter (cms#174 round 3). ★A PAUSED query with no data (offline)
- * is an error, not pending (round 3): it will not load until the network
- * returns, and "Loading kinds…" would claim otherwise.
+ * working filter (cms#174 round 3). A failure with nothing loaded stays one
+ * through the retries (`failedWithoutData`).
  */
 export function kindsStateOf(query: {
-  data?: { kinds: readonly string[] };
-  isError: boolean;
+  data?: { kinds: readonly string[]; complete: boolean };
   isPaused: boolean;
+  errorUpdatedAt: number;
 }): KindsState {
-  if (query.data) return { status: "success", kinds: query.data.kinds };
-  return query.isError || query.isPaused ? { status: "error" } : { status: "pending" };
+  if (query.data) return { status: "success", kinds: query.data.kinds, complete: query.data.complete };
+  if (failedWithoutData(query)) return { status: "error" };
+  return query.isPaused ? { status: "paused" } : { status: "pending" };
 }
 
 /**
- * A chosen kind the latest kinds do not contain. ★IGNORED, NOT RESET (round
- * 2): the api answers a failed `bg_jobs` read with its registered kinds only,
- * so a real kind can be missing from one answer and back in the next —
- * resetting the choice lost it for good. The page says so and offers a clear.
- * (A kind can only be chosen from loaded options, so with no data the choice
- * is "all" and there is nothing to check.)
+ * Why a chosen kind is not applied: a complete answer lacks it ("unknown"),
+ * or an INCOMPLETE one does ("partial": the api could not read `bg_jobs`, so
+ * "not a known kind" would be a claim). ★IGNORED, NOT RESET (round 2): the
+ * kind may be back in the next answer. The page says which, and offers a
+ * clear. (A kind can only be chosen from loaded options, so with no data the
+ * choice is "all" and there is nothing to check.)
  */
-export function isUnknownKind(kind: string, kinds: KindsState): boolean {
-  return kind !== "all" && kinds.status === "success" && !kinds.kinds.includes(kind);
+export function ignoredKind(kind: string, kinds: KindsState): "unknown" | "partial" | null {
+  if (kind === "all" || kinds.status !== "success" || kinds.kinds.includes(kind)) return null;
+  return kinds.complete ? "unknown" : "partial";
 }
 
-/** The kind actually filtered by: an unknown choice is "all". */
+/** The kind actually filtered by: an ignored choice is "all". */
 export function effectiveKind(kind: string, kinds: KindsState): string {
-  return isUnknownKind(kind, kinds) ? "all" : kind;
+  return ignoredKind(kind, kinds) ? "all" : kind;
 }
 
 /** The dropdown's options: the served kinds once loaded, else none. */

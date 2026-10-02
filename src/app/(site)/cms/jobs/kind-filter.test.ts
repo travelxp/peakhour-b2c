@@ -2,16 +2,18 @@ import { describe, it, expect } from "vitest";
 import {
   childrenModeFor,
   effectiveKind,
-  isUnknownKind,
+  failedWithoutData,
+  ignoredKind,
   kindSelectOptions,
   kindsStateOf,
   resolveShowChildren,
   type KindsState,
 } from "./kind-filter";
 
-const loaded: KindsState = { status: "success", kinds: ["ad_boost_launch", "newsletter_publish", "tag_drafts"] };
+const loaded: KindsState = { status: "success", kinds: ["ad_boost_launch", "newsletter_publish", "tag_drafts"], complete: true };
 const pending: KindsState = { status: "pending" };
 const failed: KindsState = { status: "error" };
+const paused: KindsState = { status: "paused" };
 
 describe("effectiveKind", () => {
   it("★a served kind is kept", () => {
@@ -25,18 +27,24 @@ describe("effectiveKind", () => {
   });
 });
 
-describe("isUnknownKind — ignored, not reset (round 2)", () => {
+describe("ignoredKind — ignored, not reset (round 2), and said which", () => {
   it("★only once the kinds have loaded and do not contain it", () => {
-    expect(isUnknownKind("retired_kind", loaded)).toBe(true);
-    expect(isUnknownKind("tag_drafts", loaded)).toBe(false);
-    expect(isUnknownKind("retired_kind", pending)).toBe(false);
-    expect(isUnknownKind("retired_kind", failed)).toBe(false);
-    expect(isUnknownKind("all", loaded)).toBe(false);
+    expect(ignoredKind("retired_kind", loaded)).toBe("unknown");
+    expect(ignoredKind("tag_drafts", loaded)).toBeNull();
+    expect(ignoredKind("retired_kind", pending)).toBeNull();
+    expect(ignoredKind("retired_kind", paused)).toBeNull();
+    expect(ignoredKind("retired_kind", failed)).toBeNull();
+    expect(ignoredKind("all", loaded)).toBeNull();
   });
   it("★★a kind back in the next answer applies again", () => {
-    const degraded: KindsState = { status: "success", kinds: ["ad_boost_launch"] };
-    expect(effectiveKind("tag_drafts", degraded)).toBe("all");
+    const short: KindsState = { status: "success", kinds: ["ad_boost_launch"], complete: true };
+    expect(effectiveKind("tag_drafts", short)).toBe("all");
     expect(effectiveKind("tag_drafts", loaded)).toBe("tag_drafts");
+  });
+  it("★★an INCOMPLETE answer lacking it is partial, not unknown (cms#175 parity)", () => {
+    const degraded: KindsState = { status: "success", kinds: ["ad_boost_launch"], complete: false };
+    expect(ignoredKind("tag_drafts", degraded)).toBe("partial");
+    expect(effectiveKind("tag_drafts", degraded)).toBe("all");
   });
 });
 
@@ -74,15 +82,24 @@ describe("childrenModeFor — the toggle returns to auto", () => {
 
 describe("kindsStateOf", () => {
   const kinds = ["tag_drafts"];
-  it("★★a failed background refetch keeps the loaded kinds", () => {
-    expect(kindsStateOf({ data: { kinds }, isError: true, isPaused: false })).toEqual({ status: "success", kinds });
-    expect(kindsStateOf({ data: { kinds }, isError: false, isPaused: true })).toEqual({ status: "success", kinds });
+  it("★★a failed background refetch keeps the loaded kinds, with the api's complete", () => {
+    expect(kindsStateOf({ data: { kinds, complete: true }, isPaused: false, errorUpdatedAt: 1 })).toEqual({ status: "success", kinds, complete: true });
+    expect(kindsStateOf({ data: { kinds, complete: false }, isPaused: true, errorUpdatedAt: 0 })).toEqual({ status: "success", kinds, complete: false });
   });
-  it("★no data: error if it failed, else pending", () => {
-    expect(kindsStateOf({ data: undefined, isError: true, isPaused: false })).toEqual({ status: "error" });
-    expect(kindsStateOf({ data: undefined, isError: false, isPaused: false })).toEqual({ status: "pending" });
+  it("★no data: error once it has failed, else pending", () => {
+    expect(kindsStateOf({ data: undefined, isPaused: false, errorUpdatedAt: 1 })).toEqual({ status: "error" });
+    expect(kindsStateOf({ data: undefined, isPaused: false, errorUpdatedAt: 0 })).toEqual({ status: "pending" });
   });
-  it("★★paused with no data (offline) is an error, not loading forever (round 3)", () => {
-    expect(kindsStateOf({ data: undefined, isError: false, isPaused: true })).toEqual({ status: "error" });
+  it("★★paused with no data is 'paused', not an error: a retry may only be waiting for focus (cms#175)", () => {
+    expect(kindsStateOf({ data: undefined, isPaused: true, errorUpdatedAt: 0 })).toEqual({ status: "paused" });
+    expect(kindsStateOf({ data: undefined, isPaused: true, errorUpdatedAt: 1 })).toEqual({ status: "error" });
+  });
+});
+
+describe("failedWithoutData — one failure rule for the kinds, the list and the drilldown (round 3)", () => {
+  it("★★failed and nothing held, through a retry that reset the error", () => {
+    expect(failedWithoutData({ data: undefined, errorUpdatedAt: 1 })).toBe(true);
+    expect(failedWithoutData({ data: undefined, errorUpdatedAt: 0 })).toBe(false);
+    expect(failedWithoutData({ data: { rows: [] }, errorUpdatedAt: 1 })).toBe(false);
   });
 });

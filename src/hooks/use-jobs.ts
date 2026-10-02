@@ -1,7 +1,14 @@
 "use client";
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { queryOptions, replaceEqualDeep, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import {
+  kindsRefetchInterval,
+  mergeKindsAnswer,
+  normalizeKindsAnswer,
+  type KindsAnswer,
+  type RawKindsAnswer,
+} from "./job-kinds-answer";
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -276,6 +283,29 @@ export function useCmsJobs(filters: CmsJobsFilters) {
 }
 
 /**
+ * The kinds query's options, exported so the wiring is testable without a
+ * DOM (this app's tests run in node): `structuralSharing` and
+ * `refetchInterval` are what apply `./job-kinds-answer`. `queryOptions` keeps
+ * them typed against `queryFn`'s data (round 1); built once (round 2).
+ */
+export const cmsJobKindsQuery = queryOptions({
+    queryKey: cmsJobsKeys.kinds(),
+    queryFn: async () => normalizeKindsAnswer(await api.get<RawKindsAnswer>("/v1/cms/jobs/kinds")),
+    // ★An incomplete answer (the api's fallback, api#1442) is merged into what
+    //  is held, never dropping a kind, wherever the data is replaced; then
+    //  shared as react-query's default would, so an unchanged answer keeps its
+    //  reference (parity with cms#175).
+    structuralSharing: (old: unknown, next: unknown) =>
+      replaceEqualDeep(old, mergeKindsAnswer(old as KindsAnswer | undefined, next as KindsAnswer)),
+    staleTime: 60_000,
+    // ★POLLED ONLY WHILE INCOMPLETE, OR FAILED: a complete answer is not
+    //  refetched on a timer, so a slow read cannot replace it mid-session.
+    // A failure stays a failure through the poll's own refetches (rounds 2-3:
+    //  `errorUpdatedAt` is set whenever the query errors, and not reset).
+    refetchInterval: (query) => kindsRefetchInterval(query.state.data, query.state.errorUpdatedAt > 0),
+});
+
+/**
  * The job kinds the jobs list can show (`GET /v1/cms/jobs/kinds`: the api's
  * registered handlers plus the kinds `bg_jobs` holds in the list's reach,
  * sorted) — the kind filter's options. ⚠️Not "kinds the runner can claim": a
@@ -283,17 +313,7 @@ export function useCmsJobs(filters: CmsJobsFilters) {
  * ★Served, not copied: the hand-kept list here had drifted to 6 kinds.
  */
 export function useCmsJobKinds() {
-  return useQuery({
-    queryKey: cmsJobsKeys.kinds(),
-    queryFn: () => api.get<{ kinds: string[] }>("/v1/cms/jobs/kinds"),
-    // ★REFETCHED EVERY MINUTE, the api's own cache window (round 2). A degraded
-    //  answer (registered kinds only, after a failed `bg_jobs` read) is not
-    //  cached by the api, but going stale alone triggers nothing here: without
-    //  the interval it stayed until a focus change or a remount.
-    staleTime: 60_000,
-    refetchInterval: 60_000,
-    refetchIntervalInBackground: false,
-  });
+  return useQuery(cmsJobKindsQuery);
 }
 
 /**
