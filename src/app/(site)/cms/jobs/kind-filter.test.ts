@@ -1,5 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { isStaleKind, kindSelectOptions, resolveKindFilter, resolveShowChildren, type KindsState } from "./kind-filter";
+import {
+  childrenModeFor,
+  isStaleKind,
+  kindSelectOptions,
+  kindsStateOf,
+  resolveKindFilter,
+  resolveShowChildren,
+  type KindsState,
+} from "./kind-filter";
 
 const loaded: KindsState = { status: "success", kinds: ["ad_boost_launch", "newsletter_publish", "tag_drafts"] };
 const pending: KindsState = { status: "pending" };
@@ -48,5 +56,27 @@ describe("resolveShowChildren", () => {
   });
   it("★an explicit 'on' holds with 'All kinds'", () => {
     expect(resolveShowChildren("on", "all")).toBe(true);
+  });
+});
+
+describe("childrenModeFor — the toggle returns to auto", () => {
+  it("★★switching back to what auto does sets auto, not a pinned choice", () => {
+    expect(childrenModeFor(false, "all")).toBe("auto");
+    expect(childrenModeFor(true, "tag_drafts")).toBe("auto");
+  });
+  it("★against auto it is explicit", () => {
+    expect(childrenModeFor(true, "all")).toBe("on");
+    expect(childrenModeFor(false, "tag_drafts")).toBe("off");
+  });
+});
+
+describe("kindsStateOf", () => {
+  const kinds = ["tag_drafts"];
+  it("★★a failed background refetch keeps the loaded kinds", () => {
+    expect(kindsStateOf({ data: { kinds }, isError: true })).toEqual({ status: "success", kinds });
+  });
+  it("★no data: error if it failed, else pending", () => {
+    expect(kindsStateOf({ data: undefined, isError: true })).toEqual({ status: "error" });
+    expect(kindsStateOf({ data: undefined, isError: false })).toEqual({ status: "pending" });
   });
 });

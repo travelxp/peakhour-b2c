@@ -35,12 +35,13 @@ import { StatusBadge } from "@/components/molecules/status-badge";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { useCmsJobs, useCmsJobDetail, useCmsJobKinds } from "@/hooks/use-jobs";
 import {
+  childrenModeFor,
   isStaleKind,
   kindSelectOptions,
+  kindsStateOf,
   resolveKindFilter,
   resolveShowChildren,
   type ChildrenMode,
-  type KindsState,
 } from "./kind-filter";
 
 const STATUS_OPTIONS = ["pending", "running", "done", "failed", "cancelled"] as const;
@@ -54,11 +55,7 @@ export default function CmsJobsPage() {
   // holds within the list's reach) — no list kept here. Each state of the
   // query is handled (`./kind-filter`, the same rules as cms#174).
   const kindsQuery = useCmsJobKinds();
-  const kindsState: KindsState = kindsQuery.isSuccess
-    ? { status: "success", kinds: kindsQuery.data.kinds }
-    : kindsQuery.isError
-      ? { status: "error" }
-      : { status: "pending" };
+  const kindsState = kindsStateOf(kindsQuery);
   const [kindChoice, setKind] = useState("all");
   const kind = resolveKindFilter(kindChoice, kindsState);
   const kindOptions = kindSelectOptions(kindsState);
@@ -183,7 +180,7 @@ export default function CmsJobsPage() {
           />
           <Button
             variant={showChildren ? "default" : "outline"}
-            onClick={() => { setChildrenMode(showChildren ? "off" : "on"); resetPage(); }}
+            onClick={() => { setChildrenMode(childrenModeFor(!showChildren, kind)); resetPage(); }}
           >
             {showChildren ? "Children shown ✓" : "Show children"}
           </Button>
