@@ -30,9 +30,12 @@ export function mergeKindsAnswer(prev: KindsAnswer | undefined, next: KindsAnswe
 /**
  * Poll every minute (the api keeps a fallback 10s, a complete answer 60s)
  * while the answer is incomplete, or while there is none because the query
- * failed. Only while the tab is in view (react-query's default).
+ * failed; a complete answer every five minutes (b2c#579 round 3), so a kind
+ * that starts running reaches the filter — safe, since `mergeKindsAnswer`
+ * never lets an incomplete answer drop a kind. Only while the tab is in view
+ * (react-query's default).
  */
 export function kindsRefetchInterval(answer: KindsAnswer | undefined, failed: boolean): number | false {
   if (!answer) return failed ? 60_000 : false;
-  return answer.complete ? false : 60_000;
+  return answer.complete ? 300_000 : 60_000;
 }

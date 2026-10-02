@@ -28,14 +28,14 @@ describe("mergeKindsAnswer", () => {
 });
 
 describe("kindsRefetchInterval", () => {
-  it("★★polls every minute only while the answer is incomplete", () => {
+  it("★★polls every minute while the answer is incomplete, every five once complete", () => {
     expect(kindsRefetchInterval({ kinds: [], complete: false }, false)).toBe(60_000);
-    expect(kindsRefetchInterval({ kinds: [], complete: true }, false)).toBe(false);
+    expect(kindsRefetchInterval({ kinds: [], complete: true }, false)).toBe(300_000);
     expect(kindsRefetchInterval(undefined, false)).toBe(false);
   });
   it("★★and while the query failed with nothing held (round 2)", () => {
     expect(kindsRefetchInterval(undefined, true)).toBe(60_000);
-    // A failed refetch over a complete answer does not poll: the answer stands.
-    expect(kindsRefetchInterval({ kinds: [], complete: true }, true)).toBe(false);
+    // A failed refetch over a complete answer keeps the complete cadence.
+    expect(kindsRefetchInterval({ kinds: [], complete: true }, true)).toBe(300_000);
   });
 });

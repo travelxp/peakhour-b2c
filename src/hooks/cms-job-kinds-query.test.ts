@@ -39,13 +39,13 @@ describe("cmsJobKindsQuery", () => {
     expect(client.getQueryData(cmsJobsKeys.kinds())).toBe(first);
   });
 
-  it("★★polls only while the answer is incomplete, or failed", () => {
+  it("★★polls every minute while incomplete or failed, every five once complete", () => {
     // Called with only the state it reads; the real Query is far larger.
     const refetchInterval = cmsJobKindsQuery.refetchInterval as unknown as (q: {
       state: { data?: { kinds: string[]; complete: boolean }; status: string; errorUpdatedAt: number };
     }) => number | false;
     expect(refetchInterval({ state: { data: { kinds: [], complete: false }, status: "success", errorUpdatedAt: 0 } })).toBe(60_000);
-    expect(refetchInterval({ state: { data: { kinds: [], complete: true }, status: "success", errorUpdatedAt: 0 } })).toBe(false);
+    expect(refetchInterval({ state: { data: { kinds: [], complete: true }, status: "success", errorUpdatedAt: 0 } })).toBe(300_000);
     expect(refetchInterval({ state: { data: undefined, status: "error", errorUpdatedAt: 1 } })).toBe(60_000);
     // ★A retry of a failed query is "pending" again: still polled (round 2).
     expect(refetchInterval({ state: { data: undefined, status: "pending", errorUpdatedAt: 1 } })).toBe(60_000);

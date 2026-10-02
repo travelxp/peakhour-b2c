@@ -300,9 +300,9 @@ export const cmsJobKindsQuery = queryOptions({
     staleTime: 60_000,
     // ★POLLED ONLY WHILE INCOMPLETE, OR FAILED: a complete answer is not
     //  refetched on a timer, so a slow read cannot replace it mid-session.
-    // A failure stays a failure through the poll's own refetches (round 2).
-    refetchInterval: (query) =>
-      kindsRefetchInterval(query.state.data, query.state.status === "error" || query.state.errorUpdatedAt > 0),
+    // A failure stays a failure through the poll's own refetches (rounds 2-3:
+    //  `errorUpdatedAt` is set whenever the query errors, and not reset).
+    refetchInterval: (query) => kindsRefetchInterval(query.state.data, query.state.errorUpdatedAt > 0),
 });
 
 /**

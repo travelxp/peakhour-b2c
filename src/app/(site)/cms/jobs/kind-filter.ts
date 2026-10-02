@@ -17,20 +17,28 @@ export type KindsState =
   | { status: "success"; kinds: readonly string[]; complete: boolean };
 
 /**
+ * ★A QUERY THAT FAILED AND HOLDS NOTHING (b2c#579 rounds 2-3), through its
+ * retries: each refetch resets `error` and `status`, but `errorUpdatedAt`
+ * stays, and react-query sets it whenever a query errors. The one rule for
+ * the kinds, the list and the drilldown.
+ */
+export function failedWithoutData(query: { data?: unknown; errorUpdatedAt: number }): boolean {
+  return query.data === undefined && query.errorUpdatedAt > 0;
+}
+
+/**
  * The kinds query as a `KindsState`. Data wins over an error: a failed
  * background refetch keeps the kinds already loaded, and must not drop a
- * working filter (cms#174 round 3). ★A failure with nothing loaded stays
- * one through the retries (b2c#579 round 2): each refetch resets `isError`,
- * and the kinds poll every minute while failed, which flickered the page.
+ * working filter (cms#174 round 3). A failure with nothing loaded stays one
+ * through the retries (`failedWithoutData`).
  */
 export function kindsStateOf(query: {
   data?: { kinds: readonly string[]; complete: boolean };
-  isError: boolean;
   isPaused: boolean;
   errorUpdatedAt: number;
 }): KindsState {
   if (query.data) return { status: "success", kinds: query.data.kinds, complete: query.data.complete };
-  if (query.isError || query.errorUpdatedAt > 0) return { status: "error" };
+  if (failedWithoutData(query)) return { status: "error" };
   return query.isPaused ? { status: "paused" } : { status: "pending" };
 }
 

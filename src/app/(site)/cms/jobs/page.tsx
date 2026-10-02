@@ -37,6 +37,7 @@ import { useCmsJobs, useCmsJobDetail, useCmsJobKinds } from "@/hooks/use-jobs";
 import {
   childrenModeFor,
   effectiveKind,
+  failedWithoutData,
   ignoredKind,
   kindSelectOptions,
   kindsStateOf,
@@ -111,7 +112,11 @@ export default function CmsJobsPage() {
 
   // ★Never loaded, and failed at least once (round 1): `error` alone is reset
   //  by each 30s retry, which flickered the failed row back to skeletons.
-  const listFailed = !data && errorUpdatedAt > 0;
+  const listFailed = failedWithoutData({ data, errorUpdatedAt });
+  // The last error, held through a retry that resets `error` (round 3), so the
+  // banner keeps saying what failed. Adjusted during render, not in an effect.
+  const [lastListError, setLastListError] = useState<Error | null>(null);
+  if (error && error !== lastListError) setLastListError(error as Error);
   // Paused with nothing loaded: waiting, not loading (round 1). Rows already
   // on screen during a paused refresh need no notice.
   const listWaiting = !data && listPaused && !listFailed;
@@ -137,7 +142,10 @@ export default function CmsJobsPage() {
 
       {(error || listFailed) && (
         <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive-on-tint">
-          {error ? <>Failed to load jobs: {(error as Error).message}</> : <>Failed to load jobs; trying again…</>}
+          {data
+            ? <>Couldn&apos;t refresh the jobs: {(error as Error).message}. Showing the last copy.</>
+            : <>Failed to load jobs: {(error ?? lastListError)?.message ?? "unknown error"}.{" "}
+                {error ? null : listPaused ? "Waiting for the network, or for this tab to be in focus, to try again." : "Trying again…"}</>}
         </div>
       )}
 
@@ -339,7 +347,12 @@ function JobDrilldown({ id }: { id: string }) {
   // through to a blank sheet. A failure with nothing loaded stays one through
   // a focus refetch, which resets `error` (round 2).
   const { data, isPending, isPaused, error, errorUpdatedAt } = useCmsJobDetail(id);
-  const failed = !data && (error || errorUpdatedAt > 0);
+  const failed = failedWithoutData({ data, errorUpdatedAt });
+  // The last error, held through a retry (round 3): a purged job's 404 keeps
+  // its wording instead of reading "trying again".
+  const [lastError, setLastError] = useState<Error | null>(null);
+  if (error && error !== lastError) setLastError(error as Error);
+  const shownError = (error ?? lastError) as Error | null;
 
   if (isPending && !failed) {
     return (
@@ -364,11 +377,11 @@ function JobDrilldown({ id }: { id: string }) {
           <SheetDescription className="font-mono text-xs">{id}</SheetDescription>
         </SheetHeader>
         <div className="mt-6 rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive-on-tint">
-          {!error
-            ? "Failed to load job; trying again…"
-            : (error as Error).message.includes("404")
-              ? "This job has been purged or rolled off (TTL: 90 days for finished jobs)."
-              : `Failed to load job: ${(error as Error).message}`}
+          {shownError?.message.includes("404")
+            ? "This job has been purged or rolled off (TTL: 90 days for finished jobs)."
+            : `Failed to load job: ${shownError?.message ?? "unknown error"}.${
+                error ? "" : isPaused ? " Waiting for the network, or for this tab to be in focus, to try again." : " Trying again…"
+              }`}
         </div>
       </>
     );
@@ -383,6 +396,13 @@ function JobDrilldown({ id }: { id: string }) {
           <span className="font-mono text-xs">{data._id}</span> · created {formatDateTime(data.createdAt)}
         </SheetDescription>
       </SheetHeader>
+      {/* A failed refresh over a loaded job (round 3): the sheet keeps the last
+          copy, and its 5s poll stops on an error — say both. */}
+      {error && (
+        <div className="mt-4 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive-on-tint">
+          Couldn&apos;t refresh this job: {(error as Error).message}. Showing the last copy; it no longer updates on its own.
+        </div>
+      )}
 
       <div className="mt-6 space-y-4 text-sm">
         {/* Status block */}
