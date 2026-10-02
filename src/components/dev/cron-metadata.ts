@@ -51,7 +51,7 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
     label: "Expire approvals",
     frequency: "Runs hourly (at :35 past)",
     description:
-      "Closes WhatsApp approvals left undecided past their window — newsletter post batches and BOOST ad offers — and starts again any approved publish or launch that never started. A batch or offer whose prompt may have reached the merchant closes as unanswered; one nobody was asked about closes as not asked.",
+      "Closes WhatsApp approvals left undecided past their window — newsletter post batches and BOOST ad offers — and starts again any approved publish or launch that never started. A batch the merchant answered with EDIT closes as an edit request (re-running with changes isn't built); one whose prompt may have reached the merchant closes as unanswered; one nobody was asked about closes as not asked.",
     // The api's sweeps (`src/v1/cron/approval-expiry.ts`): `expired` and
     // `boostsExpired` count rows closed, by reason; `recovered` and
     // `boostsRecovered` count re-enqueues as { enqueued, failed, gaveUp }.
@@ -68,23 +68,25 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
         Object.values(expired).reduce<number>((a, n) => a + num(n), 0) +
         num(boostsExpired.approval_timeout) +
         num(boostsExpired.not_asked);
-      const restarted = num(recovered.enqueued) + num(boostsRecovered.enqueued);
+      // ★NOT "RESTARTED" (round 3): the enqueue is idempotent, so a job already
+      //  queued and not yet claimed is counted again on every run.
+      const queued = num(recovered.enqueued) + num(boostsRecovered.enqueued);
       // A boost given up on is closed `launch_failed`, as is one never started
       // past the recovery window (disjoint: inside vs past the window).
       const launchesFailed = num(boostsExpired.launch_never_started) + num(boostsRecovered.gaveUp);
       const launchesUnknown = num(boostsExpired.launch_stuck);
-      const notRestarted = num(recovered.failed) + num(boostsRecovered.failed);
-      // A newsletter batch given up on stays approved and is not published.
-      const publishesGivenUp = num(recovered.gaveUp);
-      const es = (n: number, noun: string) => `${n} ${noun}${n === 1 ? "" : "es"}`;
+      const notQueued = num(recovered.failed) + num(boostsRecovered.failed);
+      // ★A STANDING STATE, NOT AN EVENT (round 3): a newsletter batch given up
+      //  on stays approved, so every run within a week of the approval counts it.
+      const publishesStuck = num(recovered.gaveUp);
       const done: string[] = [];
       if (approvals > 0) done.push(`closed ${approvals} expired ${plural(approvals, "approval")}`);
-      if (restarted > 0) done.push(`restarted ${es(restarted, "publish")} or launch${restarted === 1 ? "" : "es"}`);
+      if (queued > 0) done.push(`${queued} approved ${plural(queued, "publish", "es")} or ${plural(queued, "launch", "es")} not yet started ${queued === 1 ? "is" : "are"} queued`);
       const problems: string[] = [];
-      if (launchesFailed > 0) problems.push(`${es(launchesFailed, "boost launch")} closed as failed (nothing was created)`);
-      if (launchesUnknown > 0) problems.push(`${es(launchesUnknown, "boost launch")} closed unfinished (a LinkedIn draft may exist)`);
-      if (notRestarted > 0) problems.push(`${notRestarted} could not be restarted (the next run retries)`);
-      if (publishesGivenUp > 0) problems.push(`${es(publishesGivenUp, "approved publish")} given up on after repeated failures`);
+      if (launchesFailed > 0) problems.push(`${launchesFailed} boost ${plural(launchesFailed, "launch", "es")} closed as failed (nothing was created)`);
+      if (launchesUnknown > 0) problems.push(`${launchesUnknown} boost ${plural(launchesUnknown, "launch", "es")} closed unfinished (a LinkedIn draft may exist)`);
+      if (notQueued > 0) problems.push(`${notQueued} could not be queued (the next run retries)`);
+      if (publishesStuck > 0) problems.push(`${publishesStuck} approved ${plural(publishesStuck, "publish", "es")} still unpublished after repeated failures`);
       const sentence = (parts: string[]) => parts.join("; ").replace(/^./, (c) => c.toUpperCase()) + ".";
       if (problems.length > 0) return { message: sentence([...problems, ...done]), level: "warning" as const };
       return done.length === 0 ? "Nothing to expire or restart." : sentence(done);
@@ -1321,9 +1323,9 @@ function num(v: unknown): number {
   return typeof v === "number" && Number.isFinite(v) ? v : 0;
 }
 
-/** Naive singular/plural — every noun we pluralize here just takes -s. */
-function plural(count: number, noun: string): string {
-  return count === 1 ? noun : `${noun}s`;
+/** Naive singular/plural — the noun takes `suffix` (-s unless told -es). */
+function plural(count: number, noun: string, suffix: "s" | "es" = "s"): string {
+  return count === 1 ? noun : `${noun}${suffix}`;
 }
 
 /**

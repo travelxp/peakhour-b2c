@@ -75,10 +75,14 @@ describe("childrenModeFor — the toggle returns to auto", () => {
 describe("kindsStateOf", () => {
   const kinds = ["tag_drafts"];
   it("★★a failed background refetch keeps the loaded kinds", () => {
-    expect(kindsStateOf({ data: { kinds }, isError: true })).toEqual({ status: "success", kinds });
+    expect(kindsStateOf({ data: { kinds }, isError: true, isPaused: false })).toEqual({ status: "success", kinds });
+    expect(kindsStateOf({ data: { kinds }, isError: false, isPaused: true })).toEqual({ status: "success", kinds });
   });
   it("★no data: error if it failed, else pending", () => {
-    expect(kindsStateOf({ data: undefined, isError: true })).toEqual({ status: "error" });
-    expect(kindsStateOf({ data: undefined, isError: false })).toEqual({ status: "pending" });
+    expect(kindsStateOf({ data: undefined, isError: true, isPaused: false })).toEqual({ status: "error" });
+    expect(kindsStateOf({ data: undefined, isError: false, isPaused: false })).toEqual({ status: "pending" });
+  });
+  it("★★paused with no data (offline) is an error, not loading forever (round 3)", () => {
+    expect(kindsStateOf({ data: undefined, isError: false, isPaused: true })).toEqual({ status: "error" });
   });
 });

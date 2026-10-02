@@ -77,12 +77,14 @@ export default function CmsJobsPage() {
   const showChildren = resolveShowChildren(childrenMode, kind);
   const [page, setPage] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  // The filtered kind can change without a pick (a refetch drops or returns
-  // the chosen one): back to the first page, adjusted during render (round 2),
-  // or the old offset reads a different result set.
-  const [prevKind, setPrevKind] = useState(kind);
-  if (prevKind !== kind) {
-    setPrevKind(kind);
+  // ★ONE PAGE RESET, keyed on everything the list is filtered by (round 3):
+  //  a filter can change without a handler (a refetch drops or returns the
+  //  chosen kind, and auto children follow it), and the old offset would read
+  //  a different result set. Adjusted during render, not in an effect.
+  const listFilter = JSON.stringify([days, kind, status, orgIdQuery, businessIdQuery, showChildren]);
+  const [prevListFilter, setPrevListFilter] = useState(listFilter);
+  if (prevListFilter !== listFilter) {
+    setPrevListFilter(listFilter);
     setPage(0);
   }
 
@@ -90,7 +92,6 @@ export default function CmsJobsPage() {
     const t = setTimeout(() => {
       setOrgIdQuery(orgId.trim());
       setBusinessIdQuery(businessId.trim());
-      setPage(0);
     }, 300);
     return () => clearTimeout(t);
   }, [orgId, businessId]);
@@ -109,8 +110,6 @@ export default function CmsJobsPage() {
   const rows = data?.rows || [];
   const total = data?.total || 0;
   const lastPage = Math.max(0, Math.ceil(total / PAGE_SIZE) - 1);
-
-  const resetPage = () => setPage(0);
 
   return (
     <div className="space-y-6">
@@ -138,7 +137,7 @@ export default function CmsJobsPage() {
         <CardContent className="grid grid-cols-1 gap-3 pt-6 md:grid-cols-6">
           <TimeRangeSelector
             value={days}
-            onChange={(v) => { setDays(v); resetPage(); }}
+            onChange={setDays}
             options={[
               { value: "1", label: "Last 24 hours" },
               { value: "3", label: "Last 3 days" },
@@ -149,10 +148,7 @@ export default function CmsJobsPage() {
           />
           <Select
             value={kind}
-            onValueChange={(v) => {
-              setKind(v);
-              resetPage();
-            }}
+            onValueChange={setKind}
           >
             <SelectTrigger>
               <SelectValue placeholder="Kind" />
@@ -167,7 +163,7 @@ export default function CmsJobsPage() {
               ))}
             </SelectContent>
           </Select>
-          <Select value={status} onValueChange={(v) => { setStatus(v); resetPage(); }}>
+          <Select value={status} onValueChange={setStatus}>
             <SelectTrigger>
               <SelectValue placeholder="Status" />
             </SelectTrigger>
@@ -190,7 +186,7 @@ export default function CmsJobsPage() {
           />
           <Button
             variant={showChildren ? "default" : "outline"}
-            onClick={() => { setChildrenMode(childrenModeFor(!showChildren, kind)); resetPage(); }}
+            onClick={() => setChildrenMode(childrenModeFor(!showChildren, kind))}
           >
             {showChildren ? "Children shown ✓" : "Show children"}
           </Button>

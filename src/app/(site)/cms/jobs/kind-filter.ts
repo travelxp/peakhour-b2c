@@ -11,11 +11,17 @@ export type KindsState = { status: "pending" } | { status: "error" } | { status:
 /**
  * The kinds query as a `KindsState`. Data wins over an error: a failed
  * background refetch keeps the kinds already loaded, and must not drop a
- * working filter (cms#174 round 3).
+ * working filter (cms#174 round 3). ★A PAUSED query with no data (offline)
+ * is an error, not pending (round 3): it will not load until the network
+ * returns, and "Loading kinds…" would claim otherwise.
  */
-export function kindsStateOf(query: { data?: { kinds: readonly string[] }; isError: boolean }): KindsState {
+export function kindsStateOf(query: {
+  data?: { kinds: readonly string[] };
+  isError: boolean;
+  isPaused: boolean;
+}): KindsState {
   if (query.data) return { status: "success", kinds: query.data.kinds };
-  return query.isError ? { status: "error" } : { status: "pending" };
+  return query.isError || query.isPaused ? { status: "error" } : { status: "pending" };
 }
 
 /**
