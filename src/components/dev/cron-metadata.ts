@@ -52,22 +52,42 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
     frequency: "Runs hourly (at :35 past)",
     description:
       "Closes WhatsApp approvals left undecided past their window — newsletter post batches and BOOST ad offers — and starts again any approved publish or launch that never started. A batch or offer whose prompt may have reached the merchant closes as unanswered; one nobody was asked about closes as not asked.",
+    // The api's sweeps (`src/v1/cron/approval-expiry.ts`): `expired` and
+    // `boostsExpired` count rows closed, by reason; `recovered` and
+    // `boostsRecovered` count re-enqueues as { enqueued, failed, gaveUp }.
+    // ★A LAUNCH CLOSED IS NOT AN EXPIRED APPROVAL, and a failed or given-up
+    //  restart is a warning, never "nothing to do" (round 2).
     summarize: (data) => {
-      const d = data as
-        | {
-            expired?: Record<string, number>;
-            recovered?: { enqueued?: number; gaveUp?: number };
-            boostsExpired?: Record<string, number>;
-            boostsRecovered?: { enqueued?: number; gaveUp?: number };
-          }
-        | null;
+      const d = asRecord(data);
       if (!d) return null;
-      const sum = (o?: Record<string, number>) => Object.values(o ?? {}).reduce((a, n) => a + (typeof n === "number" ? n : 0), 0);
-      const closed = sum(d.expired) + sum(d.boostsExpired);
-      const restarted = (d.recovered?.enqueued ?? 0) + (d.boostsRecovered?.enqueued ?? 0);
-      return closed + restarted === 0
-        ? "Nothing to expire or restart."
-        : `Closed ${closed} expired approval${closed === 1 ? "" : "s"}; restarted ${restarted} publish${restarted === 1 ? "" : "es"} or launch${restarted === 1 ? "" : "es"}.`;
+      const expired = asRecord(d.expired) ?? {};
+      const boostsExpired = asRecord(d.boostsExpired) ?? {};
+      const recovered = asRecord(d.recovered) ?? {};
+      const boostsRecovered = asRecord(d.boostsRecovered) ?? {};
+      const approvals =
+        Object.values(expired).reduce<number>((a, n) => a + num(n), 0) +
+        num(boostsExpired.approval_timeout) +
+        num(boostsExpired.not_asked);
+      const restarted = num(recovered.enqueued) + num(boostsRecovered.enqueued);
+      // A boost given up on is closed `launch_failed`, as is one never started
+      // past the recovery window (disjoint: inside vs past the window).
+      const launchesFailed = num(boostsExpired.launch_never_started) + num(boostsRecovered.gaveUp);
+      const launchesUnknown = num(boostsExpired.launch_stuck);
+      const notRestarted = num(recovered.failed) + num(boostsRecovered.failed);
+      // A newsletter batch given up on stays approved and is not published.
+      const publishesGivenUp = num(recovered.gaveUp);
+      const es = (n: number, noun: string) => `${n} ${noun}${n === 1 ? "" : "es"}`;
+      const done: string[] = [];
+      if (approvals > 0) done.push(`closed ${approvals} expired ${plural(approvals, "approval")}`);
+      if (restarted > 0) done.push(`restarted ${es(restarted, "publish")} or launch${restarted === 1 ? "" : "es"}`);
+      const problems: string[] = [];
+      if (launchesFailed > 0) problems.push(`${es(launchesFailed, "boost launch")} closed as failed (nothing was created)`);
+      if (launchesUnknown > 0) problems.push(`${es(launchesUnknown, "boost launch")} closed unfinished (a LinkedIn draft may exist)`);
+      if (notRestarted > 0) problems.push(`${notRestarted} could not be restarted (the next run retries)`);
+      if (publishesGivenUp > 0) problems.push(`${es(publishesGivenUp, "approved publish")} given up on after repeated failures`);
+      const sentence = (parts: string[]) => parts.join("; ").replace(/^./, (c) => c.toUpperCase()) + ".";
+      if (problems.length > 0) return { message: sentence([...problems, ...done]), level: "warning" as const };
+      return done.length === 0 ? "Nothing to expire or restart." : sentence(done);
     },
   },
   "ad-campaign-monitor": {

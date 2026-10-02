@@ -36,10 +36,10 @@ import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { useCmsJobs, useCmsJobDetail, useCmsJobKinds } from "@/hooks/use-jobs";
 import {
   childrenModeFor,
-  isStaleKind,
+  effectiveKind,
+  isUnknownKind,
   kindSelectOptions,
   kindsStateOf,
-  resolveKindFilter,
   resolveShowChildren,
   type ChildrenMode,
 } from "./kind-filter";
@@ -57,12 +57,11 @@ export default function CmsJobsPage() {
   const kindsQuery = useCmsJobKinds();
   const kindsState = kindsStateOf(kindsQuery);
   const [kindChoice, setKind] = useState("all");
-  const kind = resolveKindFilter(kindChoice, kindsState);
+  // A chosen kind a refetch dropped is ignored, not reset: it may be back in
+  // the next answer (round 2). The hint below says so and offers a clear.
+  const kind = effectiveKind(kindChoice, kindsState);
+  const unknownKind = isUnknownKind(kindChoice, kindsState);
   const kindOptions = kindSelectOptions(kindsState);
-  // A chosen kind a refetch dropped is reset — adjusted during render, not in
-  // an effect — so it cannot silently re-apply if the kind comes back later.
-  // (Until then `resolveKindFilter` already shows and filters "all".)
-  if (isStaleKind(kindChoice, kindsState)) setKind("all");
   const [status, setStatus] = useState("all");
   const [orgId, setOrgId] = useState("");
   const [businessId, setBusinessId] = useState("");
@@ -78,6 +77,14 @@ export default function CmsJobsPage() {
   const showChildren = resolveShowChildren(childrenMode, kind);
   const [page, setPage] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // The filtered kind can change without a pick (a refetch drops or returns
+  // the chosen one): back to the first page, adjusted during render (round 2),
+  // or the old offset reads a different result set.
+  const [prevKind, setPrevKind] = useState(kind);
+  if (prevKind !== kind) {
+    setPrevKind(kind);
+    setPage(0);
+  }
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -152,6 +159,9 @@ export default function CmsJobsPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All kinds</SelectItem>
+              {kindsState.status === "pending" && (
+                <SelectItem value="__loading" disabled>Loading kinds…</SelectItem>
+              )}
               {kindOptions.map((k) => (
                 <SelectItem key={k} value={k}>{k}</SelectItem>
               ))}
@@ -184,6 +194,16 @@ export default function CmsJobsPage() {
           >
             {showChildren ? "Children shown ✓" : "Show children"}
           </Button>
+          {unknownKind && (
+            <div className="col-span-full flex items-center gap-2 text-sm text-muted-foreground">
+              <span>
+                &ldquo;{kindChoice}&rdquo; isn&apos;t in the latest list of job kinds, so all kinds are shown.
+              </span>
+              <Button variant="link" size="sm" className="h-auto p-0" onClick={() => setKind("all")}>
+                Clear
+              </Button>
+            </div>
+          )}
           {kindsState.status === "error" && (
             <div className="col-span-full text-sm text-muted-foreground">
               Couldn&apos;t load the job kinds, so the kind filter is unavailable.

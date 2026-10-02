@@ -286,10 +286,13 @@ export function useCmsJobKinds() {
   return useQuery({
     queryKey: cmsJobsKeys.kinds(),
     queryFn: () => api.get<{ kinds: string[] }>("/v1/cms/jobs/kinds"),
-    // ★The api's own cache window (a minute): a degraded answer — registered
-    //  kinds only, after a failed read the api refuses to cache — is not held
-    //  here any longer than there (round 1).
+    // ★REFETCHED EVERY MINUTE, the api's own cache window (round 2). A degraded
+    //  answer (registered kinds only, after a failed `bg_jobs` read) is not
+    //  cached by the api, but going stale alone triggers nothing here: without
+    //  the interval it stayed until a focus change or a remount.
     staleTime: 60_000,
+    refetchInterval: 60_000,
+    refetchIntervalInBackground: false,
   });
 }
 

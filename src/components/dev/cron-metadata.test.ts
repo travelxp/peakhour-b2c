@@ -917,4 +917,36 @@ describe("approval-expiry summary", () => {
       "Nothing to expire or restart.",
     );
   });
+  it("★★a failed or given-up restart is a warning, never 'nothing to do' (round 2)", () => {
+    expect(
+      meta.summarize!({
+        expired: {},
+        recovered: { enqueued: 0, failed: 3, gaveUp: 1 },
+        boostsExpired: {},
+        boostsRecovered: { enqueued: 0, failed: 0, gaveUp: 0 },
+      }),
+    ).toEqual({
+      message: "3 could not be restarted (the next run retries); 1 approved publish given up on after repeated failures.",
+      level: "warning",
+    });
+  });
+  it("★★a launch closed is not an expired approval (round 2)", () => {
+    expect(
+      meta.summarize!({
+        expired: { no_reply: 1 },
+        recovered: {},
+        boostsExpired: { approval_timeout: 0, not_asked: 0, launch_never_started: 1, launch_stuck: 1 },
+        boostsRecovered: { enqueued: 0, failed: 0, gaveUp: 1 },
+      }),
+    ).toEqual({
+      message:
+        "2 boost launches closed as failed (nothing was created); 1 boost launch closed unfinished (a LinkedIn draft may exist); closed 1 expired approval.",
+      level: "warning",
+    });
+  });
+  it("★a non-number count is read as 0, not concatenated", () => {
+    expect(meta.summarize!({ expired: {}, recovered: { enqueued: "1" }, boostsExpired: {}, boostsRecovered: { enqueued: 2 } })).toBe(
+      "Restarted 2 publishes or launches.",
+    );
+  });
 });

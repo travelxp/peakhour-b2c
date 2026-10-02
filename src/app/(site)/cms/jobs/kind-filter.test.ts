@@ -1,10 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
   childrenModeFor,
-  isStaleKind,
+  effectiveKind,
+  isUnknownKind,
   kindSelectOptions,
   kindsStateOf,
-  resolveKindFilter,
   resolveShowChildren,
   type KindsState,
 } from "./kind-filter";
@@ -13,28 +13,30 @@ const loaded: KindsState = { status: "success", kinds: ["ad_boost_launch", "news
 const pending: KindsState = { status: "pending" };
 const failed: KindsState = { status: "error" };
 
-describe("resolveKindFilter", () => {
+describe("effectiveKind", () => {
   it("★a served kind is kept", () => {
-    expect(resolveKindFilter("tag_drafts", loaded)).toBe("tag_drafts");
+    expect(effectiveKind("tag_drafts", loaded)).toBe("tag_drafts");
   });
   it("★★a kind the served list no longer has is 'all' (never filter by a kind the dropdown cannot show)", () => {
-    expect(resolveKindFilter("retired_kind", loaded)).toBe("all");
+    expect(effectiveKind("retired_kind", loaded)).toBe("all");
   });
-  it("★if the kinds failed to load: 'all'", () => {
-    expect(resolveKindFilter("tag_drafts", failed)).toBe("all");
-  });
-  it("while loading, the chosen kind is kept", () => {
-    expect(resolveKindFilter("tag_drafts", pending)).toBe("tag_drafts");
+  it("'all' is 'all'", () => {
+    expect(effectiveKind("all", loaded)).toBe("all");
   });
 });
 
-describe("isStaleKind", () => {
+describe("isUnknownKind — ignored, not reset (round 2)", () => {
   it("★only once the kinds have loaded and do not contain it", () => {
-    expect(isStaleKind("retired_kind", loaded)).toBe(true);
-    expect(isStaleKind("tag_drafts", loaded)).toBe(false);
-    expect(isStaleKind("retired_kind", pending)).toBe(false);
-    expect(isStaleKind("retired_kind", failed)).toBe(false);
-    expect(isStaleKind("all", loaded)).toBe(false);
+    expect(isUnknownKind("retired_kind", loaded)).toBe(true);
+    expect(isUnknownKind("tag_drafts", loaded)).toBe(false);
+    expect(isUnknownKind("retired_kind", pending)).toBe(false);
+    expect(isUnknownKind("retired_kind", failed)).toBe(false);
+    expect(isUnknownKind("all", loaded)).toBe(false);
+  });
+  it("★★a kind back in the next answer applies again", () => {
+    const degraded: KindsState = { status: "success", kinds: ["ad_boost_launch"] };
+    expect(effectiveKind("tag_drafts", degraded)).toBe("all");
+    expect(effectiveKind("tag_drafts", loaded)).toBe("tag_drafts");
   });
 });
 

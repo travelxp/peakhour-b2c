@@ -1,6 +1,8 @@
 /**
  * The Background Jobs page's kind and children filters — the same rules as
  * peakhour-cms's jobs page (cms#174), over local state instead of the URL.
+ * ⚠️Two copies, one per admin app (no shared package): a fix to one is a fix
+ * to make in the other.
  */
 
 /** What the kinds query has said so far. */
@@ -17,20 +19,20 @@ export function kindsStateOf(query: { data?: { kinds: readonly string[] }; isErr
 }
 
 /**
- * The kind actually filtered by: a kind the served list no longer has (a
- * refetch dropped it, or the kinds failed to load) is "all", so the list is
- * never filtered by a kind the dropdown cannot show.
+ * A chosen kind the latest kinds do not contain. ★IGNORED, NOT RESET (round
+ * 2): the api answers a failed `bg_jobs` read with its registered kinds only,
+ * so a real kind can be missing from one answer and back in the next —
+ * resetting the choice lost it for good. The page says so and offers a clear.
+ * (A kind can only be chosen from loaded options, so with no data the choice
+ * is "all" and there is nothing to check.)
  */
-export function resolveKindFilter(kind: string, kinds: KindsState): string {
-  if (kind === "all") return kind;
-  if (kinds.status === "pending") return kind;
-  if (kinds.status === "error") return "all";
-  return kinds.kinds.includes(kind) ? kind : "all";
+export function isUnknownKind(kind: string, kinds: KindsState): boolean {
+  return kind !== "all" && kinds.status === "success" && !kinds.kinds.includes(kind);
 }
 
-/** A chosen kind the loaded kinds no longer contain, to reset to "all". */
-export function isStaleKind(kind: string, kinds: KindsState): boolean {
-  return kind !== "all" && kinds.status === "success" && !kinds.kinds.includes(kind);
+/** The kind actually filtered by: an unknown choice is "all". */
+export function effectiveKind(kind: string, kinds: KindsState): string {
+  return isUnknownKind(kind, kinds) ? "all" : kind;
 }
 
 /** The dropdown's options: the served kinds once loaded, else none. */
