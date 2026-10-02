@@ -79,6 +79,10 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       // ★A STANDING STATE, NOT AN EVENT (round 3): a newsletter batch given up
       //  on stays approved, so every run within a week of the approval counts it.
       const publishesStuck = num(recovered.gaveUp);
+      // A boost given up on whose close threw, or matched nothing (api#1441):
+      // still open, holding its budget. Only BOOST rows are closed on give-up.
+      const closesFailed = num(boostsRecovered.closeFailed);
+      const closesMissed = num(boostsRecovered.closeMissed);
       const done: string[] = [];
       if (approvals > 0) done.push(`closed ${approvals} expired ${plural(approvals, "approval")}`);
       if (queued > 0) done.push(`${queued} approved ${plural(queued, "publish", "es")} or ${plural(queued, "launch", "es")} not yet started ${queued === 1 ? "is" : "are"} queued`);
@@ -87,6 +91,8 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       if (launchesUnknown > 0) problems.push(`${launchesUnknown} boost ${plural(launchesUnknown, "launch", "es")} closed unfinished (a LinkedIn draft may exist)`);
       if (notQueued > 0) problems.push(`${notQueued} could not be queued (the next run retries)`);
       if (publishesStuck > 0) problems.push(`${publishesStuck} approved ${plural(publishesStuck, "publish", "es")} still unpublished after repeated failures`);
+      if (closesFailed > 0) problems.push(`${closesFailed} given-up boost ${plural(closesFailed, "launch", "es")} could not be closed (the next run retries)`);
+      if (closesMissed > 0) problems.push(`${closesMissed} given-up boost ${plural(closesMissed, "launch", "es")} no longer matched the close and ${closesMissed === 1 ? "stays" : "stay"} open`);
       const sentence = (parts: string[]) => parts.join("; ").replace(/^./, (c) => c.toUpperCase()) + ".";
       if (problems.length > 0) return { message: sentence([...problems, ...done]), level: "warning" as const };
       return done.length === 0 ? "Nothing to expire or restart." : sentence(done);

@@ -944,6 +944,20 @@ describe("approval-expiry summary", () => {
       level: "warning",
     });
   });
+  it("★★a give-up close that failed or missed is a warning: the boost is still open (api#1441)", () => {
+    expect(
+      meta.summarize!({
+        expired: {},
+        recovered: { enqueued: 0, failed: 0, gaveUp: 0, closeFailed: 0, closeMissed: 0 },
+        boostsExpired: {},
+        boostsRecovered: { enqueued: 0, failed: 0, gaveUp: 0, closeFailed: 2, closeMissed: 1 },
+      }),
+    ).toEqual({
+      message:
+        "2 given-up boost launches could not be closed (the next run retries); 1 given-up boost launch no longer matched the close and stays open.",
+      level: "warning",
+    });
+  });
   it("★a non-number count is read as 0, not concatenated", () => {
     expect(meta.summarize!({ expired: {}, recovered: { enqueued: "1" }, boostsExpired: {}, boostsRecovered: { enqueued: 2 } })).toBe(
       "2 approved publishes or launches not yet started are queued.",
