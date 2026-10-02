@@ -33,40 +33,7 @@ import { TimeRangeSelector } from "@/components/cms/ai/time-range-selector";
 import { formatDateTime } from "@/components/cms/ai/format";
 import { StatusBadge } from "@/components/molecules/status-badge";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
-import { useCmsJobs, useCmsJobDetail } from "@/hooks/use-jobs";
-
-// Every `bg_jobs.kind` the validator admits — peakhour-mongodb's `zJobKind`
-// (schemas/zod/db/bg_jobs.zod.ts), in its order. Drives the filter dropdown;
-// a kind missing here cannot be filtered to. Keep in step with that enum.
-const KIND_OPTIONS = [
-  "onboarding_discovery",
-  "content_analyse",
-  "tag_drafts",
-  "voice_card_refresh",
-  "beehiiv_sync_full",
-  "integration_sync",
-  "source_fetch",
-  "general_source_fetch",
-  "source_embed",
-  "source_recompute_trust",
-  "source_archive_ingest",
-  "source_recommend_run",
-  "claim_verify_batch",
-  "feedback_note_classify",
-  "feedback_aggregate_nightly",
-  "voice_card_diff_apply",
-  "publish_fanout",
-  "transcript_fetch",
-  "linkedin_post_sync",
-  "linkedin_retention_cleanup",
-  "news_classify",
-  "news_corroborate",
-  "news_compose",
-  "newsletter_repurpose",
-  "newsletter_publish",
-  "ad_boost_prepare",
-  "ad_boost_launch",
-] as const;
+import { useCmsJobs, useCmsJobDetail, useCmsJobKinds } from "@/hooks/use-jobs";
 
 const STATUS_OPTIONS = ["pending", "running", "done", "failed", "cancelled"] as const;
 
@@ -76,6 +43,8 @@ export default function CmsJobsPage() {
   const queryClient = useQueryClient();
   const [days, setDays] = useState("7");
   const [kind, setKind] = useState("all");
+  // The kinds the api serves (its registered handlers) — no list kept here.
+  const kindOptions = useCmsJobKinds().data?.kinds ?? [];
   const [status, setStatus] = useState("all");
   const [orgId, setOrgId] = useState("");
   const [businessId, setBusinessId] = useState("");
@@ -155,7 +124,7 @@ export default function CmsJobsPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All kinds</SelectItem>
-              {KIND_OPTIONS.map((k) => (
+              {kindOptions.map((k) => (
                 <SelectItem key={k} value={k}>{k}</SelectItem>
               ))}
             </SelectContent>

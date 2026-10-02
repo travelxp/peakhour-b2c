@@ -275,6 +275,20 @@ export function useCmsJobs(filters: CmsJobsFilters) {
 }
 
 /**
+ * The job kinds the api can run (`GET /v1/cms/jobs/kinds`, its registered
+ * handlers, sorted) — the kind filter's options. ★Served, not copied: the
+ * hand-kept list here had drifted to 6 kinds, one of them removed.
+ */
+export function useCmsJobKinds() {
+  return useQuery({
+    queryKey: ["cms-jobs", "kinds"] as const,
+    queryFn: () => api.get<{ kinds: string[] }>("/v1/cms/jobs/kinds"),
+    // Changes only with a deploy.
+    staleTime: 10 * 60_000,
+  });
+}
+
+/**
  * GET /v1/cms/jobs/:id — full technical drilldown (includes children).
  * Polls at 5s while the job is non-terminal so an ops user watching a
  * stuck running job sees claimedUntil/childrenDone tick live; stops as
