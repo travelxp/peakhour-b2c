@@ -275,9 +275,11 @@ export function useCmsJobs(filters: CmsJobsFilters) {
 }
 
 /**
- * The job kinds the api can run (`GET /v1/cms/jobs/kinds`, its registered
- * handlers, sorted) — the kind filter's options. ★Served, not copied: the
- * hand-kept list here had drifted to 6 kinds, one of them removed.
+ * The job kinds the jobs list can show (`GET /v1/cms/jobs/kinds`: the api's
+ * registered handlers plus the kinds `bg_jobs` holds in the list's reach,
+ * sorted) — the kind filter's options. ⚠️Not "kinds the runner can claim": a
+ * kind whose handler was removed is listed so its stuck jobs can be found.
+ * ★Served, not copied: the hand-kept list here had drifted to 6 kinds.
  */
 export function useCmsJobKinds() {
   return useQuery({
