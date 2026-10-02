@@ -944,19 +944,31 @@ describe("approval-expiry summary", () => {
       level: "warning",
     });
   });
-  it("★★a give-up close that failed, missed or was deferred is a warning: the boost is still open (api#1441)", () => {
+  it("★★a give-up close that failed, missed or was deferred is a warning, from either sweep (api#1441)", () => {
     expect(
       meta.summarize!({
         expired: {},
-        recovered: { enqueued: 0, failed: 0, gaveUp: 0, closeFailed: 0, closeMissed: 0 },
+        recovered: { enqueued: 0, failed: 0, gaveUp: 0, closeFailed: 1, closeMissed: 0, closeDeferred: 0 },
         boostsExpired: {},
-        boostsRecovered: { enqueued: 0, failed: 0, gaveUp: 0, closeFailed: 2, closeMissed: 1, closeDeferred: 3 },
+        boostsRecovered: { enqueued: 0, failed: 0, gaveUp: 0, closeFailed: 1, closeMissed: 2, closeDeferred: 1 },
       }),
     ).toEqual({
       message:
-        "2 given-up boost launches could not be closed (the next run retries); 1 given-up boost launch no longer matched the close and stays open; 3 more given-up boost launches not tried after too many bad closes (the next run retries).",
+        "2 given-up approved publishes or launches could not be closed (the next run tries again); " +
+        "2 given-up approved publishes or launches no longer matched the close (a launch may have claimed it; if this repeats every run, the close's filter has drifted); " +
+        "1 given-up approved publish or launch not tried this run: too many closes failed or missed first.",
       level: "warning",
     });
+  });
+  it("★★a count the summary does not know is a warning, never a clean run (b2c#578 round 1)", () => {
+    expect(
+      meta.summarize!({
+        expired: {},
+        recovered: { enqueued: 0, closeSomethingNew: 1, quietNew: 0 },
+        boostsExpired: { approval_timeout: 0, launch_vanished: 2 },
+        boostsRecovered: { enqueued: 0, closeSomethingNew: 3 },
+      }),
+    ).toEqual({ message: "Counts this summary does not know: closeSomethingNew, launch_vanished.", level: "warning" });
   });
   it("★a non-number count is read as 0, not concatenated", () => {
     expect(meta.summarize!({ expired: {}, recovered: { enqueued: "1" }, boostsExpired: {}, boostsRecovered: { enqueued: 2 } })).toBe(
