@@ -944,17 +944,17 @@ describe("approval-expiry summary", () => {
       level: "warning",
     });
   });
-  it("★★a give-up close that failed or missed is a warning: the boost is still open (api#1441)", () => {
+  it("★★a give-up close that failed, missed or was deferred is a warning: the boost is still open (api#1441)", () => {
     expect(
       meta.summarize!({
         expired: {},
         recovered: { enqueued: 0, failed: 0, gaveUp: 0, closeFailed: 0, closeMissed: 0 },
         boostsExpired: {},
-        boostsRecovered: { enqueued: 0, failed: 0, gaveUp: 0, closeFailed: 2, closeMissed: 1 },
+        boostsRecovered: { enqueued: 0, failed: 0, gaveUp: 0, closeFailed: 2, closeMissed: 1, closeDeferred: 3 },
       }),
     ).toEqual({
       message:
-        "2 given-up boost launches could not be closed (the next run retries); 1 given-up boost launch no longer matched the close and stays open.",
+        "2 given-up boost launches could not be closed (the next run retries); 1 given-up boost launch no longer matched the close and stays open; 3 more given-up boost launches not tried after too many bad closes (the next run retries).",
       level: "warning",
     });
   });

@@ -83,6 +83,8 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       // still open, holding its budget. Only BOOST rows are closed on give-up.
       const closesFailed = num(boostsRecovered.closeFailed);
       const closesMissed = num(boostsRecovered.closeMissed);
+      // Not attempted: the run's budget for failed or missed closes was spent.
+      const closesDeferred = num(boostsRecovered.closeDeferred);
       const done: string[] = [];
       if (approvals > 0) done.push(`closed ${approvals} expired ${plural(approvals, "approval")}`);
       if (queued > 0) done.push(`${queued} approved ${plural(queued, "publish", "es")} or ${plural(queued, "launch", "es")} not yet started ${queued === 1 ? "is" : "are"} queued`);
@@ -93,6 +95,7 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       if (publishesStuck > 0) problems.push(`${publishesStuck} approved ${plural(publishesStuck, "publish", "es")} still unpublished after repeated failures`);
       if (closesFailed > 0) problems.push(`${closesFailed} given-up boost ${plural(closesFailed, "launch", "es")} could not be closed (the next run retries)`);
       if (closesMissed > 0) problems.push(`${closesMissed} given-up boost ${plural(closesMissed, "launch", "es")} no longer matched the close and ${closesMissed === 1 ? "stays" : "stay"} open`);
+      if (closesDeferred > 0) problems.push(`${closesDeferred} more given-up boost ${plural(closesDeferred, "launch", "es")} not tried after too many bad closes (the next run retries)`);
       const sentence = (parts: string[]) => parts.join("; ").replace(/^./, (c) => c.toUpperCase()) + ".";
       if (problems.length > 0) return { message: sentence([...problems, ...done]), level: "warning" as const };
       return done.length === 0 ? "Nothing to expire or restart." : sentence(done);
