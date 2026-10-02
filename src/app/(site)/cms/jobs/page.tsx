@@ -35,15 +35,37 @@ import { StatusBadge } from "@/components/molecules/status-badge";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { useCmsJobs, useCmsJobDetail } from "@/hooks/use-jobs";
 
-// Limit to the kinds the runner currently handles. Adding a new handler
-// in peakhour-api means adding it here too — drives the filter dropdown.
+// Every `bg_jobs.kind` the validator admits — peakhour-mongodb's `zJobKind`
+// (schemas/zod/db/bg_jobs.zod.ts), in its order. Drives the filter dropdown;
+// a kind missing here cannot be filtered to. Keep in step with that enum.
 const KIND_OPTIONS = [
+  "onboarding_discovery",
   "content_analyse",
   "tag_drafts",
   "voice_card_refresh",
   "beehiiv_sync_full",
-  "workflow_mirror",
-  "onboarding_discovery",
+  "integration_sync",
+  "source_fetch",
+  "general_source_fetch",
+  "source_embed",
+  "source_recompute_trust",
+  "source_archive_ingest",
+  "source_recommend_run",
+  "claim_verify_batch",
+  "feedback_note_classify",
+  "feedback_aggregate_nightly",
+  "voice_card_diff_apply",
+  "publish_fanout",
+  "transcript_fetch",
+  "linkedin_post_sync",
+  "linkedin_retention_cleanup",
+  "news_classify",
+  "news_corroborate",
+  "news_compose",
+  "newsletter_repurpose",
+  "newsletter_publish",
+  "ad_boost_prepare",
+  "ad_boost_launch",
 ] as const;
 
 const STATUS_OPTIONS = ["pending", "running", "done", "failed", "cancelled"] as const;
