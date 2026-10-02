@@ -1,7 +1,14 @@
 "use client";
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { replaceEqualDeep, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import {
+  kindsRefetchInterval,
+  mergeKindsAnswer,
+  normalizeKindsAnswer,
+  type KindsAnswer,
+  type RawKindsAnswer,
+} from "./job-kinds-answer";
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -282,18 +289,31 @@ export function useCmsJobs(filters: CmsJobsFilters) {
  * kind whose handler was removed is listed so its stuck jobs can be found.
  * ★Served, not copied: the hand-kept list here had drifted to 6 kinds.
  */
-export function useCmsJobKinds() {
-  return useQuery({
+/**
+ * The kinds query's options, exported so the wiring is testable without a
+ * DOM (this app's tests run in node): `structuralSharing` and
+ * `refetchInterval` are what apply `./job-kinds-answer`.
+ */
+export function cmsJobKindsQueryOptions() {
+  return {
     queryKey: cmsJobsKeys.kinds(),
-    queryFn: () => api.get<{ kinds: string[] }>("/v1/cms/jobs/kinds"),
-    // ★REFETCHED EVERY MINUTE, the api's own cache window (round 2). A degraded
-    //  answer (registered kinds only, after a failed `bg_jobs` read) is not
-    //  cached by the api, but going stale alone triggers nothing here: without
-    //  the interval it stayed until a focus change or a remount.
+    queryFn: async () => normalizeKindsAnswer(await api.get<RawKindsAnswer>("/v1/cms/jobs/kinds")),
+    // ★An incomplete answer (the api's fallback, api#1442) is merged into what
+    //  is held, never dropping a kind, wherever the data is replaced; then
+    //  shared as react-query's default would, so an unchanged answer keeps its
+    //  reference (parity with cms#175).
+    structuralSharing: (old: unknown, next: unknown) =>
+      replaceEqualDeep(old, mergeKindsAnswer(old as KindsAnswer | undefined, next as KindsAnswer)),
     staleTime: 60_000,
-    refetchInterval: 60_000,
-    refetchIntervalInBackground: false,
-  });
+    // ★POLLED ONLY WHILE INCOMPLETE, OR FAILED: a complete answer is not
+    //  refetched on a timer, so a slow read cannot replace it mid-session.
+    refetchInterval: (query: { state: { data?: KindsAnswer; status: string } }) =>
+      kindsRefetchInterval(query.state.data, query.state.status === "error"),
+  };
+}
+
+export function useCmsJobKinds() {
+  return useQuery(cmsJobKindsQueryOptions());
 }
 
 /**

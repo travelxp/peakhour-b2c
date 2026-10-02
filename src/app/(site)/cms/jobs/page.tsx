@@ -37,7 +37,7 @@ import { useCmsJobs, useCmsJobDetail, useCmsJobKinds } from "@/hooks/use-jobs";
 import {
   childrenModeFor,
   effectiveKind,
-  isUnknownKind,
+  ignoredKind,
   kindSelectOptions,
   kindsStateOf,
   resolveShowChildren,
@@ -60,7 +60,7 @@ export default function CmsJobsPage() {
   // A chosen kind a refetch dropped is ignored, not reset: it may be back in
   // the next answer (round 2). The hint below says so and offers a clear.
   const kind = effectiveKind(kindChoice, kindsState);
-  const unknownKind = isUnknownKind(kindChoice, kindsState);
+  const ignored = ignoredKind(kindChoice, kindsState);
   const kindOptions = kindSelectOptions(kindsState);
   const [status, setStatus] = useState("all");
   const [orgId, setOrgId] = useState("");
@@ -96,7 +96,9 @@ export default function CmsJobsPage() {
     return () => clearTimeout(t);
   }, [orgId, businessId]);
 
-  const { data, isLoading, error } = useCmsJobs({
+  // `isPending`, not `isLoading` (cms#175): a paused list query (offline) is
+  // pending with no data but not "loading", and must not read as empty.
+  const { data, isPending, isPaused: listPaused, error } = useCmsJobs({
     days,
     limit: PAGE_SIZE,
     offset: page * PAGE_SIZE,
@@ -190,14 +192,28 @@ export default function CmsJobsPage() {
           >
             {showChildren ? "Children shown ✓" : "Show children"}
           </Button>
-          {unknownKind && (
+          {ignored && (
             <div className="col-span-full flex items-center gap-2 text-sm text-muted-foreground">
               <span>
-                &ldquo;{kindChoice}&rdquo; isn&apos;t in the latest list of job kinds, so all kinds are shown.
+                {ignored === "unknown" ? (
+                  <>&ldquo;{kindChoice}&rdquo; isn&apos;t in the latest list of job kinds, so all kinds are shown.</>
+                ) : (
+                  <>&ldquo;{kindChoice}&rdquo; isn&apos;t among the job kinds read just now (the full list couldn&apos;t be read), so all kinds are shown.</>
+                )}
               </span>
               <Button variant="link" size="sm" className="h-auto p-0" onClick={() => setKind("all")}>
                 Clear
               </Button>
+            </div>
+          )}
+          {!ignored && kindsState.status === "success" && !kindsState.complete && (
+            <div className="col-span-full text-sm text-muted-foreground">
+              The full list of job kinds couldn&apos;t be read just now, so the kind filter may be missing some; it is checked again every minute.
+            </div>
+          )}
+          {(kindsState.status === "paused" || listPaused) && (
+            <div className="col-span-full text-sm text-muted-foreground">
+              Waiting for the network, or for this tab to be in focus, before loading.
             </div>
           )}
           {kindsState.status === "error" && (
@@ -206,7 +222,7 @@ export default function CmsJobsPage() {
             </div>
           )}
           <div className="col-span-full flex items-center justify-end text-sm text-muted-foreground">
-            {isLoading ? "Loading…" : `${total.toLocaleString()} matches`}
+            {isPending ? "Loading…" : error && !data ? "—" : `${total.toLocaleString()} matches`}
           </div>
         </CardContent>
       </Card>
@@ -227,12 +243,19 @@ export default function CmsJobsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isLoading ? (
+              {isPending ? (
                 [0, 1, 2, 3, 4].map((i) => (
                   <TableRow key={i}>
                     <TableCell colSpan={8}><Skeleton className="h-5 w-full" /></TableCell>
                   </TableRow>
                 ))
+              ) : error && !data ? (
+                // Never read is not empty: the banner above says why.
+                <TableRow>
+                  <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
+                    The jobs couldn&apos;t be loaded.
+                  </TableCell>
+                </TableRow>
               ) : rows.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
