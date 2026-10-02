@@ -40,7 +40,10 @@ describe("cmsJobKindsQueryOptions", () => {
   });
 
   it("★★polls only while the answer is incomplete, or failed", () => {
-    const { refetchInterval } = cmsJobKindsQueryOptions();
+    // Called with only the state it reads; the real Query is far larger.
+    const refetchInterval = cmsJobKindsQueryOptions().refetchInterval as unknown as (q: {
+      state: { data?: { kinds: string[]; complete: boolean }; status: string };
+    }) => number | false;
     expect(refetchInterval({ state: { data: { kinds: [], complete: false }, status: "success" } })).toBe(60_000);
     expect(refetchInterval({ state: { data: { kinds: [], complete: true }, status: "success" } })).toBe(false);
     expect(refetchInterval({ state: { data: undefined, status: "error" } })).toBe(60_000);

@@ -98,7 +98,7 @@ export default function CmsJobsPage() {
 
   // `isPending`, not `isLoading` (cms#175): a paused list query (offline) is
   // pending with no data but not "loading", and must not read as empty.
-  const { data, isPending, isPaused: listPaused, error } = useCmsJobs({
+  const { data, isPending, isPaused: listPaused, error, errorUpdatedAt } = useCmsJobs({
     days,
     limit: PAGE_SIZE,
     offset: page * PAGE_SIZE,
@@ -109,6 +109,12 @@ export default function CmsJobsPage() {
     showChildren,
   });
 
+  // ★Never loaded, and failed at least once (round 1): `error` alone is reset
+  //  by each 30s retry, which flickered the failed row back to skeletons.
+  const listFailed = !data && errorUpdatedAt > 0;
+  // Paused with nothing loaded: waiting, not loading (round 1). Rows already
+  // on screen during a paused refresh need no notice.
+  const listWaiting = !data && listPaused;
   const rows = data?.rows || [];
   const total = data?.total || 0;
   const lastPage = Math.max(0, Math.ceil(total / PAGE_SIZE) - 1);
@@ -129,9 +135,9 @@ export default function CmsJobsPage() {
         </p>
       </div>
 
-      {error && (
+      {(error || listFailed) && (
         <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive-on-tint">
-          Failed to load jobs: {(error as Error).message}
+          {error ? <>Failed to load jobs: {(error as Error).message}</> : <>Failed to load jobs; trying again…</>}
         </div>
       )}
 
@@ -208,10 +214,10 @@ export default function CmsJobsPage() {
           )}
           {!ignored && kindsState.status === "success" && !kindsState.complete && (
             <div className="col-span-full text-sm text-muted-foreground">
-              The full list of job kinds couldn&apos;t be read just now, so the kind filter may be missing some; it is checked again every minute.
+              The full list of job kinds couldn&apos;t be read just now, so the kind filter may be missing some; it is checked again every minute while this tab is in view.
             </div>
           )}
-          {(kindsState.status === "paused" || listPaused) && (
+          {((kindsState.status === "paused" && kindChoice !== "all") || listWaiting) && (
             <div className="col-span-full text-sm text-muted-foreground">
               Waiting for the network, or for this tab to be in focus, before loading.
             </div>
@@ -222,7 +228,7 @@ export default function CmsJobsPage() {
             </div>
           )}
           <div className="col-span-full flex items-center justify-end text-sm text-muted-foreground">
-            {isPending ? "Loading…" : error && !data ? "—" : `${total.toLocaleString()} matches`}
+            {listFailed ? "—" : listWaiting ? "Waiting…" : isPending ? "Loading…" : `${total.toLocaleString()} matches`}
           </div>
         </CardContent>
       </Card>
@@ -243,19 +249,26 @@ export default function CmsJobsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isPending ? (
-                [0, 1, 2, 3, 4].map((i) => (
-                  <TableRow key={i}>
-                    <TableCell colSpan={8}><Skeleton className="h-5 w-full" /></TableCell>
-                  </TableRow>
-                ))
-              ) : error && !data ? (
-                // Never read is not empty: the banner above says why.
+              {listFailed ? (
+                // Never read is not empty: the banner above says why. Kept
+                // through the 30s retries (round 1), which reset `error`.
                 <TableRow>
                   <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
                     The jobs couldn&apos;t be loaded.
                   </TableCell>
                 </TableRow>
+              ) : listWaiting ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
+                    Waiting for the network, or for this tab to be in focus.
+                  </TableCell>
+                </TableRow>
+              ) : isPending ? (
+                [0, 1, 2, 3, 4].map((i) => (
+                  <TableRow key={i}>
+                    <TableCell colSpan={8}><Skeleton className="h-5 w-full" /></TableCell>
+                  </TableRow>
+                ))
               ) : rows.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
@@ -317,13 +330,15 @@ export default function CmsJobsPage() {
 // ── Drilldown ──────────────────────────────────────────────────
 
 function JobDrilldown({ id }: { id: string }) {
-  const { data, isLoading, error } = useCmsJobDetail(id);
+  // `isPending` (round 1): a paused detail query is not "loading", and fell
+  // through to a blank sheet.
+  const { data, isPending, isPaused, error } = useCmsJobDetail(id);
 
-  if (isLoading) {
+  if (isPending && !error) {
     return (
       <>
         <SheetHeader>
-          <SheetTitle>Loading job…</SheetTitle>
+          <SheetTitle>{isPaused ? "Waiting for the network…" : "Loading job…"}</SheetTitle>
           <SheetDescription className="font-mono text-xs">{id}</SheetDescription>
         </SheetHeader>
         <div className="mt-6 space-y-3">
