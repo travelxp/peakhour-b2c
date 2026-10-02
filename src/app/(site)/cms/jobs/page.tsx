@@ -118,7 +118,17 @@ export default function CmsJobsPage() {
               { value: "90", label: "Last 90 days" },
             ]}
           />
-          <Select value={kind} onValueChange={(v) => { setKind(v); resetPage(); }}>
+          <Select
+            value={kind}
+            onValueChange={(v) => {
+              setKind(v);
+              // ★A CHOSEN KIND SHOWS ITS CHILD JOBS, VISIBLY: some kinds only
+              //  run as children (`tag_drafts`), and the toggle stays the
+              //  truth — the api honours it, and the operator can turn it off.
+              if (v !== "all") setShowChildren(true);
+              resetPage();
+            }}
+          >
             <SelectTrigger>
               <SelectValue placeholder="Kind" />
             </SelectTrigger>
