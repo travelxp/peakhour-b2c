@@ -82,15 +82,19 @@ describe("childrenModeFor — the toggle returns to auto", () => {
 describe("kindsStateOf", () => {
   const kinds = ["tag_drafts"];
   it("★★a failed background refetch keeps the loaded kinds, with the api's complete", () => {
-    expect(kindsStateOf({ data: { kinds, complete: true }, isError: true, isPaused: false })).toEqual({ status: "success", kinds, complete: true });
-    expect(kindsStateOf({ data: { kinds, complete: false }, isError: false, isPaused: true })).toEqual({ status: "success", kinds, complete: false });
+    expect(kindsStateOf({ data: { kinds, complete: true }, isError: true, isPaused: false, errorUpdatedAt: 0 })).toEqual({ status: "success", kinds, complete: true });
+    expect(kindsStateOf({ data: { kinds, complete: false }, isError: false, isPaused: true, errorUpdatedAt: 0 })).toEqual({ status: "success", kinds, complete: false });
   });
   it("★no data: error if it failed, else pending", () => {
-    expect(kindsStateOf({ data: undefined, isError: true, isPaused: false })).toEqual({ status: "error" });
-    expect(kindsStateOf({ data: undefined, isError: false, isPaused: false })).toEqual({ status: "pending" });
+    expect(kindsStateOf({ data: undefined, isError: true, isPaused: false, errorUpdatedAt: 0 })).toEqual({ status: "error" });
+    expect(kindsStateOf({ data: undefined, isError: false, isPaused: false, errorUpdatedAt: 0 })).toEqual({ status: "pending" });
+  });
+  it("★★a failure with nothing loaded stays one while a retry runs (b2c#579 round 2)", () => {
+    expect(kindsStateOf({ data: undefined, isError: false, isPaused: false, errorUpdatedAt: 1 })).toEqual({ status: "error" });
+    expect(kindsStateOf({ data: { kinds, complete: true }, isError: false, isPaused: false, errorUpdatedAt: 1 })).toEqual({ status: "success", kinds, complete: true });
   });
   it("★★paused with no data is 'paused', not an error: a retry may only be waiting for focus (cms#175)", () => {
-    expect(kindsStateOf({ data: undefined, isError: false, isPaused: true })).toEqual({ status: "paused" });
-    expect(kindsStateOf({ data: undefined, isError: true, isPaused: true })).toEqual({ status: "error" });
+    expect(kindsStateOf({ data: undefined, isError: false, isPaused: true, errorUpdatedAt: 0 })).toEqual({ status: "paused" });
+    expect(kindsStateOf({ data: undefined, isError: true, isPaused: true, errorUpdatedAt: 0 })).toEqual({ status: "error" });
   });
 });

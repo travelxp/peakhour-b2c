@@ -19,7 +19,8 @@ export function normalizeKindsAnswer(raw: RawKindsAnswer): KindsAnswer {
 /**
  * The answer to keep. ★AN INCOMPLETE ANSWER NEVER DROPS A KIND ALREADY HELD
  * (cms#175): the api's memory is per instance, so a refetch that lands on a
- * cold one mid-outage would otherwise take a chosen kind out of the filter. A complete answer replaces the list outright (a kind can leave it).
+ * cold one mid-outage would otherwise take a chosen kind out of the filter.
+ * A complete answer replaces the list outright (a kind can leave it).
  */
 export function mergeKindsAnswer(prev: KindsAnswer | undefined, next: KindsAnswer): KindsAnswer {
   if (next.complete || !prev) return next;

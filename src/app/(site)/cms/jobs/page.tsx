@@ -114,7 +114,7 @@ export default function CmsJobsPage() {
   const listFailed = !data && errorUpdatedAt > 0;
   // Paused with nothing loaded: waiting, not loading (round 1). Rows already
   // on screen during a paused refresh need no notice.
-  const listWaiting = !data && listPaused;
+  const listWaiting = !data && listPaused && !listFailed;
   const rows = data?.rows || [];
   const total = data?.total || 0;
   const lastPage = Math.max(0, Math.ceil(total / PAGE_SIZE) - 1);
@@ -165,6 +165,9 @@ export default function CmsJobsPage() {
               <SelectItem value="all">All kinds</SelectItem>
               {kindsState.status === "pending" && (
                 <SelectItem value="__loading" disabled>Loading kinds…</SelectItem>
+              )}
+              {kindsState.status === "paused" && (
+                <SelectItem value="__waiting" disabled>Kinds will load when this tab can fetch…</SelectItem>
               )}
               {kindOptions.map((k) => (
                 <SelectItem key={k} value={k}>{k}</SelectItem>
@@ -217,9 +220,11 @@ export default function CmsJobsPage() {
               The full list of job kinds couldn&apos;t be read just now, so the kind filter may be missing some; it is checked again every minute while this tab is in view.
             </div>
           )}
-          {((kindsState.status === "paused" && kindChoice !== "all") || listWaiting) && (
+          {/* Paused kinds (round 2): reachable here with no kind chosen — the
+              list says its own wait in its table row. */}
+          {kindsState.status === "paused" && (
             <div className="col-span-full text-sm text-muted-foreground">
-              Waiting for the network, or for this tab to be in focus, before loading.
+              The job kinds will load once the network is back, or this tab is in focus.
             </div>
           )}
           {kindsState.status === "error" && (
@@ -331,14 +336,16 @@ export default function CmsJobsPage() {
 
 function JobDrilldown({ id }: { id: string }) {
   // `isPending` (round 1): a paused detail query is not "loading", and fell
-  // through to a blank sheet.
-  const { data, isPending, isPaused, error } = useCmsJobDetail(id);
+  // through to a blank sheet. A failure with nothing loaded stays one through
+  // a focus refetch, which resets `error` (round 2).
+  const { data, isPending, isPaused, error, errorUpdatedAt } = useCmsJobDetail(id);
+  const failed = !data && (error || errorUpdatedAt > 0);
 
-  if (isPending && !error) {
+  if (isPending && !failed) {
     return (
       <>
         <SheetHeader>
-          <SheetTitle>{isPaused ? "Waiting for the network…" : "Loading job…"}</SheetTitle>
+          <SheetTitle>{isPaused ? "Waiting for the network, or for this tab to be in focus…" : "Loading job…"}</SheetTitle>
           <SheetDescription className="font-mono text-xs">{id}</SheetDescription>
         </SheetHeader>
         <div className="mt-6 space-y-3">
@@ -349,7 +356,7 @@ function JobDrilldown({ id }: { id: string }) {
       </>
     );
   }
-  if (error) {
+  if (failed) {
     return (
       <>
         <SheetHeader>
@@ -357,9 +364,11 @@ function JobDrilldown({ id }: { id: string }) {
           <SheetDescription className="font-mono text-xs">{id}</SheetDescription>
         </SheetHeader>
         <div className="mt-6 rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive-on-tint">
-          {(error as Error).message.includes("404")
-            ? "This job has been purged or rolled off (TTL: 90 days for finished jobs)."
-            : `Failed to load job: ${(error as Error).message}`}
+          {!error
+            ? "Failed to load job; trying again…"
+            : (error as Error).message.includes("404")
+              ? "This job has been purged or rolled off (TTL: 90 days for finished jobs)."
+              : `Failed to load job: ${(error as Error).message}`}
         </div>
       </>
     );

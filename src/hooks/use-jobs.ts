@@ -286,10 +286,9 @@ export function useCmsJobs(filters: CmsJobsFilters) {
  * The kinds query's options, exported so the wiring is testable without a
  * DOM (this app's tests run in node): `structuralSharing` and
  * `refetchInterval` are what apply `./job-kinds-answer`. `queryOptions` keeps
- * them typed against `queryFn`'s data (round 1).
+ * them typed against `queryFn`'s data (round 1); built once (round 2).
  */
-export function cmsJobKindsQueryOptions() {
-  return queryOptions({
+export const cmsJobKindsQuery = queryOptions({
     queryKey: cmsJobsKeys.kinds(),
     queryFn: async () => normalizeKindsAnswer(await api.get<RawKindsAnswer>("/v1/cms/jobs/kinds")),
     // ★An incomplete answer (the api's fallback, api#1442) is merged into what
@@ -301,9 +300,10 @@ export function cmsJobKindsQueryOptions() {
     staleTime: 60_000,
     // ★POLLED ONLY WHILE INCOMPLETE, OR FAILED: a complete answer is not
     //  refetched on a timer, so a slow read cannot replace it mid-session.
-    refetchInterval: (query) => kindsRefetchInterval(query.state.data, query.state.status === "error"),
-  });
-}
+    // A failure stays a failure through the poll's own refetches (round 2).
+    refetchInterval: (query) =>
+      kindsRefetchInterval(query.state.data, query.state.status === "error" || query.state.errorUpdatedAt > 0),
+});
 
 /**
  * The job kinds the jobs list can show (`GET /v1/cms/jobs/kinds`: the api's
@@ -313,7 +313,7 @@ export function cmsJobKindsQueryOptions() {
  * ★Served, not copied: the hand-kept list here had drifted to 6 kinds.
  */
 export function useCmsJobKinds() {
-  return useQuery(cmsJobKindsQueryOptions());
+  return useQuery(cmsJobKindsQuery);
 }
 
 /**

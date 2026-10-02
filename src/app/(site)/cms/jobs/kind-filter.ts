@@ -19,15 +19,18 @@ export type KindsState =
 /**
  * The kinds query as a `KindsState`. Data wins over an error: a failed
  * background refetch keeps the kinds already loaded, and must not drop a
- * working filter (cms#174 round 3).
+ * working filter (cms#174 round 3). ★A failure with nothing loaded stays
+ * one through the retries (b2c#579 round 2): each refetch resets `isError`,
+ * and the kinds poll every minute while failed, which flickered the page.
  */
 export function kindsStateOf(query: {
   data?: { kinds: readonly string[]; complete: boolean };
   isError: boolean;
   isPaused: boolean;
+  errorUpdatedAt: number;
 }): KindsState {
   if (query.data) return { status: "success", kinds: query.data.kinds, complete: query.data.complete };
-  if (query.isError) return { status: "error" };
+  if (query.isError || query.errorUpdatedAt > 0) return { status: "error" };
   return query.isPaused ? { status: "paused" } : { status: "pending" };
 }
 
