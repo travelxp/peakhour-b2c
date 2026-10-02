@@ -899,3 +899,54 @@ describe("meta-conversion-sweep summary", () => {
     ).toBeNull();
   });
 });
+
+describe("approval-expiry summary", () => {
+  const meta = CRON_METADATA["approval-expiry"]!;
+  it("★counts closed approvals across both flows, and approved publishes or launches queued", () => {
+    expect(
+      meta.summarize!({
+        expired: { edit_requested: 1, no_reply: 2, not_asked: 0 },
+        recovered: { enqueued: 1, failed: 0, gaveUp: 0 },
+        boostsExpired: { approval_timeout: 1, not_asked: 1, launch_never_started: 0, launch_stuck: 0 },
+        boostsRecovered: { enqueued: 0, failed: 0, gaveUp: 0 },
+      }),
+    ).toBe("Closed 5 expired approvals; 1 approved publish or launch not yet started is queued.");
+  });
+  it("says so when there was nothing to do", () => {
+    expect(meta.summarize!({ expired: {}, recovered: {}, boostsExpired: {}, boostsRecovered: {} })).toBe(
+      "Nothing to expire or restart.",
+    );
+  });
+  it("★★a failed or given-up restart is a warning, never 'nothing to do' (round 2), worded as a state (round 3)", () => {
+    expect(
+      meta.summarize!({
+        expired: {},
+        recovered: { enqueued: 0, failed: 3, gaveUp: 1 },
+        boostsExpired: {},
+        boostsRecovered: { enqueued: 0, failed: 0, gaveUp: 0 },
+      }),
+    ).toEqual({
+      message: "3 could not be queued (the next run retries); 1 approved publish still unpublished after repeated failures.",
+      level: "warning",
+    });
+  });
+  it("★★a launch closed is not an expired approval (round 2)", () => {
+    expect(
+      meta.summarize!({
+        expired: { no_reply: 1 },
+        recovered: {},
+        boostsExpired: { approval_timeout: 0, not_asked: 0, launch_never_started: 1, launch_stuck: 1 },
+        boostsRecovered: { enqueued: 0, failed: 0, gaveUp: 1 },
+      }),
+    ).toEqual({
+      message:
+        "2 boost launches closed as failed (nothing was created); 1 boost launch closed unfinished (a LinkedIn draft may exist); closed 1 expired approval.",
+      level: "warning",
+    });
+  });
+  it("★a non-number count is read as 0, not concatenated", () => {
+    expect(meta.summarize!({ expired: {}, recovered: { enqueued: "1" }, boostsExpired: {}, boostsRecovered: { enqueued: 2 } })).toBe(
+      "2 approved publishes or launches not yet started are queued.",
+    );
+  });
+});

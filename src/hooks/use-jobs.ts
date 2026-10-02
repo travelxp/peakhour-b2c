@@ -248,6 +248,7 @@ export interface CmsJobsFilters {
 
 export const cmsJobsKeys = {
   list: (filters: CmsJobsFilters) => ["cms-jobs", "list", filters] as const,
+  kinds: () => ["cms-jobs", "kinds"] as const,
   detail: (id: string) => ["cms-jobs", "detail", id] as const,
 };
 
@@ -271,6 +272,27 @@ export function useCmsJobs(filters: CmsJobsFilters) {
     refetchInterval: 30_000,
     refetchIntervalInBackground: false,
     staleTime: 15_000,
+  });
+}
+
+/**
+ * The job kinds the jobs list can show (`GET /v1/cms/jobs/kinds`: the api's
+ * registered handlers plus the kinds `bg_jobs` holds in the list's reach,
+ * sorted) — the kind filter's options. ⚠️Not "kinds the runner can claim": a
+ * kind whose handler was removed is listed so its stuck jobs can be found.
+ * ★Served, not copied: the hand-kept list here had drifted to 6 kinds.
+ */
+export function useCmsJobKinds() {
+  return useQuery({
+    queryKey: cmsJobsKeys.kinds(),
+    queryFn: () => api.get<{ kinds: string[] }>("/v1/cms/jobs/kinds"),
+    // ★REFETCHED EVERY MINUTE, the api's own cache window (round 2). A degraded
+    //  answer (registered kinds only, after a failed `bg_jobs` read) is not
+    //  cached by the api, but going stale alone triggers nothing here: without
+    //  the interval it stayed until a focus change or a remount.
+    staleTime: 60_000,
+    refetchInterval: 60_000,
+    refetchIntervalInBackground: false,
   });
 }
 

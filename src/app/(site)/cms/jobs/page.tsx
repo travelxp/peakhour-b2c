@@ -33,18 +33,16 @@ import { TimeRangeSelector } from "@/components/cms/ai/time-range-selector";
 import { formatDateTime } from "@/components/cms/ai/format";
 import { StatusBadge } from "@/components/molecules/status-badge";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
-import { useCmsJobs, useCmsJobDetail } from "@/hooks/use-jobs";
-
-// Limit to the kinds the runner currently handles. Adding a new handler
-// in peakhour-api means adding it here too — drives the filter dropdown.
-const KIND_OPTIONS = [
-  "content_analyse",
-  "tag_drafts",
-  "voice_card_refresh",
-  "beehiiv_sync_full",
-  "workflow_mirror",
-  "onboarding_discovery",
-] as const;
+import { useCmsJobs, useCmsJobDetail, useCmsJobKinds } from "@/hooks/use-jobs";
+import {
+  childrenModeFor,
+  effectiveKind,
+  isUnknownKind,
+  kindSelectOptions,
+  kindsStateOf,
+  resolveShowChildren,
+  type ChildrenMode,
+} from "./kind-filter";
 
 const STATUS_OPTIONS = ["pending", "running", "done", "failed", "cancelled"] as const;
 
@@ -53,7 +51,17 @@ const PAGE_SIZE = 50;
 export default function CmsJobsPage() {
   const queryClient = useQueryClient();
   const [days, setDays] = useState("7");
-  const [kind, setKind] = useState("all");
+  // The kinds the api serves (its registered handlers plus the kinds bg_jobs
+  // holds within the list's reach) — no list kept here. Each state of the
+  // query is handled (`./kind-filter`, the same rules as cms#174).
+  const kindsQuery = useCmsJobKinds();
+  const kindsState = kindsStateOf(kindsQuery);
+  const [kindChoice, setKind] = useState("all");
+  // A chosen kind a refetch dropped is ignored, not reset: it may be back in
+  // the next answer (round 2). The hint below says so and offers a clear.
+  const kind = effectiveKind(kindChoice, kindsState);
+  const unknownKind = isUnknownKind(kindChoice, kindsState);
+  const kindOptions = kindSelectOptions(kindsState);
   const [status, setStatus] = useState("all");
   const [orgId, setOrgId] = useState("");
   const [businessId, setBusinessId] = useState("");
@@ -62,15 +70,28 @@ export default function CmsJobsPage() {
   // aren't valid 24-hex ids anyway).
   const [orgIdQuery, setOrgIdQuery] = useState("");
   const [businessIdQuery, setBusinessIdQuery] = useState("");
-  const [showChildren, setShowChildren] = useState(false);
+  // `auto`: ON for a chosen kind (some only run as children), OFF with "All
+  //  kinds"; `on`/`off` are the operator's explicit choice and survive a kind
+  //  change (round 1: picking a kind used to force it back on).
+  const [childrenMode, setChildrenMode] = useState<ChildrenMode>("auto");
+  const showChildren = resolveShowChildren(childrenMode, kind);
   const [page, setPage] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // ★ONE PAGE RESET, keyed on everything the list is filtered by (round 3):
+  //  a filter can change without a handler (a refetch drops or returns the
+  //  chosen kind, and auto children follow it), and the old offset would read
+  //  a different result set. Adjusted during render, not in an effect.
+  const listFilter = JSON.stringify([days, kind, status, orgIdQuery, businessIdQuery, showChildren]);
+  const [prevListFilter, setPrevListFilter] = useState(listFilter);
+  if (prevListFilter !== listFilter) {
+    setPrevListFilter(listFilter);
+    setPage(0);
+  }
 
   useEffect(() => {
     const t = setTimeout(() => {
       setOrgIdQuery(orgId.trim());
       setBusinessIdQuery(businessId.trim());
-      setPage(0);
     }, 300);
     return () => clearTimeout(t);
   }, [orgId, businessId]);
@@ -89,8 +110,6 @@ export default function CmsJobsPage() {
   const rows = data?.rows || [];
   const total = data?.total || 0;
   const lastPage = Math.max(0, Math.ceil(total / PAGE_SIZE) - 1);
-
-  const resetPage = () => setPage(0);
 
   return (
     <div className="space-y-6">
@@ -118,7 +137,7 @@ export default function CmsJobsPage() {
         <CardContent className="grid grid-cols-1 gap-3 pt-6 md:grid-cols-6">
           <TimeRangeSelector
             value={days}
-            onChange={(v) => { setDays(v); resetPage(); }}
+            onChange={setDays}
             options={[
               { value: "1", label: "Last 24 hours" },
               { value: "3", label: "Last 3 days" },
@@ -127,18 +146,24 @@ export default function CmsJobsPage() {
               { value: "90", label: "Last 90 days" },
             ]}
           />
-          <Select value={kind} onValueChange={(v) => { setKind(v); resetPage(); }}>
+          <Select
+            value={kind}
+            onValueChange={setKind}
+          >
             <SelectTrigger>
               <SelectValue placeholder="Kind" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All kinds</SelectItem>
-              {KIND_OPTIONS.map((k) => (
+              {kindsState.status === "pending" && (
+                <SelectItem value="__loading" disabled>Loading kinds…</SelectItem>
+              )}
+              {kindOptions.map((k) => (
                 <SelectItem key={k} value={k}>{k}</SelectItem>
               ))}
             </SelectContent>
           </Select>
-          <Select value={status} onValueChange={(v) => { setStatus(v); resetPage(); }}>
+          <Select value={status} onValueChange={setStatus}>
             <SelectTrigger>
               <SelectValue placeholder="Status" />
             </SelectTrigger>
@@ -161,10 +186,25 @@ export default function CmsJobsPage() {
           />
           <Button
             variant={showChildren ? "default" : "outline"}
-            onClick={() => { setShowChildren((v) => !v); resetPage(); }}
+            onClick={() => setChildrenMode(childrenModeFor(!showChildren, kind))}
           >
             {showChildren ? "Children shown ✓" : "Show children"}
           </Button>
+          {unknownKind && (
+            <div className="col-span-full flex items-center gap-2 text-sm text-muted-foreground">
+              <span>
+                &ldquo;{kindChoice}&rdquo; isn&apos;t in the latest list of job kinds, so all kinds are shown.
+              </span>
+              <Button variant="link" size="sm" className="h-auto p-0" onClick={() => setKind("all")}>
+                Clear
+              </Button>
+            </div>
+          )}
+          {kindsState.status === "error" && (
+            <div className="col-span-full text-sm text-muted-foreground">
+              Couldn&apos;t load the job kinds, so the kind filter is unavailable.
+            </div>
+          )}
           <div className="col-span-full flex items-center justify-end text-sm text-muted-foreground">
             {isLoading ? "Loading…" : `${total.toLocaleString()} matches`}
           </div>
