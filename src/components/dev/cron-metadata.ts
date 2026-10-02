@@ -46,6 +46,29 @@ export interface CronMetadata {
   summarize?: (data: unknown) => CronSummary | null;
 }
 
+/** The approval-expiry cron's sweeps (peakhour-api `cron/approval-expiry.ts`), by label. */
+const APPROVAL_EXPIRY_SWEEPS = {
+  expired: "newsletter expiry",
+  recovered: "newsletter recovery",
+  boostsExpired: "boost expiry",
+  boostsRecovered: "boost recovery",
+} as const;
+type ApprovalExpirySweep = keyof typeof APPROVAL_EXPIRY_SWEEPS;
+
+/**
+ * Whether a value a cron reported says something: a non-zero number, true, a
+ * non-empty string, or a container with something present inside it (so an
+ * all-zero breakdown is as quiet as a bare 0).
+ */
+function present(v: unknown): boolean {
+  if (typeof v === "number") return v !== 0;
+  if (typeof v === "string") return v !== "";
+  if (Array.isArray(v)) return v.some(present);
+  const rec = asRecord(v);
+  if (rec) return Object.values(rec).some(present);
+  return v === true;
+}
+
 export const CRON_METADATA: Record<string, CronMetadata> = {
   "approval-expiry": {
     label: "Expire approvals",
@@ -54,41 +77,82 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       "Closes WhatsApp approvals left undecided past their window — newsletter post batches and BOOST ad offers — and starts again any approved publish or launch that never started. A batch the merchant answered with EDIT closes as an edit request (re-running with changes isn't built); one whose prompt may have reached the merchant closes as unanswered; one nobody was asked about closes as not asked.",
     // The api's sweeps (`src/v1/cron/approval-expiry.ts`): `expired` and
     // `boostsExpired` count rows closed, by reason; `recovered` and
-    // `boostsRecovered` count re-enqueues as { enqueued, failed, gaveUp }.
+    // `boostsRecovered` count re-enqueues as { enqueued, failed, gaveUp,
+    // closeFailed, closeMissed, closeDeferred } (api#1441).
     // ★A LAUNCH CLOSED IS NOT AN EXPIRED APPROVAL, and a failed or given-up
     //  restart is a warning, never "nothing to do" (round 2).
+    // ★EVERY KEY READ IS RECORDED, AND ANYTHING ELSE THE RUN REPORTED IS A
+    //  WARNING (b2c#578 rounds 1-2): no hand-kept list of known keys, so a
+    //  counter or a sweep the api adds is never read as a clean run.
     summarize: (data) => {
       const d = asRecord(data);
       if (!d) return null;
-      const expired = asRecord(d.expired) ?? {};
-      const boostsExpired = asRecord(d.boostsExpired) ?? {};
-      const recovered = asRecord(d.recovered) ?? {};
-      const boostsRecovered = asRecord(d.boostsRecovered) ?? {};
+      const read = new Set<string>();
+      // ★A KEY COUNTS AS READ ONLY IF IT HELD A NUMBER, or nothing (b2c#578
+      //  round 3): one whose value changed type stays unread, so it warns
+      //  instead of reading as 0.
+      const field = (sweep: ApprovalExpirySweep, key: string) => {
+        const v = asRecord(d[sweep])?.[key];
+        if (v === undefined || typeof v === "number") read.add(`${sweep}.${key}`);
+        return num(v);
+      };
       const approvals =
-        Object.values(expired).reduce<number>((a, n) => a + num(n), 0) +
-        num(boostsExpired.approval_timeout) +
-        num(boostsExpired.not_asked);
+        field("expired", "edit_requested") +
+        field("expired", "no_reply") +
+        field("expired", "not_asked") +
+        field("boostsExpired", "approval_timeout") +
+        field("boostsExpired", "not_asked");
       // ★NOT "RESTARTED" (round 3): the enqueue is idempotent, so a job already
       //  queued and not yet claimed is counted again on every run.
-      const queued = num(recovered.enqueued) + num(boostsRecovered.enqueued);
+      const queued = field("recovered", "enqueued") + field("boostsRecovered", "enqueued");
       // A boost given up on is closed `launch_failed`, as is one never started
       // past the recovery window (disjoint: inside vs past the window).
-      const launchesFailed = num(boostsExpired.launch_never_started) + num(boostsRecovered.gaveUp);
-      const launchesUnknown = num(boostsExpired.launch_stuck);
-      const notQueued = num(recovered.failed) + num(boostsRecovered.failed);
+      const launchesFailed = field("boostsExpired", "launch_never_started") + field("boostsRecovered", "gaveUp");
+      const launchesUnknown = field("boostsExpired", "launch_stuck");
+      const notQueued = field("recovered", "failed") + field("boostsRecovered", "failed");
       // ★A STANDING STATE, NOT AN EVENT (round 3): a newsletter batch given up
       //  on stays approved, so every run within a week of the approval counts it.
-      const publishesStuck = num(recovered.gaveUp);
+      const publishesStuck = field("recovered", "gaveUp");
+      // A boost given up on whose close threw, matched nothing, or was not tried
+      // (api#1441). Only the BOOST sweep closes on give-up (b2c#578 round 3); a
+      // close count from the newsletter side is unread, so it warns on its own.
+      // ★NO RETRY IS PROMISED, here or for `failed`: the sweep walks newest
+      //  first under two budgets, so a row may not be reached.
+      const closes: Array<[number, string]> = [
+        [field("boostsRecovered", "closeFailed"), "could not be closed"],
+        // ★NOT "STAYS OPEN" (b2c#578 round 1): a row also misses when it
+        //  moved on first (a launch claimed it), and is then launching.
+        [field("boostsRecovered", "closeMissed"), "no longer matched the close (moved on, or, if this repeats every run, the close's filter has drifted)"],
+        [field("boostsRecovered", "closeDeferred"), "not tried this run: too many closes failed or missed first"],
+      ];
       const done: string[] = [];
       if (approvals > 0) done.push(`closed ${approvals} expired ${plural(approvals, "approval")}`);
       if (queued > 0) done.push(`${queued} approved ${plural(queued, "publish", "es")} or ${plural(queued, "launch", "es")} not yet started ${queued === 1 ? "is" : "are"} queued`);
       const problems: string[] = [];
       if (launchesFailed > 0) problems.push(`${launchesFailed} boost ${plural(launchesFailed, "launch", "es")} closed as failed (nothing was created)`);
       if (launchesUnknown > 0) problems.push(`${launchesUnknown} boost ${plural(launchesUnknown, "launch", "es")} closed unfinished (a LinkedIn draft may exist)`);
-      if (notQueued > 0) problems.push(`${notQueued} could not be queued (the next run retries)`);
+      if (notQueued > 0) problems.push(`${notQueued} could not be queued`);
       if (publishesStuck > 0) problems.push(`${publishesStuck} approved ${plural(publishesStuck, "publish", "es")} still unpublished after repeated failures`);
+      for (const [n, what] of closes)
+        if (n > 0) problems.push(`${n} given-up boost ${plural(n, "launch", "es")} ${what}`);
+      // ★EVERY KEY READ IS RECORDED, AND ANYTHING ELSE THE RUN REPORTED IS A
+      //  WARNING (b2c#578 rounds 1-3): no hand-kept list of known keys, so a
+      //  counter or a sweep the api adds is never read as a clean run; and a
+      //  sweep that did not report at all is said, not read as zeros.
+      const label = (sweep: string) => APPROVAL_EXPIRY_SWEEPS[sweep as ApprovalExpirySweep] ?? sweep;
+      const missing = (Object.keys(APPROVAL_EXPIRY_SWEEPS) as ApprovalExpirySweep[]).filter((sweep) => !asRecord(d[sweep]));
+      const unread: string[] = [];
+      for (const [sweep, value] of Object.entries(d)) {
+        const rec = asRecord(value);
+        const keys = rec ? Object.entries(rec).filter(([k, v]) => !read.has(`${sweep}.${k}`) && present(v)).map(([k]) => k) : [];
+        if (keys.length > 0) unread.push(`${label(sweep)}: ${keys.join(", ")}`);
+        else if (!rec && present(value)) unread.push(label(sweep));
+      }
+      const tail: string[] = [];
+      if (missing.length > 0) tail.push(`the run did not report ${missing.map(label).join(", ")}`);
+      if (unread.length > 0) tail.push(`it also reported what this summary does not describe (${unread.join("; ")})`);
       const sentence = (parts: string[]) => parts.join("; ").replace(/^./, (c) => c.toUpperCase()) + ".";
-      if (problems.length > 0) return { message: sentence([...problems, ...done]), level: "warning" as const };
+      if (problems.length + tail.length > 0) return { message: sentence([...problems, ...done, ...tail]), level: "warning" as const };
       return done.length === 0 ? "Nothing to expire or restart." : sentence(done);
     },
   },

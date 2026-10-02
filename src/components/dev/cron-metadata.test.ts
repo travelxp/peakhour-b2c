@@ -902,6 +902,7 @@ describe("meta-conversion-sweep summary", () => {
 
 describe("approval-expiry summary", () => {
   const meta = CRON_METADATA["approval-expiry"]!;
+  const quiet = { expired: {}, recovered: {}, boostsExpired: {}, boostsRecovered: {} };
   it("★counts closed approvals across both flows, and approved publishes or launches queued", () => {
     expect(
       meta.summarize!({
@@ -913,20 +914,17 @@ describe("approval-expiry summary", () => {
     ).toBe("Closed 5 expired approvals; 1 approved publish or launch not yet started is queued.");
   });
   it("says so when there was nothing to do", () => {
-    expect(meta.summarize!({ expired: {}, recovered: {}, boostsExpired: {}, boostsRecovered: {} })).toBe(
-      "Nothing to expire or restart.",
-    );
+    expect(meta.summarize!(quiet)).toBe("Nothing to expire or restart.");
   });
   it("★★a failed or given-up restart is a warning, never 'nothing to do' (round 2), worded as a state (round 3)", () => {
     expect(
       meta.summarize!({
-        expired: {},
+        ...quiet,
         recovered: { enqueued: 0, failed: 3, gaveUp: 1 },
-        boostsExpired: {},
         boostsRecovered: { enqueued: 0, failed: 0, gaveUp: 0 },
       }),
     ).toEqual({
-      message: "3 could not be queued (the next run retries); 1 approved publish still unpublished after repeated failures.",
+      message: "3 could not be queued; 1 approved publish still unpublished after repeated failures.",
       level: "warning",
     });
   });
@@ -944,9 +942,63 @@ describe("approval-expiry summary", () => {
       level: "warning",
     });
   });
-  it("★a non-number count is read as 0, not concatenated", () => {
-    expect(meta.summarize!({ expired: {}, recovered: { enqueued: "1" }, boostsExpired: {}, boostsRecovered: { enqueued: 2 } })).toBe(
-      "2 approved publishes or launches not yet started are queued.",
-    );
+  it("★★a give-up close that failed, missed or was deferred is a warning (api#1441)", () => {
+    expect(
+      meta.summarize!({
+        ...quiet,
+        boostsRecovered: { enqueued: 0, failed: 0, gaveUp: 0, closeFailed: 2, closeMissed: 2, closeDeferred: 1 },
+      }),
+    ).toEqual({
+      message:
+        "2 given-up boost launches could not be closed; " +
+        "2 given-up boost launches no longer matched the close (moved on, or, if this repeats every run, the close's filter has drifted); " +
+        "1 given-up boost launch not tried this run: too many closes failed or missed first.",
+      level: "warning",
+    });
+    expect(meta.summarize!({ ...quiet, boostsRecovered: { closeFailed: 1 } })).toEqual({
+      message: "1 given-up boost launch could not be closed.",
+      level: "warning",
+    });
+  });
+  it("★★a close count from the newsletter side is not read as a boost: it is unread, and said (b2c#578 round 3)", () => {
+    expect(meta.summarize!({ ...quiet, recovered: { closeFailed: 1 } })).toEqual({
+      message: "It also reported what this summary does not describe (newsletter recovery: closeFailed).",
+      level: "warning",
+    });
+  });
+  it("★★anything the run reported that the summary did not read is a warning, never a clean run (b2c#578 rounds 1-3)", () => {
+    expect(
+      meta.summarize!({
+        expired: { no_reply: 0, skipped: 2 },
+        recovered: { enqueued: 0, closeSomethingNew: 1, quietNew: 0, offFlag: false, zeros: { a: 0 }, empties: [0] },
+        boostsExpired: { approval_timeout: 0, launch_vanished: 2 },
+        boostsRecovered: { enqueued: 0, closeSomethingNew: 3, byReason: { threw: 1 }, note: "x" },
+        digestsRecovered: { closeFailed: 4 },
+        budgetHit: true,
+      }),
+    ).toEqual({
+      message:
+        "It also reported what this summary does not describe (newsletter expiry: skipped; newsletter recovery: closeSomethingNew; " +
+        "boost expiry: launch_vanished; boost recovery: closeSomethingNew, byReason, note; digestsRecovered: closeFailed; budgetHit).",
+      level: "warning",
+    });
+  });
+  it("★★a read key whose value is not a number is reported, not read as 0 (round 3)", () => {
+    expect(meta.summarize!({ ...quiet, boostsRecovered: { closeFailed: ["a", "b"] } })).toEqual({
+      message: "It also reported what this summary does not describe (boost recovery: closeFailed).",
+      level: "warning",
+    });
+  });
+  it("★★a sweep that did not report is said, not read as zeros (round 3)", () => {
+    expect(meta.summarize!({ expired: {}, recovered: {}, boostsExpired: {}, boostsRecovered: null })).toEqual({
+      message: "The run did not report boost recovery.",
+      level: "warning",
+    });
+  });
+  it("★a non-number count is read as 0, not concatenated, and reported", () => {
+    expect(meta.summarize!({ ...quiet, recovered: { enqueued: "1" }, boostsRecovered: { enqueued: 2 } })).toEqual({
+      message: "2 approved publishes or launches not yet started are queued; it also reported what this summary does not describe (newsletter recovery: enqueued).",
+      level: "warning",
+    });
   });
 });
