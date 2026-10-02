@@ -248,6 +248,7 @@ export interface CmsJobsFilters {
 
 export const cmsJobsKeys = {
   list: (filters: CmsJobsFilters) => ["cms-jobs", "list", filters] as const,
+  kinds: () => ["cms-jobs", "kinds"] as const,
   detail: (id: string) => ["cms-jobs", "detail", id] as const,
 };
 
@@ -283,10 +284,12 @@ export function useCmsJobs(filters: CmsJobsFilters) {
  */
 export function useCmsJobKinds() {
   return useQuery({
-    queryKey: ["cms-jobs", "kinds"] as const,
+    queryKey: cmsJobsKeys.kinds(),
     queryFn: () => api.get<{ kinds: string[] }>("/v1/cms/jobs/kinds"),
-    // Changes only with a deploy.
-    staleTime: 10 * 60_000,
+    // ★The api's own cache window (a minute): a degraded answer — registered
+    //  kinds only, after a failed read the api refuses to cache — is not held
+    //  here any longer than there (round 1).
+    staleTime: 60_000,
   });
 }
 

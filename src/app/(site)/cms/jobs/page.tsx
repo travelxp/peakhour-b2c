@@ -34,6 +34,14 @@ import { formatDateTime } from "@/components/cms/ai/format";
 import { StatusBadge } from "@/components/molecules/status-badge";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { useCmsJobs, useCmsJobDetail, useCmsJobKinds } from "@/hooks/use-jobs";
+import {
+  isStaleKind,
+  kindSelectOptions,
+  resolveKindFilter,
+  resolveShowChildren,
+  type ChildrenMode,
+  type KindsState,
+} from "./kind-filter";
 
 const STATUS_OPTIONS = ["pending", "running", "done", "failed", "cancelled"] as const;
 
@@ -42,9 +50,22 @@ const PAGE_SIZE = 50;
 export default function CmsJobsPage() {
   const queryClient = useQueryClient();
   const [days, setDays] = useState("7");
-  const [kind, setKind] = useState("all");
-  // The kinds the api serves (its registered handlers) — no list kept here.
-  const kindOptions = useCmsJobKinds().data?.kinds ?? [];
+  // The kinds the api serves (its registered handlers plus the kinds bg_jobs
+  // holds within the list's reach) — no list kept here. Each state of the
+  // query is handled (`./kind-filter`, the same rules as cms#174).
+  const kindsQuery = useCmsJobKinds();
+  const kindsState: KindsState = kindsQuery.isSuccess
+    ? { status: "success", kinds: kindsQuery.data.kinds }
+    : kindsQuery.isError
+      ? { status: "error" }
+      : { status: "pending" };
+  const [kindChoice, setKind] = useState("all");
+  const kind = resolveKindFilter(kindChoice, kindsState);
+  const kindOptions = kindSelectOptions(kindsState);
+  // A chosen kind a refetch dropped is reset — adjusted during render, not in
+  // an effect — so it cannot silently re-apply if the kind comes back later.
+  // (Until then `resolveKindFilter` already shows and filters "all".)
+  if (isStaleKind(kindChoice, kindsState)) setKind("all");
   const [status, setStatus] = useState("all");
   const [orgId, setOrgId] = useState("");
   const [businessId, setBusinessId] = useState("");
@@ -53,7 +74,11 @@ export default function CmsJobsPage() {
   // aren't valid 24-hex ids anyway).
   const [orgIdQuery, setOrgIdQuery] = useState("");
   const [businessIdQuery, setBusinessIdQuery] = useState("");
-  const [showChildren, setShowChildren] = useState(false);
+  // `auto`: ON for a chosen kind (some only run as children), OFF with "All
+  //  kinds"; `on`/`off` are the operator's explicit choice and survive a kind
+  //  change (round 1: picking a kind used to force it back on).
+  const [childrenMode, setChildrenMode] = useState<ChildrenMode>("auto");
+  const showChildren = resolveShowChildren(childrenMode, kind);
   const [page, setPage] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -122,10 +147,6 @@ export default function CmsJobsPage() {
             value={kind}
             onValueChange={(v) => {
               setKind(v);
-              // ★A CHOSEN KIND SHOWS ITS CHILD JOBS, VISIBLY: some kinds only
-              //  run as children (`tag_drafts`), and the toggle stays the
-              //  truth — the api honours it, and the operator can turn it off.
-              if (v !== "all") setShowChildren(true);
               resetPage();
             }}
           >
@@ -162,10 +183,15 @@ export default function CmsJobsPage() {
           />
           <Button
             variant={showChildren ? "default" : "outline"}
-            onClick={() => { setShowChildren((v) => !v); resetPage(); }}
+            onClick={() => { setChildrenMode(showChildren ? "off" : "on"); resetPage(); }}
           >
             {showChildren ? "Children shown ✓" : "Show children"}
           </Button>
+          {kindsState.status === "error" && (
+            <div className="col-span-full text-sm text-muted-foreground">
+              Couldn&apos;t load the job kinds, so the kind filter is unavailable.
+            </div>
+          )}
           <div className="col-span-full flex items-center justify-end text-sm text-muted-foreground">
             {isLoading ? "Loading…" : `${total.toLocaleString()} matches`}
           </div>

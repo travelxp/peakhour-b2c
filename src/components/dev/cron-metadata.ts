@@ -47,6 +47,29 @@ export interface CronMetadata {
 }
 
 export const CRON_METADATA: Record<string, CronMetadata> = {
+  "approval-expiry": {
+    label: "Expire approvals",
+    frequency: "Runs hourly (at :35 past)",
+    description:
+      "Closes WhatsApp approvals left undecided past their window — newsletter post batches and BOOST ad offers — and starts again any approved publish or launch that never started. A batch or offer whose prompt may have reached the merchant closes as unanswered; one nobody was asked about closes as not asked.",
+    summarize: (data) => {
+      const d = data as
+        | {
+            expired?: Record<string, number>;
+            recovered?: { enqueued?: number; gaveUp?: number };
+            boostsExpired?: Record<string, number>;
+            boostsRecovered?: { enqueued?: number; gaveUp?: number };
+          }
+        | null;
+      if (!d) return null;
+      const sum = (o?: Record<string, number>) => Object.values(o ?? {}).reduce((a, n) => a + (typeof n === "number" ? n : 0), 0);
+      const closed = sum(d.expired) + sum(d.boostsExpired);
+      const restarted = (d.recovered?.enqueued ?? 0) + (d.boostsRecovered?.enqueued ?? 0);
+      return closed + restarted === 0
+        ? "Nothing to expire or restart."
+        : `Closed ${closed} expired approval${closed === 1 ? "" : "s"}; restarted ${restarted} publish${restarted === 1 ? "" : "es"} or launch${restarted === 1 ? "" : "es"}.`;
+    },
+  },
   "ad-campaign-monitor": {
     label: "Check ad campaigns",
     frequency: "Runs hourly (at :15 past)",
