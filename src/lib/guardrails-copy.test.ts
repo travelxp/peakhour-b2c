@@ -10,11 +10,13 @@ import {
   isHourMinute,
   isReadableZone,
   parseTerms,
+  timeZoneOptions,
   todayIn,
   type GuardrailsDraft,
 } from "./guardrails-copy";
 
-const empty = (): GuardrailsDraft => draftFromStored(undefined);
+const TODAY = "2026-10-03";
+const empty = (): GuardrailsDraft => draftFromStored(undefined, TODAY);
 
 describe("parseTerms", () => {
   it("ONE PER LINE: trimmed, blanks dropped, each once in order", () => {
@@ -51,7 +53,7 @@ describe("draftFromStored", () => {
       quietHours: { start: "21:00", end: "06:00" },
       blackoutDates: [{ from: "2026-12-24", to: "2026-12-26", label: "Christmas" }, { from: "2027-01-01", to: "2027-01-01" }],
       timeZone: "Asia/Kolkata",
-    });
+    }, TODAY);
     expect(d).toEqual({
       deniedChannels: ["meta"],
       termsText: "acme\nfree trial",
@@ -66,7 +68,14 @@ describe("draftFromStored", () => {
     });
   });
   it("★★the stored zone is seeded WHATEVER it is — this browser's zone list may lag the server's (R2)", () => {
-    expect(draftFromStored({ quietHours: { start: "22:00", end: "07:00" }, timeZone: "Mars/Olympus" }).timeZone).toBe("Mars/Olympus");
+    expect(draftFromStored({ quietHours: { start: "22:00", end: "07:00" }, timeZone: "Mars/Olympus" }, TODAY).timeZone).toBe("Mars/Olympus");
+  });
+  it("★★blackouts that have ENDED are not carried into the form — saving drops them (R3)", () => {
+    const d = draftFromStored(
+      { blackoutDates: [{ from: "2025-12-24", to: "2025-12-26" }, { from: "2026-10-01", to: "2026-10-03" }, { from: "2026-12-24", to: "2026-12-24" }] },
+      TODAY,
+    );
+    expect(d.blackouts.map((b) => b.from)).toEqual(["2026-10-01", "2026-12-24"]);
   });
   it("an empty form when nothing is stored, quiet hours off", () => {
     expect(empty()).toMatchObject({ deniedChannels: [], termsText: "", quietEnabled: false, blackouts: [], timeZone: "" });
@@ -122,7 +131,6 @@ describe("buildGuardrailsPatch", () => {
       [{ blackouts: [{ from: "2026-03-02", to: "2026-03-01", label: "" }] }, /ends before it starts/],
       [{ blackouts: [{ from: "2026-03-01", to: "2026-03-01", label: "x".repeat(81) }] }, /at most 80/],
       [{ blackouts: Array.from({ length: 51 }, () => ({ from: "2027-01-01", to: "2027-01-01", label: "" })) }, /up to 50/],
-      [{ quietEnabled: true, timeZone: "Mars/Olympus" }, /isn't a time zone we recognise/],
       [{ termsText: "a".repeat(201) }, /longer than 200 characters/],
     ];
     for (const [over, msg] of cases) {
@@ -132,8 +140,8 @@ describe("buildGuardrailsPatch", () => {
     }
   });
 
-  it("★★a stored zone is sent back unjudged; only one the merchant CHANGED is checked here (R2)", () => {
-    const kept = buildGuardrailsPatch({ ...empty(), quietEnabled: true, timeZone: "Mars/Olympus" }, "Mars/Olympus");
+  it("★★the zone is the server's to judge — sent as chosen or kept (R2, R3)", () => {
+    const kept = buildGuardrailsPatch({ ...empty(), quietEnabled: true, timeZone: "Mars/Olympus" });
     expect(kept).toMatchObject({ ok: true, patch: { timeZone: "Mars/Olympus" } });
   });
 
@@ -146,6 +154,20 @@ describe("buildGuardrailsPatch", () => {
 
   it("quiet hours OFF are not validated — the stored times are just not sent", () => {
     expect(buildGuardrailsPatch({ ...empty(), quietEnabled: false, quietStart: "", quietEnd: "" }).ok).toBe(true);
+  });
+});
+
+describe("timeZoneOptions", () => {
+  it("★★legacy ids are offered by today's name, UTC is always offered, each once, sorted (R3)", () => {
+    expect(timeZoneOptions(["Asia/Calcutta", "Europe/Kiev", "Asia/Kolkata", "America/New_York"])).toEqual([
+      "America/New_York",
+      "Asia/Kolkata",
+      "Europe/Kyiv",
+      "UTC",
+    ]);
+  });
+  it("an id with no modern name is kept as listed", () => {
+    expect(timeZoneOptions(["Europe/London"])).toEqual(["Europe/London", "UTC"]);
   });
 });
 
@@ -212,6 +234,11 @@ describe("describeGuardrails / hasGuardrails", () => {
 });
 
 describe("guardrailsSaveError", () => {
+  it("★★a failure the rules cannot fix says what can (R3)", () => {
+    expect(guardrailsSaveError({ code: "UNAUTHORIZED", message: "x", status: 401 })).toMatch(/Sign in again/);
+    expect(guardrailsSaveError({ code: "FORBIDDEN", message: "Active business required", status: 403 })).toMatch(/owner or admin/);
+    expect(guardrailsSaveError(null)).toMatch(/Check your connection/);
+  });
   it("★★'Send timeZone.' becomes what to DO in this form (R2)", () => {
     const msg = guardrailsSaveError({
       code: "VALIDATION_ERROR",
@@ -231,7 +258,6 @@ describe("guardrailsSaveError", () => {
       { code: "VALIDATION_ERROR", message: "Invalid JSON body" },
       { code: "NON_JSON", message: "Server returned non-JSON response (502)" },
       { code: "CONFIG", message: "NEXT_PUBLIC_API_URL is not configured" },
-      null,
     ]) {
       expect(guardrailsSaveError(err)).toMatch(/couldn't save your guardrails/);
     }

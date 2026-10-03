@@ -46,6 +46,7 @@ import {
   draftFromStored,
   guardrailsSaveError,
   hasGuardrails,
+  timeZoneOptions,
   type GuardrailsDraft,
 } from "@/lib/guardrails-copy";
 
@@ -76,12 +77,17 @@ export function GuardrailsCard() {
   const [baseSetAt, setBaseSetAt] = useState<string | undefined>(undefined);
   const [formError, setFormError] = useState<string | null>(null);
   const [clearOpen, setClearOpen] = useState(false);
-  /** A save elsewhere was found at Save (review R2): the merchant chooses to
-   *  load it (losing this form's edits) or to save theirs over it. */
-  const [conflict, setConflict] = useState<{ freshSetAt: string | undefined } | null>(null);
+  /** A save elsewhere was found at Save or Clear (review R2): the merchant
+   *  chooses to load it (losing this form's edits) or to apply theirs over it.
+   *  ★`action` is which they asked for (review R3): "anyway" after Clear all
+   *  must clear, not save the form's old rules back. */
+  const [conflict, setConflict] = useState<{ freshSetAt: string | undefined; action: "save" | "clear" } | null>(null);
+  /** The stored zone when Edit was opened (review R3): a conflict replaces the
+   *  cache, and the draft's kept zone must stay an option and stay its own. */
+  const [baseZone, setBaseZone] = useState<string | undefined>(undefined);
   const zones = useMemo(() => {
     try {
-      return Intl.supportedValuesOf("timeZone");
+      return timeZoneOptions(Intl.supportedValuesOf("timeZone"));
     } catch {
       return ["UTC", "Asia/Kolkata", "America/New_York", "Europe/London", "Asia/Dubai"];
     }
@@ -110,15 +116,39 @@ export function GuardrailsCard() {
       setClearOpen(false);
       toast.success(patch.guardrails === null ? "Guardrails cleared." : "Guardrails saved.");
     },
-    onError: (err) => {
+    onError: (err, { patch }) => {
       if (err instanceof GuardrailsChangedError) {
         setClearOpen(false);
-        setConflict({ freshSetAt: err.freshSetAt });
+        setConflict({ freshSetAt: err.freshSetAt, action: patch.guardrails === null ? "clear" : "save" });
         return;
       }
       toast.error(guardrailsSaveError(err instanceof ApiError ? err : null));
     },
   });
+
+  // ★~400 items, built once per zone set (review R3), not on every keystroke.
+  //  The draft's kept zone and the stored one are always options.
+  const keptZone = baseZone ?? stored?.timeZone;
+  const zoneItems = useMemo(
+    () => [
+      <SelectItem key={BUSINESS_ZONE} value={BUSINESS_ZONE}>
+        Your business&rsquo;s time zone
+      </SelectItem>,
+      ...(keptZone && !zones.includes(keptZone)
+        ? [
+            <SelectItem key={`kept-${keptZone}`} value={keptZone}>
+              {keptZone}
+            </SelectItem>,
+          ]
+        : []),
+      ...zones.map((z) => (
+        <SelectItem key={z} value={z}>
+          {z}
+        </SelectItem>
+      )),
+    ],
+    [zones, keptZone],
+  );
 
   // ★NO DATA — which covers a query paused offline (pending, not loading:
   //  rendering then would claim "No guardrails set" from nothing) — and NOT
@@ -127,11 +157,12 @@ export function GuardrailsCard() {
   if (!settings.data) return null;
 
   const lines = describeGuardrails(stored);
+  // (zoneItems is memoised above the early return.)
   const set = (over: Partial<GuardrailsDraft>) => setDraft((d) => (d ? { ...d, ...over } : d));
 
   const submit = (expectedSetAt: string | undefined = baseSetAt) => {
     if (!draft) return;
-    const built = buildGuardrailsPatch(draft, stored?.timeZone);
+    const built = buildGuardrailsPatch(draft);
     if (!built.ok) {
       setFormError(built.error);
       return;
@@ -163,6 +194,7 @@ export function GuardrailsCard() {
               onClick={() => {
                 setDraft(draftFromStored(stored));
                 setBaseSetAt(stored?.setAt);
+                setBaseZone(stored?.timeZone);
               }}
             >
               {hasGuardrails(stored) ? "Edit" : "Set guardrails"}
@@ -325,21 +357,12 @@ export function GuardrailsCard() {
                   <SelectTrigger id="guardrail-zone" className="w-64">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={BUSINESS_ZONE}>Your business&rsquo;s time zone</SelectItem>
-                    {stored?.timeZone && !zones.includes(stored.timeZone) && (
-                      <SelectItem value={stored.timeZone}>{stored.timeZone}</SelectItem>
-                    )}
-                    {zones.map((z) => (
-                      <SelectItem key={z} value={z}>
-                        {z}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
+                  <SelectContent>{zoneItems}</SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  Quiet hours and blackout dates are read in this zone, e.g. Europe/London. Leave it empty to use your
-                  business&rsquo;s own.
+                  Quiet hours and blackout dates are read in this zone. Choose &ldquo;Your business&rsquo;s time
+                  zone&rdquo; to use the one Peakhour has for your business. Blackouts that have ended are removed when
+                  you save.
                 </p>
               </div>
             )}
@@ -352,7 +375,10 @@ export function GuardrailsCard() {
 
             {conflict && (
               <div role="alert" className="space-y-2 rounded-md border border-destructive/40 p-3 text-sm">
-                <p>Someone else saved guardrails while you were editing. Saving yours would replace theirs.</p>
+                <p>
+                  Someone else saved guardrails while you were editing.{" "}
+                  {conflict.action === "clear" ? "Clearing now would remove theirs too." : "Saving yours would replace theirs."}
+                </p>
                 <div className="flex flex-wrap gap-2">
                   <Button
                     size="sm"
@@ -361,6 +387,7 @@ export function GuardrailsCard() {
                       const fresh = queryClient.getQueryData<typeof settings.data>(["growth-settings"]);
                       setDraft(draftFromStored(fresh?.settings.guardrails));
                       setBaseSetAt(conflict.freshSetAt);
+                      setBaseZone(fresh?.settings.guardrails?.timeZone);
                       setConflict(null);
                     }}
                   >
@@ -371,10 +398,15 @@ export function GuardrailsCard() {
                     variant="destructive"
                     onClick={() => {
                       setBaseSetAt(conflict.freshSetAt);
-                      submit(conflict.freshSetAt);
+                      if (conflict.action === "clear") {
+                        setConflict(null);
+                        save.mutate({ patch: { guardrails: null }, expectedSetAt: conflict.freshSetAt });
+                      } else {
+                        submit(conflict.freshSetAt);
+                      }
                     }}
                   >
-                    Save mine anyway
+                    {conflict.action === "clear" ? "Clear anyway" : "Save mine anyway"}
                   </Button>
                 </div>
               </div>

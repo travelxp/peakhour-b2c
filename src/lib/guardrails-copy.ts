@@ -74,15 +74,20 @@ export function parseTerms(text: string): string[] {
   return out;
 }
 
-/** The form, seeded from what is stored (or empty). */
-export function draftFromStored(g: Guardrails | undefined): GuardrailsDraft {
+/**
+ * The form, seeded from what is stored (or empty). ★Blackouts that have
+ * ENDED are left out (review R3): they bind nothing, the summary does not
+ * show them, and carried into every save they counted toward the 50 cap
+ * where the merchant could not see them. Saving drops them.
+ */
+export function draftFromStored(g: Guardrails | undefined, today: string = todayIn(g?.timeZone)): GuardrailsDraft {
   return {
     deniedChannels: [...(g?.deniedChannels ?? [])],
     termsText: (g?.blockedTerms ?? []).join("\n"),
     quietEnabled: !!g?.quietHours,
     quietStart: g?.quietHours?.start ?? "22:00",
     quietEnd: g?.quietHours?.end ?? "07:00",
-    blackouts: (g?.blackoutDates ?? []).map((b) => ({ from: b.from, to: b.to, label: b.label ?? "" })),
+    blackouts: activeBlackouts(g, today).map((b) => ({ from: b.from, to: b.to, label: b.label ?? "" })),
     // ★THE STORED ZONE, WHATEVER IT IS (review R2). A browser's zone list can
     //  lag the server's (an older ICU lacks newer ids), so dropping one this
     //  browser cannot read would quietly move every window to a re-derived
@@ -92,7 +97,6 @@ export function draftFromStored(g: Guardrails | undefined): GuardrailsDraft {
   };
 }
 
-export type { GuardrailsPatch };
 
 /**
  * The PATCH body for the draft, or the first thing wrong with it in words the
@@ -103,7 +107,6 @@ export type { GuardrailsPatch };
  */
 export function buildGuardrailsPatch(
   draft: GuardrailsDraft,
-  storedTimeZone?: string,
 ): { ok: true; patch: Required<Omit<GuardrailsPatch, "timeZone">> & Pick<GuardrailsPatch, "timeZone"> } | { ok: false; error: string } {
   // ★The api's RAW cap, before it normalises (R2): a longer line is refused by
   //  its request schema as "Invalid body", which names nothing.
@@ -135,13 +138,11 @@ export function buildGuardrailsPatch(
     if (label.length > 80) return { ok: false, error: "A blackout's label can be at most 80 characters." };
     blackouts.push({ from: b.from, to: b.to, ...(label ? { label } : {}) });
   }
+  // ⏸Not judged here (review R3): the picker offers only zones this browser
+  //  reads, the stored one, or "the business's own" — and the stored one is
+  //  the server's to judge, whose 400 names it.
   const zone = draft.timeZone.trim();
   const usesZone = draft.quietEnabled || blackouts.length > 0;
-  // Judged only when the merchant CHANGED it: the stored zone is the
-  //  server's to judge (see draftFromStored).
-  if (usesZone && zone && zone !== storedTimeZone && !isReadableZone(zone)) {
-    return { ok: false, error: `"${zone}" isn't a time zone we recognise — try one like Europe/London or Asia/Kolkata.` };
-  }
   return {
     ok: true,
     patch: {
@@ -152,6 +153,37 @@ export function buildGuardrailsPatch(
       ...(usesZone && zone ? { timeZone: zone } : {}),
     },
   };
+}
+
+/**
+ * Legacy zone ids some engines list INSTEAD of today's names (V8's
+ * supportedValuesOf has Asia/Calcutta and no Asia/Kolkata). Both read the
+ * same; the merchant should see — and store — the name they know.
+ */
+const MODERN_ZONE: Readonly<Record<string, string>> = {
+  "Asia/Calcutta": "Asia/Kolkata",
+  "Asia/Katmandu": "Asia/Kathmandu",
+  "Asia/Saigon": "Asia/Ho_Chi_Minh",
+  "Asia/Rangoon": "Asia/Yangon",
+  "Europe/Kiev": "Europe/Kyiv",
+  "America/Buenos_Aires": "America/Argentina/Buenos_Aires",
+  "Atlantic/Faeroe": "Atlantic/Faroe",
+  "Pacific/Truk": "Pacific/Chuuk",
+  "Pacific/Ponape": "Pacific/Pohnpei",
+};
+
+/**
+ * The zones the picker offers (review R3): the engine's list with legacy ids
+ * written as today's names — kept only where this browser can read the
+ * modern one — plus UTC, which V8 does not list. Sorted, each once.
+ */
+export function timeZoneOptions(supported: readonly string[]): string[] {
+  const out = new Set<string>(["UTC"]);
+  for (const z of supported) {
+    const modern = MODERN_ZONE[z];
+    out.add(modern && isReadableZone(modern) ? modern : z);
+  }
+  return [...out].sort();
 }
 
 /** Today, "YYYY-MM-DD", on `zone`'s calendar (else the browser's). */
@@ -218,9 +250,15 @@ export function describeGuardrails(g: Guardrails | undefined, today: string = to
  * non-JSON, a zod "Invalid body", a config error) gets a generic sentence that
  * does not promise a retry fixes it.
  */
-export function guardrailsSaveError(err: { code?: string; message?: string } | null | undefined): string {
+export function guardrailsSaveError(err: { code?: string; message?: string; status?: number } | null | undefined): string {
   const generic = "We couldn't save your guardrails. Check them and try again — if it keeps happening, contact support.";
-  if (err?.code !== "VALIDATION_ERROR" || !err.message) return generic;
+  // ★What the merchant can DO depends on what failed (review R3): checking
+  //  their rules cannot fix a lapsed session, a missing permission or no
+  //  network.
+  if (!err) return "We couldn't reach Peakhour. Check your connection, then save again.";
+  if (err.status === 401) return "Your session has ended. Sign in again, then save your guardrails.";
+  if (err.status === 403) return "You don't have access to change this business's guardrails. Ask an owner or admin.";
+  if (err.code !== "VALIDATION_ERROR" || !err.message) return generic;
   // ★The api's request-shape refusals are not merchant sentences (R2).
   if (err.message === "Invalid body" || err.message === "Invalid JSON body") return generic;
   // ★Nor is "Send timeZone." — say what to DO in this form instead (R2).
