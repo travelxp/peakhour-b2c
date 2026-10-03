@@ -1,6 +1,8 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import type { OptimizerProposal, OptimizerRun, PaidChannel } from "@/lib/api/growth";
+import type { UserPreferences } from "@/lib/auth";
+import { formatMoneyCode } from "@/lib/outcome-value";
 import {
   ALL_CHANNELS,
   asSentence,
@@ -8,7 +10,6 @@ import {
   channelChips,
   channelRow,
   channelRows,
-  codeMoney,
   eventDate,
   inChannel,
   isStaleCard,
@@ -22,21 +23,22 @@ import {
   type NeedsYouItem,
 } from "./growth-dashboard";
 
-// ★UTC+14, the one host zone where an event late in a UTC day is already the
-//  next local day — a UTC formatter (`shortDate`) survives every other zone a
-//  developer's machine is likely to be in. Set back afterwards, explicitly.
-const HOST_TZ = process.env.TZ;
-beforeAll(() => {
-  process.env.TZ = "Pacific/Kiritimati";
-});
-afterAll(() => {
-  if (HOST_TZ === undefined) delete process.env.TZ;
-  else process.env.TZ = HOST_TZ;
-});
+// ★THE VIEWER'S ZONE COMES FROM THEIR SETTINGS, so the tests set it there —
+//  no process TZ to pin and restore. One instant, 10:30Z on 2 Oct, is 3 Oct
+//  at UTC+14 and 1 Oct at UTC-11: a UTC formatter says 2 Oct to both, and a
+//  formatter that ignores the setting says the host's day to both.
+const at = (timezone: string) => ({ timezone }) as UserPreferences;
+const KIRITIMATI = at("Pacific/Kiritimati");
+const PAGO_PAGO = at("Pacific/Pago_Pago");
+const INSTANT = "2026-10-02T10:30:00.000Z";
 
-/** The local day of a local noon — what eventDate must print for that day. */
-const localDay = (y: number, m: number, d: number) =>
-  new Date(y, m - 1, d, 12).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+/** How the host locale prints a calendar day — the expected label for it. */
+const dayLabel = (m: number, d: number) =>
+  new Date(Date.UTC(2026, m - 1, d, 12)).toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "short",
+    timeZone: "UTC",
+  });
 
 const ch = (over: Partial<PaidChannel> = {}): PaidChannel => ({
   platform: "linkedin",
@@ -108,25 +110,25 @@ describe("inChannel", () => {
 });
 
 describe("eventDate", () => {
-  it("dates an event by the merchant's local day, not the UTC day", () => {
-    // 20:30Z on 2 Oct is 10:30 on 3 Oct at UTC+14.
-    expect(eventDate("2026-10-02T20:30:00.000Z")).toBe(localDay(2026, 10, 3));
+  it("dates an event by the viewer's timezone setting, east and west of UTC", () => {
+    expect(eventDate(INSTANT, KIRITIMATI)).toBe(dayLabel(10, 3));
+    expect(eventDate(INSTANT, PAGO_PAGO)).toBe(dayLabel(10, 1));
   });
 });
 
-describe("codeMoney", () => {
+describe("formatMoneyCode", () => {
   it("prints the code the way paidNote does, grouped, in whole units for a spend", () => {
-    expect(codeMoney(1234.56, "USD", true)).toBe("USD 1,235");
+    expect(formatMoneyCode(1234.56, "USD", true)).toBe("USD 1,235");
   });
 
   it("keeps the currency's own decimals for a per-conversion cost", () => {
-    expect(codeMoney(1234.56, "USD")).toBe("USD 1,234.56");
-    expect(codeMoney(75, "JPY")).toBe("JPY 75");
+    expect(formatMoneyCode(1234.56, "USD")).toBe("USD 1,234.56");
+    expect(formatMoneyCode(75, "JPY")).toBe("JPY 75");
   });
 
   it("still prints a code Intl refuses", () => {
-    expect(codeMoney(1234.5, "NOTACODE", true)).toBe("NOTACODE 1,235");
-    expect(codeMoney(12.5, "NOTACODE")).toBe("NOTACODE 12.5");
+    expect(formatMoneyCode(1234.5, "NOTACODE", true)).toBe("NOTACODE 1,235");
+    expect(formatMoneyCode(12.5, "NOTACODE")).toBe("NOTACODE 12.5");
   });
 });
 
@@ -193,9 +195,9 @@ describe("channelRow", () => {
     expect(channelRow(ch({ measurement: undefined })).badge).toBeNull();
   });
 
-  it("dates a stale channel by its last read in local time, and says nothing for a fresh one", () => {
-    expect(channelRow(ch({ stale: true, lastReadAt: "2026-10-02T20:30:00.000Z" })).note).toBe(
-      `stopped updating — last read ${localDay(2026, 10, 3)}`,
+  it("dates a stale channel by its last read in the viewer's zone, and says nothing for a fresh one", () => {
+    expect(channelRow(ch({ stale: true, lastReadAt: INSTANT }), KIRITIMATI).note).toBe(
+      `stopped updating — last read ${dayLabel(10, 3)}`,
     );
     expect(channelRow(ch({ stale: true, lastReadAt: null })).note).toBe("stopped updating");
     expect(channelRow(ch()).note).toBeNull();
@@ -217,6 +219,11 @@ describe("channelRows", () => {
 
   it("is empty with no paid section", () => {
     expect(channelRows(null, ALL_CHANNELS)).toEqual([]);
+  });
+
+  it("dates each row's last read in the viewer's zone", () => {
+    const stale = { ...paid, byChannel: [ch({ stale: true, lastReadAt: INSTANT })] };
+    expect(channelRows(stale, ALL_CHANNELS, PAGO_PAGO)[0].note).toBe(`stopped updating — last read ${dayLabel(10, 1)}`);
   });
 });
 
@@ -354,7 +361,7 @@ describe("learningItems", () => {
     run(
       "linkedin",
       [
-        prop({ id: "a", status: "applied", appliedAt: "2026-09-30T20:30:00.000Z", decidedAt: "2026-09-29T09:00:00.000Z" }),
+        prop({ id: "a", status: "applied", appliedAt: "2026-09-30T10:30:00.000Z", decidedAt: "2026-09-29T09:00:00.000Z" }),
         prop({ id: "b", status: "dismissed", decidedAt: "2026-10-02T09:00:00.000Z" }),
         prop({ id: "c", status: "proposed" }),
         prop({
@@ -371,22 +378,24 @@ describe("learningItems", () => {
   ];
 
   it("lists approved, applied, dismissed and failed proposals, newest first, undated last", () => {
-    expect(learningItems(runs, ALL_CHANNELS, 10).map((i) => i.id)).toEqual(["r1-d", "r1-b", "r2-e", "r1-a", "r3-f"]);
+    expect(learningItems(runs, ALL_CHANNELS, { limit: 10 }).map((i) => i.id)).toEqual(["r1-d", "r1-b", "r2-e", "r1-a", "r3-f"]);
   });
 
   it("says an approved change's effect is not measured, without doubling the effect's own stop", () => {
     const d = learningItems(runs, ALL_CHANNELS).find((i) => i.id === "r1-d");
-    expect(d?.headline).toBe("You approved: Move budget to the post that converts");
+    expect(d?.headline).toBe("Approved: Move budget to the post that converts");
     expect(d?.detail).toBe(
       "Expected: Roughly 20 more clicks a week at the same total spend. What it actually did isn't measured yet.",
     );
   });
 
-  it("says an applied change's effect is not measured, and dates it by when it was applied, locally", () => {
-    const applied = learningItems(runs, ALL_CHANNELS).find((i) => i.id === "r1-a");
+  it("says an applied change's effect is not measured, and dates it by when it was applied, in the viewer's zone", () => {
+    const applied = learningItems(runs, ALL_CHANNELS, { prefs: KIRITIMATI }).find((i) => i.id === "r1-a");
     expect(applied?.headline).toBe("Applied: Move budget to the post that converts");
     expect(applied?.detail).toBe("Expected: more leads for the same spend. What it actually did isn't measured yet.");
-    expect(applied?.when).toBe(localDay(2026, 10, 1));
+    // 10:30Z on 30 Sept is 1 Oct at UTC+14 — and still 30 Sept in UTC and
+    // every zone west of UTC+13:30, so neither a UTC nor a host-zone date passes.
+    expect(applied?.when).toBe(dayLabel(10, 1));
   });
 
   it("gives a failure its reason, or says none was recorded", () => {
@@ -396,19 +405,19 @@ describe("learningItems", () => {
     expect(items.find((i) => i.id === "r3-f")?.when).toBeNull();
   });
 
-  it("says who dismissed a proposal and what it expected", () => {
+  it("says a proposal was dismissed, not who by, and what it expected", () => {
     const d = learningItems(runs, ALL_CHANNELS).find((i) => i.id === "r1-b");
-    expect(d?.headline).toBe("You dismissed: Move budget to the post that converts");
+    expect(d?.headline).toBe("Dismissed: Move budget to the post that converts");
     expect(d?.detail).toBe("It expected: more leads for the same spend.");
   });
 
   it("leaves out a proposal still open", () => {
-    expect(learningItems(runs, ALL_CHANNELS, 10).some((i) => i.id === "r1-c")).toBe(false);
+    expect(learningItems(runs, ALL_CHANNELS, { limit: 10 }).some((i) => i.id === "r1-c")).toBe(false);
   });
 
   it("narrows to one channel and stops at the limit", () => {
     expect(learningItems(runs, "x").map((i) => i.id)).toEqual(["r2-e", "r3-f"]);
-    expect(learningItems(runs, ALL_CHANNELS, 2).map((i) => i.id)).toEqual(["r1-d", "r1-b"]);
+    expect(learningItems(runs, ALL_CHANNELS, { limit: 2 }).map((i) => i.id)).toEqual(["r1-d", "r1-b"]);
   });
 });
 

@@ -88,6 +88,27 @@ export function formatMoney(amount: number, currency: string): string {
 }
 
 /**
+ * An amount beside its currency CODE — "USD 1,235" — the shape paid figures
+ * print in (`paidNote`, the dashboard's Channels rows), so one quantity never
+ * reads two ways on one page. `wholeUnits` for a spend; otherwise the
+ * currency's own decimals (JPY has none). A code Intl refuses still prints.
+ */
+export function formatMoneyCode(amount: number, currency: string, wholeUnits = false): string {
+  try {
+    return new Intl.NumberFormat(LOCALE, {
+      style: "currency",
+      currency,
+      currencyDisplay: "code",
+      ...(wholeUnits ? { maximumFractionDigits: 0, minimumFractionDigits: 0 } : {}),
+    })
+      .format(amount)
+      .replace(/\u00a0/g, " ");
+  } catch {
+    return `${currency} ${new Intl.NumberFormat(LOCALE).format(wholeUnits ? Math.round(amount) : amount)}`;
+  }
+}
+
+/**
  * Where the figure came from, in words.
  *
  * ★ALWAYS SHOWN, because a figure nobody can argue with is magic. It is also

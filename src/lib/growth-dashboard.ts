@@ -1,4 +1,7 @@
 import type { ChannelMeasurement, OptimizerRun, OutcomesResponse, PaidChannel } from "@/lib/api/growth";
+import type { UserPreferences } from "@/lib/auth";
+import { formatDate } from "@/lib/locale";
+import { formatMoneyCode } from "@/lib/outcome-value";
 import { paidFigureLabel } from "@/lib/visibility-funnel";
 import {
   ADS_CHANNELS,
@@ -50,34 +53,16 @@ export function inChannel(filter: string, channel: string | undefined): boolean 
   return filter === ALL_CHANNELS || channel === undefined || channel === filter;
 }
 
-/**
- * The day an EVENT happened, in the merchant's own zone. ★NOT `shortDate`,
- * which formats in UTC because its inputs are UTC-midnight day instants: a
- * decision at 02:00 in Kolkata is the previous day in UTC.
- */
-export function eventDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short" });
-}
+type Prefs = UserPreferences | null | undefined;
 
 /**
- * An amount beside its currency CODE — "USD 1,235" — the shape `paidNote` and
- * the conversions card already print, so one quantity never reads two ways on
- * one page. ★The currency's own decimals (JPY has none), and a code Intl
- * refuses still prints rather than taking the page down.
+ * The day an EVENT happened, in the VIEWER'S zone — their timezone setting,
+ * else the browser's (`formatDate`, as every other dated surface reads it).
+ * ★NOT `shortDate`, which formats in UTC because its inputs are UTC-midnight
+ * day instants: a decision at 02:00 in Kolkata is the previous day in UTC.
  */
-export function codeMoney(amount: number, currency: string, wholeUnits = false): string {
-  try {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency,
-      currencyDisplay: "code",
-      ...(wholeUnits ? { maximumFractionDigits: 0, minimumFractionDigits: 0 } : {}),
-    })
-      .format(amount)
-      .replace(/\u00a0/g, " ");
-  } catch {
-    return `${currency} ${NUM.format(wholeUnits ? Math.round(amount) : amount)}`;
-  }
+export function eventDate(iso: string, prefs?: Prefs): string {
+  return formatDate(iso, prefs, { day: "numeric", month: "short" });
 }
 
 export interface MeasurementBadge {
@@ -124,12 +109,12 @@ export interface ChannelRow {
 const NO_FIGURES = "no figures this window";
 
 /** One channel, as the Channels section shows it. */
-export function channelRow(ch: PaidChannel): ChannelRow {
+export function channelRow(ch: PaidChannel, prefs?: Prefs): ChannelRow {
   const base = {
     platform: ch.platform,
     label: paidFigureLabel(ch.platform),
     badge: ch.measurement ? BADGES[ch.measurement] : null,
-    note: ch.stale ? `stopped updating${ch.lastReadAt ? ` — last read ${eventDate(ch.lastReadAt)}` : ""}` : null,
+    note: ch.stale ? `stopped updating${ch.lastReadAt ? ` — last read ${eventDate(ch.lastReadAt, prefs)}` : ""}` : null,
   };
   // ★A CHANNEL THAT DID NOT MOVE IS LISTED ONLY BECAUSE IT IS STALE (the api's
   //  `rollupPaid`): its null spend is not a refusal and its 0 is not a measured
@@ -145,10 +130,10 @@ export function channelRow(ch: PaidChannel): ChannelRow {
   if (ch.conversions === null) costPerConversion = "not measurable";
   else if (priced === null) costPerConversion = "spend not totalled";
   else if (ch.conversions === 0) costPerConversion = "no conversions yet";
-  else costPerConversion = codeMoney(priced.amount / ch.conversions, priced.currency);
+  else costPerConversion = formatMoneyCode(priced.amount / ch.conversions, priced.currency);
   return {
     ...base,
-    spend: priced === null ? "couldn't be totalled" : codeMoney(priced.amount, priced.currency, true),
+    spend: priced === null ? "couldn't be totalled" : formatMoneyCode(priced.amount, priced.currency, true),
     conversions: ch.conversions === null ? "not reported" : NUM.format(ch.conversions),
     costPerConversion,
   };
@@ -157,8 +142,8 @@ export function channelRow(ch: PaidChannel): ChannelRow {
 type Paid = OutcomesResponse["reach"]["paid"];
 
 /** The Channels section's rows under a filter. */
-export function channelRows(paid: Paid, filter: string): ChannelRow[] {
-  return (paid?.byChannel ?? []).filter((ch) => inChannel(filter, ch.platform)).map(channelRow);
+export function channelRows(paid: Paid, filter: string, prefs?: Prefs): ChannelRow[] {
+  return (paid?.byChannel ?? []).filter((ch) => inChannel(filter, ch.platform)).map((ch) => channelRow(ch, prefs));
 }
 
 export interface NeedsYouItem {
@@ -273,11 +258,16 @@ const UNMEASURED = "What it actually did isn't measured yet.";
  * What was tried, newest first: every optimizer proposal approved, applied,
  * dismissed or failed. ★`approved` IS MOSTLY FINAL — the api leaves every
  * approval but a budget resplit at `approved` for good, so skipping it would
- * hide most of what a merchant accepted. ★A CHANGE SAYS ITS EFFECT IS NOT
+ * hide most of what a merchant accepted. ★NO "YOU": any teammate may have
+ * decided it, and the api records who. ★A CHANGE SAYS ITS EFFECT IS NOT
  * MEASURED, because nothing measures it yet: the experiment ledger that would
  * record "what it did" is C-03's.
  */
-export function learningItems(runs: readonly OptimizerRun[], filter: string, limit = 5): LearningItem[] {
+export function learningItems(
+  runs: readonly OptimizerRun[],
+  filter: string,
+  { limit = 5, prefs }: { limit?: number; prefs?: Prefs } = {},
+): LearningItem[] {
   const items: (LearningItem & { at: number })[] = [];
   for (const run of runs) {
     if (!inChannel(filter, run.platform)) continue;
@@ -290,11 +280,11 @@ export function learningItems(runs: readonly OptimizerRun[], filter: string, lim
         detail = `Expected: ${asSentence(p.expectedEffect)} ${UNMEASURED}`;
         when = p.appliedAt ?? p.decidedAt;
       } else if (p.status === "approved") {
-        headline = `You approved: ${p.summary}`;
+        headline = `Approved: ${p.summary}`;
         detail = `Expected: ${asSentence(p.expectedEffect)} ${UNMEASURED}`;
         when = p.decidedAt;
       } else if (p.status === "dismissed") {
-        headline = `You dismissed: ${p.summary}`;
+        headline = `Dismissed: ${p.summary}`;
         detail = `It expected: ${asSentence(p.expectedEffect)}`;
         when = p.decidedAt;
       } else if (p.status === "failed") {
@@ -305,7 +295,7 @@ export function learningItems(runs: readonly OptimizerRun[], filter: string, lim
       items.push({
         id: `${run._id}-${p.id}`,
         channel: run.platform,
-        when: when ? eventDate(when) : null,
+        when: when ? eventDate(when, prefs) : null,
         headline,
         detail,
         at: when ? Date.parse(when) : -Infinity,

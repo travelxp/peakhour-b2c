@@ -28,8 +28,10 @@ import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { WhatCountsAsAWinDialog } from "@/components/growth/what-counts-as-a-win-dialog";
 import { VisibilityFunnel } from "@/components/growth/visibility-funnel";
 import { useAuth } from "@/providers/auth-provider";
+import { useFeature } from "@/hooks/use-feature";
 import { api } from "@/lib/api";
 import { growthApi, type OptimizerRun, type OutcomesResponse } from "@/lib/api/growth";
+import type { UserPreferences } from "@/lib/auth";
 import { paidNote, paidStaleNote } from "@/lib/outcomes-paid";
 import { platformLabel } from "@/lib/audience-library-rules";
 import {
@@ -103,8 +105,15 @@ const DIRECTION_ICON = {
 } as const;
 
 export default function OutcomesPage() {
-  const { business } = useAuth();
+  const { business, user } = useAuth();
   const [days, setDays] = useState<number>(28);
+  // ★HERE, NOT IN THE BODY: the body unmounts behind the skeleton on every
+  // window change, and a chip the merchant picked must survive that.
+  const [picked, setPicked] = useState<string>(ALL_CHANNELS);
+  // ★PROPOSALS ONLY FOR A BUSINESS THAT CAN OPEN THEM. The optimizer page is
+  // gated on this key; the api's runs are not, so without it Needs You would
+  // offer a Review button onto an upgrade wall.
+  const optimizer = useFeature("growth.optimizer");
 
   // ★A SEPARATE QUERY, NOT A SECOND FIELD ON /outcomes, and the reason is what
   // the funnel is for: it must be able to fail, be slow, or be absent without
@@ -136,6 +145,7 @@ export default function OutcomesPage() {
     queryFn: () => growthApi.adjustments(),
     staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
+    enabled: optimizer.allowed,
   });
 
   // The ads hub's key prefix (its invalidations reach this), plus the business:
@@ -203,12 +213,22 @@ export default function OutcomesPage() {
         <OutcomesBody
           data={outcomes.data}
           days={days}
-          runs={adjustments.data?.runs}
+          prefs={user?.preferences ?? null}
+          picked={picked}
+          onPick={setPicked}
+          // Undefined without the feature: no proposals, no Learning card.
+          runs={optimizer.allowed ? adjustments.data?.runs : undefined}
+          optimizerAllowed={optimizer.allowed}
           // ★READ ONLY WITH DATA: loading, retrying and a refetch after an
           //  error (which clears `error`) are all unchecked, not "nothing".
-          runsState={sourceState(adjustments)}
+          //  Without the feature there is nothing to check.
+          runsState={optimizer.allowed ? sourceState(adjustments) : "read"}
           integrations={integrations.data?.integrations}
           integrationsState={sourceState(integrations)}
+          onRetry={() => {
+            if (!adjustments.data && adjustments.isError) void adjustments.refetch();
+            if (!integrations.data && integrations.isError) void integrations.refetch();
+          }}
         />
       )}
     </div>
@@ -229,25 +249,34 @@ function plural(label: string, n: number): string {
 function OutcomesBody({
   data,
   days,
+  prefs,
+  picked,
+  onPick,
   runs,
+  optimizerAllowed,
   runsState,
   integrations,
   integrationsState,
+  onRetry,
 }: {
   data: OutcomesResponse;
   days: number;
+  prefs: UserPreferences | null;
+  picked: string;
+  onPick: (key: string) => void;
   /** Undefined until read — and while it cannot be. */
   runs: OptimizerRun[] | undefined;
+  optimizerAllowed: boolean;
   runsState: SourceState;
   integrations: AdsIntegrationRow[] | undefined;
   integrationsState: SourceState;
+  onRetry: () => void;
 }) {
   const { reach, attention, conversions, value, nextActions, movements } = data;
   // Computed once: the guard and the rendered child were two independent
   // evaluations of the same expression.
   const countLine = value ? orderCountLine(value) : null;
   const [winOpen, setWinOpen] = useState(false);
-  const [picked, setPicked] = useState<string>(ALL_CHANNELS);
   const nothingHappened =
     reach.organic.posts === 0 && reach.paid === null && (reach.site?.sessions ?? 0) === 0;
 
@@ -268,11 +297,12 @@ function OutcomesBody({
   // A chip that is no longer offered (the window changed) falls back to All
   // rather than filtering every section down to nothing.
   const filter = chips.some((c) => c.key === picked) ? picked : ALL_CHANNELS;
-  const rows = channelRows(reach.paid, filter);
+  const rows = channelRows(reach.paid, filter, prefs);
   const needsYou = ranked.filter((i) => inChannel(filter, i.channel));
   const unchecked = uncheckedNote({ proposals: runsState, connections: integrationsState });
   const runsFailed = runsState === "failed";
-  const learning = runs ? learningItems(runs, filter) : null;
+  const anyFailed = runsFailed || integrationsState === "failed";
+  const learning = runs ? learningItems(runs, filter, { prefs }) : null;
 
   return (
     <div className="space-y-6">
@@ -323,7 +353,7 @@ function OutcomesBody({
               variant={filter === c.key ? "secondary" : "outline"}
               className="h-7 rounded-full px-3 text-xs"
               aria-pressed={filter === c.key}
-              onClick={() => setPicked(c.key)}
+              onClick={() => onPick(c.key)}
             >
               {c.label}
             </Button>
@@ -337,10 +367,25 @@ function OutcomesBody({
           one. Every item names the row it came from — a recommendation that
           cannot be traced to a fact about their own account is advice, and
           advice is exactly what this page exists not to be. */}
-      {(needsYou.length > 0 || unchecked) && (
+      {/* ★A SOURCE STILL LOADING DOES NOT OPEN THIS SECTION ON ITS OWN — that
+          flashed a heading on every load. It opens for items or a failure,
+          and then says what is still unchecked. */}
+      {(needsYou.length > 0 || anyFailed) && (
         <div className="space-y-2">
           <h3 className="text-sm font-semibold">What needs you</h3>
-          {unchecked && <p className="text-xs text-muted-foreground">{unchecked}</p>}
+          {unchecked && (
+            <p className="text-xs text-muted-foreground">
+              {unchecked}
+              {anyFailed && (
+                <>
+                  {" "}
+                  <button type="button" className="underline underline-offset-2" onClick={onRetry}>
+                    Try again
+                  </button>
+                </>
+              )}
+            </p>
+          )}
           <div className="space-y-2">
             {needsYou.map((a) => {
               const s = SEVERITY[a.severity];
@@ -406,14 +451,17 @@ function OutcomesBody({
           What was tried and what came of it. Absent until the proposals are
           read: an empty list over a failed read would say nothing was ever
           tried. */}
-      {(learning || runsFailed) && (
+      {optimizerAllowed && (learning || runsFailed) && (
         <div className="space-y-2">
           <h3 className="text-sm font-semibold">What we tried</h3>
           <Card>
             <CardContent className="p-5">
               {runsFailed ? (
                 <p className="text-sm text-muted-foreground">
-                  We couldn&apos;t load what the optimizer has tried just now.
+                  We couldn&apos;t load what the optimizer has tried just now.{" "}
+                  <button type="button" className="underline underline-offset-2" onClick={onRetry}>
+                    Try again
+                  </button>
                 </p>
               ) : learning && learning.length > 0 ? (
                 <ul className="space-y-3">
