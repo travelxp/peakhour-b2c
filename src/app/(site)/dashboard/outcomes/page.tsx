@@ -37,8 +37,9 @@ import {
   changedHeading,
   channelChips,
   channelRows,
+  inChannel,
+  learningEmptyText,
   learningItems,
-  needsYouUnder,
   proposalItems,
   reconnectItems,
   sourceState,
@@ -252,24 +253,23 @@ function OutcomesBody({
 
   const reconnect = reconnectItems(integrations ?? []);
   const proposals = proposalItems(runs ?? []);
-  const channelItems: NeedsYouItem[] = [...reconnect, ...proposals];
+  // Broken things first, then the business's own next actions, then the
+  // decisions waiting — each in the order its source ranked them.
+  const ranked: NeedsYouItem[] = [
+    ...reconnect,
+    ...withoutCoveredAdsStale(nextActions, reconnect),
+    ...proposals,
+  ];
   const chips = channelChips([
     ...(reach.paid?.byChannel ?? []).map((c) => c.platform),
     ...(runs ?? []).map((r) => r.platform),
-    ...channelItems.flatMap((i) => (i.channel ? [i.channel] : [])),
+    ...ranked.flatMap((i) => i.channels ?? []),
   ]);
   // A chip that is no longer offered (the window changed) falls back to All
   // rather than filtering every section down to nothing.
   const filter = chips.some((c) => c.key === picked) ? picked : ALL_CHANNELS;
   const rows = channelRows(reach.paid, filter);
-  // Broken things first, then the business's own next actions, then the
-  // decisions waiting — each in the order its source ranked them.
-  const ranked: NeedsYouItem[] = [
-    ...reconnect,
-    ...withoutCoveredAdsStale(nextActions, reach.paid, reconnect),
-    ...proposals,
-  ];
-  const needsYou = needsYouUnder(filter, ranked);
+  const needsYou = ranked.filter((i) => inChannel(filter, i.channels));
   const unchecked = uncheckedNote({ proposals: runsState, connections: integrationsState });
   const runsFailed = runsState === "failed";
   const learning = runs ? learningItems(runs, filter) : null;
@@ -283,9 +283,8 @@ function OutcomesBody({
         <CardContent className="p-5">
           <p className="text-lg leading-relaxed font-medium text-balance">{data.headline}</p>
           {movements.length > 0 && (
+            <>
             <h3 className="mt-4 text-xs font-medium text-muted-foreground">{changedHeading(days)}</h3>
-          )}
-          {movements.length > 0 && (
             <ul className="mt-1.5 space-y-1.5">
               {movements.map((m, i) => {
                 const Icon = DIRECTION_ICON[m.direction];
@@ -306,6 +305,7 @@ function OutcomesBody({
                 );
               })}
             </ul>
+            </>
           )}
         </CardContent>
       </Card>
@@ -337,22 +337,12 @@ function OutcomesBody({
           one. Every item names the row it came from — a recommendation that
           cannot be traced to a fact about their own account is advice, and
           advice is exactly what this page exists not to be. */}
-      {(needsYou.items.length > 0 || needsYou.heldBack > 0 || unchecked) && (
+      {(needsYou.length > 0 || unchecked) && (
         <div className="space-y-2">
           <h3 className="text-sm font-semibold">What needs you</h3>
           {unchecked && <p className="text-xs text-muted-foreground">{unchecked}</p>}
-          {needsYou.heldBack > 0 && (
-            <p className="text-xs text-muted-foreground">
-              {needsYou.heldBack} more about your ads {needsYou.heldBack === 1 ? "isn't" : "aren't"} tied to one
-              channel —{" "}
-              <button type="button" className="underline underline-offset-2" onClick={() => setPicked(ALL_CHANNELS)}>
-                show all channels
-              </button>
-              .
-            </p>
-          )}
           <div className="space-y-2">
-            {needsYou.items.map((a) => {
+            {needsYou.map((a) => {
               const s = SEVERITY[a.severity];
               return (
                 <Card key={a.id}>
@@ -440,10 +430,7 @@ function OutcomesBody({
                   ))}
                 </ul>
               ) : (
-                <p className="text-sm text-muted-foreground">
-                  Nothing has been tried yet. When an optimizer proposal is applied, dismissed or
-                  fails, it&apos;s listed here with what it expected to do.
-                </p>
+                <p className="text-sm text-muted-foreground">{learningEmptyText(filter)}</p>
               )}
             </CardContent>
           </Card>

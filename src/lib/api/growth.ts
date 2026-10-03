@@ -29,12 +29,12 @@ export type ProposalStatus =
 export type DecisionStatus =
   "approved" | "dismissed" | "applied" | "failed" | "retryable";
 
-/** One ad platform's figures over the outcomes window (api `rollupPaid`). */
 /** D-02: how far a channel's conversion count can be believed. untracked —
- *  the platform reports none; partial — only its own pixel/tag count reaches
- *  it; tracked — Peakhour's server-side upload has reached it too. */
+ *  the platform reports none; partial — no receipt shows Peakhour's upload
+ *  reaching it; tracked — the latest upload reached it in full. */
 export type ChannelMeasurement = "tracked" | "partial" | "untracked";
 
+/** One ad platform's figures over the outcomes window (api `rollupPaid`). */
 export interface PaidChannel {
   platform: string;
   /** Sent by /outcomes only — /visibility reads every measured channel
@@ -173,6 +173,9 @@ export interface OutcomesResponse {
     detail: string;
     href?: string;
     cta?: string;
+    /** The ad channels it is about (D-03); absent for an action about the
+     *  business, and from an api that predates it. */
+    channels?: string[];
   }>;
 }
 

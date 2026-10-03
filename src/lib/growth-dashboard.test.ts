@@ -1,18 +1,18 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { OptimizerProposal, OptimizerRun, PaidChannel } from "@/lib/api/growth";
-import { formatMoney } from "@/lib/outcome-value";
 import {
   ALL_CHANNELS,
+  asSentence,
   changedHeading,
   channelChips,
   channelRow,
   channelRows,
+  codeMoney,
   eventDate,
   inChannel,
-  isAdsAction,
+  learningEmptyText,
   learningItems,
-  needsYouUnder,
   proposalItems,
   reconnectItems,
   sourceState,
@@ -72,12 +72,12 @@ const run = (platform: string, proposals: OptimizerProposal[], id = `run-${platf
   createdAt: "2026-09-28T01:00:00.000Z",
 });
 
-const item = (id: string, channel?: string): NeedsYouItem => ({
+const item = (id: string, channels?: string[]): NeedsYouItem => ({
   id,
   severity: "attention",
   title: id,
   detail: "",
-  ...(channel ? { channel } : {}),
+  ...(channels ? { channels } : {}),
 });
 
 describe("channelChips", () => {
@@ -95,14 +95,20 @@ describe("channelChips", () => {
 });
 
 describe("inChannel", () => {
-  it("passes everything under All, and an untagged item under any filter", () => {
-    expect(inChannel(ALL_CHANNELS, "x")).toBe(true);
+  it("passes everything under All, and an item about the business under any chip", () => {
+    expect(inChannel(ALL_CHANNELS, ["x"])).toBe(true);
     expect(inChannel("linkedin", undefined)).toBe(true);
+    expect(inChannel("linkedin", [])).toBe(true);
   });
 
-  it("passes only the filtered channel's items", () => {
-    expect(inChannel("linkedin", "linkedin")).toBe(true);
-    expect(inChannel("linkedin", "x")).toBe(false);
+  it("passes an item naming the chip's channel, among others or alone", () => {
+    expect(inChannel("linkedin", ["linkedin"])).toBe(true);
+    expect(inChannel("linkedin", ["x", "linkedin"])).toBe(true);
+  });
+
+  it("holds back an item about other channels only", () => {
+    expect(inChannel("linkedin", ["x"])).toBe(false);
+    expect(inChannel("linkedin", ["x", "meta"])).toBe(false);
   });
 });
 
@@ -113,12 +119,28 @@ describe("eventDate", () => {
   });
 });
 
+describe("codeMoney", () => {
+  it("prints the code the way paidNote does, grouped, in whole units for a spend", () => {
+    expect(codeMoney(1234.56, "USD", true)).toBe("USD 1,235");
+  });
+
+  it("keeps the currency's own decimals for a per-conversion cost", () => {
+    expect(codeMoney(1234.56, "USD")).toBe("USD 1,234.56");
+    expect(codeMoney(75, "JPY")).toBe("JPY 75");
+  });
+
+  it("still prints a code Intl refuses", () => {
+    expect(codeMoney(1234.5, "NOTACODE", true)).toBe("NOTACODE 1,235");
+    expect(codeMoney(12.5, "NOTACODE")).toBe("NOTACODE 12.5");
+  });
+});
+
 describe("channelRow", () => {
   it("divides spend by conversions for the cost per conversion, in the channel's currency", () => {
-    const r = channelRow(ch());
-    expect(r.spend).toBe(formatMoney(300, "USD"));
+    const r = channelRow(ch({ spend: 1234.56, conversions: 4 }));
+    expect(r.spend).toBe("USD 1,235");
     expect(r.conversions).toBe("4");
-    expect(r.costPerConversion).toBe(formatMoney(75, "USD"));
+    expect(r.costPerConversion).toBe("USD 308.64");
   });
 
   it("names a platform that reports no conversions, never 0", () => {
@@ -156,14 +178,20 @@ describe("channelRow", () => {
 
   it("reads a channel with no moved flag as moved, as paidNote does", () => {
     const r = channelRow(ch({ moved: undefined }));
-    expect(r.spend).toBe(formatMoney(300, "USD"));
-    expect(r.costPerConversion).toBe(formatMoney(75, "USD"));
+    expect(r.spend).toBe("USD 300");
+    expect(r.costPerConversion).toBe("USD 75.00");
   });
 
   it("badges each measurement level by name", () => {
     expect(channelRow(ch({ measurement: "tracked" })).badge).toMatchObject({ label: "Tracked", tone: "success" });
     expect(channelRow(ch({ measurement: "partial" })).badge).toMatchObject({ label: "Partial", tone: "warning" });
     expect(channelRow(ch({ measurement: "untracked" })).badge).toMatchObject({ label: "Not tracked", tone: "muted" });
+  });
+
+  it("claims a delivery receipt for tracked and no failure for partial", () => {
+    expect(channelRow(ch({ measurement: "tracked" })).badge?.meaning).toMatch(/upload reached it in full/);
+    expect(channelRow(ch({ measurement: "tracked" })).badge?.meaning).not.toMatch(/checked against/);
+    expect(channelRow(ch({ measurement: "partial" })).badge?.meaning).toMatch(/can't confirm/);
   });
 
   it("shows no badge when the api sent no measurement", () => {
@@ -204,9 +232,9 @@ describe("proposalItems", () => {
       run("linkedin", [prop({ id: "p3" })], "r2"),
       run("x", [prop({ id: "p4" })], "r3"),
     ]);
-    expect(items.map((i) => [i.channel, i.title])).toEqual([
-      ["linkedin", "2 optimizer proposals waiting for your decision"],
-      ["x", "1 optimizer proposal waiting for your decision"],
+    expect(items.map((i) => [i.channels, i.title])).toEqual([
+      [["linkedin"], "2 optimizer proposals waiting for your decision"],
+      [["x"], "1 optimizer proposal waiting for your decision"],
     ]);
     expect(items[0].href).toBe("/dashboard/optimizer");
   });
@@ -224,7 +252,7 @@ describe("reconnectItems", () => {
     expect(items[0]).toMatchObject({
       id: "reconnect-linkedin",
       severity: "critical",
-      channel: "linkedin",
+      channels: ["linkedin"],
       href: "/dashboard/ads?channel=linkedin",
     });
   });
@@ -253,61 +281,38 @@ describe("reconnectItems", () => {
 });
 
 describe("withoutCoveredAdsStale", () => {
-  const actions = [{ id: "ads-stale" }, { id: "nothing-published" }];
-  const paid = (stale: string[]) => ({
-    impressions: 1,
-    campaigns: 1,
-    spend: null,
-    byChannel: ["linkedin", "x"].map((p) => ch({ platform: p, stale: stale.includes(p) })),
+  const stale = (channels?: string[]) => [item("ads-stale", channels), item("nothing-published")];
+  const ids = (xs: { id: string }[]) => xs.map((a) => a.id);
+
+  it("drops ads-stale when every channel it names has a reconnect card — with no paid section at all", () => {
+    expect(ids(withoutCoveredAdsStale(stale(["linkedin"]), [item("reconnect-linkedin", ["linkedin"])]))).toEqual([
+      "nothing-published",
+    ]);
   });
 
-  it("drops ads-stale when every stale channel already has a reconnect card", () => {
+  it("keeps ads-stale when a channel it names has no reconnect card", () => {
     expect(
-      withoutCoveredAdsStale(actions, paid(["linkedin"]), [item("reconnect-linkedin", "linkedin")]).map((a) => a.id),
-    ).toEqual(["nothing-published"]);
-  });
-
-  it("keeps ads-stale when a stale channel has no reconnect card", () => {
-    expect(
-      withoutCoveredAdsStale(actions, paid(["linkedin", "x"]), [item("reconnect-linkedin", "linkedin")]).map((a) => a.id),
+      ids(withoutCoveredAdsStale(stale(["linkedin", "x"]), [item("reconnect-linkedin", ["linkedin"])])),
     ).toEqual(["ads-stale", "nothing-published"]);
   });
 
-  it("keeps ads-stale when nothing reported is stale, and with no reconnect cards", () => {
-    expect(withoutCoveredAdsStale(actions, paid([]), [item("reconnect-x", "x")]).map((a) => a.id)).toEqual([
+  it("keeps an ads-stale that names no channel, and keeps it with no reconnect cards", () => {
+    expect(ids(withoutCoveredAdsStale(stale(), [item("reconnect-x", ["x"])]))).toEqual([
       "ads-stale",
       "nothing-published",
     ]);
-    expect(withoutCoveredAdsStale(actions, paid(["x"]), []).map((a) => a.id)).toEqual([
+    expect(ids(withoutCoveredAdsStale(stale([]), [item("reconnect-x", ["x"])]))).toEqual([
       "ads-stale",
       "nothing-published",
     ]);
-  });
-});
-
-describe("needsYouUnder", () => {
-  const items = [
-    item("reconnect-x", "x"),
-    item("campaigns-no-spend"),
-    item("campaign-no-audience-abc"),
-    item("nothing-published"),
-    item("proposals-linkedin", "linkedin"),
-  ];
-
-  it("shows everything under All, holding nothing back", () => {
-    expect(needsYouUnder(ALL_CHANNELS, items)).toEqual({ items, heldBack: 0 });
+    expect(ids(withoutCoveredAdsStale(stale(["x"]), []))).toEqual(["ads-stale", "nothing-published"]);
   });
 
-  it("under a chip shows that channel's items and the business's, and counts the ads items naming no channel", () => {
-    const r = needsYouUnder("linkedin", items);
-    expect(r.items.map((i) => i.id)).toEqual(["nothing-published", "proposals-linkedin"]);
-    expect(r.heldBack).toBe(2);
-  });
-
-  it("tells an ads action from a business one by its id", () => {
-    for (const id of ["ads-stale", "campaigns-no-spend", "campaign-no-audience-1"]) expect(isAdsAction(id)).toBe(true);
-    for (const id of ["analytics-stale", "nothing-published", "conversions-not_connected", "traffic-without-effort"])
-      expect(isAdsAction(id)).toBe(false);
+  it("never drops another action, whatever channels it names", () => {
+    const other = [item("campaigns-no-spend", ["linkedin"])];
+    expect(ids(withoutCoveredAdsStale(other, [item("reconnect-linkedin", ["linkedin"])]))).toEqual([
+      "campaigns-no-spend",
+    ]);
   });
 });
 
@@ -342,6 +347,19 @@ describe("sourceState and uncheckedNote", () => {
   });
 });
 
+describe("asSentence", () => {
+  it("adds a stop to text that has none", () => {
+    expect(asSentence("more leads")).toBe("more leads.");
+    expect(asSentence("  more leads  ")).toBe("more leads.");
+  });
+
+  it("keeps the stop the text already ends with, inside a closing quote too", () => {
+    expect(asSentence("Roughly 20 more clicks a week.")).toBe("Roughly 20 more clicks a week.");
+    expect(asSentence("More leads!")).toBe("More leads!");
+    expect(asSentence("It said “wait.”")).toBe("It said “wait.”");
+  });
+});
+
 describe("learningItems", () => {
   const runs = [
     run(
@@ -350,7 +368,12 @@ describe("learningItems", () => {
         prop({ id: "a", status: "applied", appliedAt: "2026-09-30T20:30:00.000Z", decidedAt: "2026-09-29T09:00:00.000Z" }),
         prop({ id: "b", status: "dismissed", decidedAt: "2026-10-02T09:00:00.000Z" }),
         prop({ id: "c", status: "proposed" }),
-        prop({ id: "d", status: "approved", decidedAt: "2026-10-03T09:00:00.000Z" }),
+        prop({
+          id: "d",
+          status: "approved",
+          decidedAt: "2026-10-03T09:00:00.000Z",
+          expectedEffect: "Roughly 20 more clicks a week at the same total spend.",
+        }),
       ],
       "r1",
     ),
@@ -362,10 +385,12 @@ describe("learningItems", () => {
     expect(learningItems(runs, ALL_CHANNELS, 10).map((i) => i.id)).toEqual(["r1-d", "r1-b", "r2-e", "r1-a", "r3-f"]);
   });
 
-  it("says an approved change's effect is not measured", () => {
+  it("says an approved change's effect is not measured, without doubling the effect's own stop", () => {
     const d = learningItems(runs, ALL_CHANNELS).find((i) => i.id === "r1-d");
     expect(d?.headline).toBe("You approved: Move budget to the post that converts");
-    expect(d?.detail).toBe("Expected: more leads for the same spend. What it actually did isn't measured yet.");
+    expect(d?.detail).toBe(
+      "Expected: Roughly 20 more clicks a week at the same total spend. What it actually did isn't measured yet.",
+    );
   });
 
   it("says an applied change's effect is not measured, and dates it by when it was applied, locally", () => {
@@ -398,8 +423,20 @@ describe("learningItems", () => {
   });
 });
 
+describe("learningEmptyText", () => {
+  it("speaks for the business under All", () => {
+    expect(learningEmptyText(ALL_CHANNELS)).toMatch(/^Nothing has been tried yet\./);
+  });
+
+  it("speaks only for the chip's channel under a chip", () => {
+    const t = learningEmptyText("meta");
+    expect(t).toMatch(/^Nothing has been tried on .*Meta.* yet\.$/);
+    expect(t).not.toBe(learningEmptyText(ALL_CHANNELS));
+  });
+});
+
 describe("changedHeading", () => {
-  it("says what the movements compare, not 'this week'", () => {
-    expect(changedHeading(28)).toBe("What changed — the last 28 days against the 28 before");
+  it("claims no comparison and not 'this week'", () => {
+    expect(changedHeading(28)).toBe("What changed in the last 28 days");
   });
 });

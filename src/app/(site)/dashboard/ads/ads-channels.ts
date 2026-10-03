@@ -115,8 +115,9 @@ export function metaAdsConnectionState(
  * One ads channel's connection state — Meta through its ads capability, every
  * other channel by its provider row, where a live row outranks a stale one.
  * ★THE RULE THE OUTCOMES PAGE'S RECONNECT CARD READS (D-03), kept here beside
- * `metaAdsConnectionState` so a change to what counts as connected reaches
- * both surfaces at once.
+ * `metaAdsConnectionState`. ⚠️The LinkedIn and X panels still derive their own
+ * reconnect state inline, so a change here does NOT reach them — moving them
+ * onto this is a follow-up, not something this function already guarantees.
  */
 export function adsChannelConnectionState(
   integrations: readonly AdsIntegrationRow[],

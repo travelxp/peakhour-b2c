@@ -1,6 +1,5 @@
 import type { ChannelMeasurement, OptimizerRun, OutcomesResponse, PaidChannel } from "@/lib/api/growth";
 import { paidFigureLabel } from "@/lib/visibility-funnel";
-import { formatMoney } from "@/lib/outcome-value";
 import {
   ADS_CHANNELS,
   adsChannelConnectionState,
@@ -13,10 +12,9 @@ import {
  *
  * ★CHANNEL IS A FILTER, NEVER A TAB. The funnel and "what changed" are about
  * the business, organic first, and never filter; Needs You, Channels and
- * Learning narrow to one channel. A Needs You item about the business (publish
- * something, connect analytics) stays under every chip; one about ads that
- * names no channel is held back under a chip and counted, never shown as if it
- * were that channel's.
+ * Learning narrow to one channel. ★AN ITEM'S CHANNELS ARE SENT, NOT GUESSED:
+ * the api tags every ads action with `channels`, our own cards carry theirs,
+ * and an item with none is about the business and stays under every chip.
  *
  * ★ABSENT IS NEVER ZERO, here as on the rest of the page. A platform that
  * reports no conversions has no cost per conversion and no "0"; a source not
@@ -47,9 +45,9 @@ export function channelChips(platforms: Iterable<string>): ChannelChip[] {
   ];
 }
 
-/** True when `channel` passes `filter`. Untagged items pass every filter. */
-export function inChannel(filter: string, channel: string | undefined): boolean {
-  return filter === ALL_CHANNELS || channel === undefined || channel === filter;
+/** True when an item about `channels` passes `filter`. No channels: the business's. */
+export function inChannel(filter: string, channels: readonly string[] | undefined): boolean {
+  return filter === ALL_CHANNELS || !channels || channels.length === 0 || channels.includes(filter);
 }
 
 /**
@@ -61,6 +59,27 @@ export function eventDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short" });
 }
 
+/**
+ * An amount beside its currency CODE — "USD 1,235" — the shape `paidNote` and
+ * the conversions card already print, so one quantity never reads two ways on
+ * one page. ★The currency's own decimals (JPY has none), and a code Intl
+ * refuses still prints rather than taking the page down.
+ */
+export function codeMoney(amount: number, currency: string, wholeUnits = false): string {
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+      currencyDisplay: "code",
+      ...(wholeUnits ? { maximumFractionDigits: 0, minimumFractionDigits: 0 } : {}),
+    })
+      .format(amount)
+      .replace(/\u00a0/g, " ");
+  } catch {
+    return `${currency} ${NUM.format(wholeUnits ? Math.round(amount) : amount)}`;
+  }
+}
+
 export interface MeasurementBadge {
   label: string;
   tone: "success" | "warning" | "muted";
@@ -68,17 +87,21 @@ export interface MeasurementBadge {
   meaning: string;
 }
 
+// ★EACH MEANING CLAIMS ONLY WHAT D-02's STATE PROVES. `tracked` is a delivery
+// receipt — Peakhour's latest conversion upload reached the platform whole —
+// not a reconciliation of the two counts; `partial` is "no such receipt",
+// which includes a receipt nobody could read, so it never says uploads failed.
 const BADGES: Record<ChannelMeasurement, MeasurementBadge> = {
   tracked: {
     label: "Tracked",
     tone: "success",
-    meaning: "Its conversion count is checked against the conversions Peakhour sent it.",
+    meaning: "It reports conversions, and Peakhour's latest conversion upload reached it in full.",
   },
   partial: {
     label: "Partial",
     tone: "warning",
     meaning:
-      "Only the platform's own pixel or tag counts conversions here — nothing Peakhour sends has reached it yet.",
+      "It reports conversions, but Peakhour can't confirm its own conversion upload reaches it — the count may be the platform's pixel or tag alone.",
   },
   untracked: {
     label: "Not tracked",
@@ -122,10 +145,10 @@ export function channelRow(ch: PaidChannel): ChannelRow {
   if (ch.conversions === null) costPerConversion = "not measurable";
   else if (priced === null) costPerConversion = "spend not totalled";
   else if (ch.conversions === 0) costPerConversion = "no conversions yet";
-  else costPerConversion = formatMoney(priced.amount / ch.conversions, priced.currency);
+  else costPerConversion = codeMoney(priced.amount / ch.conversions, priced.currency);
   return {
     ...base,
-    spend: priced === null ? "couldn't be totalled" : formatMoney(priced.amount, priced.currency),
+    spend: priced === null ? "couldn't be totalled" : codeMoney(priced.amount, priced.currency, true),
     conversions: ch.conversions === null ? "not reported" : NUM.format(ch.conversions),
     costPerConversion,
   };
@@ -135,7 +158,7 @@ type Paid = OutcomesResponse["reach"]["paid"];
 
 /** The Channels section's rows under a filter. */
 export function channelRows(paid: Paid, filter: string): ChannelRow[] {
-  return (paid?.byChannel ?? []).filter((ch) => inChannel(filter, ch.platform)).map(channelRow);
+  return (paid?.byChannel ?? []).filter((ch) => inChannel(filter, [ch.platform])).map(channelRow);
 }
 
 export interface NeedsYouItem {
@@ -145,8 +168,8 @@ export interface NeedsYouItem {
   detail: string;
   href?: string;
   cta?: string;
-  /** The channel it belongs to; absent for an item about the business. */
-  channel?: string;
+  /** The ad channels it is about; absent for an item about the business. */
+  channels?: string[];
 }
 
 /**
@@ -168,7 +191,7 @@ export function proposalItems(runs: readonly OptimizerRun[]): NeedsYouItem[] {
     detail: `For ${paidFigureLabel(platform)}. Each says what it expects to change and when it would be rolled back.`,
     href: "/dashboard/optimizer",
     cta: "Review",
-    channel: platform,
+    channels: [platform],
   }));
 }
 
@@ -181,47 +204,26 @@ export function reconnectItems(integrations: readonly AdsIntegrationRow[]): Need
     detail: "Peakhour's access to it has lapsed. Until you reconnect, its figures here can fall out of date.",
     href: `/dashboard/ads?channel=${c.key}`,
     cta: "Reconnect",
-    channel: c.key,
+    channels: [c.key],
   }));
 }
 
-/** The api's next actions that are about ads but name no channel. */
-export function isAdsAction(id: string): boolean {
-  return /^(campaign|campaigns|ads)-/.test(id);
-}
-
 /**
- * The api's next actions without `ads-stale` when every stale channel already
- * has its own reconnect card — one fault, one card. Kept when any stale channel
- * has none, because then it is the only thing saying so.
+ * The api's next actions without `ads-stale` when every channel it names
+ * already has its own reconnect card — one fault, one card. ★READ FROM
+ * `ads-stale`'s OWN CHANNELS, not from `reach.paid`: the api sends `paid: null`
+ * when nothing moved, which is exactly the lapsed-token case. Kept when it
+ * names none, or any channel without a reconnect card, because then it is the
+ * only thing saying so.
  */
-export function withoutCoveredAdsStale<T extends { id: string }>(
+export function withoutCoveredAdsStale<T extends { id: string; channels?: string[] }>(
   actions: readonly T[],
-  paid: Paid,
   reconnect: readonly NeedsYouItem[],
 ): T[] {
-  const stale = (paid?.byChannel ?? []).filter((c) => c.stale).map((c) => c.platform);
-  const covered = new Set(reconnect.map((i) => i.channel));
-  const allCovered = stale.length > 0 && stale.every((p) => covered.has(p));
-  return actions.filter((a) => !(a.id === "ads-stale" && allCovered));
-}
-
-/**
- * Needs You under a filter: the items shown, and how many ads items naming no
- * channel were held back from it.
- */
-export function needsYouUnder(
-  filter: string,
-  items: readonly NeedsYouItem[],
-): { items: NeedsYouItem[]; heldBack: number } {
-  if (filter === ALL_CHANNELS) return { items: [...items], heldBack: 0 };
-  const shown: NeedsYouItem[] = [];
-  let heldBack = 0;
-  for (const i of items) {
-    if (i.channel === undefined && isAdsAction(i.id)) heldBack++;
-    else if (inChannel(filter, i.channel)) shown.push(i);
-  }
-  return { items: shown, heldBack };
+  const covered = new Set(reconnect.flatMap((i) => i.channels ?? []));
+  return actions.filter(
+    (a) => !(a.id === "ads-stale" && a.channels && a.channels.length > 0 && a.channels.every((c) => covered.has(c))),
+  );
 }
 
 export type SourceState = "read" | "checking" | "failed";
@@ -248,6 +250,12 @@ export function uncheckedNote(state: { proposals: SourceState; connections: Sour
   return parts.length > 0 ? parts.join(" ") : null;
 }
 
+/** Free text as a sentence: its own closing stop kept, one added if missing. */
+export function asSentence(text: string): string {
+  const t = text.trim();
+  return /[.!?…]["'”’)]*$/.test(t) ? t : `${t}.`;
+}
+
 export interface LearningItem {
   id: string;
   channel: string;
@@ -269,22 +277,22 @@ const UNMEASURED = "What it actually did isn't measured yet.";
 export function learningItems(runs: readonly OptimizerRun[], filter: string, limit = 5): LearningItem[] {
   const items: (LearningItem & { at: number })[] = [];
   for (const run of runs) {
-    if (!inChannel(filter, run.platform)) continue;
+    if (!inChannel(filter, [run.platform])) continue;
     for (const p of run.proposals) {
       let headline: string;
       let detail: string;
       let when: string | undefined;
       if (p.status === "applied") {
         headline = `Applied: ${p.summary}`;
-        detail = `Expected: ${p.expectedEffect}. ${UNMEASURED}`;
+        detail = `Expected: ${asSentence(p.expectedEffect)} ${UNMEASURED}`;
         when = p.appliedAt ?? p.decidedAt;
       } else if (p.status === "approved") {
         headline = `You approved: ${p.summary}`;
-        detail = `Expected: ${p.expectedEffect}. ${UNMEASURED}`;
+        detail = `Expected: ${asSentence(p.expectedEffect)} ${UNMEASURED}`;
         when = p.decidedAt;
       } else if (p.status === "dismissed") {
         headline = `You dismissed: ${p.summary}`;
-        detail = `It expected: ${p.expectedEffect}.`;
+        detail = `It expected: ${asSentence(p.expectedEffect)}`;
         when = p.decidedAt;
       } else if (p.status === "failed") {
         headline = `Tried, and it failed: ${p.summary}`;
@@ -307,9 +315,20 @@ export function learningItems(runs: readonly OptimizerRun[], filter: string, lim
     .map(({ id, channel, when, headline, detail }) => ({ id, channel, when, headline, detail }));
 }
 
-/** The heading over the movements: they compare the window against the one
- *  before it, which is not "this week", so the heading says what they are. */
-export function changedHeading(days: number): string {
-  return `What changed — the last ${days} days against the ${days} before`;
+/**
+ * What the Learning card says when its list is empty. ★UNDER A CHIP IT IS
+ * ABOUT THAT CHANNEL: "nothing has been tried" while another channel has
+ * applied changes is a false sentence about the business.
+ */
+export function learningEmptyText(filter: string): string {
+  return filter === ALL_CHANNELS
+    ? "Nothing has been tried yet. When an optimizer proposal is approved, applied, dismissed or fails, it's listed here with what it expected to do."
+    : `Nothing has been tried on ${paidFigureLabel(filter)} yet.`;
 }
 
+/** The heading over the movements. ★IT CLAIMS NO COMPARISON: some movements
+ *  compare the window with the one before it, and some (the engagement rate)
+ *  describe the window alone. */
+export function changedHeading(days: number): string {
+  return `What changed in the last ${days} days`;
+}
