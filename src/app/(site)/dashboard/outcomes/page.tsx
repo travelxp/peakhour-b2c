@@ -37,13 +37,16 @@ import {
   changedHeading,
   channelChips,
   channelRows,
-  inChannel,
   learningItems,
+  needsYouUnder,
   proposalItems,
   reconnectItems,
+  sourceState,
   uncheckedNote,
+  withoutCoveredAdsStale,
   type MeasurementBadge,
   type NeedsYouItem,
+  type SourceState,
 } from "@/lib/growth-dashboard";
 import type { AdsIntegrationRow } from "@/app/(site)/dashboard/ads/ads-channels";
 
@@ -134,9 +137,11 @@ export default function OutcomesPage() {
     refetchOnWindowFocus: false,
   });
 
-  // The ads hub's key and shape, so the two pages share one read.
+  // The ads hub's key prefix (its invalidations reach this), plus the business:
+  // a reconnect card for another business's connection is the cache-clear
+  // hazard the outcomes key above names.
   const integrations = useQuery({
-    queryKey: ["content-hub-integrations"],
+    queryKey: ["content-hub-integrations", business?._id ?? "none"],
     queryFn: () => api.get<{ integrations: AdsIntegrationRow[] }>("/v1/integrations"),
     staleTime: 30_000,
   });
@@ -198,11 +203,11 @@ export default function OutcomesPage() {
           data={outcomes.data}
           days={days}
           runs={adjustments.data?.runs}
-          // ★`!data`, NOT isError ALONE: react-query clears `error` on a
-          //  refetch, and a source with no data is unchecked either way.
-          runsFailed={!adjustments.data && adjustments.isError}
+          // ★READ ONLY WITH DATA: loading, retrying and a refetch after an
+          //  error (which clears `error`) are all unchecked, not "nothing".
+          runsState={sourceState(adjustments)}
           integrations={integrations.data?.integrations}
-          integrationsFailed={!integrations.data && integrations.isError}
+          integrationsState={sourceState(integrations)}
         />
       )}
     </div>
@@ -224,17 +229,17 @@ function OutcomesBody({
   data,
   days,
   runs,
-  runsFailed,
+  runsState,
   integrations,
-  integrationsFailed,
+  integrationsState,
 }: {
   data: OutcomesResponse;
   days: number;
   /** Undefined until read — and while it cannot be. */
   runs: OptimizerRun[] | undefined;
-  runsFailed: boolean;
+  runsState: SourceState;
   integrations: AdsIntegrationRow[] | undefined;
-  integrationsFailed: boolean;
+  integrationsState: SourceState;
 }) {
   const { reach, attention, conversions, value, nextActions, movements } = data;
   // Computed once: the guard and the rendered child were two independent
@@ -245,10 +250,9 @@ function OutcomesBody({
   const nothingHappened =
     reach.organic.posts === 0 && reach.paid === null && (reach.site?.sessions ?? 0) === 0;
 
-  const channelItems: NeedsYouItem[] = [
-    ...reconnectItems(integrations ?? []),
-    ...proposalItems(runs ?? []),
-  ];
+  const reconnect = reconnectItems(integrations ?? []);
+  const proposals = proposalItems(runs ?? []);
+  const channelItems: NeedsYouItem[] = [...reconnect, ...proposals];
   const chips = channelChips([
     ...(reach.paid?.byChannel ?? []).map((c) => c.platform),
     ...(runs ?? []).map((r) => r.platform),
@@ -261,12 +265,13 @@ function OutcomesBody({
   // Broken things first, then the business's own next actions, then the
   // decisions waiting — each in the order its source ranked them.
   const ranked: NeedsYouItem[] = [
-    ...channelItems.filter((i) => i.severity === "critical"),
-    ...nextActions,
-    ...channelItems.filter((i) => i.severity !== "critical"),
+    ...reconnect,
+    ...withoutCoveredAdsStale(nextActions, reach.paid, reconnect),
+    ...proposals,
   ];
-  const needsYou = ranked.filter((i) => inChannel(filter, i.channel));
-  const unchecked = uncheckedNote({ proposals: runsFailed, connections: integrationsFailed });
+  const needsYou = needsYouUnder(filter, ranked);
+  const unchecked = uncheckedNote({ proposals: runsState, connections: integrationsState });
+  const runsFailed = runsState === "failed";
   const learning = runs ? learningItems(runs, filter) : null;
 
   return (
@@ -305,12 +310,6 @@ function OutcomesBody({
         </CardContent>
       </Card>
 
-      {/* ── What to do next ────────────────────────────────────────────
-          ★ABOVE THE NUMBERS, ALWAYS. This is the half of the page that is
-          worth opening; a customer who reads only one block should read this
-          one. Every item names the row it came from — a recommendation that
-          cannot be traced to a fact about their own account is advice, and
-          advice is exactly what this page exists not to be. */}
       {/* ── The channel filter ─────────────────────────────────────────
           ★A FILTER, NOT A TAB: it narrows the three sections under it and
           nothing above — the funnel and what changed are the business's. */}
@@ -332,40 +331,28 @@ function OutcomesBody({
         </div>
       )}
 
-      {/* ── Channels ──────────────────────────────────────────────────
-          ★PAID APPEARS WHEN THERE IS PAID, as everywhere on this page. Each
-          channel carries D-02's badge, read from /outcomes — /visibility
-          reads every measured channel `partial`, so it cannot be the source. */}
-      {rows.length > 0 && (
-        <div className="space-y-2">
-          <h3 className="text-sm font-semibold">Channels</h3>
-          <Card>
-            <CardContent className="divide-y p-0">
-              {rows.map((r) => (
-                <div key={r.platform} className="space-y-1.5 px-5 py-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-medium">{r.label}</span>
-                    {r.badge && <MeasurementBadgeChip badge={r.badge} />}
-                    {r.note && <span className="text-xs text-muted-foreground">{r.note}</span>}
-                  </div>
-                  <dl className="grid grid-cols-1 gap-x-6 gap-y-1 text-sm sm:grid-cols-3">
-                    <ChannelFigure term="Spent" value={r.spend} />
-                    <ChannelFigure term="Conversions, as the platform counts them" value={r.conversions} />
-                    <ChannelFigure term="Cost per conversion" value={r.costPerConversion} />
-                  </dl>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {(needsYou.length > 0 || unchecked) && (
+      {/* ── What to do next ────────────────────────────────────────────
+          ★ABOVE THE NUMBERS, ALWAYS. This is the half of the page that is
+          worth opening; a customer who reads only one block should read this
+          one. Every item names the row it came from — a recommendation that
+          cannot be traced to a fact about their own account is advice, and
+          advice is exactly what this page exists not to be. */}
+      {(needsYou.items.length > 0 || needsYou.heldBack > 0 || unchecked) && (
         <div className="space-y-2">
           <h3 className="text-sm font-semibold">What needs you</h3>
           {unchecked && <p className="text-xs text-muted-foreground">{unchecked}</p>}
+          {needsYou.heldBack > 0 && (
+            <p className="text-xs text-muted-foreground">
+              {needsYou.heldBack} more about your ads {needsYou.heldBack === 1 ? "isn't" : "aren't"} tied to one
+              channel —{" "}
+              <button type="button" className="underline underline-offset-2" onClick={() => setPicked(ALL_CHANNELS)}>
+                show all channels
+              </button>
+              .
+            </p>
+          )}
           <div className="space-y-2">
-            {needsYou.map((a) => {
+            {needsYou.items.map((a) => {
               const s = SEVERITY[a.severity];
               return (
                 <Card key={a.id}>
@@ -394,6 +381,34 @@ function OutcomesBody({
               );
             })}
           </div>
+        </div>
+      )}
+
+      {/* ── Channels ──────────────────────────────────────────────────
+          ★PAID APPEARS WHEN THERE IS PAID, as everywhere on this page. Each
+          channel carries D-02's badge, read from /outcomes — /visibility
+          reads every measured channel `partial`, so it cannot be the source. */}
+      {rows.length > 0 && (
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold">Channels</h3>
+          <Card>
+            <CardContent className="divide-y p-0">
+              {rows.map((r) => (
+                <div key={r.platform} className="space-y-1.5 px-5 py-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-medium">{r.label}</span>
+                    {r.badge && <MeasurementBadgeChip badge={r.badge} />}
+                    {r.note && <span className="text-xs text-muted-foreground">{r.note}</span>}
+                  </div>
+                  <dl className="grid grid-cols-1 gap-x-6 gap-y-1 text-sm sm:grid-cols-3">
+                    <ChannelFigure term="Spent" value={r.spend} />
+                    <ChannelFigure term="Conversions, as the platform counts them" value={r.conversions} />
+                    <ChannelFigure term="Cost per conversion" value={r.costPerConversion} />
+                  </dl>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
         </div>
       )}
 

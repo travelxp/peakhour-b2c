@@ -1,9 +1,9 @@
 import type { ChannelMeasurement, OptimizerRun, OutcomesResponse, PaidChannel } from "@/lib/api/growth";
 import { paidFigureLabel } from "@/lib/visibility-funnel";
-import { shortDate } from "@/lib/outcome-value";
+import { formatMoney } from "@/lib/outcome-value";
 import {
   ADS_CHANNELS,
-  metaAdsConnectionState,
+  adsChannelConnectionState,
   type AdsIntegrationRow,
 } from "@/app/(site)/dashboard/ads/ads-channels";
 
@@ -12,14 +12,16 @@ import {
  * and tested here, so the page only lays it out (plan §6.1).
  *
  * ★CHANNEL IS A FILTER, NEVER A TAB. The funnel and "what changed" are about
- * the business, organic first, and never filter; Channels, Needs You and
- * Learning narrow to one channel. A Needs You item that belongs to no channel
- * (publish something, connect analytics) stays under every chip: a filter that
- * hid "nothing is being measured" would be the dashboard hiding a broken thing.
+ * the business, organic first, and never filter; Needs You, Channels and
+ * Learning narrow to one channel. A Needs You item about the business (publish
+ * something, connect analytics) stays under every chip; one about ads that
+ * names no channel is held back under a chip and counted, never shown as if it
+ * were that channel's.
  *
  * ★ABSENT IS NEVER ZERO, here as on the rest of the page. A platform that
- * reports no conversions has no cost per conversion and no "0"; a source that
- * failed to load is named as unchecked, never rendered as "nothing needs you".
+ * reports no conversions has no cost per conversion and no "0"; a source not
+ * yet read, or that failed, is named as unchecked, never rendered as "nothing
+ * needs you".
  */
 
 export const ALL_CHANNELS = "all";
@@ -48,6 +50,15 @@ export function channelChips(platforms: Iterable<string>): ChannelChip[] {
 /** True when `channel` passes `filter`. Untagged items pass every filter. */
 export function inChannel(filter: string, channel: string | undefined): boolean {
   return filter === ALL_CHANNELS || channel === undefined || channel === filter;
+}
+
+/**
+ * The day an EVENT happened, in the merchant's own zone. ★NOT `shortDate`,
+ * which formats in UTC because its inputs are UTC-midnight day instants: a
+ * decision at 02:00 in Kolkata is the previous day in UTC.
+ */
+export function eventDate(iso: string): string {
+  return new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short" });
 }
 
 export interface MeasurementBadge {
@@ -87,24 +98,36 @@ export interface ChannelRow {
   note: string | null;
 }
 
+const NO_FIGURES = "no figures this window";
+
 /** One channel, as the Channels section shows it. */
 export function channelRow(ch: PaidChannel): ChannelRow {
-  const money = ch.spend !== null && ch.currency ? ch.spend : null;
-  let costPerConversion: string;
-  if (ch.conversions === null) costPerConversion = "not measurable";
-  else if (money === null) costPerConversion = "spend not totalled";
-  else if (ch.conversions === 0) costPerConversion = "no conversions yet";
-  else costPerConversion = `${ch.currency} ${(money / ch.conversions).toFixed(2)}`;
-  return {
+  const base = {
     platform: ch.platform,
     label: paidFigureLabel(ch.platform),
-    spend: money === null ? "couldn't be totalled" : `${ch.currency} ${NUM.format(Math.round(money))}`,
+    badge: ch.measurement ? BADGES[ch.measurement] : null,
+    note: ch.stale ? `stopped updating${ch.lastReadAt ? ` — last read ${eventDate(ch.lastReadAt)}` : ""}` : null,
+  };
+  // ★A CHANNEL THAT DID NOT MOVE IS LISTED ONLY BECAUSE IT IS STALE (the api's
+  //  `rollupPaid`): its null spend is not a refusal and its 0 is not a measured
+  //  zero — the window has no figures from it. `paidNote` leaves it out of the
+  //  total for the same reason.
+  if (ch.moved === false) {
+    return { ...base, spend: NO_FIGURES, conversions: NO_FIGURES, costPerConversion: NO_FIGURES };
+  }
+  // A spend with no currency is refused like a null one: a bare number beside
+  // other channels' money reads as the same unit.
+  const priced = ch.spend !== null && ch.currency ? { amount: ch.spend, currency: ch.currency } : null;
+  let costPerConversion: string;
+  if (ch.conversions === null) costPerConversion = "not measurable";
+  else if (priced === null) costPerConversion = "spend not totalled";
+  else if (ch.conversions === 0) costPerConversion = "no conversions yet";
+  else costPerConversion = formatMoney(priced.amount / ch.conversions, priced.currency);
+  return {
+    ...base,
+    spend: priced === null ? "couldn't be totalled" : formatMoney(priced.amount, priced.currency),
     conversions: ch.conversions === null ? "not reported" : NUM.format(ch.conversions),
     costPerConversion,
-    badge: ch.measurement ? BADGES[ch.measurement] : null,
-    note: ch.stale
-      ? `stopped updating${ch.lastReadAt ? ` — last read ${shortDate(ch.lastReadAt)}` : ""}`
-      : null,
   };
 }
 
@@ -149,46 +172,80 @@ export function proposalItems(runs: readonly OptimizerRun[]): NeedsYouItem[] {
   }));
 }
 
-/**
- * One item per ads channel whose connection needs reconnecting — and none for
- * a channel that also has a live connection, which is still working.
- */
+/** One item per ads channel whose connection needs reconnecting. */
 export function reconnectItems(integrations: readonly AdsIntegrationRow[]): NeedsYouItem[] {
-  const items: NeedsYouItem[] = [];
-  for (const c of ADS_CHANNELS) {
-    const state =
-      c.key === "meta"
-        ? metaAdsConnectionState(integrations)
-        : integrations.some((i) => i.provider === c.providerKey && i.connected === true)
-          ? "connected"
-          : integrations.some((i) => i.provider === c.providerKey && i.status === "needs_reauth")
-            ? "needs_reauth"
-            : "absent";
-    if (state !== "needs_reauth") continue;
-    items.push({
-      id: `reconnect-${c.key}`,
-      severity: "critical",
-      title: `Reconnect ${c.label}`,
-      detail: "Peakhour's access to it has lapsed. Until you reconnect, its figures here can fall out of date.",
-      href: `/dashboard/ads?channel=${c.key}`,
-      cta: "Reconnect",
-      channel: c.key,
-    });
-  }
-  return items;
+  return ADS_CHANNELS.filter((c) => adsChannelConnectionState(integrations, c) === "needs_reauth").map((c) => ({
+    id: `reconnect-${c.key}`,
+    severity: "critical",
+    title: `Reconnect ${c.label}`,
+    detail: "Peakhour's access to it has lapsed. Until you reconnect, its figures here can fall out of date.",
+    href: `/dashboard/ads?channel=${c.key}`,
+    cta: "Reconnect",
+    channel: c.key,
+  }));
+}
+
+/** The api's next actions that are about ads but name no channel. */
+export function isAdsAction(id: string): boolean {
+  return /^(campaign|campaigns|ads)-/.test(id);
 }
 
 /**
- * Which Needs You sources could not be read. Named, because an empty list
- * after a failed read is a claim that nothing needs the merchant — and nobody
+ * The api's next actions without `ads-stale` when every stale channel already
+ * has its own reconnect card — one fault, one card. Kept when any stale channel
+ * has none, because then it is the only thing saying so.
+ */
+export function withoutCoveredAdsStale<T extends { id: string }>(
+  actions: readonly T[],
+  paid: Paid,
+  reconnect: readonly NeedsYouItem[],
+): T[] {
+  const stale = (paid?.byChannel ?? []).filter((c) => c.stale).map((c) => c.platform);
+  const covered = new Set(reconnect.map((i) => i.channel));
+  const allCovered = stale.length > 0 && stale.every((p) => covered.has(p));
+  return actions.filter((a) => !(a.id === "ads-stale" && allCovered));
+}
+
+/**
+ * Needs You under a filter: the items shown, and how many ads items naming no
+ * channel were held back from it.
+ */
+export function needsYouUnder(
+  filter: string,
+  items: readonly NeedsYouItem[],
+): { items: NeedsYouItem[]; heldBack: number } {
+  if (filter === ALL_CHANNELS) return { items: [...items], heldBack: 0 };
+  const shown: NeedsYouItem[] = [];
+  let heldBack = 0;
+  for (const i of items) {
+    if (i.channel === undefined && isAdsAction(i.id)) heldBack++;
+    else if (inChannel(filter, i.channel)) shown.push(i);
+  }
+  return { items: shown, heldBack };
+}
+
+export type SourceState = "read" | "checking" | "failed";
+
+/** A query's state as Needs You reports it: read only when there is data. */
+export function sourceState(q: { data: unknown; isError: boolean }): SourceState {
+  return q.data !== undefined ? "read" : q.isError ? "failed" : "checking";
+}
+
+/**
+ * Which Needs You sources are not read. Named, because an empty list over an
+ * unread source is a claim that nothing needs the merchant — and nobody
  * checked.
  */
-export function uncheckedNote(failed: { proposals: boolean; connections: boolean }): string | null {
-  const what = [
-    failed.proposals ? "optimizer proposals" : null,
-    failed.connections ? "your ad connections" : null,
+export function uncheckedNote(state: { proposals: SourceState; connections: SourceState }): string | null {
+  const names = { proposals: "optimizer proposals", connections: "your ad connections" } as const;
+  const keys = ["proposals", "connections"] as const;
+  const failed = keys.filter((k) => state[k] === "failed").map((k) => names[k]);
+  const checking = keys.filter((k) => state[k] === "checking").map((k) => names[k]);
+  const parts = [
+    failed.length > 0 ? `We couldn't check ${failed.join(" or ")} just now.` : null,
+    checking.length > 0 ? `Still checking ${checking.join(" and ")}.` : null,
   ].filter(Boolean);
-  return what.length > 0 ? `We couldn't check ${what.join(" or ")} just now.` : null;
+  return parts.length > 0 ? parts.join(" ") : null;
 }
 
 export interface LearningItem {
@@ -199,12 +256,15 @@ export interface LearningItem {
   detail: string;
 }
 
+const UNMEASURED = "What it actually did isn't measured yet.";
+
 /**
- * What was tried, newest first: every optimizer proposal that was applied,
- * dismissed or failed. ★AN APPLIED CHANGE SAYS ITS EFFECT IS NOT MEASURED,
- * because nothing measures it yet — the experiment ledger that would record
- * "what it did" is C-03's, and a line implying the change worked would be the
- * dashboard narrating something no number beside it supports.
+ * What was tried, newest first: every optimizer proposal approved, applied,
+ * dismissed or failed. ★`approved` IS MOSTLY FINAL — the api leaves every
+ * approval but a budget resplit at `approved` for good, so skipping it would
+ * hide most of what a merchant accepted. ★A CHANGE SAYS ITS EFFECT IS NOT
+ * MEASURED, because nothing measures it yet: the experiment ledger that would
+ * record "what it did" is C-03's.
  */
 export function learningItems(runs: readonly OptimizerRun[], filter: string, limit = 5): LearningItem[] {
   const items: (LearningItem & { at: number })[] = [];
@@ -216,8 +276,12 @@ export function learningItems(runs: readonly OptimizerRun[], filter: string, lim
       let when: string | undefined;
       if (p.status === "applied") {
         headline = `Applied: ${p.summary}`;
-        detail = `Expected: ${p.expectedEffect}. What it actually did isn't measured yet.`;
+        detail = `Expected: ${p.expectedEffect}. ${UNMEASURED}`;
         when = p.appliedAt ?? p.decidedAt;
+      } else if (p.status === "approved") {
+        headline = `You approved: ${p.summary}`;
+        detail = `Expected: ${p.expectedEffect}. ${UNMEASURED}`;
+        when = p.decidedAt;
       } else if (p.status === "dismissed") {
         headline = `You dismissed: ${p.summary}`;
         detail = `It expected: ${p.expectedEffect}.`;
@@ -230,7 +294,7 @@ export function learningItems(runs: readonly OptimizerRun[], filter: string, lim
       items.push({
         id: `${run._id}-${p.id}`,
         channel: run.platform,
-        when: when ? shortDate(when) : null,
+        when: when ? eventDate(when) : null,
         headline,
         detail,
         at: when ? Date.parse(when) : -Infinity,
@@ -248,3 +312,4 @@ export function learningItems(runs: readonly OptimizerRun[], filter: string, lim
 export function changedHeading(days: number): string {
   return `What changed — the last ${days} days against the ${days} before`;
 }
+
