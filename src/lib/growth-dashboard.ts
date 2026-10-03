@@ -13,7 +13,7 @@ import {
  * ★CHANNEL IS A FILTER, NEVER A TAB. The funnel and "what changed" are about
  * the business, organic first, and never filter; Needs You, Channels and
  * Learning narrow to one channel. ★AN ITEM'S CHANNELS ARE SENT, NOT GUESSED:
- * the api tags every ads action with `channels`, our own cards carry theirs,
+ * the api tags every ads action with its one `channel`, our own cards carry theirs,
  * and an item with none is about the business and stays under every chip.
  *
  * ★ABSENT IS NEVER ZERO, here as on the rest of the page. A platform that
@@ -45,9 +45,9 @@ export function channelChips(platforms: Iterable<string>): ChannelChip[] {
   ];
 }
 
-/** True when an item about `channels` passes `filter`. No channels: the business's. */
-export function inChannel(filter: string, channels: readonly string[] | undefined): boolean {
-  return filter === ALL_CHANNELS || !channels || channels.length === 0 || channels.includes(filter);
+/** True when an item about `channel` passes `filter`. No channel: the business's. */
+export function inChannel(filter: string, channel: string | undefined): boolean {
+  return filter === ALL_CHANNELS || channel === undefined || channel === filter;
 }
 
 /**
@@ -158,7 +158,7 @@ type Paid = OutcomesResponse["reach"]["paid"];
 
 /** The Channels section's rows under a filter. */
 export function channelRows(paid: Paid, filter: string): ChannelRow[] {
-  return (paid?.byChannel ?? []).filter((ch) => inChannel(filter, [ch.platform])).map(channelRow);
+  return (paid?.byChannel ?? []).filter((ch) => inChannel(filter, ch.platform)).map(channelRow);
 }
 
 export interface NeedsYouItem {
@@ -168,8 +168,8 @@ export interface NeedsYouItem {
   detail: string;
   href?: string;
   cta?: string;
-  /** The ad channels it is about; absent for an item about the business. */
-  channels?: string[];
+  /** The ad channel it is about; absent for an item about the business. */
+  channel?: string;
 }
 
 /**
@@ -191,7 +191,7 @@ export function proposalItems(runs: readonly OptimizerRun[]): NeedsYouItem[] {
     detail: `For ${paidFigureLabel(platform)}. Each says what it expects to change and when it would be rolled back.`,
     href: "/dashboard/optimizer",
     cta: "Review",
-    channels: [platform],
+    channel: platform,
   }));
 }
 
@@ -204,31 +204,29 @@ export function reconnectItems(integrations: readonly AdsIntegrationRow[]): Need
     detail: "Peakhour's access to it has lapsed. Until you reconnect, its figures here can fall out of date.",
     href: `/dashboard/ads?channel=${c.key}`,
     cta: "Reconnect",
-    channels: [c.key],
+    channel: c.key,
   }));
 }
 
-/** A stale-figures card: the api emits one per stale channel (`ads-stale-<platform>`),
- *  and a bare `ads-stale` for a platform it has no key for. */
+/** A stale-figures card: the api emits one per stale channel, `ads-stale-<platform>`. */
 export function isStaleCard(id: string): boolean {
-  return id === "ads-stale" || id.startsWith("ads-stale-");
+  return id.startsWith("ads-stale-");
 }
 
 /**
- * The api's next actions without each stale card whose channels all have a
- * reconnect card — one fault, one card. ★READ FROM THE CARD'S OWN CHANNELS,
+ * The api's next actions without each stale card whose channel has a
+ * reconnect card — one fault, one card. ★READ FROM THE CARD'S OWN CHANNEL,
  * not from `reach.paid`: the api sends `paid: null` when nothing moved, which
- * is exactly the lapsed-token case. Kept when it names none, or any channel
+ * is exactly the lapsed-token case. Kept when it names no channel, or one
  * without a reconnect card, because then it is the only thing saying so.
  */
-export function withoutCoveredAdsStale<T extends { id: string; channels?: string[] }>(
+export function withoutCoveredAdsStale<T extends { id: string; channel?: string }>(
   actions: readonly T[],
   reconnect: readonly NeedsYouItem[],
 ): T[] {
-  const covered = new Set(reconnect.flatMap((i) => i.channels ?? []));
-  return actions.filter(
-    (a) => !(isStaleCard(a.id) && a.channels && a.channels.length > 0 && a.channels.every((c) => covered.has(c))),
-  );
+  // Never holds `undefined`, so a card naming no channel is never covered.
+  const covered = new Set<string | undefined>(reconnect.flatMap((i) => (i.channel ? [i.channel] : [])));
+  return actions.filter((a) => !(isStaleCard(a.id) && covered.has(a.channel)));
 }
 
 export type SourceState = "read" | "checking" | "failed";
@@ -282,7 +280,7 @@ const UNMEASURED = "What it actually did isn't measured yet.";
 export function learningItems(runs: readonly OptimizerRun[], filter: string, limit = 5): LearningItem[] {
   const items: (LearningItem & { at: number })[] = [];
   for (const run of runs) {
-    if (!inChannel(filter, [run.platform])) continue;
+    if (!inChannel(filter, run.platform)) continue;
     for (const p of run.proposals) {
       let headline: string;
       let detail: string;

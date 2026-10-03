@@ -173,9 +173,9 @@ export interface OutcomesResponse {
     detail: string;
     href?: string;
     cta?: string;
-    /** The ad channels it is about (D-03); absent for an action about the
-     *  business, and from an api that predates it. */
-    channels?: string[];
+    /** The ad channel it is about (D-03, api#1450) — one per action; absent
+     *  for an action about the business, and from an api that predates it. */
+    channel?: string;
   }>;
 }
 

@@ -263,13 +263,13 @@ function OutcomesBody({
   const chips = channelChips([
     ...(reach.paid?.byChannel ?? []).map((c) => c.platform),
     ...(runs ?? []).map((r) => r.platform),
-    ...ranked.flatMap((i) => i.channels ?? []),
+    ...ranked.flatMap((i) => (i.channel ? [i.channel] : [])),
   ]);
   // A chip that is no longer offered (the window changed) falls back to All
   // rather than filtering every section down to nothing.
   const filter = chips.some((c) => c.key === picked) ? picked : ALL_CHANNELS;
   const rows = channelRows(reach.paid, filter);
-  const needsYou = ranked.filter((i) => inChannel(filter, i.channels));
+  const needsYou = ranked.filter((i) => inChannel(filter, i.channel));
   const unchecked = uncheckedNote({ proposals: runsState, connections: integrationsState });
   const runsFailed = runsState === "failed";
   const learning = runs ? learningItems(runs, filter) : null;
