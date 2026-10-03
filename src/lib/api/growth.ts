@@ -195,6 +195,37 @@ export interface WinOptionsResponse {
   inbox: { available: boolean };
 }
 
+/**
+ * D-05 — the merchant's guardrails (peakhour-mongodb mig 372), which the
+ * growth engine obeys at every proposal, launch and spend act. Absent means no
+ * rule of that kind. `timeZone` is stored WITH the windows it is read in, so a
+ * window never moves when the business's derived zone changes.
+ */
+export interface Guardrails {
+  /** Channels the engine may never propose, launch or spend on. */
+  deniedChannels?: string[];
+  /** Words and names no ad may carry, stored normalised (lowercase, accents
+   *  folded, punctuation as spaces); an "&" name is stored both ways. */
+  blockedTerms?: string[];
+  /** A daily "HH:MM"–"HH:MM" window, in `timeZone`, when no spend starts or
+   *  rises. May wrap midnight. */
+  quietHours?: { start: string; end: string };
+  /** Calendar days ("YYYY-MM-DD", inclusive), in `timeZone`, likewise. */
+  blackoutDates?: Array<{ from: string; to: string; label?: string }>;
+  timeZone?: string;
+  setAt?: string;
+  setByUserId?: string;
+}
+
+/** The guardrails as `updateSettings` writes them — written whole. */
+export interface GuardrailsPatch {
+  deniedChannels?: string[];
+  blockedTerms?: string[];
+  quietHours?: { start: string; end: string } | null;
+  blackoutDates?: Array<{ from: string; to: string; label?: string }>;
+  timeZone?: string;
+}
+
 export interface GrowthSettings {
   /** What this business counts as a win, if anything. Read from here rather
    *  than from `winOptions()` wherever a surface only needs to know WHETHER one
@@ -209,6 +240,8 @@ export interface GrowthSettings {
    *  absence, which is why withdrawing UNSETS it rather than storing
    *  NOT_DECLARED. */
   advertisingDeclaration?: AdvertisingDeclaration;
+  /** D-05: the merchant's guardrails, when any are set. */
+  guardrails?: Guardrails;
 }
 
 /**
@@ -888,6 +921,13 @@ export const growthApi = {
       eventName?: string;
       label: string;
     } | null;
+    /**
+     * D-05: the guardrails, WRITTEN WHOLE — every rule the card shows, sent
+     * together, replacing the stored record (empty lists store no key).
+     * `null` clears them all. `timeZone` is optional: the api uses the
+     * business's own zone when a window or a blackout is sent without one.
+     */
+    guardrails?: GuardrailsPatch | null;
   }) => api.patch<GrowthSettingsResponse>("/v1/growth/settings", patch),
 
   // ── Asks ───────────────────────────────────────────────────────────────
