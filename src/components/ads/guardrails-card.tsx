@@ -43,15 +43,17 @@ import {
   buildGuardrailsPatch,
   describeGuardrails,
   draftFromStored,
+  guardrailsSaveError,
   hasGuardrails,
   type GuardrailsDraft,
 } from "@/lib/guardrails-copy";
 
-/** The api's own sentence when it has one — its guardrail refusals are written
- *  for merchants — else a generic one that does not promise a retry fixes it. */
-function errorMessage(err: unknown): string {
-  if (err instanceof ApiError && err.message) return err.message;
-  return "We couldn't save your guardrails. Check them and try again.";
+/** Another save landed since Edit was opened. */
+class GuardrailsChangedError extends Error {
+  constructor() {
+    super("Your guardrails were changed while you were editing them. Cancel, then edit again to see the latest.");
+    this.name = "GuardrailsChangedError";
+  }
 }
 
 export function GuardrailsCard() {
@@ -65,11 +67,26 @@ export function GuardrailsCard() {
   });
   const stored = settings.data?.settings.guardrails;
   const [draft, setDraft] = useState<GuardrailsDraft | null>(null);
+  /** The stored record's `setAt` when Edit was opened, to catch a save made
+   *  elsewhere in the meantime (review R1). */
+  const [baseSetAt, setBaseSetAt] = useState<string | undefined>(undefined);
   const [formError, setFormError] = useState<string | null>(null);
   const [clearOpen, setClearOpen] = useState(false);
 
   const save = useMutation({
-    mutationFn: (patch: Parameters<typeof growthApi.updateSettings>[0]) => growthApi.updateSettings(patch),
+    mutationFn: async (patch: Parameters<typeof growthApi.updateSettings>[0]) => {
+      // ★WRITTEN WHOLE, SO CHECKED FRESH (review R1): a save replaces the
+      //  record, and one made elsewhere since Edit was opened would be
+      //  silently reverted by this form's older copy of it.
+      if (patch.guardrails !== null) {
+        const fresh = await growthApi.settings();
+        if (fresh.settings.guardrails?.setAt !== baseSetAt) {
+          queryClient.setQueryData(["growth-settings"], fresh);
+          throw new GuardrailsChangedError();
+        }
+      }
+      return growthApi.updateSettings(patch);
+    },
     onSuccess: (res, patch) => {
       queryClient.setQueryData(["growth-settings"], res);
       setDraft(null);
@@ -77,19 +94,27 @@ export function GuardrailsCard() {
       setClearOpen(false);
       toast.success(patch.guardrails === null ? "Guardrails cleared." : "Guardrails saved.");
     },
-    onError: (err) => toast.error(errorMessage(err)),
+    onError: (err) => {
+      if (err instanceof GuardrailsChangedError) {
+        setFormError(err.message);
+        return;
+      }
+      toast.error(guardrailsSaveError(err instanceof ApiError ? err : null));
+    },
   });
 
-  // ★isPending, not isLoading: a query paused offline is pending but not
-  //  loading, and rendering then would claim "No guardrails set" from no data.
-  if (settings.isPending || settings.isError) return null;
+  // ★NO DATA — which covers a query paused offline (pending, not loading:
+  //  rendering then would claim "No guardrails set" from nothing) — and NOT
+  //  `isError` (review R1): a failed background refetch keeps the cached data,
+  //  and hiding the card then would drop an open form.
+  if (!settings.data) return null;
 
   const lines = describeGuardrails(stored);
   const set = (over: Partial<GuardrailsDraft>) => setDraft((d) => (d ? { ...d, ...over } : d));
 
   const submit = () => {
     if (!draft) return;
-    const built = buildGuardrailsPatch(draft, stored?.timeZone);
+    const built = buildGuardrailsPatch(draft);
     if (!built.ok) {
       setFormError(built.error);
       return;
@@ -105,14 +130,23 @@ export function GuardrailsCard() {
           <div className="flex items-start gap-3">
             <ShieldBan className="mt-0.5 h-5 w-5 text-muted-foreground" aria-hidden />
             <div>
-              <h3 className="font-medium">Guardrails</h3>
+              {/* ★Named "Growth settings" because that is where the api's
+                  refusals send the merchant (review R1). */}
+              <h3 className="font-medium">Growth settings · Guardrails</h3>
               <p className="text-sm text-muted-foreground">
                 What Peakhour must never do for this business, whatever it would otherwise suggest.
               </p>
             </div>
           </div>
           {!draft && (
-            <Button variant="outline" size="sm" onClick={() => setDraft(draftFromStored(stored))}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setDraft(draftFromStored(stored));
+                setBaseSetAt(stored?.setAt);
+              }}
+            >
               {hasGuardrails(stored) ? "Edit" : "Set guardrails"}
             </Button>
           )}
@@ -198,9 +232,7 @@ export function GuardrailsCard() {
                     value={draft.quietEnd}
                     onChange={(e) => set({ quietEnd: e.target.value })}
                   />
-                  <span className="text-xs text-muted-foreground">
-                    {stored?.timeZone ? `in ${stored.timeZone}` : "in your business's time zone"}
-                  </span>
+
                 </div>
               )}
             </div>
@@ -256,6 +288,23 @@ export function GuardrailsCard() {
                 <Plus className="mr-1 h-4 w-4" /> Add blackout
               </Button>
             </div>
+
+            {(draft.quietEnabled || draft.blackouts.length > 0) && (
+              <div className="space-y-1">
+                <Label htmlFor="guardrail-zone">Time zone</Label>
+                <Input
+                  id="guardrail-zone"
+                  className="w-64"
+                  value={draft.timeZone}
+                  onChange={(e) => set({ timeZone: e.target.value })}
+                  placeholder="Your business's time zone"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Quiet hours and blackout dates are read in this zone, e.g. Europe/London. Leave it empty to use your
+                  business&rsquo;s own.
+                </p>
+              </div>
+            )}
 
             {formError && (
               <p role="alert" className="text-sm text-destructive">

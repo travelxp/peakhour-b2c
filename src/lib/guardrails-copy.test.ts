@@ -1,24 +1,31 @@
 import { describe, it, expect } from "vitest";
 import {
+  activeBlackouts,
   buildGuardrailsPatch,
   describeGuardrails,
   draftFromStored,
+  guardrailsSaveError,
   hasGuardrails,
   isCalendarDay,
   isHourMinute,
+  isReadableZone,
   parseTerms,
+  todayIn,
   type GuardrailsDraft,
 } from "./guardrails-copy";
 
 const empty = (): GuardrailsDraft => draftFromStored(undefined);
 
 describe("parseTerms", () => {
-  it("splits on newlines and commas, trims, drops blanks, keeps each once in order", () => {
-    expect(parseTerms(" Acme ,Globex\n\nacme\n  Free trial  ")).toEqual(["Acme", "Globex", "Free trial"]);
+  it("ONE PER LINE: trimmed, blanks dropped, each once in order", () => {
+    expect(parseTerms(" Acme \nGlobex\n\nacme\n  Free trial  ")).toEqual(["Acme", "Globex", "Free trial"]);
+  });
+  it("★★a comma is part of a name, not a separator (R1)", () => {
+    expect(parseTerms("Acme, Inc.\nFree trial, no card needed")).toEqual(["Acme, Inc.", "Free trial, no card needed"]);
   });
 });
 
-describe("isHourMinute / isCalendarDay", () => {
+describe("isHourMinute / isCalendarDay / isReadableZone", () => {
   it("HH:MM, 24-hour", () => {
     expect(isHourMinute("00:00")).toBe(true);
     expect(isHourMinute("23:59")).toBe(true);
@@ -27,6 +34,12 @@ describe("isHourMinute / isCalendarDay", () => {
   it("a real day only", () => {
     expect(isCalendarDay("2028-02-29")).toBe(true);
     for (const s of ["2026-02-30", "2026-13-01", "2026-1-01", ""]) expect(isCalendarDay(s), s).toBe(false);
+  });
+  it("a zone Intl reads", () => {
+    expect(isReadableZone("Asia/Kolkata")).toBe(true);
+    expect(isReadableZone("Mars/Olympus")).toBe(false);
+    expect(isReadableZone(undefined)).toBe(false);
+    expect(isReadableZone("")).toBe(false);
   });
 });
 
@@ -49,10 +62,14 @@ describe("draftFromStored", () => {
         { from: "2026-12-24", to: "2026-12-26", label: "Christmas" },
         { from: "2027-01-01", to: "2027-01-01", label: "" },
       ],
+      timeZone: "Asia/Kolkata",
     });
   });
+  it("★★an UNREADABLE stored zone is not seeded — sending it back would 400 every save (R1)", () => {
+    expect(draftFromStored({ quietHours: { start: "22:00", end: "07:00" }, timeZone: "Mars/Olympus" }).timeZone).toBe("");
+  });
   it("an empty form when nothing is stored, quiet hours off", () => {
-    expect(empty()).toMatchObject({ deniedChannels: [], termsText: "", quietEnabled: false, blackouts: [] });
+    expect(empty()).toMatchObject({ deniedChannels: [], termsText: "", quietEnabled: false, blackouts: [], timeZone: "" });
   });
 });
 
@@ -70,6 +87,7 @@ describe("buildGuardrailsPatch", () => {
       quietStart: "22:00",
       quietEnd: "07:00",
       blackouts: [{ from: "2026-12-24", to: "2026-12-26", label: "  Christmas " }, { from: "2027-01-01", to: "2027-01-01", label: "" }],
+      timeZone: "",
     });
     expect(r).toEqual({
       ok: true,
@@ -82,24 +100,29 @@ describe("buildGuardrailsPatch", () => {
     });
   });
 
-  it("★★sends the STORED zone back when a window or blackout is kept — saving never moves it", () => {
-    const d = { ...empty(), quietEnabled: true };
-    expect(buildGuardrailsPatch(d, "Asia/Kolkata")).toMatchObject({ ok: true, patch: { timeZone: "Asia/Kolkata" } });
-    // …and no zone when nothing reads one.
-    const r = buildGuardrailsPatch({ ...empty(), termsText: "acme" }, "Asia/Kolkata");
-    expect(r.ok && "timeZone" in r.patch).toBe(false);
+  it("★★sends the draft's zone when a window or blackout reads one — saving never moves it", () => {
+    const r = buildGuardrailsPatch({ ...empty(), quietEnabled: true, timeZone: "Asia/Kolkata" });
+    expect(r).toMatchObject({ ok: true, patch: { timeZone: "Asia/Kolkata" } });
   });
 
-  it("★refuses what the api would refuse, in words the merchant can act on", () => {
+  it("★★no zone when nothing reads one, or when it is left empty (the api uses the business's own)", () => {
+    const termsOnly = buildGuardrailsPatch({ ...empty(), termsText: "acme", timeZone: "Asia/Kolkata" });
+    expect(termsOnly.ok).toBe(true);
+    expect(termsOnly.ok && "timeZone" in termsOnly.patch).toBe(false);
+    const emptyZone = buildGuardrailsPatch({ ...empty(), quietEnabled: true, timeZone: "  " });
+    expect(emptyZone.ok).toBe(true);
+    expect(emptyZone.ok && "timeZone" in emptyZone.patch).toBe(false);
+  });
+
+  it("★refuses what the merchant can fix in the form, in words they can act on", () => {
     const cases: Array<[Partial<GuardrailsDraft>, RegExp]> = [
       [{ quietEnabled: true, quietStart: "9:00", quietEnd: "17:00" }, /like 22:00/],
       [{ quietEnabled: true, quietStart: "09:00", quietEnd: "09:00" }, /different start and end/],
       [{ blackouts: [{ from: "2026-02-30", to: "2026-03-01", label: "" }] }, /start and an end date/],
       [{ blackouts: [{ from: "2026-03-02", to: "2026-03-01", label: "" }] }, /ends before it starts/],
       [{ blackouts: [{ from: "2026-03-01", to: "2026-03-01", label: "x".repeat(81) }] }, /at most 80/],
-      [{ termsText: "a".repeat(81) }, /longer than 80/],
-      [{ termsText: Array.from({ length: 101 }, (_, i) => `t${i}`).join("\n") }, /up to 100 terms/],
       [{ blackouts: Array.from({ length: 51 }, () => ({ from: "2027-01-01", to: "2027-01-01", label: "" })) }, /up to 50/],
+      [{ quietEnabled: true, timeZone: "Mars/Olympus" }, /isn't a time zone we recognise/],
     ];
     for (const [over, msg] of cases) {
       const r = buildGuardrailsPatch({ ...empty(), ...over });
@@ -108,30 +131,61 @@ describe("buildGuardrailsPatch", () => {
     }
   });
 
+  it("★★term length and count are the api's to judge, on the NORMALISED form (R1)", () => {
+    const long = buildGuardrailsPatch({ ...empty(), termsText: "a".repeat(120) });
+    expect(long.ok).toBe(true);
+    const many = buildGuardrailsPatch({ ...empty(), termsText: Array.from({ length: 101 }, (_, i) => `t${i}`).join("\n") });
+    expect(many.ok).toBe(true);
+  });
+
   it("quiet hours OFF are not validated — the stored times are just not sent", () => {
     expect(buildGuardrailsPatch({ ...empty(), quietEnabled: false, quietStart: "", quietEnd: "" }).ok).toBe(true);
+  });
+});
+
+describe("todayIn / activeBlackouts", () => {
+  it("today on the zone's calendar — 11:00Z on the 3rd is already the 4th at +14", () => {
+    const now = new Date("2026-10-03T11:00:00Z");
+    expect(todayIn("Pacific/Kiritimati", now)).toBe("2026-10-04");
+    expect(todayIn("UTC", now)).toBe("2026-10-03");
+  });
+  it("★★a blackout that has ended is not in force (R1); one ending today still is", () => {
+    const g = {
+      blackoutDates: [
+        { from: "2025-12-24", to: "2025-12-26" },
+        { from: "2026-10-01", to: "2026-10-03" },
+        { from: "2026-12-24", to: "2026-12-26" },
+      ],
+    };
+    expect(activeBlackouts(g, "2026-10-03")).toEqual([g.blackoutDates[1], g.blackoutDates[2]]);
   });
 });
 
 describe("describeGuardrails / hasGuardrails", () => {
   it("one line per rule in force, the zone named where it matters", () => {
     expect(
-      describeGuardrails({
-        deniedChannels: ["meta", "x"],
-        blockedTerms: ["acme"],
-        quietHours: { start: "22:00", end: "07:00" },
-        blackoutDates: [{ from: "2026-12-24", to: "2026-12-26" }, { from: "2027-01-01", to: "2027-01-01" }],
-        timeZone: "Asia/Kolkata",
-      }),
+      describeGuardrails(
+        {
+          deniedChannels: ["meta", "x"],
+          blockedTerms: ["acme"],
+          quietHours: { start: "22:00", end: "07:00" },
+          blackoutDates: [{ from: "2026-12-24", to: "2026-12-26" }, { from: "2027-01-01", to: "2027-01-01" }],
+          timeZone: "Asia/Kolkata",
+        },
+        "2026-10-03",
+      ),
     ).toEqual([
       "Never advertises on Meta (Facebook & Instagram), X.",
       "Blocks 1 term from every ad: acme.",
       "Starts no spend between 22:00 and 07:00 (Asia/Kolkata).",
-      "Starts no spend on 2 blackout periods (Asia/Kolkata).",
+      "Starts no spend on 2 upcoming blackout periods (Asia/Kolkata).",
     ]);
   });
+  it("★only blackouts not yet ended are counted (R1)", () => {
+    expect(describeGuardrails({ blackoutDates: [{ from: "2025-12-24", to: "2025-12-26" }] }, "2026-10-03")).toEqual([]);
+  });
   it("a long term list is shortened", () => {
-    const lines = describeGuardrails({ blockedTerms: ["a", "b", "c", "d", "e", "f"] });
+    const lines = describeGuardrails({ blockedTerms: ["a", "b", "c", "d", "e", "f"] }, "2026-10-03");
     expect(lines[0]).toBe("Blocks 6 terms from every ad: a, b, c, d, e, ….");
   });
   it("nothing set is nothing to say", () => {
@@ -143,5 +197,23 @@ describe("describeGuardrails / hasGuardrails", () => {
     expect(hasGuardrails({ quietHours: { start: "22:00", end: "07:00" } })).toBe(true);
     expect(hasGuardrails({ deniedChannels: ["x"] })).toBe(true);
     expect(hasGuardrails({ blackoutDates: [{ from: "2027-01-01", to: "2027-01-01" }] })).toBe(true);
+  });
+});
+
+describe("guardrailsSaveError", () => {
+  it("★★the api's sentence only for a merchant-facing VALIDATION_ERROR (R1)", () => {
+    expect(guardrailsSaveError({ code: "VALIDATION_ERROR", message: "Quiet hours need different start and end times." })).toBe(
+      "Quiet hours need different start and end times.",
+    );
+  });
+  it("★★anything else — a proxy's text, zod's 'Invalid body', a config error — is the generic sentence", () => {
+    for (const err of [
+      { code: "VALIDATION_ERROR", message: "Invalid body" },
+      { code: "NON_JSON", message: "Server returned non-JSON response (502)" },
+      { code: "CONFIG", message: "NEXT_PUBLIC_API_URL is not configured" },
+      null,
+    ]) {
+      expect(guardrailsSaveError(err)).toMatch(/couldn't save your guardrails/);
+    }
   });
 });
