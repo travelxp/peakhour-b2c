@@ -1,7 +1,6 @@
 import type { OutcomesResponse } from "@/lib/api/growth";
 import { paidFigureLabel } from "@/lib/visibility-funnel";
-
-const NUM = new Intl.NumberFormat("en-US");
+import { formatMoneyCode } from "@/lib/outcome-value";
 
 type Paid = NonNullable<OutcomesResponse["reach"]["paid"]>;
 
@@ -26,7 +25,7 @@ export function paidNote(paid: Paid): string {
   const parts = [`${paid.campaigns} campaign${paid.campaigns === 1 ? "" : "s"}`];
   const channels = paid.byChannel ?? [];
   if (paid.spend !== null && paid.currency) {
-    parts.push(`${paid.currency} ${NUM.format(Math.round(paid.spend))} spent`);
+    parts.push(`${formatMoneyCode(paid.spend, paid.currency, true)} spent`);
   } else if (paid.spend === null) {
     const per: string[] = [];
     let rest = false;
@@ -36,7 +35,7 @@ export function paidNote(paid: Paid): string {
       // ★BOTH FIELDS, ON PURPOSE: the api pairs them, but the repos deploy
       // apart, and a currency beside no amount must never print as one.
       if (ch.spend !== null && ch.currency) {
-        per.push(`${paidFigureLabel(ch.platform)} ${ch.currency} ${NUM.format(Math.round(ch.spend))}`);
+        per.push(`${paidFigureLabel(ch.platform)} ${formatMoneyCode(ch.spend, ch.currency, true)}`);
       } else {
         rest = true;
       }

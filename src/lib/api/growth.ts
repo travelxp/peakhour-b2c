@@ -29,9 +29,17 @@ export type ProposalStatus =
 export type DecisionStatus =
   "approved" | "dismissed" | "applied" | "failed" | "retryable";
 
+/** D-02: how far a channel's conversion count can be believed. untracked —
+ *  the platform reports none; partial — no receipt shows Peakhour's upload
+ *  reaching it; tracked — the latest upload reached it in full. */
+export type ChannelMeasurement = "tracked" | "partial" | "untracked";
+
 /** One ad platform's figures over the outcomes window (api `rollupPaid`). */
 export interface PaidChannel {
   platform: string;
+  /** Sent by /outcomes only — /visibility reads every measured channel
+   *  `partial`, so a badge must never be read from there (D-02). */
+  measurement?: ChannelMeasurement;
   impressions: number;
   clicks: number;
   spend: number | null;
@@ -165,6 +173,9 @@ export interface OutcomesResponse {
     detail: string;
     href?: string;
     cta?: string;
+    /** The ad channel it is about (D-03, api#1450) — one per action; absent
+     *  for an action about the business, and from an api that predates it. */
+    channel?: string;
   }>;
 }
 
