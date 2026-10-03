@@ -208,13 +208,18 @@ export function reconnectItems(integrations: readonly AdsIntegrationRow[]): Need
   }));
 }
 
+/** A stale-figures card: the api emits one per stale channel (`ads-stale-<platform>`),
+ *  and a bare `ads-stale` for a platform it has no key for. */
+export function isStaleCard(id: string): boolean {
+  return id === "ads-stale" || id.startsWith("ads-stale-");
+}
+
 /**
- * The api's next actions without `ads-stale` when every channel it names
- * already has its own reconnect card — one fault, one card. ★READ FROM
- * `ads-stale`'s OWN CHANNELS, not from `reach.paid`: the api sends `paid: null`
- * when nothing moved, which is exactly the lapsed-token case. Kept when it
- * names none, or any channel without a reconnect card, because then it is the
- * only thing saying so.
+ * The api's next actions without each stale card whose channels all have a
+ * reconnect card — one fault, one card. ★READ FROM THE CARD'S OWN CHANNELS,
+ * not from `reach.paid`: the api sends `paid: null` when nothing moved, which
+ * is exactly the lapsed-token case. Kept when it names none, or any channel
+ * without a reconnect card, because then it is the only thing saying so.
  */
 export function withoutCoveredAdsStale<T extends { id: string; channels?: string[] }>(
   actions: readonly T[],
@@ -222,7 +227,7 @@ export function withoutCoveredAdsStale<T extends { id: string; channels?: string
 ): T[] {
   const covered = new Set(reconnect.flatMap((i) => i.channels ?? []));
   return actions.filter(
-    (a) => !(a.id === "ads-stale" && a.channels && a.channels.length > 0 && a.channels.every((c) => covered.has(c))),
+    (a) => !(isStaleCard(a.id) && a.channels && a.channels.length > 0 && a.channels.every((c) => covered.has(c))),
   );
 }
 

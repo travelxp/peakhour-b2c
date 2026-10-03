@@ -11,6 +11,7 @@ import {
   codeMoney,
   eventDate,
   inChannel,
+  isStaleCard,
   learningEmptyText,
   learningItems,
   proposalItems,
@@ -288,6 +289,25 @@ describe("withoutCoveredAdsStale", () => {
     expect(ids(withoutCoveredAdsStale(stale(["linkedin"]), [item("reconnect-linkedin", ["linkedin"])]))).toEqual([
       "nothing-published",
     ]);
+  });
+
+  it("drops exactly the per-channel stale cards a reconnect card covers", () => {
+    const actions = [
+      item("ads-stale-linkedin", ["linkedin"]),
+      item("ads-stale-x", ["x"]),
+      item("nothing-published"),
+    ];
+    expect(ids(withoutCoveredAdsStale(actions, [item("reconnect-linkedin", ["linkedin"])]))).toEqual([
+      "ads-stale-x",
+      "nothing-published",
+    ]);
+  });
+
+  it("tells a stale card from another action by its id", () => {
+    expect(isStaleCard("ads-stale")).toBe(true);
+    expect(isStaleCard("ads-stale-meta")).toBe(true);
+    expect(isStaleCard("ads-stalemate")).toBe(false);
+    expect(isStaleCard("analytics-stale")).toBe(false);
   });
 
   it("keeps ads-stale when a channel it names has no reconnect card", () => {
