@@ -24,6 +24,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { OAuthConnectResult } from "@/components/integrations/oauth-connect-result";
 import { BusinessProfileSummary } from "@/components/audience/business-profile-summary";
+import { GuardrailsCard } from "@/components/ads/guardrails-card";
 import { LinkedInAdsPanel } from "./_components/linkedin-ads-panel";
 import { XAdsPanel } from "./_components/x-ads-panel";
 import { MetaAdsPanel } from "./_components/meta-ads-panel";
@@ -218,6 +219,10 @@ function AdsHub() {
           copying for every channel added afterwards — and still not a new route
           off the hub (ads-hub-single-surface). */}
       <BusinessProfileSummary />
+
+      {/* D-05: the merchant's guardrails. Channel-neutral, so above the tabs
+          for BusinessProfileSummary's reason. */}
+      <GuardrailsCard />
 
       {/* <Tabs> renders only once a channel is known, so it stays controlled
           for its whole life — a value that starts undefined and later becomes
