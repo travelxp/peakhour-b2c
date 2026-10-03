@@ -217,6 +217,15 @@ export interface Guardrails {
   setByUserId?: string;
 }
 
+/** The guardrails as `updateSettings` writes them — written whole. */
+export interface GuardrailsPatch {
+  deniedChannels?: string[];
+  blockedTerms?: string[];
+  quietHours?: { start: string; end: string } | null;
+  blackoutDates?: Array<{ from: string; to: string; label?: string }>;
+  timeZone?: string;
+}
+
 export interface GrowthSettings {
   /** What this business counts as a win, if anything. Read from here rather
    *  than from `winOptions()` wherever a surface only needs to know WHETHER one
@@ -918,13 +927,7 @@ export const growthApi = {
      * `null` clears them all. `timeZone` is optional: the api uses the
      * business's own zone when a window or a blackout is sent without one.
      */
-    guardrails?: {
-      deniedChannels?: string[];
-      blockedTerms?: string[];
-      quietHours?: { start: string; end: string } | null;
-      blackoutDates?: Array<{ from: string; to: string; label?: string }>;
-      timeZone?: string;
-    } | null;
+    guardrails?: GuardrailsPatch | null;
   }) => api.patch<GrowthSettingsResponse>("/v1/growth/settings", patch),
 
   // ── Asks ───────────────────────────────────────────────────────────────

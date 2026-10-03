@@ -65,8 +65,8 @@ describe("draftFromStored", () => {
       timeZone: "Asia/Kolkata",
     });
   });
-  it("★★an UNREADABLE stored zone is not seeded — sending it back would 400 every save (R1)", () => {
-    expect(draftFromStored({ quietHours: { start: "22:00", end: "07:00" }, timeZone: "Mars/Olympus" }).timeZone).toBe("");
+  it("★★the stored zone is seeded WHATEVER it is — this browser's zone list may lag the server's (R2)", () => {
+    expect(draftFromStored({ quietHours: { start: "22:00", end: "07:00" }, timeZone: "Mars/Olympus" }).timeZone).toBe("Mars/Olympus");
   });
   it("an empty form when nothing is stored, quiet hours off", () => {
     expect(empty()).toMatchObject({ deniedChannels: [], termsText: "", quietEnabled: false, blackouts: [], timeZone: "" });
@@ -123,6 +123,7 @@ describe("buildGuardrailsPatch", () => {
       [{ blackouts: [{ from: "2026-03-01", to: "2026-03-01", label: "x".repeat(81) }] }, /at most 80/],
       [{ blackouts: Array.from({ length: 51 }, () => ({ from: "2027-01-01", to: "2027-01-01", label: "" })) }, /up to 50/],
       [{ quietEnabled: true, timeZone: "Mars/Olympus" }, /isn't a time zone we recognise/],
+      [{ termsText: "a".repeat(201) }, /longer than 200 characters/],
     ];
     for (const [over, msg] of cases) {
       const r = buildGuardrailsPatch({ ...empty(), ...over });
@@ -131,8 +132,13 @@ describe("buildGuardrailsPatch", () => {
     }
   });
 
-  it("★★term length and count are the api's to judge, on the NORMALISED form (R1)", () => {
-    const long = buildGuardrailsPatch({ ...empty(), termsText: "a".repeat(120) });
+  it("★★a stored zone is sent back unjudged; only one the merchant CHANGED is checked here (R2)", () => {
+    const kept = buildGuardrailsPatch({ ...empty(), quietEnabled: true, timeZone: "Mars/Olympus" }, "Mars/Olympus");
+    expect(kept).toMatchObject({ ok: true, patch: { timeZone: "Mars/Olympus" } });
+  });
+
+  it("★★the normalised length and count are the api's to judge (R1); only its RAW cap of 200 is here (R2)", () => {
+    const long = buildGuardrailsPatch({ ...empty(), termsText: "a".repeat(200) });
     expect(long.ok).toBe(true);
     const many = buildGuardrailsPatch({ ...empty(), termsText: Array.from({ length: 101 }, (_, i) => `t${i}`).join("\n") });
     expect(many.ok).toBe(true);
@@ -178,7 +184,12 @@ describe("describeGuardrails / hasGuardrails", () => {
       "Never advertises on Meta (Facebook & Instagram), X.",
       "Blocks 1 term from every ad: acme.",
       "Starts no spend between 22:00 and 07:00 (Asia/Kolkata).",
-      "Starts no spend on 2 upcoming blackout periods (Asia/Kolkata).",
+      "Starts no spend on 2 blackout periods (Asia/Kolkata).",
+    ]);
+  });
+  it("★★a blackout in force TODAY is said to be — not 'upcoming' (R2)", () => {
+    expect(describeGuardrails({ blackoutDates: [{ from: "2026-10-01", to: "2026-10-05" }] }, "2026-10-03")).toEqual([
+      "Starts no spend on 1 blackout period, including today.",
     ]);
   });
   it("★only blackouts not yet ended are counted (R1)", () => {
@@ -201,6 +212,14 @@ describe("describeGuardrails / hasGuardrails", () => {
 });
 
 describe("guardrailsSaveError", () => {
+  it("★★'Send timeZone.' becomes what to DO in this form (R2)", () => {
+    const msg = guardrailsSaveError({
+      code: "VALIDATION_ERROR",
+      message: "Quiet hours and blackout dates need a time zone, and this business has none we can read. Send timeZone.",
+    });
+    expect(msg).toMatch(/Choose one in the Time zone field/);
+    expect(msg).not.toMatch(/Send timeZone/);
+  });
   it("★★the api's sentence only for a merchant-facing VALIDATION_ERROR (R1)", () => {
     expect(guardrailsSaveError({ code: "VALIDATION_ERROR", message: "Quiet hours need different start and end times." })).toBe(
       "Quiet hours need different start and end times.",
@@ -209,6 +228,7 @@ describe("guardrailsSaveError", () => {
   it("★★anything else — a proxy's text, zod's 'Invalid body', a config error — is the generic sentence", () => {
     for (const err of [
       { code: "VALIDATION_ERROR", message: "Invalid body" },
+      { code: "VALIDATION_ERROR", message: "Invalid JSON body" },
       { code: "NON_JSON", message: "Server returned non-JSON response (502)" },
       { code: "CONFIG", message: "NEXT_PUBLIC_API_URL is not configured" },
       null,

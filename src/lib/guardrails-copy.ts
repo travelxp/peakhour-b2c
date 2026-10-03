@@ -8,7 +8,8 @@
  * here are the ones a merchant can fix in the form before a round trip: a
  * time, a day, a range, the blackout cap.
  */
-import type { Guardrails } from "@/lib/api/growth";
+import type { Guardrails, GuardrailsPatch } from "@/lib/api/growth";
+import { isClock, isTimeZone } from "@/lib/control-plane";
 
 /** The channels a merchant can turn off, in the order the card lists them. */
 export const GUARDRAIL_CHANNELS: ReadonlyArray<{ key: string; label: string }> = [
@@ -20,6 +21,8 @@ export const GUARDRAIL_CHANNELS: ReadonlyArray<{ key: string; label: string }> =
 
 /** mig 372's blackout cap, refused here in the api's terms. */
 export const MAX_BLACKOUTS = 50;
+/** The api's RAW term cap (its request schema), before normalising (R2). */
+export const MAX_RAW_TERM_LENGTH = 200;
 
 export interface GuardrailsDraft {
   deniedChannels: string[];
@@ -30,16 +33,14 @@ export interface GuardrailsDraft {
   quietEnd: string;
   blackouts: Array<{ from: string; to: string; label: string }>;
   /** The zone the windows are read in. Empty = the business's own (the api
-   *  derives it). Seeded from the stored zone when that is readable. */
+   *  derives it). Seeded from the stored zone, whatever it is (R2). */
   timeZone: string;
 }
 
-const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 const YMD = /^\d{4}-\d{2}-\d{2}$/;
 
-export function isHourMinute(s: string): boolean {
-  return HHMM.test(s);
-}
+/** HH:MM, 24-hour — control-plane's `isClock`, the one definition (R2). */
+export const isHourMinute = isClock;
 
 /** "YYYY-MM-DD" that names a real day (no 2026-02-30). */
 export function isCalendarDay(s: string): boolean {
@@ -49,15 +50,9 @@ export function isCalendarDay(s: string): boolean {
   return t.getUTCFullYear() === y && t.getUTCMonth() === m! - 1;
 }
 
-/** Whether this runtime can read `zone` — the same question the api asks. */
+/** Whether this browser can read `zone` — control-plane's `isTimeZone` (R2). */
 export function isReadableZone(zone: string | undefined): zone is string {
-  if (!zone) return false;
-  try {
-    new Intl.DateTimeFormat("en-US", { timeZone: zone });
-    return true;
-  } catch {
-    return false;
-  }
+  return !!zone && isTimeZone(zone);
 }
 
 /**
@@ -88,20 +83,16 @@ export function draftFromStored(g: Guardrails | undefined): GuardrailsDraft {
     quietStart: g?.quietHours?.start ?? "22:00",
     quietEnd: g?.quietHours?.end ?? "07:00",
     blackouts: (g?.blackoutDates ?? []).map((b) => ({ from: b.from, to: b.to, label: b.label ?? "" })),
-    // ★An unreadable stored zone is NOT seeded (review R1): sending it back
-    //  would 400 on every save, and the api's refusal tells the merchant to
-    //  save again — which could then never work.
-    timeZone: isReadableZone(g?.timeZone) ? g!.timeZone! : "",
+    // ★THE STORED ZONE, WHATEVER IT IS (review R2). A browser's zone list can
+    //  lag the server's (an older ICU lacks newer ids), so dropping one this
+    //  browser cannot read would quietly move every window to a re-derived
+    //  zone on save. It is sent back as stored; if the SERVER cannot read it,
+    //  its 400 names it and the zone picker is right there to change it.
+    timeZone: g?.timeZone ?? "",
   };
 }
 
-export type GuardrailsPatch = {
-  deniedChannels: string[];
-  blockedTerms: string[];
-  quietHours: { start: string; end: string } | null;
-  blackoutDates: Array<{ from: string; to: string; label?: string }>;
-  timeZone?: string;
-};
+export type { GuardrailsPatch };
 
 /**
  * The PATCH body for the draft, or the first thing wrong with it in words the
@@ -112,7 +103,15 @@ export type GuardrailsPatch = {
  */
 export function buildGuardrailsPatch(
   draft: GuardrailsDraft,
-): { ok: true; patch: GuardrailsPatch } | { ok: false; error: string } {
+  storedTimeZone?: string,
+): { ok: true; patch: Required<Omit<GuardrailsPatch, "timeZone">> & Pick<GuardrailsPatch, "timeZone"> } | { ok: false; error: string } {
+  // ★The api's RAW cap, before it normalises (R2): a longer line is refused by
+  //  its request schema as "Invalid body", which names nothing.
+  const terms = parseTerms(draft.termsText);
+  const tooLong = terms.find((t) => t.length > MAX_RAW_TERM_LENGTH);
+  if (tooLong) {
+    return { ok: false, error: `"${tooLong.slice(0, 40)}…" is longer than ${MAX_RAW_TERM_LENGTH} characters.` };
+  }
   if (draft.quietEnabled) {
     if (!isHourMinute(draft.quietStart) || !isHourMinute(draft.quietEnd)) {
       return { ok: false, error: "Quiet hours need a start and an end time, like 22:00 and 07:00." };
@@ -124,7 +123,7 @@ export function buildGuardrailsPatch(
   if (draft.blackouts.length > MAX_BLACKOUTS) {
     return { ok: false, error: `You can set up to ${MAX_BLACKOUTS} blackout periods.` };
   }
-  const blackouts: GuardrailsPatch["blackoutDates"] = [];
+  const blackouts: Array<{ from: string; to: string; label?: string }> = [];
   for (const b of draft.blackouts) {
     if (!isCalendarDay(b.from) || !isCalendarDay(b.to)) {
       return { ok: false, error: "Each blackout needs a start and an end date." };
@@ -138,14 +137,16 @@ export function buildGuardrailsPatch(
   }
   const zone = draft.timeZone.trim();
   const usesZone = draft.quietEnabled || blackouts.length > 0;
-  if (usesZone && zone && !isReadableZone(zone)) {
+  // Judged only when the merchant CHANGED it: the stored zone is the
+  //  server's to judge (see draftFromStored).
+  if (usesZone && zone && zone !== storedTimeZone && !isReadableZone(zone)) {
     return { ok: false, error: `"${zone}" isn't a time zone we recognise — try one like Europe/London or Asia/Kolkata.` };
   }
   return {
     ok: true,
     patch: {
       deniedChannels: [...new Set(draft.deniedChannels)],
-      blockedTerms: parseTerms(draft.termsText),
+      blockedTerms: terms,
       quietHours: draft.quietEnabled ? { start: draft.quietStart, end: draft.quietEnd } : null,
       blackoutDates: blackouts,
       ...(usesZone && zone ? { timeZone: zone } : {}),
@@ -167,6 +168,11 @@ export function todayIn(zone: string | undefined, now: Date = new Date()): strin
 /** Blackouts that have not yet ended (review R1: a past one is no rule in force). */
 export function activeBlackouts(g: Guardrails | undefined, today: string) {
   return (g?.blackoutDates ?? []).filter((b) => b.to >= today);
+}
+
+/** Whether a blackout covers `today` — spend is being refused right now. */
+export function blackoutToday(g: Guardrails | undefined, today: string): boolean {
+  return (g?.blackoutDates ?? []).some((b) => b.from <= today && today <= b.to);
 }
 
 /** Whether anything is set — the card's Clear button reads it. */
@@ -196,9 +202,12 @@ export function describeGuardrails(g: Guardrails | undefined, today: string = to
   if (g.quietHours) {
     out.push(`Starts no spend between ${g.quietHours.start} and ${g.quietHours.end}${zone}.`);
   }
-  const upcoming = activeBlackouts(g, today).length;
-  if (upcoming) {
-    out.push(`Starts no spend on ${upcoming} upcoming blackout period${upcoming === 1 ? "" : "s"}${zone}.`);
+  const active = activeBlackouts(g, today).length;
+  if (active) {
+    // ★"Upcoming" was false for one in force today (R2) — the merchant whose
+    //  spend is refused right now read that it was still ahead.
+    const now = blackoutToday(g, today) ? ", including today" : "";
+    out.push(`Starts no spend on ${active} blackout period${active === 1 ? "" : "s"}${now}${zone}.`);
   }
   return out;
 }
@@ -210,6 +219,13 @@ export function describeGuardrails(g: Guardrails | undefined, today: string = to
  * does not promise a retry fixes it.
  */
 export function guardrailsSaveError(err: { code?: string; message?: string } | null | undefined): string {
-  if (err?.code === "VALIDATION_ERROR" && err.message && err.message !== "Invalid body") return err.message;
-  return "We couldn't save your guardrails. Check them and try again — if it keeps happening, contact support.";
+  const generic = "We couldn't save your guardrails. Check them and try again — if it keeps happening, contact support.";
+  if (err?.code !== "VALIDATION_ERROR" || !err.message) return generic;
+  // ★The api's request-shape refusals are not merchant sentences (R2).
+  if (err.message === "Invalid body" || err.message === "Invalid JSON body") return generic;
+  // ★Nor is "Send timeZone." — say what to DO in this form instead (R2).
+  if (/Send timeZone\.?$/.test(err.message)) {
+    return "Quiet hours and blackout dates need a time zone, and we couldn't work out your business's. Choose one in the Time zone field.";
+  }
+  return err.message;
 }

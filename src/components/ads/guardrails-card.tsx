@@ -15,7 +15,7 @@
  * the business summary — inside a channel panel it would read as that
  * channel's setting.
  */
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Loader2, Plus, ShieldBan, Trash2 } from "lucide-react";
@@ -26,6 +26,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -48,13 +49,16 @@ import {
   type GuardrailsDraft,
 } from "@/lib/guardrails-copy";
 
-/** Another save landed since Edit was opened. */
+/** Another save landed since Edit was opened; carries the newer record's setAt. */
 class GuardrailsChangedError extends Error {
-  constructor() {
-    super("Your guardrails were changed while you were editing them. Cancel, then edit again to see the latest.");
+  constructor(readonly freshSetAt: string | undefined) {
+    super("Your guardrails were changed while you were editing them.");
     this.name = "GuardrailsChangedError";
   }
 }
+
+/** The zone picker's value for "the business's own zone" (Radix needs non-empty). */
+const BUSINESS_ZONE = "__business__";
 
 export function GuardrailsCard() {
   const queryClient = useQueryClient();
@@ -72,31 +76,44 @@ export function GuardrailsCard() {
   const [baseSetAt, setBaseSetAt] = useState<string | undefined>(undefined);
   const [formError, setFormError] = useState<string | null>(null);
   const [clearOpen, setClearOpen] = useState(false);
+  /** A save elsewhere was found at Save (review R2): the merchant chooses to
+   *  load it (losing this form's edits) or to save theirs over it. */
+  const [conflict, setConflict] = useState<{ freshSetAt: string | undefined } | null>(null);
+  const zones = useMemo(() => {
+    try {
+      return Intl.supportedValuesOf("timeZone");
+    } catch {
+      return ["UTC", "Asia/Kolkata", "America/New_York", "Europe/London", "Asia/Dubai"];
+    }
+  }, []);
 
   const save = useMutation({
-    mutationFn: async (patch: Parameters<typeof growthApi.updateSettings>[0]) => {
-      // ★WRITTEN WHOLE, SO CHECKED FRESH (review R1): a save replaces the
-      //  record, and one made elsewhere since Edit was opened would be
-      //  silently reverted by this form's older copy of it.
-      if (patch.guardrails !== null) {
-        const fresh = await growthApi.settings();
-        if (fresh.settings.guardrails?.setAt !== baseSetAt) {
-          queryClient.setQueryData(["growth-settings"], fresh);
-          throw new GuardrailsChangedError();
-        }
+    mutationFn: async ({ patch, expectedSetAt }: { patch: Parameters<typeof growthApi.updateSettings>[0]; expectedSetAt: string | undefined }) => {
+      // ★WRITTEN WHOLE, SO CHECKED FRESH (review R1) — Clear all included
+      //  (review R2): a save replaces the record, and one made elsewhere since
+      //  this form or dialog was opened would be silently reverted.
+      //  ⏸A read then a write, not one conditional write: the window between
+      //  them is a request's length, on a human-paced form. Closing it needs
+      //  an api-side condition on setAt (a follow-up, named in the PR).
+      const fresh = await growthApi.settings();
+      if (fresh.settings.guardrails?.setAt !== expectedSetAt) {
+        queryClient.setQueryData(["growth-settings"], fresh);
+        throw new GuardrailsChangedError(fresh.settings.guardrails?.setAt);
       }
       return growthApi.updateSettings(patch);
     },
-    onSuccess: (res, patch) => {
+    onSuccess: (res, { patch }) => {
       queryClient.setQueryData(["growth-settings"], res);
       setDraft(null);
       setFormError(null);
+      setConflict(null);
       setClearOpen(false);
       toast.success(patch.guardrails === null ? "Guardrails cleared." : "Guardrails saved.");
     },
     onError: (err) => {
       if (err instanceof GuardrailsChangedError) {
-        setFormError(err.message);
+        setClearOpen(false);
+        setConflict({ freshSetAt: err.freshSetAt });
         return;
       }
       toast.error(guardrailsSaveError(err instanceof ApiError ? err : null));
@@ -112,15 +129,16 @@ export function GuardrailsCard() {
   const lines = describeGuardrails(stored);
   const set = (over: Partial<GuardrailsDraft>) => setDraft((d) => (d ? { ...d, ...over } : d));
 
-  const submit = () => {
+  const submit = (expectedSetAt: string | undefined = baseSetAt) => {
     if (!draft) return;
-    const built = buildGuardrailsPatch(draft);
+    const built = buildGuardrailsPatch(draft, stored?.timeZone);
     if (!built.ok) {
       setFormError(built.error);
       return;
     }
     setFormError(null);
-    save.mutate({ guardrails: built.patch });
+    setConflict(null);
+    save.mutate({ patch: { guardrails: built.patch }, expectedSetAt });
   };
 
   return (
@@ -160,7 +178,11 @@ export function GuardrailsCard() {
               ))}
             </ul>
           ) : (
-            <p className="text-sm text-muted-foreground">No guardrails set.</p>
+            <p className="text-sm text-muted-foreground">
+              {/* ★Only ended blackouts are stored (review R2): "No guardrails
+                  set" beside an Edit button and a Clear all said two things. */}
+              {hasGuardrails(stored) ? "No rules in force — only past blackout dates are saved." : "No guardrails set."}
+            </p>
           ))}
 
         {draft && (
@@ -292,13 +314,29 @@ export function GuardrailsCard() {
             {(draft.quietEnabled || draft.blackouts.length > 0) && (
               <div className="space-y-1">
                 <Label htmlFor="guardrail-zone">Time zone</Label>
-                <Input
-                  id="guardrail-zone"
-                  className="w-64"
-                  value={draft.timeZone}
-                  onChange={(e) => set({ timeZone: e.target.value })}
-                  placeholder="Your business's time zone"
-                />
+                {/* ★A PICKER, NOT FREE TEXT (review R2): "EST" or "asia/kolkata"
+                    read, and would be stored as typed — EST without daylight
+                    saving. The stored zone is always an option, readable here
+                    or not (see draftFromStored). */}
+                <Select
+                  value={draft.timeZone || BUSINESS_ZONE}
+                  onValueChange={(v) => set({ timeZone: v === BUSINESS_ZONE ? "" : v })}
+                >
+                  <SelectTrigger id="guardrail-zone" className="w-64">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={BUSINESS_ZONE}>Your business&rsquo;s time zone</SelectItem>
+                    {stored?.timeZone && !zones.includes(stored.timeZone) && (
+                      <SelectItem value={stored.timeZone}>{stored.timeZone}</SelectItem>
+                    )}
+                    {zones.map((z) => (
+                      <SelectItem key={z} value={z}>
+                        {z}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <p className="text-xs text-muted-foreground">
                   Quiet hours and blackout dates are read in this zone, e.g. Europe/London. Leave it empty to use your
                   business&rsquo;s own.
@@ -312,8 +350,38 @@ export function GuardrailsCard() {
               </p>
             )}
 
+            {conflict && (
+              <div role="alert" className="space-y-2 rounded-md border border-destructive/40 p-3 text-sm">
+                <p>Someone else saved guardrails while you were editing. Saving yours would replace theirs.</p>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      const fresh = queryClient.getQueryData<typeof settings.data>(["growth-settings"]);
+                      setDraft(draftFromStored(fresh?.settings.guardrails));
+                      setBaseSetAt(conflict.freshSetAt);
+                      setConflict(null);
+                    }}
+                  >
+                    Load theirs
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => {
+                      setBaseSetAt(conflict.freshSetAt);
+                      submit(conflict.freshSetAt);
+                    }}
+                  >
+                    Save mine anyway
+                  </Button>
+                </div>
+              </div>
+            )}
+
             <div className="flex flex-wrap gap-2">
-              <Button onClick={submit} disabled={save.isPending}>
+              <Button onClick={() => submit()} disabled={save.isPending}>
                 {save.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Save guardrails
               </Button>
@@ -322,6 +390,7 @@ export function GuardrailsCard() {
                 onClick={() => {
                   setDraft(null);
                   setFormError(null);
+                  setConflict(null);
                 }}
                 disabled={save.isPending}
               >
@@ -347,7 +416,9 @@ export function GuardrailsCard() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Keep them</AlertDialogCancel>
-            <AlertDialogAction onClick={() => save.mutate({ guardrails: null })}>Clear all</AlertDialogAction>
+            <AlertDialogAction onClick={() => save.mutate({ patch: { guardrails: null }, expectedSetAt: baseSetAt })}>
+              Clear all
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
