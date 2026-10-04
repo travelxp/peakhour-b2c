@@ -112,6 +112,25 @@ export function metaAdsConnectionState(
 }
 
 /**
+ * One ads channel's connection state — Meta through its ads capability, every
+ * other channel by its provider row, where a live row outranks a stale one.
+ * ★THE RULE THE OUTCOMES PAGE'S RECONNECT CARD READS (D-03), kept here beside
+ * `metaAdsConnectionState`. ⚠️The LinkedIn and X panels still derive their own
+ * reconnect state inline, so a change here does NOT reach them — moving them
+ * onto this is a follow-up, not something this function already guarantees.
+ */
+export function adsChannelConnectionState(
+  integrations: readonly AdsIntegrationRow[],
+  channel: { providerKey: string },
+): "connected" | "needs_reauth" | "absent" {
+  if (channel.providerKey === "meta_ads") return metaAdsConnectionState(integrations);
+  const rows = integrations.filter((i) => i.provider === channel.providerKey);
+  if (rows.some((i) => i.connected === true)) return "connected";
+  if (rows.some((i) => i.status === "needs_reauth")) return "needs_reauth";
+  return "absent";
+}
+
+/**
  * Shape each registry entry must satisfy. The exported `AdsChannelDef` and
  * `AdsChannelKey` are DERIVED from the array below, so the key union can never
  * drift from the registry and no lookup needs an unchecked cast.

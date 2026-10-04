@@ -19,6 +19,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -27,12 +28,39 @@ import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { WhatCountsAsAWinDialog } from "@/components/growth/what-counts-as-a-win-dialog";
 import { VisibilityFunnel } from "@/components/growth/visibility-funnel";
 import { useAuth } from "@/providers/auth-provider";
-import { growthApi, type OutcomesResponse } from "@/lib/api/growth";
+import { useFeature } from "@/hooks/use-feature";
+import { api } from "@/lib/api";
+import { growthApi, type OptimizerRun, type OutcomesResponse } from "@/lib/api/growth";
+import type { UserPreferences } from "@/lib/auth";
 import { paidNote, paidStaleNote } from "@/lib/outcomes-paid";
 import { platformLabel } from "@/lib/audience-library-rules";
+import {
+  ALL_CHANNELS,
+  changedHeading,
+  channelChips,
+  channelRows,
+  inChannel,
+  learningEmptyText,
+  learningItems,
+  proposalItems,
+  reconnectItems,
+  sourceState,
+  uncheckedNote,
+  withoutCoveredAdsStale,
+  type MeasurementBadge,
+  type NeedsYouItem,
+  type SourceState,
+} from "@/lib/growth-dashboard";
+import type { AdsIntegrationRow } from "@/app/(site)/dashboard/ads/ads-channels";
 
 /**
  * Outcomes (v1) — what happened, what it means, and what to do next.
+ *
+ * ★D-03, THE UNIFIED GROWTH DASHBOARD, IS THIS PAGE (plan §6.1): the funnel,
+ * what changed, CHANNELS (spend, conversions, cost per conversion and D-02's
+ * measurement badge), NEEDS YOU and LEARNING — one page, with channel as a
+ * filter chip over the three channel sections, never a tab. What each section
+ * says is decided in `lib/growth-dashboard.ts`, tested there.
  *
  * ★THE ORDER IS THE ARGUMENT. One sentence about what happened; then the things
  * that need a person; then what moved; and the numbers LAST, small, because a
@@ -77,8 +105,15 @@ const DIRECTION_ICON = {
 } as const;
 
 export default function OutcomesPage() {
-  const { business } = useAuth();
+  const { business, user } = useAuth();
   const [days, setDays] = useState<number>(28);
+  // ★HERE, NOT IN THE BODY: the body unmounts behind the skeleton on every
+  // window change, and a chip the merchant picked must survive that.
+  const [picked, setPicked] = useState<string>(ALL_CHANNELS);
+  // ★PROPOSALS ONLY FOR A BUSINESS THAT CAN OPEN THEM. The optimizer page is
+  // gated on this key; the api's runs are not, so without it Needs You would
+  // offer a Review button onto an upgrade wall.
+  const optimizer = useFeature("growth.optimizer");
 
   // ★A SEPARATE QUERY, NOT A SECOND FIELD ON /outcomes, and the reason is what
   // the funnel is for: it must be able to fail, be slow, or be absent without
@@ -100,6 +135,26 @@ export default function OutcomesPage() {
     queryFn: () => growthApi.outcomes(days),
     staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
+  });
+
+  // ★NEEDS YOU AND LEARNING READ THESE, AND EACH MAY FAIL ALONE. The optimizer
+  // page's decide invalidates `["growth-adjustments"]`, which prefix-matches
+  // this key, so a decision there is reflected here.
+  const adjustments = useQuery({
+    queryKey: ["growth-adjustments", business?._id ?? "none"],
+    queryFn: () => growthApi.adjustments(),
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
+    enabled: optimizer.allowed,
+  });
+
+  // The ads hub's key prefix (its invalidations reach this), plus the business:
+  // a reconnect card for another business's connection is the cache-clear
+  // hazard the outcomes key above names.
+  const integrations = useQuery({
+    queryKey: ["content-hub-integrations", business?._id ?? "none"],
+    queryFn: () => api.get<{ integrations: AdsIntegrationRow[] }>("/v1/integrations"),
+    staleTime: 30_000,
   });
 
   return (
@@ -155,7 +210,26 @@ export default function OutcomesPage() {
           action={{ label: "Try again", onClick: () => void outcomes.refetch() }}
         />
       ) : (
-        <OutcomesBody data={outcomes.data} />
+        <OutcomesBody
+          data={outcomes.data}
+          days={days}
+          prefs={user?.preferences ?? null}
+          picked={picked}
+          onPick={setPicked}
+          // Undefined without the feature: no proposals, no Learning card.
+          runs={optimizer.allowed ? adjustments.data?.runs : undefined}
+          optimizerAllowed={optimizer.allowed}
+          // ★READ ONLY WITH DATA: loading, retrying and a refetch after an
+          //  error (which clears `error`) are all unchecked, not "nothing".
+          //  Without the feature there is nothing to check.
+          runsState={optimizer.allowed ? sourceState(adjustments) : "read"}
+          integrations={integrations.data?.integrations}
+          integrationsState={sourceState(integrations)}
+          onRetry={() => {
+            if (!adjustments.data && adjustments.isError) void adjustments.refetch();
+            if (!integrations.data && integrations.isError) void integrations.refetch();
+          }}
+        />
       )}
     </div>
   );
@@ -172,7 +246,32 @@ function plural(label: string, n: number): string {
   return `${label}s`;
 }
 
-function OutcomesBody({ data }: { data: OutcomesResponse }) {
+function OutcomesBody({
+  data,
+  days,
+  prefs,
+  picked,
+  onPick,
+  runs,
+  optimizerAllowed,
+  runsState,
+  integrations,
+  integrationsState,
+  onRetry,
+}: {
+  data: OutcomesResponse;
+  days: number;
+  prefs: UserPreferences | null;
+  picked: string;
+  onPick: (key: string) => void;
+  /** Undefined until read — and while it cannot be. */
+  runs: OptimizerRun[] | undefined;
+  optimizerAllowed: boolean;
+  runsState: SourceState;
+  integrations: AdsIntegrationRow[] | undefined;
+  integrationsState: SourceState;
+  onRetry: () => void;
+}) {
   const { reach, attention, conversions, value, nextActions, movements } = data;
   // Computed once: the guard and the rendered child were two independent
   // evaluations of the same expression.
@@ -181,16 +280,42 @@ function OutcomesBody({ data }: { data: OutcomesResponse }) {
   const nothingHappened =
     reach.organic.posts === 0 && reach.paid === null && (reach.site?.sessions ?? 0) === 0;
 
+  const reconnect = reconnectItems(integrations ?? []);
+  const proposals = proposalItems(runs ?? []);
+  // Broken things first, then the business's own next actions, then the
+  // decisions waiting — each in the order its source ranked them.
+  const ranked: NeedsYouItem[] = [
+    ...reconnect,
+    ...withoutCoveredAdsStale(nextActions, reconnect),
+    ...proposals,
+  ];
+  const chips = channelChips([
+    ...(reach.paid?.byChannel ?? []).map((c) => c.platform),
+    ...(runs ?? []).map((r) => r.platform),
+    ...ranked.flatMap((i) => (i.channel ? [i.channel] : [])),
+  ]);
+  // A chip that is no longer offered (the window changed) falls back to All
+  // rather than filtering every section down to nothing.
+  const filter = chips.some((c) => c.key === picked) ? picked : ALL_CHANNELS;
+  const rows = channelRows(reach.paid, filter, prefs);
+  const needsYou = ranked.filter((i) => inChannel(filter, i.channel));
+  const unchecked = uncheckedNote({ proposals: runsState, connections: integrationsState });
+  const runsFailed = runsState === "failed";
+  const anyFailed = runsFailed || integrationsState === "failed";
+  const learning = runs ? learningItems(runs, filter, { prefs }) : null;
+
   return (
     <div className="space-y-6">
       {winOpen && <WhatCountsAsAWinDialog open={winOpen} onOpenChange={setWinOpen} />}
 
-      {/* ── What happened ──────────────────────────────────────────────── */}
+      {/* ── What changed ───────────────────────────────────────────────── */}
       <Card>
         <CardContent className="p-5">
           <p className="text-lg leading-relaxed font-medium text-balance">{data.headline}</p>
           {movements.length > 0 && (
-            <ul className="mt-4 space-y-1.5">
+            <>
+            <h3 className="mt-4 text-xs font-medium text-muted-foreground">{changedHeading(days)}</h3>
+            <ul className="mt-1.5 space-y-1.5">
               {movements.map((m, i) => {
                 const Icon = DIRECTION_ICON[m.direction];
                 return (
@@ -210,9 +335,31 @@ function OutcomesBody({ data }: { data: OutcomesResponse }) {
                 );
               })}
             </ul>
+            </>
           )}
         </CardContent>
       </Card>
+
+      {/* ── The channel filter ─────────────────────────────────────────
+          ★A FILTER, NOT A TAB: it narrows the three sections under it and
+          nothing above — the funnel and what changed are the business's. */}
+      {chips.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Show one channel">
+          {chips.map((c) => (
+            <Button
+              key={c.key}
+              type="button"
+              size="sm"
+              variant={filter === c.key ? "secondary" : "outline"}
+              className="h-7 rounded-full px-3 text-xs"
+              aria-pressed={filter === c.key}
+              onClick={() => onPick(c.key)}
+            >
+              {c.label}
+            </Button>
+          ))}
+        </div>
+      )}
 
       {/* ── What to do next ────────────────────────────────────────────
           ★ABOVE THE NUMBERS, ALWAYS. This is the half of the page that is
@@ -220,11 +367,27 @@ function OutcomesBody({ data }: { data: OutcomesResponse }) {
           one. Every item names the row it came from — a recommendation that
           cannot be traced to a fact about their own account is advice, and
           advice is exactly what this page exists not to be. */}
-      {nextActions.length > 0 && (
+      {/* ★A SOURCE STILL LOADING DOES NOT OPEN THIS SECTION ON ITS OWN — that
+          flashed a heading on every load. It opens for items or a failure,
+          and then says what is still unchecked. */}
+      {(needsYou.length > 0 || anyFailed) && (
         <div className="space-y-2">
           <h3 className="text-sm font-semibold">What needs you</h3>
+          {unchecked && (
+            <p className="text-xs text-muted-foreground">
+              {unchecked}
+              {anyFailed && (
+                <>
+                  {" "}
+                  <button type="button" className="underline underline-offset-2" onClick={onRetry}>
+                    Try again
+                  </button>
+                </>
+              )}
+            </p>
+          )}
           <div className="space-y-2">
-            {nextActions.map((a) => {
+            {needsYou.map((a) => {
               const s = SEVERITY[a.severity];
               return (
                 <Card key={a.id}>
@@ -253,6 +416,72 @@ function OutcomesBody({ data }: { data: OutcomesResponse }) {
               );
             })}
           </div>
+        </div>
+      )}
+
+      {/* ── Channels ──────────────────────────────────────────────────
+          ★PAID APPEARS WHEN THERE IS PAID, as everywhere on this page. Each
+          channel carries D-02's badge, read from /outcomes — /visibility
+          reads every measured channel `partial`, so it cannot be the source. */}
+      {rows.length > 0 && (
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold">Channels</h3>
+          <Card>
+            <CardContent className="divide-y p-0">
+              {rows.map((r) => (
+                <div key={r.platform} className="space-y-1.5 px-5 py-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-medium">{r.label}</span>
+                    {r.badge && <MeasurementBadgeChip badge={r.badge} />}
+                    {r.note && <span className="text-xs text-muted-foreground">{r.note}</span>}
+                  </div>
+                  <dl className="grid grid-cols-1 gap-x-6 gap-y-1 text-sm sm:grid-cols-3">
+                    <ChannelFigure term="Spent" value={r.spend} />
+                    <ChannelFigure term="Conversions, as the platform counts them" value={r.conversions} />
+                    <ChannelFigure term="Cost per conversion" value={r.costPerConversion} />
+                  </dl>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* ── Learning ──────────────────────────────────────────────────
+          What was tried and what came of it. Absent until the proposals are
+          read: an empty list over a failed read would say nothing was ever
+          tried. */}
+      {optimizerAllowed && (learning || runsFailed) && (
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold">What we tried</h3>
+          <Card>
+            <CardContent className="p-5">
+              {runsFailed ? (
+                <p className="text-sm text-muted-foreground">
+                  We couldn&apos;t load what the optimizer has tried just now.{" "}
+                  <button type="button" className="underline underline-offset-2" onClick={onRetry}>
+                    Try again
+                  </button>
+                </p>
+              ) : learning && learning.length > 0 ? (
+                <ul className="space-y-3">
+                  {learning.map((l) => (
+                    <li key={l.id} className="text-sm">
+                      <p className="font-medium">
+                        {l.headline}
+                        {l.when && (
+                          <span className="ml-2 text-xs font-normal text-muted-foreground">{l.when}</span>
+                        )}
+                      </p>
+                      <p className="mt-0.5 text-muted-foreground">{l.detail}</p>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-muted-foreground">{learningEmptyText(filter)}</p>
+              )}
+            </CardContent>
+          </Card>
         </div>
       )}
 
@@ -446,6 +675,31 @@ function OutcomesBody({ data }: { data: OutcomesResponse }) {
           </Card>
         </div>
       )}
+    </div>
+  );
+}
+
+const BADGE_TONE: Record<MeasurementBadge["tone"], string> = {
+  success: "bg-success/15 text-success-on-tint",
+  warning: "bg-warning/15 text-warning-on-tint",
+  muted: "bg-muted text-muted-foreground",
+};
+
+/** D-02's measurement badge, with its meaning spoken and on hover. */
+function MeasurementBadgeChip({ badge }: { badge: MeasurementBadge }) {
+  return (
+    <Badge variant="ghost" className={`h-5 px-2 text-[11px] ${BADGE_TONE[badge.tone]}`} title={badge.meaning}>
+      {badge.label}
+      <span className="sr-only">: {badge.meaning}</span>
+    </Badge>
+  );
+}
+
+function ChannelFigure({ term, value }: { term: string; value: string }) {
+  return (
+    <div>
+      <dt className="text-xs text-muted-foreground">{term}</dt>
+      <dd className="tabular-nums">{value}</dd>
     </div>
   );
 }
