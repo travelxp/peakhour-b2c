@@ -20,7 +20,7 @@ import {
   type ShopifyClaimCandidates,
 } from "@/lib/api/shopify-claim";
 import { LoadingScreen } from "@/components/molecules/loading-screen";
-import { BRAND_CONFIRM, doneCopy, errCopy, fitWarning } from "./claim-copy";
+import { BRAND_CONFIRM, claimOutcome, doneCopy, errCopy, fitWarning } from "./claim-copy";
 
 /** Sentinel for "move the store in as a NEW Business" (vs an existing businessId). */
 const NEW_BUSINESS = "__new__";
@@ -96,7 +96,7 @@ export function ShopifyClaim() {
       const businessId = target === NEW_BUSINESS ? undefined : target;
       const res = await claimShopifyStore(store, token, selectedOrg, businessId, confirmed);
       setConfirmPrompt(null);
-      setResult(res);
+      setResult(claimOutcome(res, businessId, activeOrg?.businesses ?? []));
       setClaimedOrgName(activeOrg?.name ?? "your account");
       await landOn(res);
       setFetchState("done");

@@ -11,7 +11,25 @@
  * Kept free of React so the page's sentences can be tested in node, and so a
  * test asserts the sentence the page shows rather than a copy of it.
  */
-import type { ClaimFit, ClaimResult } from "@/lib/api/shopify-claim";
+import type { ClaimBusiness, ClaimFit, ClaimResult } from "@/lib/api/shopify-claim";
+
+/**
+ * Where the store went, from the api's answer, or from what the page sent when
+ * the api does not say. An api without `newBusiness`/`businessName` would
+ * otherwise read as "added to a brand" for a store claimed as its own
+ * workspace: the misreport this page fixes.
+ */
+export function claimOutcome(
+  res: ClaimResult,
+  sentBusinessId: string | undefined,
+  businesses: ClaimBusiness[],
+): ClaimResult {
+  return {
+    ...res,
+    newBusiness: res.newBusiness ?? sentBusinessId === undefined,
+    businessName: res.businessName ?? businesses.find((b) => b.businessId === sentBusinessId)?.name ?? null,
+  };
+}
 
 /** The warning shown on "another storefront of <business>", or null. */
 export function fitWarning(fit: ClaimFit | undefined, businessName: string): string | null {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { BRAND_CONFIRM, doneCopy, errCopy, fitWarning } from "./claim-copy";
+import { BRAND_CONFIRM, claimOutcome, doneCopy, errCopy, fitWarning } from "./claim-copy";
 
 /**
  * The claim page's sentences (claim-copy.ts, rendered by shopify-claim.tsx).
@@ -54,6 +54,25 @@ describe("doneCopy: where the store went", () => {
   it("adopted as a first account: no 'part of itself' tautology", () => {
     const d = doneCopy({ adopted: true }, "Table Story", "Table Story");
     expect(d.body).toBe("Table Story is set up as your first Peakhour workspace.");
+  });
+});
+
+describe("claimOutcome: an api that does not say where the store went", () => {
+  const businesses = [{ businessId: "b1", name: "Silk Store" }];
+  const bare = { claimed: true, orgId: "o1", businessId: "x" };
+
+  it("claimed as its own workspace (nothing sent) reads as a new workspace", () => {
+    expect(claimOutcome(bare, undefined, businesses)).toMatchObject({ newBusiness: true, businessName: null });
+  });
+
+  it("attached to a business reads as that business, by the name the page showed", () => {
+    expect(claimOutcome(bare, "b1", businesses)).toMatchObject({ newBusiness: false, businessName: "Silk Store" });
+  });
+
+  it("the api's own answer wins when it gives one", () => {
+    expect(
+      claimOutcome({ ...bare, newBusiness: false, businessName: "Silk Store Co" }, undefined, businesses),
+    ).toMatchObject({ newBusiness: false, businessName: "Silk Store Co" });
   });
 });
 

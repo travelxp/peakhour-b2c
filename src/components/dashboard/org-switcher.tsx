@@ -97,7 +97,7 @@ export function OrgSwitcher() {
             ))}
             <div className="my-1 h-px bg-border" />
             <Link
-              href="/onboarding/add-business"
+              href="/onboarding/add-business?another=1"
               className="flex w-full items-center gap-2 rounded-sm px-3 py-2 text-sm text-muted-foreground hover:bg-accent/50 transition-colors"
             >
               + Add business

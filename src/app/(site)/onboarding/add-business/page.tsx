@@ -94,6 +94,9 @@ export default function AddBusinessPage() {
   );
 }
 
+/** Set while an onboarded org adds another business (see the redirect below). */
+const ADDING_ANOTHER_KEY = "onboarding:addingAnother";
+
 function AddBusinessContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -113,13 +116,25 @@ function AddBusinessContent() {
   // (`?another=1`), a completed org is exactly who is here: it is adding a
   // second business, which /v1/onboarding/confirm creates under the same org
   // (plan-gated there). Bouncing that caller home made the menu item do nothing.
-  const addingAnother = searchParams.get("another") === "1";
+  //
+  // ★AND IT SURVIVES THE ROUND TRIP. The about step's "Not me" comes back here
+  // without the query, so the intent is kept for the tab in sessionStorage
+  // (`ADDING_ANOTHER_KEY`, cleared once the business is created).
+  const addingAnotherParam = searchParams.get("another") === "1";
   useEffect(() => {
-    if (authLoading || addingAnother) return;
+    if (authLoading) return;
+    let addingAnother = addingAnotherParam;
+    try {
+      if (addingAnotherParam) sessionStorage.setItem(ADDING_ANOTHER_KEY, "1");
+      else addingAnother = sessionStorage.getItem(ADDING_ANOTHER_KEY) === "1";
+    } catch {
+      /* storage blocked: the query alone decides */
+    }
+    if (addingAnother) return;
     if (org?.onboarding?.completed) {
       router.replace(HOME_ROUTE);
     }
-  }, [authLoading, addingAnother, org, router]);
+  }, [authLoading, addingAnotherParam, org, router]);
 
   // Live classify on input change. 300ms debounce + cancel flag so a
   // slow earlier response can't clobber a fresh later one (response
