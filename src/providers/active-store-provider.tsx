@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useMemo, useState, type ReactNo
 import { useAuth } from "@/providers/auth-provider";
 import { useCommerceStores } from "@/hooks/use-commerce-stores";
 import { resolveActiveStore, storeKeyFor, withStore, type CommerceStore } from "@/lib/commerce-store";
+import { LoadingScreen } from "@/components/molecules/loading-screen";
 
 interface ActiveStore {
   /** The business's stores, primary first. */
@@ -35,7 +36,7 @@ const ActiveStoreContext = createContext<ActiveStore>(NONE);
 export function ActiveStoreProvider({ children }: { children: ReactNode }) {
   const { business } = useAuth();
   const businessId = business?._id;
-  const { data: stores = [] } = useCommerceStores();
+  const { data: stores = [], isSuccess, isError } = useCommerceStores();
   // Picks made on this page, per business; before one is made, the pick saved
   // in localStorage (a per-viewer convenience: it can be empty or throw, and the
   // primary store is then the answer).
@@ -59,6 +60,16 @@ export function ActiveStoreProvider({ children }: { children: ReactNode }) {
     const { store, merchantId } = resolveActiveStore(stores, saved);
     return { stores, store, merchantId, pick, path: (p) => withStore(p, merchantId) };
   }, [stores, saved, pick]);
+
+  // ★NOTHING BELOW RUNS UNTIL THE STORE IS KNOWN. Every commerce query reads
+  // the picked store; rendered before the list arrives, each would fetch the
+  // primary store, show it with no picker to say so, then refetch the picked
+  // one, and an action approved in between would carry a mismatched store.
+  // Holding the pages here, rather than disabling each query, keeps their
+  // loading states honest (a disabled query is not "loading" in react-query).
+  // A failed list (an older api) settles too: no store is then named.
+  const settled = !businessId || isSuccess || isError;
+  if (!settled) return <LoadingScreen message="Loading your store…" />;
 
   return <ActiveStoreContext.Provider value={value}>{children}</ActiveStoreContext.Provider>;
 }
