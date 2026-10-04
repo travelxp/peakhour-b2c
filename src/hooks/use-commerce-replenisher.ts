@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
+import { useActiveStore } from "@/providers/active-store-provider";
 import { ACTIVITY_KEY } from "@/hooks/use-commerce-activity";
 
 /**
@@ -52,10 +53,11 @@ export interface RestockPlan {
 const REPLENISHER_KEY = "commerce-replenisher";
 
 export function useReplenisher() {
+  const store = useActiveStore();
   const { isAuthenticated, org } = useAuth();
   return useQuery<RestockPlan>({
-    queryKey: [REPLENISHER_KEY, org?._id ?? null],
-    queryFn: () => api.get<RestockPlan>("/v1/commerce/replenisher"),
+    queryKey: [REPLENISHER_KEY, org?._id ?? null, store.merchantId ?? null],
+    queryFn: () => api.get<RestockPlan>(store.path("/v1/commerce/replenisher")),
     enabled: isAuthenticated && !!org?._id,
     staleTime: 5 * 60_000,
     // A missing store / unsynced catalog returns 4xx — don't hammer it.
@@ -69,8 +71,9 @@ export interface ReplenisherBrief {
 }
 
 export function useReplenisherBrief() {
+  const store = useActiveStore();
   return useMutation<ReplenisherBrief, Error>({
-    mutationFn: () => api.post<ReplenisherBrief>("/v1/commerce/replenisher/brief", {}),
+    mutationFn: () => api.post<ReplenisherBrief>(store.path("/v1/commerce/replenisher/brief"), {}),
   });
 }
 
@@ -80,11 +83,12 @@ export interface ProposeRestockResult {
 }
 
 export function useProposeRestock() {
+  const store = useActiveStore();
   const qc = useQueryClient();
   const { org } = useAuth();
   return useMutation<ProposeRestockResult, Error, string>({
     mutationFn: (sourceProductId: string) =>
-      api.post<ProposeRestockResult>("/v1/commerce/replenisher/propose", { sourceProductId }),
+      api.post<ProposeRestockResult>(store.path("/v1/commerce/replenisher/propose"), { sourceProductId }),
     onSettled: () => {
       // The proposal shows up in the "engine did this" digest.
       qc.invalidateQueries({ queryKey: [ACTIVITY_KEY, org?._id ?? null] });

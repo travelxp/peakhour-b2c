@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, type ApiError } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
+import { useActiveStore } from "@/providers/active-store-provider";
 import { ACTIVITY_KEY } from "@/hooks/use-commerce-activity";
 
 /**
@@ -77,10 +78,11 @@ export interface PricingPlan {
 const PRICER_KEY = "commerce-pricer";
 
 export function usePricer() {
+  const store = useActiveStore();
   const { isAuthenticated, org } = useAuth();
   return useQuery<PricingPlan>({
-    queryKey: [PRICER_KEY, org?._id ?? null],
-    queryFn: () => api.get<PricingPlan>("/v1/commerce/pricer"),
+    queryKey: [PRICER_KEY, org?._id ?? null, store.merchantId ?? null],
+    queryFn: () => api.get<PricingPlan>(store.path("/v1/commerce/pricer")),
     enabled: isAuthenticated && !!org?._id,
     staleTime: 5 * 60_000,
     retry: false,
@@ -93,8 +95,9 @@ export interface PricerBrief {
 }
 
 export function usePricerBrief() {
+  const store = useActiveStore();
   return useMutation<PricerBrief, Error>({
-    mutationFn: () => api.post<PricerBrief>("/v1/commerce/pricer/brief", {}),
+    mutationFn: () => api.post<PricerBrief>(store.path("/v1/commerce/pricer/brief"), {}),
   });
 }
 
@@ -104,12 +107,13 @@ export interface ProposePricingResult {
 }
 
 export function useProposePricing() {
+  const store = useActiveStore();
   const qc = useQueryClient();
   const { org } = useAuth();
   // ★ApiError, so a caller reads `code` (LIVE_MARKDOWN) without a cast.
   return useMutation<ProposePricingResult, ApiError, string>({
     mutationFn: (sourceProductId: string) =>
-      api.post<ProposePricingResult>("/v1/commerce/pricer/propose", { sourceProductId }),
+      api.post<ProposePricingResult>(store.path("/v1/commerce/pricer/propose"), { sourceProductId }),
     onSettled: () => {
       qc.invalidateQueries({ queryKey: [ACTIVITY_KEY, org?._id ?? null] });
     },

@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
+import { useActiveStore } from "@/providers/active-store-provider";
 import type { VisibilityResult } from "@/lib/search-visibility";
 
 /**
@@ -28,11 +29,12 @@ const KEY = "commerce-search-visibility";
 export const VISIBILITY_LIMIT = 100;
 
 export function useSearchVisibility(limit = VISIBILITY_LIMIT) {
+  const store = useActiveStore();
   const { isAuthenticated, org } = useAuth();
   return useQuery<VisibilityResult>({
-    queryKey: [KEY, org?._id ?? null, limit],
+    queryKey: [KEY, org?._id ?? null, limit, store.merchantId ?? null],
     queryFn: () =>
-      api.get<VisibilityResult>(`/v1/commerce/search-visibility?limit=${limit}`),
+      api.get<VisibilityResult>(store.path(`/v1/commerce/search-visibility?limit=${limit}`)),
     enabled: isAuthenticated && !!org?._id,
     // The underlying slice refreshes about once a day, so a five-minute window
     // is generous and still never serves a merchant a figure from last week's

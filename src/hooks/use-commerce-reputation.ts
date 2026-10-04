@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
+import { useActiveStore } from "@/providers/active-store-provider";
 import { ACTIVITY_KEY } from "@/hooks/use-commerce-activity";
 
 /**
@@ -51,10 +52,11 @@ const SUMMARY_KEY = "commerce-reputation-summary";
 const LIST_KEY = "commerce-reputation-list";
 
 export function useReviewsSummary() {
+  const store = useActiveStore();
   const { isAuthenticated, org } = useAuth();
   return useQuery<ReputationSummary>({
-    queryKey: [SUMMARY_KEY, org?._id ?? null],
-    queryFn: () => api.get<ReputationSummary>("/v1/commerce/reviews"),
+    queryKey: [SUMMARY_KEY, org?._id ?? null, store.merchantId ?? null],
+    queryFn: () => api.get<ReputationSummary>(store.path("/v1/commerce/reviews")),
     enabled: isAuthenticated && !!org?._id,
     staleTime: 5 * 60_000,
     retry: false,
@@ -62,10 +64,11 @@ export function useReviewsSummary() {
 }
 
 export function useReviewsList(filter: ReviewListFilter = "needs_response") {
+  const store = useActiveStore();
   const { isAuthenticated, org } = useAuth();
   return useQuery<{ items: ReviewListItem[] }>({
-    queryKey: [LIST_KEY, org?._id ?? null, filter],
-    queryFn: () => api.get<{ items: ReviewListItem[] }>(`/v1/commerce/reviews/list?filter=${filter}`),
+    queryKey: [LIST_KEY, org?._id ?? null, filter, store.merchantId ?? null],
+    queryFn: () => api.get<{ items: ReviewListItem[] }>(store.path(`/v1/commerce/reviews/list?filter=${filter}`)),
     enabled: isAuthenticated && !!org?._id,
     staleTime: 5 * 60_000,
     retry: false,
@@ -78,10 +81,11 @@ export interface AnalyzeResult {
 }
 
 export function useAnalyzeReviews() {
+  const store = useActiveStore();
   const qc = useQueryClient();
   const { org } = useAuth();
   return useMutation<AnalyzeResult, Error>({
-    mutationFn: () => api.post<AnalyzeResult>("/v1/commerce/reviews/analyze", {}),
+    mutationFn: () => api.post<AnalyzeResult>(store.path("/v1/commerce/reviews/analyze"), {}),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [SUMMARY_KEY, org?._id ?? null] });
       qc.invalidateQueries({ queryKey: [LIST_KEY, org?._id ?? null] });
@@ -95,11 +99,12 @@ export interface DraftResult {
 }
 
 export function useDraftResponse() {
+  const store = useActiveStore();
   const qc = useQueryClient();
   const { org } = useAuth();
   return useMutation<DraftResult, Error, string>({
     mutationFn: (reviewId: string) =>
-      api.post<DraftResult>(`/v1/commerce/reviews/${reviewId}/draft-response`, {}),
+      api.post<DraftResult>(store.path(`/v1/commerce/reviews/${reviewId}/draft-response`), {}),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [LIST_KEY, org?._id ?? null] });
     },
@@ -107,11 +112,12 @@ export function useDraftResponse() {
 }
 
 export function useProposeFix() {
+  const store = useActiveStore();
   const qc = useQueryClient();
   const { org } = useAuth();
   return useMutation<{ actionId: string | null }, Error, string>({
     mutationFn: (theme: string) =>
-      api.post<{ actionId: string | null }>("/v1/commerce/reviews/propose-fix", { theme }),
+      api.post<{ actionId: string | null }>(store.path("/v1/commerce/reviews/propose-fix"), { theme }),
     onSettled: () => {
       qc.invalidateQueries({ queryKey: [ACTIVITY_KEY, org?._id ?? null] });
     },
