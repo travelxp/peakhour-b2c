@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { CheckCircle2, AlertCircle, ShoppingBag } from "lucide-react";
+import { CheckCircle2, AlertCircle, AlertTriangle, ShoppingBag } from "lucide-react";
 import { useAuth } from "@/providers/auth-provider";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,9 +16,11 @@ import {
 import {
   fetchShopifyClaimCandidates,
   claimShopifyStore,
+  type ClaimResult,
   type ShopifyClaimCandidates,
 } from "@/lib/api/shopify-claim";
 import { LoadingScreen } from "@/components/molecules/loading-screen";
+import { BRAND_CONFIRM, claimOutcome, doneCopy, errCopy, fitWarning } from "./claim-copy";
 
 /** Sentinel for "move the store in as a NEW Business" (vs an existing businessId). */
 const NEW_BUSINESS = "__new__";
@@ -27,29 +29,6 @@ const NEW_BUSINESS = "__new__";
  *  pre-auth phases (loading auth / missing link / need sign-in) are DERIVED at
  *  render time from props, so the effect never sets state synchronously. */
 type FetchState = "loading" | "choose" | "claiming" | "done" | "error";
-
-function errCopy(code: string, fallback: string): { title: string; body: string } {
-  switch (code) {
-    case "CLAIM_ALREADY_CLAIMED":
-      return { title: "Already claimed", body: "This store is already linked to a Peakhour account." };
-    case "CLAIM_EXPIRED":
-      return { title: "This link has expired", body: "Open the Peakhour app in your Shopify admin and use the fresh “Claim this store” button." };
-    case "CLAIM_INVALID":
-      return { title: "Invalid claim link", body: "Open the Peakhour app in your Shopify admin and use the “Claim this store” button there." };
-    case "CLAIM_FORBIDDEN_ORG":
-      return { title: "No permission", body: "You can only attach a store to an account you own or admin." };
-    case "CLAIM_BUSINESS_LIMIT":
-      return { title: "Business limit reached", body: "Your plan's Business limit is reached. Upgrade, or attach the store to one of your existing brands instead." };
-    case "CLAIM_ORG_HAS_STORE":
-      return { title: "Already connected", body: "That account is already connected to this store." };
-    case "CLAIM_BUSINESS_NOT_FOUND":
-      return { title: "Business not found", body: "That business isn't in the selected account. Pick another." };
-    case "CLAIM_STORE_NOT_FOUND":
-      return { title: "Store not found", body: "This store is no longer available to claim." };
-    default:
-      return { title: "Something went wrong", body: fallback };
-  }
-}
 
 export function ShopifyClaim() {
   const params = useSearchParams();
@@ -60,11 +39,15 @@ export function ShopifyClaim() {
   const [fetchState, setFetchState] = useState<FetchState>("loading");
   const [data, setData] = useState<ShopifyClaimCandidates | null>(null);
   const [selectedOrg, setSelectedOrg] = useState<string>("");
-  // A businessId (attach to existing brand) or NEW_BUSINESS (move in as new).
+  // A businessId (another storefront of that brand) or NEW_BUSINESS (its own workspace).
   const [selectedTarget, setSelectedTarget] = useState<string>(NEW_BUSINESS);
   const [errCode, setErrCode] = useState<string>("");
   const [errMsg, setErrMsg] = useState<string>("");
-  const [claimedName, setClaimedName] = useState<string>("");
+  const [result, setResult] = useState<ClaimResult | null>(null);
+  const [claimedOrgName, setClaimedOrgName] = useState<string>("");
+  // The server's 409 CLAIM_BRAND_CONFIRM: this store may be a different brand
+  // from the workspace picked. Shown inline, with a confirm and a way out.
+  const [confirmPrompt, setConfirmPrompt] = useState<string | null>(null);
 
   const ready = !isLoading && isAuthenticated && !!store && !!token;
 
@@ -92,27 +75,42 @@ export function ShopifyClaim() {
   }, [ready, store, token]);
 
   const activeOrg = data?.orgs.find((o) => o.orgId === selectedOrg) ?? null;
+  const storeName = data?.store.name || data?.store.shopDomain || "This store";
 
-  async function handleClaim() {
+  async function landOn(res: ClaimResult) {
+    // Land the merchant on the freshly-claimed store: switch into the target
+    // org + business so the dashboard is already scoped to it. Best-effort —
+    // the claim already committed, so never surface a switch failure as an error.
+    try {
+      await switchOrg(res.orgId);
+      if (res.businessId) await switchBusiness(res.businessId);
+    } catch {
+      /* the store is claimed regardless; the switchers will pick it up */
+    }
+  }
+
+  async function handleClaim(target: string, confirmed = false) {
     if (!selectedOrg || !data) return;
     setFetchState("claiming");
     try {
-      const businessId = selectedTarget === NEW_BUSINESS ? undefined : selectedTarget;
-      const res = await claimShopifyStore(store, token, selectedOrg, businessId);
-      setClaimedName(activeOrg?.name ?? "your account");
-      // Land the merchant on the freshly-claimed store: switch into the target
-      // org + business so the dashboard is already scoped to it. Best-effort —
-      // the claim already committed, so never surface a switch failure as an error.
-      try {
-        await switchOrg(res.orgId);
-        if (res.businessId) await switchBusiness(res.businessId);
-      } catch {
-        /* the store is claimed regardless; the switchers will pick it up */
-      }
+      const businessId = target === NEW_BUSINESS ? undefined : target;
+      const res = await claimShopifyStore(store, token, selectedOrg, businessId, confirmed);
+      setConfirmPrompt(null);
+      setResult(claimOutcome(res, businessId, activeOrg?.businesses ?? []));
+      setClaimedOrgName(activeOrg?.name ?? "your account");
+      await landOn(res);
       setFetchState("done");
     } catch (e: unknown) {
-      setErrCode((e as { code?: string })?.code ?? "");
-      setErrMsg((e as { message?: string })?.message ?? "Couldn't connect the store.");
+      const code = (e as { code?: string })?.code ?? "";
+      const message = (e as { message?: string })?.message ?? "";
+      if (code === BRAND_CONFIRM) {
+        // Nothing moved. Back to the choice, with the question asked.
+        setConfirmPrompt(message || "This store may be a different brand from that workspace.");
+        setFetchState("choose");
+        return;
+      }
+      setErrCode(code);
+      setErrMsg(message || "Couldn't connect the store.");
       setFetchState("error");
     }
   }
@@ -126,15 +124,8 @@ export function ShopifyClaim() {
     setFetchState("claiming");
     try {
       const res = await claimShopifyStore(store, token);
-      // Adopt has no separate org to name — the store BECOMES the account, so
-      // avoid the "Acme is now part of Acme" tautology in the done copy.
-      setClaimedName("your new Peakhour account");
-      try {
-        await switchOrg(res.orgId);
-        if (res.businessId) await switchBusiness(res.businessId);
-      } catch {
-        /* adopted regardless; the switchers pick it up on next load */
-      }
+      setResult({ ...res, adopted: true });
+      await landOn(res);
       setFetchState("done");
     } catch (e: unknown) {
       setErrCode((e as { code?: string })?.code ?? "");
@@ -153,6 +144,11 @@ export function ShopifyClaim() {
   const showLoading = isLoading || (ready && fetchState === "loading");
   const showMissing = !isLoading && (!store || !token);
   const showSignIn = !isLoading && !!store && !!token && !isAuthenticated;
+
+  const optionClass = (selected: boolean) =>
+    `flex w-full flex-col items-start rounded-md border p-3 text-left text-sm hover:bg-muted/40 ${
+      selected ? "border-primary ring-1 ring-primary" : ""
+    }`;
 
   return (
     <div className="mx-auto flex min-h-[70vh] w-full max-w-lg items-center px-4 py-10">
@@ -198,17 +194,13 @@ export function ShopifyClaim() {
 
           {ready && fetchState === "choose" && data && (
             <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Choose which Peakhour account to add this store to.
-              </p>
               <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
                 <div>
                   Signed in as{" "}
                   <span className="font-medium text-foreground">{data.signedInEmail ?? "your account"}</span>
                 </div>
                 <div>
-                  Store:{" "}
-                  <span className="font-medium text-foreground">{data.store.name || data.store.shopDomain}</span>
+                  Store: <span className="font-medium text-foreground">{storeName}</span>
                 </div>
               </div>
 
@@ -216,7 +208,7 @@ export function ShopifyClaim() {
                 <div className="space-y-3">
                   <p className="text-sm text-muted-foreground">
                     Set up your Peakhour account from{" "}
-                    <span className="font-medium text-foreground">{data.store.name || "this store"}</span>.
+                    <span className="font-medium text-foreground">{storeName}</span>.
                     Your catalog and Commerce plan are already in place — nothing to configure.
                   </p>
                   <Button onClick={handleAdopt} className="w-full">
@@ -226,76 +218,116 @@ export function ShopifyClaim() {
               ) : (
                 <>
                   {data.orgs.length > 1 && (
-                    <ul className="space-y-2">
-                      {data.orgs.map((o) => {
-                        const selected = o.orgId === selectedOrg;
-                        return (
-                          <li key={o.orgId}>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setSelectedOrg(o.orgId);
-                                setSelectedTarget(NEW_BUSINESS);
-                              }}
-                              className={`flex w-full items-center justify-between rounded-md border p-3 text-left text-sm hover:bg-muted/40 ${
-                                selected ? "border-primary ring-1 ring-primary" : ""
-                              }`}
-                            >
-                              <span className="font-medium">{o.name}</span>
-                              <span className="text-xs text-muted-foreground">{o.role}</span>
-                            </button>
-                          </li>
-                        );
-                      })}
-                    </ul>
+                    <div className="space-y-2">
+                      <p className="text-sm text-muted-foreground">Which Peakhour account is this store for?</p>
+                      <ul className="space-y-2">
+                        {data.orgs.map((o) => {
+                          const selected = o.orgId === selectedOrg;
+                          return (
+                            <li key={o.orgId}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedOrg(o.orgId);
+                                  setSelectedTarget(NEW_BUSINESS);
+                                  setConfirmPrompt(null);
+                                }}
+                                className={`flex w-full items-center justify-between rounded-md border p-3 text-left text-sm hover:bg-muted/40 ${
+                                  selected ? "border-primary ring-1 ring-primary" : ""
+                                }`}
+                              >
+                                <span className="font-medium">{o.name}</span>
+                                <span className="text-xs text-muted-foreground">{o.role}</span>
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
                   )}
 
                   {activeOrg && (
                     <div className="space-y-2">
+                      {/* ★THE QUESTION THAT DECIDES IT. A workspace is a brand, and
+                          is priced as one; "add to an existing workspace" read as
+                          "add another workspace", which is the Table Story report. */}
                       <p className="text-sm text-muted-foreground">
-                        Add <span className="font-medium text-foreground">{data.store.name || "this store"}</span> to{" "}
-                        <span className="font-medium text-foreground">{activeOrg.name}</span> as:
+                        Is <span className="font-medium text-foreground">{storeName}</span> a separate brand, or
+                        another storefront of a brand you already run in{" "}
+                        <span className="font-medium text-foreground">{activeOrg.name}</span>?
                       </p>
                       <ul className="space-y-2">
                         <li>
                           <button
                             type="button"
-                            onClick={() => setSelectedTarget(NEW_BUSINESS)}
-                            className={`flex w-full flex-col items-start rounded-md border p-3 text-left text-sm hover:bg-muted/40 ${
-                              selectedTarget === NEW_BUSINESS ? "border-primary ring-1 ring-primary" : ""
-                            }`}
+                            onClick={() => {
+                              setSelectedTarget(NEW_BUSINESS);
+                              setConfirmPrompt(null);
+                            }}
+                            className={optionClass(selectedTarget === NEW_BUSINESS)}
                           >
-                            <span className="font-medium">A new business</span>
+                            <span className="font-medium">A separate brand</span>
                             <span className="text-xs text-muted-foreground">
-                              Keep this store as its own workspace (recommended for a separate brand).
+                              {storeName} gets its own workspace, with its own content and plan.
                             </span>
                           </button>
                         </li>
-                        {activeOrg.businesses.map((b) => (
-                          <li key={b.businessId}>
-                            <button
-                              type="button"
-                              onClick={() => setSelectedTarget(b.businessId)}
-                              className={`flex w-full flex-col items-start rounded-md border p-3 text-left text-sm hover:bg-muted/40 ${
-                                selectedTarget === b.businessId ? "border-primary ring-1 ring-primary" : ""
-                              }`}
-                            >
-                              <span className="font-medium">{b.name}</span>
-                              <span className="text-xs text-muted-foreground">
-                                Add Shopify as a channel on this existing brand.
-                              </span>
-                            </button>
-                          </li>
-                        ))}
+                        {activeOrg.businesses.map((b) => {
+                          const warning = fitWarning(b.fit, b.name);
+                          return (
+                            <li key={b.businessId}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedTarget(b.businessId);
+                                  setConfirmPrompt(null);
+                                }}
+                                className={optionClass(selectedTarget === b.businessId)}
+                              >
+                                <span className="font-medium">Another storefront of {b.name}</span>
+                                <span className="text-xs text-muted-foreground">
+                                  Added to the {b.name} workspace as a second store, under the same brand.
+                                </span>
+                                {warning && (
+                                  <span className="mt-1 flex items-start gap-1 text-xs text-warning-on-tint">
+                                    <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+                                    {warning}
+                                  </span>
+                                )}
+                              </button>
+                            </li>
+                          );
+                        })}
                       </ul>
                     </div>
                   )}
                 </>
               )}
 
-              {data.orgs.length > 0 && (
+              {confirmPrompt && selectedTarget !== NEW_BUSINESS && (
+                <div className="space-y-3 rounded-md border border-warning/30 bg-warning/10 p-3" role="alert">
+                  <p className="text-sm">{confirmPrompt}</p>
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <Button onClick={() => handleClaim(selectedTarget, true)} className="sm:flex-1">
+                      It&apos;s the same brand, add it
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setSelectedTarget(NEW_BUSINESS);
+                        void handleClaim(NEW_BUSINESS);
+                      }}
+                      className="sm:flex-1"
+                    >
+                      Make it its own workspace
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {data.orgs.length > 0 && !(confirmPrompt && selectedTarget !== NEW_BUSINESS) && (
                 <Button
-                  onClick={handleClaim}
+                  onClick={() => handleClaim(selectedTarget)}
                   disabled={!selectedOrg}
                   className="w-full"
                 >
@@ -316,22 +348,28 @@ export function ShopifyClaim() {
             />
           )}
 
-          {ready && fetchState === "done" && (
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 text-sm font-medium text-success-on-tint">
-                <CheckCircle2 className="size-5" aria-hidden />
-                Claimed!
+          {ready && fetchState === "done" && result && (() => {
+            const done = doneCopy(result, result.store?.name || storeName, claimedOrgName || "your account");
+            return (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-sm font-medium text-success-on-tint">
+                  <CheckCircle2 className="size-5" aria-hidden />
+                  {done.title}
+                </div>
+                <p className="text-sm text-muted-foreground">{done.body}</p>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Button asChild>
+                    <Link href="/dashboard">Go to dashboard</Link>
+                  </Button>
+                  {done.integrationsHint && (
+                    <Button asChild variant="outline">
+                      <Link href="/dashboard/integrations">See it in Integrations</Link>
+                    </Button>
+                  )}
+                </div>
               </div>
-              <p className="text-sm text-muted-foreground">
-                {data?.store?.name || "Your store"} is now part of{" "}
-                <span className="font-medium text-foreground">{claimedName}</span>. You can manage it
-                and connect channels like WhatsApp from your dashboard.
-              </p>
-              <Button asChild>
-                <Link href="/dashboard">Go to dashboard</Link>
-              </Button>
-            </div>
-          )}
+            );
+          })()}
 
           {ready && fetchState === "error" && (() => {
             const ec = errCopy(errCode, errMsg);

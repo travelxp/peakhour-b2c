@@ -146,6 +146,8 @@ export default function AboutPage() {
 
       sessionStorage.setItem("onboarding:jobId", result.jobId);
       sessionStorage.removeItem("onboarding:extract");
+      // The business exists; "adding another" is done (add-business/page.tsx).
+      sessionStorage.removeItem("onboarding:addingAnother");
       await refreshUser();
       router.push("/onboarding/launch");
     } catch (err) {
