@@ -96,6 +96,16 @@ interface Integration {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     extra?: Record<string, any>; // TODO: type provider-specific extras (pages, adAccounts, capabilities, etc.)
   };
+  /** Every live account on this provider, primary first (api: GET
+   *  /v1/integrations `accounts`). A business may hold several stores on one
+   *  channel; `account` above is only the primary. Absent from an older api. */
+  accounts?: Array<{
+    connectionId: string;
+    externalId?: string;
+    name?: string;
+    status: string;
+    primary: boolean;
+  }>;
   connectedAt?: string;
   lastSyncAt?: string;
   lastError?: string;
@@ -1181,6 +1191,30 @@ function IntegrationCard({
                   )}
                 </div>
               </div>
+            )}
+
+            {/* ★EVERY ACCOUNT, NOT ONLY THE PRIMARY. A business may hold several
+                stores on one channel (a second Shopify shop added to this
+                workspace); the card above shows the primary, and these are the
+                rest, so a store added here is visible here. */}
+            {(integration.accounts?.length ?? 0) > 1 && (
+              <ul className="space-y-1 rounded-md border px-2.5 py-2" aria-label={`${integration.name} accounts`}>
+                <li className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                  {integration.accounts!.length} connected
+                </li>
+                {integration.accounts!
+                  .filter((a) => !a.primary)
+                  .map((a) => (
+                    <li key={a.connectionId} className="flex items-center justify-between gap-2 text-xs">
+                      <span className="truncate">{a.name || a.externalId || "Account"}</span>
+                      {a.status !== "active" && (
+                        <span className="shrink-0 text-[10px] text-warning-on-tint">
+                          {a.status === "needs_reauth" ? "Needs reconnect" : a.status}
+                        </span>
+                      )}
+                    </li>
+                  ))}
+              </ul>
             )}
 
             {/* LinkedIn Ads — compact status badge + detail dialog */}

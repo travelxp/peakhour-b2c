@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
+import { useActiveStore } from "@/providers/active-store-provider";
 
 /**
  * Commerce Command Center summary (GET /v1/commerce/summary). Honest outcomes
@@ -41,10 +42,11 @@ export interface CommerceSummary {
 const SUMMARY_KEY = "commerce-summary";
 
 export function useCommerceSummary() {
+  const store = useActiveStore();
   const { isAuthenticated, org } = useAuth();
   return useQuery<CommerceSummary>({
-    queryKey: [SUMMARY_KEY, org?._id ?? null],
-    queryFn: () => api.get<CommerceSummary>("/v1/commerce/summary"),
+    queryKey: [SUMMARY_KEY, org?._id ?? null, store.merchantId ?? null],
+    queryFn: () => api.get<CommerceSummary>(store.path("/v1/commerce/summary")),
     enabled: isAuthenticated && !!org?._id,
     staleTime: 5 * 60_000,
     // A missing store returns 4xx (NO_STORE_CONNECTED) — don't hammer it.

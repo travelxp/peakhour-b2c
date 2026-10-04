@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
+import { useActiveStore } from "@/providers/active-store-provider";
 import type { ActionFailure } from "@/lib/commerce-action-status";
 
 /**
@@ -36,10 +37,11 @@ interface ActivityResponse {
 export const ACTIVITY_KEY = "commerce-activity";
 
 export function useCommerceActivity(limit = 8) {
+  const store = useActiveStore();
   const { isAuthenticated, org } = useAuth();
   return useQuery<ActivityResponse>({
-    queryKey: [ACTIVITY_KEY, org?._id ?? null, limit],
-    queryFn: () => api.get<ActivityResponse>(`/v1/commerce/activity?limit=${limit}`),
+    queryKey: [ACTIVITY_KEY, org?._id ?? null, limit, store.merchantId ?? null],
+    queryFn: () => api.get<ActivityResponse>(store.path(`/v1/commerce/activity?limit=${limit}`)),
     enabled: isAuthenticated && !!org?._id,
     staleTime: 60_000,
     retry: false,

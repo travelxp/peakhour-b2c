@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
+import { useActiveStore } from "@/providers/active-store-provider";
 import { ACTIVITY_KEY } from "@/hooks/use-commerce-activity";
 import { AUTONOMY_KEY } from "@/hooks/use-commerce-autonomy";
 import {
@@ -44,12 +45,13 @@ export const ACTIONS_KEY = "commerce-actions";
 /** The actions a merchant can act on — proposals to approve, approved to ship,
  *  shipped (or unconfirmed) to revert. Newest first. */
 export function useCommerceActions(statuses: readonly string[] = ACTIONABLE_STATUSES) {
+  const store = useActiveStore();
   const { isAuthenticated, org } = useAuth();
   const status = statuses.join(",");
   return useQuery<{ items: ActionableItem[] }>({
-    queryKey: [ACTIONS_KEY, org?._id ?? null, status],
+    queryKey: [ACTIONS_KEY, org?._id ?? null, status, store.merchantId ?? null],
     queryFn: () => api.get<{ items: ActionableItem[] }>(
-      `/v1/commerce/actions?status=${encodeURIComponent(status)}`,
+      store.path(`/v1/commerce/actions?status=${encodeURIComponent(status)}`),
     ),
     enabled: isAuthenticated && !!org?._id,
     staleTime: 30_000,
@@ -70,9 +72,10 @@ function useInvalidateActions() {
 
 /** Approve a proposed intent → approved (shippable). */
 export function useApproveAction() {
+  const store = useActiveStore();
   const invalidate = useInvalidateActions();
   return useMutation<{ status: string }, ApiError, string>({
-    mutationFn: (id) => api.post<{ status: string }>(`/v1/commerce/actions/${id}/approve`, {}),
+    mutationFn: (id) => api.post<{ status: string }>(store.path(`/v1/commerce/actions/${id}/approve`), {}),
     onSuccess: () => toast.success("Approved — ready to ship"),
     onError: (e) => toast.error(e.message || "Couldn't approve this action"),
     onSettled: () => invalidate(),
@@ -82,10 +85,11 @@ export function useApproveAction() {
 /** Ship an approved action — executes for real or stages advisory (per the
  *  capability matrix); the server returns the resulting ledger status. */
 export function useExecuteAction() {
+  const store = useActiveStore();
   const invalidate = useInvalidateActions();
   return useMutation<{ status: string; failure?: ActionFailure }, ApiError, string>({
     mutationFn: (id) =>
-      api.post<{ status: string; failure?: ActionFailure }>(`/v1/commerce/actions/${id}/execute`, {}),
+      api.post<{ status: string; failure?: ActionFailure }>(store.path(`/v1/commerce/actions/${id}/execute`), {}),
     onSuccess: (res) => {
       // ★One decision, in `executeToast`: an unknown outcome is a warning
       //  that names the undo, never a green "Done" (mongodb mig 366).
@@ -100,9 +104,10 @@ export function useExecuteAction() {
  *  An unconfirmed one answers UNDO_SETTLING for a few minutes; its message says
  *  when to try again, and is shown as it comes. */
 export function useRevertAction() {
+  const store = useActiveStore();
   const invalidate = useInvalidateActions();
   return useMutation<{ status: string }, ApiError, string>({
-    mutationFn: (id) => api.post<{ status: string }>(`/v1/commerce/actions/${id}/revert`, {}),
+    mutationFn: (id) => api.post<{ status: string }>(store.path(`/v1/commerce/actions/${id}/revert`), {}),
     onSuccess: () => showToast(REVERT_SUCCESS_TOAST),
     // ★UNDO_SETTLING is a wait, shown as one (review round 1).
     onError: (e) => showToast(revertErrorToast(e)),

@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
+import { useActiveStore } from "@/providers/active-store-provider";
 
 /**
  * Commerce recommendations — the engine's proposals for the Command Center's
@@ -46,11 +47,12 @@ const RECS_KEY = "commerce-recommendations";
 const SUMMARY_KEY = "commerce-summary";
 
 export function useCommerceRecommendations() {
+  const store = useActiveStore();
   const { isAuthenticated, org } = useAuth();
   return useQuery<RecommendationPage>({
-    queryKey: [RECS_KEY, org?._id ?? null],
+    queryKey: [RECS_KEY, org?._id ?? null, store.merchantId ?? null],
     queryFn: () =>
-      api.get<RecommendationPage>("/v1/commerce/recommendations?status=pending"),
+      api.get<RecommendationPage>(store.path("/v1/commerce/recommendations?status=pending")),
     enabled: isAuthenticated && !!org?._id,
     staleTime: 60_000,
     // A missing store returns 4xx — don't hammer it.
@@ -61,9 +63,10 @@ export function useCommerceRecommendations() {
 export type RecommendationDecision = "approve" | "reject";
 
 export function useDecideRecommendation() {
+  const store = useActiveStore();
   const qc = useQueryClient();
   const { org } = useAuth();
-  const recsKey = [RECS_KEY, org?._id ?? null];
+  const recsKey = [RECS_KEY, org?._id ?? null, store.merchantId ?? null];
 
   return useMutation({
     mutationFn: ({
@@ -76,7 +79,7 @@ export function useDecideRecommendation() {
       reason?: string;
     }) =>
       api.post(
-        `/v1/commerce/recommendations/${id}/${decision}`,
+        store.path(`/v1/commerce/recommendations/${id}/${decision}`),
         decision === "reject" && reason ? { reason } : {},
       ),
     // Optimistically drop the decided row from the pending list.
