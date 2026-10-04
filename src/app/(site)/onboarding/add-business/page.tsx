@@ -108,13 +108,18 @@ function AddBusinessContent() {
   const [mode, setMode] = useState<"link" | "describe">("link");
   const [description, setDescription] = useState("");
 
-  // If onboarding is complete, send to dashboard instead of restarting
+  // ★TWO WAYS IN. As first-run onboarding, a completed org goes to the
+  // dashboard instead of restarting. From the workspace menu's "Add a business"
+  // (`?another=1`), a completed org is exactly who is here: it is adding a
+  // second business, which /v1/onboarding/confirm creates under the same org
+  // (plan-gated there). Bouncing that caller home made the menu item do nothing.
+  const addingAnother = searchParams.get("another") === "1";
   useEffect(() => {
-    if (authLoading) return;
+    if (authLoading || addingAnother) return;
     if (org?.onboarding?.completed) {
       router.replace(HOME_ROUTE);
     }
-  }, [authLoading, org, router]);
+  }, [authLoading, addingAnother, org, router]);
 
   // Live classify on input change. 300ms debounce + cancel flag so a
   // slow earlier response can't clobber a fresh later one (response

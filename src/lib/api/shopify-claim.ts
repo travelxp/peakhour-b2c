@@ -17,9 +17,20 @@ export interface ClaimStore {
   contactEmail: string | null;
 }
 
+/** Is this store the same brand as a business? (api: integration-fit guard.)
+ *  `unknown` when the check could not run; it never blocks a claim. */
+export interface ClaimFit {
+  verdict: "anchor" | "match" | "mismatch" | "ambiguous" | "unknown";
+  reason?: string;
+  /** The business's brand the store was compared with, e.g. "silkstore.in". */
+  anchor?: string;
+}
+
 export interface ClaimBusiness {
   businessId: string;
   name: string;
+  /** Absent from an api that predates the brand-fit check. */
+  fit?: ClaimFit;
 }
 
 export interface ClaimOrg {
@@ -36,6 +47,18 @@ export interface ShopifyClaimCandidates {
   signedInEmail: string | null;
   /** Orgs the signed-in user can attach the store to, each with its businesses. */
   orgs: ClaimOrg[];
+}
+
+export interface ClaimResult {
+  claimed: boolean;
+  adopted?: boolean;
+  orgId: string;
+  businessId: string | null;
+  /** The workspace the store joined or became. */
+  businessName?: string | null;
+  /** True when the store became its own workspace. */
+  newBusiness?: boolean;
+  store?: { name: string | null; shopDomain: string | null };
 }
 
 export async function fetchShopifyClaimCandidates(
@@ -55,24 +78,26 @@ export async function fetchShopifyClaimCandidates(
  *   a signed-in operator with no account has the store's shell org handed to
  *   them as their first workspace (`adopted: true`), no onboarding needed.
  * - Pass `orgId` with no `businessId` → move the store in as a NEW Business.
- * - Pass `orgId` + `businessId` → attach it to that existing brand.
+ * - Pass `orgId` + `businessId` → attach it to that existing brand. If the
+ *   store may be a different brand, the server answers 409
+ *   CLAIM_BRAND_CONFIRM; resend with `confirmed: true` once the merchant says
+ *   it is the same brand.
  */
 export async function claimShopifyStore(
   store: string,
   token: string,
   orgId?: string,
   businessId?: string,
-): Promise<{ claimed: boolean; adopted?: boolean; orgId: string; businessId: string | null }> {
-  return api.request<{ claimed: boolean; adopted?: boolean; orgId: string; businessId: string | null }>(
-    "/v1/shopify/claim",
-    {
-      method: "POST",
-      body: JSON.stringify({
-        store,
-        token,
-        ...(orgId ? { orgId } : {}),
-        ...(businessId ? { businessId } : {}),
-      }),
-    },
-  );
+  confirmed?: boolean,
+): Promise<ClaimResult> {
+  return api.request<ClaimResult>("/v1/shopify/claim", {
+    method: "POST",
+    body: JSON.stringify({
+      store,
+      token,
+      ...(orgId ? { orgId } : {}),
+      ...(businessId ? { businessId } : {}),
+      ...(confirmed ? { confirmed: true } : {}),
+    }),
+  });
 }

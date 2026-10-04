@@ -51,7 +51,7 @@ export function WorkspaceSwitcher() {
   // org and let the provider's auto-resolve pin the business on arrival.
   const otherOrgs = orgs.filter((o) => o._id !== org?._id);
   const activeName = business?.name ?? org?.name ?? "Workspace";
-  const hasChoices = businesses.length > 1 || otherOrgs.length > 0;
+  const canSwitch = businesses.length > 1 || otherOrgs.length > 0;
 
   async function pickBusiness(id: string, name: string, planActive: boolean | undefined) {
     if (id === business?._id || switching) return;
@@ -79,14 +79,13 @@ export function WorkspaceSwitcher() {
   }
 
   /**
-   * The visual block, shared by both states.
+   * The visual block inside the button.
    *
-   * ★IT IS ONLY A BUTTON WHEN THERE IS SOMETHING TO PRESS. A customer with one
-   * business has nothing to switch to, and rendering the control anyway — inert,
-   * or disabled — is the pattern this component was written to remove: a thing
-   * that looks like a control and is not one. So the single-workspace case gets
-   * the identical block as plain content, with no role, no focus stop and no
-   * chevron, and the dropdown case wraps it in the button.
+   * ★ALWAYS A BUTTON, BECAUSE THERE IS ALWAYS SOMETHING TO PRESS: "Add a
+   * business". A single-workspace customer used to get plain text here, so the
+   * one way to add a second brand was hidden from exactly the customer who had
+   * not added one yet (the Table Story report: a new store, and nowhere to put
+   * it as its own workspace). The subtitle says which it is for.
    */
   const face = (
     <>
@@ -100,10 +99,10 @@ export function WorkspaceSwitcher() {
       <span className="grid min-w-0 flex-1 text-left leading-tight">
         <span className="truncate text-sm font-semibold">{activeName}</span>
         <span className="truncate text-xs text-muted-foreground">
-          {hasChoices ? "Switch workspace" : "Your workspace"}
+          {canSwitch ? "Switch workspace" : "Add a workspace"}
         </span>
       </span>
-      {hasChoices && <ChevronsUpDown className="ml-auto size-4 opacity-60" aria-hidden />}
+      <ChevronsUpDown className="ml-auto size-4 opacity-60" aria-hidden />
     </>
   );
 
@@ -119,82 +118,76 @@ export function WorkspaceSwitcher() {
   return (
     <SidebarMenu>
       <SidebarMenuItem>
-        {!hasChoices ? (
-          // Same metrics as SidebarMenuButton size="lg", minus every
-          // interactive affordance.
-          <div className="flex h-12 w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm">
-            {face}
-          </div>
-        ) : (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="start"
-              side="bottom"
-              sideOffset={4}
-              className="w-(--radix-dropdown-menu-trigger-width) min-w-60 rounded-lg"
-            >
-              <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
-                Everything in Peakhour is scoped to this workspace
-              </DropdownMenuLabel>
-              {businesses.map((b) => {
-                const isActive = b._id === business?._id;
-                const isLocked = b.planActive === false;
-                return (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
+          <DropdownMenuContent
+            align="start"
+            side="bottom"
+            sideOffset={4}
+            className="w-(--radix-dropdown-menu-trigger-width) min-w-60 rounded-lg"
+          >
+            <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+              Everything in Peakhour is scoped to this workspace
+            </DropdownMenuLabel>
+            {businesses.map((b) => {
+              const isActive = b._id === business?._id;
+              const isLocked = b.planActive === false;
+              return (
+                <DropdownMenuItem
+                  key={b._id}
+                  // Radix closes the menu on select by default. A locked row
+                  // must not: it opens a dialog, and closing the menu first
+                  // would make the dialog appear from nowhere.
+                  onSelect={(e) => {
+                    if (isLocked) e.preventDefault();
+                    void pickBusiness(b._id, b.name, b.planActive);
+                  }}
+                  className="gap-2"
+                >
+                  <span className={cn("truncate", isLocked && "text-muted-foreground")}>
+                    {b.name}
+                  </span>
+                  {isLocked ? (
+                    <Lock className="ml-auto size-3.5 shrink-0 text-brand-label" aria-hidden />
+                  ) : isActive ? (
+                    <Check className="ml-auto size-4 shrink-0" aria-hidden />
+                  ) : null}
+                </DropdownMenuItem>
+              );
+            })}
+
+            {otherOrgs.length > 0 && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+                  Other workspaces
+                </DropdownMenuLabel>
+                {otherOrgs.map((o) => (
                   <DropdownMenuItem
-                    key={b._id}
-                    // Radix closes the menu on select by default. A locked row
-                    // must not: it opens a dialog, and closing the menu first
-                    // would make the dialog appear from nowhere.
-                    onSelect={(e) => {
-                      if (isLocked) e.preventDefault();
-                      void pickBusiness(b._id, b.name, b.planActive);
-                    }}
+                    key={o._id}
+                    onSelect={() => void pickOrg(o._id)}
                     className="gap-2"
                   >
-                    <span className={cn("truncate", isLocked && "text-muted-foreground")}>
-                      {b.name}
+                    <span className="truncate">{o.name}</span>
+                    <span className="ml-auto shrink-0 text-xs capitalize text-muted-foreground">
+                      {o.role}
                     </span>
-                    {isLocked ? (
-                      <Lock className="ml-auto size-3.5 shrink-0 text-brand-label" aria-hidden />
-                    ) : isActive ? (
-                      <Check className="ml-auto size-4 shrink-0" aria-hidden />
-                    ) : null}
                   </DropdownMenuItem>
-                );
-              })}
+                ))}
+              </>
+            )}
 
-              {otherOrgs.length > 0 && (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
-                    Other workspaces
-                  </DropdownMenuLabel>
-                  {otherOrgs.map((o) => (
-                    <DropdownMenuItem
-                      key={o._id}
-                      onSelect={() => void pickOrg(o._id)}
-                      className="gap-2"
-                    >
-                      <span className="truncate">{o.name}</span>
-                      <span className="ml-auto shrink-0 text-xs capitalize text-muted-foreground">
-                        {o.role}
-                      </span>
-                    </DropdownMenuItem>
-                  ))}
-                </>
-              )}
-
-              <DropdownMenuSeparator />
-              <DropdownMenuItem asChild>
-                <Link href="/onboarding/add-business" className="gap-2 text-muted-foreground">
-                  <Plus className="size-4" aria-hidden />
-                  Add a business
-                </Link>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild>
+              {/* `another=1`: the add-business page is also first-run
+                  onboarding, which sends an onboarded org home. */}
+              <Link href="/onboarding/add-business?another=1" className="gap-2 text-muted-foreground">
+                <Plus className="size-4" aria-hidden />
+                Add a business
+              </Link>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </SidebarMenuItem>
 
       <PlanLimitDialog
