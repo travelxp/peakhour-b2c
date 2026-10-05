@@ -38,8 +38,8 @@ import {
   buyPack,
   confirmPackPurchase,
   type PeaksPack,
-  type PackBlockedReason,
 } from "@/hooks/use-peaks-packs";
+import { cardReason, packReason } from "@/lib/peaks-pack-copy";
 import { PaymentModal, type CheckoutResult } from "@/components/upgrade/payment-modal";
 import { ApiError } from "@/lib/api";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
@@ -66,6 +66,9 @@ const BUYER_FACING_CODES = new Set([
   "PLAN_REQUIRED",
   "GATEWAY_UNAVAILABLE",
   "BILLING_UNAVAILABLE",
+  // D18 (api#1484): the org has a Shopify store; the message says to buy in
+  // its Shopify admin. Reachable from a stale listing (cached 5 minutes).
+  "SHOPIFY_BILLED",
 ]);
 
 // ── Formatting helpers ────────────────────────────────────────────────────
@@ -166,44 +169,6 @@ function UsageHistorySheet({ open, onOpenChange }: { open: boolean; onOpenChange
 }
 
 // ── Buy more Peaks ─────────────────────────────────────────────────────────
-
-/** Why a pack can't be bought, in the buyer's words. EVERY reason the api can
- *  return is named — an unexplained row of greyed-out Buy buttons under a sales
- *  pitch is worse than not showing the section at all. */
-function blockedCopy(reason: PackBlockedReason | null): string | null {
-  switch (reason) {
-    case "unlimited":
-      return "Your plan already includes unlimited Peaks.";
-    case "plan_required":
-      return "Peaks packs need an active paid plan.";
-    case "not_priced_here":
-      // Real, not hypothetical: a pack priced only in USD viewed by an Indian
-      // org resolves a currency the gateway for that country can't charge.
-      return "These packs aren't priced for your region yet.";
-    case "no_wallet":
-      return "We couldn't load your Peaks wallet. Please contact support.";
-    case null:
-      return null;
-    default: {
-      // A fifth reason added on the api side is a BUILD failure here, not a
-      // silent regression to the original defect (a greyed button with no
-      // explanation). The union is hand-mirrored from the api, so nothing else
-      // enforces that they stay in step.
-      const _exhaustive: never = reason;
-      return _exhaustive;
-    }
-  }
-}
-
-/** The card-level reason, only when NOTHING is buyable. A real reduction, not
- *  `packs[0]` — `planRequired` and the pricing row are both per-pack, so a
- *  catalogue mixing two reasons would otherwise show copy for neither. */
-function cardBlockedCopy(packs: PeaksPack[]): string | null {
-  if (packs.length === 0 || packs.some((p) => p.purchasable)) return null;
-  const reasons = new Set(packs.map((p) => p.blockedReason));
-  if (reasons.size === 1) return blockedCopy(packs[0].blockedReason);
-  return "None of these packs is available on your account right now.";
-}
 
 function BuyPeaks() {
   const qc = useQueryClient();
@@ -357,7 +322,7 @@ function BuyPeaks() {
       : data.countryStatus !== "live"
         ? "Peaks packs are coming soon in your country."
         : null;
-  const cardBlocked = countryBlocked ?? cardBlockedCopy(data.packs);
+  const cardBlocked = cardReason(countryBlocked, data.packs);
   const canBuy = (p: PeaksPack) => p.purchasable && countryBlocked === null;
 
   return (
@@ -390,8 +355,8 @@ function BuyPeaks() {
               // same reason the card already says it once — repeating it under
               // each button turned one message into N+1 identical sentences,
               // which is what the card-level line existed to avoid.
-              const packReason = countryBlocked ?? blockedCopy(p.blockedReason);
-              const reason = packReason === cardBlocked ? null : packReason;
+              const reasonText = packReason(countryBlocked, p.blockedReason);
+              const reason = reasonText === cardBlocked ? null : reasonText;
               const reasonId = `pack-reason-${p.key.replace(/[^a-z0-9]/gi, "-")}`;
               return (
                 <div
