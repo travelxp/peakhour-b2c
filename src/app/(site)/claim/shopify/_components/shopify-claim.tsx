@@ -126,7 +126,9 @@ export function ShopifyClaim() {
       const code = (e as { code?: string })?.code ?? "";
       const message = (e as { message?: string })?.message ?? "";
       if (code === BRAND_CONFIRM) {
-        // Nothing moved. Back to the choice, with the question asked.
+        // Nothing moved. Back to the choice, with the question asked (and no
+        // stale refusal beside it).
+        setSeparateNotice(null);
         setConfirmPrompt(message || "This store may be a different brand from that workspace.");
         setFetchState("choose");
         return;
@@ -134,7 +136,7 @@ export function ShopifyClaim() {
       if (KEEP_SEPARATE_CODES.includes(code) && data.canKeepSeparate) {
         // Nothing moved. Back to the choice with the way forward picked.
         setConfirmPrompt(null);
-        setSeparateNotice(errCopy(code, message).body);
+        setSeparateNotice(errCopy(code, message, { canKeepSeparate: true }).body);
         setSelectedTarget(SEPARATE);
         setFetchState("choose");
         return;
@@ -288,6 +290,7 @@ export function ShopifyClaim() {
                                   setSelectedOrg(o.orgId);
                                   setSelectedTarget(NEW_BUSINESS);
                                   setConfirmPrompt(null);
+                                  setSeparateNotice(null);
                                 }}
                                 className={`flex w-full items-center justify-between rounded-md border p-3 text-left text-sm hover:bg-muted/40 ${
                                   selected ? "border-primary ring-1 ring-primary" : ""
@@ -320,6 +323,7 @@ export function ShopifyClaim() {
                             onClick={() => {
                               setSelectedTarget(NEW_BUSINESS);
                               setConfirmPrompt(null);
+                              setSeparateNotice(null);
                             }}
                             className={optionClass(selectedTarget === NEW_BUSINESS)}
                           >
@@ -343,6 +347,7 @@ export function ShopifyClaim() {
                                   if (blocked) return;
                                   setSelectedTarget(b.businessId);
                                   setConfirmPrompt(null);
+                                  setSeparateNotice(null);
                                 }}
                                 className={`${optionClass(selectedTarget === b.businessId)} ${
                                   blocked ? "cursor-not-allowed opacity-60 hover:bg-transparent" : ""
@@ -442,7 +447,7 @@ export function ShopifyClaim() {
           })()}
 
           {ready && fetchState === "error" && (() => {
-            const ec = errCopy(errCode, errMsg);
+            const ec = errCopy(errCode, errMsg, { canKeepSeparate: data?.canKeepSeparate });
             return (
               <div className="space-y-3">
                 <div className="flex items-center gap-2 text-sm font-medium text-destructive">

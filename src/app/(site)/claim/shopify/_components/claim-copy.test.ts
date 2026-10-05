@@ -140,15 +140,23 @@ describe("keeping the store as its own account", () => {
   });
 
   it("a different-business refusal names keeping it separate as the way forward", () => {
-    const e = errCopy("CLAIM_DIFFERENT_BUSINESS", "");
+    const e = errCopy("CLAIM_DIFFERENT_BUSINESS", "", { canKeepSeparate: true });
     expect(e.title).toBe("That's a different business");
     expect(e.body).toContain("its own account");
   });
 
   it("the 402 offers keeping it separate, and no longer steers to another brand's workspace", () => {
-    const e = errCopy("CLAIM_BUSINESS_LIMIT", "");
+    const e = errCopy("CLAIM_BUSINESS_LIMIT", "", { canKeepSeparate: true });
     expect(e.body).toContain("its own account");
     expect(e.body).not.toMatch(/add it to that workspace/);
+  });
+
+  it("never names keeping it separate when the page does not offer it: support instead (review R1)", () => {
+    for (const code of ["CLAIM_DIFFERENT_BUSINESS", "CLAIM_BUSINESS_LIMIT"]) {
+      const e = errCopy(code, "");
+      expect(e.body, code).not.toContain("its own account");
+      expect(e.body, code).toContain("Contact support");
+    }
   });
 
   it("both refusals return the page to the choice with keeping it separate picked", () => {

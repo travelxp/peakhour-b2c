@@ -102,8 +102,21 @@ export function doneCopy(
   };
 }
 
-/** The server's error codes, in the merchant's words. */
-export function errCopy(code: string, fallback: string): { title: string; body: string } {
+/**
+ * The server's error codes, in the merchant's words.
+ *
+ * ★`canKeepSeparate` DECIDES THE WAY FORWARD IT NAMES (review R1). Telling a
+ * merchant to keep the store as its own account when the page does not offer
+ * that (the store has left its shell) is a dead end; then it points at support.
+ */
+export function errCopy(
+  code: string,
+  fallback: string,
+  opts: { canKeepSeparate?: boolean } = {},
+): { title: string; body: string } {
+  const wayForward = opts.canKeepSeparate
+    ? "Keep this store as its own account instead; you can switch between accounts any time."
+    : "Contact support and we'll set it up for you.";
   switch (code) {
     case "CLAIM_ALREADY_CLAIMED":
       return { title: "Already claimed", body: "This store is already linked to a Peakhour account." };
@@ -121,12 +134,12 @@ export function errCopy(code: string, fallback: string): { title: string; body: 
         title: "Your plan covers your current workspaces",
         // ★NO "BUY IT IN SETTINGS": that purchase is plan P3 and does not exist
         // yet. Point at what does: keeping the store as its own account (D14).
-        body: "Each workspace in an account is priced as its own business, and buying an extra one isn't available yet. Keep this store as its own account instead; you can switch between accounts any time.",
+        body: `Each workspace in an account is priced as its own business, and buying an extra one isn't available yet. ${wayForward}`,
       };
     case "CLAIM_DIFFERENT_BUSINESS":
       return {
         title: "That's a different business",
-        body: "This store sells something different from that workspace, so it can't be added there. Keep it as its own account instead; you can switch between accounts any time.",
+        body: `This store sells something different from that workspace, so it can't be added there. ${wayForward}`,
       };
     case "CLAIM_ORG_HAS_STORE":
       return { title: "Already connected", body: "That account is already connected to this store." };
