@@ -36,7 +36,11 @@ export interface PricingEntry {
   monthly: number;
   yearly: number;
   trialDays: number;
+  /** Percent off the MONTHLY price from the live campaign (api `cfg_campaigns`,
+   *  billing plan D8), or 0. `monthly` stays the list price. */
   foundingDiscountPct: number;
+  /** The same for the YEARLY price: a campaign can be sold on one term only. */
+  yearlyDiscountPct: number;
   billingProviderKey: string;
   taxIncluded: boolean;
   gstApplicable: boolean;
@@ -171,19 +175,22 @@ export function formatYearly(p: PricingEntry): string {
 /* ── The founding offer ─────────────────────────────────────────────────── */
 
 /**
- * `foundingDiscountPct` has been on every pricing entry since the catalog was
- * built, is carried through the resolver into this type — and until now was
- * read by nothing. It is the launch mechanism the platform already has, which
- * is why the Suite's launch price needs no promotions engine.
+ * The launch offer is a CAMPAIGN (billing plan D8): `/v1/platform/pricing`
+ * reports each term's percent from the api's campaign resolver — the same
+ * resolver web checkout and Shopify subscribe charge by, so this page and the
+ * charge cannot disagree. The api reports only discounts the web checkout
+ * honours (life-of-subscription ones), and floors exactly as `applyDiscount`.
  *
- * ⚠ DISPLAY ONLY. Nothing in this repo charges anyone. When checkout goes
- * live, the amount collected must come from the same field server-side — a
- * marketing page that advertises half price while the gateway bills full price
- * is the worst possible version of this feature. The schema's own comment
- * ("waitlist members get this when checkout flips on") is the contract.
+ * ★EACH TERM HAS ITS OWN PERCENT. A campaign can be sold on monthly or yearly
+ * terms only; the yearly price reads `yearlyDiscountPct`, never the monthly one.
  */
 export function hasFoundingOffer(p: PricingEntry): boolean {
   return p.foundingDiscountPct > 0 && p.foundingDiscountPct < 100 && p.monthly > 0;
+}
+
+/** Is a launch offer live on the YEARLY price? Its own percent, its own price. */
+export function hasYearlyOffer(p: PricingEntry): boolean {
+  return p.yearlyDiscountPct > 0 && p.yearlyDiscountPct < 100 && p.yearly > 0;
 }
 
 /**
@@ -215,7 +222,7 @@ export function foundingMonthly(p: PricingEntry): number {
 }
 
 export function foundingYearly(p: PricingEntry): number {
-  return applyDiscount(p.yearly, p.foundingDiscountPct);
+  return applyDiscount(p.yearly, p.yearlyDiscountPct);
 }
 
 /** "₹2,499" — the founding monthly price, formatted like every other price. */
@@ -225,6 +232,19 @@ export function formatFoundingMonthly(p: PricingEntry): string {
 
 export function formatFoundingYearly(p: PricingEntry): string {
   return `${p.displayPrefix ?? ""}${formatNumber(foundingYearly(p))}`;
+}
+
+/**
+ * The yearly price line every card renders: the price charged, and the list
+ * price to strike through beside it when the YEARLY term has its own offer
+ * (`list` null otherwise). Null when there is no yearly price at all. One
+ * helper, so the Suite card and the plan cards cannot read the term two ways.
+ */
+export function yearlyPrice(p: PricingEntry): { price: string; list: string | null } | null {
+  if (!(p.yearly > 0)) return null;
+  return hasYearlyOffer(p)
+    ? { price: formatFoundingYearly(p), list: formatYearly(p) }
+    : { price: formatYearly(p), list: null };
 }
 
 /**

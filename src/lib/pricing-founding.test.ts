@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
   hasFoundingOffer,
+  hasYearlyOffer,
+  yearlyPrice,
   foundingMonthly,
   foundingYearly,
   formatFoundingMonthly,
@@ -22,6 +24,7 @@ function entry(over: Partial<PricingEntry> = {}): PricingEntry {
     yearly: 49999,
     trialDays: 14,
     foundingDiscountPct: 50,
+    yearlyDiscountPct: 50,
     billingProviderKey: "razorpay",
     taxIncluded: true,
     gstApplicable: true,
@@ -82,8 +85,43 @@ describe("the founding price", () => {
   });
 
   it("is a no-op at zero, so an un-discounted plan formats as itself", () => {
-    const p = entry({ foundingDiscountPct: 0 });
+    const p = entry({ foundingDiscountPct: 0, yearlyDiscountPct: 0 });
     expect(foundingMonthly(p)).toBe(p.monthly);
     expect(foundingYearly(p)).toBe(p.yearly);
+  });
+});
+
+describe("each billing term carries its own offer (api yearlyDiscountPct)", () => {
+  it("the yearly price takes the YEARLY percent, never the monthly one", () => {
+    const p = entry({ foundingDiscountPct: 50, yearlyDiscountPct: 20 });
+    expect(foundingMonthly(p)).toBe(2499);
+    expect(foundingYearly(p)).toBe(39999); // floor(49,999 × 80%), not ₹24,999
+  });
+
+  it("a monthly-only campaign: the monthly price is discounted, the yearly is not on offer", () => {
+    const p = entry({ foundingDiscountPct: 50, yearlyDiscountPct: 0 });
+    expect([hasFoundingOffer(p), hasYearlyOffer(p)]).toEqual([true, false]);
+  });
+
+  it("a yearly-only campaign: no monthly offer, a yearly one", () => {
+    const p = entry({ foundingDiscountPct: 0, yearlyDiscountPct: 20 });
+    expect([hasFoundingOffer(p), hasYearlyOffer(p)]).toEqual([false, true]);
+  });
+
+  it("no yearly offer without a yearly price, nor at 100%", () => {
+    expect(hasYearlyOffer(entry({ yearly: 0 }))).toBe(false);
+    expect(hasYearlyOffer(entry({ yearlyDiscountPct: 100 }))).toBe(false);
+  });
+});
+
+describe("yearlyPrice: the line every card renders", () => {
+  it("the yearly price with the list struck through when the yearly term has an offer", () => {
+    expect(yearlyPrice(entry({ yearlyDiscountPct: 50 }))).toEqual({ price: "₹24,999", list: "₹49,999" });
+  });
+  it("the list price alone under a MONTHLY-only campaign", () => {
+    expect(yearlyPrice(entry({ foundingDiscountPct: 50, yearlyDiscountPct: 0 }))).toEqual({ price: "₹49,999", list: null });
+  });
+  it("nothing without a yearly price", () => {
+    expect(yearlyPrice(entry({ yearly: 0 }))).toBeNull();
   });
 });

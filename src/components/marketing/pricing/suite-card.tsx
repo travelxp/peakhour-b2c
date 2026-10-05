@@ -2,11 +2,10 @@ import Link from "next/link";
 import { ArrowRight, Check, Zap } from "lucide-react";
 import {
   formatMonthly,
-  formatYearly,
   formatPeaks,
   formatFoundingMonthly,
-  formatFoundingYearly,
   hasFoundingOffer,
+  yearlyPrice,
   type ResolvedProductTier,
 } from "@/lib/pricing";
 import type { SignupCta } from "@/components/marketing/pricing/plan-cards";
@@ -46,6 +45,7 @@ export function SuiteCard({
 }) {
   const p = tier.pricing;
   const founding = hasFoundingOffer(p);
+  const yearly = yearlyPrice(p);
   const peaks = tier.peaksIncluded;
 
   return (
@@ -95,16 +95,17 @@ export function SuiteCard({
               PlanCards is. Every seeded Suite row carries one today, so this is
               latent — until a monthly-only supersede makes the card announce
               "₹0 billed yearly" beside a real monthly price. */}
-          {p.yearly > 0 && (
+          {yearly && (
           <p className="mt-1.5 text-sm text-muted-foreground">
-            {founding ? (
+            {/* The YEARLY term's own offer: a campaign may cover one term only. */}
+            {yearly.list ? (
               <>
-                {formatFoundingYearly(p)} billed yearly{" "}
-                <span className="line-through">{formatYearly(p)}</span> · launch pricing,
+                {yearly.price} billed yearly{" "}
+                <span className="line-through">{yearly.list}</span> · launch pricing,
                 for a limited period
               </>
             ) : (
-              <>{formatYearly(p)} billed yearly</>
+              <>{yearly.price} billed yearly</>
             )}
           </p>
           )}
