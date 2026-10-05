@@ -210,8 +210,8 @@ export function hasYearlyOffer(p: PricingEntry): boolean {
  *
  * Floor is chosen because ₹2,499 is the price the owner set out to offer and
  * the one the catalog's 50% is reverse-engineered from. The obligation that
- * follows is on the server: whatever computes the charge MUST floor too. See
- * `hasFoundingOffer` for the display-only warning this pairs with.
+ * follows is on the server: whatever computes the charge MUST floor too, and
+ * it does — the api's `discountedAmount` floors identically.
  */
 function applyDiscount(amount: number, pct: number): number {
   return Math.floor((amount * (100 - pct)) / 100);
@@ -232,6 +232,19 @@ export function formatFoundingMonthly(p: PricingEntry): string {
 
 export function formatFoundingYearly(p: PricingEntry): string {
   return `${p.displayPrefix ?? ""}${formatNumber(foundingYearly(p))}`;
+}
+
+/**
+ * The launch badge: each term's percent, named when they differ, or null when
+ * neither term has an offer (review R1: a monthly-only badge sat beside a
+ * yearly price discounted by another percent).
+ */
+export function launchOfferBadge(p: PricingEntry): string | null {
+  const m = hasFoundingOffer(p) ? p.foundingDiscountPct : 0;
+  const y = hasYearlyOffer(p) ? p.yearlyDiscountPct : 0;
+  if (!m && !y) return null;
+  if (m && y) return m === y ? `Launch offer · ${m}% off` : `Launch offer · ${m}% off monthly, ${y}% yearly`;
+  return m ? `Launch offer · ${m}% off monthly` : `Launch offer · ${y}% off yearly`;
 }
 
 /**

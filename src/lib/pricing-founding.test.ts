@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   hasFoundingOffer,
   hasYearlyOffer,
+  launchOfferBadge,
   yearlyPrice,
   foundingMonthly,
   foundingYearly,
@@ -123,5 +124,21 @@ describe("yearlyPrice: the line every card renders", () => {
   });
   it("nothing without a yearly price", () => {
     expect(yearlyPrice(entry({ yearly: 0 }))).toBeNull();
+  });
+});
+
+describe("launchOfferBadge: each term's own percent (review R1)", () => {
+  it("one percent when both terms carry the same", () => {
+    expect(launchOfferBadge(entry())).toBe("Launch offer · 50% off");
+  });
+  it("names the terms when they differ", () => {
+    expect(launchOfferBadge(entry({ foundingDiscountPct: 50, yearlyDiscountPct: 20 }))).toBe("Launch offer · 50% off monthly, 20% yearly");
+  });
+  it("a monthly-only and a yearly-only offer each say which term", () => {
+    expect(launchOfferBadge(entry({ yearlyDiscountPct: 0 }))).toBe("Launch offer · 50% off monthly");
+    expect(launchOfferBadge(entry({ foundingDiscountPct: 0, yearlyDiscountPct: 20 }))).toBe("Launch offer · 20% off yearly");
+  });
+  it("no badge without an offer", () => {
+    expect(launchOfferBadge(entry({ foundingDiscountPct: 0, yearlyDiscountPct: 0 }))).toBeNull();
   });
 });
