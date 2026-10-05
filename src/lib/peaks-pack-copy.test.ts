@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { blockedCopy, cardBlockedCopy } from "./peaks-pack-copy";
+import { blockedCopy, cardBlockedCopy, cardReason, packReason } from "./peaks-pack-copy";
 import type { PeaksPack } from "@/hooks/use-peaks-packs";
 
 /**
@@ -34,3 +34,22 @@ describe("Peaks pack copy", () => {
     expect(cardBlockedCopy([pack({ purchasable: true }), pack({ blockedReason: "shopify_billed" })])).toBeNull();
   });
 });
+
+describe("Shopify before country (review R1)", () => {
+  const SOON = "Peaks packs are coming soon in your country.";
+
+  it("a Shopify-billed pack says Shopify even where the country is not live", () => {
+    expect(packReason(SOON, "shopify_billed")).toBe(blockedCopy("shopify_billed"));
+  });
+
+  it("the card says Shopify even where the country is not live", () => {
+    expect(cardReason(SOON, [pack({ blockedReason: "shopify_billed" })])).toBe(blockedCopy("shopify_billed"));
+  });
+
+  it("every other reason still yields to the country", () => {
+    expect(packReason(SOON, "plan_required")).toBe(SOON);
+    expect(cardReason(SOON, [pack({ blockedReason: "plan_required" })])).toBe(SOON);
+    expect(packReason(null, "plan_required")).toBe(blockedCopy("plan_required"));
+  });
+});
+

@@ -46,3 +46,20 @@ export function cardBlockedCopy(packs: PeaksPack[]): string | null {
   if (reasons.size === 1) return blockedCopy(packs[0].blockedReason);
   return "None of these packs is available on your account right now.";
 }
+
+/**
+ * ★SHOPIFY BEFORE COUNTRY (review R1). A Shopify-connected org buys Peaks in
+ * its Shopify admin whatever its country (the api refuses it before the
+ * country check), so "coming soon in your country" over its packs would hide
+ * the one thing it can do. Every other reason still yields to the country.
+ */
+export function packReason(countryBlocked: string | null, reason: PackBlockedReason | null): string | null {
+  if (reason === "shopify_billed") return blockedCopy(reason);
+  return countryBlocked ?? blockedCopy(reason);
+}
+
+/** The card-level reason, with the same precedence as `packReason`. */
+export function cardReason(countryBlocked: string | null, packs: PeaksPack[]): string | null {
+  if (packs.some((p) => p.blockedReason === "shopify_billed")) return blockedCopy("shopify_billed");
+  return countryBlocked ?? cardBlockedCopy(packs);
+}

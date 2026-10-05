@@ -39,7 +39,7 @@ import {
   confirmPackPurchase,
   type PeaksPack,
 } from "@/hooks/use-peaks-packs";
-import { blockedCopy, cardBlockedCopy } from "@/lib/peaks-pack-copy";
+import { cardReason, packReason } from "@/lib/peaks-pack-copy";
 import { PaymentModal, type CheckoutResult } from "@/components/upgrade/payment-modal";
 import { ApiError } from "@/lib/api";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
@@ -66,6 +66,9 @@ const BUYER_FACING_CODES = new Set([
   "PLAN_REQUIRED",
   "GATEWAY_UNAVAILABLE",
   "BILLING_UNAVAILABLE",
+  // D18 (api#1484): the org has a Shopify store; the message says to buy in
+  // its Shopify admin. Reachable from a stale listing (cached 5 minutes).
+  "SHOPIFY_BILLED",
 ]);
 
 // ── Formatting helpers ────────────────────────────────────────────────────
@@ -319,7 +322,7 @@ function BuyPeaks() {
       : data.countryStatus !== "live"
         ? "Peaks packs are coming soon in your country."
         : null;
-  const cardBlocked = countryBlocked ?? cardBlockedCopy(data.packs);
+  const cardBlocked = cardReason(countryBlocked, data.packs);
   const canBuy = (p: PeaksPack) => p.purchasable && countryBlocked === null;
 
   return (
@@ -352,8 +355,8 @@ function BuyPeaks() {
               // same reason the card already says it once — repeating it under
               // each button turned one message into N+1 identical sentences,
               // which is what the card-level line existed to avoid.
-              const packReason = countryBlocked ?? blockedCopy(p.blockedReason);
-              const reason = packReason === cardBlocked ? null : packReason;
+              const reasonText = packReason(countryBlocked, p.blockedReason);
+              const reason = reasonText === cardBlocked ? null : reasonText;
               const reasonId = `pack-reason-${p.key.replace(/[^a-z0-9]/gi, "-")}`;
               return (
                 <div
