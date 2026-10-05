@@ -16,8 +16,11 @@ import type { CheckoutResult } from "@/components/upgrade/payment-modal";
 
 /** Every reason the api's `blockedReason` can carry. `no_wallet` and
  *  `not_priced_here` are hosted-rail states the POST also refuses; omitting them
- *  from this union is how a blocked card ends up with no explanation. */
+ *  from this union is how a blocked card ends up with no explanation.
+ *  `shopify_billed` (billing plan D18, api#1484): an org with a Shopify store
+ *  buys Peaks only in its Shopify admin (App Store rule 1.2.1). */
 export type PackBlockedReason =
+  | "shopify_billed"
   | "plan_required"
   | "unlimited"
   | "no_wallet"
