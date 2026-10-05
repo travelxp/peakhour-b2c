@@ -31,7 +31,31 @@ export function claimOutcome(
   };
 }
 
-/** The warning shown on "another storefront of <business>", or null. */
+/**
+ * What the page says under "another storefront of <business>", and whether
+ * that option can be picked at all.
+ *
+ * ★A BLOCKED BUSINESS CANNOT BE PICKED (D6 revised, D13): the api refuses the
+ * attach whatever the merchant says, so offering the button would only lead to
+ * an error. The reason says what each side sells, which is the thing a shop
+ * owner can check. An older api sends no `attach`, and the brand note stands.
+ */
+export function businessOption(b: ClaimBusiness): { blocked: boolean; note: string | null } {
+  if (b.attach === "block") {
+    return { blocked: true, note: `Can't be added here. ${b.attachReason ?? "It's a different business."}` };
+  }
+  if (b.attach === "confirm") {
+    return {
+      blocked: false,
+      note: `${b.attachReason ?? `We couldn't confirm this store belongs to ${b.name}.`} You'll be asked to confirm.`,
+    };
+  }
+  if (b.attach === "allow") return { blocked: false, note: null };
+  return { blocked: false, note: fitWarning(b.fit, b.name) };
+}
+
+/** The warning shown on "another storefront of <business>" by an api that
+ *  predates the context check, or null. */
 export function fitWarning(fit: ClaimFit | undefined, businessName: string): string | null {
   if (!fit) return null;
   if (fit.verdict === "mismatch") {
@@ -45,10 +69,17 @@ export function fitWarning(fit: ClaimFit | undefined, businessName: string): str
 
 /** Where the store went, said plainly. */
 export function doneCopy(
-  result: Pick<ClaimResult, "newBusiness" | "businessName" | "adopted">,
+  result: Pick<ClaimResult, "newBusiness" | "businessName" | "adopted" | "separate">,
   storeName: string,
   orgName: string,
 ): { title: string; body: string; integrationsHint: boolean } {
+  if (result.separate) {
+    return {
+      title: "Kept as its own account",
+      body: `${storeName} now has its own Peakhour account, separate from your other businesses. Switch between your accounts from the workspace menu.`,
+      integrationsHint: false,
+    };
+  }
   if (result.adopted) {
     return {
       title: "Your account is ready",
@@ -71,8 +102,21 @@ export function doneCopy(
   };
 }
 
-/** The server's error codes, in the merchant's words. */
-export function errCopy(code: string, fallback: string): { title: string; body: string } {
+/**
+ * The server's error codes, in the merchant's words.
+ *
+ * ★`canKeepSeparate` DECIDES THE WAY FORWARD IT NAMES (review R1). Telling a
+ * merchant to keep the store as its own account when the page does not offer
+ * that (the store has left its shell) is a dead end; then it points at support.
+ */
+export function errCopy(
+  code: string,
+  fallback: string,
+  opts: { canKeepSeparate?: boolean } = {},
+): { title: string; body: string } {
+  const wayForward = opts.canKeepSeparate
+    ? "Keep this store as its own account instead; you can switch between accounts any time."
+    : "Contact support and we'll set it up for you.";
   switch (code) {
     case "CLAIM_ALREADY_CLAIMED":
       return { title: "Already claimed", body: "This store is already linked to a Peakhour account." };
@@ -89,8 +133,13 @@ export function errCopy(code: string, fallback: string): { title: string; body: 
       return {
         title: "Your plan covers your current workspaces",
         // ★NO "BUY IT IN SETTINGS": that purchase is plan P3 and does not exist
-        // yet. Point at what does.
-        body: "Each workspace is priced as its own business. To add one for this store, contact support; buying an extra workspace from your dashboard is coming soon. If it's another storefront of a brand you already have, add it to that workspace instead.",
+        // yet. Point at what does: keeping the store as its own account (D14).
+        body: `Each workspace in an account is priced as its own business, and buying an extra one isn't available yet. ${wayForward}`,
+      };
+    case "CLAIM_DIFFERENT_BUSINESS":
+      return {
+        title: "That's a different business",
+        body: `This store sells something different from that workspace, so it can't be added there. ${wayForward}`,
       };
     case "CLAIM_ORG_HAS_STORE":
       return { title: "Already connected", body: "That account is already connected to this store." };
@@ -105,3 +154,7 @@ export function errCopy(code: string, fallback: string): { title: string; body: 
 
 /** The 409 that asks the merchant to confirm a store joins a brand it may not belong to. */
 export const BRAND_CONFIRM = "CLAIM_BRAND_CONFIRM";
+
+/** Refusals whose way forward is keeping the store as its own account: the page
+ *  returns to the choice with that option picked, rather than a dead end. */
+export const KEEP_SEPARATE_CODES: readonly string[] = ["CLAIM_DIFFERENT_BUSINESS", "CLAIM_BUSINESS_LIMIT"];

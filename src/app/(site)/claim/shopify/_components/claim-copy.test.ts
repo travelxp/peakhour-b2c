@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { BRAND_CONFIRM, claimOutcome, doneCopy, errCopy, fitWarning } from "./claim-copy";
+import { BRAND_CONFIRM, KEEP_SEPARATE_CODES, businessOption, claimOutcome, doneCopy, errCopy, fitWarning } from "./claim-copy";
 
 /**
  * The claim page's sentences (claim-copy.ts, rendered by shopify-claim.tsx).
@@ -91,5 +91,75 @@ describe("errCopy", () => {
 
   it("the confirm code is the api's", () => {
     expect(BRAND_CONFIRM).toBe("CLAIM_BRAND_CONFIRM");
+  });
+});
+
+/**
+ * The guardrail (D6 revised, D13, D14; api#1482): a store of a different
+ * business is never linked into an existing one, and keeping it as its own
+ * account is the way forward the page offers.
+ */
+describe("businessOption: whether a business can be picked, and what it says", () => {
+  const silk = { businessId: "b1", name: "Silk Store" };
+
+  it("a blocked business cannot be picked, and says what each side sells", () => {
+    const o = businessOption({ ...silk, attach: "block", attachReason: "This store sells furniture; that business sells clothing." });
+    expect(o.blocked).toBe(true);
+    expect(o.note).toBe("Can't be added here. This store sells furniture; that business sells clothing.");
+  });
+
+  it("a blocked business with no reason still says why", () => {
+    expect(businessOption({ ...silk, attach: "block", attachReason: null }).note).toContain("different business");
+  });
+
+  it("an unsure business can be picked, with its reason and the confirm to come", () => {
+    const o = businessOption({ ...silk, attach: "confirm", attachReason: "This store's products haven't synced yet, so we can't compare what it sells." });
+    expect(o.blocked).toBe(false);
+    expect(o.note).toContain("haven't synced");
+    expect(o.note).toContain("You'll be asked to confirm.");
+  });
+
+  it("an allowed business says nothing, even if the brand note would have warned", () => {
+    expect(businessOption({ ...silk, attach: "allow", attachReason: null, fit: { verdict: "mismatch" } })).toEqual({ blocked: false, note: null });
+  });
+
+  it("an older api (no `attach`) keeps the brand note and never blocks", () => {
+    const o = businessOption({ ...silk, fit: { verdict: "mismatch", anchor: "silkstore.in" } });
+    expect(o.blocked).toBe(false);
+    expect(o.note).toContain("different brand from silkstore.in");
+  });
+});
+
+describe("keeping the store as its own account", () => {
+  it("the done copy says it is a separate account, and how to switch", () => {
+    const d = doneCopy({ separate: true, adopted: true }, "Table Story", "Silk Store");
+    expect(d.title).toBe("Kept as its own account");
+    expect(d.body).toContain("Table Story now has its own Peakhour account");
+    expect(d.body).toContain("workspace menu");
+    expect(d.integrationsHint).toBe(false);
+  });
+
+  it("a different-business refusal names keeping it separate as the way forward", () => {
+    const e = errCopy("CLAIM_DIFFERENT_BUSINESS", "", { canKeepSeparate: true });
+    expect(e.title).toBe("That's a different business");
+    expect(e.body).toContain("its own account");
+  });
+
+  it("the 402 offers keeping it separate, and no longer steers to another brand's workspace", () => {
+    const e = errCopy("CLAIM_BUSINESS_LIMIT", "", { canKeepSeparate: true });
+    expect(e.body).toContain("its own account");
+    expect(e.body).not.toMatch(/add it to that workspace/);
+  });
+
+  it("never names keeping it separate when the page does not offer it: support instead (review R1)", () => {
+    for (const code of ["CLAIM_DIFFERENT_BUSINESS", "CLAIM_BUSINESS_LIMIT"]) {
+      const e = errCopy(code, "");
+      expect(e.body, code).not.toContain("its own account");
+      expect(e.body, code).toContain("Contact support");
+    }
+  });
+
+  it("both refusals return the page to the choice with keeping it separate picked", () => {
+    expect([...KEEP_SEPARATE_CODES].sort()).toEqual(["CLAIM_BUSINESS_LIMIT", "CLAIM_DIFFERENT_BUSINESS"]);
   });
 });

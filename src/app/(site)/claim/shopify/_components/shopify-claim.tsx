@@ -20,10 +20,13 @@ import {
   type ShopifyClaimCandidates,
 } from "@/lib/api/shopify-claim";
 import { LoadingScreen } from "@/components/molecules/loading-screen";
-import { BRAND_CONFIRM, claimOutcome, doneCopy, errCopy, fitWarning } from "./claim-copy";
+import { BRAND_CONFIRM, KEEP_SEPARATE_CODES, businessOption, claimOutcome, doneCopy, errCopy } from "./claim-copy";
 
 /** Sentinel for "move the store in as a NEW Business" (vs an existing businessId). */
 const NEW_BUSINESS = "__new__";
+/** Sentinel for "keep the store as its own account" (D14): the store's own
+ *  shell account is adopted beside the merchant's other accounts. */
+const SEPARATE = "__separate__";
 
 /** Result of the post-auth flow (fetch candidates → choose → claim). The
  *  pre-auth phases (loading auth / missing link / need sign-in) are DERIVED at
@@ -48,6 +51,10 @@ export function ShopifyClaim() {
   // The server's 409 CLAIM_BRAND_CONFIRM: this store may be a different brand
   // from the workspace picked. Shown inline, with a confirm and a way out.
   const [confirmPrompt, setConfirmPrompt] = useState<string | null>(null);
+  // A refusal whose way forward is keeping the store separate (a different
+  // business, or no plan for another workspace): said above the choice, with
+  // "keep it as its own account" already picked.
+  const [separateNotice, setSeparateNotice] = useState<string | null>(null);
 
   const ready = !isLoading && isAuthenticated && !!store && !!token;
 
@@ -61,6 +68,10 @@ export function ShopifyClaim() {
         if (cancelled) return;
         setData(d);
         if (d.orgs.length === 1) setSelectedOrg(d.orgs[0]!.orgId);
+        // ★KEEPING IT SEPARATE IS THE DEFAULT WHEN IT IS ON OFFER. Joining an
+        //  existing business is the choice that needs a reason; a store left in
+        //  the wrong business is the Table Story report.
+        if (d.canKeepSeparate) setSelectedTarget(SEPARATE);
         setFetchState("choose");
       })
       .catch((e: unknown) => {
@@ -90,12 +101,23 @@ export function ShopifyClaim() {
   }
 
   async function handleClaim(target: string, confirmed = false) {
-    if (!selectedOrg || !data) return;
+    if (!data) return;
+    if (target !== SEPARATE && !selectedOrg) return;
     setFetchState("claiming");
     try {
+      if (target === SEPARATE) {
+        const res = await claimShopifyStore(store, token, { mode: "separate" });
+        setConfirmPrompt(null);
+        setSeparateNotice(null);
+        setResult({ ...res, separate: true });
+        await landOn(res);
+        setFetchState("done");
+        return;
+      }
       const businessId = target === NEW_BUSINESS ? undefined : target;
-      const res = await claimShopifyStore(store, token, selectedOrg, businessId, confirmed);
+      const res = await claimShopifyStore(store, token, { orgId: selectedOrg, businessId, confirmed });
       setConfirmPrompt(null);
+      setSeparateNotice(null);
       setResult(claimOutcome(res, businessId, activeOrg?.businesses ?? []));
       setClaimedOrgName(activeOrg?.name ?? "your account");
       await landOn(res);
@@ -104,8 +126,18 @@ export function ShopifyClaim() {
       const code = (e as { code?: string })?.code ?? "";
       const message = (e as { message?: string })?.message ?? "";
       if (code === BRAND_CONFIRM) {
-        // Nothing moved. Back to the choice, with the question asked.
+        // Nothing moved. Back to the choice, with the question asked (and no
+        // stale refusal beside it).
+        setSeparateNotice(null);
         setConfirmPrompt(message || "This store may be a different brand from that workspace.");
+        setFetchState("choose");
+        return;
+      }
+      if (KEEP_SEPARATE_CODES.includes(code) && data.canKeepSeparate) {
+        // Nothing moved. Back to the choice with the way forward picked.
+        setConfirmPrompt(null);
+        setSeparateNotice(errCopy(code, message, { canKeepSeparate: true }).body);
+        setSelectedTarget(SEPARATE);
         setFetchState("choose");
         return;
       }
@@ -217,6 +249,33 @@ export function ShopifyClaim() {
                 </div>
               ) : (
                 <>
+                  {separateNotice && (
+                    <div className="rounded-md border border-warning/30 bg-warning/10 p-3 text-sm" role="alert">
+                      {separateNotice}
+                    </div>
+                  )}
+
+                  {data.canKeepSeparate && (
+                    <div className="space-y-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedTarget(SEPARATE);
+                          setConfirmPrompt(null);
+                        }}
+                        className={optionClass(selectedTarget === SEPARATE)}
+                      >
+                        <span className="font-medium">Keep {storeName} as its own account</span>
+                        <span className="text-xs text-muted-foreground">
+                          A separate Peakhour account for this store, with its own workspace and content. Use it
+                          when {storeName} is a different business from the ones you already run. You can switch
+                          between accounts any time.
+                        </span>
+                      </button>
+                      <p className="pt-2 text-sm text-muted-foreground">Or add it to an account you already have:</p>
+                    </div>
+                  )}
+
                   {data.orgs.length > 1 && (
                     <div className="space-y-2">
                       <p className="text-sm text-muted-foreground">Which Peakhour account is this store for?</p>
@@ -231,6 +290,7 @@ export function ShopifyClaim() {
                                   setSelectedOrg(o.orgId);
                                   setSelectedTarget(NEW_BUSINESS);
                                   setConfirmPrompt(null);
+                                  setSeparateNotice(null);
                                 }}
                                 className={`flex w-full items-center justify-between rounded-md border p-3 text-left text-sm hover:bg-muted/40 ${
                                   selected ? "border-primary ring-1 ring-primary" : ""
@@ -263,6 +323,7 @@ export function ShopifyClaim() {
                             onClick={() => {
                               setSelectedTarget(NEW_BUSINESS);
                               setConfirmPrompt(null);
+                              setSeparateNotice(null);
                             }}
                             className={optionClass(selectedTarget === NEW_BUSINESS)}
                           >
@@ -273,25 +334,33 @@ export function ShopifyClaim() {
                           </button>
                         </li>
                         {activeOrg.businesses.map((b) => {
-                          const warning = fitWarning(b.fit, b.name);
+                          // ★A DIFFERENT BUSINESS CANNOT BE PICKED (D6 revised,
+                          //  D13): the api refuses it whatever the merchant says.
+                          const { blocked, note } = businessOption(b);
                           return (
                             <li key={b.businessId}>
                               <button
                                 type="button"
+                                disabled={blocked}
+                                aria-disabled={blocked}
                                 onClick={() => {
+                                  if (blocked) return;
                                   setSelectedTarget(b.businessId);
                                   setConfirmPrompt(null);
+                                  setSeparateNotice(null);
                                 }}
-                                className={optionClass(selectedTarget === b.businessId)}
+                                className={`${optionClass(selectedTarget === b.businessId)} ${
+                                  blocked ? "cursor-not-allowed opacity-60 hover:bg-transparent" : ""
+                                }`}
                               >
                                 <span className="font-medium">Another storefront of {b.name}</span>
                                 <span className="text-xs text-muted-foreground">
-                                  Added to the {b.name} workspace as a second store, under the same brand.
+                                  Added to the {b.name} workspace as a second store of the same business.
                                 </span>
-                                {warning && (
+                                {note && (
                                   <span className="mt-1 flex items-start gap-1 text-xs text-warning-on-tint">
                                     <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden />
-                                    {warning}
+                                    {note}
                                   </span>
                                 )}
                               </button>
@@ -304,34 +373,40 @@ export function ShopifyClaim() {
                 </>
               )}
 
-              {confirmPrompt && selectedTarget !== NEW_BUSINESS && (
+              {confirmPrompt && selectedTarget !== NEW_BUSINESS && selectedTarget !== SEPARATE && (
                 <div className="space-y-3 rounded-md border border-warning/30 bg-warning/10 p-3" role="alert">
                   <p className="text-sm">{confirmPrompt}</p>
                   <div className="flex flex-col gap-2 sm:flex-row">
                     <Button onClick={() => handleClaim(selectedTarget, true)} className="sm:flex-1">
-                      It&apos;s the same brand, add it
+                      It&apos;s the same business, add it
                     </Button>
                     <Button
                       variant="outline"
                       onClick={() => {
-                        setSelectedTarget(NEW_BUSINESS);
-                        void handleClaim(NEW_BUSINESS);
+                        const out = data.canKeepSeparate ? SEPARATE : NEW_BUSINESS;
+                        setSelectedTarget(out);
+                        void handleClaim(out);
                       }}
                       className="sm:flex-1"
                     >
-                      Make it its own workspace
+                      {data.canKeepSeparate ? "Keep it as its own account" : "Make it its own workspace"}
                     </Button>
                   </div>
                 </div>
               )}
 
-              {data.orgs.length > 0 && !(confirmPrompt && selectedTarget !== NEW_BUSINESS) && (
+              {data.orgs.length > 0 && !(confirmPrompt && selectedTarget !== NEW_BUSINESS && selectedTarget !== SEPARATE) && (
                 <Button
                   onClick={() => handleClaim(selectedTarget)}
-                  disabled={!selectedOrg}
+                  disabled={
+                    selectedTarget === SEPARATE
+                      ? false
+                      : !selectedOrg ||
+                        !!activeOrg?.businesses.find((b) => b.businessId === selectedTarget && businessOption(b).blocked)
+                  }
                   className="w-full"
                 >
-                  Claim this store
+                  {selectedTarget === SEPARATE ? "Keep it as its own account" : "Claim this store"}
                 </Button>
               )}
             </div>
@@ -372,7 +447,7 @@ export function ShopifyClaim() {
           })()}
 
           {ready && fetchState === "error" && (() => {
-            const ec = errCopy(errCode, errMsg);
+            const ec = errCopy(errCode, errMsg, { canKeepSeparate: data?.canKeepSeparate });
             return (
               <div className="space-y-3">
                 <div className="flex items-center gap-2 text-sm font-medium text-destructive">
