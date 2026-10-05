@@ -2,11 +2,11 @@ import Link from "next/link";
 import { ArrowRight, Check, Zap } from "lucide-react";
 import {
   formatMonthly,
-  formatYearly,
   formatPeaks,
   formatFoundingMonthly,
-  formatFoundingYearly,
   hasFoundingOffer,
+  launchOfferBadge,
+  yearlyPrice,
   type ResolvedProductTier,
 } from "@/lib/pricing";
 import type { SignupCta } from "@/components/marketing/pricing/plan-cards";
@@ -46,6 +46,8 @@ export function SuiteCard({
 }) {
   const p = tier.pricing;
   const founding = hasFoundingOffer(p);
+  const yearly = yearlyPrice(p);
+  const badge = launchOfferBadge(p);
   const peaks = tier.peaksIncluded;
 
   return (
@@ -57,9 +59,9 @@ export function SuiteCard({
             <span className="inline-flex items-center rounded-full bg-brand-gradient px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-brand-contrast shadow-sm">
               Everything, one price
             </span>
-            {founding && (
+            {badge && (
               <span className="inline-flex items-center rounded-full border border-brand/40 bg-brand-soft/60 px-2.5 py-1 text-[11px] font-bold text-brand-ink dark:bg-brand/10 dark:text-brand">
-                Launch offer · {p.foundingDiscountPct}% off
+                {badge}
               </span>
             )}
           </div>
@@ -95,16 +97,17 @@ export function SuiteCard({
               PlanCards is. Every seeded Suite row carries one today, so this is
               latent — until a monthly-only supersede makes the card announce
               "₹0 billed yearly" beside a real monthly price. */}
-          {p.yearly > 0 && (
+          {yearly && (
           <p className="mt-1.5 text-sm text-muted-foreground">
-            {founding ? (
+            {/* The YEARLY term's own offer: a campaign may cover one term only. */}
+            {yearly.list ? (
               <>
-                {formatFoundingYearly(p)} billed yearly{" "}
-                <span className="line-through">{formatYearly(p)}</span> · launch pricing,
+                {yearly.price} billed yearly{" "}
+                <span className="line-through">{yearly.list}</span> · launch pricing,
                 for a limited period
               </>
             ) : (
-              <>{formatYearly(p)} billed yearly</>
+              <>{yearly.price} billed yearly</>
             )}
           </p>
           )}

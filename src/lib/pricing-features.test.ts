@@ -24,6 +24,7 @@ const pricing: PricingEntry = {
   yearly: 14999,
   trialDays: 14,
   foundingDiscountPct: 0,
+  yearlyDiscountPct: 0,
   billingProviderKey: "razorpay",
   taxIncluded: false,
   gstApplicable: true,

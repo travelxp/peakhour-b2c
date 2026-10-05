@@ -2,11 +2,10 @@ import Link from "next/link";
 import { Check, Zap } from "lucide-react";
 import {
   formatMonthly,
-  formatYearly,
   formatPeaks,
   formatFoundingMonthly,
-  formatFoundingYearly,
   hasFoundingOffer,
+  yearlyPrice,
   type ResolvedProductTier,
 } from "@/lib/pricing";
 import { tierGrants } from "@/lib/pricing-features";
@@ -252,11 +251,10 @@ export function PlanCards({
             )}
           </div>
           <p className="mt-1 min-h-5 text-sm text-muted-foreground">
-            {pro.pricing.yearly > 0
-              ? founding
-                ? `${formatFoundingYearly(pro.pricing)} billed yearly · launch pricing`
-                : `${formatYearly(pro.pricing)} billed yearly`
-              : ""}
+            {(() => {
+              const y = yearlyPrice(pro.pricing);
+              return y ? `${y.price} billed yearly${y.list ? " · launch pricing" : ""}` : "";
+            })()}
           </p>
 
           {typeof proPeaks === "number" && (

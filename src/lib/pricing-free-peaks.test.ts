@@ -10,6 +10,7 @@ function price(monthly: number, yearly: number): PricingEntry {
     yearly,
     trialDays: 0,
     foundingDiscountPct: 0,
+    yearlyDiscountPct: 0,
     billingProviderKey: "stripe",
     taxIncluded: false,
     gstApplicable: false,

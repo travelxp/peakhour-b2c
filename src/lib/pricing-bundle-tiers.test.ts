@@ -26,6 +26,7 @@ function entry(monthly: number, yearly: number): PricingEntry {
     yearly,
     trialDays: monthly > 0 ? 14 : 0,
     foundingDiscountPct: 0,
+    yearlyDiscountPct: 0,
     billingProviderKey: "razorpay",
     taxIncluded: false,
     gstApplicable: true,
