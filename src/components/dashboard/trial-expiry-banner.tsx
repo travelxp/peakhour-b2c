@@ -7,6 +7,8 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ApiError } from "@/lib/api";
 import { useDashboardOrg, useExtendTrial } from "@/hooks/use-dashboard-org";
+import { trialWarningDays } from "@/lib/plan-status";
+import { useAuth } from "@/providers/auth-provider";
 
 /**
  * Surfaces when a trial is within the final 3 days. Includes a single
@@ -21,7 +23,7 @@ import { useDashboardOrg, useExtendTrial } from "@/hooks/use-dashboard-org";
  * localStorage and is deliberately out-of-scope for v1.
  *
  * Hidden completely when:
- *   - no trial active
+ *   - the active business is not on its own trial (`trialWarningDays`)
  *   - trial active but more than 3 days remain
  *   - user has dismissed it in this session
  *   - data is still loading (no flash)
@@ -30,16 +32,17 @@ const WARNING_WINDOW_DAYS = 3;
 
 export function TrialExpiryBanner() {
   const { data, isLoading } = useDashboardOrg();
+  // The ACTIVE business's coverage: the summary's trial is the first
+  // business's, not necessarily this one's (`trialWarningDays`).
+  const { entitlements } = useAuth();
   const extend = useExtendTrial();
   const [dismissed, setDismissed] = useState(false);
 
   if (isLoading || dismissed) return null;
-  const sub = data?.subscription;
-  if (!sub?.trialActive) return null;
-  const days = sub.trialDaysRemaining ?? 0;
-  if (days > WARNING_WINDOW_DAYS) return null;
+  const days = trialWarningDays(data, entitlements, WARNING_WINDOW_DAYS);
+  if (days === null) return null;
 
-  const alreadyExtended = sub.selfServeExtensionUsed === true;
+  const alreadyExtended = data?.subscription?.selfServeExtensionUsed === true;
 
   const handleExtend = () => {
     extend.mutate(undefined, {

@@ -24,11 +24,10 @@ import {
   heldLines,
   isBilledLine,
   lineKey,
-  planButtonLabel,
-  planDisplayName,
-  planState,
+  planHeadline,
   productRowAction,
 } from "@/lib/plan-status";
+import { useAuth } from "@/providers/auth-provider";
 import { PLAN_STATE_STYLES } from "@/components/dashboard/plan-badge";
 import { intervalSuffix, periodTotals } from "@/lib/billing-terms";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -59,6 +58,7 @@ export default function BillingPage() {
   const queryClient = useQueryClient();
   const { formatDate } = useLocale();
   const { data: details, isLoading } = useDashboardOrg();
+  const { entitlements } = useAuth();
   const { data: summary } = useBillingSummary();
   const { data: orders } = useBillingOrders();
   const cancelProduct = useCancelProduct();
@@ -151,8 +151,11 @@ export default function BillingPage() {
   // plan. Read from `lib/plan-status`, shared with the top-bar badge, so the two
   // name and style one plan one way. A stored `free` / `.free` base or line
   // (until P4.5) reads as no plan rather than as a product.
-  const state = planState(details) ?? "none";
-  const planLabel = planDisplayName(details) ?? "No plan";
+  // ★The ACTIVE business's state (its /me coverage; the summary is org-wide),
+  //  and a summary that did not load is its own neutral state, never "No
+  //  plan" (`planHeadline`, independent review on b2c#591).
+  const headline = planHeadline(details, entitlements);
+  const state = headline.state;
   const trialActive = state === "trial";
   const trialDays = details?.subscription?.trialDaysRemaining ?? 0;
   const trialEndsAt = details?.subscription?.trialEndsAt
@@ -264,9 +267,12 @@ export default function BillingPage() {
               ) : (
                 <Badge
                   variant="secondary"
-                  className={cn("font-medium", PLAN_STATE_STYLES[state])}
+                  className={cn(
+                    "font-medium",
+                    state ? PLAN_STATE_STYLES[state] : "bg-muted text-muted-foreground",
+                  )}
                 >
-                  {planLabel}
+                  {headline.label}
                 </Badge>
               )}
               {trialActive && trialDays > 0 ? (
@@ -295,13 +301,14 @@ export default function BillingPage() {
                 size="sm"
                 onClick={() => setUpgradeOpen(true)}
               >
-                {planButtonLabel(state)}
+                {headline.button}
               </Button>
             </div>
           </div>
-          {/* Padlocked (D19): the trial has ended and nothing is held. Say what
-              the page is for, rather than a bare "No plan" chip. */}
-          {state === "none" ? (
+          {/* Padlocked (D19): this business has no plan (its trial ended, or a
+              plan never covered it). Say what the page is for, rather than a
+              bare "No plan" chip. */}
+          {headline.padlocked ? (
             <p className="mb-4 text-sm text-warning-on-tint">
               Your business has no plan. Buy Peakhour Suite or Agency to keep
               using Peakhour.
@@ -354,7 +361,10 @@ export default function BillingPage() {
               rides one subscription, so tying the footnote to it meant an org
               with a Shopify-granted product saw its included plan nowhere at all
               after the badge stopped showing it. */}
-          {hasProducts && details?.subscription?.trialActive === true && summary?.basePlanName ? (
+          {/* ★On THIS business's trial only: the base row is the first
+              business's, so an org-wide `trialActive` footnoted a sibling's
+              trial under a business that bought (review on b2c#591). */}
+          {hasProducts && trialActive && summary?.basePlanName ? (
             <p className="mt-2 text-xs text-muted-foreground">
               Included plan: {summary.basePlanName} (trial)
             </p>

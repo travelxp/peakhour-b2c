@@ -103,7 +103,7 @@ function SettingsLoading() {
 }
 
 function SettingsContent() {
-  const { org } = useAuth();
+  const { org, entitlements } = useAuth();
   const { formatCurrency } = useLocale();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
@@ -390,7 +390,7 @@ function SettingsContent() {
                       {/* The plan's NAME, not the raw billing key with a
                           "free" fallback: there is no free tier (D19), and
                           no plan reads "No plan". */}
-                      {planDisplayName(orgDetails ?? undefined) ?? "—"}
+                      {planDisplayName(orgDetails ?? undefined, entitlements) ?? "—"}
                     </Badge>
                   }
                 />
@@ -425,7 +425,7 @@ function SettingsContent() {
                       {/* The plan's NAME, not the raw billing key with a
                           "free" fallback: there is no free tier (D19), and
                           no plan reads "No plan". */}
-                      {planDisplayName(orgDetails ?? undefined) ?? "—"}
+                      {planDisplayName(orgDetails ?? undefined, entitlements) ?? "—"}
                     </Badge>
                   }
                 />
