@@ -256,7 +256,24 @@ export function planHeadline(
  * summary lists every business's lines, so with `/me` coverage served: the
  * trial is named by the base row (a sibling's Suite is not this business's
  * plan), and a paid business by the lines of its own grant's tier
- * (`business.plan`), or by the base row when none matches (a contract).
+ * (`business.plan`), or by the base row when none matches and the base row is
+ * a contract.
+ *
+ * ★`business.plan` IS NOT ALWAYS WHAT WAS BOUGHT (official review R1 on
+ * b2c#591). For a business the base row covers (the trial business while its
+ * trial runs, a contract) the api's grant is the base plan unioned with its
+ * lines, so `plan` is the BASE row's key (`computeBusinessEntitlements` ->
+ * `baseUnion`): the Suite trial's `suite` on a business that bought Agency.
+ * Matched against the lines, that key picked a sibling's Suite line or
+ * nothing, and the fallback named the base row: "Peakhour Suite" on an Agency
+ * buyer. So a paid business is never named by a TRIAL base row (a trial is no
+ * paid plan), its plan key is not matched when it is that trial's key, and a
+ * base key that means no plan (`isNoPlanKey`: the "free" `/dashboard/org`
+ * falls back to once a trial ends) never names anything. With nothing left
+ * that names its plan, the business is a "Paid plan": true, where a name
+ * would be a guess. ★Exactly which lines are its own needs each line's
+ * `businessId`, which neither `/dashboard/org` nor `/v1/billing/summary`
+ * serves yet (an api change, reported on b2c#591).
  */
 export function planDisplayName(
   summary: PlanSummaryish | undefined,
@@ -267,11 +284,18 @@ export function planDisplayName(
   if (state === "none") return "No plan";
 
   const coverage = coverageOf(business);
+  const base = summary?.subscription;
+  // The base row names a plan when its key is one, and it is either the trial
+  // this business is on or a contract (no trial date, `planState`'s rule).
+  const baseNames = !isNoPlanKey(base?.plan) && (state === "trial" || !base?.trialEndsAt);
   const all = heldLines(summary?.products);
   // A paid business's own lines: its grant's tier, plus the other half of a
   // plan change on the same product (D21), so the rule below still names the
-  // line already charging whichever half the grant reads.
-  const own = all.filter((p) => p.tier === business?.plan);
+  // line already charging whichever half the grant reads. ★Not when the
+  // grant's tier is the base TRIAL's key: that is the trial's plan, not a
+  // purchase (docblock).
+  const planIsTrialKey = !!base?.trialEndsAt && business?.plan === base?.plan;
+  const own = planIsTrialKey ? [] : all.filter((p) => p.tier === business?.plan);
   const held =
     coverage === null
       ? all
@@ -289,7 +313,7 @@ export function planDisplayName(
     return `${tiers.size} plan${tiers.size === 1 ? "" : "s"}`;
   }
 
-  const base = summary?.subscription;
+  if (!baseNames) return state === "paid" ? "Paid plan" : "Trial";
   if (base?.planName && base.planName !== base.plan) return base.planName;
   const plan = base?.plan ?? "";
   return plan.charAt(0).toUpperCase() + plan.slice(1);

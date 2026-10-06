@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { getPublicCatalog } from "@/lib/catalog";
-import { getPricing, suiteTrialDays, SUITE_TRIAL_DAYS_FALLBACK } from "@/lib/pricing";
+import { getPricing, suiteTrialDays } from "@/lib/pricing";
 import { isPasswordSignInAvailable } from "@/lib/password-signin-availability";
 import { AuthFlow } from "./auth-flow";
 
@@ -38,7 +38,9 @@ export default async function AuthPage() {
     isPasswordSignInAvailable(),
   ]);
   const signupMode = catalog?.platform?.signupMode ?? "open";
-  const trialDays = suiteTrialDays(pricing) ?? SUITE_TRIAL_DAYS_FALLBACK;
+  // ★Null stays null: no trial, no promise (`suiteTrialDays`, the rule
+  //  /pricing reads too; official review R1 on b2c#591).
+  const trialDays = suiteTrialDays(pricing);
 
   return (
     // useSearchParams() must sit inside a Suspense boundary (App Router). A

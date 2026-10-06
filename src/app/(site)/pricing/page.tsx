@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
-import { getPricing, findBundleTier, suiteCtaLabel } from "@/lib/pricing";
+import { getPricing, findBundleTier, suiteCtaLabel, suiteTrialDays } from "@/lib/pricing";
 import { getPublicCatalog, publicMarketingIntegrations, signupCta } from "@/lib/catalog";
 import { badgedComingSoonKeys } from "@/lib/pillar-channels";
 import {
@@ -69,7 +69,8 @@ export default async function PricingPage() {
   // the same question, so a module cannot read "Included" in one and be
   // missing from the other.
   const included = new Set(suiteModuleSlugs(pricing));
-  const trialDays = suite?.pricing.trialDays ?? 0;
+  // The one trial rule /auth reads too (`suiteTrialDays`): no trial, no promise.
+  const trialDays = suiteTrialDays(pricing) ?? 0;
 
   return (
     <div className="flex min-h-screen flex-col">

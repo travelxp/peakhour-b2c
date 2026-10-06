@@ -96,11 +96,37 @@ export const PILLAR_CONSOLE_ROW_CLASS =
  * ★It replaced "500+ free Peaks a month, every free plan": there is no free
  * plan (D19), so the figure promised an allowance nobody is given. What a new
  * business gets is the Suite trial.
+ *
+ * ★NO TRIAL, NO TRIAL STATS (official review R1 on b2c#591). `trialDays` is
+ * `suiteTrialDays`: null when the environment sells no Suite trial. The card
+ * and the days figures are both the trial's (without one, a business pays
+ * before it starts, D19), so neither is shown; /pricing drops its "No card to
+ * start" on the same rule.
  */
-export function signupStats(trialDays: number): Array<{ value: string; label: string }> {
+export function signupStats(trialDays: number | null): Array<{ value: string; label: string }> {
+  const modules = { value: "5", label: "modules, one login" };
+  if (!hasTrial(trialDays)) return [modules, { value: "1", label: "Peaks wallet for every module" }];
   return [
-    { value: "5", label: "modules, one login" },
+    modules,
     { value: "0", label: "credit cards required" },
     { value: String(trialDays), label: "days of Peakhour Suite, free" },
   ];
+}
+
+/** Whether a trial may be promised: `suiteTrialDays` served a length. */
+export function hasTrial(trialDays: number | null | undefined): trialDays is number {
+  return typeof trialDays === "number" && trialDays > 0;
+}
+
+/**
+ * The tick row under the /auth form: `SIGNUP_PROMISES`, or the pre-launch
+ * variant. ★Without a trial (`hasTrial`) its first two promises ("No credit
+ * card", "Free trial of every module") are both the trial's, so they give way
+ * to the scope of the platform, the hero's own third point (official review
+ * R1 on b2c#591).
+ */
+export function signupPromises(trialDays: number | null, preLaunch: boolean): readonly string[] {
+  const list = preLaunch ? PRELAUNCH_PROMISES : SIGNUP_PROMISES;
+  if (hasTrial(trialDays)) return list;
+  return [HERO_TRUST_POINTS[2], list[2]];
 }

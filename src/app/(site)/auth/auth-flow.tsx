@@ -17,8 +17,8 @@ import {
   PILLAR_CONSOLE_ROWS,
   PILLAR_CONSOLE_LABEL,
   PILLAR_CONSOLE_ROW_CLASS,
-  SIGNUP_PROMISES,
-  PRELAUNCH_PROMISES,
+  hasTrial,
+  signupPromises,
   signupStats,
 } from "@/lib/pillar-console";
 
@@ -196,7 +196,8 @@ function EmailChip({ email }: { email: string }) {
 export function AuthFlow({
   signupMode,
   /** Suite's trial length, resolved server-side so the client bundle carries
-   *  no pricing logic. */
+   *  no pricing logic. Null when the environment sells no Suite trial: then
+   *  the page promises none (`suiteTrialDays`, `hasTrial`). */
   trialDays,
   /**
    * Whether this stack's API allows password sign-in. Resolved on the server in
@@ -207,7 +208,7 @@ export function AuthFlow({
   passwordSignIn = false,
 }: {
   signupMode: PlatformSignupMode;
-  trialDays: number;
+  trialDays: number | null;
   passwordSignIn?: boolean;
 }) {
   // Anything other than "open" means access is gated behind approval, so the
@@ -557,14 +558,20 @@ export function AuthFlow({
               h1 here would leave small screens with no h1 at all. The state
               heading in the form column is the h1 at every breakpoint. */}
           <p className="mt-4 max-w-xl text-3xl font-extrabold leading-[1.06] tracking-tight text-pretty xl:text-4xl">
-            Your whole business, waiting on the other side.{" "}
-            <span className="font-serif font-normal italic text-brand-gradient">
-              Free to try.
-            </span>
+            Your whole business, waiting on the other side.
+            {hasTrial(trialDays) ? (
+              <>
+                {" "}
+                <span className="font-serif font-normal italic text-brand-gradient">
+                  Free to try.
+                </span>
+              </>
+            ) : null}
           </p>
           <p className="mt-4 max-w-md text-on-ink-dim">
             Commerce, Content, Growth, Support and Presence — five modules on
-            one account, free for your first {trialDays} days.
+            one account
+            {hasTrial(trialDays) ? `, free for your first ${trialDays} days.` : "."}
           </p>
         </div>
 
@@ -867,7 +874,7 @@ export function AuthFlow({
               <PasswordSignIn available={passwordSignIn} next={next} />
 
               <ul className="mt-4 flex flex-wrap justify-center gap-x-3.5 gap-y-1.5 text-xs text-muted-foreground sm:mt-6 sm:gap-x-4 sm:text-sm">
-                {(isPreLaunch ? PRELAUNCH_PROMISES : SIGNUP_PROMISES).map((tick) => (
+                {signupPromises(trialDays, isPreLaunch).map((tick) => (
                   <li key={tick} className="flex items-center gap-1.5">
                     <Check className="size-3.5 shrink-0 text-brand-label" strokeWidth={3} aria-hidden />
                     {tick}

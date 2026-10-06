@@ -9,7 +9,7 @@ import {
   type ResolvedProductTier,
 } from "./pricing";
 import { suiteModuleSlugs } from "./pricing-catalog";
-import { signupStats, SIGNUP_PROMISES, PRELAUNCH_PROMISES, HERO_TRUST_POINTS } from "./pillar-console";
+import { hasTrial, signupPromises, signupStats, SIGNUP_PROMISES, PRELAUNCH_PROMISES, HERO_TRUST_POINTS } from "./pillar-console";
 
 /**
  * One catalog on the website (billing plan D19, P4.7): Peakhour Suite, Agency
@@ -127,6 +127,26 @@ describe("signup copy promises a trial, not a free plan (D19)", () => {
   it("the /auth stats state the Suite trial's length", () => {
     expect(signupStats(14)).toContainEqual({ value: "14", label: "days of Peakhour Suite, free" });
     expect(signupStats(7).map((s) => s.value)).toEqual(["5", "0", "7"]);
+  });
+
+  it("★no Suite trial, no trial stats: no 14-day stand-in (official review R1)", () => {
+    // `suiteTrialDays` is null on purpose here, and /auth passes it through.
+    const days = suiteTrialDays(catalog(tier("suite", { trialDays: 0 })));
+    expect(days).toBeNull();
+    const stats = signupStats(days);
+    expect(stats.map((s) => s.value)).toEqual(["5", "1"]);
+    expect(JSON.stringify(stats)).not.toMatch(/free|credit card/i);
+    expect(signupStats(0).map((s) => s.value)).toEqual(["5", "1"]);
+  });
+
+  it("★no Suite trial, no trial ticks under the /auth form (official review R1)", () => {
+    expect(signupPromises(14, false)).toEqual(SIGNUP_PROMISES);
+    expect(signupPromises(14, true)).toEqual(PRELAUNCH_PROMISES);
+    expect(signupPromises(null, false)).toEqual(["All five modules, one platform", "Live the same day"]);
+    expect(signupPromises(null, true)).toEqual(["All five modules, one platform", "We’ll email your link"]);
+    expect(signupPromises(0, false)).toEqual(["All five modules, one platform", "Live the same day"]);
+    expect(hasTrial(1)).toBe(true);
+    expect(hasTrial(undefined)).toBe(false);
   });
 
   it("no promise names a free plan", () => {

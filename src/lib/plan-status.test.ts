@@ -252,6 +252,31 @@ describe("the active business's own state (review on b2c#591)", () => {
     expect(planDisplayName(summary({ subscription: CONTRACT, products: [suite] }), { coverage: "paid", plan: "enterprise" })).toBe("Enterprise");
   });
 
+  it("★a trial business that bought Agency is not named by the trial's Suite (official review R1)", () => {
+    // `/me`'s plan is the base trial's key while the trial grants beside the
+    // purchase (`baseUnion`), so it matches nothing it bought.
+    expect(planDisplayName(summary({ products: [agency] }), { coverage: "paid", plan: "suite" })).toBe("Paid plan");
+    // Nor a sibling's Suite line that happens to share the trial's key.
+    expect(planDisplayName(summary({ products: [suite, agency] }), { coverage: "paid", plan: "suite" })).toBe("Paid plan");
+  });
+
+  it("★a base key that means no plan never names a paid business (official review R1)", () => {
+    for (const subscription of [{ plan: "free", planName: "Free" }, { plan: "commerce_assistant.free", planName: "Commerce: Free" }, { plan: "none" }, {}]) {
+      expect(planDisplayName(summary({ subscription, products: [] }), PAID)).toBe("Paid plan");
+    }
+    // A matched line still names itself over a no-plan base.
+    expect(planDisplayName(summary({ subscription: { plan: "free", planName: "Free" }, products: [agency] }), { coverage: "paid", plan: "agency" })).toBe("Agency");
+  });
+
+  it("★a contract still names a paid business, and the trial its own trial (official review R1)", () => {
+    expect(planDisplayName(summary({ subscription: CONTRACT, products: [] }), { coverage: "paid", plan: "enterprise" })).toBe("Enterprise");
+    expect(planDisplayName(summary({ products: [] }), ON_TRIAL)).toBe("Peakhour Suite");
+    expect(planDisplayName(summary({ subscription: { plan: "internal_platform", planName: "internal_platform" } }), PAID)).toBe("Internal_platform");
+    // A trial over a no-plan base (a stale summary beside a fresh /me) is
+    // still not named "Free".
+    expect(planDisplayName(summary({ subscription: { plan: "free", planName: "Free" } }), ON_TRIAL)).toBe("Trial");
+  });
+
   it("a coverage the three states do not include falls back to the org-wide summary", () => {
     for (const b of [{ coverage: "free", plan: "free" }, {}, null, undefined]) {
       expect(planState(summary({ products: [suite] }), b)).toBe("paid");

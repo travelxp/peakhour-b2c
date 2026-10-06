@@ -265,6 +265,13 @@ export type BundlePlanKey = (typeof BUNDLE_PLAN_KEY_LIST)[number];
  * How a new business starts (D19): a Peakhour Suite trial of Suite's own
  * `trialDays`. Null when this environment sells no Suite, or sells it with no
  * trial, so a caller never promises a trial the catalog does not give.
+ *
+ * ★THE ONE RULE FOR A TRIAL PROMISE (official review R1 on b2c#591): /auth and
+ * /pricing both read it, and null is never replaced by a number. /auth once
+ * did (`?? 14`, a "pricing API unreachable" fallback), so an environment that
+ * sells no Suite trial, on purpose, was promised "free for your first 14
+ * days" there while /pricing promised nothing. An unreachable pricing API
+ * promises nothing either: a degraded page says less, never a guess.
  */
 export function suiteTrialDays(pricing: PricingResponse | null): number | null {
   const days = findBundleTier(pricing, "suite")?.pricing.trialDays;
@@ -276,14 +283,6 @@ export function suiteTrialDays(pricing: PricingResponse | null): number | null {
 export function suiteCtaLabel(trialDays: number): string {
   return trialDays > 0 ? `Start your ${trialDays}-day free trial` : "Get Peakhour Suite";
 }
-
-/**
- * Shown when the pricing API is unreachable, as the landing page keeps a static
- * integrations list for the same case. Suite's `trialDays` at the time of
- * writing (D19: 14 days); a degraded mode, not a source of truth —
- * `suiteTrialDays` is.
- */
-export const SUITE_TRIAL_DAYS_FALLBACK = 14;
 
 /**
  * The Agency card's price. Agency is sold QUARTERLY and YEARLY, never monthly
