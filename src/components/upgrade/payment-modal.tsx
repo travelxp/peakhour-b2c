@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { intervalSuffix } from "@/lib/billing-terms";
 
 /**
  * On-site payment overlay for native subscription checkout. The API's
@@ -40,7 +41,7 @@ export interface CheckoutSummary {
   currency: string;
   /** ABSENT on a one-time pack. Rendering "/mo" beside a one-off price would
    *  tell the buyer they are starting a subscription they are not. */
-  interval?: "month" | "year";
+  interval?: "month" | "quarter" | "year";
   buyerCountry: string;
   taxIncluded: boolean;
   taxLabel: string;
@@ -137,7 +138,7 @@ function SummaryLine({ summary }: { summary: CheckoutSummary }) {
           {fmtAmount(summary.amount, summary.currency)}
           {/* No suffix on a one-time pack — "/mo" beside a one-off price tells
               the buyer they are starting a subscription they are not. */}
-          {summary.interval ? `/${summary.interval === "year" ? "yr" : "mo"}` : ""}
+          {summary.interval ? intervalSuffix(summary.interval) : ""}
         </span>
       </div>
       <div className="text-muted-foreground mt-1 flex flex-wrap items-baseline justify-between gap-x-3 text-xs">

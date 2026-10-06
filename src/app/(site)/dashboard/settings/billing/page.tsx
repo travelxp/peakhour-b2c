@@ -21,6 +21,7 @@ import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
 import { TaxAndInvoices } from "@/components/settings-tax-invoices";
 import { UpgradePlanDialog } from "@/components/upgrade/upgrade-plan-dialog";
 import { isPaidProduct } from "@/lib/plan-status";
+import { intervalSuffix, periodTotals } from "@/lib/billing-terms";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   useBillingSummary,
@@ -185,6 +186,13 @@ export default function BillingPage() {
   // keying the pending state off isPending alone put "Cancelling…" on all of them
   // and disabled the lot while one was in flight.
   const cancellingKey = cancelProduct.isPending ? cancelProduct.variables : null;
+  // Each period's total with its suffix ("₹4,999/mo + ₹74,997/quarter"); null
+  // when the summary has none (loading, or a mixed-currency portfolio).
+  const recurringTotal = summary
+    ? periodTotals(summary)
+        .map((t) => `${money(t.amount, summary.currency)}${intervalSuffix(t.interval)}`)
+        .join(" + ") || null
+    : null;
   const priceByTier = new Map(
     (summary?.products ?? []).map((p) => [p.tier ?? "", p]),
   );
@@ -307,10 +315,13 @@ export default function BillingPage() {
               resolved — a label that changes meaning is worse than an em dash. */}
           <div className="grid gap-3 sm:grid-cols-3">
             <div>
-              <p className="text-xs text-muted-foreground">Monthly total</p>
+              {/* One fixed label for every period (P3.1a): "₹4,999/mo", or
+                  "₹74,997/quarter" for a quarterly Agency business, which a
+                  "Monthly total" of ₹0 would have misstated. */}
+              <p className="text-xs text-muted-foreground">Recurring total</p>
               <p className="text-sm font-medium">
-                {summary?.monthlyTotal != null
-                  ? `${money(summary.monthlyTotal, summary.currency)}${summary.monthlyTotalComplete ? "" : "+"}`
+                {recurringTotal
+                  ? `${recurringTotal}${summary?.monthlyTotalComplete ? "" : "+"}`
                   : "—"}
               </p>
             </div>
@@ -332,10 +343,10 @@ export default function BillingPage() {
 
           {/* The combined-charge promise, stated only when it is actually true —
               i.e. the server confirmed every product rides one subscription. */}
-          {summary?.billedTogether && summary.monthlyTotal != null ? (
+          {summary?.billedTogether && recurringTotal ? (
             <p className="mt-3 text-xs text-muted-foreground">
               All {summary.products.length} products are billed together as one
-              charge of {money(summary.monthlyTotal, summary.currency)}
+              charge of {recurringTotal}
               {summary.monthlyTotalComplete ? "" : " or more"}
               {summary.nextChargeAt ? ` on ${formatDate(summary.nextChargeAt)}` : ""}.
             </p>
@@ -387,7 +398,7 @@ export default function BillingPage() {
                         const priced = priceByTier.get(p.tier);
                         const cost =
                           priced && priced.amountKnown && priced.amount != null
-                            ? `${money(priced.amount, priced.currency)}/mo`
+                            ? `${money(priced.amount, priced.currency)}${intervalSuffix(priced.interval)}`
                             : null;
                         // A row-level trialEndsAt means the product is granted now
                         // and starts billing on that date — say when, so a "free"
@@ -590,7 +601,9 @@ export default function BillingPage() {
                       </p>
                     </div>
                     <span className="text-sm font-medium tabular-nums">
-                      {money(Number(o.monthlyTotal), o.currency)}/mo
+                      {periodTotals(o)
+                        .map((t) => `${money(t.amount, o.currency)}${intervalSuffix(t.interval)}`)
+                        .join(" + ")}
                     </span>
                   </li>
                 ))}

@@ -15,6 +15,14 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { PaymentModal, type CheckoutResult } from "./payment-modal";
+import {
+  TERM_LABEL,
+  priceForTerm,
+  termOptions,
+  termSuffix,
+  type BillingTerm,
+  type TermPrice,
+} from "@/lib/billing-terms";
 
 /**
  * UpgradePlanDialog — the plan-picker that replaces the old mailto on
@@ -35,6 +43,9 @@ interface PurchasablePlan {
   yearly: number | null;
   currency: string;
   interval: "month";
+  /** Every term the plan sells, priced as checkout charges it (P3.1a): Suite
+   *  monthly and yearly, Agency quarterly and yearly. Absent on an older api. */
+  termPrices?: TermPrice[];
   trialDays: number;
   taxIncluded: boolean;
   recommended: boolean;
@@ -89,6 +100,8 @@ export function UpgradePlanDialog({
   onPurchased?: () => void;
 }) {
   const [selected, setSelected] = useState<string | null>(null);
+  // The billing term the buyer picked; null = the default below.
+  const [termPick, setTermPick] = useState<BillingTerm | null>(null);
   const [checkout, setCheckout] = useState<CheckoutResult | null>(null);
 
   const plansQ = useQuery({
@@ -109,7 +122,7 @@ export function UpgradePlanDialog({
   // top-up was charged off-session against the saved mandate.
   //   • "invoice_required" — India RBI, total above the auto-mandate cap.
   const checkoutMut = useMutation({
-    mutationFn: (tier: string) =>
+    mutationFn: ({ tier, term }: { tier: string; term: BillingTerm }) =>
       api.post<
         | CheckoutResult
         | { mode: "added"; tier: string; tierLabel?: string }
@@ -121,7 +134,7 @@ export function UpgradePlanDialog({
             trialEndsAt: string;
           }
         | { mode: "invoice_required"; tier: string; tierLabel?: string }
-      >("/v1/billing/checkout", { tier }),
+      >("/v1/billing/checkout", { tier, term }),
     onSuccess: (res) => {
       if (res && "mode" in res && res.mode === "trial_started") {
         toast.success(`${res.tierLabel || res.tier} added to your subscription`, {
@@ -160,6 +173,12 @@ export function UpgradePlanDialog({
   const plans = plansQ.data?.plans ?? [];
   const purchasable = plansQ.data?.purchasable ?? true;
   const selectedPlan = plans.find((p) => p.tier === selected) ?? null;
+  // The terms any plan sells; monthly first when sold, as before terms existed.
+  const terms = termOptions(plans);
+  const term: BillingTerm = termPick ?? (terms.includes("monthly") ? "monthly" : terms[0] ?? "monthly");
+  // What the selected card charges, and so the term checkout sends: Agency
+  // under "Monthly" checks out quarterly, the price its card shows.
+  const selectedPrice = selectedPlan ? priceForTerm(selectedPlan, term) : null;
   const busy = checkoutMut.isPending;
 
   // Three sections answering three different questions: what should I add next,
@@ -228,6 +247,25 @@ export function UpgradePlanDialog({
             </p>
           ) : (
             <div className="space-y-5">
+              {terms.length > 1 && (
+                <div role="radiogroup" aria-label="Billing term" className="inline-flex rounded-lg border p-0.5">
+                  {terms.map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      role="radio"
+                      aria-checked={term === t}
+                      onClick={() => setTermPick(t)}
+                      className={cn(
+                        "rounded-md px-3 py-1 text-xs font-medium transition",
+                        term === t ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      {TERM_LABEL[t]}
+                    </button>
+                  ))}
+                </div>
+              )}
               {sections.map((section) =>
                 section.items.length === 0 ? null : (
                   <div key={section.key}>
@@ -240,10 +278,12 @@ export function UpgradePlanDialog({
                     <div className="grid gap-3 sm:grid-cols-2">
                       {section.items.map((p) => {
                         const active = selected === p.tier;
+                        const price = p.contactSales ? null : priceForTerm(p, term);
                         // A contact-sales plan has nothing to select — its action
                         // is an email, not a checkout — so it is never disabled
-                        // for being unpurchasable, only for being current.
-                        const disabled = p.isCurrent || (!purchasable && !p.contactSales);
+                        // for being unpurchasable, only for being current. A plan
+                        // with no sellable term has nothing to check out.
+                        const disabled = p.isCurrent || (!purchasable && !p.contactSales) || (!p.contactSales && !price);
                         return (
                           <button
                             key={p.tier}
@@ -307,15 +347,24 @@ export function UpgradePlanDialog({
                               <div className="text-lg font-semibold">
                                 {p.contactSales ? (
                                   <span className="text-base">Contact sales</span>
-                                ) : (
+                                ) : price ? (
                                   <>
-                                    {formatPrice(p.amount, p.currency)}
+                                    {formatPrice(price.amount, p.currency)}
                                     <span className="text-xs font-normal text-muted-foreground">
-                                      /mo
+                                      {termSuffix(price.term)}
                                     </span>
                                   </>
+                                ) : (
+                                  <span className="text-base">Not available</span>
                                 )}
                               </div>
+                              {/* Not sold on the picked term (Agency is quarterly
+                                  and yearly only): say which term this price is. */}
+                              {price?.fallback && (
+                                <div className="text-xs text-muted-foreground">
+                                  Billed {TERM_LABEL[price.term].toLowerCase()}
+                                </div>
+                              )}
                               {!p.contactSales && p.trialDays > 0 && p.trialApplies && (
                                 <div className="text-xs text-success-on-tint">
                                   {p.trialDays}-day free trial · card required
@@ -352,8 +401,8 @@ export function UpgradePlanDialog({
               Cancel
             </Button>
             <Button
-              disabled={!selected || !purchasable || busy}
-              onClick={() => selected && checkoutMut.mutate(selected)}
+              disabled={!selected || !selectedPrice || !purchasable || busy}
+              onClick={() => selected && selectedPrice && checkoutMut.mutate({ tier: selected, term: selectedPrice.term })}
             >
               {checkoutMut.isPending
                 ? "Starting…"
