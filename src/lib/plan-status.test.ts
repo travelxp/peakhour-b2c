@@ -95,6 +95,19 @@ describe("isNoPlanKey: the leftovers that name no plan", () => {
     expect(isNoPlanKey("internal_platform")).toBe(false);
   });
 
+  it("★a grandfathered .lens tier names no plan, as the api's credits.ts says (official review R3)", () => {
+    expect(isNoPlanKey("content_studio.lens")).toBe(true);
+    expect(isNoPlanKey("lens")).toBe(false);
+    const lens = { tier: "content_studio.lens", productKey: "content_studio", state: "active", name: "Content Lens" };
+    // Not listed under "Your plans", no Cancel, not counted, not a paid state.
+    expect(heldLines([lens, suite])).toEqual([suite]);
+    expect(productRowAction(lens)).toBeNull();
+    expect(isBilledLine(lens)).toBe(false);
+    expect(planState(summary({ subscription: TRIAL_ENDED, products: [lens] }))).toBe("none");
+    expect(billingHeader(summary({ subscription: TRIAL_ENDED, products: [lens] }), null)).toEqual({ heading: "Current Plan", label: "No plan", tone: "none", orgWide: false });
+    expect(planHeadline(summary({ subscription: TRIAL_ENDED, products: [lens] })).button).toBe("Buy a plan");
+  });
+
   it("heldLines leaves a .free line out and keeps the rest in order", () => {
     expect(heldLines([freeLeftover, suite, undefined, agency])).toEqual([suite, agency]);
     expect(heldLines(undefined)).toEqual([]);
@@ -257,8 +270,21 @@ describe("the active business's own state (review on b2c#591)", () => {
     // `/me`'s plan is the base trial's key while the trial grants beside the
     // purchase (`baseUnion`), so it matches nothing it bought.
     expect(planDisplayName(summary({ products: [agency] }), { coverage: "paid", plan: "suite" })).toBe("Paid plan");
-    // Nor a sibling's Suite line that happens to share the trial's key.
-    expect(planDisplayName(summary({ products: [suite, agency] }), { coverage: "paid", plan: "suite" })).toBe("Paid plan");
+    // ★R3: a Suite line in the org with `/me`'s plan `suite` IS named, though
+    // without `businessId` it may be a sibling's (P4.3b): the rule that names
+    // a business that bought Suite after its trial cannot tell the two apart.
+    expect(planDisplayName(summary({ products: [suite, agency] }), { coverage: "paid", plan: "suite" })).toBe("Peakhour Suite");
+  });
+
+  it("★a business that bought Suite is named Suite, whatever the base trial's date (official review R3)", () => {
+    // Its trial ended (the used row keeps its `trialEndsAt`), then it bought Suite.
+    expect(planDisplayName(summary({ subscription: TRIAL_ENDED, products: [suite] }), { coverage: "paid", plan: "suite" })).toBe("Peakhour Suite");
+    // A second business buys Suite while the first is still on its Suite trial.
+    expect(planDisplayName(summary({ products: [suite] }), { coverage: "paid", plan: "suite" })).toBe("Peakhour Suite");
+    // The billing header and the badge say the same.
+    expect(billingHeader(summary({ subscription: TRIAL_ENDED, products: [suite] }), { coverage: "paid", plan: "suite" }).label).toBe("Peakhour Suite");
+    // Only an unmatched key falls back.
+    expect(planDisplayName(summary({ subscription: TRIAL_ENDED, products: [agency] }), { coverage: "paid", plan: "suite" })).toBe("Paid plan");
   });
 
   it("★a base key that means no plan never names a paid business (official review R1)", () => {
@@ -347,6 +373,27 @@ describe("billingHeader: the subscription header follows the business (review R2
   it("without coverage or lines it is the headline's state; unloaded is neutral", () => {
     expect(billingHeader(summary(), null)).toEqual({ heading: "Current Plan", label: "Peakhour Suite", tone: "trial", orgWide: false });
     expect(billingHeader(undefined, null)).toEqual({ heading: "Current Plan", label: "Plan not loaded", tone: null, orgWide: false });
+  });
+
+  it("★the org-wide header is never on a trial: no state for an Included-plan (trial) footnote (official review R3)", () => {
+    // The billing page once footnoted the base trial under `orgWide` lines.
+    // Pinned: whenever the header is org-wide, the state is paid, so that
+    // footnote had no case and was deleted.
+    const subs = [TRIAL, TRIAL_ENDED, CONTRACT, { plan: "free", planName: "Free" }];
+    const lineSets = [[suite], [agency, suite], [{ ...suite, endsAt: ENDS }], [freeLeftover, agency]];
+    let orgWide = 0;
+    for (const subscription of subs) {
+      for (const products of lineSets) {
+        for (const b of [null, undefined, { coverage: "free" }, {}]) {
+          const s = summary({ subscription, products });
+          if (billingHeader(s, b).orgWide) {
+            orgWide++;
+            expect(planState(s, b)).toBe("paid");
+          }
+        }
+      }
+    }
+    expect(orgWide).toBe(subs.length * lineSets.length * 4);
   });
 });
 

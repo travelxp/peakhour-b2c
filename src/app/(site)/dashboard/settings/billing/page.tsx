@@ -343,23 +343,12 @@ export default function BillingPage() {
             </p>
           ) : null}
 
-          {/* The base plan, demoted. Shown whenever products exist — the
-              combined-charge line above only renders when everything genuinely
-              rides one subscription, so tying the footnote to it meant an org
-              with a Shopify-granted product saw its included plan nowhere at all
-              after the badge stopped showing it. */}
-          {/* ★On THIS business's trial only: the base row is the first
-              business's, so an org-wide `trialActive` footnoted a sibling's
-              trial under a business that bought (review on b2c#591). */}
-          {/* ★And only on the org-wide fallback: with coverage served, a
-              trial business's listed lines are a sibling's (its own purchase
-              would have ended the trial), so "Included plan" beside them
-              misreads (official review R2 on b2c#591). */}
-          {header.orgWide && trialActive && summary?.basePlanName ? (
-            <p className="mt-2 text-xs text-muted-foreground">
-              Included plan: {summary.basePlanName} (trial)
-            </p>
-          ) : null}
+          {/* ★No "Included plan: … (trial)" footnote (official review R3 on
+              b2c#591). It footnoted the base trial under bought lines, and no
+              state has both: a purchase ends the trial business's trial (P4.3,
+              `endTrialOnPurchase`), a live trial beside listed lines means the
+              lines are a sibling's, and without coverage a bought line beats
+              the trial (`planState`), so its condition could never hold. */}
 
           {/* India (RBI): a bigger COMBINED debit changes what the buyer has to do
               each cycle. Say so before the charge, not after it fails. */}

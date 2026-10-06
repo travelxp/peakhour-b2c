@@ -86,10 +86,17 @@ function coverageOf(business: BusinessPlanish | null | undefined): PlanState | n
  * row may still carry until P4.5 (`free`, `<product>.free`). ★Not a free tier
  * the catalog sells (D19: there is none); the reading of a leftover, so the UI
  * renders it neutrally instead of naming it.
+ *
+ * ★A GRANDFATHERED `.lens` TIER IS ONE TOO (official review R3 on b2c#591):
+ * the api's `credits.ts` counts `free`, `*.free` and the retired `*.lens`
+ * tiers as free, and so did this file before P4.7. Missed, a
+ * `content_studio.lens` row read "1 paid plan", offered "Change plan" and was
+ * listed with Cancel. The "Your plans" list and every count reach this one
+ * predicate through `isHeldPlan` / `heldLines`.
  */
 export function isNoPlanKey(key: string | null | undefined): boolean {
   if (typeof key !== "string" || key === "") return true;
-  return key === "none" || key === "free" || key.endsWith(".free");
+  return key === "none" || key === "free" || key.endsWith(".free") || key.endsWith(".lens");
 }
 
 /** A line that is a plan the business holds: a real tier, not a leftover. */
@@ -307,13 +314,22 @@ export function billingHeader(
  * Matched against the lines, that key picked a sibling's Suite line or
  * nothing, and the fallback named the base row: "Peakhour Suite" on an Agency
  * buyer. So a paid business is never named by a TRIAL base row (a trial is no
- * paid plan), its plan key is not matched when it is that trial's key, and a
- * base key that means no plan (`isNoPlanKey`: the "free" `/dashboard/org`
- * falls back to once a trial ends) never names anything. With nothing left
- * that names its plan, the business is a "Paid plan": true, where a name
- * would be a guess. ★Exactly which lines are its own needs each line's
- * `businessId`, which neither `/dashboard/org` nor `/v1/billing/summary`
- * serves yet (an api change, reported on b2c#591).
+ * paid plan), and a base key that means no plan (`isNoPlanKey`: the "free"
+ * `/dashboard/org` falls back to once a trial ends) never names anything.
+ * With nothing left that names its plan, the business is a "Paid plan": true,
+ * where a name would be a guess.
+ *
+ * ★BUT A HELD LINE OF `business.plan`'s TIER ALWAYS NAMES IT (official review
+ * R3 on b2c#591). R1 also refused to match the plan key whenever it equalled
+ * the base row's key and the base row carried a `trialEndsAt`; that date stays
+ * on a used trial's row, so a business that bought Suite after its trial ended
+ * (`/me` paid, plan `suite`), and a second business buying Suite, both read
+ * "Paid plan". The key is matched whatever the base row says; only an
+ * unmatched key falls back. The one case left ambiguous is the trial business
+ * on a live trial whose `plan` is the trial's `suite` while a sibling holds a
+ * Suite line: it reads "Peakhour Suite". ★Exactly which lines are its own
+ * needs each line's `businessId`, which neither `/dashboard/org` nor
+ * `/v1/billing/summary` serves yet (P4.3b, reported on b2c#591).
  */
 export function planDisplayName(
   summary: PlanSummaryish | undefined,
@@ -331,11 +347,9 @@ export function planDisplayName(
   const all = heldLines(summary?.products);
   // A paid business's own lines: its grant's tier, plus the other half of a
   // plan change on the same product (D21), so the rule below still names the
-  // line already charging whichever half the grant reads. ★Not when the
-  // grant's tier is the base TRIAL's key: that is the trial's plan, not a
-  // purchase (docblock).
-  const planIsTrialKey = !!base?.trialEndsAt && business?.plan === base?.plan;
-  const own = planIsTrialKey ? [] : all.filter((p) => p.tier === business?.plan);
+  // line already charging whichever half the grant reads. Matched whatever
+  // the base row says (docblock, review R3).
+  const own = all.filter((p) => p.tier === business?.plan);
   const held =
     coverage === null
       ? all
