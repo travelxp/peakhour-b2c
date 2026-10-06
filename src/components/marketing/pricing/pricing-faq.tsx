@@ -4,6 +4,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { trialFaq } from "@/lib/trial-copy";
 
 const FAQS: { q: string; a: string }[] = [
   {
@@ -19,21 +20,20 @@ const FAQS: { q: string; a: string }[] = [
     a: "Yes. Install the Shopify App or WordPress plugin and the relevant module runs right there. Buy Peakhour Suite inside the Shopify admin and Shopify bills you; buy it on peakhour.ai and you're billed here, whatever you have connected.",
   },
   {
-    q: "How does the free trial work?",
-    a: "Every new business starts on a free Peakhour Suite trial — every module, no card. When it ends, buy Peakhour Suite (monthly or yearly) or Agency (quarterly or yearly) to keep going; until you do, your business has no plan and Peakhour pauses.",
-  },
-  {
     q: "Which prices will I see?",
     a: "Prices are shown in your local currency, detected from your location, and charged that way at checkout. Contact sales for a custom-currency invoice.",
   },
 ];
 
 /** Plain-language pricing FAQ. The accordion is a client component; this
- *  wrapper stays data-only so the copy lives in one place. */
-export function PricingFaq() {
+ *  wrapper stays data-only so the copy lives in one place. ★The trial entry
+ *  is the catalog's (`trialFaq`: Suite's `trialDays`, or how to start when
+ *  there is no trial; owner rule 2026-10-06), placed where it always stood. */
+export function PricingFaq({ trialDays }: { trialDays: number | null }) {
+  const faqs = [...FAQS.slice(0, 3), trialFaq(trialDays), ...FAQS.slice(3)];
   return (
     <Accordion type="single" collapsible className="w-full">
-      {FAQS.map((faq) => (
+      {faqs.map((faq) => (
         <AccordionItem key={faq.q} value={faq.q}>
           <AccordionTrigger className="text-left text-base font-semibold">
             {faq.q}

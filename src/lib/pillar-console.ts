@@ -15,6 +15,8 @@
  * the present tense and specific; vague statuses ("Working on it") read as
  * placeholder copy.
  */
+import { hasTrial } from "./trial-copy";
+
 export const PILLAR_CONSOLE_ROWS = [
   { name: "Commerce", status: "Answered 34 shoppers on WhatsApp today" },
   { name: "Content", status: "2 articles drafted from this week's news" },
@@ -57,12 +59,16 @@ export const SIGNUP_PROMISES = [
  * point of orientation, where the remaining question is "how much of my
  * problem does this cover" — and the answer to that is the scope of the
  * platform, not its delivery time.
+ *
+ * ★THE FIRST TWO ARE THE TRIAL'S, SO THEY NEED ONE (owner rule 2026-10-06,
+ * official review R2 on b2c#591). A constant promised "Free trial of every
+ * module" and "No credit card" on an environment whose catalog sells no
+ * trial; without one (`hasTrial`) the points are what every plan gives.
  */
-export const HERO_TRUST_POINTS = [
-  SIGNUP_PROMISES[0],
-  SIGNUP_PROMISES[1],
-  "All five modules, one platform",
-] as const;
+export function heroTrustPoints(trialDays: number | null): readonly string[] {
+  const scope = "All five modules, one platform";
+  return hasTrial(trialDays) ? [SIGNUP_PROMISES[0], SIGNUP_PROMISES[1], scope] : [scope, "One Peaks wallet"];
+}
 
 /**
  * Pre-launch variant. When signups aren't open there is no same-day access to
@@ -113,11 +119,6 @@ export function signupStats(trialDays: number | null): Array<{ value: string; la
   ];
 }
 
-/** Whether a trial may be promised: `suiteTrialDays` served a length. */
-export function hasTrial(trialDays: number | null | undefined): trialDays is number {
-  return typeof trialDays === "number" && trialDays > 0;
-}
-
 /**
  * The tick row under the /auth form: `SIGNUP_PROMISES`, or the pre-launch
  * variant. ★Without a trial (`hasTrial`) its first two promises ("No credit
@@ -128,5 +129,5 @@ export function hasTrial(trialDays: number | null | undefined): trialDays is num
 export function signupPromises(trialDays: number | null, preLaunch: boolean): readonly string[] {
   const list = preLaunch ? PRELAUNCH_PROMISES : SIGNUP_PROMISES;
   if (hasTrial(trialDays)) return list;
-  return [HERO_TRUST_POINTS[2], list[2]];
+  return [heroTrustPoints(null)[0], list[2]];
 }

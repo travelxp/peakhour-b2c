@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Check } from "lucide-react";
 import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
-import { getPricing, findBundleTier, agencyCardPrice, formatPeaks } from "@/lib/pricing";
+import { getPricing, findBundleTier, agencyCardPrice, formatPeaks, suiteTrialDays } from "@/lib/pricing";
 import { getPublicCatalog, signupCta } from "@/lib/catalog";
 import { pageMetadata } from "@/lib/seo";
 
@@ -49,7 +49,7 @@ export default async function TeamsPricingPage() {
   ]);
   const signupMode = catalog?.platform?.signupMode ?? "open";
   const openSignup = signupMode === "open";
-  const cta = signupCta(signupMode);
+  const cta = signupCta(signupMode, suiteTrialDays(pricing));
 
   const suite = findBundleTier(pricing, "suite");
   const agency = findBundleTier(pricing, "agency");

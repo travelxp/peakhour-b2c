@@ -142,7 +142,7 @@ function OptimizerWaitlistCard() {
                 theme-aware step (deep amber on light, bright gold on dark),
                 so this needs no dark: twin. */}
             <p className="max-w-xl text-sm text-brand-label">
-              Optimizer rolls out to founding members first. Join the waitlist to lock in access + early-bird pricing.
+              Optimizer rolls out to founding members first. Join the waitlist to lock in early access.
             </p>
           </div>
           <div className="shrink-0">

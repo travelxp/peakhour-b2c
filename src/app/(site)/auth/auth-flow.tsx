@@ -13,11 +13,11 @@ import { api, ApiError } from "@/lib/api";
 import { SITE, cn } from "@/lib/utils";
 import type { PlatformSignupMode } from "@/lib/catalog";
 import { PeaksGlyph } from "@/components/peaks/peaks-glyph";
+import { hasTrial } from "@/lib/trial-copy";
 import {
   PILLAR_CONSOLE_ROWS,
   PILLAR_CONSOLE_LABEL,
   PILLAR_CONSOLE_ROW_CLASS,
-  hasTrial,
   signupPromises,
   signupStats,
 } from "@/lib/pillar-console";

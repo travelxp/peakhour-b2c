@@ -21,8 +21,8 @@ import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
 import { TaxAndInvoices } from "@/components/settings-tax-invoices";
 import { UpgradePlanDialog } from "@/components/upgrade/upgrade-plan-dialog";
 import {
+  billingHeader,
   heldLines,
-  isBilledLine,
   lineKey,
   planHeadline,
   productRowAction,
@@ -167,10 +167,11 @@ export default function BillingPage() {
   // Bought lines (active/trial portfolio subs). A leftover `.free` line (until
   // P4.5) is not a plan and is not listed (`heldLines`).
   const products = heldLines(details?.products);
-  const hasProducts = products.length > 0;
-  // Billed lines only: during a plan change the ending line and its
-  // replacement are both listed, and one is paid for (`isBilledLine`).
-  const paidCount = products.filter(isBilledLine).length;
+  // ★The heading and its badge follow the business's own state whenever /me
+  //  serves coverage, with no count: the product lists are org-wide until the
+  //  api scopes them (P4.3b), so a count would be the org's beside this
+  //  business's state (`billingHeader`, official review R2 on b2c#591).
+  const header = billingHeader(details, entitlements);
   // Per-product price / renewal, keyed by tier, so each row can show what it
   // costs rather than just that it exists.
   // WHICH product is cancelling. One mutation instance is shared by every row, so
@@ -247,34 +248,20 @@ export default function BillingPage() {
                   section heading at h3 would skip a level (axe
                   `heading-order`). Visual weight is unchanged. */}
               <h2 className="font-semibold">
-                {hasProducts ? "Your subscription" : "Current Plan"}
+                {header.heading}
               </h2>
-              {/* The badge has to describe what they OWN. It rendered the BASE
-                  plan unconditionally, so an org holding two paid products was
-                  still labelled "Peakhour.ai Content: Free" — reported by the team
-                  as the heading being wrong after buying two plans. The base plan
-                  is a floor, not the headline; once any product is held it moves
-                  to the footnote line below. */}
-              {hasProducts ? (
-                <Badge
-                  variant="secondary"
-                  className="font-medium bg-success/15 text-success-on-tint"
-                >
-                  {paidCount > 0
-                    ? `${paidCount} paid ${paidCount === 1 ? "plan" : "plans"}`
-                    : `${products.length} ${products.length === 1 ? "plan" : "plans"}`}
-                </Badge>
-              ) : (
-                <Badge
-                  variant="secondary"
-                  className={cn(
-                    "font-medium",
-                    state ? PLAN_STATE_STYLES[state] : "bg-muted text-muted-foreground",
-                  )}
-                >
-                  {headline.label}
-                </Badge>
-              )}
+              {/* The badge has to describe what they OWN: the business's own
+                  state (`billingHeader`), or, only on an api that serves no
+                  coverage, the org's count of paid plans. */}
+              <Badge
+                variant="secondary"
+                className={cn(
+                  "font-medium",
+                  header.tone ? PLAN_STATE_STYLES[header.tone] : "bg-muted text-muted-foreground",
+                )}
+              >
+                {header.label}
+              </Badge>
               {trialActive && trialDays > 0 ? (
                 <Badge variant="outline" className="font-medium">
                   Trial · {trialDays}d left
@@ -364,7 +351,11 @@ export default function BillingPage() {
           {/* ★On THIS business's trial only: the base row is the first
               business's, so an org-wide `trialActive` footnoted a sibling's
               trial under a business that bought (review on b2c#591). */}
-          {hasProducts && trialActive && summary?.basePlanName ? (
+          {/* ★And only on the org-wide fallback: with coverage served, a
+              trial business's listed lines are a sibling's (its own purchase
+              would have ended the trial), so "Included plan" beside them
+              misreads (official review R2 on b2c#591). */}
+          {header.orgWide && trialActive && summary?.basePlanName ? (
             <p className="mt-2 text-xs text-muted-foreground">
               Included plan: {summary.basePlanName} (trial)
             </p>

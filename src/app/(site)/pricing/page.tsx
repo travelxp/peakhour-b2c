@@ -20,7 +20,7 @@ import { PricingFaq } from "@/components/marketing/pricing/pricing-faq";
 export const metadata = pageMetadata({
   title: "Pricing — Peakhour Suite, Agency and Enterprise",
   description:
-    "Peakhour Suite is one plan for Commerce, Content, Growth, Support and Presence — one login, one Peaks wallet, one price. Every business starts with a free Suite trial, no card. Agency and Enterprise plans for teams.",
+    "Peakhour Suite is one plan for Commerce, Content, Growth, Support and Presence — one login, one Peaks wallet, one price. Agency and Enterprise plans for teams.",
   path: "/pricing",
 });
 
@@ -62,7 +62,7 @@ export default async function PricingPage() {
   });
   const signupMode = catalog?.platform?.signupMode ?? "open";
   const openSignup = signupMode === "open";
-  const cta = signupCta(signupMode);
+  const cta = signupCta(signupMode, suiteTrialDays(pricing));
 
   const suite = findBundleTier(pricing, "suite");
   // What Suite composes AND this site renders: the hero list and the card ask
@@ -236,7 +236,7 @@ export default async function PricingPage() {
                 Questions, answered simply
               </h2>
             </div>
-            <PricingFaq />
+            <PricingFaq trialDays={trialDays} />
           </div>
         </section>
       </main>

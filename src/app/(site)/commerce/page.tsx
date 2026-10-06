@@ -4,7 +4,7 @@ import { PillarPage } from "@/components/marketing/pillar-page";
 export const metadata = pageMetadata({
   title: "Commerce — AI storefront assistant | Peakhour.ai",
   description:
-    "An AI assistant that knows your whole catalog and sells on WhatsApp and your storefront, 24/7. Included in Peakhour Suite — start with a free trial, no credit card.",
+    "An AI assistant that knows your whole catalog and sells on WhatsApp and your storefront, 24/7. Included in Peakhour Suite.",
   path: "/commerce",
 });
 

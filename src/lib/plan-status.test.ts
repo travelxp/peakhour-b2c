@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  billingHeader,
   heldLines,
   isBilledLine,
   isNoPlanKey,
@@ -310,6 +311,42 @@ describe("planHeadline: the billing page's plan header (review on b2c#591)", () 
 
   it("the header reads the active business's coverage", () => {
     expect(planHeadline(summary({ subscription: TRIAL_ENDED, products: [suite] }), { coverage: "none" }).padlocked).toBe(true);
+  });
+});
+
+/**
+ * The billing page's heading and badge (official review R2 on b2c#591): with
+ * coverage served, the business's own state and no org-wide count (the
+ * product lists are org-wide until P4.3b).
+ */
+describe("billingHeader: the subscription header follows the business (review R2)", () => {
+  it("★a padlocked business whose sibling bought Suite reads No plan, not 1 paid plan", () => {
+    const h = billingHeader(summary({ subscription: TRIAL_ENDED, products: [suite] }), { coverage: "none", plan: "none" });
+    expect(h).toEqual({ heading: "Current Plan", label: "No plan", tone: "none", orgWide: false });
+  });
+
+  it("★a trial business whose sibling bought reads its trial, not 1 paid plan", () => {
+    const h = billingHeader(summary({ products: [agency] }), { coverage: "trial", plan: "suite" });
+    expect(h).toEqual({ heading: "Current Plan", label: "Peakhour Suite", tone: "trial", orgWide: false });
+  });
+
+  it("★a paid business shows its state, never an org-wide count", () => {
+    const h = billingHeader(summary({ products: [suite, agency] }), { coverage: "paid", plan: "agency" });
+    expect(h).toEqual({ heading: "Current Plan", label: "Agency", tone: "paid", orgWide: false });
+  });
+
+  it("without coverage the org-wide count is the fallback, billed lines only", () => {
+    expect(billingHeader(summary({ products: [suite, agency] }), null)).toEqual({ heading: "Your subscription", label: "2 paid plans", tone: "paid", orgWide: true });
+    expect(billingHeader(summary({ products: [suite] }), { coverage: "free" })).toEqual({ heading: "Your subscription", label: "1 paid plan", tone: "paid", orgWide: true });
+    const ending = { ...suite, endsAt: ENDS };
+    expect(billingHeader(summary({ products: [ending] }), undefined).label).toBe("1 plan");
+    expect(billingHeader(summary({ products: [ending, { ...agency, endsAt: ENDS }] }), undefined).label).toBe("2 plans");
+    expect(billingHeader(summary({ products: [ending, agency] }), undefined).label).toBe("1 paid plan");
+  });
+
+  it("without coverage or lines it is the headline's state; unloaded is neutral", () => {
+    expect(billingHeader(summary(), null)).toEqual({ heading: "Current Plan", label: "Peakhour Suite", tone: "trial", orgWide: false });
+    expect(billingHeader(undefined, null)).toEqual({ heading: "Current Plan", label: "Plan not loaded", tone: null, orgWide: false });
   });
 });
 

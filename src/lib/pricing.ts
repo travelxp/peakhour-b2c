@@ -278,6 +278,17 @@ export function suiteTrialDays(pricing: PricingResponse | null): number | null {
   return typeof days === "number" && days > 0 ? days : null;
 }
 
+/**
+ * The Suite trial for a marketing page that states no price (the homepage,
+ * the module pages, /how-it-works, /peaks, the header): one cached read under
+ * the pinned "DEFAULT" key /auth uses, reading only `trialDays` (owner rule
+ * 2026-10-06, `lib/trial-copy`). Null when the catalog gives no trial or the
+ * api is unreachable: the page then promises none.
+ */
+export async function marketingTrialDays(): Promise<number | null> {
+  return suiteTrialDays(await getPricing("DEFAULT"));
+}
+
 /** The Suite card's signup button: the trial it starts, when the catalog
  *  gives one (D19: a new business starts on a Suite trial). */
 export function suiteCtaLabel(trialDays: number): string {

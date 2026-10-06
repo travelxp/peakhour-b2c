@@ -45,9 +45,6 @@ export default function OpengraphImage() {
           <div style={{ display: "flex", fontSize: 26, fontWeight: 700, color: GOLD }}>
             Commerce · Content · Growth · Support · Presence
           </div>
-          <div style={{ display: "flex", fontSize: 24, color: "#b9b2a2" }}>
-            No credit card
-          </div>
         </div>
       </div>
     ),

@@ -44,7 +44,7 @@ const fraunces = Fraunces({
 
 const DEFAULT_TITLE = "Peakhour.ai — The AI business platform for growing brands";
 const DEFAULT_DESCRIPTION =
-  "Five AI modules — Commerce, Content, Growth, Support, Presence — that sell, publish, advertise, answer, and get you found. One plan for all five, with a free trial to start. No credit card.";
+  "Five AI modules — Commerce, Content, Growth, Support, Presence — that sell, publish, advertise, answer, and get you found. One plan for all five.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE.url),

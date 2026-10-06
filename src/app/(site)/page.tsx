@@ -11,7 +11,9 @@ import {
 import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
 import { pageMetadata } from "@/lib/seo";
-import { HERO_TRUST_POINTS } from "@/lib/pillar-console";
+import { heroTrustPoints } from "@/lib/pillar-console";
+import { marketingTrialDays } from "@/lib/pricing";
+import { announcementBar, hasTrial, startPanel, trialNote } from "@/lib/trial-copy";
 import { AUDIENCE_SEGMENTS } from "@/lib/audience-segments";
 import { PILLARS } from "@/lib/pillars";
 import { badgedComingSoonKeys } from "@/lib/pillar-channels";
@@ -34,34 +36,19 @@ import { STATIC_FALLBACK_INTEGRATIONS } from "@/lib/integrations-fallback";
 export const metadata = pageMetadata({
   title: "Peakhour.ai — The AI business platform for growing brands",
   description:
-    "Five AI modules — Commerce, Content, Growth, Support, Presence — that sell, publish, advertise, answer, and get you found. One plan for all five, with a free trial to start. No credit card.",
+    "Five AI modules — Commerce, Content, Growth, Support, Presence — that sell, publish, advertise, answer, and get you found. One plan for all five.",
   path: "/",
 });
 
 /**
  * Trial → plan — the current pricing architecture (billing plan D19). There is
  * no free tier and no per-module Pro: a new business starts on a Peakhour Suite
- * trial (every module), and when it ends buys Suite, or Agency for many
+ * trial when the catalog gives one, and buys Suite, or Agency for many
  * businesses, to keep going. Don't reintroduce "Free plan" or "Move to Pro"
- * claims here; neither plan exists.
+ * claims here; neither plan exists. ★Every trial sentence on this page is the
+ * catalog's (`marketingTrialDays` -> `lib/trial-copy`; owner rule 2026-10-06,
+ * official review R2 on b2c#591): no trial, no promise.
  */
-const TRIAL_POINTS = [
-  {
-    title: "Start in minutes",
-    detail:
-      "No credit card required. Connect your business and start your free Peakhour Suite trial.",
-  },
-  {
-    title: "Keep going on one plan",
-    detail:
-      "When your trial ends, Peakhour Suite keeps every module on for one monthly or yearly price. Running many businesses? Agency covers them all.",
-  },
-  {
-    title: "One AI currency across every product",
-    detail:
-      "Peaks power AI across Commerce, Content, Growth, Support, and Presence, giving you one simple way to manage AI usage across your business.",
-  },
-] as const;
 
 // Same validator as /auth — sanitises a tampered ?ref= so the redirect target
 // only ever carries a well-formed inviter code.
@@ -74,7 +61,7 @@ const REFERRAL_CODE_PATTERN = /^[0-9A-Z]{4,32}$/;
  * someone onto a waitlist that no longer exists (or offer a free start while
  * signups are shut).
  */
-function closingLede(mode: PlatformSignupMode): string {
+function closingLede(mode: PlatformSignupMode, trialDays: number | null): string {
   const tail =
     "bring Commerce, Content, Growth, Support and Presence into one intelligence layer.";
   switch (mode) {
@@ -85,7 +72,7 @@ function closingLede(mode: PlatformSignupMode): string {
     case "closed":
       return `Peakhour opens soon — and will ${tail}`;
     case "open":
-      return `Start a free trial of Peakhour and ${tail}`;
+      return hasTrial(trialDays) ? `Start a free trial of Peakhour and ${tail}` : `Start with Peakhour and ${tail}`;
   }
 }
 
@@ -112,10 +99,13 @@ export default async function Home({
   // Integration catalog from the platform resolver (CMS-driven, env-gated,
   // stage-capped). Falls back to the static list below if the API is
   // unreachable so the landing never hard-fails.
-  const catalog = await getPublicCatalog();
+  const [catalog, trialDays] = await Promise.all([getPublicCatalog(), marketingTrialDays()]);
   const platform = catalog?.platform;
   const signupMode = platform?.signupMode ?? "open";
-  const cta = signupCta(signupMode);
+  const cta = signupCta(signupMode, trialDays);
+  const bar = announcementBar(trialDays);
+  const panel = startPanel(trialDays);
+  const closingNote = trialNote(trialDays);
   // Fall back on an EMPTY published set too, not just a null catalog — a
   // catalog that publishes nothing would otherwise render the section heading
   // over an empty grid.
@@ -193,13 +183,14 @@ export default async function Home({
         </div>
       ) : null}
 
-      {/* Trial announcement bar (D19: no free tier; every business starts on a Suite trial) */}
-      <div className="bg-brand-gradient px-4 py-2 text-center text-sm font-semibold text-brand-contrast">
-        Try every module free — no credit card required.{" "}
-        <span className="font-normal opacity-80">
-          One plan keeps all five on when your trial ends.
-        </span>
-      </div>
+      {/* Trial announcement bar (D19: no free tier; every business starts on a Suite trial).
+          Only when the catalog gives a trial (`announcementBar`). */}
+      {bar ? (
+        <div className="bg-brand-gradient px-4 py-2 text-center text-sm font-semibold text-brand-contrast">
+          {bar.lead}{" "}
+          <span className="font-normal opacity-80">{bar.tail}</span>
+        </div>
+      ) : null}
 
       <Header />
 
@@ -220,7 +211,7 @@ export default async function Home({
                   is the visitor's own problem stated back to them. */}
               <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand-label">
                 <span className="h-0.5 w-7 bg-brand-gradient" aria-hidden />
-                Five AI modules. One platform. Free to start.
+                Five AI modules. One platform.{hasTrial(trialDays) ? " Free to start." : ""}
               </span>
               {/* `block` on the accent, not a line break: the question has to
                   land on its own line at EVERY width, and a <br> would only
@@ -271,7 +262,7 @@ export default async function Home({
                   clear the fold with it — they are the answer to "what does
                   clicking this cost me". */}
               <p className="mt-5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
-                {HERO_TRUST_POINTS.map((promise, i) => (
+                {heroTrustPoints(trialDays).map((promise, i) => (
                   <span key={promise} className="flex items-center gap-x-2">
                     {i > 0 && (
                       <span aria-hidden className="opacity-40">
@@ -393,7 +384,7 @@ export default async function Home({
               <div>
                 <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand">
                   <span className="h-0.5 w-7 bg-brand-gradient" aria-hidden />
-                  Try it free. Scale when you&rsquo;re ready.
+                  {panel.eyebrow}
                 </span>
                 <h2 className="mt-4 text-3xl font-extrabold tracking-tight text-pretty lg:text-4xl">
                   Everything you need to get started.{" "}
@@ -402,14 +393,11 @@ export default async function Home({
                   </span>
                 </h2>
                 <p className="mt-4 max-w-lg text-on-ink-dim">
-                  Start with a free trial of everything Peakhour does. Connect
-                  your business, explore every product, and see real value before
-                  you buy. Keep going on Peakhour Suite when your trial ends, or on
-                  Agency when you run many businesses.
+                  {panel.lede}
                 </p>
               </div>
               <div className="flex flex-col gap-3.5">
-                {TRIAL_POINTS.map((point) => (
+                {panel.points.map((point) => (
                   <div
                     key={point.title}
                     className="flex gap-3 rounded-xl border border-brand/25 bg-brand/6 px-4 py-3.5 transition-colors hover:border-brand/60"
@@ -507,7 +495,7 @@ export default async function Home({
                 between every part of your business?
               </h2>
               <p className="mx-auto mt-4 max-w-xl text-on-ink-dim">
-                {closingLede(signupMode)}
+                {closingLede(signupMode, trialDays)}
               </p>
               {/* Both halves are gated together: the promise under the button
                   answers "what does clicking this cost me", and with signups
@@ -521,9 +509,9 @@ export default async function Home({
                     {cta.label}
                     <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
                   </Link>
-                  <p className="mt-5 text-sm text-on-ink-dim">
-                    Free trial · No credit card
-                  </p>
+                  {closingNote ? (
+                    <p className="mt-5 text-sm text-on-ink-dim">{closingNote}</p>
+                  ) : null}
                 </>
               )}
             </div>

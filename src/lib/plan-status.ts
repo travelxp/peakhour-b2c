@@ -238,6 +238,46 @@ export function planHeadline(
 }
 
 /**
+ * The billing page's subscription header: the heading, and the one badge
+ * beside it (official review R2 on b2c#591).
+ *
+ * ★THE PER-BUSINESS ANSWER DECIDES WHENEVER `/me` SERVES COVERAGE. The page
+ * once chose "Your subscription" and a green "N paid plans" from every line in
+ * the org, and showed the business's own state only when the org had bought
+ * nothing: a padlocked business whose sibling bought Suite read "1 paid plan"
+ * above "Your business has no plan", and a trial business "1 paid plan"
+ * beside "Trial · 14d left", while the top bar said otherwise. With coverage
+ * served the header is the state alone (`planHeadline`), and ★no count:
+ * `/dashboard/org` lists every business's lines (no `businessId` on a row)
+ * until the api scopes its product lists (P4.3b), so any count would be the
+ * org's beside a business's state.
+ *
+ * The org-wide reading (`orgWide`) stays only as the fallback for a `/me`
+ * with no coverage (an older api, no business picked): there it is the only
+ * answer, and the count is what it was.
+ */
+export function billingHeader(
+  summary: PlanSummaryish | undefined,
+  business?: BusinessPlanish | null,
+): { heading: string; label: string; tone: PlanState | null; orgWide: boolean } {
+  const headline = planHeadline(summary, business);
+  const lines = coverageOf(business) === null ? heldLines(summary?.products) : [];
+  if (lines.length === 0) {
+    return { heading: "Current Plan", label: headline.label, tone: headline.state, orgWide: false };
+  }
+  // Billed lines only: during a plan change the ending line and its
+  // replacement are both listed, and one is paid for (`isBilledLine`).
+  const paid = lines.filter(isBilledLine).length;
+  const n = paid > 0 ? paid : lines.length;
+  return {
+    heading: "Your subscription",
+    label: `${n}${paid > 0 ? " paid" : ""} ${n === 1 ? "plan" : "plans"}`,
+    tone: "paid",
+    orgWide: true,
+  };
+}
+
+/**
  * What to CALL the business's plan, or null before the summary has loaded.
  *
  * ★`planName` over the machine key: the summary's own type says so, and

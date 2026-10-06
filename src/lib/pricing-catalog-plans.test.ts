@@ -9,7 +9,8 @@ import {
   type ResolvedProductTier,
 } from "./pricing";
 import { suiteModuleSlugs } from "./pricing-catalog";
-import { hasTrial, signupPromises, signupStats, SIGNUP_PROMISES, PRELAUNCH_PROMISES, HERO_TRUST_POINTS } from "./pillar-console";
+import { heroTrustPoints, signupPromises, signupStats, SIGNUP_PROMISES, PRELAUNCH_PROMISES } from "./pillar-console";
+import { hasTrial } from "./trial-copy";
 
 /**
  * One catalog on the website (billing plan D19, P4.7): Peakhour Suite, Agency
@@ -150,7 +151,7 @@ describe("signup copy promises a trial, not a free plan (D19)", () => {
   });
 
   it("no promise names a free plan", () => {
-    for (const line of [...SIGNUP_PROMISES, ...PRELAUNCH_PROMISES, ...HERO_TRUST_POINTS]) {
+    for (const line of [...SIGNUP_PROMISES, ...PRELAUNCH_PROMISES, ...heroTrustPoints(14), ...heroTrustPoints(null)]) {
       expect(line.toLowerCase()).not.toContain("free plan");
     }
     expect(SIGNUP_PROMISES).toContain("Free trial of every module");

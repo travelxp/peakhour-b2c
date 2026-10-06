@@ -19,6 +19,7 @@
  */
 
 import { unstable_cache as cache } from "next/cache";
+import { trialCtaLabel } from "./trial-copy";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 
@@ -192,11 +193,15 @@ export interface SignupCta {
  * ★"Start free trial", not "Start free": there is no free tier (billing plan
  * D19). Signing up starts the business on a Peakhour Suite trial, which ends;
  * "free" alone promised a plan that never does.
+ *
+ * ★AND ONLY WHEN THE CATALOG GIVES A TRIAL (owner rule 2026-10-06, official
+ * review R2 on b2c#591): `trialDays` is `suiteTrialDays`, and without one the
+ * open door reads "Get started" (`trialCtaLabel`).
  */
-export function signupCta(mode: PlatformSignupMode): SignupCta {
+export function signupCta(mode: PlatformSignupMode, trialDays: number | null): SignupCta {
   switch (mode) {
     case "open":
-      return { label: "Start free trial", href: "/auth" };
+      return { label: trialCtaLabel(trialDays), href: "/auth" };
     case "waitlist_only":
       return { label: "Join the waitlist", href: "/auth?intent=waitlist" };
     case "invite_only":

@@ -8,11 +8,13 @@ import { Button } from "@/components/ui/button";
 import { PeaksGlyph } from "@/components/peaks/peaks-glyph";
 import { Peaks } from "@/components/peaks/peaks";
 import { getPeaks, formatPackPrice, type PeakPack } from "@/lib/peaks";
+import { marketingTrialDays } from "@/lib/pricing";
+import { hasTrial, trialCtaLabel } from "@/lib/trial-copy";
 
 export const metadata: Metadata = {
   title: "Peaks — AI credits that power Peakhour.ai",
   description:
-    "Peaks are the AI credits behind every Peakhour.ai feature. Every plan includes a monthly allowance — the free trial too; purchased Peaks never expire, are non-refundable, and work across every Peakhour product.",
+    "Peaks are the AI credits behind every Peakhour.ai feature. Every plan includes a monthly allowance; purchased Peaks never expire, are non-refundable, and work across every Peakhour product.",
 };
 
 /**
@@ -33,7 +35,9 @@ export default async function PeaksPage() {
       ? vercelCountry.toUpperCase()
       : "DEFAULT";
 
-  const peaks = await getPeaks(country);
+  // The trial is named only when the catalog gives one (owner rule
+  // 2026-10-06, `lib/trial-copy`).
+  const [peaks, trialDays] = await Promise.all([getPeaks(country), marketingTrialDays()]);
   const packs = peaks?.packs ?? [];
 
   return (
@@ -60,7 +64,7 @@ export default async function PeaksPage() {
                 </Link>
               </Button>
               <Button asChild size="lg" variant="outline">
-                <Link href="/auth">Start free trial</Link>
+                <Link href="/auth">{trialCtaLabel(trialDays)}</Link>
               </Button>
             </div>
           </div>
@@ -73,7 +77,7 @@ export default async function PeaksPage() {
               <HowItWorksCard
                 icon={<Sparkles className="size-5" />}
                 title="Included with every plan"
-                body="Peaks power every Peakhour.ai product, and every plan comes with a monthly allowance — your free trial included. Agency and Enterprise carry more."
+                body={`Peaks power every Peakhour.ai product, and every plan comes with a monthly allowance${hasTrial(trialDays) ? " — your free trial included" : ""}. Agency and Enterprise carry more.`}
               />
               <HowItWorksCard
                 icon={<Zap className="size-5" />}
@@ -156,7 +160,7 @@ export default async function PeaksPage() {
                 </Link>
               </Button>
               <Button asChild size="lg" variant="outline">
-                <Link href="/auth">Start free trial</Link>
+                <Link href="/auth">{trialCtaLabel(trialDays)}</Link>
               </Button>
             </div>
           </div>
