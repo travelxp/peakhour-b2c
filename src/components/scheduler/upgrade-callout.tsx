@@ -4,7 +4,7 @@
  * <UpgradeCallout /> — small amber callout the composer renders when
  * the user has selected an option their plan doesn't unlock. The
  * UpgradeDrawer pattern (link to /pricing or open in-app drawer) is
- * the bigger surface; this is the compact "Pro feature" hint that
+ * the bigger surface; this is the compact "not on your plan" hint that
  * sits next to the gated control.
  */
 

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Check } from "lucide-react";
 import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
-import { getPricing, findBundleTier, formatMonthly, formatPeaks } from "@/lib/pricing";
+import { getPricing, findBundleTier, agencyCardPrice, formatPeaks } from "@/lib/pricing";
 import { getPublicCatalog, signupCta } from "@/lib/catalog";
 import { pageMetadata } from "@/lib/seo";
 
@@ -55,7 +55,10 @@ export default async function TeamsPricingPage() {
   const agency = findBundleTier(pricing, "agency");
   const enterprise = findBundleTier(pricing, "enterprise");
 
-  const agencyPrice = agency ? formatMonthly(agency.pricing) : "$299";
+  // Agency is sold quarterly and yearly, never monthly (D5): the card quotes
+  // the year (`agencyCardPrice`), and with no Agency row says it is priced at
+  // checkout instead of the invented "$299/month" it used to fall back to.
+  const agencyPrice = agencyCardPrice(agency);
   const agencyPeaks =
     typeof agency?.peaksIncluded === "number"
       ? formatPeaks(agency.peaksIncluded)
@@ -147,12 +150,17 @@ export default async function TeamsPricingPage() {
                   className="text-4xl font-extrabold tracking-tight"
                   style={{ fontFamily: "var(--font-space-grotesk)" }}
                 >
-                  {agencyPrice}
+                  {agencyPrice ? agencyPrice.price : "Priced at checkout"}
                 </span>
-                <span className="text-sm text-muted-foreground">
-                  / month, per business unit
-                </span>
+                {agencyPrice?.list && (
+                  <span className="text-base font-bold text-muted-foreground line-through decoration-2">
+                    {agencyPrice.list}
+                  </span>
+                )}
               </div>
+              {agencyPrice && (
+                <p className="mt-1 text-sm text-muted-foreground">{agencyPrice.per}</p>
+              )}
               <p className="mt-3 text-sm text-muted-foreground">
                 Every product, for one business — one unit per client. Add units
                 as your roster grows.

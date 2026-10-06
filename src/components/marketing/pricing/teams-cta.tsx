@@ -2,9 +2,8 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 
 /**
- * "Looking for an Agency or Enterprise plan?" band. Deliberately kept OFF the
- * per-pillar comparison tables (bundle plans aren't a pillar tier) and routed to
- * their own page. Reused on the hub and on every pillar pricing page.
+ * "Looking for an Agency or Enterprise plan?" band on the pricing hub, routed
+ * to their own page (/pricing/teams).
  *
  * Aligned with the redesigned pricing cards: the same 3xl radius, the same
  * subtle border and card ground, the same eyebrow-and-rule the section headings
@@ -13,7 +12,7 @@ import { ArrowRight } from "lucide-react";
  * place on the surface with a heavy gradient. The accent it needed was the
  * brand rule and the filled CTA it already had, not the background.
  */
-export function TeamsCtaBand({ pillarName }: { pillarName?: string }) {
+export function TeamsCtaBand() {
   return (
     <div className="rounded-3xl border bg-card px-6 py-8 sm:px-10 sm:py-10">
       <div className="flex flex-col items-start justify-between gap-6 sm:flex-row sm:items-center">
@@ -26,9 +25,8 @@ export function TeamsCtaBand({ pillarName }: { pillarName?: string }) {
             Looking for an Agency or Enterprise plan?
           </h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            Get {pillarName ? `${pillarName} and every other module` : "every module"}{" "}
-            across many businesses, with volume Peaks, one unit per client and
-            central billing.
+            Get every module across many businesses, with volume Peaks, one
+            unit per client and central billing.
           </p>
         </div>
         <Link

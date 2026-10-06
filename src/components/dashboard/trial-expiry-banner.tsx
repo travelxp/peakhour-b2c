@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Clock, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -10,8 +11,9 @@ import { useDashboardOrg, useExtendTrial } from "@/hooks/use-dashboard-org";
 /**
  * Surfaces when a trial is within the final 3 days. Includes a single
  * one-click "Extend by 7 days" CTA when the customer's self-serve
- * allowance is unused; falls back to a Contact-us link once that
- * one-shot has been spent. Dismissible — the dismissal lives in
+ * allowance is unused, and always a "Buy a plan" link: when the Suite
+ * trial ends the business holds no plan until it buys (billing plan D19),
+ * so buying, not contacting us, is how it continues. Dismissible — the dismissal lives in
  * component state. The dashboard layout in Next.js app-router
  * persists across in-app navigations, so dismissal effectively holds
  * for the rest of the browser session and returns on full page reload
@@ -106,20 +108,17 @@ export function TrialExpiryBanner() {
         </span>{" "}
         {alreadyExtended ? (
           <span>
-            You&apos;ve used your one-time extension —{" "}
-            <a
-              href="mailto:hello@peakhour.ai"
-              className="underline underline-offset-2"
-            >
-              contact us
-            </a>{" "}
-            to continue.
+            You&apos;ve used your one-time extension. Buy a plan to keep
+            using Peakhour after it ends.
           </span>
         ) : (
-          <span>Extend by 7 days, no questions asked.</span>
+          <span>Extend by 7 days, no questions asked, or buy a plan now.</span>
         )}
       </div>
       <div className="flex items-center gap-2">
+        <Button size="sm" variant={alreadyExtended ? "default" : "outline"} asChild>
+          <Link href="/dashboard/settings/billing">Buy a plan</Link>
+        </Button>
         {!alreadyExtended ? (
           <Button
             size="sm"

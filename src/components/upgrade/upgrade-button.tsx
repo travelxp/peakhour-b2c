@@ -11,7 +11,7 @@ import { UpgradeDrawer } from "./upgrade-drawer";
 
 /**
  * UpgradeButton — single CTA the rest of the app uses to open the
- * upgrade drawer. Renders a gradient-ringed Pro chip by default; pass
+ * upgrade drawer. Renders a gradient-ringed "Upgrade" chip by default; pass
  * `variant="inline-link"` for a low-emphasis text link, or
  * `variant="ghost"` for a flat button.
  *

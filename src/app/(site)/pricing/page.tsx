@@ -1,37 +1,26 @@
 import { headers } from "next/headers";
 import Link from "next/link";
-import { ArrowRight, Check } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
-import {
-  getPricing,
-  pillarProducts,
-  fromMonthly,
-  formatMonthly,
-  formatPeaks,
-  freeTier,
-  findBundleTier,
-  productBundleTier,
-} from "@/lib/pricing";
+import { getPricing, findBundleTier, suiteCtaLabel } from "@/lib/pricing";
 import { getPublicCatalog, publicMarketingIntegrations, signupCta } from "@/lib/catalog";
 import { badgedComingSoonKeys } from "@/lib/pillar-channels";
 import {
   PRICING_PILLAR_ORDER,
-  PAID_PILLAR_ORDER,
   pricingPillar,
+  suiteModuleSlugs,
 } from "@/lib/pricing-catalog";
-import { PILLARS } from "@/lib/pillars";
 import { pageMetadata } from "@/lib/seo";
-import { PillarPriceCard } from "@/components/marketing/pricing/pillar-price-card";
 import { SuiteCard } from "@/components/marketing/pricing/suite-card";
 import { ChannelsStrip } from "@/components/marketing/pricing/channels-strip";
 import { TeamsCtaBand } from "@/components/marketing/pricing/teams-cta";
 import { PricingFaq } from "@/components/marketing/pricing/pricing-faq";
 
 export const metadata = pageMetadata({
-  title: "Pricing — one plan, five modules",
+  title: "Pricing — Peakhour Suite, Agency and Enterprise",
   description:
-    "Peakhour Suite is one plan for Commerce, Content, Growth, Support and Presence — one login, one Peaks wallet, one price. Every module has a free tier. Agency and Enterprise plans for teams.",
+    "Peakhour Suite is one plan for Commerce, Content, Growth, Support and Presence — one login, one Peaks wallet, one price. Every business starts with a free Suite trial, no card. Agency and Enterprise plans for teams.",
   path: "/pricing",
 });
 
@@ -40,15 +29,20 @@ function countryFrom(header: string | null): string {
 }
 
 /**
- * /pricing — the pricing hub. A free-first value ladder: the free Presence
- * pillar leads as the on-ramp, then the four paid pillars follow as cards, each
- * linking to its own comparison page. Bundle plans (Agency/Enterprise) live on
- * their own page, reached by the CTA band — never mixed into a pillar's table.
+ * /pricing — the pricing hub. One catalog (billing plan D19): Peakhour Suite
+ * for a business, Agency and Enterprise for teams (their own page, reached by
+ * the band below). There is no free tier and there are no per-module plans: a
+ * new business starts on a Suite trial, and when it ends buys Suite or Agency
+ * to continue.
  *
- * Prices, tiers and availability are read from the live pricing API (env-gated
- * server-side); pillar identity + copy are static (lib/pricing-catalog). The
- * page degrades gracefully per pillar — a prod-hidden product shows "Coming
- * soon" and links to its waitlist view rather than vanishing.
+ * ★THE PER-MODULE LADDER, THE FREE PRESENCE BAND AND THE FOUR PAID MODULE CARDS
+ * WENT, with the per-module pricing pages they linked to (P4.7). Each one sold
+ * a Free and a Pro tier the catalog no longer has.
+ *
+ * Prices, the trial length and which modules Suite includes are read from the
+ * live pricing API (env-gated server-side); module identity and copy are static
+ * (lib/pricing-catalog). Without a Suite in this environment's catalog the page
+ * names no price and no trial rather than inventing either.
  */
 export default async function PricingPage() {
   const h = await headers();
@@ -70,17 +64,12 @@ export default async function PricingPage() {
   const openSignup = signupMode === "open";
   const cta = signupCta(signupMode);
 
-  const presence = pillarProducts(pricing, "presence")[0];
-  const presenceFree = presence ? freeTier(presence) : undefined;
-  /**
-   * Peakhour Suite — the one plan that sells all five modules.
-   *
-   * Absent until the catalog seeds it (migration 258), and the page has to read
-   * correctly either way: with a Suite it leads with the Suite, without one it
-   * falls back to the per-module ladder this page has always shown. Nothing
-   * here invents a price for a plan the environment does not serve.
-   */
   const suite = findBundleTier(pricing, "suite");
+  // What Suite composes AND this site renders: the hero list and the card ask
+  // the same question, so a module cannot read "Included" in one and be
+  // missing from the other.
+  const included = new Set(suiteModuleSlugs(pricing));
+  const trialDays = suite?.pricing.trialDays ?? 0;
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -96,29 +85,18 @@ export default async function PricingPage() {
                 Pricing
               </span>
               <h1 className="mt-4 text-4xl font-extrabold leading-[1.05] tracking-tight text-pretty sm:text-5xl">
-                {suite ? (
-                  <>
-                    Everything a business does online.
-                    <br />
-                    <span className="font-serif font-normal italic text-brand-gradient">
-                      One plan.
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    Get found for free.
-                    <br />
-                    Then grow,{" "}
-                    <span className="font-serif font-normal italic text-brand-gradient">
-                      one module at a time.
-                    </span>
-                  </>
-                )}
+                Everything a business does online.
+                <br />
+                <span className="font-serif font-normal italic text-brand-gradient">
+                  One plan.
+                </span>
               </h1>
               <p className="mt-5 max-w-xl text-lg text-muted-foreground">
-                {suite
-                  ? "Commerce, Content, Growth, Support and Presence — five products, one login, one Peaks wallet, one price. Start free and upgrade when you outgrow it."
-                  : "Five products, one login. Start free, add what you need, and pay only for the modules you switch on."}
+                Commerce, Content, Growth, Support and Presence — five products,
+                one login, one Peaks wallet, one price.
+                {trialDays > 0
+                  ? ` Every business starts with a free ${trialDays}-day trial of all of it.`
+                  : ""}
               </p>
               <div className="mt-8 flex flex-wrap items-center gap-4">
                 {!cta.disabled && (
@@ -126,112 +104,67 @@ export default async function PricingPage() {
                     href={cta.href}
                     className="group inline-flex items-center gap-2 rounded-xl bg-brand-gradient px-6 py-3.5 text-sm font-bold text-brand-contrast shadow-sm transition-transform hover:-translate-y-0.5 focus-visible:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
                   >
-                    {openSignup ? "Start free with Presence" : cta.label}
+                    {openSignup ? suiteCtaLabel(trialDays) : cta.label}
                     <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
                   </Link>
                 )}
-                <Link
-                  href={suite ? "#suite" : "#pillars"}
-                  className="inline-flex items-center rounded-xl border-2 px-6 py-3 text-sm font-bold transition-colors hover:border-brand hover:text-brand"
-                >
-                  {suite ? "See what's included" : "See all modules"}
-                </Link>
+                {suite && (
+                  <Link
+                    href="#suite"
+                    className="inline-flex items-center rounded-xl border-2 px-6 py-3 text-sm font-bold transition-colors hover:border-brand hover:text-brand"
+                  >
+                    See what&rsquo;s included
+                  </Link>
+                )}
               </div>
-              <p className="mt-4 text-sm text-muted-foreground">
-                <span aria-hidden className="font-bold text-brand-label">
-                  ✓
-                </span>{" "}
-                No card to start · one Peaks wallet · cancel anytime
-              </p>
+              {/* No card: the signup trial collects none (D19). Only stated
+                  when there is a trial to start. */}
+              {trialDays > 0 && (
+                <p className="mt-4 text-sm text-muted-foreground">
+                  <span aria-hidden className="font-bold text-brand-label">
+                    ✓
+                  </span>{" "}
+                  No card to start · one Peaks wallet · cancel anytime
+                </p>
+              )}
             </div>
 
-            {/* The five modules, in a dark panel. With a Suite on sale the
-                right-hand column stops being a price list — every module is
-                included, and quoting five separate prices beside a single-price
-                headline is the contradiction the Suite exists to remove. */}
+            {/* The five modules, in a dark panel: what one plan covers. No
+                per-module price — there is no per-module plan to price (D19).
+                Each row links to the module's own page. */}
             <div className="overflow-hidden rounded-2xl border border-ink-line bg-ink p-3 text-on-ink shadow-2xl">
               <ul className="flex flex-col gap-1.5">
                 {PRICING_PILLAR_ORDER.map((slug) => {
                   const pillar = pricingPillar(slug);
                   const Icon = pillar.icon;
-                  const product = pillarProducts(pricing, slug)[0];
-                  const paid = product ? fromMonthly(product) : null;
-                  const hasFree = !!(product && freeTier(product));
-                  const price = !product
-                    ? slug === "presence"
-                      ? "Free"
-                      : "Soon"
-                    : paid
-                      ? formatMonthly(paid.pricing)
-                      : hasFree
-                        ? "Free"
-                        : "Soon";
-                  const isFree = price === "Free";
-                  // ★ASKED OF THIS PRODUCT. `Boolean(suite)` alone printed
-                  // "Included" on the same row whose price this ladder had just
-                  // computed as "Soon"; `&& Boolean(product)` fixed that and
-                  // still claimed a module Suite does not compose. The bundle's
-                  // presence in `product.tiers` is the catalog SAYING it is
-                  // included, which is the only thing that licenses the word.
-                  // ★NOT `!isFree` — THAT GUARD SILENCED THE WHOLE LADDER.
-                  // Once migration 260 retires the module `.paid` tiers,
-                  // `fromMonthly` returns null for every module and `price`
-                  // falls through to "Free" — so `!isFree` made "Included"
-                  // unreachable on all five rows, while the card grid further
-                  // down (which has no such guard) went on printing "Included ·
-                  // in Peakhour Suite" for the same modules on the same page.
-                  //
-                  // The thing that actually distinguishes Presence is Presence:
-                  // it has no paid tier and is not getting one, which is why
-                  // this very expression already special-cases it two lines
-                  // above. Same test, so the two cannot drift apart.
-                  const included =
-                    slug !== "presence" && Boolean(productBundleTier(product, "suite"));
+                  const isIn = included.has(slug);
                   return (
                     <li key={slug}>
                       <Link
-                        href={`/pricing/${slug}`}
-                        className={`flex items-center gap-3.5 rounded-xl px-4 py-3 transition-colors ${
-                          slug === "presence"
-                            ? "bg-brand-gradient text-brand-contrast"
-                            : "hover:bg-white/5"
-                        }`}
+                        href={`/${slug}`}
+                        className="flex items-center gap-3.5 rounded-xl px-4 py-3 transition-colors hover:bg-white/5"
                       >
-                        <span
-                          className={`flex size-9 shrink-0 items-center justify-center rounded-lg ${
-                            slug === "presence"
-                              ? "bg-white/25"
-                              : "bg-white/10"
-                          }`}
-                        >
+                        <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-white/10">
                           <Icon className="size-4" strokeWidth={2} aria-hidden />
                         </span>
                         <span className="min-w-0">
                           <span className="block text-sm font-bold">
                             {pillar.name}
                           </span>
-                          <span
-                            className={`block truncate text-xs ${
-                              slug === "presence"
-                                ? "text-brand-contrast/70"
-                                : "text-on-ink-dim"
-                            }`}
-                          >
+                          <span className="block truncate text-xs text-on-ink-dim">
                             {pillar.promise}
                           </span>
                         </span>
+                        {/* ★"Included" ONLY WHERE THE CATALOG SAYS SO
+                            (`suiteModuleSlugs`); a module Suite does not
+                            compose here reads "Soon", never a price. */}
                         <span
                           className={`ml-auto shrink-0 text-sm font-bold tabular-nums ${
-                            slug === "presence" ? "" : included || isFree ? "text-success" : "text-brand"
+                            isIn ? "text-success" : "text-on-ink-dim"
                           }`}
                           style={{ fontFamily: "var(--font-space-grotesk)" }}
                         >
-                          {included ? "Included" : price}
-                          {!included && paid && (
-                            <span className="text-[10px] font-medium opacity-70">
-                              /mo
-                            </span>
-                          )}
+                          {isIn ? "Included" : "Soon"}
                         </span>
                       </Link>
                     </li>
@@ -244,20 +177,14 @@ export default async function PricingPage() {
 
         {/* ── Peakhour Suite ───────────────────────────────────────────── */}
         {suite && (
-          // ★`scroll-mt` BECAUSE THE HEADER IS `sticky top-0`. Both
-          // `/pricing/[pillar]` and `/pricing/teams` link to `#suite`, and
-          // without this every one of them lands with the card's badge and the
-          // top of its heading behind the header — the same reason `#pillars`
-          // below already carries it.
+          // ★`scroll-mt` BECAUSE THE HEADER IS `sticky top-0`: `/pricing/teams`
+          // and the hero link to `#suite`, and without this they land with the
+          // card's badge behind the header.
           <section id="suite" className="scroll-mt-20 pb-16 sm:pb-20">
             <div className="mx-auto max-w-6xl px-4 sm:px-6">
               <SuiteCard
                 tier={suite}
-                // What the plan composes AND this site renders — the same
-                // per-product question the ladder above asks.
-                includedSlugs={PRICING_PILLAR_ORDER.filter((slug) =>
-                  Boolean(productBundleTier(pillarProducts(pricing, slug)[0], "suite")),
-                )}
+                includedSlugs={[...included]}
                 cta={cta}
                 openSignup={openSignup}
               />
@@ -265,132 +192,10 @@ export default async function PricingPage() {
           </section>
         )}
 
-        {/* ── Free module band (Presence) ──────────────────────────────── */}
-        <section id="pillars" className="scroll-mt-20 pb-4">
+        {/* ── Agency / Enterprise ──────────────────────────────────────── */}
+        <section className="pb-14">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
-            <div className="relative overflow-hidden rounded-3xl border border-brand/30 bg-brand-soft/50 shadow-sm dark:bg-brand/5">
-              <span
-                className="absolute inset-y-0 left-0 w-1.5 bg-brand-gradient"
-                aria-hidden
-              />
-              <div className="grid gap-8 p-8 sm:p-10 lg:grid-cols-[1.35fr_1fr]">
-                <div>
-                  <div className="flex flex-wrap items-center gap-2.5">
-                    <span className="inline-flex items-center rounded-full bg-brand-gradient px-3 py-1 text-xs font-bold text-brand-contrast">
-                      Start here
-                    </span>
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-success/30 bg-success/10 px-2.5 py-0.5 text-[11px] font-semibold text-success-on-tint">
-                      <span className="size-1.5 rounded-full bg-success" aria-hidden />
-                      Free forever
-                    </span>
-                  </div>
-                  <h2 className="mt-4 text-3xl font-extrabold tracking-tight text-brand-ink dark:text-foreground">
-                    Presence
-                  </h2>
-                  <p className="mt-2 max-w-md text-sm text-brand-ink/80 dark:text-muted-foreground">
-                    {PILLARS.presence.lede}
-                  </p>
-                  <div
-                    className="mt-5 text-4xl font-extrabold text-brand-ink dark:text-foreground"
-                    style={{ fontFamily: "var(--font-space-grotesk)" }}
-                  >
-                    $0
-                    <span className="ml-2 align-middle text-sm font-medium text-brand-ink/70 dark:text-muted-foreground">
-                      / forever
-                    </span>
-                  </div>
-                  <ul className="mt-5 grid gap-2.5 sm:grid-cols-2">
-                    {[
-                      ...PILLARS.presence.features.map((f) => f.title),
-                      ...(typeof presenceFree?.peaksIncluded === "number"
-                        ? [
-                            `${formatPeaks(presenceFree.peaksIncluded)} AI credits (Peaks) each month`,
-                          ]
-                        : []),
-                    ].map((item) => (
-                      <li
-                        key={item}
-                        className="flex items-start gap-2.5 text-sm text-brand-ink dark:text-foreground"
-                      >
-                        <Check
-                          className="mt-0.5 size-4 shrink-0 text-brand-strong"
-                          strokeWidth={2.5}
-                          aria-hidden
-                        />
-                        {item}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-
-                <div className="flex flex-col justify-center gap-3 rounded-2xl border border-brand/30 bg-background p-6 shadow-sm">
-                  <p className="font-serif text-lg font-semibold">
-                    Claim your business in 2 minutes
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    No credit card, ever. Upgrade to Peakhour Suite only when
-                    you&rsquo;re ready.
-                  </p>
-                  {!cta.disabled && (
-                    <Link
-                      href={cta.href}
-                      className="mt-1 inline-flex items-center justify-center gap-2 rounded-xl bg-brand-gradient px-5 py-3 text-sm font-bold text-brand-contrast shadow-sm transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
-                    >
-                      {openSignup ? "Start free" : cta.label}
-                    </Link>
-                  )}
-                  <Link
-                    href="/pricing/presence"
-                    className="inline-flex items-center justify-center rounded-xl border-2 px-5 py-2.5 text-sm font-bold transition-colors hover:border-brand hover:text-brand"
-                  >
-                    See what&rsquo;s included
-                  </Link>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* ── Paid pillars ─────────────────────────────────────────────── */}
-        <section className="py-14">
-          <div className="mx-auto max-w-6xl px-4 sm:px-6">
-            <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-              <div className="max-w-2xl">
-                <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand-label">
-                  <span className="h-0.5 w-7 bg-brand-gradient" aria-hidden />
-                  Add as you grow
-                </span>
-                <h2 className="mt-4 text-3xl font-extrabold tracking-tight text-pretty lg:text-4xl">
-                  Four more modules, each with a free tier
-                </h2>
-                <p className="mt-3 text-muted-foreground">
-                  Every module has a free tier to try. One plan — Peakhour
-                  Suite — turns all five on together, so there is nothing to
-                  assemble and no per-module maths.
-                </p>
-              </div>
-              <p className="shrink-0 rounded-full border bg-muted/40 px-3 py-1.5 text-xs font-medium text-muted-foreground">
-                Prices localized at checkout
-              </p>
-            </div>
-
-            <div className="mt-10 grid gap-5 sm:grid-cols-2">
-              {PAID_PILLAR_ORDER.map((slug) => {
-                const cardProduct = pillarProducts(pricing, slug)[0];
-                return (
-                  <PillarPriceCard
-                    key={slug}
-                    slug={slug}
-                    product={cardProduct}
-                    comingSoonKeys={comingSoonKeys}
-                    // Same rule as the ladder above, and asked of the same
-                    // per-product tier list: a card must not point at a plan
-                    // that will not grant it.
-                    suiteIncluded={Boolean(productBundleTier(cardProduct, "suite"))}
-                  />
-                );
-              })}
-            </div>
+            <TeamsCtaBand />
           </div>
         </section>
 
@@ -415,13 +220,6 @@ export default async function PricingPage() {
                 <ChannelsStrip comingSoonKeys={comingSoonKeys} />
               </div>
             </div>
-          </div>
-        </section>
-
-        {/* ── Agency / Enterprise ──────────────────────────────────────── */}
-        <section className="pb-14">
-          <div className="mx-auto max-w-6xl px-4 sm:px-6">
-            <TeamsCtaBand />
           </div>
         </section>
 

@@ -20,7 +20,16 @@ import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
 import { TaxAndInvoices } from "@/components/settings-tax-invoices";
 import { UpgradePlanDialog } from "@/components/upgrade/upgrade-plan-dialog";
-import { isBilledLine, lineKey, productRowAction } from "@/lib/plan-status";
+import {
+  heldLines,
+  isBilledLine,
+  lineKey,
+  planButtonLabel,
+  planDisplayName,
+  planState,
+  productRowAction,
+} from "@/lib/plan-status";
+import { PLAN_STATE_STYLES } from "@/components/dashboard/plan-badge";
 import { intervalSuffix, periodTotals } from "@/lib/billing-terms";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -45,20 +54,6 @@ function money(amount: number, currency: string | null): string {
     return `${currency} ${amount}`;
   }
 }
-
-// Mirrors the navbar PlanBadge tier accents so plan presentation stays
-// consistent across surfaces.
-const PLAN_STYLES: Record<string, string> = {
-  free: "bg-muted text-muted-foreground",
-  starter:
-    "bg-state-info/15 text-state-info-on-tint",
-  growth:
-    "bg-success/15 text-success-on-tint",
-  agency:
-    "bg-state-progress/15 text-state-progress-on-tint",
-  enterprise:
-    "bg-warning/15 text-warning-on-tint",
-};
 
 export default function BillingPage() {
   const queryClient = useQueryClient();
@@ -152,16 +147,13 @@ export default function BillingPage() {
     );
   }
 
-  // Prefer subscription.plan (canonical); fall back to billing.plan
-  // (legacy alias from the endpoint, also derived from subscription
-  // but kept on the response for old consumers).
-  const plan = details?.subscription?.plan ?? details?.billing?.plan ?? "free";
-  const planClass = PLAN_STYLES[plan] ?? PLAN_STYLES.free;
-  // Prefer the server-resolved NAME. `plan` is a machine tier key, and this badge
-  // used to render it under `capitalize` — which is how customers came to see
-  // "Commerce_assistant.Free" as their plan name.
-  const planLabel = details?.subscription?.planName ?? plan;
-  const trialActive = details?.subscription?.trialActive === true;
+  // One catalog, three states (D19, P4.7): the Suite trial, a paid plan, or no
+  // plan. Read from `lib/plan-status`, shared with the top-bar badge, so the two
+  // name and style one plan one way. A stored `free` / `.free` base or line
+  // (until P4.5) reads as no plan rather than as a product.
+  const state = planState(details) ?? "none";
+  const planLabel = planDisplayName(details) ?? "No plan";
+  const trialActive = state === "trial";
   const trialDays = details?.subscription?.trialDaysRemaining ?? 0;
   const trialEndsAt = details?.subscription?.trialEndsAt
     ? new Date(details.subscription.trialEndsAt)
@@ -169,16 +161,10 @@ export default function BillingPage() {
   const selfServeExtensionUsed =
     details?.subscription?.selfServeExtensionUsed === true;
   const features = details?.entitlements?.features ?? [];
-  // Paid products held beyond the base plan (active/trial portfolio subs). The
-  // base plan can be Free while the org owns a purchased product (e.g. Commerce
-  // Assistant) — without this, the page reads "Free" and prompts a re-purchase.
-  const products = details?.products ?? [];
+  // Bought lines (active/trial portfolio subs). A leftover `.free` line (until
+  // P4.5) is not a plan and is not listed (`heldLines`).
+  const products = heldLines(details?.products);
   const hasProducts = products.length > 0;
-  // Paid vs free matters for the headline: an org can hold a free floor product
-  // (the Shopify claim grant) without having bought anything.
-  // ★SHARED WITH THE TOP-BAR BADGE rather than re-stated here — the two
-  //  disagreeing about what "paid" means is what produced a permanent
-  //  "Upgrade" CTA over an org holding Peakhour Suite.
   // Billed lines only: during a plan change the ending line and its
   // replacement are both listed, and one is paid for (`isBilledLine`).
   const paidCount = products.filter(isBilledLine).length;
@@ -272,13 +258,13 @@ export default function BillingPage() {
                   className="font-medium bg-success/15 text-success-on-tint"
                 >
                   {paidCount > 0
-                    ? `${paidCount} paid ${paidCount === 1 ? "product" : "products"}`
-                    : `${products.length} ${products.length === 1 ? "product" : "products"}`}
+                    ? `${paidCount} paid ${paidCount === 1 ? "plan" : "plans"}`
+                    : `${products.length} ${products.length === 1 ? "plan" : "plans"}`}
                 </Badge>
               ) : (
                 <Badge
                   variant="secondary"
-                  className={cn("font-medium", planClass)}
+                  className={cn("font-medium", PLAN_STATE_STYLES[state])}
                 >
                   {planLabel}
                 </Badge>
@@ -309,10 +295,18 @@ export default function BillingPage() {
                 size="sm"
                 onClick={() => setUpgradeOpen(true)}
               >
-                Upgrade plan
+                {planButtonLabel(state)}
               </Button>
             </div>
           </div>
+          {/* Padlocked (D19): the trial has ended and nothing is held. Say what
+              the page is for, rather than a bare "No plan" chip. */}
+          {state === "none" ? (
+            <p className="mb-4 text-sm text-warning-on-tint">
+              Your business has no plan. Buy Peakhour Suite or Agency to keep
+              using Peakhour.
+            </p>
+          ) : null}
           {/* Fixed labels. An earlier draft flipped the first column between
               "Monthly total" and "Organization" depending on whether a total had
               resolved — a label that changes meaning is worse than an em dash. */}
@@ -360,9 +354,9 @@ export default function BillingPage() {
               rides one subscription, so tying the footnote to it meant an org
               with a Shopify-granted product saw its included plan nowhere at all
               after the badge stopped showing it. */}
-          {hasProducts && (summary?.basePlanName || planLabel) ? (
+          {hasProducts && details?.subscription?.trialActive === true && summary?.basePlanName ? (
             <p className="mt-2 text-xs text-muted-foreground">
-              Included plan: {summary?.basePlanName ?? planLabel}
+              Included plan: {summary.basePlanName} (trial)
             </p>
           ) : null}
 
@@ -381,13 +375,11 @@ export default function BillingPage() {
           ) : null}
         </div>
 
-        {/* Your products — paid products held beyond the base plan. Shown only
-            when the org owns at least one, so a base-plan-only org sees nothing
-            new. This is what tells a Commerce buyer they DO own the product even
-            when the base plan badge above still reads "Free". */}
+        {/* Your plans — the lines bought. Shown only when the business holds at
+            least one. */}
         {products.length > 0 && (
           <div className="rounded-2xl border bg-muted/30 px-5 pt-4 pb-5">
-            <h2 className="mb-3 font-semibold">Your products</h2>
+            <h2 className="mb-3 font-semibold">Your plans</h2>
             <ul className="space-y-2">
               {products.map((p) => (
                 <li
@@ -438,19 +430,8 @@ export default function BillingPage() {
                   >
                     {p.state === "trial" ? "Trial" : p.state}
                   </Badge>
-                    {/* A FREE tier upgrades rather than cancels — offering
-                        "Cancel" on something that costs nothing is noise, and the
-                        server would refuse it anyway. An ENDING line offers
-                        nothing (`productRowAction`). */}
-                    {productRowAction(p) === null ? null : productRowAction(p) === "upgrade" ? (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setUpgradeOpen(true)}
-                      >
-                        Upgrade
-                      </Button>
-                    ) : (
+                    {/* An ENDING line offers nothing (`productRowAction`). */}
+                    {productRowAction(p) === null ? null : (
                       <Button
                         variant="ghost"
                         size="sm"
@@ -497,37 +478,6 @@ export default function BillingPage() {
             </ul>
           </div>
         )}
-
-        {/* Usage cards */}
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="rounded-2xl border bg-muted/30 px-4 pt-3 pb-5">
-            <p className="font-semibold mb-1">Content pieces</p>
-            <p className="text-sm text-muted-foreground">
-              <span className="text-foreground font-medium">
-                {plan === "free" ? "50" : "Unlimited"}
-              </span>
-              {plan === "free" ? " / 50 included" : " included"}
-            </p>
-            {plan === "free" && (
-              <div className="relative mt-2 h-1 w-full rounded-full bg-muted">
-                <span className="absolute top-0 left-0 h-full w-1/2 rounded-full bg-warning" />
-              </div>
-            )}
-          </div>
-          <div className="rounded-2xl border bg-muted/30 px-4 pt-3 pb-5">
-            <p className="font-semibold mb-1">Ad platforms</p>
-            <p className="text-sm text-muted-foreground">
-              <span className="text-foreground font-medium">
-                {plan === "enterprise" || plan === "agency"
-                  ? "All"
-                  : plan === "growth"
-                    ? "2"
-                    : "Preview only"}
-              </span>
-              {" "}included
-            </p>
-          </div>
-        </div>
 
         {/* Features unlocked on this plan — sourced from the entitlements
             snapshot so it reflects whatever cfg_plans currently grants,

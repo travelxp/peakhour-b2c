@@ -636,7 +636,7 @@ export default async function HowItWorks() {
                 </Link>
               )}
               <p className="mt-5 text-sm text-on-ink-dim">
-                A free plan on every module. No credit card.
+                A free trial of every module. No credit card.
               </p>
             </Reveal>
           </div>

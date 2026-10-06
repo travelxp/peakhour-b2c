@@ -34,28 +34,27 @@ import { STATIC_FALLBACK_INTEGRATIONS } from "@/lib/integrations-fallback";
 export const metadata = pageMetadata({
   title: "Peakhour.ai — The AI business platform for growing brands",
   description:
-    "Five AI modules — Commerce, Content, Growth, Support, Presence — that sell, publish, advertise, answer, and get you found. A free plan on every module. No credit card.",
+    "Five AI modules — Commerce, Content, Growth, Support, Presence — that sell, publish, advertise, answer, and get you found. One plan for all five, with a free trial to start. No credit card.",
   path: "/",
 });
 
 /**
- * Free → Pro ladder — the current pricing architecture. Free is a complete,
- * usable product; Pro adds BOTH capacity (Peaks) and capability (automations,
- * advanced insights, multiple workspaces, priority support). That capability
- * half is a deliberate, advertised difference, so don't reintroduce the older
- * "no feature paywalls / same product on Free and Paid" claim here. What stays
- * identical across tiers is the QUALITY of any single output.
+ * Trial → plan — the current pricing architecture (billing plan D19). There is
+ * no free tier and no per-module Pro: a new business starts on a Peakhour Suite
+ * trial (every module), and when it ends buys Suite, or Agency for many
+ * businesses, to keep going. Don't reintroduce "Free plan" or "Move to Pro"
+ * claims here; neither plan exists.
  */
-const FREE_POINTS = [
+const TRIAL_POINTS = [
   {
     title: "Start in minutes",
     detail:
-      "No credit card required. Connect your business and start using Peakhour for free.",
+      "No credit card required. Connect your business and start your free Peakhour Suite trial.",
   },
   {
-    title: "Upgrade when you’ve outgrown Free",
+    title: "Keep going on one plan",
     detail:
-      "Pro unlocks higher Peaks, more automations, advanced insights, multiple workspaces, and priority support — built for businesses using Peakhour every day.",
+      "When your trial ends, Peakhour Suite keeps every module on for one monthly or yearly price. Running many businesses? Agency covers them all.",
   },
   {
     title: "One AI currency across every product",
@@ -86,7 +85,7 @@ function closingLede(mode: PlatformSignupMode): string {
     case "closed":
       return `Peakhour opens soon — and will ${tail}`;
     case "open":
-      return `Start free with Peakhour and ${tail}`;
+      return `Start a free trial of Peakhour and ${tail}`;
   }
 }
 
@@ -194,11 +193,11 @@ export default async function Home({
         </div>
       ) : null}
 
-      {/* Free-first announcement bar */}
+      {/* Trial announcement bar (D19: no free tier; every business starts on a Suite trial) */}
       <div className="bg-brand-gradient px-4 py-2 text-center text-sm font-semibold text-brand-contrast">
-        Every module has a Free plan — no credit card required.{" "}
+        Try every module free — no credit card required.{" "}
         <span className="font-normal opacity-80">
-          One plan turns on all five when you&rsquo;re ready.
+          One plan keeps all five on when your trial ends.
         </span>
       </div>
 
@@ -394,7 +393,7 @@ export default async function Home({
               <div>
                 <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand">
                   <span className="h-0.5 w-7 bg-brand-gradient" aria-hidden />
-                  Start free. Scale when you&rsquo;re ready.
+                  Try it free. Scale when you&rsquo;re ready.
                 </span>
                 <h2 className="mt-4 text-3xl font-extrabold tracking-tight text-pretty lg:text-4xl">
                   Everything you need to get started.{" "}
@@ -403,14 +402,14 @@ export default async function Home({
                   </span>
                 </h2>
                 <p className="mt-4 max-w-lg text-on-ink-dim">
-                  Start with the core Peakhour experience at no cost. Connect your
-                  business, explore every product, and see real value before
-                  upgrading. Move to Pro when you need more AI capacity, advanced
-                  workflows, deeper insights, and team collaboration.
+                  Start with a free trial of everything Peakhour does. Connect
+                  your business, explore every product, and see real value before
+                  you buy. Keep going on Peakhour Suite when your trial ends, or on
+                  Agency when you run many businesses.
                 </p>
               </div>
               <div className="flex flex-col gap-3.5">
-                {FREE_POINTS.map((point) => (
+                {TRIAL_POINTS.map((point) => (
                   <div
                     key={point.title}
                     className="flex gap-3 rounded-xl border border-brand/25 bg-brand/6 px-4 py-3.5 transition-colors hover:border-brand/60"
@@ -523,7 +522,7 @@ export default async function Home({
                     <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
                   </Link>
                   <p className="mt-5 text-sm text-on-ink-dim">
-                    Free plan available · No credit card
+                    Free trial · No credit card
                   </p>
                 </>
               )}

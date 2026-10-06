@@ -12,8 +12,10 @@ export interface DashboardOrgPlanSummary {
   subscription?: {
     plan?: string;
     /** Customer-facing plan name from cfg_plans. ALWAYS prefer this for display —
-     *  `plan` is a machine tier key ("commerce_assistant.free"), and rendering it
-     *  is what showed customers "Commerce_assistant.Free" as their plan name. */
+     *  `plan` is a machine tier key, and rendering it is what once showed
+     *  customers "Commerce_assistant.Free" as their plan name. Read through
+     *  `lib/plan-status`, which also reads a stored `free` / `.free` key
+     *  (until P4.5) as no plan. */
     planName?: string;
     planVersion?: number;
     trialEndsAt?: string | null;
@@ -27,10 +29,8 @@ export interface DashboardOrgPlanSummary {
     computedAt?: string | null;
     features?: string[];
   } | null;
-  /** Paid products held beyond the base plan — the active/trial product-portfolio
-   *  subscriptions (T4 native billing). Empty for a base-plan-only org. Surfaced
-   *  so the billing page reflects what the org actually owns (e.g. a Commerce
-   *  Assistant purchase) instead of only the legacy base plan. */
+  /** Bought lines beyond the base row — the active/trial subscriptions (Suite,
+   *  Agency). Empty for a business on its Suite trial or with no plan. */
   products?: Array<{
     productKey?: string | null;
     tier: string;
@@ -50,7 +50,6 @@ export interface DashboardOrgPlanSummary {
      *  none, so absence does NOT mean "not trialing". */
     trialEndsAt?: string | null;
   }>;
-  billing?: { plan?: string };
   createdAt?: string;
 }
 

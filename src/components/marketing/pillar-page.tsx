@@ -80,7 +80,7 @@ export async function PillarPage({ slug }: { slug: PillarSlug }) {
                 <span aria-hidden className="font-bold text-brand-label">
                   ✓
                 </span>{" "}
-                {pillar.freeLabel} — no credit card
+                {pillar.planLabel} · free trial, no credit card
               </p>
             </div>
 
@@ -186,7 +186,7 @@ export async function PillarPage({ slug }: { slug: PillarSlug }) {
                 </span>
               </h2>
               <p className="mx-auto mt-4 max-w-xl text-on-ink-dim">
-                {pillar.freeLabel} — no credit card. Your first Peaks are on us.
+                {pillar.planLabel} — start with a free trial, no credit card. Your first Peaks are on us.
               </p>
               {!cta.disabled && (
                 <Link

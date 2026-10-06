@@ -179,11 +179,24 @@ export function publicMarketingIntegrations(
     );
 }
 
-/** Landing-page signup CTA derived from the platform signup mode. */
-export function signupCta(mode: PlatformSignupMode): { label: string; href: string; disabled?: boolean } {
+/** The signup CTA resolved from the platform stage (see `signupCta`). */
+export interface SignupCta {
+  label: string;
+  href: string;
+  disabled?: boolean;
+}
+
+/**
+ * Landing-page signup CTA derived from the platform signup mode.
+ *
+ * ★"Start free trial", not "Start free": there is no free tier (billing plan
+ * D19). Signing up starts the business on a Peakhour Suite trial, which ends;
+ * "free" alone promised a plan that never does.
+ */
+export function signupCta(mode: PlatformSignupMode): SignupCta {
   switch (mode) {
     case "open":
-      return { label: "Start free", href: "/auth" };
+      return { label: "Start free trial", href: "/auth" };
     case "waitlist_only":
       return { label: "Join the waitlist", href: "/auth?intent=waitlist" };
     case "invite_only":

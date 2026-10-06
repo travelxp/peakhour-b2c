@@ -37,7 +37,7 @@ export default function OpengraphImage() {
             {SITE.tagline}
           </div>
           <div style={{ display: "flex", fontSize: 30, color: "#b9b2a2" }}>
-            Five modules. One platform. A free plan on every one.
+            Five modules. One platform. One plan.
           </div>
         </div>
 

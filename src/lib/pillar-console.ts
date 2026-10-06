@@ -39,7 +39,10 @@ export const PILLAR_CONSOLE_LABEL =
  */
 export const SIGNUP_PROMISES = [
   "No credit card",
-  "Free plan on every module",
+  // ★A TRIAL, NOT A FREE PLAN (billing plan D19): there is no free tier, and a
+  //  new business starts on a Peakhour Suite trial. No number here: the length
+  //  is Suite's `trialDays`, catalog data, which `signupStats` reads.
+  "Free trial of every module",
   "Live the same day",
 ] as const;
 
@@ -68,7 +71,7 @@ export const HERO_TRUST_POINTS = [
  */
 export const PRELAUNCH_PROMISES = [
   "No credit card",
-  "Free plan on every module",
+  SIGNUP_PROMISES[1],
   "We’ll email your link",
 ] as const;
 
@@ -85,5 +88,19 @@ export const PRELAUNCH_PROMISES = [
 export const PILLAR_CONSOLE_ROW_CLASS =
   "flex items-center gap-3 rounded-xl border border-white/10 bg-white/4 px-3.5 py-2.5 text-sm";
 
-// The free-Peaks figure deliberately does NOT live here — it is catalog data,
-// not brand copy. See minFreePeaksPerMonth() in lib/pricing.ts.
+/**
+ * Proof points beside the /auth form. The trial length is catalog data (Suite's
+ * `trialDays`, resolved server-side by `suiteTrialDays`), not a number kept in
+ * sync by hand.
+ *
+ * ★It replaced "500+ free Peaks a month, every free plan": there is no free
+ * plan (D19), so the figure promised an allowance nobody is given. What a new
+ * business gets is the Suite trial.
+ */
+export function signupStats(trialDays: number): Array<{ value: string; label: string }> {
+  return [
+    { value: "5", label: "modules, one login" },
+    { value: "0", label: "credit cards required" },
+    { value: String(trialDays), label: "days of Peakhour Suite, free" },
+  ];
+}

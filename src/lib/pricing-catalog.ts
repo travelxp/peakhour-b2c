@@ -1,22 +1,27 @@
 import { PILLARS, type PillarSlug } from "@/lib/pillars";
+import { pillarProducts, productBundleTier, type PricingResponse } from "@/lib/pricing";
 
 /**
  * Presentational metadata for the pricing surface — the bits marketing tunes
- * without a DB write: pillar order, the one-line promise, the pricing page's
- * headline and standfirst, which capabilities lead on each plan card, the four
- * "what changes on Pro" blocks, and which channels a pillar runs in.
+ * without a DB write: the order the hub lists the modules in and the one-line
+ * promise each one makes, plus the channels the hub's strip names (below).
  *
- * It layers ON TOP of the live catalog: prices, tiers, features and Peaks
- * allowances all come from the pricing API — never from here. Card bullets name
- * a cfg_feature key precisely so the catalog keeps the final say over whether
- * one is true (see PlanHighlight).
+ * It layers ON TOP of the live catalog: prices, plans and Peaks allowances all
+ * come from the pricing API — never from here.
+ *
+ * ★ONE CATALOG (billing plan D19, P4.7). The per-module plans (each a Free and
+ * a Pro tier) are scrapped: Peakhour Suite sells all five modules, Agency and
+ * Enterprise sell them to teams, and there is no free tier. What this file held
+ * for the per-module pricing pages (their headlines, the Free and Pro card
+ * bullets, the "what changes on Pro" blocks) went with those pages.
  *
  * Pillar identity (icon, name, lede) is reused from `@/lib/pillars` so the
  * pricing pages and the pillar marketing pages can never drift apart.
  */
 
-/** Pricing shows the FREE pillar first (the on-ramp), then the paid pillars.
- *  This deliberately differs from PILLAR_ORDER (which leads with Commerce). */
+/** The order the hub lists the modules Peakhour Suite includes. Presence leads
+ *  as the simplest promise; this deliberately differs from PILLAR_ORDER
+ *  (which leads with Commerce). */
 export const PRICING_PILLAR_ORDER = [
   "presence",
   "commerce",
@@ -25,314 +30,32 @@ export const PRICING_PILLAR_ORDER = [
   "growth",
 ] as const;
 
-/** The paid pillars, in the order the hub lists them under "add as you grow". */
-export const PAID_PILLAR_ORDER: PillarSlug[] = [
-  "commerce",
-  "content",
-  "support",
-  "growth",
-];
-
-/**
- * One bullet on a plan card.
- *
- * `key` is a cfg_feature key and it is what makes the bullet HONEST: the card
- * renders a highlight only when the tier it belongs to actually grants that
- * key (see `tierGrants`). Marketing picks which capabilities lead and how they
- * are worded; the catalog still decides whether they are true. A bullet whose
- * key the tier lost simply disappears rather than becoming a false claim.
- *
- * Omit `key` only for a plan-level truth that is not a catalog capability at
- * all (billing terms, and nothing else) — there is nothing to ground it
- * against, so each one is a promise made by hand.
- */
-export interface PlanHighlight {
-  key?: string;
-  label: string;
-}
-
-/** One "What changes when you go Pro?" block. */
-export interface ProValueBlock {
-  title: string;
-  body: string;
-}
-
 export interface PricingPillarMeta {
   slug: PillarSlug;
   /** One plain sentence a browsing buyer instantly gets. */
   promise: string;
-  /**
-   * The pricing page's own headline and standfirst — value-led, and about
-   * what UPGRADING buys rather than what the module is.
-   *
-   * Deliberately does not name the plan. The paid slot on a module page is
-   * "Pro" while a module sells its own tier and "Peakhour Suite" once the Suite
-   * does; a standfirst that hardcoded either went stale the day the other
-   * shipped. The card names the plan; this names the benefit. `/{slug}` already sells the
-   * pillar; someone on `/pricing/{slug}` has decided they want it and is
-   * choosing a plan.
-   *
-   * Deliberately carries NO figures. Prices, Peaks allowances and the
-   * Pro-vs-Free multiple are read from the live catalog and rendered by the
-   * cards; a number written into copy here is a number that goes stale the
-   * next time pricing is superseded, and nothing would catch it.
-   */
-  priceHeadline: string;
-  priceLede: string;
-  /** Pro card bullets, strongest first. Rendered until 6 have passed the
-   *  grant check, so list them in the order they should be dropped from. */
-  proHighlights: PlanHighlight[];
-  /** Free card bullets — the core of the pillar, same rules, capped at 4. */
-  freeHighlights: PlanHighlight[];
-  /** "What changes when you go Pro?" — exactly four, or none for a pillar
-   *  that has no paid tier to change to. */
-  proValueBlocks: ProValueBlock[];
-  /**
-   * Channels this pillar runs inside (keys into CHANNELS).
-   *
-   * Renamed off `channels` deliberately. pricingPillar() spreads this meta
-   * OVER PillarContent, which has a `channels` of its own — the marketing
-   * chips, a different shape entirely — and the spread silently resolved the
-   * collision in this object's favour. Two shapes under one name, merged
-   * without a word from the compiler, is a trap; the names are distinct now.
-   */
-  runsIn: ChannelKey[];
 }
 
 export const PRICING_PILLARS: Record<PillarSlug, PricingPillarMeta> = {
   presence: {
     slug: "presence",
     promise: "Get found on Google, Maps and AI search — and keep every listing right.",
-    priceHeadline: "Get found everywhere — free, forever.",
-    // ★NO PLAN NAMED HERE. This string is static catalog copy and renders on
-    // every environment, including one that has not run migration 258 — where
-    // it pitched Peakhour Suite on a page that shows no Suite anywhere. The
-    // module page already says "part of Peakhour Suite" from the resolved
-    // catalog, gated, which is the place that can know.
-    priceLede:
-      "Claim your business, keep every listing right, and reply to reviews with AI drafts — free, with no card.",
-    /**
-     * ★PRESENCE IS THE ONE MODULE WHOSE UPGRADE IS NOT ABOUT ITSELF.
-     *
-     * It has no paid tier and is not getting one — everything it does is free.
-     * So the capabilities that lead on its Suite card belong to the OTHER four
-     * modules, which is the honest pitch: you already have Presence; Suite is
-     * what happens when being found is not the only thing you need.
-     *
-     * Every key still passes the same grant check as anywhere else — Suite
-     * grants all five modules, so none of these is a claim the catalog cannot
-     * back. On an environment with no Suite the paid card does not render and
-     * these are simply unused.
-     */
-    proHighlights: [
-      { key: "commerce.assistant", label: "AI shopping assistant on your storefront" },
-      { key: "content.scheduler", label: "Content calendar with scheduled publishing" },
-      { key: "support.inbox", label: "One inbox for every conversation" },
-      { key: "growth.ads", label: "Ad campaigns across platforms" },
-      // ★NOT `presence.control_plane`, WHICH THIS PAGE ALREADY GIVES AWAY.
-      // It sits in `freeHighlights` directly below with the SAME label, so the
-      // Suite card was selling, as its fifth reason, a capability the free card
-      // beside it already listed. Replaced rather than dropped: the card holds
-      // five and a test pins that.
-      //
-      // Suite grants all five modules, so this passes the same grant check as
-      // the rest — and it keeps the docblock true, since every reason here
-      // belongs to a module Presence is not.
-      { key: "growth.performance_analytics", label: "See which channels actually bring customers" },
-    ],
-    freeHighlights: [
-      { key: "presence.listings", label: "One business listing, synced everywhere" },
-      { key: "presence.reviews", label: "Every review in one inbox, with AI drafts" },
-      { key: "presence.insights", label: "See views, calls and directions" },
-      { key: "presence.control_plane", label: "Update your listing over WhatsApp" },
-    ],
-    proValueBlocks: [
-      {
-        title: "Sell, not just appear",
-        body: "Commerce answers buyers from your live catalogue, on your storefront and on WhatsApp.",
-      },
-      {
-        title: "Say something",
-        body: "Content writes and schedules in your voice, so the listing people find leads somewhere.",
-      },
-      {
-        title: "Bring people in",
-        body: "Growth runs the ads, the SEO and the creator campaigns that put you in front of them.",
-      },
-      {
-        title: "Answer everyone",
-        body: "Support puts email, chat, WhatsApp and DMs in one queue, with replies drafted for you.",
-      },
-    ],
-    runsIn: ["native"],
   },
   commerce: {
     slug: "commerce",
     promise: "An AI shop assistant that answers buyers from your real catalog — 24/7.",
-    priceHeadline: "Sell on every channel, in every language, around the clock.",
-    priceLede:
-      "Your shop assistant on every connected channel — multilingual, on autopilot, with a far bigger monthly Peaks allowance behind it.",
-    proHighlights: [
-      { key: "commerce.channels_all", label: "Every connected sales channel" },
-      { key: "commerce.assistant", label: "AI shopping assistant on your storefront" },
-      { key: "commerce.whatsapp", label: "Answers shoppers on WhatsApp" },
-      { key: "commerce.multilingual", label: "Replies in your shopper’s own language" },
-      { key: "commerce.autopilot", label: "Autopilot, with approval controls you set" },
-      { key: "commerce.command_center", label: "See what the assistant did — and earned" },
-    ],
-    freeHighlights: [
-      { key: "commerce.assistant", label: "AI shopping assistant on your storefront" },
-      { key: "commerce.catalog_sync", label: "Products, prices and stock stay in sync" },
-      { key: "commerce.whatsapp", label: "Answers shoppers on WhatsApp" },
-      { key: "commerce.product_descriptions", label: "AI product descriptions" },
-    ],
-    proValueBlocks: [
-      {
-        title: "Sell more",
-        body: "Far more Peaks each month, so the assistant keeps answering right through your busiest week.",
-      },
-      {
-        title: "Reach every channel",
-        body: "The same assistant on every connected storefront channel, not just the one you started with.",
-      },
-      {
-        title: "Speak their language",
-        body: "Shoppers get answers in their own language, Hinglish included — no separate setup.",
-      },
-      {
-        title: "Automate more",
-        body: "Autopilot takes the repetitive questions at full volume, inside the approval limits you set.",
-      },
-    ],
-    // WhatsApp belongs here: it is the one commerce channel the catalog calls
-    // live today, and leaving it out made the page say "answers shoppers on
-    // WhatsApp" in the lede while the pill below read "Coming to Shopify,
-    // WooCommerce, BigCommerce". Keep this in step with PILLARS.commerce
-    // .channels in lib/pillars.ts — they are two hand-kept lists describing
-    // the same product, and nothing but this comment ties them together.
-    runsIn: ["shopify", "woocommerce", "whatsapp", "bigcommerce"],
   },
   content: {
     slug: "content",
     promise: "AI content for social, blog and newsletters — drafted in your voice, on schedule.",
-    priceHeadline: "Publish more, in more places, with far less work.",
-    priceLede:
-      "Advanced writers, trusted sources and recurring schedules — with the Peaks to keep your calendar full without you filling it.",
-    proHighlights: [
-      { key: "content.multi_format", label: "Blogs, newsletters, social posts and more" },
-      { key: "content.scheduler", label: "Content calendar with scheduled publishing" },
-      { key: "scheduler.bundles", label: "Publish to several channels at once" },
-      { key: "scheduler.recurring", label: "Recurring slots that refill themselves" },
-      { key: "content.trusted_sources", label: "Ground everything in sources you trust" },
-      { key: "content.supervisor", label: "Automatic content ideas, ranked for you" },
-    ],
-    freeHighlights: [
-      { key: "content.studio", label: "AI writing workspace" },
-      { key: "content.brand_voice", label: "Writes in your brand voice" },
-      { key: "content.repurpose", label: "Turn one piece into many" },
-    ],
-    proValueBlocks: [
-      {
-        title: "Create more",
-        body: "More Peaks and the advanced writers — blogs, newsletters and social, from one workspace.",
-      },
-      {
-        title: "Publish everywhere",
-        body: "Schedule and publish across your channels, several at once, from a single calendar.",
-      },
-      {
-        title: "Stay consistent",
-        body: "Trusted sources and recurring schedules hold the voice and the cadence steady.",
-      },
-      {
-        title: "Automate more",
-        body: "Less repetitive publishing work: slots refill themselves and posts go out on your rules.",
-      },
-    ],
-    runsIn: ["wordpress", "native"],
   },
   support: {
     slug: "support",
     promise: "Every support message — email, chat, WhatsApp, DMs — in one inbox.",
-    priceHeadline: "Answer everyone, everywhere, faster.",
-    priceLede:
-      "WhatsApp and social DMs, AI-drafted replies, routing and SLA timers — with the Peaks to keep up with all of it.",
-    proHighlights: [
-      { key: "support.channels_all", label: "WhatsApp and social DMs too" },
-      { key: "support.ai_replies", label: "AI-drafted replies, ready to send" },
-      { key: "support.assignment", label: "Assign and route to the right person" },
-      { key: "support.sla", label: "Response and resolution timers" },
-      { key: "support.inbox", label: "One inbox for every conversation" },
-      { key: "support.channels_core", label: "Email, website and in-app chat" },
-    ],
-    // Two, not the usual three-to-four. The Support free tier genuinely grants
-    // exactly two capabilities today, and a bullet without a key behind it is
-    // a claim nothing checks — a short honest list beats a padded one.
-    freeHighlights: [
-      { key: "support.inbox", label: "One inbox for every conversation" },
-      { key: "support.channels_core", label: "Email, website and in-app chat" },
-    ],
-    proValueBlocks: [
-      {
-        title: "Answer more",
-        body: "A much larger monthly Peaks allowance sits behind every AI-drafted reply.",
-      },
-      {
-        title: "Add every channel",
-        body: "WhatsApp and social DMs land in the same inbox as email, website and in-app chat.",
-      },
-      {
-        title: "Nothing slips",
-        body: "Response and resolution timers run on every conversation, so a missed SLA is visible.",
-      },
-      {
-        title: "Route automatically",
-        body: "Conversations reach the right owner without someone triaging the queue by hand.",
-      },
-    ],
-    runsIn: ["native", "whatsapp"],
   },
   growth: {
     slug: "growth",
     promise: "Ads and LinkedIn on autopilot — campaigns, audiences and leads, handled.",
-    // Growth's Free and Pro tiers grant the SAME capability set in the live
-    // catalog — the whole difference is the Peaks allowance. So the copy here
-    // sells capacity rather than unlocked features, and the comparison table
-    // honestly shows two matching columns rather than inventing a gap.
-    priceHeadline: "Run growth every day, not just the first week of the month.",
-    priceLede:
-      "The same engine, with the capacity to keep it running — ads, SEO, creator campaigns and nurture flows, all month long.",
-    proHighlights: [
-      { key: "growth.ads", label: "Ad campaigns across platforms" },
-      { key: "growth.seo", label: "SEO and answer-engine optimisation" },
-      { key: "growth.creator_campaigns", label: "Creator and influencer campaigns" },
-      { key: "growth.automation", label: "Automated acquisition and nurture flows" },
-      { key: "growth.performance_analytics", label: "See which channels actually pay back" },
-    ],
-    freeHighlights: [
-      { key: "growth.ads", label: "Ad campaigns across platforms" },
-      { key: "growth.seo", label: "SEO and answer-engine optimisation" },
-      { key: "growth.performance_analytics", label: "See which channels actually pay back" },
-    ],
-    proValueBlocks: [
-      {
-        title: "Always on",
-        body: "Enough Peaks to keep optimisation running all month, instead of stopping after week one.",
-      },
-      {
-        title: "Run more at once",
-        body: "Capacity to keep ads, SEO and creator campaigns going in parallel rather than one at a time.",
-      },
-      {
-        title: "See what pays back",
-        body: "Attribution and channel performance across everything you have running, kept current.",
-      },
-      {
-        title: "Automate more",
-        body: "Acquisition and nurture flows that keep working without you topping anything up.",
-      },
-    ],
-    runsIn: ["native"],
   },
 };
 
@@ -340,22 +63,30 @@ export const PRICING_PILLARS: Record<PillarSlug, PricingPillarMeta> = {
  * Merge the pricing meta with the shared pillar identity (icon, name, lede).
  *
  * PillarContent's own `channels` — the homepage's marketing chips — is
- * dropped rather than carried through. Nothing here wants it, and leaving it
- * on the result would put a `PillarChannel[]` under a name the pricing pages
- * used to read as `ChannelKey[]`: it still compiles in `.length` and `.map()`
- * positions, so the trap survives the rename unless the field does not.
- * `runsIn` is the platform list these pages want.
+ * dropped rather than carried through: nothing here wants it.
  */
 export function pricingPillar(slug: PillarSlug) {
   const { channels, ...identity } = PILLARS[slug];
   // Referenced only so the omission is explicit: this `channels` is the
-  // HOMEPAGE's marketing chips, not this file's platform list.
+  // HOMEPAGE's marketing chips.
   void channels;
   return { ...identity, ...PRICING_PILLARS[slug] };
 }
 
-export function isPillarSlug(value: string): value is PillarSlug {
-  return value in PRICING_PILLARS;
+/**
+ * The modules Peakhour Suite includes AND this site renders, in hub order.
+ *
+ * ★ASKED OF EACH PRODUCT (`productBundleTier`), NOT OF THE STATIC ORDER. The
+ * resolver groups a plan under every product its `products[]` composes, so
+ * Suite's presence in a product's tiers IS the statement "Suite includes this
+ * module"; the order constant is only what the site knows about, and Suite's
+ * `products` has drifted from the served set before. Empty when the
+ * environment sells no Suite.
+ */
+export function suiteModuleSlugs(pricing: PricingResponse | null): PillarSlug[] {
+  return PRICING_PILLAR_ORDER.filter((slug) =>
+    Boolean(productBundleTier(pillarProducts(pricing, slug)[0], "suite")),
+  );
 }
 
 /* ── Channels ──────────────────────────────────────────────────────────── */

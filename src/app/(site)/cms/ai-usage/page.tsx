@@ -204,7 +204,7 @@ export default function AiUsagePage() {
                 <TableRow key={row.orgId}>
                   <TableCell className="font-mono text-xs">{row.orgId}</TableCell>
                   <TableCell>
-                    <Badge variant="secondary" className="text-xs capitalize">{row.plan || "free"}</Badge>
+                    <Badge variant="secondary" className="text-xs capitalize">{row.plan || "none"}</Badge>
                   </TableCell>
                   <TableCell className="text-right tabular-nums">{row.calls.toLocaleString()}</TableCell>
                   <TableCell className="text-right tabular-nums">{formatTokens(row.totalTokens)}</TableCell>

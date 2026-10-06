@@ -25,7 +25,7 @@ import { PaymentModal, type CheckoutResult } from "@/components/upgrade/payment-
  * for fair-use 429s lives in a separate component).
  *
  *   waitlist  — v1 GA default. No prices shown. Captures email +
- *               business context for the Pro waiting list. Founding-
+ *               business context for the Peakhour Suite waiting list. Founding-
  *               member badge for the first 500 signups.
  *   checkout  — flips on once public pricing GA-s. Plan card +
  *               Stripe/Razorpay handoff.
@@ -232,7 +232,7 @@ export function UpgradeDrawer(props: UpgradeDrawerProps) {
             {mode === "waitlist" ? (
               <>
                 <Sparkles className="size-5 text-brand-label" />
-                Pro is opening soon
+                Peakhour Suite is opening soon
               </>
             ) : (
               <>Unlock {featureName || "this feature"}</>
@@ -243,7 +243,7 @@ export function UpgradeDrawer(props: UpgradeDrawerProps) {
               ? "You're in line. We'll email you when access opens."
               : mode === "waitlist"
                 ? `Reserve your spot${featureName ? ` for ${featureName}` : ""}. Founding members lock in early-access perks.`
-                : (featureTagline ?? "Choose a plan to unlock this and the rest of Pro.")}
+                : (featureTagline ?? "Choose a plan to unlock this and the rest of Peakhour Suite.")}
           </SheetDescription>
         </SheetHeader>
 

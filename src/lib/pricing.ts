@@ -1,8 +1,8 @@
 /**
  * Server-side helper for fetching country-resolved pricing from the
  * peakhour-api `/v1/platform/pricing` endpoint. Used by the marketing
- * /pricing pages, the landing hero and /auth — the last two for the free-Peaks
- * figure only, not for prices.
+ * /pricing pages and /auth — the last for the Suite trial's length only, not
+ * for prices.
  *
  * Country precedence on the API side:
  *   1. `?country=XX` query — passed explicitly when we already know it.
@@ -29,8 +29,6 @@ import { unstable_cache as cache } from "next/cache";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 
-export type PlanKey = "free" | "starter" | "growth" | "agency" | "enterprise";
-
 export interface PricingEntry {
   currency: string;
   monthly: number;
@@ -49,18 +47,6 @@ export interface PricingEntry {
   tagline?: string;
 }
 
-export interface ResolvedPlan {
-  key: PlanKey;
-  name: string;
-  tagline?: string;
-  description?: string;
-  features: string[];
-  limits: Record<string, number | undefined>;
-  highlightAsRecommended: boolean;
-  version: number;
-  pricing: PricingEntry;
-}
-
 /** A cfg_feature granted by a tier, enriched with its catalog display copy. */
 export interface ResolvedFeature {
   key: string;
@@ -71,7 +57,7 @@ export interface ResolvedFeature {
   useCases?: string[];
 }
 
-/** A single tier within a product (e.g. commerce_assistant.lens). */
+/** A catalog plan as it is listed under one product it composes (e.g. suite). */
 export interface ResolvedProductTier {
   key: string;
   name: string;
@@ -102,7 +88,7 @@ export interface ResolvedChannel {
   purchaseMode: string;
 }
 
-/** A product with its resolved tiers (e.g. Commerce Assistant: [Lens, Commerce]). */
+/** A product (module) with the catalog plans that compose it (e.g. Commerce: [suite, agency, enterprise]). */
 export interface ResolvedProduct {
   key: string;
   name: string;
@@ -117,8 +103,7 @@ export interface ResolvedProduct {
 
 export interface PricingResponse {
   country: string;
-  plans: ResolvedPlan[];
-  /** Product-scoped tiers (env-gated: empty in prod when product is in_development). */
+  /** Products, each with the plans that compose it (env-gated: empty in prod when a product is in_development). */
   products: ResolvedProduct[];
 }
 
@@ -158,9 +143,8 @@ export const getPricing = cache(
  * `displayPrefix` for the currency symbol so the API stays in charge
  * of i18n strings rather than the b2c hardcoding rupee vs dollar.
  *
- * Free / Enterprise both ship `monthly: 0` — they're differentiated by
- * the entry's `tagline` ("Free forever" / "Contact sales") which the
- * caller decides whether to render in place of the price.
+ * Enterprise ships `monthly: 0` (sales-led, "Contact sales"); the caller
+ * renders that in place of a price.
  */
 export function formatMonthly(p: PricingEntry): string {
   if (p.monthly === 0) return `${p.displayPrefix ?? ""}0`;
@@ -261,153 +245,61 @@ export function yearlyPrice(p: PricingEntry): { price: string; list: string | nu
 }
 
 /**
- * Account-level bundle plans (`cfg_plans` rows that compose every product).
- * The resolver surfaces these as a tier *under each product* they list, keyed
- * by the bare plan key (`agency`/`enterprise`/`suite`) rather than a
- * `<product>.<tier>` key. The pricing surface separates them out: they never
- * belong in a single pillar's Free-vs-Paid table.
+ * The plans the catalog sells (billing plan D19): Peakhour Suite, Agency and
+ * Enterprise, each a `cfg_plans` row that composes every module. The resolver
+ * surfaces each as a tier *under every product it lists*, keyed by the bare
+ * plan key.
  *
- * `suite` is listed AHEAD of the plan existing, and that ordering is the whole
- * point. A cross-product plan appears as a tier under every product it lists,
- * so an unfiltered Suite row becomes a column in every pillar's tier list.
- *
- * Today the damage is bounded by luck: `proTier()` prefers a tier carrying
- * `highlightAsRecommended`, both the module tier and Suite would carry it, and
- * cheapest-first sorting hands back the module tier. That stops holding the
- * moment the per-module tiers are retired in favour of Suite — drop the flag on
- * `commerce_assistant.paid` and the Commerce page starts quoting the Suite
- * price for Commerce. Filtering before the plan exists means the catalog change
- * and the pricing change land as separate, deliberate decisions rather than as
- * one deploy order.
- *
- * Agency and Enterprise route to /pricing/teams. Suite will get its own
- * treatment on the hub and on each module page; until that ships, being in
- * this set means the per-pillar pages ignore it, which is the correct
- * behaviour for a plan the pages cannot yet describe.
+ * ★THERE IS NO PER-PRODUCT TIER ANY MORE. The per-module Free and Pro plans
+ * (`commerce_assistant.free` / `.paid` and the rest) are scrapped, so the
+ * helpers that picked a module's own free or paid tier went with them; a
+ * leftover per-product row the api may still list (until P4.5) is simply never
+ * asked for.
  */
 export const BUNDLE_PLAN_KEY_LIST = ["agency", "enterprise", "suite"] as const;
 
-/** A bundle plan's key, derived from the list so the two cannot drift. */
+/** A catalog plan's key, derived from the list so the two cannot drift. */
 export type BundlePlanKey = (typeof BUNDLE_PLAN_KEY_LIST)[number];
 
-export const BUNDLE_PLAN_KEYS: ReadonlySet<string> =
-  new Set(BUNDLE_PLAN_KEY_LIST);
+/**
+ * How a new business starts (D19): a Peakhour Suite trial of Suite's own
+ * `trialDays`. Null when this environment sells no Suite, or sells it with no
+ * trial, so a caller never promises a trial the catalog does not give.
+ */
+export function suiteTrialDays(pricing: PricingResponse | null): number | null {
+  const days = findBundleTier(pricing, "suite")?.pricing.trialDays;
+  return typeof days === "number" && days > 0 ? days : null;
+}
 
-/** True when a tier is an account-level bundle (Agency/Enterprise/Suite), not
- *  a product-specific Free/Paid tier. */
-export function isBundleTier(tier: ResolvedProductTier): boolean {
-  return BUNDLE_PLAN_KEYS.has(tier.key);
+/** The Suite card's signup button: the trial it starts, when the catalog
+ *  gives one (D19: a new business starts on a Suite trial). */
+export function suiteCtaLabel(trialDays: number): string {
+  return trialDays > 0 ? `Start your ${trialDays}-day free trial` : "Get Peakhour Suite";
 }
 
 /**
- * The product's own Free/Paid tiers — bundle plans removed (BUNDLE_PLAN_KEYS) —
- * sorted cheapest-first so Free leads and the paid tier(s) follow. This is what
- * a single pillar's comparison table renders as its columns.
+ * Shown when the pricing API is unreachable, as the landing page keeps a static
+ * integrations list for the same case. Suite's `trialDays` at the time of
+ * writing (D19: 14 days); a degraded mode, not a source of truth —
+ * `suiteTrialDays` is.
  */
-export function productTiers(product: ResolvedProduct): ResolvedProductTier[] {
-  return product.tiers
-    .filter((t) => !isBundleTier(t))
-    .sort((a, b) => a.pricing.monthly - b.pricing.monthly);
-}
+export const SUITE_TRIAL_DAYS_FALLBACK = 14;
 
 /**
- * A product's own free tier, or undefined if it has none.
- *
- * The one definition of "free" — reach for this rather than
- * `product.tiers.find(t => t.pricing.monthly === 0)`, which is wrong twice
- * over.
- *
- * First, it searches the raw tier list, which includes the account-level
- * bundles. Enterprise is sales-led: it carries no matrix price, so it reads as
- * `monthly: 0, yearly: 0` while granting 100k Peaks. (Agency is NOT a price
- * trap — it is fully priced, ₹24,999/mo on live data — but it is still not a
- * product's free tier, so both are excluded by key via `isBundleTier`.)
- *
- * Second, the resolver sorts tiers by price and breaks ties alphabetically, so
- * among the zero-priced ones `"enterprise"` sorts BEFORE `"growth.free"` and
- * `"support_inbox.free"` — though AFTER `"commerce_assistant.free"`. The naive
- * find therefore lands on Enterprise for some products and the real free tier
- * for others, which is what makes the bug so easy to miss.
- *
- * Both intervals must be zero: a yearly-only plan is not free.
+ * The Agency card's price. Agency is sold QUARTERLY and YEARLY, never monthly
+ * (D5: RBI's cap on OTP-free recurring debits), so its monthly figure is a
+ * price nobody is charged and is never shown. The public pricing entry carries
+ * the yearly price (the quarterly one is priced at checkout), so the card
+ * quotes the year, with the list price struck through under a yearly campaign.
+ * Null without an Agency row or a yearly price: the card then says it is priced
+ * at checkout rather than inventing a figure.
  */
-export function freeTiers(product: ResolvedProduct): ResolvedProductTier[] {
-  return productTiers(product).filter(
-    (t) => t.pricing.monthly === 0 && t.pricing.yearly === 0,
-  );
+export function agencyCardPrice(
+  agency: ResolvedProductTier | undefined,
+): { price: string; list: string | null; per: string } | null {
+  const y = agency ? yearlyPrice(agency.pricing) : null;
+  return y ? { ...y, per: "/ year per business, or billed quarterly" } : null;
 }
-
-/** The product's free tier — the cheapest one first, for surfaces that show a
- *  single Free column. Products carry one today; `freeTiers` is the honest
- *  plural for callers that must not assume that (see minFreePeaksPerMonth). */
-export function freeTier(product: ResolvedProduct): ResolvedProductTier | undefined {
-  return freeTiers(product)[0];
-}
-
-/**
- * The tier a pillar sells as "Pro" — the paid one the catalog marks as
- * recommended, falling back to the cheapest paid tier when it marks none.
- *
- * Bundles are excluded by `productTiers`, which matters here for the same
- * reason it matters in `freeTier`: Enterprise is sales-led and priced 0/0, so
- * a naive "first tier with a price" search over the raw list would skip it —
- * but Agency IS priced (₹24,999/mo) and would win outright, putting the
- * account-level bundle on a single pillar's Pro card.
- */
-export function proTier(product: ResolvedProduct): ResolvedProductTier | undefined {
-  const paid = productTiers(product).filter((t) => t.pricing.monthly > 0);
-  return paid.find((t) => t.highlightAsRecommended) ?? paid[0];
-}
-
-/**
- * The smallest monthly Peaks grant on any free plan — i.e. the amount every
- * free plan is guaranteed to include at minimum.
- *
- * Deliberately the MINIMUM, not the sum. The wallet is one pool and grants do
- * stack (peakhour-api's `stackCreditAllowance` adds up every plan an org
- * holds), so someone on all five free pillars really does get five grants —
- * but quoting that total would promise a five-pillar signup to a visitor who
- * may only ever take one. The floor is true for everybody.
- *
- * Bundles are excluded (see `freeTier`), which is load-bearing rather than
- * tidiness — Enterprise is sales-led, priced at 0/0, and grants 100k Peaks.
- *
- * Only `live` products count. The resolver does NOT narrow to live for us: in
- * prod it merely suppresses in_development/hidden (so `coming_soon` still
- * arrives), and outside prod it applies no status filter at all. Since this
- * number sits beside "free plan on every pillar" as something you get on
- * signup, a pillar you can't sign up for yet must not set the floor — nor
- * should a half-built dev product quietly move the figure on devapi.
- *
- * Returns null when pricing is unavailable (the caller falls back to
- * FREE_PEAKS_FALLBACK) or when no free tier advertises a grant. A grant of 0
- * counts as nothing to advertise rather than as a minimum of zero — otherwise
- * one credit-less free tier would drag the headline to "0+ free Peaks/mo",
- * which `?? FREE_PEAKS_FALLBACK` could not rescue (0 is not nullish).
- */
-export function minFreePeaksPerMonth(pricing: PricingResponse | null): number | null {
-  if (!pricing) return null;
-  let min: number | null = null;
-  for (const product of pricing.products) {
-    if (product.status !== "live") continue;
-    // Every free tier, not just the first: if a product ever ships two, the
-    // floor is the smaller grant, and picking one would overstate it.
-    for (const tier of freeTiers(product)) {
-      const peaks = tier.peaksIncluded;
-      if (typeof peaks !== "number" || peaks <= 0) continue;
-      min = min === null ? peaks : Math.min(min, peaks);
-    }
-  }
-  return min;
-}
-
-/**
- * Shown when the pricing API is unreachable, mirroring how the landing page
- * keeps a static integrations list for the same case. Matches the catalog at
- * the time of writing (every free tier grants 500); it is a degraded mode, not
- * a source of truth — `minFreePeaksPerMonth` is.
- */
-export const FREE_PEAKS_FALLBACK = 500;
 
 /**
  * Grouping separators for every number on the pricing surface — prices and
@@ -435,16 +327,6 @@ export function formatNumber(value: number): string {
 export const formatPeaks = formatNumber;
 
 /**
- * Find a bundle tier (Agency/Enterprise/Suite) anywhere in the response.
- * Bundle plans appear as a tier under every product they compose, so the first
- * occurrence carries the canonical price + Peaks allowance (identical across
- * products). Returns undefined when the bundle isn't publicly listed in this
- * env — which is the normal state for `suite` until the catalog seeds it.
- */
-/** Find a bundle tier ANYWHERE in the response — the first product that
- *  composes it wins. Use it to answer "does this environment sell Suite at
- *  all"; for "does Suite include THIS module", use `productBundleTier`. */
-/**
  * The bundle tier as it is offered FOR ONE PRODUCT — or undefined.
  *
  * ★★THE PER-PRODUCT ANSWER, NOT THE GLOBAL ONE, AND THE DIFFERENCE IS WHETHER
@@ -468,6 +350,13 @@ export function productBundleTier(
   return product?.tiers.find((t) => t.key === key);
 }
 
+/**
+ * Find a catalog plan (Suite/Agency/Enterprise) anywhere in the response — the
+ * first product that composes it wins, and carries the canonical price and
+ * Peaks allowance (identical across products). Use it to answer "does this
+ * environment sell Suite at all"; for "does Suite include THIS module", use
+ * `productBundleTier`. Undefined when the plan is not publicly listed here.
+ */
 export function findBundleTier(
   pricing: PricingResponse | null,
   key: BundlePlanKey,
@@ -489,15 +378,8 @@ export function pillarProducts(
   return (pricing?.products ?? []).filter((p) => p.pillar === pillar);
 }
 
-/** The lowest paid monthly price across a product's own tiers, or null when the
- *  product has no paid tier (free-only). Drives the hub card's "from" price. */
-export function fromMonthly(product: ResolvedProduct): ResolvedProductTier | null {
-  const paid = productTiers(product).filter((t) => t.pricing.monthly > 0);
-  return paid[0] ?? null;
-}
-
 /**
- * Display labels for cfg_feature keys used in product tier comparison cards.
+ * Display labels for cfg_feature keys (the billing page's "Features included").
  * Keyed by the feature key stored in cfg_features / cfg_plans.features[].
  * Kept client-side so marketing can tune copy without a DB write.
  *

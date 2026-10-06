@@ -8,7 +8,7 @@ import {
 const FAQS: { q: string; a: string }[] = [
   {
     q: "What are Peaks?",
-    a: "Peaks are your AI credits — one shared wallet across all five modules. Free includes an allowance each month; Peakhour Suite includes a much larger one — the cards above show both. You'll never hit a surprise paywall mid-task; we warn you before you run low.",
+    a: "Peaks are your AI credits — one shared wallet across all five modules. Every plan includes a monthly allowance — the cards above show it — and you can top up any time. You'll never hit a surprise paywall mid-task; we warn you before you run low.",
   },
   {
     q: "Do I have to buy every module?",
@@ -16,11 +16,11 @@ const FAQS: { q: string; a: string }[] = [
   },
   {
     q: "Can I use it inside Shopify or WordPress?",
-    a: "Yes. Install the Shopify App or WordPress plugin and the relevant module runs right there. Shopify billing goes through Shopify; everywhere else you're billed on peakhour.ai.",
+    a: "Yes. Install the Shopify App or WordPress plugin and the relevant module runs right there. Buy Peakhour Suite inside the Shopify admin and Shopify bills you; buy it on peakhour.ai and you're billed here, whatever you have connected.",
   },
   {
-    q: "What's the difference between Free and Suite?",
-    a: "Free is a real product, not a demo — and the quality of anything it writes, answers or publishes is identical to Suite's. What Suite adds is room and reach: ten times the monthly Peaks, every channel, and the automations that let it run without you — scheduling, routing, autopilot and the analytics behind them.",
+    q: "How does the free trial work?",
+    a: "Every new business starts on a free Peakhour Suite trial — every module, no card. When it ends, buy Peakhour Suite (monthly or yearly) or Agency (quarterly or yearly) to keep going; until you do, your business has no plan and Peakhour pauses.",
   },
   {
     q: "Which prices will I see?",

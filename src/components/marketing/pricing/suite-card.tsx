@@ -6,17 +6,20 @@ import {
   formatFoundingMonthly,
   hasFoundingOffer,
   launchOfferBadge,
+  suiteCtaLabel,
   yearlyPrice,
   type ResolvedProductTier,
 } from "@/lib/pricing";
-import type { SignupCta } from "@/components/marketing/pricing/plan-cards";
+import type { SignupCta } from "@/lib/catalog";
 import { pricingPillar } from "@/lib/pricing-catalog";
 import type { PillarSlug } from "@/lib/pillars";
 
 /**
  * Peakhour Suite — one plan, all five modules.
  *
- * This replaces "pick a pillar, pay per pillar" as the thing the pricing hub
+ * The plan a business buys (billing plan D19: one catalog, no free tier, no
+ * per-module plans), and the one every new business starts on as a trial.
+ * It replaced "pick a pillar, pay per pillar" as the thing the pricing hub
  * sells. The arithmetic that made the old shape untenable: five modules at
  * ₹1,499 is ₹7,495/month to assemble what the homepage describes, so in
  * practice nobody assembled it and every visitor bought one module and never
@@ -142,13 +145,16 @@ export function SuiteCard({
               href={cta.href}
               className="group mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-brand-gradient px-6 py-3.5 text-sm font-bold text-brand-contrast shadow-sm transition-transform hover:-translate-y-0.5 focus-visible:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 sm:w-auto"
             >
-              {openSignup ? "Get Peakhour Suite" : cta.label}
+              {openSignup ? suiteCtaLabel(p.trialDays) : cta.label}
               <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
             </Link>
           )}
+          {/* ★NO CARD: signing up starts the business on the Suite trial
+              (D19), which collects none. "Card required" was the rule for a
+              trial bought at checkout, and this button goes to signup. */}
           {p.trialDays > 0 && (
             <p className="mt-2.5 text-[11px] text-muted-foreground">
-              {p.trialDays}-day free trial · card required
+              {p.trialDays}-day free trial · no card to start
             </p>
           )}
         </div>

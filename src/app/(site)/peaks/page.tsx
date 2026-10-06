@@ -12,7 +12,7 @@ import { getPeaks, formatPackPrice, type PeakPack } from "@/lib/peaks";
 export const metadata: Metadata = {
   title: "Peaks — AI credits that power Peakhour.ai",
   description:
-    "Peaks are the AI credits behind every Peakhour.ai feature. Every plan includes a monthly allowance — free plans too; purchased Peaks never expire, are non-refundable, and work across every Peakhour product.",
+    "Peaks are the AI credits behind every Peakhour.ai feature. Every plan includes a monthly allowance — the free trial too; purchased Peaks never expire, are non-refundable, and work across every Peakhour product.",
 };
 
 /**
@@ -73,7 +73,7 @@ export default async function PeaksPage() {
               <HowItWorksCard
                 icon={<Sparkles className="size-5" />}
                 title="Included with every plan"
-                body="Peaks power every Peakhour.ai product, and every plan comes with a monthly allowance — free plans included. Paid plans simply carry more."
+                body="Peaks power every Peakhour.ai product, and every plan comes with a monthly allowance — your free trial included. Agency and Enterprise carry more."
               />
               <HowItWorksCard
                 icon={<Zap className="size-5" />}
