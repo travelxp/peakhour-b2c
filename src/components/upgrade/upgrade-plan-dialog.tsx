@@ -15,8 +15,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { PaymentModal, type CheckoutResult } from "./payment-modal";
+import { useBillingSummary } from "@/hooks/use-billing-summary";
 import {
   TERM_LABEL,
+  planChange,
   priceForTerm,
   termOptions,
   termSuffix,
@@ -179,6 +181,11 @@ export function UpgradePlanDialog({
   // What the selected card charges, and so the term checkout sends: Agency
   // under "Monthly" checks out quarterly, the price its card shows.
   const selectedPrice = selectedPlan ? priceForTerm(selectedPlan, term) : null;
+  // The paid lines held (D21): buying another plan or term replaces them.
+  const summaryQ = useBillingSummary();
+  const heldLines = summaryQ.data?.products ?? [];
+  const selectedChange = selectedPlan && selectedPrice ? planChange(selectedPlan.tier, selectedPrice.term, heldLines) : null;
+  const fmtDate = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
   const busy = checkoutMut.isPending;
 
   // Three sections answering three different questions: what should I add next,
@@ -279,11 +286,15 @@ export function UpgradePlanDialog({
                       {section.items.map((p) => {
                         const active = selected === p.tier;
                         const price = p.contactSales ? null : priceForTerm(p, term);
+                        // The plan held on this very term is not for sale again;
+                        // the same plan on another term is a switch (D21).
+                        const change = price ? planChange(p.tier, price.term, heldLines) : null;
+                        const current = change?.kind === "same" || (p.isCurrent && change?.kind !== "switch");
                         // A contact-sales plan has nothing to select — its action
                         // is an email, not a checkout — so it is never disabled
                         // for being unpurchasable, only for being current. A plan
                         // with no sellable term has nothing to check out.
-                        const disabled = p.isCurrent || (!purchasable && !p.contactSales) || (!p.contactSales && !price);
+                        const disabled = current || (!purchasable && !p.contactSales) || (!p.contactSales && !price);
                         return (
                           <button
                             key={p.tier}
@@ -370,7 +381,7 @@ export function UpgradePlanDialog({
                                   {p.trialDays}-day free trial · card required
                                 </div>
                               )}
-                              {p.isCurrent && (
+                              {current && (
                                 <span className="mt-2 inline-block rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium">
                                   Current plan
                                 </span>
@@ -391,12 +402,18 @@ export function UpgradePlanDialog({
               and defers the first charge. The copy states both facts up front so
               the card request on the next step is never a surprise. */}
           <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
-            {selectedPlan?.trialApplies && (
+            {selectedChange?.kind === "switch" ? (
+              <span className="mr-auto text-xs text-muted-foreground">
+                {selectedChange.startsAt
+                  ? `You keep ${selectedChange.from.name ?? "your current plan"} until ${fmtDate(selectedChange.startsAt)}; ${selectedPlan?.name} is billed from then, and you have it now.`
+                  : `${selectedPlan?.name} replaces ${selectedChange.from.name ?? "your current plan"} now.`}
+              </span>
+            ) : selectedPlan?.trialApplies ? (
               <span className="mr-auto text-xs text-muted-foreground">
                 We&rsquo;ll ask for a card now and charge nothing for{" "}
                 {selectedPlan.trialDays} days. Cancel anytime.
               </span>
-            )}
+            ) : null}
             <Button variant="ghost" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
@@ -406,7 +423,9 @@ export function UpgradePlanDialog({
             >
               {checkoutMut.isPending
                 ? "Starting…"
-                : selectedPlan?.trialApplies
+                : selectedChange?.kind === "switch"
+                  ? `Switch to ${selectedPlan?.name}`
+                  : selectedPlan?.trialApplies
                   ? `Start ${selectedPlan.trialDays}-day free trial`
                   : "Continue to payment"}
             </Button>

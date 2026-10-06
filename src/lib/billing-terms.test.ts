@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { intervalSuffix, periodTotals, priceForTerm, termOptions, termSuffix } from "./billing-terms";
+import { intervalSuffix, periodTotals, planChange, priceForTerm, termOptions, termSuffix } from "./billing-terms";
 
 /** The real catalog's shape: Suite monthly and yearly, Agency quarterly and
  *  yearly, Enterprise through sales (no sellable term). */
@@ -71,5 +71,33 @@ describe("periodTotals", () => {
 
   it("no monthly figure (a mixed-currency portfolio): nothing", () => {
     expect(periodTotals({ monthlyTotal: null, quarterlyTotal: null, yearlyTotal: null })).toEqual([]);
+  });
+});
+
+describe("planChange (D21, P4.2)", () => {
+  const SOON = new Date(Date.now() + 10 * 86_400_000).toISOString();
+  const suiteMonthly = { tier: "suite", name: "Peakhour Suite", interval: "month", renewsAt: SOON };
+
+  it("the same plan on the same term: nothing to buy", () => {
+    expect(planChange("suite", "monthly", [suiteMonthly])).toEqual({ kind: "same" });
+  });
+
+  it("another term, or another plan, switches from the held line at its renewal", () => {
+    expect(planChange("suite", "yearly", [suiteMonthly])).toEqual({ kind: "switch", from: suiteMonthly, startsAt: SOON });
+    expect(planChange("agency", "quarterly", [suiteMonthly])).toEqual({ kind: "switch", from: suiteMonthly, startsAt: SOON });
+  });
+
+  it("a held line with no future renewal switches at once", () => {
+    const lapsed = { ...suiteMonthly, renewsAt: new Date(Date.now() - 86_400_000).toISOString() };
+    expect(planChange("agency", "quarterly", [lapsed])).toMatchObject({ kind: "switch", startsAt: null });
+  });
+
+  it("nothing held, or only a line already ending: a plain purchase", () => {
+    expect(planChange("suite", "monthly", [])).toEqual({ kind: "new" });
+    expect(planChange("suite", "monthly", [{ ...suiteMonthly, endsAt: SOON }])).toEqual({ kind: "new" });
+  });
+
+  it("a held line with no interval is a monthly one", () => {
+    expect(planChange("suite", "monthly", [{ tier: "suite" }])).toEqual({ kind: "same" });
   });
 });

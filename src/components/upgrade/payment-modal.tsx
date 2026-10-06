@@ -48,6 +48,8 @@ export interface CheckoutSummary {
   sellerName: string;
   sellerCountry: string | null;
   merchantOfRecord: "self" | "stripe";
+  /** A plan change (D21): when the first charge is due; absent = now. */
+  startsAt?: string;
 }
 
 export type CheckoutResult =
@@ -141,6 +143,13 @@ function SummaryLine({ summary }: { summary: CheckoutSummary }) {
           {summary.interval ? intervalSuffix(summary.interval) : ""}
         </span>
       </div>
+      {/* A plan change (D21): the card is collected now, and nothing is charged
+          until the plan held runs out. */}
+      {summary.startsAt ? (
+        <p className="mt-1 text-xs text-success-on-tint">
+          Nothing to pay until {new Date(summary.startsAt).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}, when your current plan ends.
+        </p>
+      ) : null}
       <div className="text-muted-foreground mt-1 flex flex-wrap items-baseline justify-between gap-x-3 text-xs">
         <span>{summary.taxLabel}</span>
         <span>

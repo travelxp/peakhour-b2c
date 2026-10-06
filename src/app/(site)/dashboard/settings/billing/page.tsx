@@ -403,7 +403,11 @@ export default function BillingPage() {
                         // A row-level trialEndsAt means the product is granted now
                         // and starts billing on that date — say when, so a "free"
                         // product doesn't look permanently free.
-                        const when = p.trialEndsAt
+                        // An ENDING line (a cancel or plan change, D21) says
+                        // when it ends: it renews never.
+                        const when = p.endsAt
+                          ? `Ends ${formatDate(p.endsAt)}`
+                          : p.trialEndsAt
                           ? `Free until ${formatDate(p.trialEndsAt)}`
                           : p.renewsAt
                             ? `Renews ${formatDate(p.renewsAt)}`
