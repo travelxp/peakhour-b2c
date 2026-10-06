@@ -109,6 +109,14 @@ export interface Entitlements {
   country?: string;
   currency?: string;
   computedAt: string;
+  /**
+   * Why the ACTIVE business is usable, served when `/me` resolved a business
+   * (the api's `ComputedBusinessEntitlements`): `trial` (the first business on
+   * its Suite trial), `paid` (its own line, or a contract), `none`
+   * (padlocked, D19). An api older than P4.3a serves `free`. `plan-status`
+   * reads it as the business's plan state, over the org-wide summary.
+   */
+  coverage?: string;
 }
 
 export interface MeResponse {

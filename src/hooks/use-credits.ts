@@ -37,8 +37,8 @@ export type MeteredBalance = {
    *  is not counted twice — once in `used`, once by the debit. */
   topUpDrawn: number;
   /** Whether that balance is actually spendable: true when any tier the org
-   *  holds costs money. Free tiers may HOLD top-up Peaks and not spend them,
-   *  so the flag is not `topUpBalance > 0`. */
+   *  holds costs money. A business on its trial or with no plan (D19) may HOLD
+   *  top-up Peaks and not spend them, so the flag is not `topUpBalance > 0`. */
   topUpUsable: boolean;
 };
 
@@ -146,14 +146,15 @@ export function getCapStatus(balance: CreditsBalance | undefined): "hard" | "sof
  * ⚠️🚫★"Upgrade" is a DEAD END on a paid plan. Peakhour Suite is the top
  * self-serve tier and the api's escalation for it is `boost_or_wait` — the
  * action that actually resumes AI is buying Peaks, not changing plan. Only a
- * free tier has an upgrade to make, and `topUpUsable` is precisely the api's
- * own "this org is on something that costs money" answer, so the CTA and the
- * gate that honours the purchase cannot drift apart.
+ * business with no paid plan (D19: on its trial, or none) has a plan to buy,
+ * and `topUpUsable` is precisely the api's own "this org is on something that
+ * costs money" answer, so the CTA and the gate that honours the purchase cannot
+ * drift apart.
  */
 export function capRecoveryCta(balance: MeteredBalance): { href: string; label: string; verb: string } {
   return balance.topUpUsable
     ? { href: "/dashboard/peaks", label: "Buy Peaks", verb: "Buy Peaks" }
-    : { href: "/dashboard/settings/billing", label: "Upgrade plan", verb: "Upgrade" };
+    : { href: "/dashboard/settings/billing", label: "Buy a plan", verb: "Buy a plan" };
 }
 
 // ── Cache keys ─────────────────────────────────────────────────────────────

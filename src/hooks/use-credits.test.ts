@@ -58,7 +58,7 @@ describe("spendableCap — the denominator for what this client DISPLAYS", () =>
   });
 
   it("★ignores a held balance the plan may NOT spend", () => {
-    // A free tier can hold top-up Peaks and not draw on them — the api gates on
+    // A business on its trial or with no plan can hold top-up Peaks and not draw on them — the api gates on
     // `topUpUsable`, not on the balance being non-zero, so counting them here
     // would promise headroom the gate then refuses.
     expect(spendableCap(suite({ topUpBalance: 2000, topUpUsable: false }))).toBe(5000);
@@ -117,10 +117,11 @@ describe("capRecoveryCta — the action that actually resumes AI", () => {
     expect(cta.label).toBe("Buy Peaks");
   });
 
-  it("sends a free tier to billing, where an upgrade does exist", () => {
-    const cta = capRecoveryCta(suite({ plan: "free", topUpUsable: false }));
+  it("sends a business with no paid plan to billing, to buy one (D19)", () => {
+    const cta = capRecoveryCta(suite({ plan: "suite", topUpUsable: false }));
     expect(cta.href).toBe("/dashboard/settings/billing");
-    expect(cta.label).toBe("Upgrade plan");
+    expect(cta.label).toBe("Buy a plan");
+    expect(cta.verb).toBe("Buy a plan");
   });
 
   it("★sends a CONTRACT-PRICED tier to buy Peaks too", () => {

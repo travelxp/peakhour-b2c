@@ -1,11 +1,6 @@
 import { Suspense } from "react";
 import { getPublicCatalog } from "@/lib/catalog";
-import {
-  getPricing,
-  minFreePeaksPerMonth,
-  formatPeaks,
-  FREE_PEAKS_FALLBACK,
-} from "@/lib/pricing";
+import { getPricing, suiteTrialDays } from "@/lib/pricing";
 import { isPasswordSignInAvailable } from "@/lib/password-signin-availability";
 import { AuthFlow } from "./auth-flow";
 
@@ -33,8 +28,8 @@ export default async function AuthPage() {
     getPublicCatalog(),
     // "DEFAULT" is not a sentinel the API honours — it fails the two-letter
     // validation and the response comes back geo-resolved. We pass it purely
-    // to pin one cache key, and read only `peaksIncluded`, which is a
-    // plan-level allowance and country-independent. Never read a price here.
+    // to pin one cache key, and read only Suite's `trialDays`, the trial a
+    // new business starts on (D19). Never read a price here.
     getPricing("DEFAULT"),
     // ★Resolved HERE rather than probed from the client on mount. That keeps a
     //  credentialed request off every production /auth view for an answer that
@@ -43,7 +38,9 @@ export default async function AuthPage() {
     isPasswordSignInAvailable(),
   ]);
   const signupMode = catalog?.platform?.signupMode ?? "open";
-  const freePeaks = formatPeaks(minFreePeaksPerMonth(pricing) ?? FREE_PEAKS_FALLBACK);
+  // ★Null stays null: no trial, no promise (`suiteTrialDays`, the rule
+  //  /pricing reads too; official review R1 on b2c#591).
+  const trialDays = suiteTrialDays(pricing);
 
   return (
     // useSearchParams() must sit inside a Suspense boundary (App Router). A
@@ -60,7 +57,7 @@ export default async function AuthPage() {
         </div>
       }
     >
-      <AuthFlow signupMode={signupMode} freePeaks={freePeaks} passwordSignIn={passwordSignIn} />
+      <AuthFlow signupMode={signupMode} trialDays={trialDays} passwordSignIn={passwordSignIn} />
     </Suspense>
   );
 }

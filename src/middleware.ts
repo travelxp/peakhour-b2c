@@ -127,7 +127,7 @@ export function middleware(req: NextRequest) {
   // launch partners (e.g. quests.travel). The page itself reveals nothing
   // sensitive; the magic-link endpoint only sends a real link to ops-approved
   // emails (see peakhour-api auth/magic-link.ts), so exposing the form is safe.
-  // (4) /pricing (hub + per-pillar + /pricing/teams) — the plans are a public
+  // (4) /pricing (hub + /pricing/teams) — the plans are a public
   // marketing asset; prospects and launch partners evaluate them pre-launch, and
   // the CTAs already resolve to "Join the waitlist" while signups aren't open
   // (see signupCta + the pricing pages). It surfaces no gated data.

@@ -39,7 +39,8 @@ const ctaClass =
 
 /** The signup CTA resolved from the platform stage (see `signupCta`). Passed
  *  down from the server `Header` so the header label tracks the launch stage
- *  ("Start free" when open, "Join the waitlist" pre-launch) instead of always
+ *  ("Start free trial" when open with a trial, "Get started" without one, "Join
+ *  the waitlist" pre-launch) instead of always
  *  inviting signups. */
 export interface HeaderCta {
   label: string;

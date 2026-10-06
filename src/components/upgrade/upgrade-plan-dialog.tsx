@@ -219,11 +219,10 @@ export function UpgradePlanDialog({
   const selectedCurrent = !!selectedPlan && !!selectedPrice && currentOnTerm(selectedPlan, selectedPrice.term);
   const busy = checkoutMut.isPending;
 
-  // Three sections answering three different questions: what should I add next,
-  // what else exists, and what if I've outgrown per-product pricing. Bundles are
-  // SEPARATED rather than sorted down — Agency at ₹24,999 next to a ₹1,499
-  // product reads as a mistake rather than a choice, which is what the team saw
-  // when everything shared one flat grid.
+  // Three sections: what fits what I've connected, what else exists, and the
+  // plans for many businesses. One catalog (D19): Peakhour Suite, then Agency
+  // and Enterprise SEPARATED rather than sorted down, so a plan for a roster of
+  // clients does not read as the next step up for one business.
   //
   // The server groups; this falls back to deriving them so an older api (or a
   // cached response) still renders something sensible instead of nothing.
@@ -243,14 +242,14 @@ export function UpgradePlanDialog({
       key: "others",
       // Only call them "other" when something was recommended above; with no
       // connections there is no "other" to be other than.
-      title: groups.recommended.length > 0 ? "Other products" : "Products",
+      title: groups.recommended.length > 0 ? "Other plans" : "Plans",
       blurb: undefined as string | undefined,
       items: groups.others,
     },
     {
       key: "bundles",
       title: "For larger teams",
-      blurb: "Every product in one plan — for agencies and multi-brand businesses.",
+      blurb: "For agencies and multi-brand businesses: many businesses on one plan.",
       items: groups.bundles,
     },
   ];
@@ -258,9 +257,8 @@ export function UpgradePlanDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        {/* Wide enough for two comfortable columns (plan names run long, e.g.
-            "Peakhour.ai Commerce: Paid") and capped in height so a growing
-            catalogue scrolls inside the dialog instead of overflowing it. */}
+        {/* Wide enough for two comfortable columns and capped in height so
+            the catalogue scrolls inside the dialog instead of overflowing it. */}
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>Choose a plan</DialogTitle>

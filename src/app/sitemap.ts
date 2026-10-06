@@ -1,7 +1,6 @@
 import type { MetadataRoute } from "next";
 import { SITE } from "@/lib/utils";
 import { PILLAR_ORDER } from "@/lib/pillars";
-import { PRICING_PILLAR_ORDER } from "@/lib/pricing-catalog";
 import { getMarketingSitemapEntries } from "@/lib/marketing-pages";
 
 /**
@@ -34,13 +33,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     changeFrequency: "weekly" as const,
   }));
 
-  // Per-pillar pricing pages + the Agency/Enterprise page.
+  // The Agency/Enterprise page. The per-pillar pricing pages went with the
+  // per-module plans (billing plan D19, P4.7).
   const pricingPaths = [
-    ...PRICING_PILLAR_ORDER.map((slug) => ({
-      path: `/pricing/${slug}`,
-      priority: 0.7,
-      changeFrequency: "weekly" as const,
-    })),
     { path: "/pricing/teams", priority: 0.6, changeFrequency: "monthly" as const },
   ];
 

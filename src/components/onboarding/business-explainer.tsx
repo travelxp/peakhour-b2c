@@ -28,7 +28,7 @@ export function BusinessExplainer({ className }: { className?: string }) {
     {
       icon: PlusCircle,
       title: "Add one anytime",
-      body: "Running another brand, store, or client? Add a Business in a click. Free plans include one Business; on paid plans each additional Business is a simple add-on.",
+      body: "Running another brand, store, or client? Add a Business in a click; each Business beyond your first is bought on its own plan.",
     },
   ];
 

@@ -13,12 +13,13 @@ import { api, ApiError } from "@/lib/api";
 import { SITE, cn } from "@/lib/utils";
 import type { PlatformSignupMode } from "@/lib/catalog";
 import { PeaksGlyph } from "@/components/peaks/peaks-glyph";
+import { hasTrial } from "@/lib/trial-copy";
 import {
   PILLAR_CONSOLE_ROWS,
   PILLAR_CONSOLE_LABEL,
   PILLAR_CONSOLE_ROW_CLASS,
-  SIGNUP_PROMISES,
-  PRELAUNCH_PROMISES,
+  signupPromises,
+  signupStats,
 } from "@/lib/pillar-console";
 
 // Bounded length + char set so a tampered link can't smuggle arbitrary strings
@@ -62,18 +63,6 @@ type Status =
 // + confused user. If the server window changes, update this in
 // tandem; treat the API as the source of truth.
 const RESEND_COOLDOWN_SECONDS = 60;
-
-// Proof points beside the form. The Peaks figure is catalog data resolved
-// server-side (see page.tsx), not a number kept in sync by hand.
-function signupStats(freePeaks: string) {
-  return [
-    { value: "5", label: "modules, one login" },
-    { value: "0", label: "credit cards required" },
-    // "+" and "free plan": the figure is the floor across free plans, and
-    // paid/Agency/Enterprise carry far more. Without both, this reads as a cap.
-    { value: `${freePeaks}+`, label: "free Peaks a month, every free plan" },
-  ];
-}
 
 // Landing CTAs route here with ?intent=waitlist|invite when the platform is
 // pre-launch (driven by cfg_platform_stage.signupMode), so the heading matches
@@ -206,8 +195,10 @@ function EmailChip({ email }: { email: string }) {
 
 export function AuthFlow({
   signupMode,
-  /** Pre-formatted so the client bundle carries no pricing logic. */
-  freePeaks,
+  /** Suite's trial length, resolved server-side so the client bundle carries
+   *  no pricing logic. Null when the environment sells no Suite trial: then
+   *  the page promises none (`suiteTrialDays`, `hasTrial`). */
+  trialDays,
   /**
    * Whether this stack's API allows password sign-in. Resolved on the server in
    * `page.tsx` — see `lib/password-signin-availability.ts` for why it is not a
@@ -217,7 +208,7 @@ export function AuthFlow({
   passwordSignIn = false,
 }: {
   signupMode: PlatformSignupMode;
-  freePeaks: string;
+  trialDays: number | null;
   passwordSignIn?: boolean;
 }) {
   // Anything other than "open" means access is gated behind approval, so the
@@ -302,7 +293,6 @@ export function AuthFlow({
       window.history.replaceState(null, "", window.location.pathname + window.location.search);
     }
     // Once, on mount: the values this guards are read during the first render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // NOTE: computed from the fragment at hydration while the server render saw
@@ -568,14 +558,20 @@ export function AuthFlow({
               h1 here would leave small screens with no h1 at all. The state
               heading in the form column is the h1 at every breakpoint. */}
           <p className="mt-4 max-w-xl text-3xl font-extrabold leading-[1.06] tracking-tight text-pretty xl:text-4xl">
-            Your whole business, waiting on the other side.{" "}
-            <span className="font-serif font-normal italic text-brand-gradient">
-              Free to start.
-            </span>
+            Your whole business, waiting on the other side.
+            {hasTrial(trialDays) ? (
+              <>
+                {" "}
+                <span className="font-serif font-normal italic text-brand-gradient">
+                  Free to try.
+                </span>
+              </>
+            ) : null}
           </p>
           <p className="mt-4 max-w-md text-on-ink-dim">
             Commerce, Content, Growth, Support and Presence — five modules on
-            one account, each with a free plan.
+            one account
+            {hasTrial(trialDays) ? `, free for your first ${trialDays} days.` : "."}
           </p>
         </div>
 
@@ -616,7 +612,7 @@ export function AuthFlow({
         </div>
 
         <div className="relative z-10 flex gap-8 border-t border-ink-line pt-6">
-          {signupStats(freePeaks).map((stat) => (
+          {signupStats(trialDays).map((stat) => (
             <div key={stat.label}>
               <div
                 className="text-2xl font-bold tabular-nums text-brand-gradient"
@@ -878,7 +874,7 @@ export function AuthFlow({
               <PasswordSignIn available={passwordSignIn} next={next} />
 
               <ul className="mt-4 flex flex-wrap justify-center gap-x-3.5 gap-y-1.5 text-xs text-muted-foreground sm:mt-6 sm:gap-x-4 sm:text-sm">
-                {(isPreLaunch ? PRELAUNCH_PROMISES : SIGNUP_PROMISES).map((tick) => (
+                {signupPromises(trialDays, isPreLaunch).map((tick) => (
                   <li key={tick} className="flex items-center gap-1.5">
                     <Check className="size-3.5 shrink-0 text-brand-label" strokeWidth={3} aria-hidden />
                     {tick}

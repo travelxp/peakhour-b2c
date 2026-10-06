@@ -7,6 +7,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/providers/auth-provider";
 import { api, ApiError } from "@/lib/api";
 import { useLocale } from "@/hooks/use-locale";
+import type { DashboardOrgPlanSummary } from "@/hooks/use-dashboard-org";
+import { planDisplayName } from "@/lib/plan-status";
 // Shared with every other surface the OAuth callback can return to
 // (?returnTo=), so a new provider is labelled once, not per page.
 import { formatProviderName } from "@/lib/provider-names";
@@ -44,7 +46,9 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-interface OrgDetails {
+/** `/v1/dashboard/org`; the plan row reads its `subscription` / `products`
+ *  through `planDisplayName`, as the top-bar badge does (D19, P4.7). */
+interface OrgDetails extends Pick<DashboardOrgPlanSummary, "subscription" | "products"> {
   _id: string;
   name: string;
   slug: string;
@@ -68,9 +72,6 @@ interface OrgDetails {
     maxDailySpend?: number;
     maxCAC?: number;
     minAIScore?: number;
-  };
-  billing?: {
-    plan?: string;
   };
   taxonomy?: {
     sectors?: string[];
@@ -102,7 +103,7 @@ function SettingsLoading() {
 }
 
 function SettingsContent() {
-  const { org } = useAuth();
+  const { org, entitlements } = useAuth();
   const { formatCurrency } = useLocale();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
@@ -385,8 +386,11 @@ function SettingsContent() {
                 <SettingRow
                   label="Plan"
                   value={
-                    <Badge variant="outline" className="capitalize">
-                      {orgDetails?.billing?.plan || "free"}
+                    <Badge variant="outline">
+                      {/* The plan's NAME, not the raw billing key with a
+                          "free" fallback: there is no free tier (D19), and
+                          no plan reads "No plan". */}
+                      {planDisplayName(orgDetails ?? undefined, entitlements) ?? "—"}
                     </Badge>
                   }
                 />
@@ -417,8 +421,11 @@ function SettingsContent() {
                 <SettingRow
                   label="Plan"
                   value={
-                    <Badge variant="outline" className="capitalize">
-                      {orgDetails?.billing?.plan || "free"}
+                    <Badge variant="outline">
+                      {/* The plan's NAME, not the raw billing key with a
+                          "free" fallback: there is no free tier (D19), and
+                          no plan reads "No plan". */}
+                      {planDisplayName(orgDetails ?? undefined, entitlements) ?? "—"}
                     </Badge>
                   }
                 />

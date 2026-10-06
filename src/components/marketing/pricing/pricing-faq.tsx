@@ -4,11 +4,12 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { trialFaq } from "@/lib/trial-copy";
 
 const FAQS: { q: string; a: string }[] = [
   {
     q: "What are Peaks?",
-    a: "Peaks are your AI credits — one shared wallet across all five modules. Free includes an allowance each month; Peakhour Suite includes a much larger one — the cards above show both. You'll never hit a surprise paywall mid-task; we warn you before you run low.",
+    a: "Peaks are your AI credits — one shared wallet across all five modules. Every plan includes a monthly allowance — the cards above show it — and you can top up any time. You'll never hit a surprise paywall mid-task; we warn you before you run low.",
   },
   {
     q: "Do I have to buy every module?",
@@ -16,11 +17,7 @@ const FAQS: { q: string; a: string }[] = [
   },
   {
     q: "Can I use it inside Shopify or WordPress?",
-    a: "Yes. Install the Shopify App or WordPress plugin and the relevant module runs right there. Shopify billing goes through Shopify; everywhere else you're billed on peakhour.ai.",
-  },
-  {
-    q: "What's the difference between Free and Suite?",
-    a: "Free is a real product, not a demo — and the quality of anything it writes, answers or publishes is identical to Suite's. What Suite adds is room and reach: ten times the monthly Peaks, every channel, and the automations that let it run without you — scheduling, routing, autopilot and the analytics behind them.",
+    a: "Yes. Install the Shopify App or WordPress plugin and the relevant module runs right there. Buy Peakhour Suite inside the Shopify admin and Shopify bills you; buy it on peakhour.ai and you're billed here, whatever you have connected.",
   },
   {
     q: "Which prices will I see?",
@@ -29,11 +26,14 @@ const FAQS: { q: string; a: string }[] = [
 ];
 
 /** Plain-language pricing FAQ. The accordion is a client component; this
- *  wrapper stays data-only so the copy lives in one place. */
-export function PricingFaq() {
+ *  wrapper stays data-only so the copy lives in one place. ★The trial entry
+ *  is the catalog's (`trialFaq`: Suite's `trialDays`, or how to start when
+ *  there is no trial; owner rule 2026-10-06), placed where it always stood. */
+export function PricingFaq({ trialDays }: { trialDays: number | null }) {
+  const faqs = [...FAQS.slice(0, 3), trialFaq(trialDays), ...FAQS.slice(3)];
   return (
     <Accordion type="single" collapsible className="w-full">
-      {FAQS.map((faq) => (
+      {faqs.map((faq) => (
         <AccordionItem key={faq.q} value={faq.q}>
           <AccordionTrigger className="text-left text-base font-semibold">
             {faq.q}

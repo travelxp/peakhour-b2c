@@ -117,9 +117,9 @@ export function analyticsActions(
 
   // ── One page IS the site ────────────────────────────────────────────────
   //
-  // ★ONLY WHEN WE HAVE THE WHOLE LIST. `pages` is TRUNCATED on the Free plan —
+  // ★ONLY WHEN WE HAVE THE WHOLE LIST. `pages` is TRUNCATED on a plan without full analytics —
   // the api sends the top three and puts the rest behind `lockedPages` — so the
-  // denominator here would be three pages rather than the site. Every Free
+  // denominator here would be three pages rather than the site. Every such
   // business with more than one page would be told a single page is "56% of
   // everything read on your site", computed against a list we chose. A share is
   // only sayable when nothing is missing from underneath it.

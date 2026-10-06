@@ -3,6 +3,8 @@ import { ArrowRight, Check } from "lucide-react";
 import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
 import { getPublicCatalog, signupCta } from "@/lib/catalog";
+import { marketingTrialDays } from "@/lib/pricing";
+import { pillarTrialCopy } from "@/lib/trial-copy";
 import { PILLARS, PILLAR_ORDER, type PillarSlug } from "@/lib/pillars";
 
 /**
@@ -15,8 +17,10 @@ export async function PillarPage({ slug }: { slug: PillarSlug }) {
   const pillar = PILLARS[slug];
   const Icon = pillar.icon;
 
-  const catalog = await getPublicCatalog();
-  const cta = signupCta(catalog?.platform?.signupMode ?? "open");
+  const [catalog, trialDays] = await Promise.all([getPublicCatalog(), marketingTrialDays()]);
+  const cta = signupCta(catalog?.platform?.signupMode ?? "open", trialDays);
+  // The trial is said only when the catalog gives one (owner rule 2026-10-06).
+  const trialCopy = pillarTrialCopy(pillar.planLabel, pillar.name, trialDays);
 
   const others = PILLAR_ORDER.filter((s) => s !== slug).map((s) => PILLARS[s]);
 
@@ -80,7 +84,7 @@ export async function PillarPage({ slug }: { slug: PillarSlug }) {
                 <span aria-hidden className="font-bold text-brand-label">
                   ✓
                 </span>{" "}
-                {pillar.freeLabel} — no credit card
+                {trialCopy.note}
               </p>
             </div>
 
@@ -180,13 +184,13 @@ export async function PillarPage({ slug }: { slug: PillarSlug }) {
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <div className="overflow-hidden rounded-3xl border border-ink-line bg-ink px-6 py-16 text-center text-on-ink shadow-2xl">
               <h2 className="mx-auto max-w-2xl text-3xl font-extrabold tracking-tight text-pretty sm:text-4xl">
-                Try {pillar.name}{" "}
+                {trialCopy.closingLead}{" "}
                 <span className="font-serif font-normal italic text-brand-gradient">
-                  free.
+                  {trialCopy.closingAccent}
                 </span>
               </h2>
               <p className="mx-auto mt-4 max-w-xl text-on-ink-dim">
-                {pillar.freeLabel} — no credit card. Your first Peaks are on us.
+                {trialCopy.closing}
               </p>
               {!cta.disabled && (
                 <Link

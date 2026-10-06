@@ -25,6 +25,7 @@
  *   7. Commit button + auto-approve checkbox (gated by plan tier)
  */
 
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { CalendarPlus, ShieldCheck } from "lucide-react";
@@ -216,8 +217,8 @@ export function SchedulerComposer({
   const bundleCap = entitlements?.schedulerLimits.maxScheduleBundleSize;
   const bundleExceedsCap = bundleCap !== undefined && targetCount > bundleCap;
   // Multi-channel users mounted before entitlements arrive: hide
-  // the locked banner until we know — otherwise paid users flash a
-  // "Free tier" callout on every load.
+  // the locked banner until we know — otherwise entitled users flash a
+  // locked callout on every load.
   const bundlesLocked =
     !entitlementsLoading &&
     targetCount > 1 &&
@@ -421,12 +422,12 @@ export function SchedulerComposer({
       {/* Bundle-gate callout — appears when the caller's channel
           count exceeds the user's plan tier. The server will 402 if
           they try to schedule, so we surface the hint before submit.
-          Suppressed while entitlements is loading so paid users
-          don't flash a "Free tier" banner. */}
+          Suppressed while entitlements is loading so entitled users
+          don't flash a locked banner. */}
       {bundlesLocked && (
         <UpgradeCallout
           variant="banner"
-          message="Multi-channel bundled publishing is on Starter+ plans. Free tier schedules channels one at a time."
+          message="Multi-channel bundled publishing is not on your plan, so channels are scheduled one at a time."
         />
       )}
       {bundleExceedsCap && (
@@ -443,13 +444,11 @@ export function SchedulerComposer({
           (composer doesn't have list-items query state). */}
       {queueCap !== undefined && !entitlementsLoading && (
         <div className="text-[11px] text-muted-foreground">
-          {entitlements?.plan === "free"
-            ? `Free tier holds up to ${queueCap} scheduled items at a time. `
-            : `Your plan caps active scheduled items at ${queueCap}. `}
+          {`Your plan caps active scheduled items at ${queueCap}. `}
           See your{" "}
-          <a href="/dashboard/calendar" className="underline-offset-2 hover:underline">
+          <Link href="/dashboard/calendar" className="underline-offset-2 hover:underline">
             calendar
-          </a>{" "}
+          </Link>{" "}
           for the current count.
         </div>
       )}

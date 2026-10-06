@@ -1,101 +1,144 @@
 /**
- * What an org actually holds, and whether telling them to upgrade is true.
+ * What a business holds, and what the dashboard should say about it.
  *
- * ── ⚠️🚫★★THE BUG THIS EXISTS FOR: TWO SOURCES OF TRUTH, AND THE TOP BAR READ
- *    THE OLDER ONE ────────────────────────────────────────────────────────────
+ * ── ONE CATALOG, THREE STATES (billing plan D19, P4.7) ──────────────────────
  *
- * `/v1/dashboard/org` returns **both**:
+ * The catalog is Peakhour Suite, Agency and Enterprise. The per-product plans
+ * (`commerce_assistant`, `content_studio`, `growth`, `support_inbox`,
+ * `presence`, each `.free` and `.paid`) are scrapped and there is no free tier.
+ * A new business starts on a Suite trial; when it ends the business holds no
+ * plan (padlocked) until it buys. So a business is in exactly one of:
  *
- *   - `subscription.plan` — the legacy BASE tier (`free`/`starter`/`growth`/…),
- *     and
- *   - `products[]` — the product-portfolio subscriptions an org has actually
- *     bought (T4 native billing).
+ *   - `paid`  — it holds a bought line (`products[]`, active or on a checkout
+ *               trial) or a base CONTRACT row (a CMS-set plan, Enterprise);
+ *   - `trial` — its base row is the Suite trial and the trial is live;
+ *   - `none`  — neither: no plan, buy to continue.
  *
- * ★★**THE BASE PLAN CAN BE `free` WHILE THE ORG OWNS A PAID PRODUCT.** The
- * billing page's own comment says so in as many words — *"without this, the
- * page reads 'Free' and prompts a re-purchase"* — and it guards against it. 🚫The
- * top-bar `PlanBadge` did not, so an org that had bought Peakhour Suite (and
- * Peaks) was told to **upgrade, on every dashboard page, permanently**, while
- * the billing page it linked to showed the Suite as current and offered nothing
- * to buy. **A guard written in one file and dropped in the next**, which is why
- * the rule now lives in ONE place that both read.
+ * `/v1/dashboard/org` returns both sources: `subscription` (the base row: the
+ * Suite trial, or a contract) and `products[]` (bought lines). ★Both surfaces
+ * that state the plan (the top-bar badge and the billing page) read this one
+ * module, because a guard written in one file and dropped in the next is how
+ * the badge once told a Suite buyer to upgrade on every page.
  *
- * ★It is a pure function of the summary, so the decision is testable without a
- * DOM and the two surfaces cannot drift apart again.
+ * ── THE STATE IS THE ACTIVE BUSINESS'S (independent review on b2c#591) ──────
+ *
+ * D19's padlock is per business: the trial covers the org's first business
+ * only, and each other business is bought on its own plan. `/v1/dashboard/org`
+ * is ORG-wide (every business's lines, the one base row), so on its own it
+ * badged a padlocked business "Peakhour Suite" because a sibling bought Suite,
+ * and a business with no plan "on trial" because the first one was. The
+ * active business's own answer is `/v1/auth/me` `entitlements.coverage`
+ * (`trial` / `paid` / `none`, the rule the gates and the workspace switcher's
+ * `planActive` share), so it decides the state whenever it is served
+ * (`BusinessPlanish`). The org-wide derivation stays only as the fallback for
+ * a `/me` that carries no such coverage (no business picked, an entitlements
+ * failure, or an api older than P4.3a, whose `free` is not one of the three).
+ *
+ * ── STORED LEFTOVERS UNTIL P4.5 ──────────────────────────────────────────────
+ *
+ * Until the per-product rows are deleted (P4.5) and the api stops falling back
+ * to `"free"` (P4.3b), a summary may still carry `plan: "free"`, a held
+ * `commerce_assistant.free` base row or line, or `"none"`. None of them is a
+ * plan anybody holds, so each reads as NO plan: never named, never styled as a
+ * product, never a reason to crash (`isNoPlanKey`).
  */
 
-/** One product-portfolio subscription, as `/v1/dashboard/org` returns it. */
+/** One held line, as `/v1/dashboard/org` returns it. */
 export interface HeldProduct {
   tier: string;
   state?: string;
   name?: string;
+  productKey?: string | null;
+  endsAt?: string | null;
 }
 
 export interface PlanSummaryish {
-  subscription?: { plan?: string; planName?: string };
+  subscription?: {
+    plan?: string;
+    planName?: string;
+    trialActive?: boolean;
+    trialEndsAt?: string | null;
+  };
   products?: HeldProduct[];
 }
 
-/**
- * Plans where an upgrade is meaningful ON THE BASE LADDER.
- *
- * ★`agency` and `enterprise` are at or near the top, so the CTA is noise there.
- * ⚠️★This set is NOT the whole answer and never was — the second half is
- * `baseTierMisrepresents`, which `showUpgradeCta` ANDs with it. 🚫A first version
- * of this line pointed at a predicate `showUpgradeCta` does not use, and
- * following it re-introduces the trial regression the tests guard.
- */
-const UPGRADABLE_BASE = new Set(["free", "starter", "growth"]);
+export type PlanState = "paid" | "trial" | "none";
 
 /**
- * ⏸⚠️★★AND THIS SET IS DELIBERATELY **NOT** WIDENED TO DOTTED FREE TIERS.
- *
- * An org on `commerce_assistant.free` matches nothing here, so it has never seen
- * this CTA — and adding one would turn a prompt ON for a whole population that
- * has never had it, which is a product decision and not what was reported. ★It
- * is recorded rather than silently left: `plan-keys.ts` warns that a table keyed
- * by bare account plans *"finds nothing"* for a held tier, and this is that
- * shape, kept on purpose. ⏸Worth deciding separately.
- *
- * ★The consequence is that the suppression below only ever applies to a BARE
- * `free`, which is the tier the reported org is on. `isFreeTier` is still the
- * right question to ask — it keeps this function and `planDisplayName` agreeing
- * about what "free" means — but it cannot currently be reached with a dotted
- * key, and saying so is better than leaving a reader to work it out.
+ * The active business's own plan, as `/v1/auth/me` serves it on `entitlements`
+ * (`useAuth().entitlements`): `coverage` is why the business is usable, and
+ * `plan` the tier its grant comes from. Both optional: `/me` omits `coverage`
+ * on an org-level read, and an api older than P4.3a serves `free`.
  */
+export interface BusinessPlanish {
+  coverage?: string | null;
+  plan?: string | null;
+}
 
-/**
- * Is this tier key one that costs nothing?
- *
- * ★THE VOCABULARY IS `peakhour-api`'s, NOT INVENTED HERE: bare `free`, and the
- * `.free` / `.lens` suffixes. Everything else — `.paid`, `.pro`, `.studio`,
- * `.commerce` — is on the paid side of the same split the Peaks buy gate uses.
- */
-export function isFreeTier(key: string | undefined): boolean {
-  if (typeof key !== "string" || key === "") return false;
-  // ⚠️🚫★★`.lens` IS A FREE SUFFIX AND A FIRST VERSION MISSED IT.
-  //  `peakhour-api`'s `credits.ts` states it twice — *"the free tiers (free,
-  //  `*.lens`) cost nothing"* — and it is the rule the Peaks buy gate applies.
-  //  🚫Counting a grandfathered `content_studio.lens` org as PAID would suppress
-  //  their upgrade prompt permanently: the inverted form of the reported bug,
-  //  introduced by the fix for it.
-  return key === "free" || key.endsWith(".free") || key.endsWith(".lens");
+/** The active business's coverage when it is one of the three states, else null. */
+function coverageOf(business: BusinessPlanish | null | undefined): PlanState | null {
+  const c = business?.coverage;
+  return c === "trial" || c === "paid" || c === "none" ? c : null;
 }
 
 /**
- * Is this a product the org HOLDS on a paid tier — trials included?
+ * A tier key that names no plan: absent, `"none"`, or a free-tier key a stored
+ * row may still carry until P4.5 (`free`, `<product>.free`). ★Not a free tier
+ * the catalog sells (D19: there is none); the reading of a leftover, so the UI
+ * renders it neutrally instead of naming it.
  *
- * ⚠️★A FREE TIER IS A GRANT, NOT A PURCHASE. The Shopify claim hands an org a
- * free floor product, and counting it as paid would silence the upgrade CTA for
- * exactly the orgs it is meant for. ★This is the billing page's own `paidCount`
- * rule, moved here rather than copied, so the two cannot disagree about what
- * "paid" means.
- *
- * 🚫**It says nothing about `state`** — see `isConvertedProduct` for the
- * question the CTA asks.
+ * ★A GRANDFATHERED `.lens` TIER IS ONE TOO (official review R3 on b2c#591):
+ * the api's `credits.ts` counts `free`, `*.free` and the retired `*.lens`
+ * tiers as free, and so did this file before P4.7. Missed, a
+ * `content_studio.lens` row read "1 paid plan", offered "Change plan" and was
+ * listed with Cancel. The "Your plans" list and every count reach this one
+ * predicate through `isHeldPlan` / `heldLines`.
  */
-export function isPaidProduct(product: HeldProduct | undefined): boolean {
-  return !!product && typeof product.tier === "string" && !isFreeTier(product.tier);
+export function isNoPlanKey(key: string | null | undefined): boolean {
+  if (typeof key !== "string" || key === "") return true;
+  return key === "none" || key === "free" || key.endsWith(".free") || key.endsWith(".lens");
+}
+
+/** A line that is a plan the business holds: a real tier, not a leftover. */
+export function isHeldPlan(product: HeldProduct | undefined): boolean {
+  return !!product && typeof product.tier === "string" && !isNoPlanKey(product.tier);
+}
+
+/** The bought lines worth listing: leftover `.free` rows left out. */
+export function heldLines<T extends HeldProduct>(products: ReadonlyArray<T | undefined> | undefined): T[] {
+  return (products ?? []).filter((p): p is T => isHeldPlan(p));
+}
+
+/**
+ * Which of the three states the ACTIVE business is in, or null before the
+ * summary has loaded (no flash of "No plan" for a paying business). ★A caller
+ * renders null as its own neutral state, never as `none`: a summary that
+ * failed or never fetched says nothing about the plan (`planHeadline`).
+ *
+ * ★The business's own coverage decides whenever `/me` serves it (module
+ * docblock): a sibling's purchase or the first business's trial says nothing
+ * about this one.
+ *
+ * The org-wide FALLBACK: ★a bought line beats a live trial, because buying
+ * during the trial ends it for the trial business (P4.3a); not so when a
+ * different business bought, which is why coverage comes first. ★A base row
+ * is a CONTRACT when it carries no trial date (P4.3: `channel` is "trial"
+ * exactly when `trialEndsAt` is set); one whose trial date has passed is the
+ * record that the trial was used, not a plan.
+ */
+export function planState(
+  summary: PlanSummaryish | undefined,
+  business?: BusinessPlanish | null,
+): PlanState | null {
+  const base = summary?.subscription;
+  if (!base) return null;
+  const coverage = coverageOf(business);
+  if (coverage) return coverage;
+  if (heldLines(summary?.products).length > 0) return "paid";
+  if (isNoPlanKey(base.plan)) return "none";
+  if (base.trialActive === true) return "trial";
+  if (!base.trialEndsAt) return "paid";
+  return "none";
 }
 
 /**
@@ -111,172 +154,221 @@ export function lineKey(p: { tier: string | null; endsAt?: string | null }): str
 }
 
 /**
- * A paid line the business is still billed for: paid and not ending (D21,
+ * A line the business is still billed for: a held plan, not ending (D21,
  * review R3 on b2c#589). During a plan change the ending line and its
  * replacement are both held, but only the replacement is paid for; the api's
  * `/summary` totals leave ending lines out the same way.
  */
-export function isBilledLine(p: (HeldProduct & { endsAt?: string | null }) | undefined): boolean {
-  return isPaidProduct(p) && !p?.endsAt;
+export function isBilledLine(p: HeldProduct | undefined): boolean {
+  return isHeldPlan(p) && !p?.endsAt;
 }
 
 /**
- * The one action a held product's row offers on the billing page. A free tier
- * upgrades rather than cancels. An ENDING line (a cancel or a plan change
- * scheduled it, D21) offers nothing: it already ends, and the api's cancel acts
- * on the line of that product NOT ending, so "Cancel" on the ending row would
- * cancel its replacement (review R2 on b2c#589).
+ * The one action a held line's row offers on the billing page. An ENDING line
+ * (a cancel or a plan change scheduled it, D21) offers nothing: it already
+ * ends, and the api's cancel acts on the line of that product NOT ending, so
+ * "Cancel" on the ending row would cancel its replacement (review R2 on
+ * b2c#589). A leftover `.free` row is not listed at all (`heldLines`), and
+ * offers nothing if it reaches here.
  */
-export function productRowAction(p: (HeldProduct & { endsAt?: string | null }) | undefined): "upgrade" | "cancel" | null {
-  if (!isPaidProduct(p)) return "upgrade";
-  if (p?.endsAt) return null;
+export function productRowAction(p: HeldProduct | undefined): "cancel" | null {
+  if (!isHeldPlan(p) || p?.endsAt) return null;
   return "cancel";
 }
 
 /**
- * Paid AND actually being paid for.
+ * The top-bar call to action, or null when there is nothing to buy.
  *
- * ── ⚠️🚫★★A TRIAL IS NOT A PURCHASE, AND THE TWO QUESTIONS WANT DIFFERENT
- *    ANSWERS ─────────────────────────────────────────────────────────────────
- *
- * The endpoint returns `active` and `trial` rows together. ★For **naming** what
- * an org holds, a trial counts — somebody trialing the Suite is not on a free
- * plan in any sense they would recognise. 🚫For **suppressing the upgrade CTA**
- * it must not: they have paid nothing, and converting a trial is exactly what
- * that control is for. **Hiding it for the length of a trial removes the prompt
- * at the only moment it is the right prompt.**
- *
- * ★A round found this: `state` was declared on the type and never read.
+ * ★A paid business is not told to upgrade (the reported bug this module was
+ * first written for). On the trial the CTA is the purchase that keeps the
+ * Suite; with no plan it is the only way back in, and says so.
  */
-export function isConvertedProduct(product: HeldProduct | undefined): boolean {
-  return isPaidProduct(product) && product?.state === "active";
+export function upgradeCta(
+  summary: PlanSummaryish | undefined,
+  business?: BusinessPlanish | null,
+): { label: string; title: string } | null {
+  const state = planState(summary, business);
+  if (state === "trial") return { label: "Upgrade", title: "Buy a plan before your trial ends" };
+  if (state === "none") return { label: "Buy a plan", title: "You have no plan. Buy one to keep using Peakhour" };
+  return null;
 }
 
 /**
- * Does the badge name a PRODUCT rather than the base tier?
- *
- * ★Exported so the chip can be STYLED as what it says. ⚠️🚫★A round found the
- * accent still keyed on the base tier while the label named a product — so a
- * paying org read "Peakhour Suite" in the muted FREE-tier chip. **A label and
- * its colour disagreeing is the same wrong answer in two channels.**
- *
- * 🚫★AND `holdsPaidProduct` WAS REMOVED RATHER THAN LEFT. It had no caller, and
- * its name invited exactly the substitution the tests guard against: the CTA
- * asks `isConvertedProduct` (a trial has paid nothing), not "holds anything
- * paid". **An uncalled helper that reads like the one you want is worse than
- * no helper.**
+ * The trial-expiry banner's days left, or null when it should not show: only
+ * on the ACTIVE business's own trial, inside the warning window. ★The summary's
+ * `trialActive` is the base row's, which is the first business's: read alone
+ * it warned a sibling business, paid or padlocked, that "your trial" ends
+ * (independent review on b2c#591), so the state comes from `planState`, as the
+ * badge's does.
  */
-export function namesAProduct(summary: PlanSummaryish | undefined): boolean {
-  if (!isFreeTier(summary?.subscription?.plan)) return false;
-  return (summary?.products ?? []).some(isPaidProduct);
+export function trialWarningDays(
+  summary: (PlanSummaryish & { subscription?: { trialDaysRemaining?: number } }) | undefined,
+  business: BusinessPlanish | null | undefined,
+  windowDays: number,
+): number | null {
+  if (planState(summary, business) !== "trial") return null;
+  const days = summary?.subscription?.trialDaysRemaining ?? 0;
+  return days > windowDays ? null : days;
+}
+
+/** The billing page's plan button: a paid business changes plan (D21); the
+ *  trial and no plan buy one; an unknown state only looks (the picker still
+ *  opens, but the page does not claim the business has nothing to change). */
+export function planButtonLabel(state: PlanState | null): string {
+  if (state === null) return "See plans";
+  return state === "paid" ? "Change plan" : "Buy a plan";
 }
 
 /**
- * Does the base tier MISREPRESENT what this org has?
+ * The billing page's plan header: the chip, whether the padlock notice shows,
+ * and the button (independent review on b2c#591).
  *
- * ★★THAT IS THE ACTUAL DEFECT, AND NAMING IT IS WHAT KEEPS THE TWO FIXES IN
- * STEP. `free` beside a converted purchase is a false statement — about the
- * plan's NAME and about whether an upgrade is owed — and both surfaces need the
- * same answer.
- *
- * ⚠️🚫★AND IT IS ONLY THE `free` TIER, WHICH A FIRST VERSION GOT WRONG. It ANDed
- * "holds no paid product" onto **every** upgradable tier, so an org on `starter`
- * that bought anything permanently lost its base-ladder prompt — and
- * starter → growth is a real upgrade whatever products they own. ★The product
- * check disambiguates `free` and nothing else.
+ * ★NULL IS ITS OWN STATE. The page's only early return is react-query's
+ * `isLoading`, which is false when `/v1/dashboard/org` errored, is paused
+ * offline, or is disabled until `/me` names an org; in each the summary is
+ * undefined. Reading that as `none` told a business paying for Suite it had
+ * no plan, in the warning colour, with the padlock notice and "Buy a plan".
+ * The top-bar badge renders nothing for the same null; the page, which must
+ * render something, says only that the plan did not load.
  */
-function baseTierMisrepresents(summary: PlanSummaryish | undefined): boolean {
-  // ⚠️🚫★★AND IT ASKS `isFreeTier`, NOT `=== "free"`. `plan-keys.ts` says it in
-  //  as many words: *"`org.subscription.plan` holds a TIER key, which since
-  //  migration 106 is normally the DOTTED kind"* — Shopify autoprovision writes
-  //  `commerce_assistant.free` — and it records `planToPriority` making exactly
-  //  this mistake and silently charging every such org the free tier's
-  //  priority. 🚫A first version compared the bare string, so the orgs the
-  //  report is about would still have been named "Free".
-  if (!isFreeTier(summary?.subscription?.plan)) return false;
-  const products = summary?.products;
-  return Array.isArray(products) && products.some(isConvertedProduct);
+export function planHeadline(
+  summary: PlanSummaryish | undefined,
+  business?: BusinessPlanish | null,
+): { state: PlanState | null; label: string; padlocked: boolean; button: string } {
+  const state = planState(summary, business);
+  return {
+    state,
+    label: planDisplayName(summary, business) ?? "Plan not loaded",
+    padlocked: state === "none",
+    button: planButtonLabel(state),
+  };
 }
 
 /**
- * Should the dashboard tell this org to upgrade?
+ * The billing page's subscription header: the heading, and the one badge
+ * beside it (official review R2 on b2c#591).
  *
- * ★★TWO CONDITIONS, AND THE SECOND IS THE ONE THAT WAS MISSING: the base tier
- * has to be one an upgrade means something for, **and** it must not be a `free`
- * that is lying about a converted purchase. 🚫Either alone is wrong — dropping
- * the first nags an enterprise org, and dropping the second is the reported bug.
+ * ★THE PER-BUSINESS ANSWER DECIDES WHENEVER `/me` SERVES COVERAGE. The page
+ * once chose "Your subscription" and a green "N paid plans" from every line in
+ * the org, and showed the business's own state only when the org had bought
+ * nothing: a padlocked business whose sibling bought Suite read "1 paid plan"
+ * above "Your business has no plan", and a trial business "1 paid plan"
+ * beside "Trial · 14d left", while the top bar said otherwise. With coverage
+ * served the header is the state alone (`planHeadline`), and ★no count:
+ * `/dashboard/org` lists every business's lines (no `businessId` on a row)
+ * until the api scopes its product lists (P4.3b), so any count would be the
+ * org's beside a business's state.
+ *
+ * The org-wide reading (`orgWide`) stays only as the fallback for a `/me`
+ * with no coverage (an older api, no business picked): there it is the only
+ * answer, and the count is what it was.
  */
-export function showUpgradeCta(summary: PlanSummaryish | undefined): boolean {
-  const plan = summary?.subscription?.plan;
-  if (typeof plan !== "string" || !UPGRADABLE_BASE.has(plan)) return false;
-  return !baseTierMisrepresents(summary);
+export function billingHeader(
+  summary: PlanSummaryish | undefined,
+  business?: BusinessPlanish | null,
+): { heading: string; label: string; tone: PlanState | null; orgWide: boolean } {
+  const headline = planHeadline(summary, business);
+  const lines = coverageOf(business) === null ? heldLines(summary?.products) : [];
+  if (lines.length === 0) {
+    return { heading: "Current Plan", label: headline.label, tone: headline.state, orgWide: false };
+  }
+  // Billed lines only: during a plan change the ending line and its
+  // replacement are both listed, and one is paid for (`isBilledLine`).
+  const paid = lines.filter(isBilledLine).length;
+  const n = paid > 0 ? paid : lines.length;
+  return {
+    heading: "Your subscription",
+    label: `${n}${paid > 0 ? " paid" : ""} ${n === 1 ? "plan" : "plans"}`,
+    tone: "paid",
+    orgWide: true,
+  };
 }
 
 /**
- * What to CALL the org's plan.
+ * What to CALL the business's plan, or null before the summary has loaded.
  *
- * ── ⚠️🚫★★THE SUMMARY'S OWN TYPE SAYS *"ALWAYS PREFER `planName`"*, AND THE
- *    TOP BAR DID NOT ────────────────────────────────────────────────────────
+ * ★`planName` over the machine key: the summary's own type says so, and
+ * rendering the key is what once showed customers "Commerce_assistant.Free".
  *
- * `plan` is a machine tier key — `commerce_assistant.free` — and the type's
- * docblock records what rendering it did last time: **customers were shown
- * *"Commerce_assistant.Free"* as their plan name.** The billing page prefers
- * `planName`; the badge capitalised the key. ★So the badge and the billing page
- * it links to could name the same plan two different things, which is the
- * second half of the same report.
+ * ★A bought line names itself. During a plan change (D21) the business holds
+ * the ending line and its replacement of one product; the name shown is the
+ * line already charging, the ending one, until its `endsAt` (the D21 rule for
+ * readers that pick one line per product), so the replacement is left out.
+ * Several distinct plans otherwise are counted, because a top-bar chip has room
+ * for one phrase. A `name` that is really the tier key (no `cfg_plans` row
+ * resolved) is refused: "1 plan" is plain and true where "Suite.pro" is
+ * neither.
  *
- * ★AND A PAID PRODUCT'S NAME BEATS A FREE BASE TIER. An org whose base plan is
- * `free` and who has bought the Suite is not on a free plan in any sense the
- * customer would recognise; naming them "Free" beside a paid invoice is the
- * same wrong answer the CTA was giving.
+ * ★ONLY THE ACTIVE BUSINESS'S LINES (independent review on b2c#591). The
+ * summary lists every business's lines, so with `/me` coverage served: the
+ * trial is named by the base row (a sibling's Suite is not this business's
+ * plan), and a paid business by the lines of its own grant's tier
+ * (`business.plan`), or by the base row when none matches and the base row is
+ * a contract.
+ *
+ * ★`business.plan` IS NOT ALWAYS WHAT WAS BOUGHT (official review R1 on
+ * b2c#591). For a business the base row covers (the trial business while its
+ * trial runs, a contract) the api's grant is the base plan unioned with its
+ * lines, so `plan` is the BASE row's key (`computeBusinessEntitlements` ->
+ * `baseUnion`): the Suite trial's `suite` on a business that bought Agency.
+ * Matched against the lines, that key picked a sibling's Suite line or
+ * nothing, and the fallback named the base row: "Peakhour Suite" on an Agency
+ * buyer. So a paid business is never named by a TRIAL base row (a trial is no
+ * paid plan), and a base key that means no plan (`isNoPlanKey`: the "free"
+ * `/dashboard/org` falls back to once a trial ends) never names anything.
+ * With nothing left that names its plan, the business is a "Paid plan": true,
+ * where a name would be a guess.
+ *
+ * ★BUT A HELD LINE OF `business.plan`'s TIER ALWAYS NAMES IT (official review
+ * R3 on b2c#591). R1 also refused to match the plan key whenever it equalled
+ * the base row's key and the base row carried a `trialEndsAt`; that date stays
+ * on a used trial's row, so a business that bought Suite after its trial ended
+ * (`/me` paid, plan `suite`), and a second business buying Suite, both read
+ * "Paid plan". The key is matched whatever the base row says; only an
+ * unmatched key falls back. The one case left ambiguous is the trial business
+ * on a live trial whose `plan` is the trial's `suite` while a sibling holds a
+ * Suite line: it reads "Peakhour Suite". ★Exactly which lines are its own
+ * needs each line's `businessId`, which neither `/dashboard/org` nor
+ * `/v1/billing/summary` serves yet (P4.3b, reported on b2c#591).
  */
-export function planDisplayName(summary: PlanSummaryish | undefined): string | null {
+export function planDisplayName(
+  summary: PlanSummaryish | undefined,
+  business?: BusinessPlanish | null,
+): string | null {
+  const state = planState(summary, business);
+  if (state === null) return null;
+  if (state === "none") return "No plan";
+
+  const coverage = coverageOf(business);
   const base = summary?.subscription;
-
-  // ── ⚠️🚫★★★THE PRODUCT CHECK COMES **FIRST**, AND A ROUND PROVED WHY ───────
-  //
-  // 🚫★A FIRST VERSION RETURNED `planName` BEFORE LOOKING AT THE PRODUCTS, AND
-  //  THAT BRANCH IS UNREACHABLE IN PRODUCTION: the server's `resolvePlanName`
-  //  ends `return name || key`, so `planName` is **always** a non-empty string.
-  //  An org on a `free` base holding the Suite therefore came back **"Free"** —
-  //  *the exact outcome this module was written to fix*, shipped inside the fix.
-  //
-  // ⚠️★★AND THE TESTS PASSED, because their fixture omitted `planName` — a
-  //  field the server always sends. **A fixture that does not match what the
-  //  server produces will agree with any implementation you like.**
-  //
-  // ★SO: a `free` base beside something the org holds is named by what they
-  //  hold; every other tier is named by `planName`, which is the summary's own
-  //  instruction and is right for a real tier.
-  if (isFreeTier(base?.plan)) {
-    // ★TRIALS COUNT HERE and not in the CTA — see `isConvertedProduct`.
-    //  Somebody trialing the Suite is not on a free plan in any sense they
-    //  would recognise, even though they have paid nothing yet.
-    const held = (summary?.products ?? []).filter(isPaidProduct);
-    // ★ONE PRODUCT NAMES ITSELF; SEVERAL ARE COUNTED RATHER THAN LISTED,
-    //  because a top-bar chip has room for one phrase. 🚫Naming only the first
-    //  would hide the rest behind a label that looks complete.
-    //
-    // ⚠️🚫★AND A `name` THAT IS REALLY THE TIER KEY IS REFUSED. The endpoint
-    //  falls back to the raw key when no `cfg_plans` row resolves, so a
-    //  not-yet-effective row would print **"Peakhour_suite.pro"** under this
-    //  badge's `capitalize` — the same failure the docblock above cites as the
-    //  reason for preferring a name at all. ★Falling through to `planName` is
-    //  the honest answer: a wrong-looking name is worse than a plain one.
-    const named = held.filter((p) => p.name && p.name !== p.tier);
-    if (held.length === 1 && named.length === 1) return named[0]!.name!;
-    // ⚠️🚫★★AND AN UNUSABLE NAME FALLS BACK TO A **COUNT**, NEVER TO `planName`.
-    //  A round found the worse combination: with the CTA suppressed AND the
-    //  label dropping through, a Suite-holding org read **"Free"** with no
-    //  upgrade affordance left — the reported symptom, and now with nothing to
-    //  click. ★"1 product" is short of ideal and it is TRUE, which the
-    //  alternative is not.
-    if (held.length > 0) return `${held.length} product${held.length === 1 ? "" : "s"}`;
+  // The base row names a plan when its key is one, and it is either the trial
+  // this business is on or a contract (no trial date, `planState`'s rule).
+  const baseNames = !isNoPlanKey(base?.plan) && (state === "trial" || !base?.trialEndsAt);
+  const all = heldLines(summary?.products);
+  // A paid business's own lines: its grant's tier, plus the other half of a
+  // plan change on the same product (D21), so the rule below still names the
+  // line already charging whichever half the grant reads. Matched whatever
+  // the base row says (docblock, review R3).
+  const own = all.filter((p) => p.tier === business?.plan);
+  const held =
+    coverage === null
+      ? all
+      : coverage === "paid"
+        ? all.filter((p) => own.includes(p) || (!!p.productKey && own.some((o) => o.productKey === p.productKey)))
+        : [];
+  if (held.length > 0) {
+    const ending = held.filter((p) => p.endsAt);
+    const shown = held.filter(
+      (p) => p.endsAt || !ending.some((e) => e.productKey && e.productKey === p.productKey),
+    );
+    const tiers = new Set(shown.map((p) => p.tier));
+    const named = shown.filter((p) => p.name && p.name !== p.tier);
+    if (tiers.size === 1 && named.length === shown.length) return named[0]!.name!;
+    return `${tiers.size} plan${tiers.size === 1 ? "" : "s"}`;
   }
 
-  if (base?.planName) return base.planName;
-
-  const plan = base?.plan;
-  if (typeof plan !== "string" || plan === "") return null;
+  if (!baseNames) return state === "paid" ? "Paid plan" : "Trial";
+  if (base?.planName && base.planName !== base.plan) return base.planName;
+  const plan = base?.plan ?? "";
   return plan.charAt(0).toUpperCase() + plan.slice(1);
 }

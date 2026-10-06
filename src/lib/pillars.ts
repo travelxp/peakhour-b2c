@@ -81,8 +81,9 @@ export interface PillarContent {
   features: PillarFeature[];
   /** "How it helps" — outcome-framed, plain-language jobs done. */
   outcomes: string[];
-  /** Whether the pillar's plan is free ("Free plan included" vs "Always free"). */
-  freeLabel: string;
+  /** The plan that includes the pillar. One catalog (billing plan D19): every
+   *  module is in Peakhour Suite, and none has a free tier of its own. */
+  planLabel: string;
 }
 
 export const PILLAR_ORDER = [
@@ -138,7 +139,7 @@ export const PILLARS: Record<PillarSlug, PillarContent> = {
       "Cut the repetitive “is this in stock / my size?” questions off your plate.",
       "Know which products to reorder before they sell out.",
     ],
-    freeLabel: "Free plan included",
+    planLabel: "In Peakhour Suite",
   },
   content: {
     slug: "content",
@@ -181,7 +182,7 @@ export const PILLARS: Record<PillarSlug, PillarContent> = {
       "Stay consistent across channels without hiring a content team.",
       "Publish on-brand every time — the AI keeps your voice, you keep approval.",
     ],
-    freeLabel: "Free plan included",
+    planLabel: "In Peakhour Suite",
   },
   growth: {
     slug: "growth",
@@ -225,7 +226,7 @@ export const PILLARS: Record<PillarSlug, PillarContent> = {
       "Find shoppers who look like your best customers, automatically.",
       "Capture and follow up on every lead — no manual chasing.",
     ],
-    freeLabel: "Free plan included",
+    planLabel: "In Peakhour Suite",
   },
   support: {
     slug: "support",
@@ -266,7 +267,7 @@ export const PILLARS: Record<PillarSlug, PillarContent> = {
       "Never leave a customer waiting, even after hours.",
       "Step in only for the conversations that actually need you.",
     ],
-    freeLabel: "Free plan included",
+    planLabel: "In Peakhour Suite",
   },
   presence: {
     slug: "presence",
@@ -308,6 +309,6 @@ export const PILLARS: Record<PillarSlug, PillarContent> = {
       "Never let a review go unanswered and drag your rating down.",
       "Keep every listing detail current without the busywork.",
     ],
-    freeLabel: "Always free",
+    planLabel: "In Peakhour Suite",
   },
 };

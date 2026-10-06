@@ -44,14 +44,14 @@ describe("hasFoundingOffer", () => {
     expect(hasFoundingOffer(entry({ foundingDiscountPct: 0 }))).toBe(false);
   });
 
-  it("★is off on a free tier, whatever the percentage says", () => {
-    // 100% off nothing is still nothing, and a "was ₹0, now ₹0" badge on the
-    // Free card would be absurd. Guarding on `monthly > 0` rather than trusting
+  it("★is off on an unpriced plan, whatever the percentage says", () => {
+    // 100% off nothing is still nothing, and a "was ₹0, now ₹0" badge on a
+    // contact-sales card (Enterprise) would be absurd. Guarding on `monthly > 0` rather than trusting
     // the catalog never to set both.
     expect(hasFoundingOffer(entry({ monthly: 0, yearly: 0 }))).toBe(false);
   });
 
-  it("is off at 100% — a free plan is priced free, not discounted to zero", () => {
+  it("is off at 100% — nothing is discounted to zero", () => {
     expect(hasFoundingOffer(entry({ foundingDiscountPct: 100 }))).toBe(false);
   });
 });

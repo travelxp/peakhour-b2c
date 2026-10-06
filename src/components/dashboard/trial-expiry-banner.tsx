@@ -1,17 +1,21 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Clock, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ApiError } from "@/lib/api";
 import { useDashboardOrg, useExtendTrial } from "@/hooks/use-dashboard-org";
+import { trialWarningDays } from "@/lib/plan-status";
+import { useAuth } from "@/providers/auth-provider";
 
 /**
  * Surfaces when a trial is within the final 3 days. Includes a single
  * one-click "Extend by 7 days" CTA when the customer's self-serve
- * allowance is unused; falls back to a Contact-us link once that
- * one-shot has been spent. Dismissible — the dismissal lives in
+ * allowance is unused, and always a "Buy a plan" link: when the Suite
+ * trial ends the business holds no plan until it buys (billing plan D19),
+ * so buying, not contacting us, is how it continues. Dismissible — the dismissal lives in
  * component state. The dashboard layout in Next.js app-router
  * persists across in-app navigations, so dismissal effectively holds
  * for the rest of the browser session and returns on full page reload
@@ -19,7 +23,7 @@ import { useDashboardOrg, useExtendTrial } from "@/hooks/use-dashboard-org";
  * localStorage and is deliberately out-of-scope for v1.
  *
  * Hidden completely when:
- *   - no trial active
+ *   - the active business is not on its own trial (`trialWarningDays`)
  *   - trial active but more than 3 days remain
  *   - user has dismissed it in this session
  *   - data is still loading (no flash)
@@ -28,16 +32,17 @@ const WARNING_WINDOW_DAYS = 3;
 
 export function TrialExpiryBanner() {
   const { data, isLoading } = useDashboardOrg();
+  // The ACTIVE business's coverage: the summary's trial is the first
+  // business's, not necessarily this one's (`trialWarningDays`).
+  const { entitlements } = useAuth();
   const extend = useExtendTrial();
   const [dismissed, setDismissed] = useState(false);
 
   if (isLoading || dismissed) return null;
-  const sub = data?.subscription;
-  if (!sub?.trialActive) return null;
-  const days = sub.trialDaysRemaining ?? 0;
-  if (days > WARNING_WINDOW_DAYS) return null;
+  const days = trialWarningDays(data, entitlements, WARNING_WINDOW_DAYS);
+  if (days === null) return null;
 
-  const alreadyExtended = sub.selfServeExtensionUsed === true;
+  const alreadyExtended = data?.subscription?.selfServeExtensionUsed === true;
 
   const handleExtend = () => {
     extend.mutate(undefined, {
@@ -106,20 +111,17 @@ export function TrialExpiryBanner() {
         </span>{" "}
         {alreadyExtended ? (
           <span>
-            You&apos;ve used your one-time extension —{" "}
-            <a
-              href="mailto:hello@peakhour.ai"
-              className="underline underline-offset-2"
-            >
-              contact us
-            </a>{" "}
-            to continue.
+            You&apos;ve used your one-time extension. Buy a plan to keep
+            using Peakhour after it ends.
           </span>
         ) : (
-          <span>Extend by 7 days, no questions asked.</span>
+          <span>Extend by 7 days, no questions asked, or buy a plan now.</span>
         )}
       </div>
       <div className="flex items-center gap-2">
+        <Button size="sm" variant={alreadyExtended ? "default" : "outline"} asChild>
+          <Link href="/dashboard/settings/billing">Buy a plan</Link>
+        </Button>
         {!alreadyExtended ? (
           <Button
             size="sm"
