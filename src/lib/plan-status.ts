@@ -111,6 +111,16 @@ export function lineKey(p: { tier: string | null; endsAt?: string | null }): str
 }
 
 /**
+ * A paid line the business is still billed for: paid and not ending (D21,
+ * review R3 on b2c#589). During a plan change the ending line and its
+ * replacement are both held, but only the replacement is paid for; the api's
+ * `/summary` totals leave ending lines out the same way.
+ */
+export function isBilledLine(p: (HeldProduct & { endsAt?: string | null }) | undefined): boolean {
+  return isPaidProduct(p) && !p?.endsAt;
+}
+
+/**
  * The one action a held product's row offers on the billing page. A free tier
  * upgrades rather than cancels. An ENDING line (a cancel or a plan change
  * scheduled it, D21) offers nothing: it already ends, and the api's cancel acts

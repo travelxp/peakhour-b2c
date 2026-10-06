@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  isBilledLine,
   lineKey,
   productRowAction,
   isConvertedProduct,
@@ -252,5 +253,14 @@ describe("a held line's row (D21, review R2 on b2c#589)", () => {
     expect(lineKey({ tier: "suite", endsAt: null })).toBe(lineKey({ tier: "suite" }));
     expect(lineKey({ tier: "suite", endsAt: ENDS })).toBe(lineKey({ tier: "suite", endsAt: ENDS }));
     expect(lineKey({ tier: "suite" })).not.toBe(lineKey({ tier: "agency" }));
+  });
+});
+
+describe("a billed line (D21, review R3 on b2c#589)", () => {
+  it("a paid line still running is billed; an ending one, or a free one, is not", () => {
+    expect(isBilledLine({ tier: "suite", state: "active" })).toBe(true);
+    expect(isBilledLine({ tier: "suite", state: "active", endsAt: null })).toBe(true);
+    expect(isBilledLine({ tier: "suite", state: "active", endsAt: "2026-11-01T00:00:00.000Z" })).toBe(false);
+    expect(isBilledLine({ tier: "commerce_assistant.free", state: "active" })).toBe(false);
   });
 });

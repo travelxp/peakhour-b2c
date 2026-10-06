@@ -213,6 +213,10 @@ export function UpgradePlanDialog({
   const previewWaiting = !!selectedPlan && !!selectedPrice && previewQ.isPending;
   const fmtDate = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
   const action = checkoutAction(selectedPlan, preview, fmtDate);
+  // The term toggle can make the selected card the plan held on that term:
+  // its card closes, and so does Continue, whatever the preview says
+  // (review R3 on b2c#589).
+  const selectedCurrent = !!selectedPlan && !!selectedPrice && currentOnTerm(selectedPlan, selectedPrice.term);
   const busy = checkoutMut.isPending;
 
   // Three sections answering three different questions: what should I add next,
@@ -440,7 +444,7 @@ export function UpgradePlanDialog({
               Cancel
             </Button>
             <Button
-              disabled={!selected || !selectedPrice || !purchasable || busy || previewWaiting || action.refused}
+              disabled={!selected || !selectedPrice || !purchasable || busy || selectedCurrent || previewWaiting || action.refused}
               onClick={() => selected && selectedPrice && checkoutMut.mutate({ tier: selected, term: selectedPrice.term })}
             >
               {checkoutMut.isPending ? "Starting…" : action.label}
