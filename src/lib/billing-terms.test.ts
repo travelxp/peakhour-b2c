@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { intervalSuffix, periodTotals, priceForTerm, termOptions, termSuffix } from "./billing-terms";
+import { intervalSuffix, currentOnTerm, periodTotals, priceForTerm, termOptions, termSuffix } from "./billing-terms";
 
 /** The real catalog's shape: Suite monthly and yearly, Agency quarterly and
  *  yearly, Enterprise through sales (no sellable term). */
@@ -71,5 +71,22 @@ describe("periodTotals", () => {
 
   it("no monthly figure (a mixed-currency portfolio): nothing", () => {
     expect(periodTotals({ monthlyTotal: null, quarterlyTotal: null, yearlyTotal: null })).toEqual([]);
+  });
+});
+
+describe("currentOnTerm (D21, P4.2)", () => {
+  it("a plan held on a term is current on that term only", () => {
+    expect(currentOnTerm({ isCurrent: true, heldTerm: "monthly" }, "monthly")).toBe(true);
+    expect(currentOnTerm({ isCurrent: true, heldTerm: "monthly" }, "yearly")).toBe(false);
+  });
+
+  it("a current plan with no held term (base plan, comp, older api) is current on every term", () => {
+    expect(currentOnTerm({ isCurrent: true, heldTerm: null }, "yearly")).toBe(true);
+    expect(currentOnTerm({ isCurrent: true }, "quarterly")).toBe(true);
+  });
+
+  it("a plan not held is never current", () => {
+    expect(currentOnTerm({ isCurrent: false, heldTerm: "yearly" }, "yearly")).toBe(false);
+    expect(currentOnTerm({ isCurrent: false }, "monthly")).toBe(false);
   });
 });

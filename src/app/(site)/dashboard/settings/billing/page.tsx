@@ -20,7 +20,7 @@ import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
 import { TaxAndInvoices } from "@/components/settings-tax-invoices";
 import { UpgradePlanDialog } from "@/components/upgrade/upgrade-plan-dialog";
-import { isPaidProduct } from "@/lib/plan-status";
+import { isBilledLine, lineKey, productRowAction } from "@/lib/plan-status";
 import { intervalSuffix, periodTotals } from "@/lib/billing-terms";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -179,7 +179,9 @@ export default function BillingPage() {
   // ★SHARED WITH THE TOP-BAR BADGE rather than re-stated here — the two
   //  disagreeing about what "paid" means is what produced a permanent
   //  "Upgrade" CTA over an org holding Peakhour Suite.
-  const paidCount = products.filter(isPaidProduct).length;
+  // Billed lines only: during a plan change the ending line and its
+  // replacement are both listed, and one is paid for (`isBilledLine`).
+  const paidCount = products.filter(isBilledLine).length;
   // Per-product price / renewal, keyed by tier, so each row can show what it
   // costs rather than just that it exists.
   // WHICH product is cancelling. One mutation instance is shared by every row, so
@@ -193,8 +195,9 @@ export default function BillingPage() {
         .map((t) => `${money(t.amount, summary.currency)}${intervalSuffix(t.interval)}`)
         .join(" + ") || null
     : null;
-  const priceByTier = new Map(
-    (summary?.products ?? []).map((p) => [p.tier ?? "", p]),
+  // Per LINE, not per tier: a plan change on one plan holds two (`lineKey`).
+  const priceByLine = new Map(
+    (summary?.products ?? []).map((p) => [lineKey(p), p]),
   );
 
   const handleExtend = () => {
@@ -388,14 +391,14 @@ export default function BillingPage() {
             <ul className="space-y-2">
               {products.map((p) => (
                 <li
-                  key={p.tier}
+                  key={lineKey(p)}
                   className="flex items-center justify-between rounded-lg border bg-background px-3 py-2"
                 >
                   <div>
                     <p className="text-sm font-medium">{p.name}</p>
                     <p className="text-xs text-muted-foreground">
                       {(() => {
-                        const priced = priceByTier.get(p.tier);
+                        const priced = priceByLine.get(lineKey(p));
                         const cost =
                           priced && priced.amountKnown && priced.amount != null
                             ? `${money(priced.amount, priced.currency)}${intervalSuffix(priced.interval)}`
@@ -403,7 +406,11 @@ export default function BillingPage() {
                         // A row-level trialEndsAt means the product is granted now
                         // and starts billing on that date — say when, so a "free"
                         // product doesn't look permanently free.
-                        const when = p.trialEndsAt
+                        // An ENDING line (a cancel or plan change, D21) says
+                        // when it ends: it renews never.
+                        const when = p.endsAt
+                          ? `Ends ${formatDate(p.endsAt)}`
+                          : p.trialEndsAt
                           ? `Free until ${formatDate(p.trialEndsAt)}`
                           : p.renewsAt
                             ? `Renews ${formatDate(p.renewsAt)}`
@@ -433,8 +440,9 @@ export default function BillingPage() {
                   </Badge>
                     {/* A FREE tier upgrades rather than cancels — offering
                         "Cancel" on something that costs nothing is noise, and the
-                        server would refuse it anyway. */}
-                    {!isPaidProduct(p) ? (
+                        server would refuse it anyway. An ENDING line offers
+                        nothing (`productRowAction`). */}
+                    {productRowAction(p) === null ? null : productRowAction(p) === "upgrade" ? (
                       <Button
                         variant="outline"
                         size="sm"

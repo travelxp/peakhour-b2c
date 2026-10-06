@@ -42,6 +42,9 @@ export interface DashboardOrgPlanSummary {
      *  shares one date — that shared date is what lets the page say they are
      *  billed together. Null until a gateway event has established it. */
     renewsAt?: string | null;
+    /** When a scheduled cancel or plan change ends the line (D21); it then
+     *  renews never, and `renewsAt` is null. */
+    endsAt?: string | null;
     /** Set only on a pending-attach trial (a product added to an existing
      *  subscription): the date it starts billing. A gateway-native trial carries
      *  none, so absence does NOT mean "not trialing". */

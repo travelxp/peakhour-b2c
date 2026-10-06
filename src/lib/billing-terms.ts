@@ -84,3 +84,17 @@ export function periodTotals(t: {
   if (y != null) out.push({ interval: "year", amount: y });
   return out;
 }
+
+/**
+ * Whether a plan card is the CURRENT plan on `term` (billing plan D21, P4.2):
+ * a plan held on a billed line is current on the term it is held on only
+ * (`heldTerm`, from `GET /v1/billing/plans`); on another term it is a plan
+ * change checkout will make. A current plan with no held term (the base plan,
+ * a comp, or an older api) is current on every term, as before.
+ */
+export function currentOnTerm(
+  p: { isCurrent: boolean; heldTerm?: BillingTerm | null },
+  term: BillingTerm | null | undefined,
+): boolean {
+  return p.isCurrent && (p.heldTerm == null || p.heldTerm === term);
+}

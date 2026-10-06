@@ -25,6 +25,8 @@ export interface BillingSummaryProduct {
   trialEndsAt: string | null;
   since: string | null;
   renewsAt: string | null;
+  /** When a scheduled cancel or plan change ends the line (D21). */
+  endsAt?: string | null;
   amount: number | null;
   currency: string | null;
   /** False when a PAID tier couldn't be priced for this country: the amount is

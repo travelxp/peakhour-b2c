@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  isBilledLine,
+  lineKey,
+  productRowAction,
   isConvertedProduct,
   isFreeTier,
   isPaidProduct,
@@ -228,5 +231,36 @@ describe("planDisplayName — the second half of the same report", () => {
   it("★and an unloaded summary names nothing rather than guessing", () => {
     expect(planDisplayName(undefined)).toBeNull();
     expect(planDisplayName({ subscription: {} })).toBeNull();
+  });
+});
+
+describe("a held line's row (D21, review R2 on b2c#589)", () => {
+  const ENDS = "2026-11-01T00:00:00.000Z";
+
+  it("an ending line offers no cancel; its replacement does", () => {
+    expect(productRowAction({ tier: "suite", state: "active", endsAt: ENDS })).toBeNull();
+    expect(productRowAction({ tier: "suite", state: "active", endsAt: null })).toBe("cancel");
+    expect(productRowAction({ tier: "suite", state: "active" })).toBe("cancel");
+  });
+
+  it("a free tier upgrades, ending or not", () => {
+    expect(productRowAction({ tier: "commerce_assistant.free", state: "active" })).toBe("upgrade");
+    expect(productRowAction({ tier: "commerce_assistant.free", state: "active", endsAt: ENDS })).toBe("upgrade");
+  });
+
+  it("the ending line and its replacement on one tier are two lines; the same line from either source is one", () => {
+    expect(lineKey({ tier: "suite", endsAt: ENDS })).not.toBe(lineKey({ tier: "suite", endsAt: null }));
+    expect(lineKey({ tier: "suite", endsAt: null })).toBe(lineKey({ tier: "suite" }));
+    expect(lineKey({ tier: "suite", endsAt: ENDS })).toBe(lineKey({ tier: "suite", endsAt: ENDS }));
+    expect(lineKey({ tier: "suite" })).not.toBe(lineKey({ tier: "agency" }));
+  });
+});
+
+describe("a billed line (D21, review R3 on b2c#589)", () => {
+  it("a paid line still running is billed; an ending one, or a free one, is not", () => {
+    expect(isBilledLine({ tier: "suite", state: "active" })).toBe(true);
+    expect(isBilledLine({ tier: "suite", state: "active", endsAt: null })).toBe(true);
+    expect(isBilledLine({ tier: "suite", state: "active", endsAt: "2026-11-01T00:00:00.000Z" })).toBe(false);
+    expect(isBilledLine({ tier: "commerce_assistant.free", state: "active" })).toBe(false);
   });
 });
