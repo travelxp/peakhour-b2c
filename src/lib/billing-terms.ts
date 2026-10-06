@@ -85,34 +85,16 @@ export function periodTotals(t: {
   return out;
 }
 
-/** A paid line the business holds, as `/v1/billing/summary` lists it. */
-export interface HeldLine {
-  tier: string | null;
-  name?: string | null;
-  interval?: string | null;
-  renewsAt?: string | null;
-  endsAt?: string | null;
-}
-
 /**
- * What buying `tier` on `term` is, given the paid lines held (billing plan
- * D21, P4.2): `same` = the plan and term already held (nothing to buy);
- * `switch` = a plan change, replacing the held line from when its paid period
- * ends (`startsAt`; null = at once); `new` = a plain purchase. Every plan
- * covers every product, so any live held line is what a purchase replaces; a
- * line already ending is not held for this (it runs out on its own).
+ * Whether a plan card is the CURRENT plan on `term` (billing plan D21, P4.2):
+ * a plan held on a billed line is current on the term it is held on only
+ * (`heldTerm`, from `GET /v1/billing/plans`); on another term it is a plan
+ * change checkout will make. A current plan with no held term (the base plan,
+ * a comp, or an older api) is current on every term, as before.
  */
-export function planChange(
-  tier: string,
-  term: BillingTerm,
-  held: readonly HeldLine[],
-): { kind: "same" | "new" } | { kind: "switch"; from: HeldLine; startsAt: string | null } {
-  const live = held.filter((l) => !l.endsAt);
-  const termOf = (interval: string | null | undefined): BillingTerm =>
-    interval === "quarter" ? "quarterly" : interval === "year" ? "yearly" : "monthly";
-  if (live.some((l) => l.tier === tier && termOf(l.interval) === term)) return { kind: "same" };
-  const from = live[0];
-  if (!from) return { kind: "new" };
-  const startsAt = from.renewsAt && new Date(from.renewsAt).getTime() > Date.now() ? from.renewsAt : null;
-  return { kind: "switch", from, startsAt };
+export function currentOnTerm(
+  p: { isCurrent: boolean; heldTerm?: BillingTerm | null },
+  term: BillingTerm | null | undefined,
+): boolean {
+  return p.isCurrent && (p.heldTerm == null || p.heldTerm === term);
 }

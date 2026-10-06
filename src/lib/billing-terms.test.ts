@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { intervalSuffix, periodTotals, planChange, priceForTerm, termOptions, termSuffix } from "./billing-terms";
+import { intervalSuffix, currentOnTerm, periodTotals, priceForTerm, termOptions, termSuffix } from "./billing-terms";
 
 /** The real catalog's shape: Suite monthly and yearly, Agency quarterly and
  *  yearly, Enterprise through sales (no sellable term). */
@@ -74,30 +74,19 @@ describe("periodTotals", () => {
   });
 });
 
-describe("planChange (D21, P4.2)", () => {
-  const SOON = new Date(Date.now() + 10 * 86_400_000).toISOString();
-  const suiteMonthly = { tier: "suite", name: "Peakhour Suite", interval: "month", renewsAt: SOON };
-
-  it("the same plan on the same term: nothing to buy", () => {
-    expect(planChange("suite", "monthly", [suiteMonthly])).toEqual({ kind: "same" });
+describe("currentOnTerm (D21, P4.2)", () => {
+  it("a plan held on a term is current on that term only", () => {
+    expect(currentOnTerm({ isCurrent: true, heldTerm: "monthly" }, "monthly")).toBe(true);
+    expect(currentOnTerm({ isCurrent: true, heldTerm: "monthly" }, "yearly")).toBe(false);
   });
 
-  it("another term, or another plan, switches from the held line at its renewal", () => {
-    expect(planChange("suite", "yearly", [suiteMonthly])).toEqual({ kind: "switch", from: suiteMonthly, startsAt: SOON });
-    expect(planChange("agency", "quarterly", [suiteMonthly])).toEqual({ kind: "switch", from: suiteMonthly, startsAt: SOON });
+  it("a current plan with no held term (base plan, comp, older api) is current on every term", () => {
+    expect(currentOnTerm({ isCurrent: true, heldTerm: null }, "yearly")).toBe(true);
+    expect(currentOnTerm({ isCurrent: true }, "quarterly")).toBe(true);
   });
 
-  it("a held line with no future renewal switches at once", () => {
-    const lapsed = { ...suiteMonthly, renewsAt: new Date(Date.now() - 86_400_000).toISOString() };
-    expect(planChange("agency", "quarterly", [lapsed])).toMatchObject({ kind: "switch", startsAt: null });
-  });
-
-  it("nothing held, or only a line already ending: a plain purchase", () => {
-    expect(planChange("suite", "monthly", [])).toEqual({ kind: "new" });
-    expect(planChange("suite", "monthly", [{ ...suiteMonthly, endsAt: SOON }])).toEqual({ kind: "new" });
-  });
-
-  it("a held line with no interval is a monthly one", () => {
-    expect(planChange("suite", "monthly", [{ tier: "suite" }])).toEqual({ kind: "same" });
+  it("a plan not held is never current", () => {
+    expect(currentOnTerm({ isCurrent: false, heldTerm: "yearly" }, "yearly")).toBe(false);
+    expect(currentOnTerm({ isCurrent: false }, "monthly")).toBe(false);
   });
 });
