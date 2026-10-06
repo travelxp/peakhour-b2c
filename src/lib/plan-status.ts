@@ -99,6 +99,31 @@ export function isPaidProduct(product: HeldProduct | undefined): boolean {
 }
 
 /**
+ * One held LINE, as both `/dashboard/org` and `/v1/billing/summary` list it
+ * (D21, review R2 on b2c#589). During a plan change on the same plan (Suite
+ * monthly to Suite yearly) the business holds two lines of one tier: the one
+ * ending and its replacement. The tier alone named both, so the rows shared a
+ * React key and the ending line showed the replacement's price. A tier has at
+ * most one live line, and an ending line carries its own `endsAt`.
+ */
+export function lineKey(p: { tier: string | null; endsAt?: string | null }): string {
+  return `${p.tier ?? ""}|${p.endsAt ?? ""}`;
+}
+
+/**
+ * The one action a held product's row offers on the billing page. A free tier
+ * upgrades rather than cancels. An ENDING line (a cancel or a plan change
+ * scheduled it, D21) offers nothing: it already ends, and the api's cancel acts
+ * on the line of that product NOT ending, so "Cancel" on the ending row would
+ * cancel its replacement (review R2 on b2c#589).
+ */
+export function productRowAction(p: (HeldProduct & { endsAt?: string | null }) | undefined): "upgrade" | "cancel" | null {
+  if (!isPaidProduct(p)) return "upgrade";
+  if (p?.endsAt) return null;
+  return "cancel";
+}
+
+/**
  * Paid AND actually being paid for.
  *
  * ── ⚠️🚫★★A TRIAL IS NOT A PURCHASE, AND THE TWO QUESTIONS WANT DIFFERENT

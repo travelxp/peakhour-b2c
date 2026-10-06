@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Check, Loader2, Sparkles } from "lucide-react";
 import { api } from "@/lib/api";
@@ -108,6 +108,17 @@ export function UpgradePlanDialog({
   // The billing term the buyer picked; null = the default below.
   const [termPick, setTermPick] = useState<BillingTerm | null>(null);
   const [checkout, setCheckout] = useState<CheckoutResult | null>(null);
+  const queryClient = useQueryClient();
+  // After ANY purchase: what is current, and what each plan would now do, has
+  // changed. Forget the selection and both answers, so reopening the picker
+  // never offers "Switch to" the plan just bought (review R2 on b2c#589).
+  const purchased = () => {
+    setSelected(null);
+    void queryClient.invalidateQueries({ queryKey: ["billing-plans"] });
+    void queryClient.invalidateQueries({ queryKey: ["billing-checkout-preview"] });
+    onOpenChange(false);
+    onPurchased?.();
+  };
 
   const plansQ = useQuery({
     queryKey: ["billing-plans"],
@@ -145,14 +156,12 @@ export function UpgradePlanDialog({
         toast.success(`${res.tierLabel || res.tier} added to your subscription`, {
           description: `Free for ${res.trialDays} days — nothing to pay now. Billed with your other products from ${new Date(res.trialEndsAt).toLocaleDateString()}.`,
         });
-        onOpenChange(false);
-        onPurchased?.();
+        purchased();
         return;
       }
       if (res && "mode" in res && res.mode === "added") {
         toast.success(`${res.tierLabel || res.tier} added to your subscription`);
-        onOpenChange(false);
-        onPurchased?.();
+        purchased();
         return;
       }
       // India RBI: a total above the auto-mandate cap (₹1L) can't be auto-debited,
@@ -161,8 +170,7 @@ export function UpgradePlanDialog({
         toast.success(`${res.tierLabel || res.tier} — we'll email you an invoice to pay`, {
           description: "This plan is billed by invoice (bank rules cap auto-debit amounts).",
         });
-        onOpenChange(false);
-        onPurchased?.();
+        purchased();
         return;
       }
       setCheckout(res as CheckoutResult);
@@ -448,8 +456,7 @@ export function UpgradePlanDialog({
         }}
         onSuccess={() => {
           setCheckout(null);
-          onOpenChange(false);
-          onPurchased?.();
+          purchased();
         }}
       />
     </>

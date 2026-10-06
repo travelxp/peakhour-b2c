@@ -20,7 +20,7 @@ import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
 import { TaxAndInvoices } from "@/components/settings-tax-invoices";
 import { UpgradePlanDialog } from "@/components/upgrade/upgrade-plan-dialog";
-import { isPaidProduct } from "@/lib/plan-status";
+import { isPaidProduct, lineKey, productRowAction } from "@/lib/plan-status";
 import { intervalSuffix, periodTotals } from "@/lib/billing-terms";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -193,8 +193,9 @@ export default function BillingPage() {
         .map((t) => `${money(t.amount, summary.currency)}${intervalSuffix(t.interval)}`)
         .join(" + ") || null
     : null;
-  const priceByTier = new Map(
-    (summary?.products ?? []).map((p) => [p.tier ?? "", p]),
+  // Per LINE, not per tier: a plan change on one plan holds two (`lineKey`).
+  const priceByLine = new Map(
+    (summary?.products ?? []).map((p) => [lineKey(p), p]),
   );
 
   const handleExtend = () => {
@@ -388,14 +389,14 @@ export default function BillingPage() {
             <ul className="space-y-2">
               {products.map((p) => (
                 <li
-                  key={p.tier}
+                  key={lineKey(p)}
                   className="flex items-center justify-between rounded-lg border bg-background px-3 py-2"
                 >
                   <div>
                     <p className="text-sm font-medium">{p.name}</p>
                     <p className="text-xs text-muted-foreground">
                       {(() => {
-                        const priced = priceByTier.get(p.tier);
+                        const priced = priceByLine.get(lineKey(p));
                         const cost =
                           priced && priced.amountKnown && priced.amount != null
                             ? `${money(priced.amount, priced.currency)}${intervalSuffix(priced.interval)}`
@@ -437,8 +438,9 @@ export default function BillingPage() {
                   </Badge>
                     {/* A FREE tier upgrades rather than cancels — offering
                         "Cancel" on something that costs nothing is noise, and the
-                        server would refuse it anyway. */}
-                    {!isPaidProduct(p) ? (
+                        server would refuse it anyway. An ENDING line offers
+                        nothing (`productRowAction`). */}
+                    {productRowAction(p) === null ? null : productRowAction(p) === "upgrade" ? (
                       <Button
                         variant="outline"
                         size="sm"
