@@ -39,37 +39,11 @@ import {
   confirmPackPurchase,
   type PeaksPack,
 } from "@/hooks/use-peaks-packs";
-import { cardReason, packReason } from "@/lib/peaks-pack-copy";
+import { cardReason, packReason, packRefusalShownAsIs } from "@/lib/peaks-pack-copy";
 import { PaymentModal, type CheckoutResult } from "@/components/upgrade/payment-modal";
 import { ApiError } from "@/lib/api";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { toastUnhandledApiError } from "@/lib/toast-errors";
-
-/**
- * Refusals from POST /v1/billing/packs/checkout whose `message` is written for
- * the buyer and is the most useful thing we can show. Everything NOT on this
- * list — transport failures, auth expiry, parse errors, config errors — goes
- * through the shared handler, which never renders a raw message.
- *
- * An allowlist rather than a denylist on purpose: a new api error code should
- * default to the safe generic copy, not to whatever string it happens to carry.
- */
-const BUYER_FACING_CODES = new Set([
-  "ORG_NOT_BILLABLE",
-  "COUNTRY_UNAVAILABLE",
-  "COUNTRY_COMING_SOON",
-  "PACK_UNAVAILABLE",
-  "PACK_CURRENCY_UNAVAILABLE",
-  "PACK_TAX_CONFIG_INVALID",
-  "PACK_NOT_PURCHASABLE",
-  "WALLET_UNLIMITED",
-  "PLAN_REQUIRED",
-  "GATEWAY_UNAVAILABLE",
-  "BILLING_UNAVAILABLE",
-  // D18 (api#1484): the org has a Shopify store; the message says to buy in
-  // its Shopify admin. Reachable from a stale listing (cached 5 minutes).
-  "SHOPIFY_BILLED",
-]);
 
 // ── Formatting helpers ────────────────────────────────────────────────────
 
@@ -276,7 +250,7 @@ function BuyPeaks() {
       // offline tab, "Missing authentication. Provide Authorization header…"
       // from an expired session, even "NEXT_PUBLIC_API_URL is not configured".
       // toast-errors.ts exists because of exactly this trap and says so.
-      if (err instanceof ApiError && BUYER_FACING_CODES.has(err.code)) {
+      if (err instanceof ApiError && packRefusalShownAsIs(err.code)) {
         toast.error(err.message);
       } else {
         toastUnhandledApiError(err, "start checkout");

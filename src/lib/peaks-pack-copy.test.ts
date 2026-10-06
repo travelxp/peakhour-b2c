@@ -1,27 +1,49 @@
 import { describe, it, expect } from "vitest";
-import { blockedCopy, cardBlockedCopy, cardReason, packReason } from "./peaks-pack-copy";
-import type { PeaksPack } from "@/hooks/use-peaks-packs";
+import { blockedCopy, cardBlockedCopy, cardReason, packReason, packRefusalShownAsIs } from "./peaks-pack-copy";
+import type { PackBlockedReason, PeaksPack } from "@/hooks/use-peaks-packs";
 
 /**
- * D18 (api#1484): an org with a Shopify store buys Peaks only in its Shopify
- * admin. The web page must say where they ARE sold, not show "shopify_billed"
- * or a row of greyed buttons with no reason.
+ * D18 revised (2026-10-06, P4.10b): every org buys Peaks on this page,
+ * Shopify-connected or not. Nothing the page says may send a buyer to the
+ * Shopify admin to buy, and the api's retired `shopify_billed` marker, which an
+ * api without P4.10a still sends, must read as a sentence, never as its code.
  */
 
 const pack = (over: Partial<PeaksPack>): PeaksPack =>
   ({ key: "addon.peaks.small", purchasable: false, blockedReason: null, ...over }) as PeaksPack;
 
+// `satisfies` makes tsc (which this repo runs over tests) fail when the union
+// gains a member this list lacks, or when this list names one the union lost.
+const EVERY_REASON = Object.keys({
+  plan_required: true,
+  unlimited: true,
+  no_wallet: true,
+  not_priced_here: true,
+} satisfies Record<PackBlockedReason, true>) as PackBlockedReason[];
+
+// The D18 marker, cast because it is no longer a member: the wire can still
+// carry it until the api's P4.10a deploys.
+const RETIRED_SHOPIFY = "shopify_billed" as PackBlockedReason;
+
+const SOON = "Peaks packs are coming soon in your country.";
+
 describe("Peaks pack copy", () => {
-  it("a Shopify-billed org is pointed at its Shopify admin, and told what it can still see here", () => {
-    const c = blockedCopy("shopify_billed")!;
-    expect(c).toContain("Shopify admin");
-    expect(c).toContain("balance, usage and purchases");
-    expect(c).not.toContain("shopify_billed");
+  it("no reason the api lists sends the buyer to Shopify, and each has a sentence", () => {
+    for (const r of EVERY_REASON) {
+      const c = blockedCopy(r);
+      expect(c, r).toBeTruthy();
+      expect(c, r).not.toBe(r);
+      expect(c, r).not.toMatch(/shopify/i);
+    }
   });
 
-  it("the card says it once when every pack is Shopify-billed", () => {
-    const c = cardBlockedCopy([pack({ blockedReason: "shopify_billed" }), pack({ key: "addon.peaks.large", blockedReason: "shopify_billed" })]);
-    expect(c).toBe(blockedCopy("shopify_billed"));
+  it("the retired shopify_billed marker reads as a sentence, not its code or the Shopify admin", () => {
+    expect(blockedCopy(RETIRED_SHOPIFY)).toBe("This pack isn't available on your account right now.");
+  });
+
+  it("a card of packs all carrying the retired marker says the same sentence once", () => {
+    const c = cardBlockedCopy([pack({ blockedReason: RETIRED_SHOPIFY }), pack({ key: "addon.peaks.large", blockedReason: RETIRED_SHOPIFY })]);
+    expect(c).toBe(blockedCopy(RETIRED_SHOPIFY));
   });
 
   it("keeps the existing reasons' sentences", () => {
@@ -31,25 +53,41 @@ describe("Peaks pack copy", () => {
   });
 
   it("says nothing at card level while any pack is buyable", () => {
-    expect(cardBlockedCopy([pack({ purchasable: true }), pack({ blockedReason: "shopify_billed" })])).toBeNull();
+    expect(cardBlockedCopy([pack({ purchasable: true }), pack({ blockedReason: "plan_required" })])).toBeNull();
   });
 });
 
-describe("Shopify before country (review R1)", () => {
-  const SOON = "Peaks packs are coming soon in your country.";
-
-  it("a Shopify-billed pack says Shopify even where the country is not live", () => {
-    expect(packReason(SOON, "shopify_billed")).toBe(blockedCopy("shopify_billed"));
+describe("the country notice comes first, for every org", () => {
+  it("a pack yields its reason to the country notice, whatever the reason", () => {
+    for (const r of EVERY_REASON) expect(packReason(SOON, r), r).toBe(SOON);
   });
 
-  it("the card says Shopify even where the country is not live", () => {
-    expect(cardReason(SOON, [pack({ blockedReason: "shopify_billed" })])).toBe(blockedCopy("shopify_billed"));
+  it("a pack carrying the retired Shopify marker yields to the country notice too", () => {
+    expect(packReason(SOON, RETIRED_SHOPIFY)).toBe(SOON);
   });
 
-  it("every other reason still yields to the country", () => {
-    expect(packReason(SOON, "plan_required")).toBe(SOON);
-    expect(cardReason(SOON, [pack({ blockedReason: "plan_required" })])).toBe(SOON);
+  it("the card yields to the country notice even when a pack carries the retired Shopify marker", () => {
+    expect(cardReason(SOON, [pack({ blockedReason: RETIRED_SHOPIFY }), pack({ key: "addon.peaks.large", blockedReason: "plan_required" })])).toBe(SOON);
+  });
+
+  it("with the country live, the pack's own reason shows", () => {
     expect(packReason(null, "plan_required")).toBe(blockedCopy("plan_required"));
+    expect(cardReason(null, [pack({ blockedReason: "plan_required" })])).toBe(blockedCopy("plan_required"));
   });
 });
 
+describe("pack-checkout refusals shown as written", () => {
+  it("a refusal written for the buyer is shown as is", () => {
+    for (const code of ["COUNTRY_COMING_SOON", "PLAN_REQUIRED", "WALLET_UNLIMITED", "PACK_NOT_PURCHASABLE"]) {
+      expect(packRefusalShownAsIs(code), code).toBe(true);
+    }
+  });
+
+  it("SHOPIFY_BILLED is not shown as is: its message pointed at the Shopify admin", () => {
+    expect(packRefusalShownAsIs("SHOPIFY_BILLED")).toBe(false);
+  });
+
+  it("an unknown code falls through to the shared handler", () => {
+    expect(packRefusalShownAsIs("UNKNOWN")).toBe(false);
+  });
+});
