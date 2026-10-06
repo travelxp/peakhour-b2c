@@ -30,6 +30,7 @@ export interface BillingSummaryProduct {
   /** False when a PAID tier couldn't be priced for this country: the amount is
    *  unknown, not zero. */
   amountKnown: boolean;
+  /** month / quarter / year (P3.1a); what `amount` recurs on. */
   interval: string;
 }
 
@@ -39,6 +40,10 @@ export interface BillingSummary {
   basePlanName: string | null;
   products: BillingSummaryProduct[];
   monthlyTotal: number | null;
+  /** The quarterly and yearly lines' totals (api#1495), each null when no line
+   *  recurs on it. Never summed into `monthlyTotal`. */
+  quarterlyTotal?: number | null;
+  yearlyTotal?: number | null;
   /** False when at least one product's amount is unknown — the total is a floor,
    *  not the whole charge, and the UI must say so rather than present it as final. */
   monthlyTotalComplete: boolean;
@@ -74,10 +79,13 @@ export interface OrderConfirmation {
   kind: "purchased" | "trial_started" | "added" | "upgraded" | "removed";
   tier: string;
   monthlyTotal: string;
+  /** Present only when such a line is (mig 386). */
+  quarterlyTotal?: string;
+  yearlyTotal?: string;
   currency: string;
   firstChargeAt?: string | null;
   issuedAt: string;
-  lines: Array<{ name: string; amount: string; trialEndsAt?: string | null }>;
+  lines: Array<{ name: string; amount: string; interval?: string; trialEndsAt?: string | null }>;
 }
 
 export const BILLING_ORDERS_KEY = "/v1/billing/orders";
