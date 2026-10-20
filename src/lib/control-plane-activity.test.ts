@@ -22,6 +22,25 @@ const DOMAINS: NotificationDomain[] = [
   { key: "billing", displayName: "Billing", description: null, sortOrder: 2 },
 ];
 
+/**
+ * Every outcome `plt_activity` admits once mongodb migration 392 lands: the
+ * one list the whole-map tests below walk, so an outcome change edits it once.
+ */
+const STORED_OUTCOMES = [
+  "unknown_sender",
+  "no_longer_a_member",
+  "ambiguous_business",
+  "command_denied",
+  "not_a_command",
+  "conversation",
+  "command_handled",
+  "command_silent",
+  "confirmation_requested",
+  "nothing_to_confirm",
+  "consent_opted_out",
+  "consent_opted_in",
+];
+
 function row(patch: Partial<ActivityRow> = {}): ActivityRow {
   return {
     id: "aaaaaaaaaaaaaaaaaaaaaaaa",
@@ -86,17 +105,35 @@ describe("activityCopy — §07's left column and 'what'", () => {
     expect(c.refused).toBe(false);
   });
 
+  it("files a domainless conversation as a message Peakhour did not take as an instruction, under Message", () => {
+    // ★★mongodb 392 REWRITES THE STORED `not_a_command` ROWS IT FINDS TO
+    //  `conversation`. Without its own entry a rewritten row fell through to
+    //  the unknown-outcome fallback: group "Activity", sentence "conversation".
+    //  ⚠️Never under Blocked, and the sentence claims no good exchange and
+    //  nothing about what ran: a rewritten row may have been a declined
+    //  trigger, a button tap or a re-asked question, which 392 cannot tell from
+    //  chatter. (A row WITH a domain files under it, as every outcome does;
+    //  neither api return sets one on this outcome.)
+    const c = activityCopy(row({ outcome: "conversation" }), DOMAINS);
+    expect(c.group).toBe("Message");
+    expect(c.what).toBe("Sent a message Peakhour did not take as an instruction");
+    expect(c.refused).toBe(false);
+  });
+
+  it("reads a not_a_command row exactly as a conversation, so one event never shows two ways", () => {
+    // ⏸api keeps writing `not_a_command` until M3, during and after 392's run,
+    //  so the tab holds both keys for the same event. Two sentences would show
+    //  a merchant one kind of line two ways.
+    for (const command of [null, "LAUNCH"]) {
+      expect(activityCopy(row({ outcome: "not_a_command", command }), DOMAINS)).toEqual(
+        activityCopy(row({ outcome: "conversation", command }), DOMAINS),
+      );
+    }
+  });
+
   it("marks every refusal and no other outcome", () => {
     const refused = ["unknown_sender", "no_longer_a_member", "ambiguous_business", "command_denied"];
-    const notRefused = [
-      "not_a_command",
-      "command_handled",
-      "command_silent",
-      "confirmation_requested",
-      "nothing_to_confirm",
-      "consent_opted_out",
-      "consent_opted_in",
-    ];
+    const notRefused = STORED_OUTCOMES.filter((o) => !refused.includes(o));
     for (const outcome of refused) {
       expect(activityCopy(row({ outcome }), DOMAINS).refused, outcome).toBe(true);
     }
@@ -105,26 +142,13 @@ describe("activityCopy — §07's left column and 'what'", () => {
     }
   });
 
-  it("covers exactly the ELEVEN outcomes plt_activity stores", () => {
-    // ⚠️★★THE COLLECTION'S ENUM IS ELEVEN OF api's TWELVE. `duplicate_skipped`
+  it("covers exactly the TWELVE outcomes plt_activity admits from migration 392", () => {
+    // ⚠️★★TWELVE ONCE mongodb 392 ADMITS `conversation`; `duplicate_skipped`
     //  is a `PlatformInboundOutcome` the ledger deliberately never writes — *"a
     //  redelivery is not a second event"* — so copy for it would be copy for a
     //  row that cannot arrive. 🚫And `owner_only` / `not_your_domain` are
     //  `AuthorityOutcome`s collapsed into `command_denied` before they get here.
-    const stored = [
-      "unknown_sender",
-      "no_longer_a_member",
-      "ambiguous_business",
-      "command_denied",
-      "not_a_command",
-      "command_handled",
-      "command_silent",
-      "confirmation_requested",
-      "nothing_to_confirm",
-      "consent_opted_out",
-      "consent_opted_in",
-    ];
-    for (const outcome of stored) {
+    for (const outcome of STORED_OUTCOMES) {
       // A recognised outcome never renders its own key back at the merchant.
       expect(activityCopy(row({ outcome }), DOMAINS).what, outcome).not.toBe(outcome);
     }
@@ -135,7 +159,7 @@ describe("activityCopy — §07's left column and 'what'", () => {
 
   it("RENDERS an outcome it has never heard of rather than dropping the line", () => {
     // ★★THIS MAP IS A COPY OF AN ENUM IN TWO OTHER REPOS AND NO COMPILER CHECKS
-    //  IT. A twelfth outcome ships as a migration, and this file learns late —
+    //  IT. A new outcome ships as a migration, and this file learns late —
     //  so the line renders with its raw outcome rather than vanishing. **A
     //  ledger that hides the event somebody added an outcome to make visible is
     //  the one failure this surface cannot have.**
@@ -164,20 +188,7 @@ describe("activityCopy — §07's left column and 'what'", () => {
   it("reads as a sentence on EVERY template, with a trigger and without one", () => {
     // ★A template is only correct if both readings are. This is the whole map,
     //  checked mechanically rather than by whichever two somebody remembered.
-    const outcomes = [
-      "unknown_sender",
-      "no_longer_a_member",
-      "ambiguous_business",
-      "command_denied",
-      "not_a_command",
-      "command_handled",
-      "command_silent",
-      "confirmation_requested",
-      "nothing_to_confirm",
-      "consent_opted_out",
-      "consent_opted_in",
-    ];
-    for (const outcome of outcomes) {
+    for (const outcome of STORED_OUTCOMES) {
       const withTrigger = activityCopy(row({ outcome, command: "LAUNCH" }), DOMAINS).what;
       const without = activityCopy(row({ outcome, command: null }), DOMAINS).what;
       for (const [label, what] of [

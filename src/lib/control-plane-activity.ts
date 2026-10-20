@@ -79,9 +79,41 @@ interface OutcomeCopy {
 }
 
 /**
+ * A verified merchant's message that Peakhour did not take as an instruction:
+ * chatter, which from api M3 the merchant agent answers in conversation.
+ *
+ * ★★ONE COPY FOR TWO KEYS, `not_a_command` AND `conversation`. mongodb
+ * migration 392 (WhatsApp plan M1) adds `conversation` and rewrites the stored
+ * `not_a_command` rows it finds to it. ⏸But api keeps writing `not_a_command`
+ * until M3, during and after 392's run, so the tab holds both keys for the same
+ * event. 🚫Two sentences would show a merchant one kind of line two ways, so
+ * both keys read this one.
+ *
+ * 🚫★NOT "Blocked". A verified merchant saying "thanks" was not refused
+ * anything, and filing ordinary chatter under a wall the tab exists to prove
+ * is real would empty the word of meaning.
+ *
+ * ⚠️★★THE SENTENCE CLAIMS NO MORE THAN EVERY SUCH ROW CAN PROVE. Today
+ * `platform-inbound.ts` writes `not_a_command` for chatter, a button tap, any
+ * text while a question is waiting (Peakhour re-asks it), and a registered
+ * trigger the router declined, and 392 cannot tell the stored ones apart.
+ * 🚫"Chatted with Peakhour" (review round 2) read a declined trigger or a "did
+ * not understand" reply as a good exchange. 🚫"No instruction was run" (round
+ * 1) stated the api's write policy, not a fact the row carries. ★So the
+ * sentence says what holds in every case: the message was not taken as an
+ * instruction. It names no trigger because neither api return stores one.
+ */
+const CONVERSATION_COPY: OutcomeCopy = {
+  group: "Message",
+  what: "Sent a message Peakhour did not take as an instruction",
+  refused: false,
+};
+
+/**
  * Every outcome `plt_activity` can hold, and what a merchant reads.
  *
- * ⚠️★★ELEVEN, AND THE TWELFTH IS ABSENT ON PURPOSE. `duplicate_skipped` is a
+ * ⚠️★★TWELVE ONCE mongodb MIGRATION 392 ADMITS `conversation` (eleven before
+ * it), AND `duplicate_skipped` IS ABSENT ON PURPOSE. `duplicate_skipped` is a
  * `PlatformInboundOutcome` that the ledger deliberately never writes — *"a
  * redelivery is not a second event"* — so a bucket for it here would be copy
  * for a row that cannot arrive.
@@ -92,7 +124,7 @@ interface OutcomeCopy {
  *
  * ⚠️★AN UNKNOWN KEY IS RENDERED, NOT DROPPED. See `activityCopy`: this map is a
  * COPY of an enum in another repo, and the one thing a ledger must never do is
- * silently lose a line because a twelfth outcome shipped before this file
+ * silently lose a line because a new outcome shipped before this file
  * heard about it.
  */
 const OUTCOME_COPY: Record<string, OutcomeCopy> = {
@@ -122,14 +154,8 @@ const OUTCOME_COPY: Record<string, OutcomeCopy> = {
     refused: true,
   },
   // ── things that happened ────────────────────────────────────────────────
-  not_a_command: {
-    // 🚫★NOT "Blocked". A verified merchant saying "thanks" was not refused
-    //  anything, and filing ordinary chatter under a wall the tab exists to
-    //  prove is real would empty the word of meaning.
-    group: "Message",
-    what: "Sent a message that was not an instruction",
-    refused: false,
-  },
+  not_a_command: CONVERSATION_COPY,
+  conversation: CONVERSATION_COPY,
   command_handled: {
     group: "Instruction",
     what: "Ran {command}",
@@ -200,7 +226,7 @@ export interface ActivityCopy {
  * ── ⚠️★★AND AN UNKNOWN OUTCOME RENDERS TOO ───────────────────────────────
  *
  * `OUTCOME_COPY` is a copy of an enum that lives in two other repos and is
- * checked by neither compiler. `plt_activity.zod.ts` says adding a twelfth
+ * checked by neither compiler. `plt_activity.zod.ts` says adding an
  * outcome is a migration, and this file would learn about it late. **A ledger
  * that dropped the line would hide exactly the event somebody added an outcome
  * to make visible**, so an unrecognised outcome renders under "Activity" with
