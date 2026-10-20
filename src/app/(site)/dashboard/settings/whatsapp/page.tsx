@@ -17,9 +17,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { VerifiedNumbers } from "@/components/control-plane/verified-numbers";
 import { RoutingMatrix } from "@/components/control-plane/routing-matrix";
 import { ActivityLedger } from "@/components/control-plane/activity-ledger";
+import { ConversationThread } from "@/components/control-plane/conversation-thread";
 import {
   memberLabel,
+  whatsappTabFromParam,
+  whatsappTabQuery,
   WHATSAPP_ACTIVITY_TAB,
+  WHATSAPP_CONVERSATION_TAB,
   WHATSAPP_SETTINGS_TAB,
   WHATSAPP_TAB_PARAM,
 } from "@/lib/control-plane";
@@ -94,7 +98,7 @@ function header() {
   return (
     <PageHeader
       title="Peakhour on WhatsApp"
-      description="Who at this business can tell Peakhour what to do, who hears about what, and what Peakhour did."
+      description="Who at this business can tell Peakhour what to do, who hears about what, what Peakhour did, and your own conversation with it."
       actions={
         <Button asChild variant="ghost" size="sm">
           <Link href="/dashboard/settings">
@@ -132,15 +136,11 @@ function WhatsAppSettings() {
   const contacts = useMerchantContacts();
   const members = useOrgMembers();
 
-  // ★★ONLY `activity` SWITCHES THE TAB; EVERYTHING ELSE IS THE SETTINGS ONE.
-  //  This page had no tabs before 2.5d, so every link anybody has already
-  //  written must land where it did — and an unrecognised `?tab=` value is a
-  //  typo, not a third tab. 🚫Defaulting to the ledger for an unknown value
-  //  would take a merchant following an old link to a page they did not ask for.
-  const urlTab =
-    params.get(WHATSAPP_TAB_PARAM) === WHATSAPP_ACTIVITY_TAB
-      ? WHATSAPP_ACTIVITY_TAB
-      : WHATSAPP_SETTINGS_TAB;
+  // ★★ONLY `activity` AND `conversation` SWITCH THE TAB; EVERYTHING ELSE IS
+  //  THE SETTINGS ONE. This page had no tabs before 2.5d, so every link anybody
+  //  has already written must land where it did — and an unrecognised `?tab=`
+  //  value is a typo, not another tab. See `whatsappTabFromParam`.
+  const urlTab = whatsappTabFromParam(params.get(WHATSAPP_TAB_PARAM));
 
   // ⚠️★★THE TAB THE MERCHANT JUST CLICKED, HELD UNTIL THE URL CATCHES UP.
   //  `router.replace` commits in a transition, during which `useSearchParams`
@@ -162,10 +162,7 @@ function WhatsAppSettings() {
   //  `?tab=settings`, so the canonical URL is the one that has always existed.
   function selectTab(next: string) {
     setPendingTab(next);
-    const q = new URLSearchParams(params.toString());
-    if (next === WHATSAPP_ACTIVITY_TAB) q.set(WHATSAPP_TAB_PARAM, next);
-    else q.delete(WHATSAPP_TAB_PARAM);
-    const qs = q.toString();
+    const qs = whatsappTabQuery(params.toString(), next);
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   }
 
@@ -246,6 +243,7 @@ function WhatsAppSettings() {
             Numbers &amp; routing
           </TabsTrigger>
           <TabsTrigger value={WHATSAPP_ACTIVITY_TAB}>Activity</TabsTrigger>
+          <TabsTrigger value={WHATSAPP_CONVERSATION_TAB}>Conversation</TabsTrigger>
         </TabsList>
 
         <TabsContent value={WHATSAPP_SETTINGS_TAB} className="space-y-6">
@@ -303,6 +301,16 @@ function WhatsAppSettings() {
           <ActivityLedger
             domains={domains.data ?? []}
             timeZonePreference={user?.preferences?.timezone}
+          />
+        </TabsContent>
+
+        <TabsContent value={WHATSAPP_CONVERSATION_TAB}>
+          {/* WA M6. Like the ledger, it does not wait on the settings tab's
+              reads; it reads the contacts itself, only to say why it is empty. */}
+          <ConversationThread
+            timeZonePreference={user?.preferences?.timezone}
+            currentUserId={currentUserId}
+            isAdmin={isAdmin}
           />
         </TabsContent>
       </Tabs>

@@ -37,6 +37,30 @@ import type { TeamMember } from "@/lib/auth";
 export const WHATSAPP_TAB_PARAM = "tab";
 export const WHATSAPP_ACTIVITY_TAB = "activity";
 export const WHATSAPP_SETTINGS_TAB = "settings";
+/** WA M6: the signed-in user's own conversation with Peakhour. */
+export const WHATSAPP_CONVERSATION_TAB = "conversation";
+
+/**
+ * The tab a `?tab=` value opens. Only a known value switches the tab; anything
+ * else, absent included, is the settings tab, so every older link still lands
+ * where it did and a typo is not a new tab.
+ */
+export function whatsappTabFromParam(value: string | null): string {
+  return value === WHATSAPP_ACTIVITY_TAB || value === WHATSAPP_CONVERSATION_TAB
+    ? value
+    : WHATSAPP_SETTINGS_TAB;
+}
+
+/**
+ * The query string after selecting `next`, keeping every other parameter. The
+ * settings tab drops `?tab=` rather than writing `?tab=settings`.
+ */
+export function whatsappTabQuery(current: string, next: string): string {
+  const q = new URLSearchParams(current);
+  if (next === WHATSAPP_SETTINGS_TAB) q.delete(WHATSAPP_TAB_PARAM);
+  else q.set(WHATSAPP_TAB_PARAM, next);
+  return q.toString();
+}
 /** Where the ledger's footnote sends a merchant to fix a pending number. */
 export const WHATSAPP_SETTINGS_HREF = "/dashboard/settings/whatsapp";
 
