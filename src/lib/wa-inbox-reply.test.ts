@@ -334,13 +334,24 @@ describe("replyErrorCopy", () => {
     expect(c.title).toBe("WhatsApp didn't accept this reply");
     expect(c.detail).toBe("(#131008) Required parameter is missing. Nothing was sent.");
   });
-  it("[SF02] a refused send keeps the key and skips the confirm", () => {
+  it("[SF02] a refused send drops the key and skips the confirm", () => {
     const c = replyErrorCopy(apiErr("SEND_FAILED", 502, "Bad value", { outcome: "not_sent" }));
-    expect(c.attempt).toBe("keep");
+    expect(c.attempt).toBe("fresh");
     const sent: Attempt = { sig: "s", key: "inbox-k1", unknown: false };
     const after = attemptAfterError(sent, c);
+    expect(after).toBeNull();
     expect(needsResendConfirm(after)).toBe(false);
-    expect(attemptFor(after, "s", () => "inbox-k2").key).toBe("inbox-k1");
+    expect(attemptFor(after, "s", () => "inbox-k2").key).toBe("inbox-k2");
+  });
+  it("[SF19] a refused template re-reads the template list, a refused text does not", () => {
+    const e = apiErr("SEND_FAILED", 502, "Template paused", { outcome: "not_sent" });
+    expect(replyErrorCopy(e, "template").refetchTemplates).toBe(true);
+    expect(replyErrorCopy(e, "text").refetchTemplates).toBe(false);
+  });
+  it("[SF21] other refusals still keep the key, and an unknown one marks it", () => {
+    const sent: Attempt = { sig: "s", key: "inbox-k1", unknown: false };
+    expect(attemptAfterError(sent, { attempt: "keep" })).toEqual(sent);
+    expect(attemptAfterError(sent, { attempt: "unknown" })).toEqual({ ...sent, unknown: true });
   });
   it("[SF03] a refused send with no reason says WhatsApp did not accept it", () => {
     expect(replyErrorCopy(apiErr("SEND_FAILED", 502, "Request failed", { outcome: "not_sent" })).detail).toBe(
@@ -352,11 +363,19 @@ describe("replyErrorCopy", () => {
       "Bad value! Nothing was sent.",
     );
   });
-  it("[SF05] a send failure the api calls unknown stays unknown", () => {
-    const c = replyErrorCopy(apiErr("SEND_FAILED", 502, "It may or may not have arrived.", { outcome: "unknown" }));
+  it("[SF18] a stop inside a closing quote or bracket, or an ellipsis, gets no second full stop", () => {
+    for (const said of ['Invalid value ("Hello.")', "Invalid value “Hello.”", "It was refused…", "Bad value (twice.)"]) {
+      expect(replyErrorCopy(apiErr("SEND_FAILED", 502, said, { outcome: "not_sent" })).detail, said).toBe(`${said} Nothing was sent.`);
+    }
+  });
+  it("[SF05] a send failure the api calls unknown stays unknown, in the api's words once", () => {
+    // The api's own sentence, verbatim (api#1530 whatsapp-conversations.ts).
+    const said =
+      "The connection to WhatsApp failed while sending, so this reply may or may not have arrived. Check the conversation before sending it again.";
+    const c = replyErrorCopy(apiErr("SEND_FAILED", 502, said, { outcome: "unknown" }));
     expect(c.attempt).toBe("unknown");
     expect(c.title).toBe("This reply may not have been sent");
-    expect(c.detail).toBe("It may or may not have arrived. Check this conversation before sending it again.");
+    expect(c.detail).toBe(said);
   });
   it("[SF06] a send failure with no details stays unknown", () => {
     const c = replyErrorCopy(apiErr("SEND_FAILED", 502, "WhatsApp did not accept the message"));
@@ -612,11 +631,14 @@ describe("polling and resume", () => {
   });
   it("[SF11] a stale resume with no sentence says the conversation changed", () => {
     expect(resumeErrorMessage(apiErr("STATUS_CHANGED", 409))).toBe(
-      "This conversation changed after you last loaded it. Refresh it and try again.",
+      "This conversation changed after you last loaded it, so it was left as it is. It now shows the latest.",
     );
   });
   it("[SF12] any other resume refusal shows its own message", () => {
     expect(resumeErrorMessage(apiErr("FORBIDDEN", 403, "Editor access needed"))).toBe("Editor access needed");
+  });
+  it("[SF20] a resume refusal with the api client's placeholder says it could not hand back", () => {
+    expect(resumeErrorMessage(apiErr("NOT_FOUND", 404))).toBe("Couldn't hand back");
   });
   it("[SF13] a resume refusal with no message says it could not hand back", () => {
     expect(resumeErrorMessage(new Error("  "))).toBe("Couldn't hand back");

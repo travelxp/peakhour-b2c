@@ -1,16 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
- * WA T4 follow-up (api#1530): what `useWaResume` sends and what it re-reads.
+ * WA T4 follow-up (api#1530): what `useWaResume` sends, and what it and
+ * `useWaHandoff` re-read.
  * `useMutation` is replaced by a recorder of its options, `useQueryClient` by
  * a recorder of invalidations, `useAuth` by a fixed session, and `api.post` by
  * a recorder of the path and body.
  */
 
 type MutationOptions = {
-  mutationFn: (vars: { threadId: string; thread?: { statusVersion?: unknown } | null }) => Promise<unknown>;
-  onSuccess?: (data: unknown, vars: { threadId: string }) => void;
-  onSettled?: (data: unknown, error: unknown, vars: { threadId: string }) => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  mutationFn: (vars: any) => Promise<unknown>;
+  onSuccess?: (data: unknown, vars: unknown) => void;
+  onError?: (error: unknown, vars: unknown) => void;
+  onSettled?: (data: unknown, error: unknown, vars: unknown) => void;
 };
 const recorded: MutationOptions[] = [];
 const invalidated: unknown[][] = [];
@@ -39,21 +42,25 @@ vi.mock("@/lib/api", async (importOriginal) => ({
   },
 }));
 const { ApiError } = await import("@/lib/api");
-const { useWaResume } = await import("./use-wa-conversations");
+const { useWaResume, useWaHandoff } = await import("./use-wa-conversations");
 
 // Called through a plain reference: the recorder stands in for React here.
-const hook: () => unknown = useWaResume;
+const resumeHook: () => unknown = useWaResume;
+const handoffHook: () => unknown = useWaHandoff;
 
-function options(): MutationOptions {
+function options(hook: () => unknown = resumeHook): MutationOptions {
   recorded.length = 0;
   hook();
   expect(recorded).toHaveLength(1);
   return recorded[0]!;
 }
 
-/** What the mutation runs after an answer, in react-query's order. */
-function settle(o: MutationOptions, outcome: { data: unknown } | { error: unknown }, vars: { threadId: string }) {
+/** Every callback the mutation runs after an answer, in react-query's order
+ *  (onSuccess or onError, then onSettled), so the test does not depend on
+ *  which of them the hook uses. */
+function settle(o: MutationOptions, outcome: { data: unknown } | { error: unknown }, vars: unknown) {
   if ("data" in outcome) o.onSuccess?.(outcome.data, vars);
+  else o.onError?.(outcome.error, vars);
   o.onSettled?.("data" in outcome ? outcome.data : undefined, "error" in outcome ? outcome.error : null, vars);
 }
 
@@ -80,6 +87,10 @@ describe("useWaResume", () => {
     settle(options(), { data: { ok: true } }, { threadId: T });
     expect(invalidated).toHaveLength(2);
     expect(invalidated).toContainEqual(["wa-conversations", "biz_a"]);
+    expect(invalidated).toContainEqual(THREAD_KEY);
+  });
+  it("[SF17] a take over's 409 re-reads the thread", () => {
+    settle(options(handoffHook), { error: new ApiError("STATUS_CHANGED", "changed", 409) }, T);
     expect(invalidated).toContainEqual(THREAD_KEY);
   });
 });

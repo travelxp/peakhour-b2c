@@ -142,7 +142,8 @@ export function useWaHandoff() {
   const { business } = useAuth();
   return useMutation({
     mutationFn: (threadId: string) => api.post(`${BASE}/${encodeURIComponent(threadId)}/handoff`),
-    onSuccess: (_r, threadId) => {
+    // ★Settled, as Resume (review R1): a 409 STATUS_CHANGED also re-reads.
+    onSettled: (_r, _e, threadId) => {
       qc.invalidateQueries({ queryKey: ["wa-conversations", business?._id ?? "none"] });
       qc.invalidateQueries({ queryKey: ["wa-thread", business?._id ?? "none", threadId] });
     },

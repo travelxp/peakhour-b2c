@@ -268,10 +268,14 @@ export function needsResendConfirm(prev: Attempt | null): boolean {
   return Boolean(prev?.unknown);
 }
 
-/** The attempt a refused send leaves behind: marked unknown only when the
- *  refusal's copy says the outcome is unknown; otherwise the same key. */
-export function attemptAfterError(sent: Attempt, copy: Pick<ReplyErrorCopy, "attempt">): Attempt {
-  return copy.attempt === "unknown" ? { ...sent, unknown: true } : sent;
+/**
+ * The attempt a refused send leaves behind: marked unknown when the outcome is
+ * unknown, dropped (the next send mints a key, with no confirm) when nothing
+ * was certainly sent, and otherwise the same key.
+ */
+export function attemptAfterError(sent: Attempt, copy: Pick<ReplyErrorCopy, "attempt">): Attempt | null {
+  if (copy.attempt === "unknown") return { ...sent, unknown: true };
+  return copy.attempt === "fresh" ? null : sent;
 }
 
 /**
@@ -332,8 +336,9 @@ export interface ReplyErrorCopy {
   title: string;
   detail: string;
   /** "unknown" marks the attempt so the next send of the same words must be
-   *  confirmed and goes out under a new key. */
-  attempt: "keep" | "unknown";
+   *  confirmed and goes out under a new key. "fresh" drops it: nothing was
+   *  sent, and the next send goes out under a new key with no confirm. */
+  attempt: "keep" | "unknown" | "fresh";
   /** Re-read the template list: the error says it is out of date. */
   refetchTemplates: boolean;
   /** The api says the 24h window is closed: believe it over this browser's
@@ -350,9 +355,10 @@ function serverMessage(err: ApiError, fallback: string): string {
   return m && m !== "Request failed" ? m : fallback;
 }
 
-/** Ends a sentence the api may have left open: Meta's reasons arrive without a full stop. */
+/** Ends a sentence the api may have left open: Meta's reasons arrive without a
+ *  full stop. A stop already there may sit inside a closing quote or bracket. */
 function asSentence(s: string): string {
-  return /[.!?]$/.test(s) ? s : `${s}.`;
+  return /[.!?…]["'”’)\]]*$/.test(s) ? s : `${s}.`;
 }
 
 /**
@@ -376,9 +382,9 @@ export function sendFailedOutcome(details: unknown): "not_sent" | "unknown" {
  *  - `REPLY_OUTCOME_UNKNOWN` never says "failed, try again". The api could not
  *    tell whether WhatsApp delivered it; a resend could be a second copy.
  *  - `SEND_FAILED` is two cases, told apart by `details.outcome` (api#1530):
- *    `not_sent` (WhatsApp refused it, and the api released the key, so the
- *    same words send fresh) says "Nothing was sent"; anything else may have
- *    delivered, and asks for a check before a confirmed resend.
+ *    `not_sent` (WhatsApp refused it) says "Nothing was sent" and drops the
+ *    key, with no confirm; anything else may have delivered, and asks for a
+ *    check before a confirmed resend.
  *  - A lost connection or a 5xx is the same unknown, with the same safe advice.
  */
 export function replyErrorCopy(err: unknown, kind: ReplyPayload["kind"] = "text"): ReplyErrorCopy {
@@ -407,13 +413,19 @@ export function replyErrorCopy(err: unknown, kind: ReplyPayload["kind"] = "text"
       };
     case "SEND_FAILED":
       // ★CERTAIN ONLY ON `not_sent` (api#1530): WhatsApp refused it on every
-      //  attempt, and the api released the key, so the same key sends fresh
-      //  and no confirm is asked for.
+      //  attempt, so no confirm is asked for. ★A FRESH KEY, NOT THE SAME ONE
+      //  (review R1): the api's release of the claim is best-effort, and a
+      //  claim left `sending` answers the same key with REPLY_IN_PROGRESS and
+      //  later "outcome unknown", a double-send alarm about a message that was
+      //  never sent. Nothing went, so a new key cannot make a second copy.
+      //  A template refusal re-reads the list: Meta may have paused it.
       if (sendFailedOutcome(err.details) === "not_sent") {
         return {
           ...base,
+          attempt: "fresh",
           title: "WhatsApp didn't accept this reply",
           detail: `${asSentence(serverMessage(err, "WhatsApp did not accept the message."))} ${NOTHING_SENT}`,
+          refetchTemplates: kind === "template",
         };
       }
       // ★OTHERWISE MARKED UNKNOWN (review R2). On a cut connection the api has
@@ -422,12 +434,17 @@ export function replyErrorCopy(err: unknown, kind: ReplyPayload["kind"] = "text"
       //  it, and invited an edit, which is a new key and a possible second copy.
       //  An api from before #1530 sends no `details` for a certain refusal
       //  either: there the confirm costs one click and sends once.
-      return {
-        ...base,
-        attempt: "unknown",
-        title: "This reply may not have been sent",
-        detail: `${asSentence(serverMessage(err, "WhatsApp didn't confirm the message."))} Check this conversation before sending it again.`,
-      };
+      //  ★The api's unknown sentence already ends "Check the conversation
+      //  before sending it again." (review R1), so ours is not added twice.
+      {
+        const said = asSentence(serverMessage(err, "WhatsApp didn't confirm the message."));
+        return {
+          ...base,
+          attempt: "unknown",
+          title: "This reply may not have been sent",
+          detail: /before sending it again/i.test(said) ? said : `${said} Check this conversation before sending it again.`,
+        };
+      }
     case "OUTSIDE_24H":
       return {
         ...base,
@@ -710,8 +727,10 @@ export function resumeBody(thread: { statusVersion?: unknown } | null | undefine
  * and a second click is judged against the latest version, not the same 409.
  */
 export function resumeErrorMessage(err: unknown): string {
-  if (err instanceof ApiError && err.code === "STATUS_CHANGED") {
-    return serverMessage(err, "This conversation changed after you last loaded it. Refresh it and try again.");
+  if (err instanceof ApiError) {
+    return err.code === "STATUS_CHANGED"
+      ? serverMessage(err, "This conversation changed after you last loaded it, so it was left as it is. It now shows the latest.")
+      : serverMessage(err, "Couldn't hand back");
   }
   return (err instanceof Error && err.message?.trim()) || "Couldn't hand back";
 }
