@@ -14,6 +14,7 @@ type InfiniteOptions = {
   initialPageParam: unknown;
   refetchInterval?: unknown;
   refetchOnWindowFocus?: unknown;
+  refetchOnReconnect?: unknown;
   retry?: unknown;
 };
 const recorded: InfiniteOptions[] = [];
@@ -24,7 +25,7 @@ const session: {
   isAuthenticated: boolean;
 } = { org: null, business: null, user: null, isAuthenticated: true };
 
-const paths: string[] = [];
+const calls: { path: string; params: Record<string, string> | undefined }[] = [];
 let answer: () => Promise<unknown> = async () => ({ messages: [], nextCursor: null });
 
 vi.mock("@tanstack/react-query", () => ({
@@ -34,14 +35,17 @@ vi.mock("@tanstack/react-query", () => ({
   },
 }));
 vi.mock("@/providers/auth-provider", () => ({ useAuth: () => session }));
-vi.mock("@/lib/api", () => ({
+vi.mock("@/lib/api", async (importOriginal) => ({
+  // The real ApiError, so the refusal is classified exactly as in the app.
+  ApiError: (await importOriginal<typeof import("@/lib/api")>()).ApiError,
   api: {
-    get: async (path: string) => {
-      paths.push(path);
+    get: async (path: string, params?: Record<string, string>) => {
+      calls.push({ path, params });
       return answer();
     },
   },
 }));
+const { ApiError } = await import("@/lib/api");
 
 const { useConversation } = await import("./use-control-plane-conversation");
 const { CONTROL_PLANE_CONVERSATION_KEY, shouldRetryConversation, nextConversationCursor } =
@@ -63,7 +67,7 @@ describe("useConversation", () => {
     session.business = { _id: "biz_a" };
     session.user = { _id: "u_me" };
     session.isAuthenticated = true;
-    paths.length = 0;
+    calls.length = 0;
     answer = async () => ({ messages: [], nextCursor: null });
   });
 
@@ -94,31 +98,35 @@ describe("useConversation", () => {
     expect(options().enabled).toBe(false);
   });
 
-  it("[H03] no polling and no refetch on focus; 4xx are not retried", () => {
+  it("[H03] no polling and no refetch on focus or reconnect; 4xx are not retried", () => {
     const o = options();
     expect(o.refetchInterval).toBeUndefined();
     expect(o.refetchOnWindowFocus).toBe(false);
+    expect(o.refetchOnReconnect).toBe(false);
     expect(o.retry).toBe(shouldRetryConversation);
     expect(o.getNextPageParam).toBe(nextConversationCursor);
     expect(o.initialPageParam).toBeNull();
   });
 
-  it("[H04] the first page sends no query string at all", async () => {
+  it("[H04] the first page sends no query parameters at all", async () => {
     await options().queryFn({ pageParam: null });
-    expect(paths).toEqual(["/v1/control-plane/conversation"]);
+    expect(calls).toEqual([{ path: "/v1/control-plane/conversation", params: undefined }]);
   });
 
   it("[H05] an older page sends the cursor and nothing else", async () => {
     await options().queryFn({ pageParam: "1760000000000.abcdef0123456789" });
-    expect(paths).toEqual(["/v1/control-plane/conversation?cursor=1760000000000.abcdef0123456789"]);
-    const url = new URL(`https://x${paths[0]}`);
-    expect([...url.searchParams.keys()]).toEqual(["cursor"]);
+    expect(calls).toEqual([
+      { path: "/v1/control-plane/conversation", params: { cursor: "1760000000000.abcdef0123456789" } },
+    ]);
   });
 
   it("[H06] a 403 from the api is cached as a refusal", async () => {
     answer = async () => {
-      throw Object.assign(new Error("FORBIDDEN"), { status: 403, code: "FORBIDDEN" });
+      throw new ApiError("FORBIDDEN", "Forbidden", 403);
     };
-    await expect(options().queryFn({ pageParam: null })).resolves.toEqual({ kind: "refused" });
+    await expect(options().queryFn({ pageParam: null })).resolves.toEqual({
+      kind: "refused",
+      reason: "forbidden",
+    });
   });
 });

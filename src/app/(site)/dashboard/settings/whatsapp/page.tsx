@@ -26,6 +26,7 @@ import {
   WHATSAPP_CONVERSATION_TAB,
   WHATSAPP_SETTINGS_TAB,
   WHATSAPP_TAB_PARAM,
+  type WhatsAppTab,
 } from "@/lib/control-plane";
 import {
   useMerchantContacts,
@@ -147,7 +148,7 @@ function WhatsAppSettings() {
   //  still returns the OLD params — so a `value` read only from the URL leaves
   //  the tab visibly unchanged for a beat after the click. ★`dashboard/ads`
   //  carries the same held value for the same reason.
-  const [pendingTab, setPendingTab] = useState<string | null>(null);
+  const [pendingTab, setPendingTab] = useState<WhatsAppTab | null>(null);
   // ★CLEARED DURING RENDER the moment the URL agrees, which is React's
   //  documented pattern for state derived from a changing input — a `setState`
   //  in an effect body cascades an extra render and the lint rejects it.
@@ -160,7 +161,10 @@ function WhatsAppSettings() {
   //  a merchant through every tab they clicked before leaving the page.
   //  ★And the settings tab DROPS the parameter rather than writing
   //  `?tab=settings`, so the canonical URL is the one that has always existed.
-  function selectTab(next: string) {
+  function selectTab(value: string) {
+    // Radix hands back a string; read it the way the URL is read, so a value
+    // outside the known tabs can never be held as a tab the URL cannot match.
+    const next = whatsappTabFromParam(value);
     setPendingTab(next);
     const qs = whatsappTabQuery(params.toString(), next);
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });

@@ -249,8 +249,10 @@ export interface ConversationPage {
 export async function getConversation(
   cursor: string | null,
 ): Promise<ConversationPage> {
-  const suffix = cursor ? `?${new URLSearchParams({ cursor }).toString()}` : "";
-  return api.get<ConversationPage>(`/v1/control-plane/conversation${suffix}`);
+  return api.get<ConversationPage>(
+    "/v1/control-plane/conversation",
+    cursor ? { cursor } : undefined,
+  );
 }
 
 // ── Calls ─────────────────────────────────────────────────────────────────

@@ -22,7 +22,7 @@ import {
   CONVERSATION_FAILED_TEXT,
   CONVERSATION_LEDE,
   CONVERSATION_OFFLINE_TEXT,
-  CONVERSATION_REFUSED_TEXT,
+  conversationRefusedText,
   CONVERSATION_REFUSED_TITLE,
   CONVERSATION_SCOPE_NOTE,
   CONVERSATION_TITLE,
@@ -31,7 +31,8 @@ import {
   conversationView,
   groupConversationByDay,
   isNearBottom,
-  scrollTopAfterPrepend,
+  scrollTopToRestore,
+  type PrependAnchor,
   senderLabel,
 } from "@/lib/control-plane-conversation";
 import { useConversation } from "@/hooks/use-control-plane-conversation";
@@ -107,17 +108,21 @@ export function ConversationThread({
   const newestKey = days[days.length - 1]?.items.at(-1)?.key ?? null;
 
   const scrollRef = useRef<HTMLDivElement>(null);
-  // The reader's position before "Load older", restored once the page lands.
-  const prependAnchor = useRef<{ scrollTop: number; scrollHeight: number } | null>(null);
+  // The reader's position before "Load older", restored once that page lands.
+  const prependAnchor = useRef<PrependAnchor | null>(null);
   // Starts true so the first render opens on the newest message.
   const atBottom = useRef(true);
 
   useLayoutEffect(() => {
-    const el = scrollRef.current;
+    // Any change in the page count consumes the anchor, whether or not it is
+    // the page the anchor was taken for (a cancelled or refused "Load older"
+    // must not move the reader on some later change).
     const anchor = prependAnchor.current;
-    if (!el || !anchor) return;
     prependAnchor.current = null;
-    el.scrollTop = scrollTopAfterPrepend(anchor, el.scrollHeight);
+    const el = scrollRef.current;
+    if (!el) return;
+    const top = scrollTopToRestore(anchor, pageCount, el.scrollHeight);
+    if (top !== null) el.scrollTop = top;
   }, [pageCount]);
 
   useLayoutEffect(() => {
@@ -128,13 +133,20 @@ export function ConversationThread({
 
   function loadOlder() {
     const el = scrollRef.current;
-    if (el) prependAnchor.current = { scrollTop: el.scrollTop, scrollHeight: el.scrollHeight };
-    // A failed page adds nothing, so its anchor must not be applied to a later,
-    // unrelated change in the page count.
-    void conversation.fetchNextPage().then((r) => {
-      if (r.isError) prependAnchor.current = null;
-    });
+    if (el) {
+      prependAnchor.current = {
+        scrollTop: el.scrollTop,
+        scrollHeight: el.scrollHeight,
+        pages: pageCount,
+      };
+    }
+    void conversation.fetchNextPage();
   }
+
+  // The two fetches cancel each other in react-query (each defaults to
+  // `cancelRefetch`), so neither button is offered while the other runs.
+  const refreshing = conversation.isFetching && !conversation.isFetchingNextPage;
+  const busy = conversation.isFetching;
 
   const header = (
     <CardHeader>
@@ -162,7 +174,7 @@ export function ConversationThread({
             <ShieldAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
             <div className="space-y-1">
               <p className="font-medium">{CONVERSATION_REFUSED_TITLE}</p>
-              <p>{CONVERSATION_REFUSED_TEXT}</p>
+              <p>{conversationRefusedText(view.reason)}</p>
             </div>
           </div>
           {/* Asking again refetches from the newest page, so access restored
@@ -225,8 +237,6 @@ export function ConversationThread({
     );
   }
 
-  const refreshing = conversation.isFetching && !conversation.isFetchingNextPage;
-
   if (view.kind === "empty") {
     const copy = conversationEmptyCopy(
       conversationEmptyReason(contacts.data, currentUserId),
@@ -241,7 +251,9 @@ export function ConversationThread({
             {copy.link && (
               <>
                 {" "}
-                <Link href={copy.link.href} className="underline">
+                {/* `replace`, as the page's own tab switch: a tab is not a
+                    place, so Back leaves the page rather than walking tabs. */}
+                <Link href={copy.link.href} replace scroll={false} className="underline">
                   {copy.link.label}
                 </Link>
               </>
@@ -251,7 +263,7 @@ export function ConversationThread({
             variant="outline"
             size="sm"
             onClick={() => void conversation.refetch()}
-            disabled={refreshing}
+            disabled={busy}
           >
             {refreshing ? "Checking…" : "Check for new messages"}
           </Button>
@@ -280,7 +292,7 @@ export function ConversationThread({
                 variant="outline"
                 size="sm"
                 onClick={loadOlder}
-                disabled={conversation.isFetchingNextPage}
+                disabled={busy}
               >
                 {conversation.isFetchingNextPage ? "Loading…" : "Load older"}
               </Button>
@@ -341,7 +353,7 @@ export function ConversationThread({
           variant="outline"
           size="sm"
           onClick={() => void conversation.refetch()}
-          disabled={refreshing}
+          disabled={busy}
         >
           {refreshing ? "Checking…" : "Check for new messages"}
         </Button>

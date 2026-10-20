@@ -45,7 +45,12 @@ export const WHATSAPP_CONVERSATION_TAB = "conversation";
  * else, absent included, is the settings tab, so every older link still lands
  * where it did and a typo is not a new tab.
  */
-export function whatsappTabFromParam(value: string | null): string {
+export type WhatsAppTab =
+  | typeof WHATSAPP_SETTINGS_TAB
+  | typeof WHATSAPP_ACTIVITY_TAB
+  | typeof WHATSAPP_CONVERSATION_TAB;
+
+export function whatsappTabFromParam(value: string | null): WhatsAppTab {
   return value === WHATSAPP_ACTIVITY_TAB || value === WHATSAPP_CONVERSATION_TAB
     ? value
     : WHATSAPP_SETTINGS_TAB;
@@ -53,9 +58,10 @@ export function whatsappTabFromParam(value: string | null): string {
 
 /**
  * The query string after selecting `next`, keeping every other parameter. The
- * settings tab drops `?tab=` rather than writing `?tab=settings`.
+ * settings tab drops `?tab=` rather than writing `?tab=settings`. Typed to the
+ * known tabs, so no caller can write a `?tab=` the page would not read back.
  */
-export function whatsappTabQuery(current: string, next: string): string {
+export function whatsappTabQuery(current: string, next: WhatsAppTab): string {
   const q = new URLSearchParams(current);
   if (next === WHATSAPP_SETTINGS_TAB) q.delete(WHATSAPP_TAB_PARAM);
   else q.set(WHATSAPP_TAB_PARAM, next);

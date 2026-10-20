@@ -23,6 +23,10 @@ import {
  * here is a sequential read per verified number on the api. The tab instead
  * fetches when it is opened (Radix unmounts an inactive tab, so returning to it
  * refetches past `staleTime`) and offers "Check for new messages".
+ *
+ * A refetch re-reads every loaded page, but the history is small: each thread
+ * keeps its latest 50 lines and a page is 50, so there are at most about as
+ * many pages as the user has verified numbers.
  */
 export function useConversation() {
   const { org, business, user, isAuthenticated } = useAuth();
@@ -40,6 +44,9 @@ export function useConversation() {
     enabled: isAuthenticated && !!org?._id && !!business?._id && !!user?._id,
     staleTime: 30_000,
     refetchOnWindowFocus: false,
+    // Nor on reconnect: a fetch that was paused offline resumes by itself, and
+    // a stale one waits for the reader to ask.
+    refetchOnReconnect: false,
     retry: shouldRetryConversation,
   });
 }

@@ -1,3 +1,4 @@
+import { ApiError } from "@/lib/api";
 import type {
   ConversationMessage,
   ConversationPage,
@@ -56,17 +57,26 @@ export function conversationKey(
  */
 export type ConversationEntry =
   | { kind: "page"; messages: ConversationMessage[]; nextCursor: string | null }
-  | { kind: "refused" };
+  | { kind: "refused"; reason: ConversationRefusal };
+
+/**
+ * Which 403 it was. `FORBIDDEN` is a refusal of this user (a lapsed membership,
+ * a business outside the org). `NO_ORG`/`NO_BUSINESS` mean the server's session
+ * has no org or business selected, which the user fixes by choosing it again.
+ */
+export type ConversationRefusal = "forbidden" | "no_scope";
 
 function statusOf(error: unknown): number | undefined {
-  if (typeof error !== "object" || error === null) return undefined;
-  const status = (error as { status?: unknown }).status;
-  return typeof status === "number" ? status : undefined;
+  return error instanceof ApiError ? error.status : undefined;
 }
 
 /** True for the api's refusal (`403 FORBIDDEN`, and `NO_ORG`/`NO_BUSINESS`). */
-export function isConversationRefusal(error: unknown): boolean {
+export function isConversationRefusal(error: unknown): error is ApiError {
   return statusOf(error) === 403;
+}
+
+function refusalOf(error: ApiError): ConversationRefusal {
+  return error.code === "NO_ORG" || error.code === "NO_BUSINESS" ? "no_scope" : "forbidden";
 }
 
 /** The query function: one page, with a refusal turned into an entry. */
@@ -78,7 +88,9 @@ export async function fetchConversationEntry(
     const page = await fetchPage(cursor);
     return { kind: "page", messages: page.messages, nextCursor: page.nextCursor };
   } catch (error) {
-    if (isConversationRefusal(error)) return { kind: "refused" };
+    if (isConversationRefusal(error)) {
+      return { kind: "refused", reason: refusalOf(error) };
+    }
     throw error;
   }
 }
@@ -120,7 +132,7 @@ export type ConversationView =
   | { kind: "loading" }
   | { kind: "offline" }
   | { kind: "failed" }
-  | { kind: "refused" }
+  | { kind: "refused"; reason: ConversationRefusal }
   | { kind: "empty" }
   | { kind: "messages"; messages: ConversationMessage[] };
 
@@ -141,7 +153,8 @@ export function conversationView(input: {
   fetchStatus: "fetching" | "paused" | "idle";
 }): ConversationView {
   const { entries } = input;
-  if (entries?.some((e) => e.kind === "refused")) return { kind: "refused" };
+  const refused = entries?.find((e) => e.kind === "refused");
+  if (refused) return { kind: "refused", reason: refused.reason };
   if (entries === undefined) {
     if (input.status === "error") return { kind: "failed" };
     if (input.fetchStatus === "paused") return { kind: "offline" };
@@ -245,6 +258,14 @@ export const CONVERSATION_REFUSED_TITLE = "You can't see this conversation";
 export const CONVERSATION_REFUSED_TEXT =
   "Peakhour refused to show this conversation to your account on this business. This happens when you are no longer an active member of the organisation, or the business is not part of it. Ask an Owner to check your access.";
 
+/** `NO_ORG`/`NO_BUSINESS`: the session lost its selection; nothing is wrong with the account. */
+export const CONVERSATION_NO_SCOPE_TEXT =
+  "Peakhour does not know which business you are working in right now. Choose your business again from the business switcher, then check again.";
+
+export function conversationRefusedText(reason: ConversationRefusal): string {
+  return reason === "no_scope" ? CONVERSATION_NO_SCOPE_TEXT : CONVERSATION_REFUSED_TEXT;
+}
+
 export const CONVERSATION_FAILED_TEXT = "Could not load your conversation.";
 
 export const CONVERSATION_OFFLINE_TEXT =
@@ -301,9 +322,21 @@ export function groupConversationByDay(
     timeStyle: "short",
   });
 
-  const days: ConversationDay[] = [];
+  // The text is in the key so that two different lines in one instant do not
+  // share a counter. Byte-identical twins are numbered from the NEWEST end, so
+  // "Load older" (which only ever adds lines at the old end) never shifts a
+  // key that is already on screen.
+  const bases = messages.map((m) => `${m.sentAt}|${m.sender}|${textHash(m.text)}`);
+  const ordinal: number[] = new Array<number>(messages.length);
   const seen = new Map<string, number>();
-  for (const message of messages) {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const n = seen.get(bases[i]!) ?? 0;
+    seen.set(bases[i]!, n + 1);
+    ordinal[i] = n;
+  }
+
+  const days: ConversationDay[] = [];
+  for (const [i, message] of messages.entries()) {
     const at = new Date(message.sentAt);
     const valid = !Number.isNaN(at.getTime());
     const dayKey = valid ? dayKeyFmt.format(at) : "unknown";
@@ -312,13 +345,7 @@ export function groupConversationByDay(
       day = { key: dayKey, label: valid ? dayLabelFmt.format(at) : "Date unknown", items: [] };
       days.push(day);
     }
-    // The text is in the key so that two different lines in one instant do not
-    // share a counter: prepending an older one must not shift a newer one's key.
-    // Only byte-identical twins are told apart by their order.
-    const base = `${message.sentAt}|${message.sender}|${textHash(message.text)}`;
-    const n = seen.get(base) ?? 0;
-    seen.set(base, n + 1);
-    day.items.push({ key: `${base}|${n}`, message, time: valid ? timeFmt.format(at) : "" });
+    day.items.push({ key: `${bases[i]}|${ordinal[i]}`, message, time: valid ? timeFmt.format(at) : "" });
   }
   return days;
 }
@@ -351,6 +378,28 @@ export function scrollTopAfterPrepend(
   afterScrollHeight: number,
 ): number {
   return Math.max(0, afterScrollHeight - before.scrollHeight + before.scrollTop);
+}
+
+/** The reader's position when "Load older" was pressed, and the page count then. */
+export interface PrependAnchor {
+  scrollTop: number;
+  scrollHeight: number;
+  pages: number;
+}
+
+/**
+ * The `scrollTop` to restore when the page count changes, or null to leave it.
+ * Only the page the anchor was taken for (one more page than then) restores it:
+ * a cancelled, failed or refused "Load older" leaves the count as it was, and a
+ * refresh never adds a page, so a stale anchor can never move the reader.
+ */
+export function scrollTopToRestore(
+  anchor: PrependAnchor | null,
+  pageCount: number,
+  afterScrollHeight: number,
+): number | null {
+  if (!anchor || pageCount !== anchor.pages + 1) return null;
+  return scrollTopAfterPrepend(anchor, afterScrollHeight);
 }
 
 /** Whether the reader is at (or within `slack` px of) the newest message. */

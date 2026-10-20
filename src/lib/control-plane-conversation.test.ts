@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { ApiError } from "@/lib/api";
 import type {
   ConversationMessage,
   MerchantContact,
@@ -6,7 +7,9 @@ import type {
 import {
   CONTROL_PLANE_CONVERSATION_KEY,
   CONVERSATION_NUMBERS_HREF,
+  CONVERSATION_NO_SCOPE_TEXT,
   CONVERSATION_REFUSED_TEXT,
+  conversationRefusedText,
   CONVERSATION_SCOPE_NOTE,
   conversationEmptyCopy,
   conversationEmptyReason,
@@ -18,6 +21,7 @@ import {
   nextConversationCursor,
   orderedMessages,
   scrollTopAfterPrepend,
+  scrollTopToRestore,
   senderLabel,
   shouldRetryConversation,
   type ConversationEntry,
@@ -61,30 +65,51 @@ function contact(over: Partial<MerchantContact>): MerchantContact {
   };
 }
 
-class FakeApiError extends Error {
-  constructor(public status: number) {
-    super(`status ${status}`);
-  }
+function apiError(status: number, code = "FORBIDDEN"): ApiError {
+  return new ApiError(code, `status ${status}`, status);
 }
 
-/** ICU may put a narrow or plain no-break space before AM/PM. */
+/** ICU may put a narrow or plain no-break space before AM/PM. Built from code
+ *  points so the source holds no invisible characters. */
+const NO_BREAK_SPACES = new RegExp(`[${String.fromCharCode(0x202f, 0x00a0)}]`, "g");
 function plain(s: string): string {
-  return s.replace(/[  ]/g, " ");
+  return s.replace(NO_BREAK_SPACES, " ");
 }
 
 describe("the query function and pager", () => {
   it("[C01] a 403 is stored as a refused entry, not thrown", async () => {
     const entry = await fetchConversationEntry(async () => {
-      throw new FakeApiError(403);
+      throw apiError(403);
     }, null);
-    expect(entry).toEqual({ kind: "refused" });
+    expect(entry).toEqual({ kind: "refused", reason: "forbidden" });
+  });
+
+  it("[C33] a 403 NO_BUSINESS or NO_ORG is a lost selection, told to choose the business again", async () => {
+    for (const code of ["NO_BUSINESS", "NO_ORG"]) {
+      const entry = await fetchConversationEntry(async () => {
+        throw apiError(403, code);
+      }, null);
+      expect(entry).toEqual({ kind: "refused", reason: "no_scope" });
+    }
+    expect(conversationRefusedText("no_scope")).toBe(CONVERSATION_NO_SCOPE_TEXT);
+    expect(CONVERSATION_NO_SCOPE_TEXT).toContain("Choose your business again");
+    expect(conversationRefusedText("forbidden")).toBe(CONVERSATION_REFUSED_TEXT);
+  });
+
+  it("[C34] only an ApiError is read as the api's answer; another thrown object with a status is a failure", async () => {
+    const stray = Object.assign(new Error("not the api"), { status: 403 });
+    await expect(
+      fetchConversationEntry(async () => {
+        throw stray;
+      }, null),
+    ).rejects.toThrow("not the api");
   });
 
   it("[C02] a 400 or a 500 is thrown, so react-query reports a failure", async () => {
     for (const status of [400, 500]) {
       await expect(
         fetchConversationEntry(async () => {
-          throw new FakeApiError(status);
+          throw apiError(status);
         }, null),
       ).rejects.toThrow(`status ${status}`);
     }
@@ -109,22 +134,23 @@ describe("the query function and pager", () => {
 
   it("[C05] there is no next page after the last page or after a refusal", () => {
     expect(nextConversationCursor(page([], null))).toBeNull();
-    expect(nextConversationCursor({ kind: "refused" })).toBeNull();
+    expect(nextConversationCursor({ kind: "refused", reason: "forbidden" })).toBeNull();
   });
 
   it("[C06] a 4xx is never retried", () => {
-    expect(shouldRetryConversation(0, new FakeApiError(400))).toBe(false);
-    expect(shouldRetryConversation(0, new FakeApiError(401))).toBe(false);
-    expect(shouldRetryConversation(0, new FakeApiError(499))).toBe(false);
+    expect(shouldRetryConversation(0, apiError(400))).toBe(false);
+    expect(shouldRetryConversation(0, apiError(401))).toBe(false);
+    expect(shouldRetryConversation(0, apiError(499))).toBe(false);
   });
 
   it("[C07] a server or network failure, a 408 or a 429 is retried once", () => {
-    expect(shouldRetryConversation(0, new FakeApiError(408))).toBe(true);
-    expect(shouldRetryConversation(0, new FakeApiError(429))).toBe(true);
-    expect(shouldRetryConversation(1, new FakeApiError(429))).toBe(false);
-    expect(shouldRetryConversation(0, new FakeApiError(500))).toBe(true);
+    expect(shouldRetryConversation(0, apiError(408))).toBe(true);
+    expect(shouldRetryConversation(0, apiError(429))).toBe(true);
+    expect(shouldRetryConversation(1, apiError(429))).toBe(false);
+    expect(shouldRetryConversation(0, apiError(500))).toBe(true);
     expect(shouldRetryConversation(0, new TypeError("fetch failed"))).toBe(true);
-    expect(shouldRetryConversation(1, new FakeApiError(500))).toBe(false);
+    expect(shouldRetryConversation(1, new TypeError("fetch failed"))).toBe(false);
+    expect(shouldRetryConversation(1, apiError(500))).toBe(false);
   });
 });
 
@@ -141,11 +167,11 @@ describe("what the tab shows", () => {
 
   it("[C09] a refusal on a later page replaces the messages already shown", () => {
     const view = conversationView({
-      entries: [page([c, d], "x"), { kind: "refused" }],
+      entries: [page([c, d], "x"), { kind: "refused", reason: "forbidden" }],
       status: "success",
       fetchStatus: "idle",
     });
-    expect(view).toEqual({ kind: "refused" });
+    expect(view).toEqual({ kind: "refused", reason: "forbidden" });
   });
 
   it("[C10] a failure with nothing loaded is failed, not empty", () => {
@@ -292,8 +318,15 @@ describe("timestamps, in a pinned locale and zone", () => {
     // first of them, and the newer one keeps its key (so it is not remounted
     // and is not read as a new message).
     expect(keysOf([one, two]).slice(1)).toEqual(keysOf([two]));
-    // Byte-identical twins are still told apart.
+    // And a refresh bringing a newer, different line of that same instant keeps
+    // the older line's key and gives the new one its own, so the newest key
+    // changes (it is what scrolls a reader at the bottom to the new line).
+    expect(keysOf([one, two])[0]).toEqual(keysOf([one])[0]);
+    expect(keysOf([one, two])[1]).not.toEqual(keysOf([one])[0]);
+    // Byte-identical twins are still told apart, and numbered from the newest
+    // end, so the newer one keeps its key when the older one is prepended.
     expect(new Set(keysOf([two, { ...two }])).size).toBe(2);
+    expect(keysOf([two, { ...two }]).slice(1)).toEqual(keysOf([{ ...two }]));
   });
 });
 
@@ -302,6 +335,15 @@ describe("the scroll position", () => {
     // Reading 100px from the top of 1000px; 600px of older lines arrive above.
     expect(scrollTopAfterPrepend({ scrollTop: 100, scrollHeight: 1000 }, 1600)).toBe(700);
     expect(scrollTopAfterPrepend({ scrollTop: 0, scrollHeight: 1000 }, 1000)).toBe(0);
+  });
+
+  it("[C35] the position is restored only for the page it was taken for", () => {
+    const anchor = { scrollTop: 100, scrollHeight: 1000, pages: 1 };
+    expect(scrollTopToRestore(anchor, 2, 1600)).toBe(700);
+    // A cancelled or failed load left the count alone; a refresh shrank it.
+    expect(scrollTopToRestore(anchor, 1, 1600)).toBeNull();
+    expect(scrollTopToRestore({ ...anchor, pages: 3 }, 2, 1600)).toBeNull();
+    expect(scrollTopToRestore(null, 2, 1600)).toBeNull();
   });
 
   it("[C27] near the bottom means within the slack of the newest line", () => {
