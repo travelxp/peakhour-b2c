@@ -155,11 +155,9 @@ export interface ConnectionLike {
  * naming the connection's display number for a thread on another number would
  * tell the merchant the reply comes from somewhere it does not.
  *
- * ⚠️THE REMAINING GAP IS THE API'S (review R2): `GET /connection` takes
- * `phoneNumber` from the first listed number of the first WABA, not from the
- * active one, so a WABA with several numbers can still be named wrongly here.
- * Nothing b2c reads maps a phone-number id to its display number; the fix is
- * for /connection to return the active number's display (api follow-up).
+ * Since api#1530 `GET /connection`'s `phoneNumber` is the active number's own
+ * display, and is absent when the row does not list it, which falls through
+ * to the generic line below.
  */
 export function replyingAsLine(threadId: string, conn: ConnectionLike | null | undefined): string {
   const pnid = threadPhoneNumberId(threadId);
@@ -270,6 +268,12 @@ export function needsResendConfirm(prev: Attempt | null): boolean {
   return Boolean(prev?.unknown);
 }
 
+/** The attempt a refused send leaves behind: marked unknown only when the
+ *  refusal's copy says the outcome is unknown; otherwise the same key. */
+export function attemptAfterError(sent: Attempt, copy: Pick<ReplyErrorCopy, "attempt">): Attempt {
+  return copy.attempt === "unknown" ? { ...sent, unknown: true } : sent;
+}
+
 /**
  * The error left on screen once the person edits the draft: an unknown outcome
  * stays (it is about what the shopper may already have), and anything else is
@@ -346,6 +350,24 @@ function serverMessage(err: ApiError, fallback: string): string {
   return m && m !== "Request failed" ? m : fallback;
 }
 
+/** Ends a sentence the api may have left open: Meta's reasons arrive without a full stop. */
+function asSentence(s: string): string {
+  return /[.!?]$/.test(s) ? s : `${s}.`;
+}
+
+/**
+ * What a `SEND_FAILED` knows about the message (api#1530, `details.outcome`).
+ *
+ * ★ONLY AN EXPLICIT `"not_sent"` IS CERTAIN. `"unknown"`, a missing `details`
+ * (an api from before #1530) or any other shape is read as unknown, the answer
+ * that is safe for both cases.
+ */
+export function sendFailedOutcome(details: unknown): "not_sent" | "unknown" {
+  return typeof details === "object" && details !== null && (details as { outcome?: unknown }).outcome === "not_sent"
+    ? "not_sent"
+    : "unknown";
+}
+
 /**
  * The sentence for each way a reply can fail.
  *
@@ -353,10 +375,10 @@ function serverMessage(err: ApiError, fallback: string): string {
  * person decides on:
  *  - `REPLY_OUTCOME_UNKNOWN` never says "failed, try again". The api could not
  *    tell whether WhatsApp delivered it; a resend could be a second copy.
- *  - `SEND_FAILED` is two cases on the wire (a refusal that sent nothing, or a
- *    cut connection that may have delivered) told apart only by the api's
- *    sentence, so its sentence is shown, and the advice given is the one that
- *    holds for both: the same words under the same key cannot send twice.
+ *  - `SEND_FAILED` is two cases, told apart by `details.outcome` (api#1530):
+ *    `not_sent` (WhatsApp refused it, and the api released the key, so the
+ *    same words send fresh) says "Nothing was sent"; anything else may have
+ *    delivered, and asks for a check before a confirmed resend.
  *  - A lost connection or a 5xx is the same unknown, with the same safe advice.
  */
 export function replyErrorCopy(err: unknown, kind: ReplyPayload["kind"] = "text"): ReplyErrorCopy {
@@ -384,16 +406,27 @@ export function replyErrorCopy(err: unknown, kind: ReplyPayload["kind"] = "text"
         detail: "We are still waiting on WhatsApp for this exact message, and it will not go out twice. Check the conversation in a moment.",
       };
     case "SEND_FAILED":
-      // ★MARKED UNKNOWN (review R2). On a cut connection the api has already
-      //  settled this key as unknown and says "check before sending it again";
-      //  adding "pressing Send again is safe" beneath that contradicted it, and
-      //  invited an edit, which is a new key and a possible second copy. On a
-      //  certain refusal the confirm costs one click and sends once.
+      // ★CERTAIN ONLY ON `not_sent` (api#1530): WhatsApp refused it on every
+      //  attempt, and the api released the key, so the same key sends fresh
+      //  and no confirm is asked for.
+      if (sendFailedOutcome(err.details) === "not_sent") {
+        return {
+          ...base,
+          title: "WhatsApp didn't accept this reply",
+          detail: `${asSentence(serverMessage(err, "WhatsApp did not accept the message."))} ${NOTHING_SENT}`,
+        };
+      }
+      // ★OTHERWISE MARKED UNKNOWN (review R2). On a cut connection the api has
+      //  already settled this key as unknown and says "check before sending it
+      //  again"; adding "pressing Send again is safe" beneath that contradicted
+      //  it, and invited an edit, which is a new key and a possible second copy.
+      //  An api from before #1530 sends no `details` for a certain refusal
+      //  either: there the confirm costs one click and sends once.
       return {
         ...base,
         attempt: "unknown",
         title: "This reply may not have been sent",
-        detail: `${serverMessage(err, "WhatsApp did not accept the message.")} Check this conversation before sending it again.`,
+        detail: `${asSentence(serverMessage(err, "WhatsApp didn't confirm the message."))} Check this conversation before sending it again.`,
       };
     case "OUTSIDE_24H":
       return {
@@ -657,13 +690,30 @@ export function threadPollInterval(status: string | undefined): number | false {
  *
  * ★WA T2 follow-up: a Resume from a stale view could release a takeover made
  * after it was rendered. The fix is a compare-and-set on the `statusVersion`
- * the view rendered with. ⚠️TODAY THE API NEITHER RETURNS IT ON THE THREAD READ
- * NOR READS A RESUME BODY, so this sends it only when the read carried one,
- * and sends no body otherwise (as before).
+ * the view rendered with: since api#1530 the thread read always returns it
+ * (0 for a thread no CAS has touched, which must be sent, not dropped) and
+ * Resume compares against it. A read without one (an api from before #1530)
+ * sends no body, which the api reads as "the version at the click".
  */
 export function resumeBody(thread: { statusVersion?: unknown } | null | undefined): { statusVersion: number } | undefined {
   const v = thread?.statusVersion;
   return typeof v === "number" && Number.isInteger(v) ? { statusVersion: v } : undefined;
+}
+
+/**
+ * What a refused Resume says.
+ *
+ * ★A STALE VIEW'S 409 `STATUS_CHANGED` IS SHOWN IN THE API'S OWN WORDS
+ * (api#1530: "taken over after you last loaded it, so it is still with a team
+ * member"), because it names what happened and that nothing was changed. The
+ * thread is re-read after any Resume (`useWaResume`), so the pane catches up
+ * and a second click is judged against the latest version, not the same 409.
+ */
+export function resumeErrorMessage(err: unknown): string {
+  if (err instanceof ApiError && err.code === "STATUS_CHANGED") {
+    return serverMessage(err, "This conversation changed after you last loaded it. Refresh it and try again.");
+  }
+  return (err instanceof Error && err.message?.trim()) || "Couldn't hand back";
 }
 
 // ── The composer's memory ────────────────────────────────────────────

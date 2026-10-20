@@ -18,6 +18,7 @@ import { useWaReply, useWaStudioTemplates } from "@/hooks/use-wa-conversations";
 import { listFetchState, showsSkeleton } from "@/lib/list-fetch-state";
 import { createSharedClock, deadlineDelay } from "@/lib/shared-clock";
 import {
+  attemptAfterError,
   attemptFor,
   clearAfterSend,
   composerMode,
@@ -144,7 +145,7 @@ export function WaComposer({
       const copy = replyErrorCopy(e, payload.kind);
       update({
         error: copy,
-        attempt: copy.attempt === "unknown" ? { ...attempt, unknown: true } : attempt,
+        attempt: attemptAfterError(attempt, copy),
         pending: false,
         ...(copy.closesWindow && endsAt ? { closedFor: endsAt } : {}),
       });

@@ -25,6 +25,7 @@ import {
   createComposerStore,
   memberNameLookup,
   replyingAsLine,
+  resumeErrorMessage,
   senderLabel,
   type ComposerStore,
   type ReplyWindow,
@@ -685,7 +686,7 @@ function InboxTabs() {
                         onClick={() =>
                           resume.mutate({ threadId: selected, thread }, {
                             onSuccess: () => toast.success("Handed back — the assistant will reply again."),
-                            onError: (e: Error) => toast.error(e?.message || "Couldn't hand back"),
+                            onError: (e: Error) => toast.error(resumeErrorMessage(e)),
                           })
                         }
                       >
