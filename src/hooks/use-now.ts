@@ -22,7 +22,18 @@ export function useNow(intervalMs: number): number {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), intervalMs);
-    return () => clearInterval(id);
+    // ★AND AT ONCE WHEN THE TAB IS SHOWN AGAIN (b2c review R1). Browsers
+    //  throttle a hidden tab's intervals, so without this a tab brought back
+    //  reads a clock up to a minute old until the next tick: "under a minute
+    //  left" on a window that closed. `auth-flow.tsx`'s ticker does the same.
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") setNow(Date.now());
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, [intervalMs]);
   return now;
 }

@@ -77,8 +77,9 @@ export function useWaThread(threadId: string | null) {
     queryFn: () => api.get<WaThread>(`${BASE}/${encodeURIComponent(threadId!)}`),
     enabled: Boolean(business?._id && threadId),
     // ✅WA T4: while a person holds the thread, the shopper's answers arrive
-    //  without a reload (spec: every 5s). The assistant's own threads keep the
-    //  list's 30s poll.
+    //  without a reload (spec: every 5s). Any other open thread is re-read at
+    //  the list's 30s (`threadPollInterval`), since the list's poll does not
+    //  refresh this query.
     refetchInterval: (q) => threadPollInterval(q.state.data?.status),
   });
 }

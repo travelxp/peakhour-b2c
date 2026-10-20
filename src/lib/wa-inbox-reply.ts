@@ -21,9 +21,16 @@ import { ApiError } from "@/lib/api";
 export const REPLY_TEXT_MAX = 4096;
 /** The api's bound on one template value (`zTemplateValue`). */
 export const TEMPLATE_VALUE_MAX = 1024;
+/** The api's bounds on a template's value counts (`zHumanReplyTemplateBody`). */
+export const TEMPLATE_HEADER_VALUES_MAX = 10;
+export const TEMPLATE_BODY_VALUES_MAX = 20;
+/** `GET /studio/templates`'s own `.limit(200)`, by most recently updated. */
+export const STUDIO_LIST_CAP = 200;
 /** How often an escalated thread is re-read, so a shopper's answer shows up
  *  while somebody is replying to them (spec-wa T4: every 5s). */
 export const THREAD_POLL_MS = 5_000;
+/** How often any other open thread is re-read: the list's own 30s. */
+export const THREAD_IDLE_POLL_MS = 30_000;
 /** How often the 24h badge re-reads the clock. Its finest unit is a minute. */
 export const WINDOW_TICK_MS = 30_000;
 
@@ -55,9 +62,17 @@ const HOUR = 60 * MINUTE;
  * ★THE LABEL ROUNDS DOWN. "3h left" with 3h59m to go understates; "4h left"
  * with 3h01m to go is a promise the api will break.
  */
-export function replyWindow(endsAt: string | null | undefined, now: number): ReplyWindow {
+export function replyWindow(
+  endsAt: string | null | undefined,
+  now: number,
+  closedFor: string | null = null,
+): ReplyWindow {
   const end = endsAt ? Date.parse(endsAt) : NaN;
-  if (!Number.isFinite(end) || now >= end) {
+  // ★`closedFor`: the api answered OUTSIDE_24H while this window's end was
+  //  current (review R1). A browser clock running behind the server's would
+  //  otherwise keep offering free text, and every Send would be the same 409.
+  //  A newer shopper message moves `endsAt`, which releases it.
+  if (!Number.isFinite(end) || now >= end || (closedFor !== null && closedFor === endsAt)) {
     return { open: false, label: "24h window closed", tone: "closed" };
   }
   const left = end - now;
@@ -273,10 +288,11 @@ export interface ReplyErrorCopy {
   /** "unknown" marks the attempt so the next send of the same words must be
    *  confirmed and goes out under a new key. */
   attempt: "keep" | "unknown";
-  /** Re-read the thread: the error says something about its state. */
-  refetchThread: boolean;
   /** Re-read the template list: the error says it is out of date. */
   refetchTemplates: boolean;
+  /** The api says the 24h window is closed: believe it over this browser's
+   *  clock (`replyWindow`'s `closedFor`). */
+  closesWindow: boolean;
 }
 
 const NOTHING_SENT = "Nothing was sent.";
@@ -301,14 +317,13 @@ function serverMessage(err: ApiError, fallback: string): string {
  *    holds for both: the same words under the same key cannot send twice.
  *  - A lost connection or a 5xx is the same unknown, with the same safe advice.
  */
-export function replyErrorCopy(err: unknown): ReplyErrorCopy {
-  const base = { attempt: "keep" as const, refetchThread: false, refetchTemplates: false };
+export function replyErrorCopy(err: unknown, kind: ReplyPayload["kind"] = "text"): ReplyErrorCopy {
+  const base = { attempt: "keep" as const, refetchTemplates: false, closesWindow: false };
   if (!(err instanceof ApiError) || err.code === "PARSE_ERROR" || (err.status >= 500 && err.code !== "SEND_FAILED")) {
     return {
       ...base,
       title: "We lost touch before WhatsApp answered",
       detail: `We can't tell yet whether this reply went. ${SAME_TEXT_IS_SAFE}`,
-      refetchThread: true,
     };
   }
   switch (err.code) {
@@ -319,35 +334,31 @@ export function replyErrorCopy(err: unknown): ReplyErrorCopy {
         title: "We can't tell whether this reply arrived",
         detail:
           "WhatsApp didn't confirm it either way. Check this conversation, or the shopper's chat, before sending anything else: sending it again could deliver it twice.",
-        refetchThread: true,
       };
     case "REPLY_IN_PROGRESS":
       return {
         ...base,
         title: "This reply is still being handled",
         detail: "We are still waiting on WhatsApp for this exact message, and it will not go out twice. Check the conversation in a moment.",
-        refetchThread: true,
       };
     case "SEND_FAILED":
       return {
         ...base,
         title: "This reply may not have been sent",
         detail: `${serverMessage(err, "WhatsApp did not accept the message.")} ${SAME_TEXT_IS_SAFE}`,
-        refetchThread: true,
       };
     case "OUTSIDE_24H":
       return {
         ...base,
         title: "The 24-hour window has closed",
         detail: `WhatsApp only allows an approved template for this shopper now. ${NOTHING_SENT}`,
-        refetchThread: true,
+        closesWindow: true,
       };
     case "STATUS_CHANGED":
       return {
         ...base,
         title: "This conversation changed hands",
         detail: `${serverMessage(err, "Refresh it and try again.")} ${NOTHING_SENT}`,
-        refetchThread: true,
       };
     case "WHATSAPP_UNAVAILABLE":
       return {
@@ -360,7 +371,6 @@ export function replyErrorCopy(err: unknown): ReplyErrorCopy {
         ...base,
         title: "This conversation isn't available any more",
         detail: `It may now belong to a different WhatsApp number. ${NOTHING_SENT}`,
-        refetchThread: true,
       };
     case "TEMPLATE_NOT_FOUND":
       return {
@@ -392,13 +402,21 @@ export function replyErrorCopy(err: unknown): ReplyErrorCopy {
       return {
         ...base,
         title: "This shopper hasn't agreed to marketing messages",
-        detail: `So a marketing template cannot be sent to them. A utility template can. ${NOTHING_SENT}`,
+        // ★"COUNTS AS", because the api also goes by Meta's re-categorisation,
+        //  which this screen cannot see (review R1): a template the picker
+        //  calls utility can be refused here.
+        detail: `This template counts as marketing (by its category, or because Meta re-categorised it), so it cannot be sent to them. A utility template can. ${NOTHING_SENT}`,
       };
     case "VALIDATION_ERROR":
       return {
         ...base,
         title: "This reply can't be sent as written",
-        detail: `It must not be empty, and must be at most ${REPLY_TEXT_MAX.toLocaleString("en-US")} characters. ${NOTHING_SENT}`,
+        // ★/reply-template answers VALIDATION_ERROR too (review R1): its values,
+        //  not a text length, are what it judged.
+        detail:
+          kind === "template"
+            ? `Each template value must be filled in, at most ${TEMPLATE_VALUE_MAX.toLocaleString("en-US")} characters, with no line break or tab. ${NOTHING_SENT}`
+            : `It must not be empty, and must be at most ${REPLY_TEXT_MAX.toLocaleString("en-US")} characters. ${NOTHING_SENT}`,
       };
     case "FORBIDDEN":
       return {
@@ -491,6 +509,11 @@ export function inboxTemplatePlan(t: StudioTemplate): TemplatePlan {
   if (headerCount === null || bodyCount === null) {
     return { ok: false, reason: "This template uses named parameters, which the Inbox can't fill in yet." };
   }
+  // ★The api's own caps (`zHumanReplyTemplateBody`, review R1): more values
+  //  than this are refused as a VALIDATION_ERROR.
+  if (headerCount > TEMPLATE_HEADER_VALUES_MAX || bodyCount > TEMPLATE_BODY_VALUES_MAX) {
+    return { ok: false, reason: "This template has more values than the Inbox can send." };
+  }
   return { ok: true, headerCount, bodyCount };
 }
 
@@ -508,6 +531,22 @@ export function pickableTemplates(list: StudioTemplate[] | undefined): {
     else unsendable += 1;
   }
   return { sendable, unsendable };
+}
+
+/** A template send's payload: values only where the copy has some. */
+export function templatePayload(templateId: string, header: string[], body: string[]): ReplyPayload {
+  return {
+    kind: "template",
+    templateId,
+    ...(header.length || body.length
+      ? { params: { ...(header.length ? { header } : {}), ...(body.length ? { body } : {}) } }
+      : {}),
+  };
+}
+
+/** Whether the list may be missing older templates (the api's cap). */
+export function templateListTruncated(list: StudioTemplate[] | undefined): boolean {
+  return (list?.length ?? 0) >= STUDIO_LIST_CAP;
 }
 
 /** The copy as the shopper will read it, values filled in (the api's `content`). */
@@ -537,9 +576,15 @@ export function textProblem(text: string): string | null {
 
 // ── Polling and Resume ───────────────────────────────────────────────
 
-/** The thread is re-read every 5s only while a person holds it. */
+/**
+ * How often the open thread is re-read: every 5s while a person holds it, and
+ * at the list's 30s otherwise. ★NOT NEVER (review R1): the list's poll does
+ * not refresh this query, so a colleague's Take over on an open active thread
+ * never reached this pane, and nor did the shopper's new messages.
+ */
 export function threadPollInterval(status: string | undefined): number | false {
-  return status === "escalated" ? THREAD_POLL_MS : false;
+  if (status === undefined) return false;
+  return status === "escalated" ? THREAD_POLL_MS : THREAD_IDLE_POLL_MS;
 }
 
 /**
@@ -554,4 +599,81 @@ export function threadPollInterval(status: string | undefined): number | false {
 export function resumeBody(thread: { statusVersion?: unknown } | null | undefined): { statusVersion: number } | undefined {
   const v = thread?.statusVersion;
   return typeof v === "number" && Number.isInteger(v) ? { statusVersion: v } : undefined;
+}
+
+// ── The composer's memory ────────────────────────────────────────────
+
+export interface ComposerMemory {
+  text: string;
+  attempt: Attempt | null;
+  error: ReplyErrorCopy | null;
+  note: string | null;
+  templateId: string | null;
+  header: string[];
+  body: string[];
+  /** A send is in flight for this thread (it may have been started by a
+   *  composer that has since unmounted). */
+  pending: boolean;
+  /** The `replyWindowEndsAt` the api called closed (`replyWindow`). */
+  closedFor: string | null;
+}
+
+export const EMPTY_MEMORY: ComposerMemory = {
+  text: "",
+  attempt: null,
+  error: null,
+  note: null,
+  templateId: null,
+  header: [],
+  body: [],
+  pending: false,
+  closedFor: null,
+};
+
+export interface ComposerStore {
+  get(threadId: string): ComposerMemory;
+  update(threadId: string, patch: Partial<ComposerMemory> | ((cur: ComposerMemory) => Partial<ComposerMemory>)): void;
+  subscribe(listener: () => void): () => void;
+}
+
+/**
+ * Per-thread drafts, keys and warnings for the page's life.
+ *
+ * ★A STORE, NOT COMPONENT STATE (review R1). A send that settles after its
+ * composer unmounted (the person opened another thread meanwhile) must still
+ * land: an "unknown outcome" warning lost there is a resend with no warning,
+ * and a success lost there leaves the sent words in the box. Writes go to the
+ * store whether or not anything is mounted, and a mounted composer subscribes.
+ */
+export function createComposerStore(): ComposerStore {
+  const map = new Map<string, ComposerMemory>();
+  const listeners = new Set<() => void>();
+  const get = (id: string) => map.get(id) ?? EMPTY_MEMORY;
+  return {
+    get,
+    update(id, patch) {
+      const cur = get(id);
+      map.set(id, { ...cur, ...(typeof patch === "function" ? patch(cur) : patch) });
+      for (const l of listeners) l();
+    },
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+  };
+}
+
+/**
+ * What a successful send clears: the box only if it still holds the words that
+ * were sent. ★Typing a follow-up while the first one was in flight must not be
+ * wiped by its success (review R1).
+ */
+export function clearAfterSend(cur: ComposerMemory, sentSig: string): Partial<ComposerMemory> {
+  if (replySignature({ kind: "text", text: cur.text }) === sentSig) return { text: "" };
+  if (cur.templateId && replySignature(templatePayload(cur.templateId, cur.header, cur.body)) === sentSig) {
+    return { templateId: null, header: [], body: [] };
+  }
+  return {};
 }

@@ -19,16 +19,14 @@ import {
   type WaConversation,
 } from "@/hooks/use-wa-conversations";
 import { useOrgMembers } from "@/hooks/use-control-plane";
-import { useNow } from "@/hooks/use-now";
 import { useAuth } from "@/providers/auth-provider";
-import { WaComposer, type ComposerMemory } from "@/components/inbox/wa-composer";
+import { WaComposer, useReplyWindow } from "@/components/inbox/wa-composer";
 import {
-  composerMode,
+  createComposerStore,
   memberNameLookup,
   replyingAsLine,
-  replyWindow,
   senderLabel,
-  WINDOW_TICK_MS,
+  type ComposerStore,
   type ReplyWindow,
 } from "@/lib/wa-inbox-reply";
 import { inboxApi, type InboxItem, type InboxPriority } from "@/lib/api/inbox";
@@ -73,7 +71,9 @@ const WINDOW_TONE: Record<ReplyWindow["tone"], string> = {
   closed: "bg-muted text-muted-foreground",
 };
 
-function WindowBadge({ win }: { win: ReplyWindow }) {
+function WindowBadge({ store, threadId, endsAt }: { store: ComposerStore; threadId: string; endsAt: string | null | undefined }) {
+  // ★THE COMPOSER'S OWN READING (`useReplyWindow`), so the two cannot disagree.
+  const win = useReplyWindow(store, threadId, endsAt);
   return (
     <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${WINDOW_TONE[win.tone]}`}>
       {win.label}
@@ -466,18 +466,16 @@ function InboxTabs() {
   const threadState = listFetchState(threadQuery, thread?.messages.length ?? 0);
   const handoff = useWaHandoff();
   const resume = useWaResume();
-  // ✅WA T4: the composer's inputs. ★`now` TICKS, so the 24h badge and the
-  //  text/template switch move on an idle page; a poll returning the same
-  //  thread does not re-render it.
-  const now = useNow(WINDOW_TICK_MS);
+  // ✅WA T4: the composer's inputs. (The ticking clock is read inside the badge
+  //  and the composer, so a tick does not re-render the whole Inbox.)
   const { user, org, orgs } = useAuth();
   const role = orgs.find((o) => o._id === org?._id)?.role ?? null;
   const members = useOrgMembers();
   const connection = useWaConnection(Boolean(selected));
-  // ★ONE MAP FOR THE PAGE'S LIFE: a draft, its key and its last warning per
-  //  thread, kept across switching threads or tabs (see WaComposer).
-  const [composerMemory] = useState(() => new Map<string, ComposerMemory>());
-  const replyWin = replyWindow(thread?.replyWindowEndsAt, now);
+  // ★ONE STORE FOR THE PAGE'S LIFE: a draft, its key, its last warning and its
+  //  in-flight flag per thread, kept across switching threads or tabs, and
+  //  written by a send that settles after its composer unmounted.
+  const [composerStore] = useState(createComposerStore);
   const memberName = memberNameLookup(members.data);
   // ★★HOISTED SO THE BADGE EXISTS BEFORE THE TAB IS OPENED. A count that only
   // appears once you have already looked at the lane is not a count — the
@@ -671,7 +669,7 @@ function InboxTabs() {
                       {thread && (
                         <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
                           <StatusPill status={thread.status} />
-                          <WindowBadge win={replyWin} />
+                          <WindowBadge store={composerStore} threadId={thread.threadId} endsAt={thread.replyWindowEndsAt} />
                         </div>
                       )}
                     </div>
@@ -736,9 +734,11 @@ function InboxTabs() {
                     <WaComposer
                       key={selected}
                       threadId={selected}
-                      mode={composerMode({ status: thread.status, role, window: replyWin })}
+                      status={thread.status}
+                      role={role}
+                      endsAt={thread.replyWindowEndsAt}
                       replyingAs={replyingAsLine(selected, connection.data)}
-                      memory={composerMemory}
+                      store={composerStore}
                     />
                   )}
                 </>

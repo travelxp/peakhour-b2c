@@ -24,6 +24,11 @@ import {
   threadPollInterval,
   type ReplyWindow,
   type StudioTemplate,
+  clearAfterSend,
+  createComposerStore,
+  templateListTruncated,
+  templatePayload,
+  EMPTY_MEMORY,
 } from "./wa-inbox-reply";
 
 const H = 60 * 60 * 1000;
@@ -62,6 +67,13 @@ describe("replyWindow", () => {
   });
   it("counts minutes under an hour", () => {
     expect(replyWindow(ends, END - (H - 1)).label).toBe("59m left to reply");
+  });
+  it("an api refusal closes the window this browser still thinks is open", () => {
+    expect(replyWindow(ends, END - 3 * H, ends).open).toBe(false);
+  });
+  it("a newer shopper message releases the api's close", () => {
+    const later = new Date(END + H).toISOString();
+    expect(replyWindow(later, END - 3 * H, ends).open).toBe(true);
   });
   it("a later clock on the same thread data moves the label, which only a ticking now can show", () => {
     const a = replyWindow(ends, END - 3 * H);
@@ -257,9 +269,6 @@ describe("replyErrorCopy", () => {
   it("an unknown outcome marks the attempt unknown", () => {
     expect(replyErrorCopy(apiErr("REPLY_OUTCOME_UNKNOWN", 409)).attempt).toBe("unknown");
   });
-  it("an unknown outcome re-reads the thread", () => {
-    expect(replyErrorCopy(apiErr("REPLY_OUTCOME_UNKNOWN", 409)).refetchThread).toBe(true);
-  });
   it("only an unknown outcome marks the attempt", () => {
     for (const code of [
       "OUTSIDE_24H", "REPLY_IN_PROGRESS", "STATUS_CHANGED", "WHATSAPP_UNAVAILABLE", "TEMPLATE_NOT_APPROVED",
@@ -281,7 +290,6 @@ describe("replyErrorCopy", () => {
     expect(c.title).toBe("We lost touch before WhatsApp answered");
     expect(c.detail).toMatch(/will not go out twice/);
     expect(c.attempt).toBe("keep");
-    expect(c.refetchThread).toBe(true);
   });
   it("a non-JSON answer below 500 is a lost connection", () => {
     expect(replyErrorCopy(apiErr("PARSE_ERROR", 200)).title).toBe("We lost touch before WhatsApp answered");
@@ -299,18 +307,35 @@ describe("replyErrorCopy", () => {
     expect(c.title).toBe("The 24-hour window has closed");
     expect(c.detail).toMatch(/approved template/);
     expect(c.detail).toMatch(/Nothing was sent/);
-    expect(c.refetchThread).toBe(true);
   });
   it("a lost takeover race keeps the api's sentence", () => {
     const c = replyErrorCopy(apiErr("STATUS_CHANGED", 409, "Someone on your team took this conversation over a moment ago, so it is still with them."));
     expect(c.detail).toMatch(/still with them/);
-    expect(c.refetchThread).toBe(true);
   });
   it("an unavailable WhatsApp keeps the api's reason", () => {
     expect(replyErrorCopy(apiErr("WHATSAPP_UNAVAILABLE", 409, "WhatsApp Business is disabled.")).detail).toMatch(/is disabled/);
   });
   it("a marketing refusal points at a utility template", () => {
     expect(replyErrorCopy(apiErr("MARKETING_NOT_ALLOWED", 409)).detail).toMatch(/utility template can/);
+  });
+  it("a marketing refusal allows for Meta's re-categorisation of a utility template", () => {
+    expect(replyErrorCopy(apiErr("MARKETING_NOT_ALLOWED", 409)).detail).toMatch(/Meta re-categorised it/);
+  });
+  it("an OUTSIDE_24H refusal closes this window in the browser", () => {
+    expect(replyErrorCopy(apiErr("OUTSIDE_24H", 409)).closesWindow).toBe(true);
+  });
+  it("only a closed window from the api closes this browser's window", () => {
+    for (const code of ["REPLY_OUTCOME_UNKNOWN", "SEND_FAILED", "STATUS_CHANGED", "TEMPLATE_PARAMS", "VALIDATION_ERROR"]) {
+      expect(replyErrorCopy(apiErr(code, 409)).closesWindow, code).toBe(false);
+    }
+  });
+  it("a template validation error names the values, not the text length", () => {
+    const c = replyErrorCopy(apiErr("VALIDATION_ERROR", 400), "template");
+    expect(c.detail).toMatch(/template value/);
+    expect(c.detail).not.toMatch(/4,096/);
+  });
+  it("a text validation error names the text length", () => {
+    expect(replyErrorCopy(apiErr("VALIDATION_ERROR", 400), "text").detail).toMatch(/4,096 characters/);
   });
   it("a stale template list is re-read on not approved", () => {
     expect(replyErrorCopy(apiErr("TEMPLATE_NOT_APPROVED", 409)).refetchTemplates).toBe(true);
@@ -403,6 +428,31 @@ describe("templates", () => {
   it("refuses a template with no body", () => {
     expect(inboxTemplatePlan(tpl({ components: {} as StudioTemplate["components"] })).ok).toBe(false);
   });
+  it("refuses more header values than the api takes", () => {
+    const h = Array.from({ length: 11 }, (_, i) => `{{${i + 1}}}`).join(" ");
+    expect(inboxTemplatePlan(tpl({ components: { header: { format: "TEXT", text: h }, body: { text: "x" } } })).ok).toBe(false);
+  });
+  it("refuses more body values than the api takes", () => {
+    const b = Array.from({ length: 21 }, (_, i) => `{{${i + 1}}}`).join(" ");
+    expect(inboxTemplatePlan(tpl({ components: { body: { text: b } } })).ok).toBe(false);
+  });
+  it("accepts the most body values the api takes", () => {
+    const b = Array.from({ length: 20 }, (_, i) => `{{${i + 1}}}`).join(" ");
+    expect(inboxTemplatePlan(tpl({ components: { body: { text: b } } }))).toEqual({ ok: true, headerCount: 0, bodyCount: 20 });
+  });
+  it("accepts the most header values the api takes", () => {
+    const h = Array.from({ length: 10 }, (_, i) => `{{${i + 1}}}`).join(" ");
+    expect(inboxTemplatePlan(tpl({ components: { header: { format: "TEXT", text: h }, body: { text: "x" } } })).ok).toBe(true);
+  });
+  it("a list at the api's cap may be missing older templates", () => {
+    expect(templateListTruncated(Array.from({ length: 200 }, () => tpl({})))).toBe(true);
+  });
+  it("a list under the api's cap is complete", () => {
+    expect(templateListTruncated(Array.from({ length: 199 }, () => tpl({})))).toBe(false);
+  });
+  it("a template with no values has no params", () => {
+    expect(templatePayload("a".repeat(24), [], [])).toEqual({ kind: "template", templateId: "a".repeat(24) });
+  });
   it("lists only approved templates and counts the approved ones it cannot send", () => {
     const r = pickableTemplates([
       tpl({ _id: "a".repeat(24) }),
@@ -436,7 +486,8 @@ describe("textProblem", () => {
 
 describe("polling and resume", () => {
   it("an escalated thread is polled every five seconds", () => expect(threadPollInterval("escalated")).toBe(5000));
-  it("an active thread is not polled here", () => expect(threadPollInterval("active")).toBe(false));
+  it("an active open thread is re-read at the list's thirty seconds", () => expect(threadPollInterval("active")).toBe(30000));
+  it("a resolved open thread is re-read at the list's thirty seconds", () => expect(threadPollInterval("resolved")).toBe(30000));
   it("an unloaded thread is not polled here", () => expect(threadPollInterval(undefined)).toBe(false));
   it("resume carries the rendered status version when the read has one", () => {
     expect(resumeBody({ statusVersion: 7 })).toEqual({ statusVersion: 7 });
@@ -449,5 +500,57 @@ describe("polling and resume", () => {
   });
   it("resume sends no body for a status version that is not a whole number", () => {
     expect(resumeBody({ statusVersion: "7" })).toBeUndefined();
+  });
+});
+
+describe("the composer's memory", () => {
+  it("a write with nothing subscribed is kept for the next reader", () => {
+    const store = createComposerStore();
+    store.update("t1", { text: "draft", pending: true });
+    store.update("t1", (cur) => ({ pending: false, note: cur.text }));
+    expect(store.get("t1")).toMatchObject({ text: "draft", pending: false, note: "draft" });
+  });
+  it("a subscriber hears each write", () => {
+    const store = createComposerStore();
+    let heard = 0;
+    store.subscribe(() => heard++);
+    store.update("t1", { text: "a" });
+    store.update("t2", { text: "b" });
+    expect(heard).toBe(2);
+  });
+  it("an unsubscribed listener hears nothing", () => {
+    const store = createComposerStore();
+    let heard = 0;
+    const off = store.subscribe(() => heard++);
+    off();
+    store.update("t1", { text: "a" });
+    expect(heard).toBe(0);
+  });
+  it("threads are kept apart", () => {
+    const store = createComposerStore();
+    store.update("t1", { text: "for Asha" });
+    expect(store.get("t2").text).toBe("");
+  });
+  it("an untouched thread reads the same empty memory each time", () => {
+    const store = createComposerStore();
+    expect(store.get("t9")).toBe(store.get("t9"));
+  });
+  it("a success clears the box that still holds the sent words", () => {
+    const sig = replySignature({ kind: "text", text: "Ships today" });
+    expect(clearAfterSend({ ...EMPTY_MEMORY, text: "Ships today " }, sig)).toEqual({ text: "" });
+  });
+  it("a follow-up typed during the send is kept", () => {
+    const sig = replySignature({ kind: "text", text: "Ships today" });
+    expect(clearAfterSend({ ...EMPTY_MEMORY, text: "Ships today. Also" }, sig)).toEqual({});
+  });
+  it("a sent template clears its picker", () => {
+    const id = "a".repeat(24);
+    const sig = replySignature(templatePayload(id, [], ["Asha"]));
+    expect(clearAfterSend({ ...EMPTY_MEMORY, templateId: id, body: ["Asha"] }, sig)).toEqual({ templateId: null, header: [], body: [] });
+  });
+  it("a template changed during the send is kept", () => {
+    const id = "a".repeat(24);
+    const sig = replySignature(templatePayload(id, [], ["Asha"]));
+    expect(clearAfterSend({ ...EMPTY_MEMORY, templateId: id, body: ["Ravi"] }, sig)).toEqual({});
   });
 });

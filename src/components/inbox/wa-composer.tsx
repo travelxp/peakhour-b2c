@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -15,23 +15,31 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useWaReply, useWaStudioTemplates } from "@/hooks/use-wa-conversations";
+import { useNow } from "@/hooks/use-now";
 import { listFetchState, showsSkeleton } from "@/lib/list-fetch-state";
 import {
   attemptFor,
+  clearAfterSend,
+  composerMode,
   mintIdempotencyKey,
   needsResendConfirm,
   pickableTemplates,
   replyErrorCopy,
   replySignature,
   replySuccessNote,
+  replyWindow,
+  templateListTruncated,
+  templatePayload,
   templatePreview,
   templateValueProblem,
   textProblem,
   REPLY_TEXT_MAX,
-  type Attempt,
-  type ComposerMode,
-  type ReplyErrorCopy,
+  STUDIO_LIST_CAP,
+  WINDOW_TICK_MS,
+  type ComposerMemory,
+  type ComposerStore,
   type ReplyPayload,
+  type ReplyWindow,
 } from "@/lib/wa-inbox-reply";
 
 /**
@@ -41,54 +49,53 @@ import {
  * refusal says are `lib/wa-inbox-reply.ts`'s, tested there: this repo's vitest
  * runs without a DOM, so a rule in here is a rule nothing asserts.
  *
- * ★THE DRAFT, THE KEY AND THE LAST ERROR OUTLIVE THE COMPONENT (`memory`, held
- * by the page per thread). Switching to another conversation or tab unmounts
- * this box; without the memory, coming back after "we can't tell whether this
- * arrived" showed an empty box, no warning, and a fresh key for the same words.
+ * ★THE DRAFT, THE KEY, THE LAST ERROR AND THE IN-FLIGHT FLAG LIVE IN THE PAGE'S
+ * `ComposerStore`, per thread, not in this component. Switching to another
+ * conversation unmounts this box; a send that settles afterwards still writes
+ * its outcome, so coming back after "we can't tell whether this arrived" shows
+ * that warning, not an empty box and a fresh key for the same words.
  */
 
-export interface ComposerMemory {
-  text: string;
-  attempt: Attempt | null;
-  error: ReplyErrorCopy | null;
-  note: string | null;
-  templateId: string | null;
-  header: string[];
-  body: string[];
+/** One thread's memory, re-rendering when it changes. */
+export function useComposerMemory(store: ComposerStore, threadId: string): ComposerMemory {
+  const get = useCallback(() => store.get(threadId), [store, threadId]);
+  return useSyncExternalStore(store.subscribe, get, get);
 }
 
-const EMPTY: ComposerMemory = {
-  text: "",
-  attempt: null,
-  error: null,
-  note: null,
-  templateId: null,
-  header: [],
-  body: [],
-};
+/**
+ * The 24h window as the badge AND the composer read it. ★ONE HOOK FOR BOTH, so
+ * the badge cannot say "2m left" above a composer that the api has already
+ * switched to templates. `now` ticks (`useNow`), so both move on an idle page;
+ * it is read here rather than at the top of the page, so a tick re-renders the
+ * badge and the box, not the whole Inbox.
+ */
+export function useReplyWindow(store: ComposerStore, threadId: string, endsAt: string | null | undefined): ReplyWindow {
+  const now = useNow(WINDOW_TICK_MS);
+  const { closedFor } = useComposerMemory(store, threadId);
+  return replyWindow(endsAt, now, closedFor);
+}
 
 export function WaComposer({
   threadId,
-  mode,
+  status,
+  role,
+  endsAt,
   replyingAs,
-  memory,
+  store,
 }: {
   threadId: string;
-  mode: ComposerMode;
+  status: string;
+  role: string | null;
+  endsAt: string | null | undefined;
   replyingAs: string;
-  memory: Map<string, ComposerMemory>;
+  store: ComposerStore;
 }) {
-  const [mem, setMem] = useState<ComposerMemory>(() => memory.get(threadId) ?? EMPTY);
+  const mem = useComposerMemory(store, threadId);
+  const win = useReplyWindow(store, threadId, endsAt);
+  const mode = composerMode({ status, role, window: win });
   const reply = useWaReply(threadId);
   const templates = useWaStudioTemplates(mode.kind === "template");
-
-  function update(patch: Partial<ComposerMemory>) {
-    setMem((prev) => {
-      const next = { ...prev, ...patch };
-      memory.set(threadId, next);
-      return next;
-    });
-  }
+  const update = (patch: Parameters<ComposerStore["update"]>[1]) => store.update(threadId, patch);
 
   if (mode.kind === "readonly" || mode.kind === "takeover") {
     return (
@@ -98,22 +105,28 @@ export function WaComposer({
     );
   }
 
-  async function send(payload: ReplyPayload, clear: Partial<ComposerMemory>) {
-    const attempt = attemptFor(mem.attempt, replySignature(payload), mintIdempotencyKey);
-    update({ attempt, error: null, note: null });
+  async function send(payload: ReplyPayload) {
+    const sig = replySignature(payload);
+    const attempt = attemptFor(store.get(threadId).attempt, sig, mintIdempotencyKey);
+    update({ attempt, error: null, note: null, pending: true });
     try {
       const res = await reply.mutateAsync({ payload, idempotencyKey: attempt.key });
       const note = replySuccessNote(res);
-      update({ ...clear, attempt: null, error: null, note });
+      update((cur) => ({ ...clearAfterSend(cur, sig), attempt: null, error: null, note, pending: false }));
       if (!note) toast.success("Sent to the shopper on WhatsApp.");
     } catch (e) {
-      const copy = replyErrorCopy(e);
-      update({ error: copy, attempt: copy.attempt === "unknown" ? { ...attempt, unknown: true } : attempt });
+      const copy = replyErrorCopy(e, payload.kind);
+      update({
+        error: copy,
+        attempt: copy.attempt === "unknown" ? { ...attempt, unknown: true } : attempt,
+        pending: false,
+        ...(copy.closesWindow && endsAt ? { closedFor: endsAt } : {}),
+      });
       if (copy.refetchTemplates) void templates.refetch();
     }
   }
 
-  const status = (
+  const status_ = (
     <>
       {mem.error && (
         <div role="alert" className="rounded-md border border-warning/40 bg-warning/10 p-2 text-xs">
@@ -127,17 +140,16 @@ export function WaComposer({
 
   if (mode.kind === "text") {
     const payload: ReplyPayload = { kind: "text", text: mem.text };
-    const sig = replySignature(payload);
     const problem = textProblem(mem.text);
-    const confirm = needsResendConfirm(mem.attempt, sig);
+    const confirm = needsResendConfirm(mem.attempt, replySignature(payload));
     const submit = () => {
-      if (problem || reply.isPending) return;
-      void send(payload, { text: "" });
+      if (problem || mem.pending) return;
+      void send(payload);
     };
     return (
       <div className="space-y-2 border-t p-3">
         <p className="text-[11px] text-muted-foreground">{replyingAs}</p>
-        {status}
+        {status_}
         <Textarea
           value={mem.text}
           onChange={(e) => update({ text: e.target.value })}
@@ -155,8 +167,8 @@ export function WaComposer({
           <span className="text-[11px] text-muted-foreground">
             {mem.text.trim().length > REPLY_TEXT_MAX ? problem : `${mem.text.trim().length}/${REPLY_TEXT_MAX}`}
           </span>
-          <Button size="sm" disabled={Boolean(problem) || reply.isPending} onClick={submit}>
-            {reply.isPending ? "Sending…" : confirm ? "Send again anyway" : "Send"}
+          <Button size="sm" disabled={Boolean(problem) || mem.pending} onClick={submit}>
+            {mem.pending ? "Sending…" : confirm ? "Send again anyway" : "Send"}
           </Button>
         </div>
       </div>
@@ -164,28 +176,22 @@ export function WaComposer({
   }
 
   // ── template mode: the window has closed ──
-  const { sendable, unsendable } = pickableTemplates(templates.data?.templates);
+  const list = templates.data?.templates;
+  const { sendable, unsendable } = pickableTemplates(list);
   const state = listFetchState(templates, sendable.length);
+  const truncated = templateListTruncated(list);
   const picked = sendable.find((s) => s.template._id === mem.templateId) ?? null;
   const header = picked ? Array.from({ length: picked.headerCount }, (_, i) => mem.header[i] ?? "") : [];
   const body = picked ? Array.from({ length: picked.bodyCount }, (_, i) => mem.body[i] ?? "") : [];
   const valueProblem = [...header, ...body].map(templateValueProblem).find(Boolean) ?? null;
-  const payload: ReplyPayload | null = picked
-    ? {
-        kind: "template",
-        templateId: picked.template._id,
-        ...(header.length || body.length
-          ? { params: { ...(header.length ? { header } : {}), ...(body.length ? { body } : {}) } }
-          : {}),
-      }
-    : null;
+  const payload: ReplyPayload | null = picked ? templatePayload(picked.template._id, header, body) : null;
   const confirm = payload ? needsResendConfirm(mem.attempt, replySignature(payload)) : false;
 
   return (
     <div className="space-y-2 border-t p-3">
       <p className="text-xs text-muted-foreground">{mode.reason}</p>
       <p className="text-[11px] text-muted-foreground">{replyingAs}</p>
-      {status}
+      {status_}
       {showsSkeleton(state) && <Skeleton className="h-9 w-full" />}
       {state === "paused" && (
         <p className="text-xs text-muted-foreground">Waiting for a connection — your templates will load when you&apos;re back online.</p>
@@ -201,8 +207,10 @@ export function WaComposer({
       {state === "empty" && (
         <p className="text-xs text-muted-foreground">
           {unsendable > 0
-            ? `None of your approved templates can be sent from the Inbox (${unsendable} use a media header, a personalised link, named values or a verification code). `
-            : "You have no approved templates yet. "}
+            ? `None of your approved templates can be sent from the Inbox (${unsendable} use a media header, a personalised link, named values, too many values or a verification code). `
+            : truncated
+              ? `None of your ${STUDIO_LIST_CAP} most recently updated templates is approved. `
+              : "You have no approved templates yet. "}
           <Link href="/dashboard/content/whatsapp/templates" className="underline underline-offset-2">
             Open Template Studio
           </Link>
@@ -231,6 +239,11 @@ export function WaComposer({
             </p>
           )}
         </>
+      )}
+      {truncated && state !== "empty" && (
+        <p className="text-[11px] text-muted-foreground">
+          Only your {STUDIO_LIST_CAP} most recently updated templates are checked here; older approved ones may be missing.
+        </p>
       )}
       {picked && (
         <div className="space-y-2">
@@ -272,10 +285,10 @@ export function WaComposer({
             <span className="text-[11px] text-muted-foreground">{valueProblem ?? ""}</span>
             <Button
               size="sm"
-              disabled={Boolean(valueProblem) || reply.isPending || !payload}
-              onClick={() => payload && void send(payload, { templateId: null, header: [], body: [] })}
+              disabled={Boolean(valueProblem) || mem.pending || !payload}
+              onClick={() => payload && void send(payload)}
             >
-              {reply.isPending ? "Sending…" : confirm ? "Send again anyway" : "Send template"}
+              {mem.pending ? "Sending…" : confirm ? "Send again anyway" : "Send template"}
             </Button>
           </div>
         </div>
