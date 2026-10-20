@@ -5,8 +5,9 @@ import { isTimeZone } from "@/lib/control-plane";
  * The rendering rules behind §07's tab — PR-2.5d.
  *
  * *"Every instruction Peakhour acted on, who gave it, and every one it
- * refused."* `GET /v1/control-plane/activity` (api#1197) returns the rows;
- * everything here decides what a merchant reads.
+ * refused."* (the plan's wording; the tab renders `ACTIVITY_LEDE` below).
+ * `GET /v1/control-plane/activity` (api#1197) returns the rows; everything
+ * here decides what a merchant reads.
  *
  * ★★IT IS A SEPARATE MODULE BECAUSE THE DECISIONS ARE TESTABLE AND THE MARKUP
  * IS NOT. This repo's suite is `environment: "node"` with no jsdom, so a rule
@@ -77,6 +78,14 @@ interface OutcomeCopy {
    */
   refused: boolean;
 }
+
+/**
+ * The tab's lede, rendered by `activity-ledger.tsx`. ★It lives here, beside
+ * the row copy, because `CONVERSATION_COPY` is worded against it: a row that
+ * is neither an instruction acted on nor one refused says so in its word.
+ */
+export const ACTIVITY_LEDE =
+  "Every instruction Peakhour acted on over WhatsApp, who gave it, and every one it refused.";
 
 /**
  * A verified merchant's message on which no instruction ran: from api M3

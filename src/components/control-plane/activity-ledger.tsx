@@ -15,6 +15,7 @@ import {
 import type { ActivityRow, NotificationDomain } from "@/lib/api/control-plane";
 import { WHATSAPP_SETTINGS_HREF } from "@/lib/control-plane";
 import {
+  ACTIVITY_LEDE,
   activityActor,
   activityCopy,
   activityScopeNote,
@@ -221,10 +222,7 @@ export function ActivityLedger({
         <ScrollText className="size-4" aria-hidden />
         <h2 className="text-base font-semibold">What Peakhour did</h2>
       </CardTitle>
-      <CardDescription>
-        Every instruction Peakhour acted on over WhatsApp, who gave it, and
-        every one it refused.
-      </CardDescription>
+      <CardDescription>{ACTIVITY_LEDE}</CardDescription>
     </CardHeader>
   );
 

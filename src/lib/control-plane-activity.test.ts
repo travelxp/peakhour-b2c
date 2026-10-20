@@ -1,8 +1,7 @@
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import { describe, it, expect } from "vitest";
 import type { ActivityRow, NotificationDomain } from "@/lib/api/control-plane";
 import {
+  ACTIVITY_LEDE,
   activityActor,
   activityCopy,
   activityScopeNote,
@@ -102,9 +101,12 @@ describe("activityCopy — §07's left column and 'what'", () => {
   it("does NOT call ordinary chatter Blocked", () => {
     // 🚫A verified merchant saying "thanks" was refused nothing, and filing it
     //  under the wall would empty the word of the meaning §07 depends on.
-    const c = activityCopy(row({ outcome: "not_a_command" }), DOMAINS);
-    expect(c.group).toBe("Message");
-    expect(c.refused).toBe(false);
+    //  Both keys: `conversation` is the one the api writes from M3.
+    for (const outcome of ["conversation", "not_a_command"]) {
+      const c = activityCopy(row({ outcome }), DOMAINS);
+      expect(c.group, outcome).toBe("Message");
+      expect(c.refused, outcome).toBe(false);
+    }
   });
 
   it("files a domainless conversation as a message on which no instruction ran, under Message", () => {
@@ -125,26 +127,17 @@ describe("activityCopy — §07's left column and 'what'", () => {
   });
 
   it("says a conversation is neither an instruction Peakhour acted on nor one it refused, in the tab lede's words", () => {
-    // ★The tab's lede (`activity-ledger.tsx`) divides the ledger into
-    //  instructions Peakhour acted on and ones it refused. A conversation row
-    //  is neither, and its line says so in the lede's own word. 🚫Not "Ran",
-    //  not "Refused", and not "Chatted": a canned reply or a rewritten declined
-    //  trigger is not a chat. The lede is the rendered `<CardDescription>`
-    //  text, read from the component and flattened (never the whole file, where
-    //  a comment could carry the sentence), so a reworded lede fails here
-    //  rather than drifting from this line.
-    const source = readFileSync(
-      fileURLToPath(new URL("../components/control-plane/activity-ledger.tsx", import.meta.url)),
-      "utf8",
-    );
-    const ledes = [...source.matchAll(/<CardDescription>([\s\S]*?)<\/CardDescription>/g)];
-    expect(ledes).toHaveLength(1);
-    expect(ledes[0][1].replace(/\s+/g, " ").trim()).toBe(
-      "Every instruction Peakhour acted on over WhatsApp, who gave it, and every one it refused.",
-    );
+    // ★The tab's lede (`ACTIVITY_LEDE`, which `activity-ledger.tsx` renders)
+    //  divides the ledger into instructions Peakhour acted on and ones it
+    //  refused. A conversation row is neither, and its line says so in the
+    //  lede's own word. A lede reworded away from "instruction" fails here, so
+    //  the row copy is revisited with it.
+    expect(ACTIVITY_LEDE).toMatch(/^Every instruction Peakhour acted on\b.*\bevery one it refused\.$/);
     const { what } = activityCopy(row({ outcome: "conversation" }), DOMAINS);
     expect(what).toMatch(/\bno instruction ran$/);
-    // Whatever else the line says, it claims no run, no refusal and no chat.
+    // 🚫A floor, not the rule: the exact sentence is held by the test above.
+    //  The common wrong readings (a run, a refusal, a chat) must not creep in
+    //  beside the clause.
     expect(what.replace(/\bno instruction ran$/, "")).not.toMatch(/\b(ran|run|refused|chat\w*)\b/i);
   });
 
