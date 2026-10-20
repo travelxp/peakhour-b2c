@@ -13,7 +13,7 @@
  *     asked through `hasTrial`. "No credit card" belongs to the trial (the
  *     signup trial collects none, D19; without one a business pays first),
  *     so it is said only beside it.
- *   - A discount: only the payload's own (`hasFoundingOffer`, `offerBadge` in
+ *   - A discount: only the payload's own (`hasMonthlyOffer`, `offerBadge` in
  *     `lib/pricing`), on the surfaces that read a price.
  *   - Static metadata, which cannot fetch, promises neither.
  *

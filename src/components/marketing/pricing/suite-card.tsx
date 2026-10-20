@@ -3,9 +3,9 @@ import { ArrowRight, Check, Zap } from "lucide-react";
 import {
   formatMonthly,
   formatPeaks,
-  formatFoundingMonthly,
-  hasFoundingOffer,
-  launchOfferBadge,
+  formatOfferMonthly,
+  hasMonthlyOffer,
+  offerBadge,
   suiteCtaLabel,
   yearlyPrice,
   type ResolvedProductTier,
@@ -26,7 +26,8 @@ import type { PillarSlug } from "@/lib/pillars";
  * met the platform.
  *
  * Everything here is read from the catalog. The price, the Peaks allowance and
- * the launch discount all come from the `suite` row in `cfg_plans`; the module
+ * the campaign offer come from the `suite` row in `cfg_plans` and the
+ * campaign that discounts it (`cfg_campaigns`, named by its label); the module
  * names come from the same list the rest of the site renders. If the plan is
  * not in this environment's catalog the card does not render at all — see the
  * caller — rather than inventing a price.
@@ -48,9 +49,9 @@ export function SuiteCard({
   openSignup: boolean;
 }) {
   const p = tier.pricing;
-  const founding = hasFoundingOffer(p);
+  const monthlyOffer = hasMonthlyOffer(p);
   const yearly = yearlyPrice(p);
-  const badge = launchOfferBadge(p);
+  const badge = offerBadge(p);
   const peaks = tier.peaksIncluded;
 
   return (
@@ -76,18 +77,18 @@ export function SuiteCard({
             <p className="mt-2 max-w-md text-muted-foreground">{tier.tagline}</p>
           )}
 
-          {/* Price. When a founding offer is live the list price stays on the
-              page, struck through — a launch price with nothing to compare it
-              to is just a price. */}
+          {/* Price. When a campaign offer is live the list price stays on the
+              page, struck through — an offer price with nothing to compare it
+              to is just a price. The badge above names the campaign. */}
           <div className="mt-6 flex flex-wrap items-end gap-x-3 gap-y-1">
             <span
               className="text-5xl font-extrabold tabular-nums tracking-tight"
               style={{ fontFamily: "var(--font-space-grotesk)" }}
             >
-              {founding ? formatFoundingMonthly(p) : formatMonthly(p)}
+              {monthlyOffer ? formatOfferMonthly(p) : formatMonthly(p)}
             </span>
             <span className="pb-1.5 text-sm text-muted-foreground">/month</span>
-            {founding && (
+            {monthlyOffer && (
               <span
                 className="pb-1.5 text-lg font-bold tabular-nums text-muted-foreground line-through decoration-2"
                 style={{ fontFamily: "var(--font-space-grotesk)" }}
@@ -102,12 +103,15 @@ export function SuiteCard({
               "₹0 billed yearly" beside a real monthly price. */}
           {yearly && (
           <p className="mt-1.5 text-sm text-muted-foreground">
-            {/* The YEARLY term's own offer: a campaign may cover one term only. */}
+            {/* The YEARLY term's own offer: a campaign may cover one term only.
+                ★NO COPY OF ITS OWN. This line said "launch pricing, for a
+                limited period" under every campaign, including the founding
+                one, which has no end date and lasts the life of the
+                subscription. The badge names the campaign (`offerBadge`). */}
             {yearly.list ? (
               <>
                 {yearly.price} billed yearly{" "}
-                <span className="line-through">{yearly.list}</span> · launch pricing,
-                for a limited period
+                <span className="line-through">{yearly.list}</span>
               </>
             ) : (
               <>{yearly.price} billed yearly</>

@@ -35,10 +35,17 @@ export interface PricingEntry {
   yearly: number;
   trialDays: number;
   /** Percent off the MONTHLY price from the live campaign (api `cfg_campaigns`,
-   *  billing plan D8), or 0. `monthly` stays the list price. */
-  foundingDiscountPct: number;
+   *  billing plan D8), or 0. `monthly` stays the list price. Named for the
+   *  term, never for one campaign: any campaign fills it. */
+  monthlyDiscountPct: number;
   /** The same for the YEARLY price: a campaign can be sold on one term only. */
   yearlyDiscountPct: number;
+  /** The label of the campaign behind `monthlyDiscountPct` (`cfg_campaigns.label`,
+   *  e.g. "Founding price: Peakhour Suite"), or null. The page shows it in
+   *  place of copy of its own (owner, 2026-10-06: offers come from campaigns). */
+  monthlyCampaignLabel: string | null;
+  /** The same for the YEARLY term, whose campaign may be another one. */
+  yearlyCampaignLabel: string | null;
   billingProviderKey: string;
   taxIncluded: boolean;
   gstApplicable: boolean;
@@ -156,23 +163,29 @@ export function formatYearly(p: PricingEntry): string {
   return `${p.displayPrefix ?? ""}${formatNumber(p.yearly)}`;
 }
 
-/* ── The founding offer ─────────────────────────────────────────────────── */
+/* ── The campaign offer ─────────────────────────────────────────────────── */
 
 /**
- * The launch offer is a CAMPAIGN (billing plan D8): `/v1/platform/pricing`
- * reports each term's percent from the api's campaign resolver — the same
+ * An offer is a CAMPAIGN (billing plan D8): `/v1/platform/pricing` reports
+ * each term's percent and label from the api's campaign resolver — the same
  * resolver web checkout and Shopify subscribe charge by, so this page and the
  * charge cannot disagree. The api reports only discounts the web checkout
  * honours (life-of-subscription ones), and floors exactly as `applyDiscount`.
  *
- * ★EACH TERM HAS ITS OWN PERCENT. A campaign can be sold on monthly or yearly
- * terms only; the yearly price reads `yearlyDiscountPct`, never the monthly one.
+ * ★NAMED FOR THE TERM, NEVER FOR ONE CAMPAIGN (owner, 2026-10-06: offers come
+ * from campaigns and are never hard-coded). These were `hasFoundingOffer` and
+ * `formatFoundingMonthly`, although any campaign fills them; what the page
+ * calls the offer is the campaign's own `label`.
+ *
+ * ★EACH TERM HAS ITS OWN PERCENT AND LABEL. A campaign can be sold on monthly
+ * or yearly terms only; the yearly price reads `yearlyDiscountPct`, never the
+ * monthly one.
  */
-export function hasFoundingOffer(p: PricingEntry): boolean {
-  return p.foundingDiscountPct > 0 && p.foundingDiscountPct < 100 && p.monthly > 0;
+export function hasMonthlyOffer(p: PricingEntry): boolean {
+  return p.monthlyDiscountPct > 0 && p.monthlyDiscountPct < 100 && p.monthly > 0;
 }
 
-/** Is a launch offer live on the YEARLY price? Its own percent, its own price. */
+/** Is an offer live on the YEARLY price? Its own percent, its own price. */
 export function hasYearlyOffer(p: PricingEntry): boolean {
   return p.yearlyDiscountPct > 0 && p.yearlyDiscountPct < 100 && p.yearly > 0;
 }
@@ -201,47 +214,78 @@ function applyDiscount(amount: number, pct: number): number {
   return Math.floor((amount * (100 - pct)) / 100);
 }
 
-export function foundingMonthly(p: PricingEntry): number {
-  return applyDiscount(p.monthly, p.foundingDiscountPct);
+/** The monthly price with the monthly term's campaign taken off. */
+export function offerMonthly(p: PricingEntry): number {
+  return applyDiscount(p.monthly, p.monthlyDiscountPct);
 }
 
-export function foundingYearly(p: PricingEntry): number {
+/** The yearly price with the yearly term's campaign taken off. */
+export function offerYearly(p: PricingEntry): number {
   return applyDiscount(p.yearly, p.yearlyDiscountPct);
 }
 
-/** "₹2,499" — the founding monthly price, formatted like every other price. */
-export function formatFoundingMonthly(p: PricingEntry): string {
-  return `${p.displayPrefix ?? ""}${formatNumber(foundingMonthly(p))}`;
+/** "₹2,499" — the offer's monthly price, formatted like every other price. */
+export function formatOfferMonthly(p: PricingEntry): string {
+  return `${p.displayPrefix ?? ""}${formatNumber(offerMonthly(p))}`;
 }
 
-export function formatFoundingYearly(p: PricingEntry): string {
-  return `${p.displayPrefix ?? ""}${formatNumber(foundingYearly(p))}`;
+export function formatOfferYearly(p: PricingEntry): string {
+  return `${p.displayPrefix ?? ""}${formatNumber(offerYearly(p))}`;
+}
+
+/** A campaign label worth printing: trimmed, or null for none or a blank one. */
+function shownLabel(label: string | null | undefined): string | null {
+  return typeof label === "string" && label.trim() !== "" ? label.trim() : null;
+}
+
+/** The label of the campaign on each term, or null where that term has no
+ *  offer: a label is said only beside the percent it explains. */
+export function offerLabels(p: PricingEntry): { monthly: string | null; yearly: string | null } {
+  return {
+    monthly: hasMonthlyOffer(p) ? shownLabel(p.monthlyCampaignLabel) : null,
+    yearly: hasYearlyOffer(p) ? shownLabel(p.yearlyCampaignLabel) : null,
+  };
 }
 
 /**
- * The launch badge: each term's percent, named when they differ, or null when
- * neither term has an offer (review R1: a monthly-only badge sat beside a
+ * The offer badge: the campaign's OWN label and each term's percent, or null
+ * when neither term has an offer (review R1: a monthly-only badge sat beside a
  * yearly price discounted by another percent).
+ *
+ * ★THE NAME IS THE CAMPAIGN'S, never the page's ("Founding price: Peakhour
+ * Suite · 50% off"). It said "Launch offer" for every campaign, which is copy
+ * no campaign wrote. A term whose campaign has no label says its percent
+ * alone, and two terms sold by two campaigns are each named by their own.
  */
-export function launchOfferBadge(p: PricingEntry): string | null {
-  const m = hasFoundingOffer(p) ? p.foundingDiscountPct : 0;
+export function offerBadge(p: PricingEntry): string | null {
+  const m = hasMonthlyOffer(p) ? p.monthlyDiscountPct : 0;
   const y = hasYearlyOffer(p) ? p.yearlyDiscountPct : 0;
   if (!m && !y) return null;
-  if (m && y) return m === y ? `Launch offer · ${m}% off` : `Launch offer · ${m}% off monthly, ${y}% yearly`;
-  return m ? `Launch offer · ${m}% off monthly` : `Launch offer · ${y}% off yearly`;
+  const labels = offerLabels(p);
+  const named = (label: string | null, what: string) => (label ? `${label} · ${what}` : what);
+  if (m && y) {
+    if (labels.monthly === labels.yearly) {
+      return named(labels.monthly, m === y ? `${m}% off` : `${m}% off monthly, ${y}% yearly`);
+    }
+    return `${named(labels.monthly, `${m}% off monthly`)}; ${named(labels.yearly, `${y}% off yearly`)}`;
+  }
+  return m ? named(labels.monthly, `${m}% off monthly`) : named(labels.yearly, `${y}% off yearly`);
 }
 
 /**
  * The yearly price line every card renders: the price charged, and the list
  * price to strike through beside it when the YEARLY term has its own offer
- * (`list` null otherwise). Null when there is no yearly price at all. One
- * helper, so the Suite card and the plan cards cannot read the term two ways.
+ * (`list` null otherwise), with that offer's campaign `label` (null without an
+ * offer or a label). Null when there is no yearly price at all. One helper, so
+ * the Suite card and the plan cards cannot read the term two ways.
  */
-export function yearlyPrice(p: PricingEntry): { price: string; list: string | null } | null {
+export function yearlyPrice(
+  p: PricingEntry,
+): { price: string; list: string | null; label: string | null } | null {
   if (!(p.yearly > 0)) return null;
   return hasYearlyOffer(p)
-    ? { price: formatFoundingYearly(p), list: formatYearly(p) }
-    : { price: formatYearly(p), list: null };
+    ? { price: formatOfferYearly(p), list: formatYearly(p), label: offerLabels(p).yearly }
+    : { price: formatYearly(p), list: null, label: null };
 }
 
 /**
@@ -306,7 +350,7 @@ export function suiteCtaLabel(trialDays: number): string {
  */
 export function agencyCardPrice(
   agency: ResolvedProductTier | undefined,
-): { price: string; list: string | null; per: string } | null {
+): { price: string; list: string | null; label: string | null; per: string } | null {
   const y = agency ? yearlyPrice(agency.pricing) : null;
   return y ? { ...y, per: "/ year per business, or billed quarterly" } : null;
 }
