@@ -32,6 +32,7 @@ import {
   WHATSAPP_SETTINGS_HREF,
   WHATSAPP_SETTINGS_TAB,
   whatsappTabFromParam,
+  whatsappTabHref,
   whatsappTabQuery,
 } from "./control-plane";
 
@@ -372,5 +373,12 @@ describe("the cache key and the tab", () => {
     expect(whatsappTabQuery("tab=conversation&x=1", WHATSAPP_SETTINGS_TAB)).toBe("x=1");
     expect(whatsappTabQuery("x=1", WHATSAPP_CONVERSATION_TAB)).toBe("x=1&tab=conversation");
     expect(whatsappTabQuery("tab=conversation", WHATSAPP_ACTIVITY_TAB)).toBe("tab=activity");
+  });
+
+  it("[C36] the empty state's Numbers & routing link keeps the page's other parameters", () => {
+    const path = WHATSAPP_SETTINGS_HREF;
+    expect(whatsappTabHref(path, "tab=conversation", WHATSAPP_SETTINGS_TAB)).toBe(path);
+    expect(whatsappTabHref(path, "tab=conversation&x=1", WHATSAPP_SETTINGS_TAB)).toBe(`${path}?x=1`);
+    expect(whatsappTabHref(path, "", WHATSAPP_CONVERSATION_TAB)).toBe(`${path}?tab=conversation`);
   });
 });

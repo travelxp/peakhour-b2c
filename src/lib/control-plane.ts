@@ -67,6 +67,12 @@ export function whatsappTabQuery(current: string, next: WhatsAppTab): string {
   else q.set(WHATSAPP_TAB_PARAM, next);
   return q.toString();
 }
+
+/** The URL of tab `next` on `pathname`: the tab switch's and any in-page link's. */
+export function whatsappTabHref(pathname: string, current: string, next: WhatsAppTab): string {
+  const qs = whatsappTabQuery(current, next);
+  return qs ? `${pathname}?${qs}` : pathname;
+}
 /** Where the ledger's footnote sends a merchant to fix a pending number. */
 export const WHATSAPP_SETTINGS_HREF = "/dashboard/settings/whatsapp";
 

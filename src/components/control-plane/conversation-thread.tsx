@@ -30,6 +30,7 @@ import {
   conversationEmptyReason,
   conversationView,
   groupConversationByDay,
+  orderedMessages,
   isNearBottom,
   scrollTopToRestore,
   type PrependAnchor,
@@ -74,33 +75,36 @@ export function ConversationThread({
   timeZonePreference,
   currentUserId,
   isAdmin,
+  numbersHref,
 }: {
   /** The viewer's own zone, when they have set one. */
   timeZonePreference: string | null | undefined;
   currentUserId: string | null;
   isAdmin: boolean;
+  /** The Numbers & routing tab, with the page's other parameters kept. */
+  numbersHref: string;
 }) {
   const conversation = useConversation();
   const contacts = useMerchantContacts();
   const timeZone = useDisplayZone(timeZonePreference);
 
-  // Memoised on the pages (a stable reference until the cache changes), so the
-  // day grouping below is not redone on every render.
   const pages = conversation.data?.pages;
-  const { status, fetchStatus } = conversation;
-  const view = useMemo(
-    () => conversationView({ entries: pages, status, fetchStatus }),
-    [pages, status, fetchStatus],
-  );
+  const view = conversationView({
+    entries: pages,
+    status: conversation.status,
+    fetchStatus: conversation.fetchStatus,
+  });
 
-  const messages = view.kind === "messages" ? view.messages : null;
+  // Grouped on the pages alone (a stable reference until the cache changes),
+  // so a fetch starting or ending does not regroup and reformat every line.
   const days = useMemo(
     () =>
-      messages && timeZone
-        ? groupConversationByDay(messages, { locale: undefined, timeZone })
+      pages && timeZone
+        ? groupConversationByDay(orderedMessages(pages), { locale: undefined, timeZone })
         : [],
-    [messages, timeZone],
+    [pages, timeZone],
   );
+  const showingThread = view.kind === "messages" && timeZone !== null;
 
   const pageCount = conversation.data?.pages.length ?? 0;
   // The newest line's own key, which does not change when older pages are
@@ -110,13 +114,23 @@ export function ConversationThread({
   const scrollRef = useRef<HTMLDivElement>(null);
   // The reader's position before "Load older", restored once that page lands.
   const prependAnchor = useRef<PrependAnchor | null>(null);
-  // Starts true so the first render opens on the newest message.
+  // Whether the reader is at the newest line. Set by the box's scroll events.
   const atBottom = useRef(true);
+
+  // Each time the box mounts (first load, or back from a refusal, a failure or
+  // the empty state) it opens on the newest line, whatever the last box said.
+  useLayoutEffect(() => {
+    if (!showingThread) return;
+    atBottom.current = true;
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [showingThread]);
 
   useLayoutEffect(() => {
     // Any change in the page count consumes the anchor, whether or not it is
-    // the page the anchor was taken for (a cancelled or refused "Load older"
-    // must not move the reader on some later change).
+    // the page the anchor was taken for, so a cancelled "Load older" cannot
+    // move the reader on some later change. (A refused one adds a page, but the
+    // refusal card has replaced the box by then.)
     const anchor = prependAnchor.current;
     prependAnchor.current = null;
     const el = scrollRef.current;
@@ -201,7 +215,12 @@ export function ConversationThread({
           <div role="alert" className="rounded-lg bg-destructive/10 p-4 text-sm text-destructive">
             {CONVERSATION_FAILED_TEXT}
           </div>
-          <Button variant="outline" size="sm" onClick={() => void conversation.refetch()}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void conversation.refetch()}
+            disabled={busy}
+          >
             Try again
           </Button>
         </CardContent>
@@ -253,7 +272,7 @@ export function ConversationThread({
                 {" "}
                 {/* `replace`, as the page's own tab switch: a tab is not a
                     place, so Back leaves the page rather than walking tabs. */}
-                <Link href={copy.link.href} replace scroll={false} className="underline">
+                <Link href={numbersHref} replace scroll={false} className="underline">
                   {copy.link.label}
                 </Link>
               </>
@@ -262,7 +281,12 @@ export function ConversationThread({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => void conversation.refetch()}
+            // The contacts too: the reason above is read from them, and a code
+            // entered on another device changes it.
+            onClick={() => {
+              void conversation.refetch();
+              void contacts.refetch();
+            }}
             disabled={busy}
           >
             {refreshing ? "Checking…" : "Check for new messages"}

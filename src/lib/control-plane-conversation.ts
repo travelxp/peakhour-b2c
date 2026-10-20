@@ -390,8 +390,10 @@ export interface PrependAnchor {
 /**
  * The `scrollTop` to restore when the page count changes, or null to leave it.
  * Only the page the anchor was taken for (one more page than then) restores it:
- * a cancelled, failed or refused "Load older" leaves the count as it was, and a
- * refresh never adds a page, so a stale anchor can never move the reader.
+ * a cancelled or failed "Load older" leaves the count as it was, and a refresh
+ * never adds a page, so a stale anchor can never move the reader. A refused one
+ * does add a page (the `refused` entry), but the refusal card replaces the box,
+ * so there is nothing left to scroll.
  */
 export function scrollTopToRestore(
   anchor: PrependAnchor | null,

@@ -21,7 +21,7 @@ import { ConversationThread } from "@/components/control-plane/conversation-thre
 import {
   memberLabel,
   whatsappTabFromParam,
-  whatsappTabQuery,
+  whatsappTabHref,
   WHATSAPP_ACTIVITY_TAB,
   WHATSAPP_CONVERSATION_TAB,
   WHATSAPP_SETTINGS_TAB,
@@ -166,8 +166,7 @@ function WhatsAppSettings() {
     // outside the known tabs can never be held as a tab the URL cannot match.
     const next = whatsappTabFromParam(value);
     setPendingTab(next);
-    const qs = whatsappTabQuery(params.toString(), next);
-    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    router.replace(whatsappTabHref(pathname, params.toString(), next), { scroll: false });
   }
 
   // ⚠️★★THE MATRIX NEEDS A BUSINESS AND THE REGISTRY DOES NOT — the api draws
@@ -315,6 +314,7 @@ function WhatsAppSettings() {
             timeZonePreference={user?.preferences?.timezone}
             currentUserId={currentUserId}
             isAdmin={isAdmin}
+            numbersHref={whatsappTabHref(pathname, params.toString(), WHATSAPP_SETTINGS_TAB)}
           />
         </TabsContent>
       </Tabs>
