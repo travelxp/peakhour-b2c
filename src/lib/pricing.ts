@@ -247,6 +247,11 @@ export function offerLabels(p: PricingEntry): { monthly: string | null; yearly: 
   };
 }
 
+/** "<label> · <what>", or `what` alone when the campaign has no label. */
+function withLabel(label: string | null, what: string): string {
+  return label ? `${label} · ${what}` : what;
+}
+
 /**
  * The offer badge: the campaign's OWN label and each term's percent, or null
  * when neither term has an offer (review R1: a monthly-only badge sat beside a
@@ -262,7 +267,7 @@ export function offerBadge(p: PricingEntry): string | null {
   const y = hasYearlyOffer(p) ? p.yearlyDiscountPct : 0;
   if (!m && !y) return null;
   const labels = offerLabels(p);
-  const named = (label: string | null, what: string) => (label ? `${label} · ${what}` : what);
+  const named = withLabel;
   if (m && y) {
     if (labels.monthly === labels.yearly) {
       return named(labels.monthly, m === y ? `${m}% off` : `${m}% off monthly, ${y}% yearly`);
@@ -275,17 +280,24 @@ export function offerBadge(p: PricingEntry): string | null {
 /**
  * The yearly price line every card renders: the price charged, and the list
  * price to strike through beside it when the YEARLY term has its own offer
- * (`list` null otherwise), with that offer's campaign `label` (null without an
- * offer or a label). Null when there is no yearly price at all. One helper, so
- * the Suite card and the plan cards cannot read the term two ways.
+ * (`list` null otherwise), and `offer`: that offer as the badge says it, the
+ * campaign's label beside its percent ("Agency launch · 20% off"), or null
+ * without an offer. Never the label alone: a name is said only beside the
+ * percent it explains (review R1 on b2c#594). Null when there is no yearly
+ * price at all. One helper, so the Suite card and the plan cards cannot read
+ * the term two ways.
  */
 export function yearlyPrice(
   p: PricingEntry,
-): { price: string; list: string | null; label: string | null } | null {
+): { price: string; list: string | null; offer: string | null } | null {
   if (!(p.yearly > 0)) return null;
   return hasYearlyOffer(p)
-    ? { price: formatOfferYearly(p), list: formatYearly(p), label: offerLabels(p).yearly }
-    : { price: formatYearly(p), list: null, label: null };
+    ? {
+        price: formatOfferYearly(p),
+        list: formatYearly(p),
+        offer: withLabel(offerLabels(p).yearly, `${p.yearlyDiscountPct}% off`),
+      }
+    : { price: formatYearly(p), list: null, offer: null };
 }
 
 /**
@@ -350,7 +362,7 @@ export function suiteCtaLabel(trialDays: number): string {
  */
 export function agencyCardPrice(
   agency: ResolvedProductTier | undefined,
-): { price: string; list: string | null; label: string | null; per: string } | null {
+): { price: string; list: string | null; offer: string | null; per: string } | null {
   const y = agency ? yearlyPrice(agency.pricing) : null;
   return y ? { ...y, per: "/ year per business, or billed quarterly" } : null;
 }

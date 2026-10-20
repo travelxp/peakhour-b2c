@@ -92,15 +92,15 @@ describe("the Suite CTA names the trial it starts", () => {
 describe("agencyCardPrice: Agency is sold quarterly and yearly, never monthly (D5)", () => {
   it("quotes the year, never the monthly figure", () => {
     const p = agencyCardPrice(AGENCY);
-    expect(p).toEqual({ price: "₹249,999", list: null, label: null, per: "/ year per business, or billed quarterly" });
+    expect(p).toEqual({ price: "₹249,999", list: null, offer: null, per: "/ year per business, or billed quarterly" });
     expect(JSON.stringify(p)).not.toContain("24,999");
   });
 
-  it("strikes the list price through under a yearly campaign, named by that campaign", () => {
+  it("strikes the list price through under a yearly campaign, named by that campaign beside its percent", () => {
     expect(agencyCardPrice(tier("agency", { yearly: 250000, yearlyDiscountPct: 20, yearlyCampaignLabel: "Agency launch" }))).toMatchObject({
       price: "₹200,000",
       list: "₹250,000",
-      label: "Agency launch",
+      offer: "Agency launch · 20% off",
     });
   });
 

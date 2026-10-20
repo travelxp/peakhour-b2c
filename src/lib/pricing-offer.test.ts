@@ -97,7 +97,7 @@ describe("the offer price", () => {
   });
 
   it("groups thousands the same way every other price on the page does", () => {
-    expect(formatOfferYearly(entry({ yearly: 249999, monthlyDiscountPct: 50 }))).toBe(
+    expect(formatOfferYearly(entry({ yearly: 249999, yearlyDiscountPct: 50 }))).toBe(
       "₹124,999",
     );
   });
@@ -149,14 +149,14 @@ describe("offerLabels: a term's label is said only beside its own offer", () => 
 });
 
 describe("yearlyPrice: the line every card renders", () => {
-  it("the yearly price with the list struck through and its campaign named when the yearly term has an offer", () => {
-    expect(yearlyPrice(entry({ yearlyDiscountPct: 50 }))).toEqual({ price: "₹24,999", list: "₹49,999", label: FOUNDING });
+  it("the yearly price with the list struck through and its campaign named beside its percent when the yearly term has an offer", () => {
+    expect(yearlyPrice(entry({ yearlyDiscountPct: 50 }))).toEqual({ price: "₹24,999", list: "₹49,999", offer: `${FOUNDING} · 50% off` });
   });
   it("the list price alone, unnamed, under a MONTHLY-only campaign", () => {
-    expect(yearlyPrice(entry({ monthlyDiscountPct: 50, yearlyDiscountPct: 0 }))).toEqual({ price: "₹49,999", list: null, label: null });
+    expect(yearlyPrice(entry({ monthlyDiscountPct: 50, yearlyDiscountPct: 0 }))).toEqual({ price: "₹49,999", list: null, offer: null });
   });
-  it("a yearly offer whose campaign has no label still strikes the list through", () => {
-    expect(yearlyPrice(entry({ yearlyCampaignLabel: null }))).toEqual({ price: "₹24,999", list: "₹49,999", label: null });
+  it("a yearly offer whose campaign has no label still strikes the list through, and says its percent alone", () => {
+    expect(yearlyPrice(entry({ yearlyCampaignLabel: null }))).toEqual({ price: "₹24,999", list: "₹49,999", offer: "50% off" });
   });
   it("nothing without a yearly price", () => {
     expect(yearlyPrice(entry({ yearly: 0 }))).toBeNull();
