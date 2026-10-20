@@ -26,6 +26,8 @@ import {
   type StudioTemplate,
   clearAfterSend,
   createComposerStore,
+  maySend,
+  templateContentProblem,
   templateListTruncated,
   templatePayload,
   EMPTY_MEMORY,
@@ -249,6 +251,21 @@ describe("one idempotency key per compose attempt", () => {
       idempotencyKey: "key-12345678",
     });
   });
+  it("the button sends after an unknown outcome", () => {
+    expect(maySend({ problem: null, pending: false, confirm: true, via: "button" })).toBe(true);
+  });
+  it("the keyboard does not confirm a resend after an unknown outcome", () => {
+    expect(maySend({ problem: null, pending: false, confirm: true, via: "keyboard" })).toBe(false);
+  });
+  it("the keyboard sends an ordinary reply", () => {
+    expect(maySend({ problem: null, pending: false, confirm: false, via: "keyboard" })).toBe(true);
+  });
+  it("nothing sends while a send is in flight", () => {
+    expect(maySend({ problem: null, pending: true, confirm: false, via: "button" })).toBe(false);
+  });
+  it("nothing sends with a problem", () => {
+    expect(maySend({ problem: "Write a reply first.", pending: false, confirm: false, via: "button" })).toBe(false);
+  });
   it("a minted key passes the api's key rule and is fresh each time", () => {
     const k = mintIdempotencyKey();
     expect(k).toMatch(/^[A-Za-z0-9._:-]{8,128}$/);
@@ -273,17 +290,20 @@ describe("replyErrorCopy", () => {
     for (const code of [
       "OUTSIDE_24H", "REPLY_IN_PROGRESS", "STATUS_CHANGED", "WHATSAPP_UNAVAILABLE", "TEMPLATE_NOT_APPROVED",
       "MARKETING_NOT_ALLOWED", "NOT_FOUND", "TEMPLATE_NOT_FOUND", "TEMPLATE_UNSUPPORTED", "TEMPLATE_PARAMS",
-      "VALIDATION_ERROR", "SEND_FAILED", "FORBIDDEN",
+      "VALIDATION_ERROR", "FORBIDDEN",
     ]) {
       expect(replyErrorCopy(apiErr(code, 409)).attempt, code).toBe("keep");
     }
   });
-  it("a send failure shows the api's sentence and says the same words are safe to resend", () => {
+  it("a send failure shows the api's sentence and asks for a check before a resend", () => {
     const c = replyErrorCopy(apiErr("SEND_FAILED", 502, "The connection to WhatsApp failed while sending, so this reply may or may not have arrived."));
     expect(c.title).toBe("This reply may not have been sent");
     expect(c.detail).toMatch(/may or may not have arrived/);
-    expect(c.detail).toMatch(/will not go out twice/);
-    expect(c.detail).not.toMatch(/Nothing was sent/);
+    expect(c.detail).toMatch(/Check this conversation before sending it again/);
+    expect(c.detail).not.toMatch(/safe|Nothing was sent/);
+  });
+  it("a send failure marks the attempt unknown", () => {
+    expect(replyErrorCopy(apiErr("SEND_FAILED", 502)).attempt).toBe("unknown");
   });
   it("a lost connection is an unknown that is safe to resend under the same key", () => {
     const c = replyErrorCopy(new TypeError("Failed to fetch"));
@@ -299,6 +319,7 @@ describe("replyErrorCopy", () => {
   });
   it("a reply in progress says it will not go out twice and does not say nothing was sent", () => {
     const c = replyErrorCopy(apiErr("REPLY_IN_PROGRESS", 409));
+    expect(c.title).toBe("This reply is still being handled");
     expect(c.detail).toMatch(/will not go out twice/);
     expect(c.detail).not.toMatch(/Nothing was sent/);
   });
@@ -357,10 +378,13 @@ describe("replyErrorCopy", () => {
       expect(replyErrorCopy(apiErr(code, status)).title, code).not.toBe(fallback);
     }
   });
-  it("any other refusal before the send says nothing was sent", () => {
+  it("a refusal with no documented code does not claim nothing was sent", () => {
     const c = replyErrorCopy(apiErr("UNAUTHORIZED", 401, "Session expired"));
-    expect(c.title).toBe("This reply wasn't sent");
-    expect(c.detail).toBe("Session expired Nothing was sent.");
+    expect(c.title).toBe("We couldn't confirm this reply");
+    expect(c.detail).toMatch(/^Session expired /);
+    expect(c.detail).toMatch(/will not go out twice/);
+    expect(c.detail).not.toMatch(/Nothing was sent/);
+    expect(c.attempt).toBe("keep");
   });
 });
 
@@ -469,6 +493,10 @@ describe("templates", () => {
   });
   it("previews an unfilled value as its placeholder", () => {
     expect(templatePreview(tpl({}), [], ["Asha"])).toBe("Hi Asha, order {{2}} is on its way.");
+  });
+  it("a filled template at the api's length is sendable", () => expect(templateContentProblem("x".repeat(4096))).toBeNull());
+  it("a filled template over the api's length is not sendable", () => {
+    expect(templateContentProblem("x".repeat(4097))).toMatch(/4,097 characters; the most is 4,096/);
   });
   it("a blank value is not sendable", () => expect(templateValueProblem(" ")).toBe("Fill this in."));
   it("a value with a tab is not sendable", () => expect(templateValueProblem("a\tb")).toMatch(/tab/));

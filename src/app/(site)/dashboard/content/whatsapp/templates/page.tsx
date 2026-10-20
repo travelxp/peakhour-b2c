@@ -22,6 +22,7 @@ import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { PageShell } from "@/components/dashboard/page-shell";
+import { STUDIO_LIST_CAP } from "@/lib/wa-inbox-reply";
 import {
   addLanguageProblem,
   groupByName,
@@ -77,7 +78,7 @@ interface Editor {
 const STUDIO = "/v1/meta/whatsapp/studio";
 /** ★THE API'S OWN `.limit(200)` ON `GET /templates`, transcribed so the page can
  *  say when it is showing a truncated list rather than miscount a group. */
-const TEMPLATE_LIST_CAP = 200;
+const TEMPLATE_LIST_CAP = STUDIO_LIST_CAP;
 const EMPTY_EDITOR: Editor = {
   name: "",
   language: "en",

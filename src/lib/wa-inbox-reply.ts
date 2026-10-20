@@ -54,7 +54,7 @@ const HOUR = 60 * MINUTE;
  * `replyWindowEndsAt` means the window never opened; an unparseable one is
  * read the same way, never as open.
  *
- * ★`now` IS A PARAMETER, from a ticking clock (`useNow`). An idle page does not
+ * ★`now` IS A PARAMETER, from a ticking clock (`createSharedClock`). An idle page does not
  * re-render, and a poll that returns the same thread does not re-render it
  * either, so a badge reading `Date.now()` in render would keep "1h left" on a
  * window that closed an hour ago.
@@ -153,6 +153,12 @@ export interface ConnectionLike {
  * api sends from the thread's own number, never from the client's choice, so
  * naming the connection's display number for a thread on another number would
  * tell the merchant the reply comes from somewhere it does not.
+ *
+ * ⚠️THE REMAINING GAP IS THE API'S (review R2): `GET /connection` takes
+ * `phoneNumber` from the first listed number of the first WABA, not from the
+ * active one, so a WABA with several numbers can still be named wrongly here.
+ * Nothing b2c reads maps a phone-number id to its display number; the fix is
+ * for /connection to return the active number's display (api follow-up).
  */
 export function replyingAsLine(threadId: string, conn: ConnectionLike | null | undefined): string {
   const pnid = threadPhoneNumberId(threadId);
@@ -275,6 +281,16 @@ export function replyRequest(
   };
 }
 
+/**
+ * Whether a send may start. ★THE KEYBOARD NEVER CONFIRMS (review R2): after an
+ * unknown outcome the confirmation IS the "Send again anyway" button, and a
+ * Ctrl/Cmd+Enter from someone typing as usual has not read it.
+ */
+export function maySend(args: { problem: string | null; pending: boolean; confirm: boolean; via: "button" | "keyboard" }): boolean {
+  if (args.problem || args.pending) return false;
+  return !(args.via === "keyboard" && args.confirm);
+}
+
 /** A key the api accepts (`[A-Za-z0-9._:-]`, 8..128). */
 export function mintIdempotencyKey(): string {
   return `inbox-${crypto.randomUUID()}`;
@@ -342,10 +358,16 @@ export function replyErrorCopy(err: unknown, kind: ReplyPayload["kind"] = "text"
         detail: "We are still waiting on WhatsApp for this exact message, and it will not go out twice. Check the conversation in a moment.",
       };
     case "SEND_FAILED":
+      // ★MARKED UNKNOWN (review R2). On a cut connection the api has already
+      //  settled this key as unknown and says "check before sending it again";
+      //  adding "pressing Send again is safe" beneath that contradicted it, and
+      //  invited an edit, which is a new key and a possible second copy. On a
+      //  certain refusal the confirm costs one click and sends once.
       return {
         ...base,
+        attempt: "unknown",
         title: "This reply may not have been sent",
-        detail: `${serverMessage(err, "WhatsApp did not accept the message.")} ${SAME_TEXT_IS_SAFE}`,
+        detail: `${serverMessage(err, "WhatsApp did not accept the message.")} Check this conversation before sending it again.`,
       };
     case "OUTSIDE_24H":
       return {
@@ -425,12 +447,14 @@ export function replyErrorCopy(err: unknown, kind: ReplyPayload["kind"] = "text"
         detail: `Replying to shoppers needs Editor access or above. ${NOTHING_SENT}`,
       };
     default:
-      // ★Any other 4xx came from a gate in front of the send (auth, CSRF), and
-      //  the api sends nothing from those.
+      // ★NOT "NOTHING WAS SENT" (review R2). The api client answers with the
+      //  FIRST response's code when its 401-refresh or CSRF retry gets back
+      //  something unreadable, and that retry may have reached the api and
+      //  sent. The same words keep the same key, so a resend is still safe.
       return {
         ...base,
-        title: "This reply wasn't sent",
-        detail: `${serverMessage(err, "Something stopped it before it reached WhatsApp.")} ${NOTHING_SENT}`,
+        title: "We couldn't confirm this reply",
+        detail: `${serverMessage(err, "Something went wrong while sending.")} ${SAME_TEXT_IS_SAFE}`,
       };
   }
 }
@@ -556,6 +580,17 @@ export function templatePreview(t: StudioTemplate, header: string[], body: strin
   const cmp = t.components ?? {};
   const h = cmp.header && String(cmp.header.format ?? "TEXT") === "TEXT" ? (cmp.header.text ?? "") : "";
   return [fill(h, header), fill(cmp.body?.text ?? "", body), cmp.footer?.text ?? ""].filter(Boolean).join("\n\n");
+}
+
+/** The api's bound on a filled-in template (`INBOX_TEMPLATE_MAX_CONTENT`). */
+export const TEMPLATE_CONTENT_MAX = 4096;
+
+/** Why the filled-in template is too long, or null. ★The api refuses it as
+ *  TEMPLATE_PARAMS after the click (review R2); the preview already knows. */
+export function templateContentProblem(preview: string): string | null {
+  return preview.length > TEMPLATE_CONTENT_MAX
+    ? `With these values the message is ${preview.length.toLocaleString("en-US")} characters; the most is ${TEMPLATE_CONTENT_MAX.toLocaleString("en-US")}.`
+    : null;
 }
 
 /** Why a template value is not sendable yet, or null when it is. */

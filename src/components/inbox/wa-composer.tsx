@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -15,12 +15,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useWaReply, useWaStudioTemplates } from "@/hooks/use-wa-conversations";
-import { useNow } from "@/hooks/use-now";
 import { listFetchState, showsSkeleton } from "@/lib/list-fetch-state";
+import { createSharedClock, deadlineDelay } from "@/lib/shared-clock";
 import {
   attemptFor,
   clearAfterSend,
   composerMode,
+  maySend,
   mintIdempotencyKey,
   needsResendConfirm,
   pickableTemplates,
@@ -28,6 +29,7 @@ import {
   replySignature,
   replySuccessNote,
   replyWindow,
+  templateContentProblem,
   templateListTruncated,
   templatePayload,
   templatePreview,
@@ -62,15 +64,27 @@ export function useComposerMemory(store: ComposerStore, threadId: string): Compo
   return useSyncExternalStore(store.subscribe, get, get);
 }
 
+/** ★ONE CLOCK for the badge and the composer (review R2): two `useNow`s tick
+ *  at different moments, and near the deadline they disagreed. */
+const WINDOW_CLOCK = createSharedClock(WINDOW_TICK_MS);
+
 /**
- * The 24h window as the badge AND the composer read it. ★ONE HOOK FOR BOTH, so
- * the badge cannot say "2m left" above a composer that the api has already
- * switched to templates. `now` ticks (`useNow`), so both move on an idle page;
- * it is read here rather than at the top of the page, so a tick re-renders the
- * badge and the box, not the whole Inbox.
+ * The 24h window as the badge AND the composer read it. ★ONE HOOK AND ONE
+ * CLOCK FOR BOTH, so the badge cannot say "2m left" above a composer already
+ * switched to templates. The clock ticks, so both move on an idle page; it is
+ * read here rather than at the top of the page, so a tick re-renders the badge
+ * and the box, not the whole Inbox. ★AND IT IS REFRESHED AT THE DEADLINE
+ * ITSELF (review R2), so free text is not offered for up to a tick after the
+ * window closed.
  */
 export function useReplyWindow(store: ComposerStore, threadId: string, endsAt: string | null | undefined): ReplyWindow {
-  const now = useNow(WINDOW_TICK_MS);
+  const now = useSyncExternalStore(WINDOW_CLOCK.subscribe, WINDOW_CLOCK.now, WINDOW_CLOCK.now);
+  useEffect(() => {
+    const ms = deadlineDelay(endsAt, Date.now());
+    if (ms === null) return;
+    const id = setTimeout(WINDOW_CLOCK.refresh, ms);
+    return () => clearTimeout(id);
+  }, [endsAt]);
   const { closedFor } = useComposerMemory(store, threadId);
   return replyWindow(endsAt, now, closedFor);
 }
@@ -142,8 +156,8 @@ export function WaComposer({
     const payload: ReplyPayload = { kind: "text", text: mem.text };
     const problem = textProblem(mem.text);
     const confirm = needsResendConfirm(mem.attempt, replySignature(payload));
-    const submit = () => {
-      if (problem || mem.pending) return;
+    const submit = (via: "button" | "keyboard") => {
+      if (!maySend({ problem, pending: mem.pending, confirm, via })) return;
       void send(payload);
     };
     return (
@@ -156,7 +170,7 @@ export function WaComposer({
           onKeyDown={(e) => {
             if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
               e.preventDefault();
-              submit();
+              submit("keyboard");
             }
           }}
           placeholder="Write to the shopper…"
@@ -167,7 +181,7 @@ export function WaComposer({
           <span className="text-[11px] text-muted-foreground">
             {mem.text.trim().length > REPLY_TEXT_MAX ? problem : `${mem.text.trim().length}/${REPLY_TEXT_MAX}`}
           </span>
-          <Button size="sm" disabled={Boolean(problem) || mem.pending} onClick={submit}>
+          <Button size="sm" disabled={Boolean(problem) || mem.pending} onClick={() => submit("button")}>
             {mem.pending ? "Sending…" : confirm ? "Send again anyway" : "Send"}
           </Button>
         </div>
@@ -183,7 +197,9 @@ export function WaComposer({
   const picked = sendable.find((s) => s.template._id === mem.templateId) ?? null;
   const header = picked ? Array.from({ length: picked.headerCount }, (_, i) => mem.header[i] ?? "") : [];
   const body = picked ? Array.from({ length: picked.bodyCount }, (_, i) => mem.body[i] ?? "") : [];
-  const valueProblem = [...header, ...body].map(templateValueProblem).find(Boolean) ?? null;
+  const preview = picked ? templatePreview(picked.template, header, body) : "";
+  const valueProblem =
+    [...header, ...body].map(templateValueProblem).find(Boolean) ?? (picked ? templateContentProblem(preview) : null);
   const payload: ReplyPayload | null = picked ? templatePayload(picked.template._id, header, body) : null;
   const confirm = payload ? needsResendConfirm(mem.attempt, replySignature(payload)) : false;
 
@@ -219,7 +235,10 @@ export function WaComposer({
       {sendable.length > 0 && (
         <>
           <Select
-            value={mem.templateId ?? undefined}
+            // ★ALWAYS CONTROLLED, and only with an id that is still listed
+            //  (review R2): `undefined` flipped Radix to uncontrolled after a
+            //  send, and a template that left the list kept a stale trigger.
+            value={picked ? picked.template._id : ""}
             onValueChange={(v) => update({ templateId: v, header: [], body: [], error: null, note: null })}
           >
             <SelectTrigger className="w-full" aria-label="Approved template">
@@ -279,7 +298,7 @@ export function WaComposer({
             />
           ))}
           <p className="whitespace-pre-wrap rounded-md bg-muted/40 p-2 text-xs">
-            {templatePreview(picked.template, header, body)}
+            {preview}
           </p>
           <div className="flex items-center justify-between gap-2">
             <span className="text-[11px] text-muted-foreground">{valueProblem ?? ""}</span>
