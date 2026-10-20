@@ -107,6 +107,9 @@ export function useWaStudioTemplates(enabled: boolean) {
     queryKey: ["wa-templates", business?._id ?? "none"],
     queryFn: () => api.get<{ templates: StudioTemplate[] }>("/v1/meta/whatsapp/studio/templates"),
     enabled: enabled && Boolean(business?._id),
+    // ★Each thread opened remounts the composer (review R3); a refusal that
+    //  says the list is stale refetches it explicitly (`refetchTemplates`).
+    staleTime: 60_000,
   });
 }
 

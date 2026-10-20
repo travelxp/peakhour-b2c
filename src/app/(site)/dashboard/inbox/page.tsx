@@ -20,7 +20,7 @@ import {
 } from "@/hooks/use-wa-conversations";
 import { useOrgMembers } from "@/hooks/use-control-plane";
 import { useAuth } from "@/providers/auth-provider";
-import { WaComposer, useReplyWindow } from "@/components/inbox/wa-composer";
+import { WaComposer, useComposerMemory, useReplyWindow } from "@/components/inbox/wa-composer";
 import {
   createComposerStore,
   memberNameLookup,
@@ -476,6 +476,10 @@ function InboxTabs() {
   //  in-flight flag per thread, kept across switching threads or tabs, and
   //  written by a send that settles after its composer unmounted.
   const [composerStore] = useState(createComposerStore);
+  // ★NO HAND-BACK WHILE A REPLY IS IN FLIGHT (review R3): the api escalated
+  //  before sending, and a Resume landing mid-send gives the shopper the AI's
+  //  answer and the person's reply at once.
+  const replyInFlight = useComposerMemory(composerStore, selected ?? "").pending;
   const memberName = memberNameLookup(members.data);
   // ★★HOISTED SO THE BADGE EXISTS BEFORE THE TAB IS OPENED. A count that only
   // appears once you have already looked at the lane is not a count — the
@@ -677,7 +681,7 @@ function InboxTabs() {
                       <Button
                         size="sm"
                         variant="default"
-                        disabled={resume.isPending}
+                        disabled={resume.isPending || replyInFlight}
                         onClick={() =>
                           resume.mutate({ threadId: selected, thread }, {
                             onSuccess: () => toast.success("Handed back — the assistant will reply again."),

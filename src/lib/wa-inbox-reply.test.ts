@@ -28,6 +28,7 @@ import {
   createComposerStore,
   maySend,
   templateContentProblem,
+  errorAfterEdit,
   templateListTruncated,
   templatePayload,
   EMPTY_MEMORY,
@@ -208,14 +209,32 @@ describe("one idempotency key per compose attempt", () => {
     const a = { ...attemptFor(null, sig, mint), unknown: true };
     expect(attemptFor(a, sig, mint).key).not.toBe(a.key);
   });
-  it("the same words after an unknown outcome need a confirm", () => {
-    expect(needsResendConfirm({ sig, key: "k-12345678", unknown: true }, sig)).toBe(true);
-  });
-  it("other words after an unknown outcome need no confirm", () => {
-    expect(needsResendConfirm({ sig, key: "k-12345678", unknown: true }, replySignature({ kind: "text", text: "x" }))).toBe(false);
+  it("a send after an unknown outcome needs a confirm, whatever the words", () => {
+    expect(needsResendConfirm({ sig, key: "k-12345678", unknown: true })).toBe(true);
   });
   it("a known attempt needs no confirm", () => {
-    expect(needsResendConfirm({ sig, key: "k-12345678", unknown: false }, sig)).toBe(false);
+    expect(needsResendConfirm({ sig, key: "k-12345678", unknown: false })).toBe(false);
+  });
+  it("a first send needs no confirm", () => {
+    expect(needsResendConfirm(null)).toBe(false);
+  });
+  it("an edit keeps an unknown outcome's warning", () => {
+    const err = replyErrorCopy(apiErr("REPLY_OUTCOME_UNKNOWN", 409));
+    expect(errorAfterEdit(err, { sig, key: "k-12345678", unknown: true })).toBe(err);
+  });
+  it("an edit clears any other warning", () => {
+    const err = replyErrorCopy(apiErr("TEMPLATE_PARAMS", 400));
+    expect(errorAfterEdit(err, { sig, key: "k-12345678", unknown: false })).toBeNull();
+  });
+  it("a key is minted without a secure-context randomUUID", () => {
+    const k = mintIdempotencyKey({});
+    expect(k).toMatch(/^[A-Za-z0-9._:-]{8,128}$/);
+    expect(mintIdempotencyKey({})).not.toBe(k);
+  });
+  it("a key uses randomUUID where there is one", () => {
+    expect(mintIdempotencyKey({ randomUUID: () => "11111111-2222-3333-4444-555555555555" })).toBe(
+      "inbox-11111111-2222-3333-4444-555555555555",
+    );
   });
   it("edge whitespace does not make new words", () => {
     expect(replySignature({ kind: "text", text: " hi \n" })).toBe(replySignature({ kind: "text", text: "hi" }));
@@ -502,6 +521,8 @@ describe("templates", () => {
   it("a value with a tab is not sendable", () => expect(templateValueProblem("a\tb")).toMatch(/tab/));
   it("a value with a line break is not sendable", () => expect(templateValueProblem("a\nb")).toMatch(/line break/));
   it("a value at the limit is sendable", () => expect(templateValueProblem("x".repeat(1024))).toBeNull());
+  it("a value with five spaces in a row is not sendable", () => expect(templateValueProblem("Order     1")).toMatch(/four spaces/));
+  it("a value with four spaces in a row is sendable", () => expect(templateValueProblem("Order    1")).toBeNull());
   it("a value over the limit is not sendable", () => expect(templateValueProblem("x".repeat(1025))).toMatch(/At most/));
 });
 

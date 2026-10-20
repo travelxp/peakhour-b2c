@@ -16,6 +16,9 @@
  */
 
 import { ApiError } from "@/lib/api";
+import { STUDIO_LIST_CAP } from "@/lib/wa-studio-limits";
+
+export { STUDIO_LIST_CAP };
 
 /** The api's own bound on a free-text reply (`HUMAN_REPLY_MAX_LENGTH`). */
 export const REPLY_TEXT_MAX = 4096;
@@ -24,8 +27,6 @@ export const TEMPLATE_VALUE_MAX = 1024;
 /** The api's bounds on a template's value counts (`zHumanReplyTemplateBody`). */
 export const TEMPLATE_HEADER_VALUES_MAX = 10;
 export const TEMPLATE_BODY_VALUES_MAX = 20;
-/** `GET /studio/templates`'s own `.limit(200)`, by most recently updated. */
-export const STUDIO_LIST_CAP = 200;
 /** How often an escalated thread is re-read, so a shopper's answer shows up
  *  while somebody is replying to them (spec-wa T4: every 5s). */
 export const THREAD_POLL_MS = 5_000;
@@ -255,10 +256,27 @@ export function attemptFor(prev: Attempt | null, sig: string, mint: () => string
   return { sig, key: mint(), unknown: false };
 }
 
-/** Whether Send must first be confirmed: these exact words may already have
- *  reached the shopper. */
-export function needsResendConfirm(prev: Attempt | null, sig: string): boolean {
-  return Boolean(prev && prev.unknown && prev.sig === sig);
+/**
+ * Whether Send must first be confirmed: a reply may already have reached the
+ * shopper and nobody has checked yet.
+ *
+ * ★ANY WORDS, NOT ONLY THE SAME ONES (review R3). Adding a full stop to the
+ * reply that may have arrived made it "new words", which skipped the confirm,
+ * minted a key and could send a near-identical second copy. The warning says
+ * "before sending anything else", and the confirm holds it to that until a
+ * send succeeds.
+ */
+export function needsResendConfirm(prev: Attempt | null): boolean {
+  return Boolean(prev?.unknown);
+}
+
+/**
+ * The error left on screen once the person edits the draft: an unknown outcome
+ * stays (it is about what the shopper may already have), and anything else is
+ * about words that are no longer in the box (review R3).
+ */
+export function errorAfterEdit(error: ReplyErrorCopy | null, prev: Attempt | null): ReplyErrorCopy | null {
+  return prev?.unknown ? error : null;
 }
 
 /**
@@ -291,9 +309,17 @@ export function maySend(args: { problem: string | null; pending: boolean; confir
   return !(args.via === "keyboard" && args.confirm);
 }
 
-/** A key the api accepts (`[A-Za-z0-9._:-]`, 8..128). */
-export function mintIdempotencyKey(): string {
-  return `inbox-${crypto.randomUUID()}`;
+/**
+ * A key the api accepts (`[A-Za-z0-9._:-]`, 8..128).
+ *
+ * ★`crypto.randomUUID` IS ONLY THERE IN A SECURE CONTEXT (review R3). Over
+ * plain http (a LAN address, a staging host) it is undefined, and a throw here
+ * happened before the send's try, so a click did nothing and said nothing. The
+ * fallback is unique enough for a key that is scoped to one thread and words.
+ */
+export function mintIdempotencyKey(rand: { randomUUID?: () => string } | undefined = globalThis.crypto): string {
+  if (typeof rand?.randomUUID === "function") return `inbox-${rand.randomUUID()}`;
+  return `inbox-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}-${Math.random().toString(36).slice(2, 12)}`;
 }
 
 // ── What a refusal means ─────────────────────────────────────────────
@@ -597,6 +623,10 @@ export function templateContentProblem(preview: string): string | null {
 export function templateValueProblem(v: string): string | null {
   if (!v.trim()) return "Fill this in.";
   if (/[\n\t]/.test(v)) return "A value can't contain a line break or a tab.";
+  // ★Meta's own rule (error 132018), which the api does not check (review
+  //  R3): it refuses the value, the api answers SEND_FAILED, and the person is
+  //  told to check for a message that cannot exist.
+  if (/ {5,}/.test(v)) return "A value can't contain more than four spaces in a row.";
   if (v.length > TEMPLATE_VALUE_MAX) return `At most ${TEMPLATE_VALUE_MAX.toLocaleString("en-US")} characters.`;
   return null;
 }

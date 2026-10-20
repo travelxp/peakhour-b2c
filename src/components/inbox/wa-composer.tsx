@@ -21,6 +21,7 @@ import {
   attemptFor,
   clearAfterSend,
   composerMode,
+  errorAfterEdit,
   maySend,
   mintIdempotencyKey,
   needsResendConfirm,
@@ -80,9 +81,20 @@ const WINDOW_CLOCK = createSharedClock(WINDOW_TICK_MS);
 export function useReplyWindow(store: ComposerStore, threadId: string, endsAt: string | null | undefined): ReplyWindow {
   const now = useSyncExternalStore(WINDOW_CLOCK.subscribe, WINDOW_CLOCK.now, WINDOW_CLOCK.now);
   useEffect(() => {
-    const ms = deadlineDelay(endsAt, Date.now());
-    if (ms === null) return;
-    const id = setTimeout(WINDOW_CLOCK.refresh, ms);
+    let id: ReturnType<typeof setTimeout> | undefined;
+    // ★RE-ARMED WHILE THE DEADLINE IS STILL AHEAD (review R3): a timer can
+    //  fire a few ms before `Date.now()` reaches it (clock adjustments, sleep,
+    //  coarsened timers), and a single shot then left free text on offer until
+    //  the next 30s tick.
+    const arm = () => {
+      const ms = deadlineDelay(endsAt, Date.now());
+      if (ms === null) return;
+      id = setTimeout(() => {
+        WINDOW_CLOCK.refresh();
+        arm();
+      }, ms);
+    };
+    arm();
     return () => clearTimeout(id);
   }, [endsAt]);
   const { closedFor } = useComposerMemory(store, threadId);
@@ -155,7 +167,7 @@ export function WaComposer({
   if (mode.kind === "text") {
     const payload: ReplyPayload = { kind: "text", text: mem.text };
     const problem = textProblem(mem.text);
-    const confirm = needsResendConfirm(mem.attempt, replySignature(payload));
+    const confirm = needsResendConfirm(mem.attempt);
     const submit = (via: "button" | "keyboard") => {
       if (!maySend({ problem, pending: mem.pending, confirm, via })) return;
       void send(payload);
@@ -166,7 +178,7 @@ export function WaComposer({
         {status_}
         <Textarea
           value={mem.text}
-          onChange={(e) => update({ text: e.target.value })}
+          onChange={(e) => update((cur) => ({ text: e.target.value, error: errorAfterEdit(cur.error, cur.attempt) }))}
           onKeyDown={(e) => {
             if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
               e.preventDefault();
@@ -201,7 +213,7 @@ export function WaComposer({
   const valueProblem =
     [...header, ...body].map(templateValueProblem).find(Boolean) ?? (picked ? templateContentProblem(preview) : null);
   const payload: ReplyPayload | null = picked ? templatePayload(picked.template._id, header, body) : null;
-  const confirm = payload ? needsResendConfirm(mem.attempt, replySignature(payload)) : false;
+  const confirm = needsResendConfirm(mem.attempt);
 
   return (
     <div className="space-y-2 border-t p-3">
@@ -239,7 +251,9 @@ export function WaComposer({
             //  (review R2): `undefined` flipped Radix to uncontrolled after a
             //  send, and a template that left the list kept a stale trigger.
             value={picked ? picked.template._id : ""}
-            onValueChange={(v) => update({ templateId: v, header: [], body: [], error: null, note: null })}
+            onValueChange={(v) =>
+              update((cur) => ({ templateId: v, header: [], body: [], error: errorAfterEdit(cur.error, cur.attempt), note: null }))
+            }
           >
             <SelectTrigger className="w-full" aria-label="Approved template">
               <SelectValue placeholder="Pick an approved template" />
@@ -280,7 +294,7 @@ export function WaComposer({
               onChange={(e) => {
                 const next = [...header];
                 next[i] = e.target.value;
-                update({ header: next });
+                update((cur) => ({ header: next, error: errorAfterEdit(cur.error, cur.attempt) }));
               }}
             />
           ))}
@@ -293,7 +307,7 @@ export function WaComposer({
               onChange={(e) => {
                 const next = [...body];
                 next[i] = e.target.value;
-                update({ body: next });
+                update((cur) => ({ body: next, error: errorAfterEdit(cur.error, cur.attempt) }));
               }}
             />
           ))}

@@ -22,7 +22,7 @@ import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { PageShell } from "@/components/dashboard/page-shell";
-import { STUDIO_LIST_CAP } from "@/lib/wa-inbox-reply";
+import { STUDIO_LIST_CAP } from "@/lib/wa-studio-limits";
 import {
   addLanguageProblem,
   groupByName,
@@ -76,9 +76,6 @@ interface Editor {
 }
 
 const STUDIO = "/v1/meta/whatsapp/studio";
-/** ★THE API'S OWN `.limit(200)` ON `GET /templates`, transcribed so the page can
- *  say when it is showing a truncated list rather than miscount a group. */
-const TEMPLATE_LIST_CAP = STUDIO_LIST_CAP;
 const EMPTY_EDITOR: Editor = {
   name: "",
   language: "en",
@@ -751,9 +748,12 @@ export default function WhatsAppTemplatesPage() {
                 away. ★Nothing here can detect which group lost a row, so it says
                 the list is incomplete rather than letting a count assert
                 something it cannot know. */}
-            {templates.length >= TEMPLATE_LIST_CAP ? (
+            {/* ★THE API'S OWN `.limit(200)` ON `GET /templates` (`STUDIO_LIST_CAP`),
+                so the page says when it is showing a truncated list rather than
+                miscount a group. */}
+            {templates.length >= STUDIO_LIST_CAP ? (
               <p className="mt-1 text-xs text-warning-on-tint">
-                Showing the {TEMPLATE_LIST_CAP} most recently updated templates. Older ones are
+                Showing the {STUDIO_LIST_CAP} most recently updated templates. Older ones are
                 not listed, so a language count here may be short.
               </p>
             ) : null}
