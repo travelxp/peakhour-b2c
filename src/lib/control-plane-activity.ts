@@ -81,7 +81,8 @@ interface OutcomeCopy {
 /**
  * Every outcome `plt_activity` can hold, and what a merchant reads.
  *
- * ⚠️★★ELEVEN, AND THE TWELFTH IS ABSENT ON PURPOSE. `duplicate_skipped` is a
+ * ⚠️★★TWELVE SINCE mongodb MIGRATION 392 ADDED `conversation` (it was eleven),
+ * AND `duplicate_skipped` IS ABSENT ON PURPOSE. `duplicate_skipped` is a
  * `PlatformInboundOutcome` that the ledger deliberately never writes — *"a
  * redelivery is not a second event"* — so a bucket for it here would be copy
  * for a row that cannot arrive.
@@ -92,7 +93,7 @@ interface OutcomeCopy {
  *
  * ⚠️★AN UNKNOWN KEY IS RENDERED, NOT DROPPED. See `activityCopy`: this map is a
  * COPY of an enum in another repo, and the one thing a ledger must never do is
- * silently lose a line because a twelfth outcome shipped before this file
+ * silently lose a line because a new outcome shipped before this file
  * heard about it.
  */
 const OUTCOME_COPY: Record<string, OutcomeCopy> = {
@@ -128,6 +129,21 @@ const OUTCOME_COPY: Record<string, OutcomeCopy> = {
     //  prove is real would empty the word of meaning.
     group: "Message",
     what: "Sent a message that was not an instruction",
+    refused: false,
+  },
+  conversation: {
+    // ★WHAT `not_a_command` BECOMES (mongodb migration 392, WhatsApp plan M1).
+    //  392 rewrites every stored `not_a_command` row to this value, and from
+    //  api M3 the merchant agent answers the turn conversationally. ⏸api keeps
+    //  writing `not_a_command` until M3, so both keys stay in this map.
+    //  🚫NOT "Blocked", for the reason above: chatter was refused nothing.
+    //  ⚠️★THE SENTENCE CLAIMS NO MORE THAN A REWRITTEN ROW CAN PROVE. A stored
+    //  `not_a_command` meant chatter OR a registered trigger the router
+    //  declined, and 392 cannot tell them apart, so this does not say what
+    //  Peakhour replied. It does say nothing ran, because 392 forbids
+    //  `confirmed` on this outcome: a conversation acts on nothing.
+    group: "Message",
+    what: "Chatted with Peakhour — no instruction was run",
     refused: false,
   },
   command_handled: {
@@ -200,8 +216,9 @@ export interface ActivityCopy {
  * ── ⚠️★★AND AN UNKNOWN OUTCOME RENDERS TOO ───────────────────────────────
  *
  * `OUTCOME_COPY` is a copy of an enum that lives in two other repos and is
- * checked by neither compiler. `plt_activity.zod.ts` says adding a twelfth
- * outcome is a migration, and this file would learn about it late. **A ledger
+ * checked by neither compiler. `plt_activity.zod.ts` says adding an
+ * outcome is a migration, and this file would learn about it late (392's
+ * `conversation` did). **A ledger
  * that dropped the line would hide exactly the event somebody added an outcome
  * to make visible**, so an unrecognised outcome renders under "Activity" with
  * its own key as the sentence.

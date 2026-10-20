@@ -86,10 +86,25 @@ describe("activityCopy — §07's left column and 'what'", () => {
     expect(c.refused).toBe(false);
   });
 
+  it("files a conversation as Chatted with Peakhour — no instruction was run, under Message", () => {
+    // ★★mongodb 392 REWRITES EVERY STORED `not_a_command` ROW TO
+    //  `conversation`. Without its own entry a rewritten row fell through to
+    //  the unknown-outcome fallback: group "Activity", sentence "conversation".
+    //  ⚠️It sits beside `not_a_command`, never under Blocked, and its sentence
+    //  says nothing about the reply: a rewritten row may have been a declined
+    //  trigger, which 392 cannot tell from chatter.
+    const c = activityCopy(row({ outcome: "conversation" }), DOMAINS);
+    expect(c.group).toBe("Message");
+    expect(c.what).toBe("Chatted with Peakhour — no instruction was run");
+    expect(c.refused).toBe(false);
+    expect(c.group).toBe(activityCopy(row({ outcome: "not_a_command" }), DOMAINS).group);
+  });
+
   it("marks every refusal and no other outcome", () => {
     const refused = ["unknown_sender", "no_longer_a_member", "ambiguous_business", "command_denied"];
     const notRefused = [
       "not_a_command",
+      "conversation",
       "command_handled",
       "command_silent",
       "confirmation_requested",
@@ -105,8 +120,8 @@ describe("activityCopy — §07's left column and 'what'", () => {
     }
   });
 
-  it("covers exactly the ELEVEN outcomes plt_activity stores", () => {
-    // ⚠️★★THE COLLECTION'S ENUM IS ELEVEN OF api's TWELVE. `duplicate_skipped`
+  it("covers exactly the TWELVE outcomes plt_activity stores", () => {
+    // ⚠️★★TWELVE SINCE mongodb 392 ADDED `conversation`; `duplicate_skipped`
     //  is a `PlatformInboundOutcome` the ledger deliberately never writes — *"a
     //  redelivery is not a second event"* — so copy for it would be copy for a
     //  row that cannot arrive. 🚫And `owner_only` / `not_your_domain` are
@@ -117,6 +132,7 @@ describe("activityCopy — §07's left column and 'what'", () => {
       "ambiguous_business",
       "command_denied",
       "not_a_command",
+      "conversation",
       "command_handled",
       "command_silent",
       "confirmation_requested",
@@ -135,7 +151,7 @@ describe("activityCopy — §07's left column and 'what'", () => {
 
   it("RENDERS an outcome it has never heard of rather than dropping the line", () => {
     // ★★THIS MAP IS A COPY OF AN ENUM IN TWO OTHER REPOS AND NO COMPILER CHECKS
-    //  IT. A twelfth outcome ships as a migration, and this file learns late —
+    //  IT. A new outcome ships as a migration, and this file learns late —
     //  so the line renders with its raw outcome rather than vanishing. **A
     //  ledger that hides the event somebody added an outcome to make visible is
     //  the one failure this surface cannot have.**
@@ -170,6 +186,7 @@ describe("activityCopy — §07's left column and 'what'", () => {
       "ambiguous_business",
       "command_denied",
       "not_a_command",
+      "conversation",
       "command_handled",
       "command_silent",
       "confirmation_requested",
