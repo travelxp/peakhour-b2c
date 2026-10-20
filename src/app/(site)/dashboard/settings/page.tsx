@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
@@ -127,6 +127,8 @@ function SettingsContent() {
 
   // Edit state
   const [editingBusiness, setEditingBusiness] = useState(false);
+  // Which /v1/dashboard/org fetch is the latest (the details effect).
+  const detailsRequest = useRef(0);
   const [saving, setSaving] = useState(false);
   const [rescanning, setRescanning] = useState(false);
   const [editName, setEditName] = useState("");
@@ -228,26 +230,29 @@ function SettingsContent() {
   useEffect(() => {
     if (!org?._id) return;
     // ★Per business (P4.3b): the plan row reads this business's own lines
-    //  (api#1510), so a switch to a sibling business refetches, and ★a
-    //  response for the business switched away from is dropped: landing
-    //  after the new one, it would name the sibling's plan (review R1).
-    let stale = false;
+    //  (api#1510), so a switch to a sibling business refetches, and ★only
+    //  the LATEST request lands: a response for the business switched away
+    //  from, arriving after the new one, would name the sibling's plan
+    //  (review R1). A request superseded by no other (the next run returned
+    //  early) still lands, so `loading` always clears (review R3).
+    const request = ++detailsRequest.current;
+    const latest = () => request === detailsRequest.current;
+    // ★An edit open on the previous business is closed: its fields hold
+    //  that business's values, and Save would PUT them to this one (R3).
+    setEditingBusiness(false);
     setLoading(true);
     setError("");
     api
       .get<OrgDetails>("/v1/dashboard/org")
       .then((d) => {
-        if (!stale) setOrgDetails(d);
+        if (latest()) setOrgDetails(d);
       })
       .catch(() => {
-        if (!stale) setError("Failed to load settings. Please try again.");
+        if (latest()) setError("Failed to load settings. Please try again.");
       })
       .finally(() => {
-        if (!stale) setLoading(false);
+        if (latest()) setLoading(false);
       });
-    return () => {
-      stale = true;
-    };
   }, [org?._id, business?._id]);
 
   if (loading) {
