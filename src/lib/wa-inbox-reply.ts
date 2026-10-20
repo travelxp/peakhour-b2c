@@ -272,10 +272,21 @@ export function needsResendConfirm(prev: Attempt | null): boolean {
  * The attempt a refused send leaves behind: marked unknown when the outcome is
  * unknown, dropped (the next send mints a key, with no confirm) when nothing
  * was certainly sent, and otherwise the same key.
+ *
+ * ★A CONFIRMED RESEND THAT WAS REFUSED STAYS CONFIRMABLE (review R2). `prev`
+ * is the attempt before this send. When it was unknown, the earlier reply may
+ * still have reached the shopper, and a refusal of this one says nothing about
+ * that one. So the confirm holds, as `needsResendConfirm` promises, until a
+ * send succeeds.
  */
-export function attemptAfterError(sent: Attempt, copy: Pick<ReplyErrorCopy, "attempt">): Attempt | null {
+export function attemptAfterError(
+  sent: Attempt,
+  copy: Pick<ReplyErrorCopy, "attempt">,
+  prev: Attempt | null = null,
+): Attempt | null {
   if (copy.attempt === "unknown") return { ...sent, unknown: true };
-  return copy.attempt === "fresh" ? null : sent;
+  if (copy.attempt !== "fresh") return sent;
+  return prev?.unknown ? { ...sent, unknown: true } : null;
 }
 
 /**
@@ -356,9 +367,11 @@ function serverMessage(err: ApiError, fallback: string): string {
 }
 
 /** Ends a sentence the api may have left open: Meta's reasons arrive without a
- *  full stop. A stop already there may sit inside a closing quote or bracket. */
+ *  full stop. A stop already there may sit inside a closing quote or bracket;
+ *  a trailing colon, semicolon, comma or dash gives way to the stop. */
 function asSentence(s: string): string {
-  return /[.!?…]["'”’)\]]*$/.test(s) ? s : `${s}.`;
+  if (/[.!?…]["'”’)\]]*$/.test(s)) return s;
+  return `${s.replace(/[\s:;,\-–—]+$/, "")}.`;
 }
 
 /**
@@ -442,7 +455,9 @@ export function replyErrorCopy(err: unknown, kind: ReplyPayload["kind"] = "text"
           ...base,
           attempt: "unknown",
           title: "This reply may not have been sent",
-          detail: /before sending it again/i.test(said) ? said : `${said} Check this conversation before sending it again.`,
+          detail: /check (?:the|this) conversation before sending it again/i.test(said)
+            ? said
+            : `${said} Check this conversation before sending it again.`,
         };
       }
     case "OUTSIDE_24H":
@@ -718,21 +733,27 @@ export function resumeBody(thread: { statusVersion?: unknown } | null | undefine
 }
 
 /**
- * What a refused Resume says.
+ * What a refused Resume ("hand back") or Take over says.
  *
  * ★A STALE VIEW'S 409 `STATUS_CHANGED` IS SHOWN IN THE API'S OWN WORDS
  * (api#1530: "taken over after you last loaded it, so it is still with a team
  * member"), because it names what happened and that nothing was changed. The
- * thread is re-read after any Resume (`useWaResume`), so the pane catches up
- * and a second click is judged against the latest version, not the same 409.
+ * thread is re-read after either action (`useWaResume`, `useWaHandoff`), so
+ * the pane catches up and a second click is judged against the latest
+ * version, not the same 409. ★The fallback does not claim the re-read has
+ * landed (review R2): it may be paused offline.
+ *
+ * ★NO ANSWER IS NOT A REFUSAL (review R2). A lost connection or an unreadable
+ * answer may have changed the status, so it says so rather than showing the
+ * browser's "Failed to fetch".
  */
-export function resumeErrorMessage(err: unknown): string {
-  if (err instanceof ApiError) {
+export function statusErrorMessage(err: unknown, action: "hand back" | "take over"): string {
+  if (err instanceof ApiError && err.code !== "PARSE_ERROR") {
     return err.code === "STATUS_CHANGED"
-      ? serverMessage(err, "This conversation changed after you last loaded it, so it was left as it is. It now shows the latest.")
-      : serverMessage(err, "Couldn't hand back");
+      ? serverMessage(err, "This conversation changed after you last loaded it, so it was left as it is. Check where it stands before trying again.")
+      : serverMessage(err, `Couldn't ${action}`);
   }
-  return (err instanceof Error && err.message?.trim()) || "Couldn't hand back";
+  return `We couldn't confirm whether the ${action === "hand back" ? "hand-back" : "take-over"} went through. Check this conversation's status before trying again.`;
 }
 
 // ── The composer's memory ────────────────────────────────────────────

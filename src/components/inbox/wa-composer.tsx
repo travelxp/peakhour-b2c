@@ -134,7 +134,8 @@ export function WaComposer({
 
   async function send(payload: ReplyPayload) {
     const sig = replySignature(payload);
-    const attempt = attemptFor(store.get(threadId).attempt, sig, mintIdempotencyKey);
+    const prev = store.get(threadId).attempt;
+    const attempt = attemptFor(prev, sig, mintIdempotencyKey);
     update({ attempt, error: null, note: null, pending: true });
     try {
       const res = await reply.mutateAsync({ payload, idempotencyKey: attempt.key });
@@ -145,7 +146,7 @@ export function WaComposer({
       const copy = replyErrorCopy(e, payload.kind);
       update({
         error: copy,
-        attempt: attemptAfterError(attempt, copy),
+        attempt: attemptAfterError(attempt, copy, prev),
         pending: false,
         ...(copy.closesWindow && endsAt ? { closedFor: endsAt } : {}),
       });
