@@ -216,6 +216,45 @@ export async function getActivity(
   return api.get<ActivityPage>(`/v1/control-plane/activity${suffix}`);
 }
 
+// ── Conversation (WA M6) ──────────────────────────────────────────────────
+
+/**
+ * One line of the signed-in user's own WhatsApp conversation with Peakhour
+ * (`GET /v1/control-plane/conversation`, api#1529). The payload carries no
+ * number and no thread id.
+ */
+export interface ConversationMessage {
+  sender: "merchant" | "peakhour";
+  /** 1..10000 characters. */
+  text: string;
+  /** ISO. */
+  sentAt: string;
+}
+
+/**
+ * One page, OLDEST FIRST. `nextCursor` fetches the page of OLDER messages and
+ * is null when there are none. Its format belongs to the api, so the client
+ * only hands it back.
+ */
+export interface ConversationPage {
+  messages: ConversationMessage[];
+  nextCursor: string | null;
+}
+
+/**
+ * The caller's own conversation on the current business. The api's query is
+ * strict (an unknown parameter is a 400), so this sends `cursor` and nothing
+ * else: no limit (the api's default of 50 is the page size) and no cache-buster.
+ */
+export async function getConversation(
+  cursor: string | null,
+): Promise<ConversationPage> {
+  return api.get<ConversationPage>(
+    "/v1/control-plane/conversation",
+    cursor ? { cursor } : undefined,
+  );
+}
+
 // ── Calls ─────────────────────────────────────────────────────────────────
 
 /** ★NOT business-scoped, and the api agrees: the registry is global. This
