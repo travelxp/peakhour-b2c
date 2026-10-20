@@ -267,21 +267,22 @@ export function offerBadge(p: PricingEntry): string | null {
   const y = hasYearlyOffer(p) ? p.yearlyDiscountPct : 0;
   if (!m && !y) return null;
   const labels = offerLabels(p);
-  const named = withLabel;
   if (m && y) {
     if (labels.monthly === labels.yearly) {
-      return named(labels.monthly, m === y ? `${m}% off` : `${m}% off monthly, ${y}% yearly`);
+      return withLabel(labels.monthly, m === y ? `${m}% off` : `${m}% off monthly, ${y}% yearly`);
     }
-    return `${named(labels.monthly, `${m}% off monthly`)}; ${named(labels.yearly, `${y}% off yearly`)}`;
+    return `${withLabel(labels.monthly, `${m}% off monthly`)}; ${withLabel(labels.yearly, `${y}% off yearly`)}`;
   }
-  return m ? named(labels.monthly, `${m}% off monthly`) : named(labels.yearly, `${y}% off yearly`);
+  return m ? withLabel(labels.monthly, `${m}% off monthly`) : withLabel(labels.yearly, `${y}% off yearly`);
 }
 
 /**
  * The yearly price line every card renders: the price charged, and the list
  * price to strike through beside it when the YEARLY term has its own offer
  * (`list` null otherwise), and `offer`: that offer as the badge says it, the
- * campaign's label beside its percent ("Agency launch · 20% off"), or null
+ * campaign's label beside its percent and term ("Agency launch · 20% off yearly"; the
+ * term, because the Agency card also sells quarterly, which this offer does not
+ * cover), or null
  * without an offer. Never the label alone: a name is said only beside the
  * percent it explains (review R1 on b2c#594). Null when there is no yearly
  * price at all. One helper, so the Suite card and the plan cards cannot read
@@ -295,7 +296,7 @@ export function yearlyPrice(
     ? {
         price: formatOfferYearly(p),
         list: formatYearly(p),
-        offer: withLabel(offerLabels(p).yearly, `${p.yearlyDiscountPct}% off`),
+        offer: withLabel(offerLabels(p).yearly, `${p.yearlyDiscountPct}% off yearly`),
       }
     : { price: formatYearly(p), list: null, offer: null };
 }

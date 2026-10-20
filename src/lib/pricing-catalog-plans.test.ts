@@ -100,7 +100,8 @@ describe("agencyCardPrice: Agency is sold quarterly and yearly, never monthly (D
     expect(agencyCardPrice(tier("agency", { yearly: 250000, yearlyDiscountPct: 20, yearlyCampaignLabel: "Agency launch" }))).toMatchObject({
       price: "₹200,000",
       list: "₹250,000",
-      offer: "Agency launch · 20% off",
+      // The term, because the card also sells quarterly, which this offer does not cover.
+      offer: "Agency launch · 20% off yearly",
     });
   });
 

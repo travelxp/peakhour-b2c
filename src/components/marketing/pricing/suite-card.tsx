@@ -111,6 +111,7 @@ export function SuiteCard({
             {yearly.list ? (
               <>
                 {yearly.price} billed yearly{" "}
+                <span className="sr-only">, normally </span>
                 <span className="line-through">{yearly.list}</span>
               </>
             ) : (

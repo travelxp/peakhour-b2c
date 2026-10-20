@@ -150,13 +150,13 @@ describe("offerLabels: a term's label is said only beside its own offer", () => 
 
 describe("yearlyPrice: the line every card renders", () => {
   it("the yearly price with the list struck through and its campaign named beside its percent when the yearly term has an offer", () => {
-    expect(yearlyPrice(entry({ yearlyDiscountPct: 50 }))).toEqual({ price: "₹24,999", list: "₹49,999", offer: `${FOUNDING} · 50% off` });
+    expect(yearlyPrice(entry({ yearlyDiscountPct: 50 }))).toEqual({ price: "₹24,999", list: "₹49,999", offer: `${FOUNDING} · 50% off yearly` });
   });
   it("the list price alone, unnamed, under a MONTHLY-only campaign", () => {
     expect(yearlyPrice(entry({ monthlyDiscountPct: 50, yearlyDiscountPct: 0 }))).toEqual({ price: "₹49,999", list: null, offer: null });
   });
   it("a yearly offer whose campaign has no label still strikes the list through, and says its percent alone", () => {
-    expect(yearlyPrice(entry({ yearlyCampaignLabel: null }))).toEqual({ price: "₹24,999", list: "₹49,999", offer: "50% off" });
+    expect(yearlyPrice(entry({ yearlyCampaignLabel: null }))).toEqual({ price: "₹24,999", list: "₹49,999", offer: "50% off yearly" });
   });
   it("nothing without a yearly price", () => {
     expect(yearlyPrice(entry({ yearly: 0 }))).toBeNull();
