@@ -24,8 +24,10 @@ function entry(over: Partial<PricingEntry> = {}): PricingEntry {
     monthly: 4999,
     yearly: 49999,
     trialDays: 14,
-    foundingDiscountPct: 0,
+    monthlyDiscountPct: 0,
     yearlyDiscountPct: 0,
+    monthlyCampaignLabel: null,
+    yearlyCampaignLabel: null,
     billingProviderKey: "razorpay",
     taxIncluded: false,
     gstApplicable: true,
@@ -90,14 +92,16 @@ describe("the Suite CTA names the trial it starts", () => {
 describe("agencyCardPrice: Agency is sold quarterly and yearly, never monthly (D5)", () => {
   it("quotes the year, never the monthly figure", () => {
     const p = agencyCardPrice(AGENCY);
-    expect(p).toEqual({ price: "₹249,999", list: null, per: "/ year per business, or billed quarterly" });
+    expect(p).toEqual({ price: "₹249,999", list: null, offer: null, per: "/ year per business, or billed quarterly" });
     expect(JSON.stringify(p)).not.toContain("24,999");
   });
 
-  it("strikes the list price through under a yearly campaign", () => {
-    expect(agencyCardPrice(tier("agency", { yearly: 250000, yearlyDiscountPct: 20 }))).toMatchObject({
+  it("strikes the list price through under a yearly campaign, named by that campaign beside its percent", () => {
+    expect(agencyCardPrice(tier("agency", { yearly: 250000, yearlyDiscountPct: 20, yearlyCampaignLabel: "Agency launch" }))).toMatchObject({
       price: "₹200,000",
       list: "₹250,000",
+      // The term, because the card also sells quarterly, which this offer does not cover.
+      offer: "Agency launch · 20% off yearly",
     });
   });
 
