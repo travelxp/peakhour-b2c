@@ -1,0 +1,557 @@
+/**
+ * WA T4: the Inbox composer's decisions, kept out of the markup so each one can
+ * be tested with a fixed clock and a fixed error.
+ *
+ * Contract: api#1528 (WA T3), `POST /v1/meta/whatsapp/conversations/:threadId/reply`
+ * and `/reply-template`, and the thread read's `replyWindowEndsAt`, `source`
+ * and `authorUserId`.
+ *
+ * ★★THE ONE RULE EVERY FUNCTION HERE SERVES: A REPLY MUST NEVER REACH A SHOPPER
+ * TWICE BECAUSE OF SOMETHING THIS SCREEN SAID. The api makes a repeat of the
+ * same idempotency key and the same words harmless (it answers from the first
+ * attempt), so the composer keeps the key for as long as the words are the
+ * same, and the copy only ever invites a resend when the key makes it safe.
+ *
+ * @package peakhour-b2c
+ */
+
+import { ApiError } from "@/lib/api";
+
+/** The api's own bound on a free-text reply (`HUMAN_REPLY_MAX_LENGTH`). */
+export const REPLY_TEXT_MAX = 4096;
+/** The api's bound on one template value (`zTemplateValue`). */
+export const TEMPLATE_VALUE_MAX = 1024;
+/** How often an escalated thread is re-read, so a shopper's answer shows up
+ *  while somebody is replying to them (spec-wa T4: every 5s). */
+export const THREAD_POLL_MS = 5_000;
+/** How often the 24h badge re-reads the clock. Its finest unit is a minute. */
+export const WINDOW_TICK_MS = 30_000;
+
+// ── The 24-hour window ───────────────────────────────────────────────
+
+export interface ReplyWindow {
+  /** Free text is allowed. */
+  open: boolean;
+  label: string;
+  tone: "ok" | "warning" | "closed";
+}
+
+const MINUTE = 60_000;
+const HOUR = 60 * MINUTE;
+
+/**
+ * The 24-hour customer-service window, as the api judges it.
+ *
+ * ★OPEN ONLY WHILE `now < endsAt`: the api's rule is
+ * `now - lastInboundAt < 24h`, so the instant itself is closed. A null
+ * `replyWindowEndsAt` means the window never opened; an unparseable one is
+ * read the same way, never as open.
+ *
+ * ★`now` IS A PARAMETER, from a ticking clock (`useNow`). An idle page does not
+ * re-render, and a poll that returns the same thread does not re-render it
+ * either, so a badge reading `Date.now()` in render would keep "1h left" on a
+ * window that closed an hour ago.
+ *
+ * ★THE LABEL ROUNDS DOWN. "3h left" with 3h59m to go understates; "4h left"
+ * with 3h01m to go is a promise the api will break.
+ */
+export function replyWindow(endsAt: string | null | undefined, now: number): ReplyWindow {
+  const end = endsAt ? Date.parse(endsAt) : NaN;
+  if (!Number.isFinite(end) || now >= end) {
+    return { open: false, label: "24h window closed", tone: "closed" };
+  }
+  const left = end - now;
+  if (left >= HOUR) {
+    return { open: true, label: `${Math.floor(left / HOUR)}h left to reply`, tone: left < 2 * HOUR ? "warning" : "ok" };
+  }
+  if (left >= MINUTE) {
+    return { open: true, label: `${Math.floor(left / MINUTE)}m left to reply`, tone: "warning" };
+  }
+  return { open: true, label: "Under a minute left to reply", tone: "warning" };
+}
+
+// ── Who wrote each message ───────────────────────────────────────────
+
+export interface SenderContext {
+  contactName: string | null;
+  currentUserId: string | null;
+  /** A team member's display name, or null when we cannot name them. */
+  memberName: (userId: string) => string | null;
+}
+
+export interface MessageLike {
+  role: string;
+  source?: "phone" | "inbox";
+  authorUserId?: string | null;
+}
+
+/**
+ * Who sent a message, as the bubble labels it.
+ *
+ * ★A MERCHANT LINE HAS TWO ORIGINS AND THEY ARE NOT THE SAME PERSON. `phone` is
+ * the business's own WhatsApp app (a coexistence echo), which any of the team
+ * may be holding, so it is not "You". `inbox` names its author where the api
+ * recorded one (`authorUserId`); a reply from the Shopify admin records none,
+ * and a member we cannot look up is "a team member" rather than a guess.
+ */
+export function senderLabel(m: MessageLike, ctx: SenderContext): string {
+  if (m.role === "user") return ctx.contactName?.trim() || "Shopper";
+  if (m.role === "assistant") return "Peakhour AI";
+  if (m.source === "inbox") {
+    const id = m.authorUserId ?? null;
+    if (id && ctx.currentUserId && id === ctx.currentUserId) return "You · Inbox";
+    const name = id ? ctx.memberName(id) : null;
+    return `${name || "A team member"} · Inbox`;
+  }
+  return "Business phone";
+}
+
+/** `SenderContext.memberName` from the org's member list (`GET /v1/auth/team/members`):
+ *  the name, else the email, else null. */
+export function memberNameLookup(
+  members: Array<{ userId: string; name: string | null; email: string }> | undefined,
+): (userId: string) => string | null {
+  return (userId) => {
+    const m = members?.find((x) => x.userId === userId);
+    return m?.name?.trim() || m?.email?.trim() || null;
+  };
+}
+
+// ── "Replying as" ────────────────────────────────────────────────────
+
+/** The phone-number id a thread belongs to: `whatsapp:<phoneNumberId>:<waId>`. */
+export function threadPhoneNumberId(threadId: string): string | null {
+  const parts = threadId.split(":");
+  if (parts.length < 3 || parts[0] !== "whatsapp" || !parts[1]) return null;
+  return parts[1];
+}
+
+export interface ConnectionLike {
+  phoneNumberId?: string;
+  phoneNumber?: string;
+}
+
+/**
+ * The line above the composer.
+ *
+ * ★THE NUMBER IS NAMED ONLY WHEN THE CONNECTION'S NUMBER IS THE THREAD'S. The
+ * api sends from the thread's own number, never from the client's choice, so
+ * naming the connection's display number for a thread on another number would
+ * tell the merchant the reply comes from somewhere it does not.
+ */
+export function replyingAsLine(threadId: string, conn: ConnectionLike | null | undefined): string {
+  const pnid = threadPhoneNumberId(threadId);
+  if (pnid && conn?.phoneNumberId === pnid && conn.phoneNumber?.trim()) {
+    return `Replying as ${conn.phoneNumber.trim()}`;
+  }
+  return "Replying from your WhatsApp Business number";
+}
+
+// ── What the composer offers ─────────────────────────────────────────
+
+const ROLE_RANK: Record<string, number> = { owner: 40, admin: 30, editor: 20, viewer: 10 };
+
+/** The api's `requireRole("editor")`: editor, admin or owner. */
+export function canReply(role: string | null | undefined): boolean {
+  return (ROLE_RANK[role ?? ""] ?? 0) >= ROLE_RANK.editor;
+}
+
+export type ComposerMode =
+  | { kind: "readonly"; reason: string }
+  | { kind: "takeover"; reason: string }
+  | { kind: "text" }
+  | { kind: "template"; reason: string };
+
+/**
+ * What sits under the message pane.
+ *
+ * ★ONLY AN ESCALATED THREAD IS REPLIED TO (spec-wa T4). The api would take an
+ * active thread over on the first send, but a composer under a conversation
+ * the assistant is still answering invites two voices at once; Take over is
+ * the deliberate step.
+ */
+export function composerMode(args: { status: string; role: string | null | undefined; window: ReplyWindow }): ComposerMode {
+  if (!canReply(args.role)) {
+    return {
+      kind: "readonly",
+      reason: "You can read this conversation, but replying to shoppers needs Editor access or above.",
+    };
+  }
+  if (args.status !== "escalated") {
+    return {
+      kind: "takeover",
+      reason: "Take over to reply. The assistant stops answering this shopper while you do.",
+    };
+  }
+  if (args.window.open) return { kind: "text" };
+  return {
+    kind: "template",
+    reason:
+      "It has been more than 24 hours since this shopper last messaged, so WhatsApp only allows an approved template.",
+  };
+}
+
+// ── One idempotency key per compose attempt ──────────────────────────
+
+export interface Attempt {
+  /** The words this key was minted for (`replySignature`). */
+  sig: string;
+  key: string;
+  /** The api answered REPLY_OUTCOME_UNKNOWN for this key: it will never send
+   *  under it again, and a fresh key is a deliberate second send. */
+  unknown: boolean;
+}
+
+export type ReplyPayload =
+  | { kind: "text"; text: string }
+  | { kind: "template"; templateId: string; params?: { header?: string[]; body?: string[] } };
+
+/**
+ * The words a key is bound to, as the api binds them (`payloadOf`): the text,
+ * or the template id and its values.
+ *
+ * ★THE TEXT IS TRIMMED HERE AND IN WHAT IS SENT. The api does not trim, so "hi"
+ * and "hi " are two replies to it; a space added while waiting on a lost
+ * connection would otherwise mint a new key and send the reply twice.
+ */
+export function replySignature(p: ReplyPayload): string {
+  return p.kind === "text"
+    ? JSON.stringify(["text", p.text.trim()])
+    : JSON.stringify(["template", p.templateId.toLowerCase(), p.params?.header ?? [], p.params?.body ?? []]);
+}
+
+/**
+ * The attempt a send goes out under.
+ *
+ * ★THE SAME WORDS KEEP THE SAME KEY, so pressing Send again after a lost
+ * connection, a SEND_FAILED or a double click asks the api about the first
+ * attempt instead of making a second. New words get a new key. A key the api
+ * called unknown is never reused (it answers "unknown" for ever); the caller
+ * asks the person to confirm before this mints its replacement.
+ */
+export function attemptFor(prev: Attempt | null, sig: string, mint: () => string): Attempt {
+  if (prev && prev.sig === sig && !prev.unknown) return prev;
+  return { sig, key: mint(), unknown: false };
+}
+
+/** Whether Send must first be confirmed: these exact words may already have
+ *  reached the shopper. */
+export function needsResendConfirm(prev: Attempt | null, sig: string): boolean {
+  return Boolean(prev && prev.unknown && prev.sig === sig);
+}
+
+/**
+ * The request a send makes (api#1528). ★The text goes out trimmed, the same
+ * words `replySignature` bound the key to; the template's values only when it
+ * has some.
+ */
+export function replyRequest(
+  threadId: string,
+  payload: ReplyPayload,
+  idempotencyKey: string,
+): { path: string; body: Record<string, unknown> } {
+  const base = `/v1/meta/whatsapp/conversations/${encodeURIComponent(threadId)}`;
+  if (payload.kind === "text") {
+    return { path: `${base}/reply`, body: { text: payload.text.trim(), idempotencyKey } };
+  }
+  return {
+    path: `${base}/reply-template`,
+    body: { templateId: payload.templateId, ...(payload.params ? { params: payload.params } : {}), idempotencyKey },
+  };
+}
+
+/** A key the api accepts (`[A-Za-z0-9._:-]`, 8..128). */
+export function mintIdempotencyKey(): string {
+  return `inbox-${crypto.randomUUID()}`;
+}
+
+// ── What a refusal means ─────────────────────────────────────────────
+
+export interface ReplyErrorCopy {
+  title: string;
+  detail: string;
+  /** "unknown" marks the attempt so the next send of the same words must be
+   *  confirmed and goes out under a new key. */
+  attempt: "keep" | "unknown";
+  /** Re-read the thread: the error says something about its state. */
+  refetchThread: boolean;
+  /** Re-read the template list: the error says it is out of date. */
+  refetchTemplates: boolean;
+}
+
+const NOTHING_SENT = "Nothing was sent.";
+const SAME_TEXT_IS_SAFE =
+  "Pressing Send again without changing anything is safe: if it did reach WhatsApp, it will not go out twice.";
+
+function serverMessage(err: ApiError, fallback: string): string {
+  const m = err.message?.trim();
+  return m && m !== "Request failed" ? m : fallback;
+}
+
+/**
+ * The sentence for each way a reply can fail.
+ *
+ * ★★EACH ONE SAYS WHETHER THE SHOPPER GOT SOMETHING, because that is what the
+ * person decides on:
+ *  - `REPLY_OUTCOME_UNKNOWN` never says "failed, try again". The api could not
+ *    tell whether WhatsApp delivered it; a resend could be a second copy.
+ *  - `SEND_FAILED` is two cases on the wire (a refusal that sent nothing, or a
+ *    cut connection that may have delivered) told apart only by the api's
+ *    sentence, so its sentence is shown, and the advice given is the one that
+ *    holds for both: the same words under the same key cannot send twice.
+ *  - A lost connection or a 5xx is the same unknown, with the same safe advice.
+ */
+export function replyErrorCopy(err: unknown): ReplyErrorCopy {
+  const base = { attempt: "keep" as const, refetchThread: false, refetchTemplates: false };
+  if (!(err instanceof ApiError) || err.code === "PARSE_ERROR" || (err.status >= 500 && err.code !== "SEND_FAILED")) {
+    return {
+      ...base,
+      title: "We lost touch before WhatsApp answered",
+      detail: `We can't tell yet whether this reply went. ${SAME_TEXT_IS_SAFE}`,
+      refetchThread: true,
+    };
+  }
+  switch (err.code) {
+    case "REPLY_OUTCOME_UNKNOWN":
+      return {
+        ...base,
+        attempt: "unknown",
+        title: "We can't tell whether this reply arrived",
+        detail:
+          "WhatsApp didn't confirm it either way. Check this conversation, or the shopper's chat, before sending anything else: sending it again could deliver it twice.",
+        refetchThread: true,
+      };
+    case "REPLY_IN_PROGRESS":
+      return {
+        ...base,
+        title: "This reply is still being handled",
+        detail: "We are still waiting on WhatsApp for this exact message, and it will not go out twice. Check the conversation in a moment.",
+        refetchThread: true,
+      };
+    case "SEND_FAILED":
+      return {
+        ...base,
+        title: "This reply may not have been sent",
+        detail: `${serverMessage(err, "WhatsApp did not accept the message.")} ${SAME_TEXT_IS_SAFE}`,
+        refetchThread: true,
+      };
+    case "OUTSIDE_24H":
+      return {
+        ...base,
+        title: "The 24-hour window has closed",
+        detail: `WhatsApp only allows an approved template for this shopper now. ${NOTHING_SENT}`,
+        refetchThread: true,
+      };
+    case "STATUS_CHANGED":
+      return {
+        ...base,
+        title: "This conversation changed hands",
+        detail: `${serverMessage(err, "Refresh it and try again.")} ${NOTHING_SENT}`,
+        refetchThread: true,
+      };
+    case "WHATSAPP_UNAVAILABLE":
+      return {
+        ...base,
+        title: "WhatsApp isn't available right now",
+        detail: `${serverMessage(err, "Check your WhatsApp connection in Integrations.")} ${NOTHING_SENT}`,
+      };
+    case "NOT_FOUND":
+      return {
+        ...base,
+        title: "This conversation isn't available any more",
+        detail: `It may now belong to a different WhatsApp number. ${NOTHING_SENT}`,
+        refetchThread: true,
+      };
+    case "TEMPLATE_NOT_FOUND":
+      return {
+        ...base,
+        title: "That template no longer exists",
+        detail: `Pick another one. ${NOTHING_SENT}`,
+        refetchTemplates: true,
+      };
+    case "TEMPLATE_NOT_APPROVED":
+      return {
+        ...base,
+        title: "That template isn't approved",
+        detail: `WhatsApp has not approved it, or no longer does, so it cannot be sent. ${NOTHING_SENT}`,
+        refetchTemplates: true,
+      };
+    case "TEMPLATE_UNSUPPORTED":
+      return {
+        ...base,
+        title: "This template can't be sent from the Inbox",
+        detail: `${serverMessage(err, "Pick another one.")} ${NOTHING_SENT}`,
+      };
+    case "TEMPLATE_PARAMS":
+      return {
+        ...base,
+        title: "The template's values don't fit",
+        detail: `${serverMessage(err, "Check each value.")} ${NOTHING_SENT}`,
+      };
+    case "MARKETING_NOT_ALLOWED":
+      return {
+        ...base,
+        title: "This shopper hasn't agreed to marketing messages",
+        detail: `So a marketing template cannot be sent to them. A utility template can. ${NOTHING_SENT}`,
+      };
+    case "VALIDATION_ERROR":
+      return {
+        ...base,
+        title: "This reply can't be sent as written",
+        detail: `It must not be empty, and must be at most ${REPLY_TEXT_MAX.toLocaleString("en-US")} characters. ${NOTHING_SENT}`,
+      };
+    case "FORBIDDEN":
+      return {
+        ...base,
+        title: "You don't have permission to reply",
+        detail: `Replying to shoppers needs Editor access or above. ${NOTHING_SENT}`,
+      };
+    default:
+      // ★Any other 4xx came from a gate in front of the send (auth, CSRF), and
+      //  the api sends nothing from those.
+      return {
+        ...base,
+        title: "This reply wasn't sent",
+        detail: `${serverMessage(err, "Something stopped it before it reached WhatsApp.")} ${NOTHING_SENT}`,
+      };
+  }
+}
+
+/** The 200 bodies (`{ ok:true, data }`). A repeat is a different shape. */
+export type ReplyResult =
+  | { threadId: string; duplicate: true; sentAt: string | null }
+  | {
+      threadId: string;
+      duplicate: false;
+      status: "escalated";
+      escalated: boolean;
+      sentAt: string;
+      recorded: boolean;
+      message: { role: "merchant"; source: "inbox"; content: string; timestamp: string };
+    };
+
+/** What a successful send says, or null for the plain case. */
+export function replySuccessNote(r: ReplyResult): string | null {
+  if (r.duplicate) return "This reply had already been sent, so it was not sent again.";
+  if (!r.recorded) return "Sent. It may take a moment to appear in this conversation.";
+  return null;
+}
+
+// ── Templates ────────────────────────────────────────────────────────
+
+export interface StudioTemplate {
+  _id: string;
+  name: string;
+  language: string;
+  category: "MARKETING" | "UTILITY" | "AUTHENTICATION" | string;
+  status: string;
+  components?: {
+    header?: { format?: string; text?: string };
+    body?: { text?: string };
+    footer?: { text?: string };
+    buttons?: Array<{ type?: string; url?: string }>;
+  };
+}
+
+export type TemplatePlan =
+  | { ok: true; headerCount: number; bodyCount: number }
+  | { ok: false; reason: string };
+
+const PLACEHOLDER = /\{\{(\d+)\}\}/g;
+
+/** Positional `{{1}}..{{n}}`, or null when gapped or named (the api's `positions`). */
+function positions(text: string): number | null {
+  const seen = new Set<number>();
+  for (const m of text.matchAll(PLACEHOLDER)) seen.add(Number(m[1]));
+  const n = seen.size;
+  for (let i = 1; i <= n; i++) if (!seen.has(i)) return null;
+  if (/\{\{/.test(text.replace(PLACEHOLDER, ""))) return null;
+  return n;
+}
+
+/**
+ * Whether the Inbox can send a template, by the api's own rules
+ * (`planInboxTemplate`), so the picker does not offer one that is refused.
+ * The api still decides; this only keeps a known refusal off the list.
+ */
+export function inboxTemplatePlan(t: StudioTemplate): TemplatePlan {
+  if (t.category === "AUTHENTICATION") return { ok: false, reason: "Verification-code templates can't be sent from the Inbox." };
+  const cmp = t.components ?? {};
+  const body = cmp.body?.text;
+  if (!body) return { ok: false, reason: "This template has no body to send." };
+  const headerFormat = cmp.header ? String(cmp.header.format ?? "TEXT") : null;
+  if (headerFormat !== null && headerFormat !== "TEXT") {
+    return { ok: false, reason: "Templates with an image, video or document header can't be sent from the Inbox yet." };
+  }
+  if ((cmp.buttons ?? []).some((b) => typeof b.url === "string" && b.url.includes("{{"))) {
+    return { ok: false, reason: "Templates with a personalised link button can't be sent from the Inbox yet." };
+  }
+  const headerCount = positions(headerFormat === "TEXT" ? (cmp.header?.text ?? "") : "");
+  const bodyCount = positions(body);
+  if (headerCount === null || bodyCount === null) {
+    return { ok: false, reason: "This template uses named parameters, which the Inbox can't fill in yet." };
+  }
+  return { ok: true, headerCount, bodyCount };
+}
+
+/** The approved templates, sendable ones first, in the list's own order. */
+export function pickableTemplates(list: StudioTemplate[] | undefined): {
+  sendable: Array<{ template: StudioTemplate; headerCount: number; bodyCount: number }>;
+  unsendable: number;
+} {
+  const sendable: Array<{ template: StudioTemplate; headerCount: number; bodyCount: number }> = [];
+  let unsendable = 0;
+  for (const t of list ?? []) {
+    if (t.status !== "approved") continue;
+    const plan = inboxTemplatePlan(t);
+    if (plan.ok) sendable.push({ template: t, headerCount: plan.headerCount, bodyCount: plan.bodyCount });
+    else unsendable += 1;
+  }
+  return { sendable, unsendable };
+}
+
+/** The copy as the shopper will read it, values filled in (the api's `content`). */
+export function templatePreview(t: StudioTemplate, header: string[], body: string[]): string {
+  const fill = (text: string, values: string[]) =>
+    text.replace(PLACEHOLDER, (_m, i: string) => values[Number(i) - 1] || `{{${i}}}`);
+  const cmp = t.components ?? {};
+  const h = cmp.header && String(cmp.header.format ?? "TEXT") === "TEXT" ? (cmp.header.text ?? "") : "";
+  return [fill(h, header), fill(cmp.body?.text ?? "", body), cmp.footer?.text ?? ""].filter(Boolean).join("\n\n");
+}
+
+/** Why a template value is not sendable yet, or null when it is. */
+export function templateValueProblem(v: string): string | null {
+  if (!v.trim()) return "Fill this in.";
+  if (/[\n\t]/.test(v)) return "A value can't contain a line break or a tab.";
+  if (v.length > TEMPLATE_VALUE_MAX) return `At most ${TEMPLATE_VALUE_MAX.toLocaleString("en-US")} characters.`;
+  return null;
+}
+
+/** Why the text cannot be sent yet, or null when it can. */
+export function textProblem(text: string): string | null {
+  const t = text.trim();
+  if (!t) return "Write a reply first.";
+  if (t.length > REPLY_TEXT_MAX) return `At most ${REPLY_TEXT_MAX.toLocaleString("en-US")} characters (this is ${t.length.toLocaleString("en-US")}).`;
+  return null;
+}
+
+// ── Polling and Resume ───────────────────────────────────────────────
+
+/** The thread is re-read every 5s only while a person holds it. */
+export function threadPollInterval(status: string | undefined): number | false {
+  return status === "escalated" ? THREAD_POLL_MS : false;
+}
+
+/**
+ * The body a Resume sends.
+ *
+ * ★WA T2 follow-up: a Resume from a stale view could release a takeover made
+ * after it was rendered. The fix is a compare-and-set on the `statusVersion`
+ * the view rendered with. ⚠️TODAY THE API NEITHER RETURNS IT ON THE THREAD READ
+ * NOR READS A RESUME BODY, so this sends it only when the read carried one,
+ * and sends no body otherwise (as before).
+ */
+export function resumeBody(thread: { statusVersion?: unknown } | null | undefined): { statusVersion: number } | undefined {
+  const v = thread?.statusVersion;
+  return typeof v === "number" && Number.isInteger(v) ? { statusVersion: v } : undefined;
+}
