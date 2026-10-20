@@ -23,24 +23,23 @@
  * ── THE STATE IS THE ACTIVE BUSINESS'S (independent review on b2c#591) ──────
  *
  * D19's padlock is per business: the trial covers the org's first business
- * only, and each other business is bought on its own plan. `/v1/dashboard/org`
- * is ORG-wide (every business's lines, the one base row), so on its own it
- * badged a padlocked business "Peakhour Suite" because a sibling bought Suite,
- * and a business with no plan "on trial" because the first one was. The
- * active business's own answer is `/v1/auth/me` `entitlements.coverage`
- * (`trial` / `paid` / `none`, the rule the gates and the workspace switcher's
+ * only, and each other business is bought on its own plan. The active
+ * business's own answer is `/v1/auth/me` `entitlements.coverage` (`trial` /
+ * `paid` / `none`, the rule the gates and the workspace switcher's
  * `planActive` share), so it decides the state whenever it is served
- * (`BusinessPlanish`). The org-wide derivation stays only as the fallback for
- * a `/me` that carries no such coverage (no business picked, an entitlements
- * failure, or an api older than P4.3a, whose `free` is not one of the three).
+ * (`BusinessPlanish`).
  *
- * ── STORED LEFTOVERS UNTIL P4.5 ──────────────────────────────────────────────
+ * ★THE LINES ARE THE BUSINESS'S OWN (P4.3b, api#1510). `/v1/dashboard/org` and
+ * `/v1/billing/summary` list only the signed-in business's lines (its stamped
+ * rows, plus unstamped legacy rows, which every business lists until their
+ * owner is known), and every line carries its `businessId`. So a paid
+ * business is named by its own lines (`businessLines`), and nothing here reads
+ * a line another business holds. ★The base row (`subscription`) is still the
+ * ORG's (the first business's trial, or a contract): it names the trial, and
+ * a contract, but never a paid business's purchase.
  *
- * Until the per-product rows are deleted (P4.5) and the api stops falling back
- * to `"free"` (P4.3b), a summary may still carry `plan: "free"`, a held
- * `commerce_assistant.free` base row or line, or `"none"`. None of them is a
- * plan anybody holds, so each reads as NO plan: never named, never styled as a
- * product, never a reason to crash (`isNoPlanKey`).
+ * With no coverage served (an entitlements failure on `/me`), the state is
+ * derived from the business's own lines and the base row (`planState`).
  */
 
 /** One held line, as `/v1/dashboard/org` returns it. */
@@ -50,12 +49,16 @@ export interface HeldProduct {
   name?: string;
   productKey?: string | null;
   endsAt?: string | null;
+  /** The business holding the line (api#1510), or null for an unstamped
+   *  legacy row, which the api lists for every business of the org. */
+  businessId?: string | null;
 }
 
 export interface PlanSummaryish {
   subscription?: {
-    plan?: string;
-    planName?: string;
+    /** Null when the org has no live base row (api#1510). */
+    plan?: string | null;
+    planName?: string | null;
     trialActive?: boolean;
     trialEndsAt?: string | null;
   };
@@ -65,14 +68,23 @@ export interface PlanSummaryish {
 export type PlanState = "paid" | "trial" | "none";
 
 /**
- * The active business's own plan, as `/v1/auth/me` serves it on `entitlements`
- * (`useAuth().entitlements`): `coverage` is why the business is usable, and
- * `plan` the tier its grant comes from. Both optional: `/me` omits `coverage`
- * on an org-level read, and an api older than P4.3a serves `free`.
+ * The active business, as `plan-status` reads it: its `/v1/auth/me` coverage
+ * (`entitlements.coverage`, why the business is usable) and its id (which
+ * lines are its own). Both optional: `/me` omits `coverage` when entitlements
+ * failed, and names no business before one is picked. Build it with
+ * `activeBusiness`.
  */
 export interface BusinessPlanish {
   coverage?: string | null;
-  plan?: string | null;
+  businessId?: string | null;
+}
+
+/** The active business from `useAuth()`'s `entitlements` and `business`. */
+export function activeBusiness(
+  entitlements: { coverage?: string | null } | null | undefined,
+  business: { _id: string } | null | undefined,
+): BusinessPlanish {
+  return { coverage: entitlements?.coverage ?? null, businessId: business?._id ?? null };
 }
 
 /** The active business's coverage when it is one of the three states, else null. */
@@ -110,21 +122,34 @@ export function heldLines<T extends HeldProduct>(products: ReadonlyArray<T | und
 }
 
 /**
+ * The held lines that are the business's own (P4.3b): stamped with its id, or
+ * unstamped (a legacy row the api counts for every business of the org until
+ * its owner is known, `rowsForBusiness`). ★A line stamped with another
+ * business is never this one's, and with no business known only the
+ * unstamped lines are anybody's to claim.
+ */
+export function businessLines<T extends HeldProduct>(
+  products: ReadonlyArray<T | undefined> | undefined,
+  businessId: string | null | undefined,
+): T[] {
+  return heldLines(products).filter((p) => p.businessId == null || (!!businessId && p.businessId === businessId));
+}
+
+/**
  * Which of the three states the ACTIVE business is in, or null before the
  * summary has loaded (no flash of "No plan" for a paying business). ★A caller
  * renders null as its own neutral state, never as `none`: a summary that
  * failed or never fetched says nothing about the plan (`planHeadline`).
  *
  * ★The business's own coverage decides whenever `/me` serves it (module
- * docblock): a sibling's purchase or the first business's trial says nothing
- * about this one.
+ * docblock): the first business's trial says nothing about this one.
  *
- * The org-wide FALLBACK: ★a bought line beats a live trial, because buying
- * during the trial ends it for the trial business (P4.3a); not so when a
- * different business bought, which is why coverage comes first. ★A base row
- * is a CONTRACT when it carries no trial date (P4.3: `channel` is "trial"
- * exactly when `trialEndsAt` is set); one whose trial date has passed is the
- * record that the trial was used, not a plan.
+ * Without coverage: ★a line of the business's own (`businessLines`) is paid,
+ * and beats a live trial, because buying during the trial ends it for the
+ * trial business (P4.3a). ★A base row is a CONTRACT when it carries no trial
+ * date (P4.3: `channel` is "trial" exactly when `trialEndsAt` is set); one
+ * whose trial date has passed is the record that the trial was used, not a
+ * plan.
  */
 export function planState(
   summary: PlanSummaryish | undefined,
@@ -134,7 +159,7 @@ export function planState(
   if (!base) return null;
   const coverage = coverageOf(business);
   if (coverage) return coverage;
-  if (heldLines(summary?.products).length > 0) return "paid";
+  if (businessLines(summary?.products, business?.businessId).length > 0) return "paid";
   if (isNoPlanKey(base.plan)) return "none";
   if (base.trialActive === true) return "trial";
   if (!base.trialEndsAt) return "paid";
@@ -225,7 +250,7 @@ export function planButtonLabel(state: PlanState | null): string {
  *
  * ★NULL IS ITS OWN STATE. The page's only early return is react-query's
  * `isLoading`, which is false when `/v1/dashboard/org` errored, is paused
- * offline, or is disabled until `/me` names an org; in each the summary is
+ * offline, or is disabled until `/me` names a business; in each the summary is
  * undefined. Reading that as `none` told a business paying for Suite it had
  * no plan, in the warning colour, with the padlock notice and "Buy a plan".
  * The top-bar badge renders nothing for the same null; the page, which must
@@ -245,50 +270,16 @@ export function planHeadline(
 }
 
 /**
- * The billing page's subscription header: the heading, and the one badge
- * beside it (official review R2 on b2c#591).
- *
- * ★THE PER-BUSINESS ANSWER DECIDES WHENEVER `/me` SERVES COVERAGE. The page
- * once chose "Your subscription" and a green "N paid plans" from every line in
- * the org, and showed the business's own state only when the org had bought
- * nothing: a padlocked business whose sibling bought Suite read "1 paid plan"
- * above "Your business has no plan", and a trial business "1 paid plan"
- * beside "Trial · 14d left", while the top bar said otherwise. With coverage
- * served the header is the state alone (`planHeadline`), and ★no count:
- * `/dashboard/org` lists every business's lines (no `businessId` on a row)
- * until the api scopes its product lists (P4.3b), so any count would be the
- * org's beside a business's state.
- *
- * The org-wide reading (`orgWide`) stays only as the fallback for a `/me`
- * with no coverage (an older api, no business picked): there it is the only
- * answer, and the count is what it was.
- */
-export function billingHeader(
-  summary: PlanSummaryish | undefined,
-  business?: BusinessPlanish | null,
-): { heading: string; label: string; tone: PlanState | null; orgWide: boolean } {
-  const headline = planHeadline(summary, business);
-  const lines = coverageOf(business) === null ? heldLines(summary?.products) : [];
-  if (lines.length === 0) {
-    return { heading: "Current Plan", label: headline.label, tone: headline.state, orgWide: false };
-  }
-  // Billed lines only: during a plan change the ending line and its
-  // replacement are both listed, and one is paid for (`isBilledLine`).
-  const paid = lines.filter(isBilledLine).length;
-  const n = paid > 0 ? paid : lines.length;
-  return {
-    heading: "Your subscription",
-    label: `${n}${paid > 0 ? " paid" : ""} ${n === 1 ? "plan" : "plans"}`,
-    tone: "paid",
-    orgWide: true,
-  };
-}
-
-/**
  * What to CALL the business's plan, or null before the summary has loaded.
  *
  * ★`planName` over the machine key: the summary's own type says so, and
  * rendering the key is what once showed customers "Commerce_assistant.Free".
+ *
+ * ★A PAID BUSINESS IS NAMED BY ITS OWN LINES (P4.3b). Every line carries its
+ * `businessId` (api#1510), so the lines named are this business's
+ * (`businessLines`), never a sibling's. This replaces matching `/me`'s plan
+ * key against every line in the org, which named a trial business that
+ * bought Agency "Peakhour Suite" when a sibling held Suite (b2c#591 R1, R3).
  *
  * ★A bought line names itself. During a plan change (D21) the business holds
  * the ending line and its replacement of one product; the name shown is the
@@ -299,37 +290,12 @@ export function billingHeader(
  * resolved) is refused: "1 plan" is plain and true where "Suite.pro" is
  * neither.
  *
- * ★ONLY THE ACTIVE BUSINESS'S LINES (independent review on b2c#591). The
- * summary lists every business's lines, so with `/me` coverage served: the
- * trial is named by the base row (a sibling's Suite is not this business's
- * plan), and a paid business by the lines of its own grant's tier
- * (`business.plan`), or by the base row when none matches and the base row is
- * a contract.
- *
- * ★`business.plan` IS NOT ALWAYS WHAT WAS BOUGHT (official review R1 on
- * b2c#591). For a business the base row covers (the trial business while its
- * trial runs, a contract) the api's grant is the base plan unioned with its
- * lines, so `plan` is the BASE row's key (`computeBusinessEntitlements` ->
- * `baseUnion`): the Suite trial's `suite` on a business that bought Agency.
- * Matched against the lines, that key picked a sibling's Suite line or
- * nothing, and the fallback named the base row: "Peakhour Suite" on an Agency
- * buyer. So a paid business is never named by a TRIAL base row (a trial is no
- * paid plan), and a base key that means no plan (`isNoPlanKey`: the "free"
- * `/dashboard/org` falls back to once a trial ends) never names anything.
- * With nothing left that names its plan, the business is a "Paid plan": true,
- * where a name would be a guess.
- *
- * ★BUT A HELD LINE OF `business.plan`'s TIER ALWAYS NAMES IT (official review
- * R3 on b2c#591). R1 also refused to match the plan key whenever it equalled
- * the base row's key and the base row carried a `trialEndsAt`; that date stays
- * on a used trial's row, so a business that bought Suite after its trial ended
- * (`/me` paid, plan `suite`), and a second business buying Suite, both read
- * "Paid plan". The key is matched whatever the base row says; only an
- * unmatched key falls back. The one case left ambiguous is the trial business
- * on a live trial whose `plan` is the trial's `suite` while a sibling holds a
- * Suite line: it reads "Peakhour Suite". ★Exactly which lines are its own
- * needs each line's `businessId`, which neither `/dashboard/org` nor
- * `/v1/billing/summary` serves yet (P4.3b, reported on b2c#591).
+ * ★The trial is named by the base row, and so is a paid business with no line
+ * of its own when the base row is a CONTRACT (no trial date, `planState`'s
+ * rule). A TRIAL base row never names a paid business (a trial is no paid
+ * plan), and a base key that means no plan (`isNoPlanKey`, or null: no live
+ * base row, api#1510) never names anything. With nothing left that names its
+ * plan, the business is a "Paid plan": true, where a name would be a guess.
  */
 export function planDisplayName(
   summary: PlanSummaryish | undefined,
@@ -339,23 +305,12 @@ export function planDisplayName(
   if (state === null) return null;
   if (state === "none") return "No plan";
 
-  const coverage = coverageOf(business);
   const base = summary?.subscription;
   // The base row names a plan when its key is one, and it is either the trial
   // this business is on or a contract (no trial date, `planState`'s rule).
   const baseNames = !isNoPlanKey(base?.plan) && (state === "trial" || !base?.trialEndsAt);
-  const all = heldLines(summary?.products);
-  // A paid business's own lines: its grant's tier, plus the other half of a
-  // plan change on the same product (D21), so the rule below still names the
-  // line already charging whichever half the grant reads. Matched whatever
-  // the base row says (docblock, review R3).
-  const own = all.filter((p) => p.tier === business?.plan);
-  const held =
-    coverage === null
-      ? all
-      : coverage === "paid"
-        ? all.filter((p) => own.includes(p) || (!!p.productKey && own.some((o) => o.productKey === p.productKey)))
-        : [];
+  // Only a paid business is named by lines: on the trial the base row names it.
+  const held = state === "paid" ? businessLines(summary?.products, business?.businessId) : [];
   if (held.length > 0) {
     const ending = held.filter((p) => p.endsAt);
     const shown = held.filter(

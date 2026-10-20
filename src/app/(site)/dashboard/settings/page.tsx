@@ -8,7 +8,7 @@ import { useAuth } from "@/providers/auth-provider";
 import { api, ApiError } from "@/lib/api";
 import { useLocale } from "@/hooks/use-locale";
 import type { DashboardOrgPlanSummary } from "@/hooks/use-dashboard-org";
-import { planDisplayName } from "@/lib/plan-status";
+import { activeBusiness, planDisplayName } from "@/lib/plan-status";
 // Shared with every other surface the OAuth callback can return to
 // (?returnTo=), so a new provider is labelled once, not per page.
 import { formatProviderName } from "@/lib/provider-names";
@@ -103,7 +103,8 @@ function SettingsLoading() {
 }
 
 function SettingsContent() {
-  const { org, entitlements } = useAuth();
+  const { org, business, entitlements } = useAuth();
+  const active = activeBusiness(entitlements, business);
   const { formatCurrency } = useLocale();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
@@ -233,7 +234,9 @@ function SettingsContent() {
       .then(setOrgDetails)
       .catch(() => setError("Failed to load settings. Please try again."))
       .finally(() => setLoading(false));
-  }, [org?._id]);
+    // ★Per business (P4.3b): the plan row reads this business's own lines
+    //  (api#1510), so a switch to a sibling business refetches.
+  }, [org?._id, business?._id]);
 
   if (loading) {
     return <SettingsLoading />;
@@ -390,7 +393,7 @@ function SettingsContent() {
                       {/* The plan's NAME, not the raw billing key with a
                           "free" fallback: there is no free tier (D19), and
                           no plan reads "No plan". */}
-                      {planDisplayName(orgDetails ?? undefined, entitlements) ?? "—"}
+                      {planDisplayName(orgDetails ?? undefined, active) ?? "—"}
                     </Badge>
                   }
                 />
@@ -425,7 +428,7 @@ function SettingsContent() {
                       {/* The plan's NAME, not the raw billing key with a
                           "free" fallback: there is no free tier (D19), and
                           no plan reads "No plan". */}
-                      {planDisplayName(orgDetails ?? undefined, entitlements) ?? "—"}
+                      {planDisplayName(orgDetails ?? undefined, active) ?? "—"}
                     </Badge>
                   }
                 />

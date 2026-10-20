@@ -5,7 +5,9 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
 
 /**
- * `GET /v1/billing/summary` — the ONE-SUBSCRIPTION view of what the org owns.
+ * `GET /v1/billing/summary` — the ONE-SUBSCRIPTION view of what the signed-in
+ * BUSINESS owns (api#1510: its own lines, plus unstamped legacy lines, and
+ * every figure computed from those).
  *
  * The billing page used to render only the legacy base plan, so an org paying for
  * three products read as "Free" with no total and no charge date. This is the
@@ -15,6 +17,10 @@ import { useAuth } from "@/providers/auth-provider";
 
 export interface BillingSummaryProduct {
   productKey: string | null;
+  /** The business holding the line (api#1510), or null for an unstamped
+   *  legacy row, which every business of the org lists until its owner is
+   *  known. */
+  businessId: string | null;
   tier: string | null;
   /** Customer-facing plan name — never the machine tier key. */
   name: string | null;
@@ -27,10 +33,11 @@ export interface BillingSummaryProduct {
   renewsAt: string | null;
   /** When a scheduled cancel or plan change ends the line (D21). */
   endsAt?: string | null;
+  /** Null when the line could not be priced for this country (api#1510):
+   *  unknown, never 0. */
   amount: number | null;
   currency: string | null;
-  /** False when a PAID tier couldn't be priced for this country: the amount is
-   *  unknown, not zero. */
+  /** False exactly when `amount` is null: the amount is unknown, not zero. */
   amountKnown: boolean;
   /** month / quarter / year (P3.1a); what `amount` recurs on. */
   interval: string;
@@ -39,15 +46,18 @@ export interface BillingSummaryProduct {
 export interface BillingSummary {
   country: string;
   basePlan: string | null;
+  /** Null when the org has no live base row (api#1510). */
   basePlanName: string | null;
   products: BillingSummaryProduct[];
+  /** Null for a business with no lines, or lines in several currencies. */
   monthlyTotal: number | null;
   /** The quarterly and yearly lines' totals (api#1495), each null when no line
    *  recurs on it. Never summed into `monthlyTotal`. */
   quarterlyTotal?: number | null;
   yearlyTotal?: number | null;
-  /** False when at least one product's amount is unknown — the total is a floor,
-   *  not the whole charge, and the UI must say so rather than present it as final. */
+  /** False when at least one billed line's amount is unknown: every total is a
+   *  floor, not the whole charge, and an unknown line counts 0 in it, so a
+   *  period whose lines are all unknown totals 0 (`recurringTotalText`). */
   monthlyTotalComplete: boolean;
   currency: string | null;
   /** Every product rides one gateway subscription → ONE combined charge. */
@@ -61,12 +71,24 @@ export interface BillingSummary {
 
 export const BILLING_SUMMARY_KEY = "/v1/billing/summary";
 
+/**
+ * The cache key of one business's billing summary. ★BY BUSINESS, not only by
+ * org (P4.3b): the lines and totals are the signed-in business's (api#1510),
+ * so keyed by org alone, a switch to a sibling business in the same org served
+ * the previous business's lines and total from cache.
+ */
+export function billingSummaryKey(orgId: string | null | undefined, businessId: string | null | undefined) {
+  return [BILLING_SUMMARY_KEY, orgId ?? null, businessId ?? null] as const;
+}
+
 export function useBillingSummary() {
-  const { org, isAuthenticated } = useAuth();
+  const { org, business, isAuthenticated } = useAuth();
   return useQuery<BillingSummary>({
-    queryKey: [BILLING_SUMMARY_KEY, org?._id ?? null],
+    queryKey: billingSummaryKey(org?._id, business?._id),
     queryFn: () => api.get<BillingSummary>("/v1/billing/summary"),
-    enabled: isAuthenticated && !!org?._id,
+    // ★Only with a business: with none the api lists every purchase in the
+    //  org, which is no business's answer.
+    enabled: isAuthenticated && !!org?._id && !!business?._id,
     // Matches useDashboardOrg: billing state changes rarely, and every mutation
     // (checkout, trial start, cancel) invalidates this key explicitly.
     staleTime: 60_000,

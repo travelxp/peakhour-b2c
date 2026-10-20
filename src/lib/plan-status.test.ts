@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  billingHeader,
+  activeBusiness,
+  businessLines,
   heldLines,
   isBilledLine,
   isNoPlanKey,
@@ -104,7 +105,7 @@ describe("isNoPlanKey: the leftovers that name no plan", () => {
     expect(productRowAction(lens)).toBeNull();
     expect(isBilledLine(lens)).toBe(false);
     expect(planState(summary({ subscription: TRIAL_ENDED, products: [lens] }))).toBe("none");
-    expect(billingHeader(summary({ subscription: TRIAL_ENDED, products: [lens] }), null)).toEqual({ heading: "Current Plan", label: "No plan", tone: "none", orgWide: false });
+    expect(planHeadline(summary({ subscription: TRIAL_ENDED, products: [lens] })).label).toBe("No plan");
     expect(planHeadline(summary({ subscription: TRIAL_ENDED, products: [lens] })).button).toBe("Buy a plan");
   });
 
@@ -217,18 +218,22 @@ describe("a billed line (D21, review R3 on b2c#589)", () => {
 });
 
 /**
- * The state is the ACTIVE business's (independent review on b2c#591). The
- * summary is org-wide: every business's lines and the one base row, which is
- * the first business's trial. `/me` `entitlements.coverage` is the business's
- * own answer and decides whenever it is served.
+ * The state is the ACTIVE business's (independent review on b2c#591), and the
+ * lines are its own (P4.3b, api#1510). `/me` `entitlements.coverage` decides
+ * the state whenever it is served; every line carries its `businessId`, and
+ * the base row is still the org's (the first business's trial, or a contract).
  */
-describe("the active business's own state (review on b2c#591)", () => {
-  const PAID = { coverage: "paid", plan: "suite" };
-  const NONE = { coverage: "none", plan: "none" };
-  const ON_TRIAL = { coverage: "trial", plan: "suite" };
+const A = "biz_a";
+const B = "biz_b";
+const own = <T extends object>(line: T, businessId: string | null = A) => ({ ...line, businessId });
 
-  it("a padlocked business is no plan though a sibling bought Suite", () => {
-    const s = summary({ subscription: TRIAL_ENDED, products: [suite] });
+describe("the active business's own state (review on b2c#591)", () => {
+  const PAID = { coverage: "paid", businessId: A };
+  const NONE = { coverage: "none", businessId: A };
+  const ON_TRIAL = { coverage: "trial", businessId: A };
+
+  it("a padlocked business is no plan", () => {
+    const s = summary({ subscription: TRIAL_ENDED, products: [] });
     expect(planState(s, NONE)).toBe("none");
     expect(planDisplayName(s, NONE)).toBe("No plan");
     expect(upgradeCta(s, NONE)?.label).toBe("Buy a plan");
@@ -239,11 +244,10 @@ describe("the active business's own state (review on b2c#591)", () => {
     expect(upgradeCta(summary(), NONE)?.label).toBe("Buy a plan");
   });
 
-  it("the trial business is on its trial though a sibling bought, and is named by the base row", () => {
-    const s = summary({ products: [agency] });
-    expect(planState(s, ON_TRIAL)).toBe("trial");
-    expect(planDisplayName(s, ON_TRIAL)).toBe("Peakhour Suite");
-    expect(upgradeCta(s, ON_TRIAL)?.label).toBe("Upgrade");
+  it("the trial business is on its trial and is named by the base row", () => {
+    expect(planState(summary(), ON_TRIAL)).toBe("trial");
+    expect(planDisplayName(summary(), ON_TRIAL)).toBe("Peakhour Suite");
+    expect(upgradeCta(summary(), ON_TRIAL)?.label).toBe("Upgrade");
   });
 
   it("a paid business is paid though the org's base trial ended, and gets no CTA", () => {
@@ -252,70 +256,120 @@ describe("the active business's own state (review on b2c#591)", () => {
     expect(upgradeCta(s, PAID)).toBeNull();
   });
 
-  it("a paid business is named by its own lines, not a sibling's", () => {
-    expect(planDisplayName(summary({ products: [suite, agency] }), { coverage: "paid", plan: "agency" })).toBe("Agency");
+  it("★a paid business is named by its own lines, never a line stamped with another business (P4.3b)", () => {
+    expect(planDisplayName(summary({ products: [own(suite, B), own(agency)] }), PAID)).toBe("Agency");
+    expect(planDisplayName(summary({ subscription: TRIAL_ENDED, products: [own(suite, B)] }), PAID)).toBe("Paid plan");
   });
 
-  it("a paid business keeps both halves of its own plan change", () => {
-    const ending = { ...suite, endsAt: ENDS };
-    const replacement = { tier: "agency", productKey: "suite", state: "active", name: "Agency" };
-    expect(planDisplayName(summary({ products: [replacement, ending] }), { coverage: "paid", plan: "agency" })).toBe("Peakhour Suite");
-  });
-
-  it("a contract business is named by its base row though a sibling bought", () => {
-    expect(planDisplayName(summary({ subscription: CONTRACT, products: [suite] }), { coverage: "paid", plan: "enterprise" })).toBe("Enterprise");
-  });
-
-  it("★a trial business that bought Agency is not named by the trial's Suite (official review R1)", () => {
-    // `/me`'s plan is the base trial's key while the trial grants beside the
-    // purchase (`baseUnion`), so it matches nothing it bought.
-    expect(planDisplayName(summary({ products: [agency] }), { coverage: "paid", plan: "suite" })).toBe("Paid plan");
-    // ★R3: a Suite line in the org with `/me`'s plan `suite` IS named, though
-    // without `businessId` it may be a sibling's (P4.3b): the rule that names
-    // a business that bought Suite after its trial cannot tell the two apart.
-    expect(planDisplayName(summary({ products: [suite, agency] }), { coverage: "paid", plan: "suite" })).toBe("Peakhour Suite");
+  it("★a trial business that bought Agency is named Agency, though the trial's key is suite (P4.3b; R1 read Paid plan)", () => {
+    expect(planDisplayName(summary({ products: [own(agency)] }), PAID)).toBe("Agency");
   });
 
   it("★a business that bought Suite is named Suite, whatever the base trial's date (official review R3)", () => {
-    // Its trial ended (the used row keeps its `trialEndsAt`), then it bought Suite.
-    expect(planDisplayName(summary({ subscription: TRIAL_ENDED, products: [suite] }), { coverage: "paid", plan: "suite" })).toBe("Peakhour Suite");
-    // A second business buys Suite while the first is still on its Suite trial.
-    expect(planDisplayName(summary({ products: [suite] }), { coverage: "paid", plan: "suite" })).toBe("Peakhour Suite");
-    // The billing header and the badge say the same.
-    expect(billingHeader(summary({ subscription: TRIAL_ENDED, products: [suite] }), { coverage: "paid", plan: "suite" }).label).toBe("Peakhour Suite");
-    // Only an unmatched key falls back.
-    expect(planDisplayName(summary({ subscription: TRIAL_ENDED, products: [agency] }), { coverage: "paid", plan: "suite" })).toBe("Paid plan");
+    expect(planDisplayName(summary({ subscription: TRIAL_ENDED, products: [own(suite)] }), PAID)).toBe("Peakhour Suite");
+    expect(planDisplayName(summary({ products: [own(suite)] }), PAID)).toBe("Peakhour Suite");
+    expect(planHeadline(summary({ subscription: TRIAL_ENDED, products: [own(suite)] }), PAID).label).toBe("Peakhour Suite");
   });
 
-  it("★a base key that means no plan never names a paid business (official review R1)", () => {
-    for (const subscription of [{ plan: "free", planName: "Free" }, { plan: "commerce_assistant.free", planName: "Commerce: Free" }, { plan: "none" }, {}]) {
+  it("★an unstamped legacy line is every business's, as the api lists it (rowsForBusiness)", () => {
+    const s = summary({ subscription: TRIAL_ENDED, products: [own(suite, null)] });
+    expect(planDisplayName(s, { coverage: "paid", businessId: B })).toBe("Peakhour Suite");
+    expect(planDisplayName(summary({ subscription: TRIAL_ENDED, products: [suite] }), PAID)).toBe("Peakhour Suite");
+  });
+
+  it("a paid business keeps both halves of its own plan change", () => {
+    const ending = own({ ...suite, endsAt: ENDS });
+    const replacement = own({ tier: "agency", productKey: "suite", state: "active", name: "Agency" });
+    expect(planDisplayName(summary({ products: [replacement, ending] }), PAID)).toBe("Peakhour Suite");
+  });
+
+  it("two plans of its own are counted", () => {
+    expect(planDisplayName(summary({ products: [own(suite), own(agency), own(suite, B)] }), PAID)).toBe("2 plans");
+  });
+
+  it("a contract business with no line of its own is named by its base row", () => {
+    expect(planDisplayName(summary({ subscription: CONTRACT, products: [own(suite, B)] }), PAID)).toBe("Enterprise");
+    expect(planDisplayName(summary({ subscription: CONTRACT, products: [] }), PAID)).toBe("Enterprise");
+  });
+
+  it("★a base key that means no plan, or none at all (api#1510), never names a paid business", () => {
+    for (const subscription of [{ plan: "free", planName: "Free" }, { plan: "commerce_assistant.free", planName: "Commerce: Free" }, { plan: "none" }, {}, { plan: null, planName: null, trialActive: false, trialEndsAt: null }]) {
       expect(planDisplayName(summary({ subscription, products: [] }), PAID)).toBe("Paid plan");
     }
-    // A matched line still names itself over a no-plan base.
-    expect(planDisplayName(summary({ subscription: { plan: "free", planName: "Free" }, products: [agency] }), { coverage: "paid", plan: "agency" })).toBe("Agency");
+    // A line of its own still names itself over a no-plan base.
+    expect(planDisplayName(summary({ subscription: { plan: null, planName: null }, products: [own(agency)] }), PAID)).toBe("Agency");
   });
 
-  it("★a contract still names a paid business, and the trial its own trial (official review R1)", () => {
-    expect(planDisplayName(summary({ subscription: CONTRACT, products: [] }), { coverage: "paid", plan: "enterprise" })).toBe("Enterprise");
-    expect(planDisplayName(summary({ products: [] }), ON_TRIAL)).toBe("Peakhour Suite");
+  it("★a trial base row never names a paid business with no line of its own (official review R1)", () => {
+    expect(planDisplayName(summary({ products: [] }), PAID)).toBe("Paid plan");
     expect(planDisplayName(summary({ subscription: { plan: "internal_platform", planName: "internal_platform" } }), PAID)).toBe("Internal_platform");
     // A trial over a no-plan base (a stale summary beside a fresh /me) is
     // still not named "Free".
     expect(planDisplayName(summary({ subscription: { plan: "free", planName: "Free" } }), ON_TRIAL)).toBe("Trial");
   });
 
-  it("a coverage the three states do not include falls back to the org-wide summary", () => {
-    for (const b of [{ coverage: "free", plan: "free" }, {}, null, undefined]) {
-      expect(planState(summary({ products: [suite] }), b)).toBe("paid");
+  it("★no live base row (api#1510: plan and planName null) is no plan without coverage", () => {
+    const s = summary({ subscription: { plan: null, planName: null, trialActive: false, trialEndsAt: null } });
+    expect(planState(s)).toBe("none");
+    expect(planDisplayName(s)).toBe("No plan");
+  });
+
+  it("★without coverage the state reads the business's own lines, not a sibling's", () => {
+    const sibling = summary({ subscription: TRIAL_ENDED, products: [own(suite, B)] });
+    expect(planState(sibling, { businessId: A })).toBe("none");
+    expect(planDisplayName(sibling, { businessId: A })).toBe("No plan");
+    const mine = summary({ subscription: TRIAL_ENDED, products: [own(suite), own(agency, B)] });
+    expect(planState(mine, { businessId: A })).toBe("paid");
+    expect(planDisplayName(mine, { businessId: A })).toBe("Peakhour Suite");
+  });
+
+  it("a coverage the three states do not include is no coverage", () => {
+    for (const coverage of ["free", null, undefined]) {
+      const b = { coverage, businessId: A };
+      expect(planState(summary({ products: [own(suite)] }), b)).toBe("paid");
       expect(planState(summary({ subscription: TRIAL_ENDED }), b)).toBe("none");
       expect(planState(summary(), b)).toBe("trial");
-      expect(planDisplayName(summary({ products: [suite, agency] }), b)).toBe("2 plans");
+      expect(planDisplayName(summary({ products: [own(suite), own(agency)] }), b)).toBe("2 plans");
     }
   });
 
   it("coverage does not answer before the summary loads", () => {
     expect(planState(undefined, PAID)).toBeNull();
     expect(planDisplayName(undefined, NONE)).toBeNull();
+  });
+});
+
+describe("businessLines: the lines that are the business's own (P4.3b)", () => {
+  it("keeps its stamped lines and the unstamped ones, in order, and drops another business's", () => {
+    const mine = own(suite);
+    const legacy = own(agency, null);
+    const theirs = own(suite, B);
+    expect(businessLines([theirs, mine, legacy], A)).toEqual([mine, legacy]);
+    // An absent businessId is unstamped, as the api's `rowsForBusiness` reads it.
+    expect(businessLines([suite], A)).toEqual([suite]);
+  });
+
+  it("a leftover .free line is not a plan, even its own", () => {
+    expect(businessLines([own(freeLeftover)], A)).toEqual([]);
+  });
+
+  it("with no business known only the unstamped lines are anybody's", () => {
+    const legacy = own(agency, null);
+    expect(businessLines([own(suite), legacy], null)).toEqual([legacy]);
+    expect(businessLines([own(suite), legacy], undefined)).toEqual([legacy]);
+    expect(businessLines(undefined, A)).toEqual([]);
+  });
+});
+
+describe("activeBusiness: the business plan-status reads, from useAuth()", () => {
+  it("takes the coverage from /me's entitlements and the id from its business", () => {
+    expect(activeBusiness({ coverage: "paid" }, { _id: A })).toEqual({ coverage: "paid", businessId: A });
+  });
+
+  it("an absent entitlements or business is null, never a guess", () => {
+    expect(activeBusiness(null, null)).toEqual({ coverage: null, businessId: null });
+    expect(activeBusiness(undefined, { _id: B })).toEqual({ coverage: null, businessId: B });
+    expect(activeBusiness({}, undefined)).toEqual({ coverage: null, businessId: null });
   });
 });
 
@@ -338,62 +392,10 @@ describe("planHeadline: the billing page's plan header (review on b2c#591)", () 
   it("the header reads the active business's coverage", () => {
     expect(planHeadline(summary({ subscription: TRIAL_ENDED, products: [suite] }), { coverage: "none" }).padlocked).toBe(true);
   });
-});
 
-/**
- * The billing page's heading and badge (official review R2 on b2c#591): with
- * coverage served, the business's own state and no org-wide count (the
- * product lists are org-wide until P4.3b).
- */
-describe("billingHeader: the subscription header follows the business (review R2)", () => {
-  it("★a padlocked business whose sibling bought Suite reads No plan, not 1 paid plan", () => {
-    const h = billingHeader(summary({ subscription: TRIAL_ENDED, products: [suite] }), { coverage: "none", plan: "none" });
-    expect(h).toEqual({ heading: "Current Plan", label: "No plan", tone: "none", orgWide: false });
-  });
-
-  it("★a trial business whose sibling bought reads its trial, not 1 paid plan", () => {
-    const h = billingHeader(summary({ products: [agency] }), { coverage: "trial", plan: "suite" });
-    expect(h).toEqual({ heading: "Current Plan", label: "Peakhour Suite", tone: "trial", orgWide: false });
-  });
-
-  it("★a paid business shows its state, never an org-wide count", () => {
-    const h = billingHeader(summary({ products: [suite, agency] }), { coverage: "paid", plan: "agency" });
-    expect(h).toEqual({ heading: "Current Plan", label: "Agency", tone: "paid", orgWide: false });
-  });
-
-  it("without coverage the org-wide count is the fallback, billed lines only", () => {
-    expect(billingHeader(summary({ products: [suite, agency] }), null)).toEqual({ heading: "Your subscription", label: "2 paid plans", tone: "paid", orgWide: true });
-    expect(billingHeader(summary({ products: [suite] }), { coverage: "free" })).toEqual({ heading: "Your subscription", label: "1 paid plan", tone: "paid", orgWide: true });
-    const ending = { ...suite, endsAt: ENDS };
-    expect(billingHeader(summary({ products: [ending] }), undefined).label).toBe("1 plan");
-    expect(billingHeader(summary({ products: [ending, { ...agency, endsAt: ENDS }] }), undefined).label).toBe("2 plans");
-    expect(billingHeader(summary({ products: [ending, agency] }), undefined).label).toBe("1 paid plan");
-  });
-
-  it("without coverage or lines it is the headline's state; unloaded is neutral", () => {
-    expect(billingHeader(summary(), null)).toEqual({ heading: "Current Plan", label: "Peakhour Suite", tone: "trial", orgWide: false });
-    expect(billingHeader(undefined, null)).toEqual({ heading: "Current Plan", label: "Plan not loaded", tone: null, orgWide: false });
-  });
-
-  it("★the org-wide header is never on a trial: no state for an Included-plan (trial) footnote (official review R3)", () => {
-    // The billing page once footnoted the base trial under `orgWide` lines.
-    // Pinned: whenever the header is org-wide, the state is paid, so that
-    // footnote had no case and was deleted.
-    const subs = [TRIAL, TRIAL_ENDED, CONTRACT, { plan: "free", planName: "Free" }];
-    const lineSets = [[suite], [agency, suite], [{ ...suite, endsAt: ENDS }], [freeLeftover, agency]];
-    let orgWide = 0;
-    for (const subscription of subs) {
-      for (const products of lineSets) {
-        for (const b of [null, undefined, { coverage: "free" }, {}]) {
-          const s = summary({ subscription, products });
-          if (billingHeader(s, b).orgWide) {
-            orgWide++;
-            expect(planState(s, b)).toBe("paid");
-          }
-        }
-      }
-    }
-    expect(orgWide).toBe(subs.length * lineSets.length * 4);
+  it("★a paid business's header names its own plan, not a count of the org's (P4.3b)", () => {
+    const s = summary({ subscription: TRIAL_ENDED, products: [own(agency), own(suite, B)] });
+    expect(planHeadline(s, { coverage: "paid", businessId: A })).toEqual({ state: "paid", label: "Agency", padlocked: false, button: "Change plan" });
   });
 });
 
@@ -408,7 +410,7 @@ describe("trialWarningDays: the trial-expiry banner (review on b2c#591)", () => 
   });
 
   it("does not warn a sibling, paid or padlocked, about the first business's trial", () => {
-    expect(trialWarningDays(summary({ subscription: twoLeft }), { coverage: "paid", plan: "suite" }, 3)).toBeNull();
+    expect(trialWarningDays(summary({ subscription: twoLeft }), { coverage: "paid", businessId: B }, 3)).toBeNull();
     expect(trialWarningDays(summary({ subscription: twoLeft }), { coverage: "none" }, 3)).toBeNull();
   });
 

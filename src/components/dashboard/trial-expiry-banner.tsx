@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ApiError } from "@/lib/api";
 import { useDashboardOrg, useExtendTrial } from "@/hooks/use-dashboard-org";
-import { trialWarningDays } from "@/lib/plan-status";
+import { activeBusiness, trialWarningDays } from "@/lib/plan-status";
 import { useAuth } from "@/providers/auth-provider";
 
 /**
@@ -34,12 +34,12 @@ export function TrialExpiryBanner() {
   const { data, isLoading } = useDashboardOrg();
   // The ACTIVE business's coverage: the summary's trial is the first
   // business's, not necessarily this one's (`trialWarningDays`).
-  const { entitlements } = useAuth();
+  const { entitlements, business } = useAuth();
   const extend = useExtendTrial();
   const [dismissed, setDismissed] = useState(false);
 
   if (isLoading || dismissed) return null;
-  const days = trialWarningDays(data, entitlements, WARNING_WINDOW_DAYS);
+  const days = trialWarningDays(data, activeBusiness(entitlements, business), WARNING_WINDOW_DAYS);
   if (days === null) return null;
 
   const alreadyExtended = data?.subscription?.selfServeExtensionUsed === true;

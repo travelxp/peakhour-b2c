@@ -1,5 +1,16 @@
 import { describe, it, expect } from "vitest";
-import { intervalSuffix, currentOnTerm, periodTotals, priceForTerm, termOptions, termSuffix } from "./billing-terms";
+import {
+  intervalSuffix,
+  currentOnTerm,
+  knownRecurringTotal,
+  lineCostText,
+  periodTotals,
+  priceForTerm,
+  recurringTotalText,
+  termOptions,
+  termSuffix,
+  type RecurringTotalsish,
+} from "./billing-terms";
 
 /** The real catalog's shape: Suite monthly and yearly, Agency quarterly and
  *  yearly, Enterprise through sales (no sellable term). */
@@ -88,5 +99,90 @@ describe("currentOnTerm (D21, P4.2)", () => {
   it("a plan not held is never current", () => {
     expect(currentOnTerm({ isCurrent: false, heldTerm: "yearly" }, "yearly")).toBe(false);
     expect(currentOnTerm({ isCurrent: false }, "monthly")).toBe(false);
+  });
+});
+
+/**
+ * An unknown amount is never a 0 (P4.3b, api#1510). The api sums an unpriced
+ * line as 0 into its period's total and flags the summary incomplete, so the
+ * figures below are what `/v1/billing/summary` serves for each portfolio.
+ */
+describe("the recurring total never states an unknown amount as 0 (P4.3b)", () => {
+  const fmt = (n: number) => `INR ${n}`;
+  const line = (interval: string, amountKnown: boolean, endsAt: string | null = null) => ({ interval, amountKnown, endsAt });
+  const totals = (over: Partial<RecurringTotalsish>): RecurringTotalsish => ({
+    monthlyTotal: null,
+    quarterlyTotal: null,
+    yearlyTotal: null,
+    monthlyTotalComplete: true,
+    products: [],
+    ...over,
+  });
+
+  it("★a priced Suite beside an unpriced quarterly Agency reads the Suite and a +, never INR 0/quarter", () => {
+    const s = totals({ monthlyTotal: 4999, quarterlyTotal: 0, monthlyTotalComplete: false, products: [line("month", true), line("quarter", false)] });
+    expect(knownRecurringTotal(s, fmt)).toBe("INR 4999/mo");
+    expect(recurringTotalText(s, fmt)).toBe("INR 4999/mo+");
+  });
+
+  it("★an unpriced monthly line beside a priced quarterly one reads the quarter and a +", () => {
+    const s = totals({ monthlyTotal: 0, quarterlyTotal: 74997, monthlyTotalComplete: false, products: [line("month", false), line("quarter", true)] });
+    expect(recurringTotalText(s, fmt)).toBe("INR 74997/quarter+");
+  });
+
+  it("★a period whose only figure is an unpriced line's 0 is left out even when it is the only period", () => {
+    const s = totals({ monthlyTotal: 0, monthlyTotalComplete: false, products: [line("month", false), line("month", true)] });
+    expect(knownRecurringTotal(s, fmt)).toBeNull();
+    expect(recurringTotalText(s, fmt)).toBe("Price unavailable");
+  });
+
+  it("★only unpriced lines (no currency, so no totals) read Price unavailable, not a dash", () => {
+    const s = totals({ monthlyTotalComplete: false, products: [line("month", false)] });
+    expect(recurringTotalText(s, fmt)).toBe("Price unavailable");
+  });
+
+  it("a period with a priced line and an unpriced one keeps its figure, a floor", () => {
+    const s = totals({ monthlyTotal: 4999, monthlyTotalComplete: false, products: [line("month", true), line("month", false)] });
+    expect(recurringTotalText(s, fmt)).toBe("INR 4999/mo+");
+  });
+
+  it("a complete total reads every period, with no +", () => {
+    const s = totals({ monthlyTotal: 4999, quarterlyTotal: 74997, products: [line("month", true), line("quarter", true)] });
+    expect(recurringTotalText(s, fmt)).toBe("INR 4999/mo + INR 74997/quarter");
+  });
+
+  it("a known 0 stays a 0: only an unknown amount is hidden", () => {
+    const s = totals({ monthlyTotal: 0, products: [line("month", true)] });
+    expect(recurringTotalText(s, fmt)).toBe("INR 0/mo");
+  });
+
+  it("an ending unpriced line is not billed, so it hides nothing", () => {
+    const s = totals({ monthlyTotal: 0, monthlyTotalComplete: true, products: [line("month", true), line("month", false, "2026-11-01T00:00:00.000Z")] });
+    expect(recurringTotalText(s, fmt)).toBe("INR 0/mo");
+  });
+
+  it("nothing to total is a dash: no lines, several currencies, or no summary", () => {
+    expect(recurringTotalText(totals({}), fmt)).toBe("—");
+    expect(recurringTotalText(totals({ products: [line("month", true), line("month", true)] }), fmt)).toBe("—");
+    expect(recurringTotalText(undefined, fmt)).toBe("—");
+  });
+});
+
+describe("lineCostText: one line's price (P4.3b)", () => {
+  const fmt = (n: number) => `INR ${n}`;
+
+  it("★an unpriced line reads Price unavailable, never 0 and never nothing", () => {
+    expect(lineCostText({ amount: null, amountKnown: false, interval: "quarter" }, fmt)).toBe("Price unavailable");
+    expect(lineCostText({ amount: 0, amountKnown: false, interval: "month" }, fmt)).toBe("Price unavailable");
+    expect(lineCostText({ amount: null, amountKnown: true, interval: "month" }, fmt)).toBe("Price unavailable");
+  });
+
+  it("a priced line reads its amount on its own interval", () => {
+    expect(lineCostText({ amount: 74997, amountKnown: true, interval: "quarter" }, fmt)).toBe("INR 74997/quarter");
+    expect(lineCostText({ amount: 4999, amountKnown: true, interval: "month" }, fmt)).toBe("INR 4999/mo");
+  });
+
+  it("a line the summary does not list (not loaded yet) says nothing about its price", () => {
+    expect(lineCostText(undefined, fmt)).toBeNull();
   });
 });

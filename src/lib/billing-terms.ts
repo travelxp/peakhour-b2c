@@ -98,3 +98,78 @@ export function currentOnTerm(
 ): boolean {
   return p.isCurrent && (p.heldTerm == null || p.heldTerm === term);
 }
+
+/** What the price of an UNKNOWN amount reads as (api#1510): never 0. */
+export const PRICE_UNAVAILABLE = "Price unavailable";
+
+/** The parts of `/v1/billing/summary` the recurring-total reading needs. */
+export interface RecurringTotalsish {
+  monthlyTotal: number | null;
+  quarterlyTotal?: number | null;
+  yearlyTotal?: number | null;
+  monthlyTotalComplete: boolean;
+  products: ReadonlyArray<{ amountKnown: boolean; interval: string | null; endsAt?: string | null }>;
+}
+
+/**
+ * The recurring totals whose figures are KNOWN, formatted and joined
+ * ("₹4,999/mo + ₹74,997/quarter"), or null when none is.
+ *
+ * ★AN UNKNOWN AMOUNT IS NEVER A 0 (P4.3b, api#1510). The api prices a line it
+ * cannot price for the country as `amount: null`, but SUMS it as 0 into its
+ * period's total and flags the summary incomplete. So a period holding only
+ * unknown billed lines totals 0, and was read "₹0/quarter" beside a priced
+ * Suite: an Agency charge stated as free. Such a period is left out here; the
+ * caller says the total is incomplete (`recurringTotalText`). A period with a
+ * priced line and an unknown one keeps its figure, a floor.
+ */
+export function knownRecurringTotal(
+  s: RecurringTotalsish,
+  format: (amount: number) => string,
+): string | null {
+  const unknownIn = new Set(
+    s.products.filter((p) => !p.endsAt && !p.amountKnown).map((p) => intervalOf(p.interval)),
+  );
+  const parts = periodTotals(s)
+    .filter((t) => !(t.amount === 0 && unknownIn.has(t.interval)))
+    .map((t) => `${format(t.amount)}${intervalSuffix(t.interval)}`);
+  return parts.join(" + ") || null;
+}
+
+/**
+ * The billing page's "Recurring total" figure: the known totals, with a "+"
+ * when some line's amount is unknown (a floor, not the charge); "Price
+ * unavailable" when no figure is known and some line's amount is unknown; an
+ * em dash when there is nothing to total (no billed line, or lines in several
+ * currencies, which the api will not sum).
+ */
+export function recurringTotalText(
+  s: RecurringTotalsish | undefined,
+  format: (amount: number) => string,
+): string {
+  if (!s) return "—";
+  const known = knownRecurringTotal(s, format);
+  if (known) return s.monthlyTotalComplete ? known : `${known}+`;
+  return s.monthlyTotalComplete ? "—" : PRICE_UNAVAILABLE;
+}
+
+/**
+ * One line's price on the billing page: its amount and interval, or "Price
+ * unavailable" for a line the api could not price (`amountKnown: false`,
+ * `amount: null`); null when the summary has no such line (not loaded yet),
+ * which says nothing about the price.
+ */
+export function lineCostText(
+  line: { amount: number | null; amountKnown: boolean; interval: string | null } | undefined,
+  format: (amount: number) => string,
+): string | null {
+  if (!line) return null;
+  if (!line.amountKnown || line.amount == null) return PRICE_UNAVAILABLE;
+  return `${format(line.amount)}${intervalSuffix(line.interval)}`;
+}
+
+/** A held line's interval, an absent or unknown one read as monthly
+ *  (`intervalSuffix`'s rule). */
+function intervalOf(interval: string | null | undefined): BillingInterval {
+  return interval === "quarter" || interval === "year" ? interval : "month";
+}
