@@ -129,25 +129,31 @@ describe("activityCopy — §07's left column and 'what'", () => {
     //  instructions Peakhour acted on and ones it refused. A conversation row
     //  is neither, and its line says so in the lede's own word. 🚫Not "Ran",
     //  not "Refused", and not "Chatted": a canned reply or a rewritten declined
-    //  trigger is not a chat. The lede is read from the component, flattened,
-    //  so a reworded lede fails here rather than drifting from this line.
-    const lede = readFileSync(
+    //  trigger is not a chat. The lede is the rendered `<CardDescription>`
+    //  text, read from the component and flattened (never the whole file, where
+    //  a comment could carry the sentence), so a reworded lede fails here
+    //  rather than drifting from this line.
+    const source = readFileSync(
       fileURLToPath(new URL("../components/control-plane/activity-ledger.tsx", import.meta.url)),
       "utf8",
-    ).replace(/\s+/g, " ");
-    expect(lede).toContain(
+    );
+    const ledes = [...source.matchAll(/<CardDescription>([\s\S]*?)<\/CardDescription>/g)];
+    expect(ledes).toHaveLength(1);
+    expect(ledes[0][1].replace(/\s+/g, " ").trim()).toBe(
       "Every instruction Peakhour acted on over WhatsApp, who gave it, and every one it refused.",
     );
     const { what } = activityCopy(row({ outcome: "conversation" }), DOMAINS);
-    expect(what).toMatch(/\bno instruction ran\b/);
-    expect(what).not.toMatch(/^(Ran|Refused)\b|Chatted/);
+    expect(what).toMatch(/\bno instruction ran$/);
+    // Whatever else the line says, it claims no run, no refusal and no chat.
+    expect(what.replace(/\bno instruction ran$/, "")).not.toMatch(/\b(ran|run|refused|chat\w*)\b/i);
   });
 
   it("reads a not_a_command row exactly as a conversation, so one event never shows two ways", () => {
     // ⏸An api older than M3 (production until it deploys there) still writes
-    //  `not_a_command`, and a later mongodb migration rewrites those rows to
-    //  `conversation` before it drops the key. Two sentences would show a
-    //  merchant one kind of line two ways.
+    //  `not_a_command`. api#1522 names a mongodb follow-up that rewrites those
+    //  rows to `conversation` and drops the key; it is planned, not built
+    //  (`plt_activity` still admits `not_a_command`), so this entry stays until
+    //  it lands. Two sentences would show a merchant one kind of line two ways.
     for (const command of [null, "LAUNCH"]) {
       expect(activityCopy(row({ outcome: "not_a_command", command }), DOMAINS)).toEqual(
         activityCopy(row({ outcome: "conversation", command }), DOMAINS),

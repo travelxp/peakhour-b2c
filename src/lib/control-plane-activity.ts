@@ -85,9 +85,10 @@ interface OutcomeCopy {
  * ★★ONE COPY FOR TWO KEYS, `not_a_command` AND `conversation`. mongodb
  * migration 392 (WhatsApp plan M1) adds `conversation` and rewrites the stored
  * `not_a_command` rows it finds to it. ⏸An api older than M3 still writes
- * `not_a_command` (production until M3 deploys there), and a later mongodb
- * migration rewrites those rows too, before it drops the key. 🚫Two sentences
- * would show a merchant one kind of line two ways, so both keys read this one.
+ * `not_a_command` (production until M3 deploys there). api#1522 names a mongodb
+ * follow-up that rewrites those rows too and drops the key; it is planned, not
+ * built, so this entry stays until it lands. 🚫Two sentences would show a
+ * merchant one kind of line two ways, so both keys read this one.
  *
  * 🚫★NOT "Blocked". A verified merchant saying "thanks" was not refused
  * anything, and filing ordinary chatter under a wall the tab exists to prove
@@ -109,9 +110,10 @@ interface OutcomeCopy {
  *   date compiled into every environment, and the later migration rewrites
  *   pre-M3 production rows with their original dates, after any such cutoff.
  *
- * So the sentence says what holds in every case: nothing ran. That return
- * sits before `executeMerchantCommand`; an agent's proposal or an inferred
- * command falls through to it and is ledgered as another outcome. 🚫"Chatted
+ * So the sentence says what holds in every case: nothing ran. The
+ * `conversation` return sits before `executeMerchantCommand`, and an agent's
+ * proposal or an inferred command never takes it: it continues into
+ * `executeMerchantCommand` and is ledgered as another outcome. 🚫"Chatted
  * with Peakhour" reads a canned reply or a declined trigger as a good
  * exchange. 🚫"Sent a message Peakhour did not take as an instruction" (b2c#593)
  * was false for the declined trigger a rewritten row may be: Peakhour took it
