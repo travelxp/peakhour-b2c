@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { describe, it, expect } from "vitest";
 import type { ActivityRow, NotificationDomain } from "@/lib/api/control-plane";
 import {
@@ -105,25 +107,47 @@ describe("activityCopy — §07's left column and 'what'", () => {
     expect(c.refused).toBe(false);
   });
 
-  it("files a domainless conversation as a message Peakhour did not take as an instruction, under Message", () => {
+  it("files a domainless conversation as a message on which no instruction ran, under Message", () => {
     // ★★mongodb 392 REWRITES THE STORED `not_a_command` ROWS IT FINDS TO
     //  `conversation`. Without its own entry a rewritten row fell through to
     //  the unknown-outcome fallback: group "Activity", sentence "conversation".
-    //  ⚠️Never under Blocked, and the sentence claims no good exchange and
-    //  nothing about what ran: a rewritten row may have been a declined
-    //  trigger, a button tap or a re-asked question, which 392 cannot tell from
-    //  chatter. (A row WITH a domain files under it, as every outcome does;
-    //  neither api return sets one on this outcome.)
+    //  ⚠️Never under Blocked, and the sentence claims no good exchange: a
+    //  rewritten row may have been a declined trigger, a button tap or a
+    //  re-asked question, and from api M3 a new row may still be a tap, a
+    //  re-asked question, a spent budget or the canned "did not understand"
+    //  line. Nothing in the row says which. What every one of them shares is
+    //  that nothing ran. (A row WITH a domain files under it, as every outcome
+    //  does; neither api return sets one on this outcome.)
     const c = activityCopy(row({ outcome: "conversation" }), DOMAINS);
     expect(c.group).toBe("Message");
-    expect(c.what).toBe("Sent a message Peakhour did not take as an instruction");
+    expect(c.what).toBe("Sent Peakhour a message — no instruction ran");
     expect(c.refused).toBe(false);
   });
 
+  it("says a conversation is neither an instruction Peakhour acted on nor one it refused, in the tab lede's words", () => {
+    // ★The tab's lede (`activity-ledger.tsx`) divides the ledger into
+    //  instructions Peakhour acted on and ones it refused. A conversation row
+    //  is neither, and its line says so in the lede's own word. 🚫Not "Ran",
+    //  not "Refused", and not "Chatted": a canned reply or a rewritten declined
+    //  trigger is not a chat. The lede is read from the component, flattened,
+    //  so a reworded lede fails here rather than drifting from this line.
+    const lede = readFileSync(
+      fileURLToPath(new URL("../components/control-plane/activity-ledger.tsx", import.meta.url)),
+      "utf8",
+    ).replace(/\s+/g, " ");
+    expect(lede).toContain(
+      "Every instruction Peakhour acted on over WhatsApp, who gave it, and every one it refused.",
+    );
+    const { what } = activityCopy(row({ outcome: "conversation" }), DOMAINS);
+    expect(what).toMatch(/\bno instruction ran\b/);
+    expect(what).not.toMatch(/^(Ran|Refused)\b|Chatted/);
+  });
+
   it("reads a not_a_command row exactly as a conversation, so one event never shows two ways", () => {
-    // ⏸api keeps writing `not_a_command` until M3, during and after 392's run,
-    //  so the tab holds both keys for the same event. Two sentences would show
-    //  a merchant one kind of line two ways.
+    // ⏸An api older than M3 (production until it deploys there) still writes
+    //  `not_a_command`, and a later mongodb migration rewrites those rows to
+    //  `conversation` before it drops the key. Two sentences would show a
+    //  merchant one kind of line two ways.
     for (const command of [null, "LAUNCH"]) {
       expect(activityCopy(row({ outcome: "not_a_command", command }), DOMAINS)).toEqual(
         activityCopy(row({ outcome: "conversation", command }), DOMAINS),
