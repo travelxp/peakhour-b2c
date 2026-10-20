@@ -263,7 +263,9 @@ export function planHeadline(
   const state = planState(summary, business);
   return {
     state,
-    label: planDisplayName(summary, business) ?? "Plan not loaded",
+    // ★With no business picked the summary is not fetched at all (it answers
+    //  for one business, P4.3b): say what is missing, not that a load failed.
+    label: planDisplayName(summary, business) ?? (business?.businessId === null ? "No business picked" : "Plan not loaded"),
     padlocked: state === "none",
     button: planButtonLabel(state),
   };

@@ -74,8 +74,9 @@ export const BILLING_SUMMARY_KEY = "/v1/billing/summary";
 /**
  * The cache key of one business's billing summary. ★BY BUSINESS, not only by
  * org (P4.3b): the lines and totals are the signed-in business's (api#1510),
- * so keyed by org alone, a switch to a sibling business in the same org served
- * the previous business's lines and total from cache.
+ * so the key names whose answer an entry is. `switchBusiness` also clears the
+ * whole cache, so this is not what isolates a switch; it keeps an entry from
+ * being read as another business's on any path that does not clear.
  */
 export function billingSummaryKey(orgId: string | null | undefined, businessId: string | null | undefined) {
   return [BILLING_SUMMARY_KEY, orgId ?? null, businessId ?? null] as const;

@@ -389,6 +389,11 @@ describe("planHeadline: the billing page's plan header (review on b2c#591)", () 
     expect(planHeadline(summary())).toEqual({ state: "trial", label: "Peakhour Suite", padlocked: false, button: "Buy a plan" });
   });
 
+  it("★with no business picked the header says so, not that the plan failed to load (review R1)", () => {
+    expect(planHeadline(undefined, { coverage: null, businessId: null })).toEqual({ state: null, label: "No business picked", padlocked: false, button: "See plans" });
+    expect(planHeadline(undefined, { coverage: null, businessId: A }).label).toBe("Plan not loaded");
+  });
+
   it("the header reads the active business's coverage", () => {
     expect(planHeadline(summary({ subscription: TRIAL_ENDED, products: [suite] }), { coverage: "none" }).padlocked).toBe(true);
   });

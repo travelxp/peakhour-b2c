@@ -2,9 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
  * `/v1/dashboard/org` and `/v1/billing/summary` answer for the signed-in
- * BUSINESS (api#1510), so their caches are keyed by business (P4.3b). Keyed
- * by org alone, a switch to a sibling business in the same org served the
- * previous business's lines, name and total from cache.
+ * BUSINESS (api#1510), so their caches are keyed by business (P4.3b): the key
+ * names whose answer an entry is (`switchBusiness` also clears the cache).
  *
  * The hooks call `useQuery` with the options under test, so `useQuery` is
  * replaced by a recorder and `useAuth` by a fixed session.

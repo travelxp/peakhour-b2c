@@ -227,15 +227,27 @@ function SettingsContent() {
 
   useEffect(() => {
     if (!org?._id) return;
+    // ★Per business (P4.3b): the plan row reads this business's own lines
+    //  (api#1510), so a switch to a sibling business refetches, and ★a
+    //  response for the business switched away from is dropped: landing
+    //  after the new one, it would name the sibling's plan (review R1).
+    let stale = false;
     setLoading(true);
     setError("");
     api
       .get<OrgDetails>("/v1/dashboard/org")
-      .then(setOrgDetails)
-      .catch(() => setError("Failed to load settings. Please try again."))
-      .finally(() => setLoading(false));
-    // ★Per business (P4.3b): the plan row reads this business's own lines
-    //  (api#1510), so a switch to a sibling business refetches.
+      .then((d) => {
+        if (!stale) setOrgDetails(d);
+      })
+      .catch(() => {
+        if (!stale) setError("Failed to load settings. Please try again.");
+      })
+      .finally(() => {
+        if (!stale) setLoading(false);
+      });
+    return () => {
+      stale = true;
+    };
   }, [org?._id, business?._id]);
 
   if (loading) {

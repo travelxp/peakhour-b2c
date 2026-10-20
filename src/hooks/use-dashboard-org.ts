@@ -72,8 +72,10 @@ export const DASHBOARD_ORG_KEY = "/v1/dashboard/org";
 /**
  * The cache key of one business's `/v1/dashboard/org`. ★BY BUSINESS, not only
  * by org (P4.3b): the response's lines are the signed-in business's
- * (api#1510), so keyed by org alone, a switch to a sibling business in the
- * same org served the previous business's lines from cache.
+ * (api#1510), so the key names whose answer an entry is. `switchBusiness`
+ * also clears the whole cache, so this is not what isolates a switch; it
+ * keeps an entry from being read as another business's on any path that
+ * does not clear (and lets the hook wait for a business, `enabled`).
  */
 export function dashboardOrgKey(orgId: string | null | undefined, businessId: string | null | undefined) {
   return [DASHBOARD_ORG_KEY, orgId ?? null, businessId ?? null] as const;
