@@ -329,3 +329,22 @@ export function planDisplayName(
   const plan = base?.plan ?? "";
   return plan.charAt(0).toUpperCase() + plan.slice(1);
 }
+
+/**
+ * The settings page's Plan row: the plan's name, "No business picked" when
+ * `/me` names no business, or an em dash before it loads.
+ *
+ * ★WITH NO BUSINESS PICKED THE ROW NAMES NOTHING (review R2 on b2c#592). The
+ * settings page fetches `/v1/dashboard/org` itself, and with no business in
+ * the session the api answers for the org's FIRST business
+ * (`requireBusiness`), whose stamped lines `businessLines` cannot claim for
+ * an unknown business: the row read that business's plan, or "No plan",
+ * beside a billing page saying "No business picked".
+ */
+export function planRowLabel(
+  summary: PlanSummaryish | undefined,
+  business: BusinessPlanish,
+): string {
+  if (!business.businessId) return "No business picked";
+  return planDisplayName(summary, business) ?? "—";
+}

@@ -8,7 +8,7 @@ import { useAuth } from "@/providers/auth-provider";
 import { api, ApiError } from "@/lib/api";
 import { useLocale } from "@/hooks/use-locale";
 import type { DashboardOrgPlanSummary } from "@/hooks/use-dashboard-org";
-import { activeBusiness, planDisplayName } from "@/lib/plan-status";
+import { activeBusiness, planRowLabel } from "@/lib/plan-status";
 // Shared with every other surface the OAuth callback can return to
 // (?returnTo=), so a new provider is labelled once, not per page.
 import { formatProviderName } from "@/lib/provider-names";
@@ -47,7 +47,7 @@ import {
 import { toast } from "sonner";
 
 /** `/v1/dashboard/org`; the plan row reads its `subscription` / `products`
- *  through `planDisplayName`, as the top-bar badge does (D19, P4.7). */
+ *  through `planRowLabel` (`planDisplayName`), as the top-bar badge does (D19, P4.7). */
 interface OrgDetails extends Pick<DashboardOrgPlanSummary, "subscription" | "products"> {
   _id: string;
   name: string;
@@ -405,7 +405,7 @@ function SettingsContent() {
                       {/* The plan's NAME, not the raw billing key with a
                           "free" fallback: there is no free tier (D19), and
                           no plan reads "No plan". */}
-                      {planDisplayName(orgDetails ?? undefined, active) ?? "—"}
+                      {planRowLabel(orgDetails ?? undefined, active)}
                     </Badge>
                   }
                 />
@@ -440,7 +440,7 @@ function SettingsContent() {
                       {/* The plan's NAME, not the raw billing key with a
                           "free" fallback: there is no free tier (D19), and
                           no plan reads "No plan". */}
-                      {planDisplayName(orgDetails ?? undefined, active) ?? "—"}
+                      {planRowLabel(orgDetails ?? undefined, active)}
                     </Badge>
                   }
                 />

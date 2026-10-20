@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   activeBusiness,
+  planRowLabel,
   businessLines,
   heldLines,
   isBilledLine,
@@ -428,5 +429,17 @@ describe("trialWarningDays: the trial-expiry banner (review on b2c#591)", () => 
     expect(trialWarningDays(summary({ subscription: twoLeft }), null, 3)).toBe(2);
     expect(trialWarningDays(summary({ subscription: endedZero }), null, 3)).toBeNull();
     expect(trialWarningDays(undefined, { coverage: "trial" }, 3)).toBeNull();
+  });
+});
+
+describe("planRowLabel: the settings page's Plan row (review R2 on b2c#592)", () => {
+  it("★with no business picked it names nothing, though the api answered for the first business", () => {
+    const firstBusiness = summary({ subscription: TRIAL_ENDED, products: [own(suite)] });
+    expect(planRowLabel(firstBusiness, { coverage: null, businessId: null })).toBe("No business picked");
+  });
+
+  it("with a business it is the plan's name, and a dash before the summary loads", () => {
+    expect(planRowLabel(summary({ subscription: TRIAL_ENDED, products: [own(suite)] }), { coverage: "paid", businessId: A })).toBe("Peakhour Suite");
+    expect(planRowLabel(undefined, { coverage: "paid", businessId: A })).toBe("—");
   });
 });
