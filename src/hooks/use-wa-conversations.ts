@@ -42,7 +42,7 @@ export interface WaThread {
   lastInboundAt?: string | null;
   /** WA T3: when free text stops being allowed; null = the window is closed. */
   replyWindowEndsAt?: string | null;
-  /** WA T2's compare-and-set version. ⚠️Not on the read yet (see `resumeBody`). */
+  /** WA T2's compare-and-set version, on the read since api#1530 (see `resumeBody`). */
   statusVersion?: number;
   messages: WaMessage[];
 }
@@ -142,7 +142,8 @@ export function useWaHandoff() {
   const { business } = useAuth();
   return useMutation({
     mutationFn: (threadId: string) => api.post(`${BASE}/${encodeURIComponent(threadId)}/handoff`),
-    onSuccess: (_r, threadId) => {
+    // ★Settled, as Resume (review R1): a 409 STATUS_CHANGED also re-reads.
+    onSettled: (_r, _e, threadId) => {
       qc.invalidateQueries({ queryKey: ["wa-conversations", business?._id ?? "none"] });
       qc.invalidateQueries({ queryKey: ["wa-thread", business?._id ?? "none", threadId] });
     },
@@ -154,11 +155,13 @@ export function useWaResume() {
   const qc = useQueryClient();
   const { business } = useAuth();
   return useMutation({
-    // ★WA T2 follow-up: the rendered `statusVersion` goes with it where the
-    //  read carries one (`resumeBody`); today it does not, so no body is sent.
+    // ★WA T2 follow-up: the rendered `statusVersion` goes with it
+    //  (`resumeBody`), so a Resume from a stale view is a 409, not a release.
     mutationFn: ({ threadId, thread }: { threadId: string; thread?: WaThread | null }) =>
       api.post(`${BASE}/${encodeURIComponent(threadId)}/resume`, resumeBody(thread)),
-    onSuccess: (_r, { threadId }) => {
+    // ★SETTLED, NOT ONLY SUCCESS: after a stale-view 409 the pane must re-read
+    //  the thread, or it keeps the old version and every click is the same 409.
+    onSettled: (_r, _e, { threadId }) => {
       qc.invalidateQueries({ queryKey: ["wa-conversations", business?._id ?? "none"] });
       qc.invalidateQueries({ queryKey: ["wa-thread", business?._id ?? "none", threadId] });
     },

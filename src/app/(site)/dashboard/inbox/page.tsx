@@ -26,6 +26,7 @@ import {
   memberNameLookup,
   replyingAsLine,
   senderLabel,
+  statusErrorMessage,
   type ComposerStore,
   type ReplyWindow,
 } from "@/lib/wa-inbox-reply";
@@ -685,7 +686,7 @@ function InboxTabs() {
                         onClick={() =>
                           resume.mutate({ threadId: selected, thread }, {
                             onSuccess: () => toast.success("Handed back — the assistant will reply again."),
-                            onError: (e: Error) => toast.error(e?.message || "Couldn't hand back"),
+                            onError: (e: Error) => toast.error(statusErrorMessage(e, "hand back")),
                           })
                         }
                       >
@@ -700,7 +701,7 @@ function InboxTabs() {
                           handoff.mutate(selected, {
                             onSuccess: () =>
                               toast.success("You've taken over. The assistant won't reply to this shopper until you return it."),
-                            onError: (e: Error) => toast.error(e?.message || "Couldn't hand off"),
+                            onError: (e: Error) => toast.error(statusErrorMessage(e, "take over")),
                           })
                         }
                       >

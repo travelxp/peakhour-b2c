@@ -16,6 +16,10 @@ import {
   replyingAsLine,
   replyRequest,
   resumeBody,
+  statusErrorMessage,
+  sendFailedOutcome,
+  attemptAfterError,
+  type Attempt,
   senderLabel,
   templatePreview,
   templateValueProblem,
@@ -292,7 +296,8 @@ describe("one idempotency key per compose attempt", () => {
   });
 });
 
-const apiErr = (code: string, status: number, message = "Request failed") => new ApiError(code, message, status);
+const apiErr = (code: string, status: number, message = "Request failed", details?: unknown) =>
+  new ApiError(code, message, status, undefined, details);
 
 describe("replyErrorCopy", () => {
   it("an unknown outcome never says failed or try again, and warns of a second copy", () => {
@@ -323,6 +328,102 @@ describe("replyErrorCopy", () => {
   });
   it("a send failure marks the attempt unknown", () => {
     expect(replyErrorCopy(apiErr("SEND_FAILED", 502)).attempt).toBe("unknown");
+  });
+  it("[SF01] a refused send says nothing was sent, in the api's reason", () => {
+    const c = replyErrorCopy(apiErr("SEND_FAILED", 502, "(#131008) Required parameter is missing", { outcome: "not_sent" }));
+    expect(c.title).toBe("WhatsApp didn't accept this reply");
+    expect(c.detail).toBe("(#131008) Required parameter is missing. Nothing was sent.");
+  });
+  it("[SF02] a refused send drops the key and skips the confirm", () => {
+    const c = replyErrorCopy(apiErr("SEND_FAILED", 502, "Bad value", { outcome: "not_sent" }));
+    expect(c.attempt).toBe("fresh");
+    const sent: Attempt = { sig: "s", key: "inbox-k1", unknown: false };
+    const after = attemptAfterError(sent, c);
+    expect(after).toBeNull();
+    expect(needsResendConfirm(after)).toBe(false);
+    expect(attemptFor(after, "s", () => "inbox-k2").key).toBe("inbox-k2");
+  });
+  it("[SF19] a refused template re-reads the template list, a refused text does not", () => {
+    const e = apiErr("SEND_FAILED", 502, "Template paused", { outcome: "not_sent" });
+    expect(replyErrorCopy(e, "template").refetchTemplates).toBe(true);
+    expect(replyErrorCopy(e, "text").refetchTemplates).toBe(false);
+  });
+  it("[SF21] other refusals still keep the key, and an unknown one marks it", () => {
+    const sent: Attempt = { sig: "s", key: "inbox-k1", unknown: false };
+    expect(attemptAfterError(sent, { attempt: "keep" })).toEqual(sent);
+    expect(attemptAfterError(sent, { attempt: "unknown" })).toEqual({ ...sent, unknown: true });
+  });
+  it("[SF23] a confirmed resend that WhatsApp refused still asks before the next send", () => {
+    const earlier: Attempt = { sig: "s", key: "inbox-k0", unknown: true };
+    const resent: Attempt = { sig: "s", key: "inbox-k1", unknown: false };
+    const c = replyErrorCopy(apiErr("SEND_FAILED", 502, "Bad value", { outcome: "not_sent" }));
+    const after = attemptAfterError(resent, c, earlier);
+    expect(needsResendConfirm(after)).toBe(true);
+    expect(attemptFor(after, "s", () => "inbox-k2").key).toBe("inbox-k2");
+  });
+  it("[SF24] a refused send after a settled one drops the key with no confirm", () => {
+    const earlier: Attempt = { sig: "s", key: "inbox-k0", unknown: false };
+    const resent: Attempt = { sig: "s", key: "inbox-k0", unknown: false };
+    expect(attemptAfterError(resent, { attempt: "fresh" }, earlier)).toBeNull();
+  });
+  it("[SF25] a reason ending in a colon, semicolon or dash ends in one full stop", () => {
+    for (const [said, want] of [
+      ["(#100) Invalid parameter:", "(#100) Invalid parameter."],
+      ["Value refused;", "Value refused."],
+      ["Value refused —", "Value refused."],
+    ]) {
+      expect(replyErrorCopy(apiErr("SEND_FAILED", 502, said, { outcome: "not_sent" })).detail, said).toBe(`${want} Nothing was sent.`);
+    }
+  });
+  it("[SF26] a reason that only mentions sending again still gets the check advice", () => {
+    expect(replyErrorCopy(apiErr("SEND_FAILED", 502, "Rate limited: wait a minute before sending it again.")).detail).toBe(
+      "Rate limited: wait a minute before sending it again. Check this conversation before sending it again.",
+    );
+  });
+  it("[SF03] a refused send with no reason says WhatsApp did not accept it", () => {
+    expect(replyErrorCopy(apiErr("SEND_FAILED", 502, "Request failed", { outcome: "not_sent" })).detail).toBe(
+      "WhatsApp did not accept the message. Nothing was sent.",
+    );
+  });
+  it("[SF04] a reason that already ends its sentence gets no second full stop", () => {
+    expect(replyErrorCopy(apiErr("SEND_FAILED", 502, "Bad value!", { outcome: "not_sent" })).detail).toBe(
+      "Bad value! Nothing was sent.",
+    );
+  });
+  it("[SF18] a stop inside a closing quote or bracket, or an ellipsis, gets no second full stop", () => {
+    for (const said of ['Invalid value ("Hello.")', "Invalid value “Hello.”", "It was refused…", "Bad value (twice.)"]) {
+      expect(replyErrorCopy(apiErr("SEND_FAILED", 502, said, { outcome: "not_sent" })).detail, said).toBe(`${said} Nothing was sent.`);
+    }
+  });
+  it("[SF05] a send failure the api calls unknown stays unknown, in the api's words once", () => {
+    // The api's own sentence, verbatim (api#1530 whatsapp-conversations.ts).
+    const said =
+      "The connection to WhatsApp failed while sending, so this reply may or may not have arrived. Check the conversation before sending it again.";
+    const c = replyErrorCopy(apiErr("SEND_FAILED", 502, said, { outcome: "unknown" }));
+    expect(c.attempt).toBe("unknown");
+    expect(c.title).toBe("This reply may not have been sent");
+    expect(c.detail).toBe(said);
+  });
+  it("[SF06] a send failure with no details stays unknown", () => {
+    const c = replyErrorCopy(apiErr("SEND_FAILED", 502, "WhatsApp did not accept the message"));
+    expect(c.attempt).toBe("unknown");
+    expect(c.detail).not.toMatch(/Nothing was sent/);
+  });
+  it("[SF07] only the exact not_sent outcome is certain", () => {
+    for (const details of [null, "not_sent", { outcome: "NOT_SENT" }, { outcome: ["not_sent"] }, { result: "not_sent" }, []]) {
+      expect(sendFailedOutcome(details), JSON.stringify(details)).toBe("unknown");
+      expect(replyErrorCopy(apiErr("SEND_FAILED", 502, "x", details)).attempt, JSON.stringify(details)).toBe("unknown");
+    }
+    expect(sendFailedOutcome({ outcome: "not_sent", extra: 1 })).toBe("not_sent");
+  });
+  it("[SF08] an unknown send failure's open reason is closed with a full stop", () => {
+    expect(replyErrorCopy(apiErr("SEND_FAILED", 502, "Graph timed out")).detail).toBe(
+      "Graph timed out. Check this conversation before sending it again.",
+    );
+  });
+  it("[SF09] an unknown send failure with no reason does not say WhatsApp refused it", () => {
+    const c = replyErrorCopy(apiErr("SEND_FAILED", 502, "Request failed", { outcome: "unknown" }));
+    expect(c.detail).toBe("WhatsApp didn't confirm the message. Check this conversation before sending it again.");
   });
   it("a lost connection is an unknown that is safe to resend under the same key", () => {
     const c = replyErrorCopy(new TypeError("Failed to fetch"));
@@ -549,6 +650,35 @@ describe("polling and resume", () => {
   });
   it("resume sends no body for a status version that is not a whole number", () => {
     expect(resumeBody({ statusVersion: "7" })).toBeUndefined();
+  });
+  it("[SF10] a stale resume shows the api's own sentence", () => {
+    // The api's stale-view sentence, verbatim (api#1530 conflictMessageFor).
+    const msg =
+      "This conversation was taken over after you last loaded it, so it is still with a team member. Refresh it to see the latest.";
+    expect(statusErrorMessage(apiErr("STATUS_CHANGED", 409, msg, { status: "escalated", statusVersion: 4 }), "hand back")).toBe(msg);
+  });
+  it("[SF11] a stale resume with no sentence says the conversation changed", () => {
+    expect(statusErrorMessage(apiErr("STATUS_CHANGED", 409), "hand back")).toBe(
+      "This conversation changed after you last loaded it, so it was left as it is. Check where it stands before trying again.",
+    );
+  });
+  it("[SF12] any other resume refusal shows its own message", () => {
+    expect(statusErrorMessage(apiErr("FORBIDDEN", 403, "Editor access needed"), "hand back")).toBe("Editor access needed");
+  });
+  it("[SF20] a refusal with the api client's placeholder names the action that failed", () => {
+    expect(statusErrorMessage(apiErr("NOT_FOUND", 404), "hand back")).toBe("Couldn't hand back");
+    expect(statusErrorMessage(apiErr("NOT_FOUND", 404), "take over")).toBe("Couldn't take over");
+  });
+  it("[SF13] a resume with no readable answer says it could not confirm the hand-back", () => {
+    const said = "We couldn't confirm whether the hand-back went through. Check this conversation's status before trying again.";
+    expect(statusErrorMessage(new TypeError("Failed to fetch"), "hand back")).toBe(said);
+    expect(statusErrorMessage(apiErr("PARSE_ERROR", 502), "hand back")).toBe(said);
+    expect(statusErrorMessage("nope", "hand back")).toBe(said);
+  });
+  it("[SF22] a take over with no readable answer says it could not confirm the take-over", () => {
+    expect(statusErrorMessage(new TypeError("Failed to fetch"), "take over")).toBe(
+      "We couldn't confirm whether the take-over went through. Check this conversation's status before trying again.",
+    );
   });
 });
 
