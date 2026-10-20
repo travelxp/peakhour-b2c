@@ -83,11 +83,14 @@ export function ConversationThread({
   const contacts = useMerchantContacts();
   const timeZone = useDisplayZone(timeZonePreference);
 
-  const view = conversationView({
-    entries: conversation.data?.pages,
-    status: conversation.status,
-    fetchStatus: conversation.fetchStatus,
-  });
+  // Memoised on the pages (a stable reference until the cache changes), so the
+  // day grouping below is not redone on every render.
+  const pages = conversation.data?.pages;
+  const { status, fetchStatus } = conversation;
+  const view = useMemo(
+    () => conversationView({ entries: pages, status, fetchStatus }),
+    [pages, status, fetchStatus],
+  );
 
   const messages = view.kind === "messages" ? view.messages : null;
   const days = useMemo(
@@ -126,7 +129,11 @@ export function ConversationThread({
   function loadOlder() {
     const el = scrollRef.current;
     if (el) prependAnchor.current = { scrollTop: el.scrollTop, scrollHeight: el.scrollHeight };
-    void conversation.fetchNextPage();
+    // A failed page adds nothing, so its anchor must not be applied to a later,
+    // unrelated change in the page count.
+    void conversation.fetchNextPage().then((r) => {
+      if (r.isError) prependAnchor.current = null;
+    });
   }
 
   const header = (
@@ -158,6 +165,17 @@ export function ConversationThread({
               <p>{CONVERSATION_REFUSED_TEXT}</p>
             </div>
           </div>
+          {/* Asking again refetches from the newest page, so access restored
+              by an Owner shows without leaving the tab. */}
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-3"
+            onClick={() => void conversation.refetch()}
+            disabled={conversation.isFetching}
+          >
+            {conversation.isFetching ? "Checking…" : "Check again"}
+          </Button>
         </CardContent>
       </Card>
     );

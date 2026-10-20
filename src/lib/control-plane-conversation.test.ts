@@ -118,7 +118,10 @@ describe("the query function and pager", () => {
     expect(shouldRetryConversation(0, new FakeApiError(499))).toBe(false);
   });
 
-  it("[C07] a server or network failure is retried once", () => {
+  it("[C07] a server or network failure, a 408 or a 429 is retried once", () => {
+    expect(shouldRetryConversation(0, new FakeApiError(408))).toBe(true);
+    expect(shouldRetryConversation(0, new FakeApiError(429))).toBe(true);
+    expect(shouldRetryConversation(1, new FakeApiError(429))).toBe(false);
     expect(shouldRetryConversation(0, new FakeApiError(500))).toBe(true);
     expect(shouldRetryConversation(0, new TypeError("fetch failed"))).toBe(true);
     expect(shouldRetryConversation(1, new FakeApiError(500))).toBe(false);
@@ -229,7 +232,10 @@ describe("the empty state names only a reason it can know", () => {
     expect(copy.text).toMatch(/^No messages since your number was last verified\./);
     expect(copy.text).toContain("A number that someone else has also verified is never shown.");
     expect(copy.link).toBeUndefined();
-    expect(conversationEmptyCopy("pending", false).text).toMatch(/^Your number on this business is not verified yet/);
+    const pending = conversationEmptyCopy("pending", false).text;
+    expect(pending).toMatch(/^Your number on this business is not verified yet/);
+    // The reason does not read `codeExpiresAt`, so the copy covers an expired code.
+    expect(pending).toContain("or send a new code if it has expired");
   });
 
   it("[C31] the scope note says what the api reads, and the refusal is never an empty conversation", () => {
@@ -282,6 +288,12 @@ describe("timestamps, in a pinned locale and zone", () => {
     const before = keysOf([one, two]);
     expect(new Set(before).size).toBe(2);
     expect(keysOf([older, one, two]).slice(1)).toEqual(before);
+    // A page boundary between two lines of one instant: "Load older" brings the
+    // first of them, and the newer one keeps its key (so it is not remounted
+    // and is not read as a new message).
+    expect(keysOf([one, two]).slice(1)).toEqual(keysOf([two]));
+    // Byte-identical twins are still told apart.
+    expect(new Set(keysOf([two, { ...two }])).size).toBe(2);
   });
 });
 

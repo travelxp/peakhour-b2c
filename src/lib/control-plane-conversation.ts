@@ -89,13 +89,15 @@ export function nextConversationCursor(last: ConversationEntry): string | null {
 }
 
 /**
- * Retry once on a server or network failure (the app's default), never on a
- * 4xx: a 400 is a malformed request and a 401 is handled by the api client, so
- * asking again only delays the answer.
+ * Retry once on a server or network failure (the app's default), and on the two
+ * transient 4xx (408 timeout, 429 rate limit). Never on any other 4xx: a 400 is
+ * a malformed request and a 401 is handled by the api client, so asking again
+ * only delays the answer.
  */
 export function shouldRetryConversation(failureCount: number, error: unknown): boolean {
   const status = statusOf(error);
-  if (status !== undefined && status >= 400 && status < 500) return false;
+  const transient = status === 408 || status === 429;
+  if (status !== undefined && status >= 400 && status < 500 && !transient) return false;
   return failureCount < 1;
 }
 
@@ -203,7 +205,7 @@ export function conversationEmptyCopy(
           };
     case "pending":
       return {
-        text: "Your number on this business is not verified yet, so there is no conversation to show. Enter the code Peakhour sent you to finish verifying it.",
+        text: "Your number on this business is not verified yet, so there is no conversation to show. Enter the code Peakhour sent you to finish verifying it, or send a new code if it has expired.",
         link: { href: CONVERSATION_NUMBERS_HREF, label: "Go to Numbers & routing" },
       };
     case "verified":
@@ -310,12 +312,25 @@ export function groupConversationByDay(
       day = { key: dayKey, label: valid ? dayLabelFmt.format(at) : "Date unknown", items: [] };
       days.push(day);
     }
-    const base = `${message.sentAt}|${message.sender}`;
+    // The text is in the key so that two different lines in one instant do not
+    // share a counter: prepending an older one must not shift a newer one's key.
+    // Only byte-identical twins are told apart by their order.
+    const base = `${message.sentAt}|${message.sender}|${textHash(message.text)}`;
     const n = seen.get(base) ?? 0;
     seen.set(base, n + 1);
     day.items.push({ key: `${base}|${n}`, message, time: valid ? timeFmt.format(at) : "" });
   }
   return days;
+}
+
+/** A short, stable digest of a line's text (FNV-1a), for React keys only. */
+function textHash(text: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 0).toString(36);
 }
 
 // ── Scroll position ───────────────────────────────────────────────────────
