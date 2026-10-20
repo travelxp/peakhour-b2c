@@ -79,8 +79,8 @@ interface OutcomeCopy {
 }
 
 /**
- * A verified merchant's message that was not an instruction: chatter, which
- * Peakhour answers in conversation.
+ * A verified merchant's message that Peakhour did not take as an instruction:
+ * chatter, which from api M3 the merchant agent answers in conversation.
  *
  * ★★ONE COPY FOR TWO KEYS, `not_a_command` AND `conversation`. mongodb
  * migration 392 (WhatsApp plan M1) adds `conversation` and rewrites the stored
@@ -93,16 +93,19 @@ interface OutcomeCopy {
  * anything, and filing ordinary chatter under a wall the tab exists to prove
  * is real would empty the word of meaning.
  *
- * ⚠️★THE SENTENCE CLAIMS NO MORE THAN A STORED ROW CAN PROVE. A stored
- * `not_a_command` meant chatter OR a registered trigger the router declined,
- * and 392 cannot tell them apart. So the sentence says only that the merchant
- * and Peakhour exchanged messages (both `not_a_command` returns in
- * `platform-inbound.ts` carry a reply), not what the reply said, and not that
- * nothing ran: that is the api's write policy, not a fact the row carries.
+ * ⚠️★★THE SENTENCE CLAIMS NO MORE THAN EVERY SUCH ROW CAN PROVE. Today
+ * `platform-inbound.ts` writes `not_a_command` for chatter, a button tap, any
+ * text while a question is waiting (Peakhour re-asks it), and a registered
+ * trigger the router declined, and 392 cannot tell the stored ones apart.
+ * 🚫"Chatted with Peakhour" (review round 2) read a declined trigger or a "did
+ * not understand" reply as a good exchange. 🚫"No instruction was run" (round
+ * 1) stated the api's write policy, not a fact the row carries. ★So the
+ * sentence says what holds in every case: the message was not taken as an
+ * instruction. It names no trigger because neither api return stores one.
  */
 const CONVERSATION_COPY: OutcomeCopy = {
   group: "Message",
-  what: "Chatted with Peakhour",
+  what: "Sent a message Peakhour did not take as an instruction",
   refused: false,
 };
 

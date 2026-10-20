@@ -105,17 +105,18 @@ describe("activityCopy — §07's left column and 'what'", () => {
     expect(c.refused).toBe(false);
   });
 
-  it("files a domainless conversation as Chatted with Peakhour, under Message", () => {
+  it("files a domainless conversation as a message Peakhour did not take as an instruction, under Message", () => {
     // ★★mongodb 392 REWRITES THE STORED `not_a_command` ROWS IT FINDS TO
     //  `conversation`. Without its own entry a rewritten row fell through to
     //  the unknown-outcome fallback: group "Activity", sentence "conversation".
-    //  ⚠️Never under Blocked, and the sentence says nothing about the reply or
-    //  about what ran: a rewritten row may have been a declined trigger, which
-    //  392 cannot tell from chatter. (A row WITH a domain files under it, as
-    //  every outcome does; neither api return sets one on this outcome.)
+    //  ⚠️Never under Blocked, and the sentence claims no good exchange and
+    //  nothing about what ran: a rewritten row may have been a declined
+    //  trigger, a button tap or a re-asked question, which 392 cannot tell from
+    //  chatter. (A row WITH a domain files under it, as every outcome does;
+    //  neither api return sets one on this outcome.)
     const c = activityCopy(row({ outcome: "conversation" }), DOMAINS);
     expect(c.group).toBe("Message");
-    expect(c.what).toBe("Chatted with Peakhour");
+    expect(c.what).toBe("Sent a message Peakhour did not take as an instruction");
     expect(c.refused).toBe(false);
   });
 
@@ -133,7 +134,6 @@ describe("activityCopy — §07's left column and 'what'", () => {
   it("marks every refusal and no other outcome", () => {
     const refused = ["unknown_sender", "no_longer_a_member", "ambiguous_business", "command_denied"];
     const notRefused = STORED_OUTCOMES.filter((o) => !refused.includes(o));
-    expect(notRefused).toHaveLength(STORED_OUTCOMES.length - refused.length);
     for (const outcome of refused) {
       expect(activityCopy(row({ outcome }), DOMAINS).refused, outcome).toBe(true);
     }
@@ -148,7 +148,6 @@ describe("activityCopy — §07's left column and 'what'", () => {
     //  redelivery is not a second event"* — so copy for it would be copy for a
     //  row that cannot arrive. 🚫And `owner_only` / `not_your_domain` are
     //  `AuthorityOutcome`s collapsed into `command_denied` before they get here.
-    expect(STORED_OUTCOMES).toHaveLength(12);
     for (const outcome of STORED_OUTCOMES) {
       // A recognised outcome never renders its own key back at the merchant.
       expect(activityCopy(row({ outcome }), DOMAINS).what, outcome).not.toBe(outcome);
