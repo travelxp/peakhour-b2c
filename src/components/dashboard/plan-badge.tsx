@@ -7,7 +7,7 @@ import { ArrowUpRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useDashboardOrg } from "@/hooks/use-dashboard-org";
 import { useAuth } from "@/providers/auth-provider";
-import { planDisplayName, planState, upgradeCta, type PlanState } from "@/lib/plan-status";
+import { activeBusiness, planDisplayName, planState, upgradeCta, type PlanState } from "@/lib/plan-status";
 
 /**
  * Chip accents by plan STATE, not by tier key (billing plan D19, P4.7). The
@@ -36,28 +36,29 @@ export const PLAN_STATE_STYLES: Record<PlanState, string> = {
  * written in one file and dropped in the next is how this badge once told a
  * Suite buyer to upgrade on every dashboard page.
  *
- * No fetch fires until the user is authenticated and has an active org
+ * No fetch fires until the user is authenticated and has an active business
  * — guards prevent the cold-render flash on the auth page and dodge a
  * redundant request when /me has not resolved yet.
  */
 export function PlanBadge() {
   // Reads through the shared dashboard/org cache so this badge, the
   // trial-expiry banner, and the billing page all hit one network
-  // round-trip per org. After self-serve trial extension, the mutation
+  // round-trip per business. After self-serve trial extension, the mutation
   // invalidates the cache and the badge's trial countdown updates.
   const { data: summary } = useDashboardOrg();
-  // The ACTIVE business's own coverage from /me: the summary is org-wide, and
-  // a sibling's purchase or the first business's trial is not this one's plan
-  // (independent review on b2c#591).
-  const { entitlements } = useAuth();
+  // The ACTIVE business's own coverage from /me, and its id: the summary's
+  // base row is the org's, and the first business's trial is not this one's
+  // plan (independent review on b2c#591); its lines are its own (api#1510).
+  const { entitlements, business } = useAuth();
+  const active = activeBusiness(entitlements, business);
 
-  const state = planState(summary, entitlements);
+  const state = planState(summary, active);
   if (state === null) return null;
 
   const trialActive = state === "trial";
   const trialDays = summary?.subscription?.trialDaysRemaining ?? 0;
-  const cta = upgradeCta(summary, entitlements);
-  const label = planDisplayName(summary, entitlements);
+  const cta = upgradeCta(summary, active);
+  const label = planDisplayName(summary, active);
 
   return (
     <div className="flex items-center gap-2">

@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
@@ -8,7 +8,7 @@ import { useAuth } from "@/providers/auth-provider";
 import { api, ApiError } from "@/lib/api";
 import { useLocale } from "@/hooks/use-locale";
 import type { DashboardOrgPlanSummary } from "@/hooks/use-dashboard-org";
-import { planDisplayName } from "@/lib/plan-status";
+import { activeBusiness, planRowLabel } from "@/lib/plan-status";
 // Shared with every other surface the OAuth callback can return to
 // (?returnTo=), so a new provider is labelled once, not per page.
 import { formatProviderName } from "@/lib/provider-names";
@@ -47,7 +47,7 @@ import {
 import { toast } from "sonner";
 
 /** `/v1/dashboard/org`; the plan row reads its `subscription` / `products`
- *  through `planDisplayName`, as the top-bar badge does (D19, P4.7). */
+ *  through `planRowLabel` (`planDisplayName`), as the top-bar badge does (D19, P4.7). */
 interface OrgDetails extends Pick<DashboardOrgPlanSummary, "subscription" | "products"> {
   _id: string;
   name: string;
@@ -103,7 +103,8 @@ function SettingsLoading() {
 }
 
 function SettingsContent() {
-  const { org, entitlements } = useAuth();
+  const { org, business, entitlements } = useAuth();
+  const active = activeBusiness(entitlements, business);
   const { formatCurrency } = useLocale();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
@@ -126,6 +127,8 @@ function SettingsContent() {
 
   // Edit state
   const [editingBusiness, setEditingBusiness] = useState(false);
+  // Which /v1/dashboard/org fetch is the latest (the details effect).
+  const detailsRequest = useRef(0);
   const [saving, setSaving] = useState(false);
   const [rescanning, setRescanning] = useState(false);
   const [editName, setEditName] = useState("");
@@ -226,14 +229,31 @@ function SettingsContent() {
 
   useEffect(() => {
     if (!org?._id) return;
+    // ★Per business (P4.3b): the plan row reads this business's own lines
+    //  (api#1510), so a switch to a sibling business refetches, and ★only
+    //  the LATEST request lands: a response for the business switched away
+    //  from, arriving after the new one, would name the sibling's plan
+    //  (review R1). A request superseded by no other (the next run returned
+    //  early) still lands, so `loading` always clears (review R3).
+    const request = ++detailsRequest.current;
+    const latest = () => request === detailsRequest.current;
+    // ★An edit open on the previous business is closed: its fields hold
+    //  that business's values, and Save would PUT them to this one (R3).
+    setEditingBusiness(false);
     setLoading(true);
     setError("");
     api
       .get<OrgDetails>("/v1/dashboard/org")
-      .then(setOrgDetails)
-      .catch(() => setError("Failed to load settings. Please try again."))
-      .finally(() => setLoading(false));
-  }, [org?._id]);
+      .then((d) => {
+        if (latest()) setOrgDetails(d);
+      })
+      .catch(() => {
+        if (latest()) setError("Failed to load settings. Please try again.");
+      })
+      .finally(() => {
+        if (latest()) setLoading(false);
+      });
+  }, [org?._id, business?._id]);
 
   if (loading) {
     return <SettingsLoading />;
@@ -390,7 +410,7 @@ function SettingsContent() {
                       {/* The plan's NAME, not the raw billing key with a
                           "free" fallback: there is no free tier (D19), and
                           no plan reads "No plan". */}
-                      {planDisplayName(orgDetails ?? undefined, entitlements) ?? "—"}
+                      {planRowLabel(orgDetails ?? undefined, active)}
                     </Badge>
                   }
                 />
@@ -425,7 +445,7 @@ function SettingsContent() {
                       {/* The plan's NAME, not the raw billing key with a
                           "free" fallback: there is no free tier (D19), and
                           no plan reads "No plan". */}
-                      {planDisplayName(orgDetails ?? undefined, entitlements) ?? "—"}
+                      {planRowLabel(orgDetails ?? undefined, active)}
                     </Badge>
                   }
                 />

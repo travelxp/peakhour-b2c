@@ -21,15 +21,21 @@ import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
 import { TaxAndInvoices } from "@/components/settings-tax-invoices";
 import { UpgradePlanDialog } from "@/components/upgrade/upgrade-plan-dialog";
 import {
-  billingHeader,
-  heldLines,
+  activeBusiness,
+  businessLines,
   lineKey,
   planHeadline,
   productRowAction,
 } from "@/lib/plan-status";
 import { useAuth } from "@/providers/auth-provider";
 import { PLAN_STATE_STYLES } from "@/components/dashboard/plan-badge";
-import { intervalSuffix, periodTotals } from "@/lib/billing-terms";
+import {
+  intervalSuffix,
+  knownRecurringTotal,
+  lineCostText,
+  periodTotals,
+  recurringTotalText,
+} from "@/lib/billing-terms";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   useBillingSummary,
@@ -58,7 +64,8 @@ export default function BillingPage() {
   const queryClient = useQueryClient();
   const { formatDate } = useLocale();
   const { data: details, isLoading } = useDashboardOrg();
-  const { entitlements } = useAuth();
+  const { entitlements, business } = useAuth();
+  const active = activeBusiness(entitlements, business);
   const { data: summary } = useBillingSummary();
   const { data: orders } = useBillingOrders();
   const cancelProduct = useCancelProduct();
@@ -151,10 +158,10 @@ export default function BillingPage() {
   // plan. Read from `lib/plan-status`, shared with the top-bar badge, so the two
   // name and style one plan one way. A stored `free` / `.free` base or line
   // (until P4.5) reads as no plan rather than as a product.
-  // ★The ACTIVE business's state (its /me coverage; the summary is org-wide),
-  //  and a summary that did not load is its own neutral state, never "No
-  //  plan" (`planHeadline`, independent review on b2c#591).
-  const headline = planHeadline(details, entitlements);
+  // ★The ACTIVE business's state (its /me coverage) and its own lines
+  //  (api#1510), and a summary that did not load is its own neutral state,
+  //  never "No plan" (`planHeadline`, independent review on b2c#591).
+  const headline = planHeadline(details, active);
   const state = headline.state;
   const trialActive = state === "trial";
   const trialDays = details?.subscription?.trialDaysRemaining ?? 0;
@@ -164,27 +171,24 @@ export default function BillingPage() {
   const selfServeExtensionUsed =
     details?.subscription?.selfServeExtensionUsed === true;
   const features = details?.entitlements?.features ?? [];
-  // Bought lines (active/trial portfolio subs). A leftover `.free` line (until
-  // P4.5) is not a plan and is not listed (`heldLines`).
-  const products = heldLines(details?.products);
-  // ★The heading and its badge follow the business's own state whenever /me
-  //  serves coverage, with no count: the product lists are org-wide until the
-  //  api scopes them (P4.3b), so a count would be the org's beside this
-  //  business's state (`billingHeader`, official review R2 on b2c#591).
-  const header = billingHeader(details, entitlements);
-  // Per-product price / renewal, keyed by tier, so each row can show what it
-  // costs rather than just that it exists.
+  // The business's own bought lines (active/trial portfolio subs, api#1510),
+  // the ones its plan is named by (`businessLines`). A leftover `.free` line
+  // (until P4.5) is not a plan and is not listed.
+  const products = businessLines(details?.products, active.businessId);
   // WHICH product is cancelling. One mutation instance is shared by every row, so
   // keying the pending state off isPending alone put "Cancelling…" on all of them
   // and disabled the lot while one was in flight.
   const cancellingKey = cancelProduct.isPending ? cancelProduct.variables : null;
-  // Each period's total with its suffix ("₹4,999/mo + ₹74,997/quarter"); null
-  // when the summary has none (loading, or a mixed-currency portfolio).
-  const recurringTotal = summary
-    ? periodTotals(summary)
-        .map((t) => `${money(t.amount, summary.currency)}${intervalSuffix(t.interval)}`)
-        .join(" + ") || null
-    : null;
+  const formatTotal = (amount: number) => money(amount, summary?.currency ?? null);
+  // ★An unknown amount is never a 0 (api#1510): the stat reads the known
+  //  totals, a "+" when a line's amount is unknown, or "Price unavailable"
+  //  (`recurringTotalText`). `knownTotal` is null when no figure is known,
+  //  so the billed-together sentence never quotes a charge it cannot state.
+  const recurringTotal = recurringTotalText(summary, formatTotal);
+  const knownTotal = summary ? knownRecurringTotal(summary, formatTotal) : null;
+  // The lines the billed-together sentence counts: the ones still charging,
+  // the api's own rule for `billedTogether` (an ending line is not billed).
+  const chargingLines = (summary?.products ?? []).filter((p) => !p.endsAt).length;
   // Per LINE, not per tier: a plan change on one plan holds two (`lineKey`).
   const priceByLine = new Map(
     (summary?.products ?? []).map((p) => [lineKey(p), p]),
@@ -247,20 +251,17 @@ export default function BillingPage() {
               {/* h2, not h3: PageHeader now emits the page's <h1>, so a
                   section heading at h3 would skip a level (axe
                   `heading-order`). Visual weight is unchanged. */}
-              <h2 className="font-semibold">
-                {header.heading}
-              </h2>
-              {/* The badge has to describe what they OWN: the business's own
-                  state (`billingHeader`), or, only on an api that serves no
-                  coverage, the org's count of paid plans. */}
+              <h2 className="font-semibold">Current Plan</h2>
+              {/* The badge describes what the BUSINESS owns: its own state,
+                  named by its own lines (`planHeadline`, api#1510). */}
               <Badge
                 variant="secondary"
                 className={cn(
                   "font-medium",
-                  header.tone ? PLAN_STATE_STYLES[header.tone] : "bg-muted text-muted-foreground",
+                  headline.state ? PLAN_STATE_STYLES[headline.state] : "bg-muted text-muted-foreground",
                 )}
               >
-                {header.label}
+                {headline.label}
               </Badge>
               {trialActive && trialDays > 0 ? (
                 <Badge variant="outline" className="font-medium">
@@ -310,11 +311,7 @@ export default function BillingPage() {
                   "₹74,997/quarter" for a quarterly Agency business, which a
                   "Monthly total" of ₹0 would have misstated. */}
               <p className="text-xs text-muted-foreground">Recurring total</p>
-              <p className="text-sm font-medium">
-                {recurringTotal
-                  ? `${recurringTotal}${summary?.monthlyTotalComplete ? "" : "+"}`
-                  : "—"}
-              </p>
+              <p className="text-sm font-medium">{recurringTotal}</p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Next charge</p>
@@ -334,10 +331,10 @@ export default function BillingPage() {
 
           {/* The combined-charge promise, stated only when it is actually true —
               i.e. the server confirmed every product rides one subscription. */}
-          {summary?.billedTogether && recurringTotal ? (
+          {summary?.billedTogether && knownTotal ? (
             <p className="mt-3 text-xs text-muted-foreground">
-              All {summary.products.length} products are billed together as one
-              charge of {recurringTotal}
+              All {chargingLines} products are billed together as one
+              charge of {knownTotal}
               {summary.monthlyTotalComplete ? "" : " or more"}
               {summary.nextChargeAt ? ` on ${formatDate(summary.nextChargeAt)}` : ""}.
             </p>
@@ -381,10 +378,11 @@ export default function BillingPage() {
                     <p className="text-xs text-muted-foreground">
                       {(() => {
                         const priced = priceByLine.get(lineKey(p));
-                        const cost =
-                          priced && priced.amountKnown && priced.amount != null
-                            ? `${money(priced.amount, priced.currency)}${intervalSuffix(priced.interval)}`
-                            : null;
+                        // ★An unpriced line reads "Price unavailable", never
+                        //  a 0 and never nothing (api#1510, `lineCostText`).
+                        const cost = lineCostText(priced, (amount) =>
+                          money(amount, priced?.currency ?? null),
+                        );
                         // A row-level trialEndsAt means the product is granted now
                         // and starts billing on that date — say when, so a "free"
                         // product doesn't look permanently free.
