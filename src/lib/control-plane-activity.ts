@@ -79,10 +79,38 @@ interface OutcomeCopy {
 }
 
 /**
+ * A verified merchant's message that was not an instruction: chatter, which
+ * Peakhour answers in conversation.
+ *
+ * ★★ONE COPY FOR TWO KEYS, `not_a_command` AND `conversation`. mongodb
+ * migration 392 (WhatsApp plan M1) adds `conversation` and rewrites the stored
+ * `not_a_command` rows it finds to it. ⏸But api keeps writing `not_a_command`
+ * until M3, during and after 392's run, so the tab holds both keys for the same
+ * event. 🚫Two sentences would show a merchant one kind of line two ways, so
+ * both keys read this one.
+ *
+ * 🚫★NOT "Blocked". A verified merchant saying "thanks" was not refused
+ * anything, and filing ordinary chatter under a wall the tab exists to prove
+ * is real would empty the word of meaning.
+ *
+ * ⚠️★THE SENTENCE CLAIMS NO MORE THAN A STORED ROW CAN PROVE. A stored
+ * `not_a_command` meant chatter OR a registered trigger the router declined,
+ * and 392 cannot tell them apart. So the sentence says only that the merchant
+ * and Peakhour exchanged messages (both `not_a_command` returns in
+ * `platform-inbound.ts` carry a reply), not what the reply said, and not that
+ * nothing ran: that is the api's write policy, not a fact the row carries.
+ */
+const CONVERSATION_COPY: OutcomeCopy = {
+  group: "Message",
+  what: "Chatted with Peakhour",
+  refused: false,
+};
+
+/**
  * Every outcome `plt_activity` can hold, and what a merchant reads.
  *
- * ⚠️★★TWELVE SINCE mongodb MIGRATION 392 ADDED `conversation` (it was eleven),
- * AND `duplicate_skipped` IS ABSENT ON PURPOSE. `duplicate_skipped` is a
+ * ⚠️★★TWELVE ONCE mongodb MIGRATION 392 ADMITS `conversation` (eleven before
+ * it), AND `duplicate_skipped` IS ABSENT ON PURPOSE. `duplicate_skipped` is a
  * `PlatformInboundOutcome` that the ledger deliberately never writes — *"a
  * redelivery is not a second event"* — so a bucket for it here would be copy
  * for a row that cannot arrive.
@@ -123,29 +151,8 @@ const OUTCOME_COPY: Record<string, OutcomeCopy> = {
     refused: true,
   },
   // ── things that happened ────────────────────────────────────────────────
-  not_a_command: {
-    // 🚫★NOT "Blocked". A verified merchant saying "thanks" was not refused
-    //  anything, and filing ordinary chatter under a wall the tab exists to
-    //  prove is real would empty the word of meaning.
-    group: "Message",
-    what: "Sent a message that was not an instruction",
-    refused: false,
-  },
-  conversation: {
-    // ★WHAT `not_a_command` BECOMES (mongodb migration 392, WhatsApp plan M1).
-    //  392 rewrites every stored `not_a_command` row to this value, and from
-    //  api M3 the merchant agent answers the turn conversationally. ⏸api keeps
-    //  writing `not_a_command` until M3, so both keys stay in this map.
-    //  🚫NOT "Blocked", for the reason above: chatter was refused nothing.
-    //  ⚠️★THE SENTENCE CLAIMS NO MORE THAN A REWRITTEN ROW CAN PROVE. A stored
-    //  `not_a_command` meant chatter OR a registered trigger the router
-    //  declined, and 392 cannot tell them apart, so this does not say what
-    //  Peakhour replied. It does say nothing ran, because 392 forbids
-    //  `confirmed` on this outcome: a conversation acts on nothing.
-    group: "Message",
-    what: "Chatted with Peakhour — no instruction was run",
-    refused: false,
-  },
+  not_a_command: CONVERSATION_COPY,
+  conversation: CONVERSATION_COPY,
   command_handled: {
     group: "Instruction",
     what: "Ran {command}",
@@ -217,8 +224,7 @@ export interface ActivityCopy {
  *
  * `OUTCOME_COPY` is a copy of an enum that lives in two other repos and is
  * checked by neither compiler. `plt_activity.zod.ts` says adding an
- * outcome is a migration, and this file would learn about it late (392's
- * `conversation` did). **A ledger
+ * outcome is a migration, and this file would learn about it late. **A ledger
  * that dropped the line would hide exactly the event somebody added an outcome
  * to make visible**, so an unrecognised outcome renders under "Activity" with
  * its own key as the sentence.
