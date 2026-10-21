@@ -180,10 +180,12 @@ export function ShopifyClaim() {
         setFetchState("choose");
         return;
       }
-      if (code === BUSINESS_LIMIT && target === NEW_BUSINESS) {
-        // Nothing moved. Back to the choice with the purchase offered.
+      if (code === BUSINESS_LIMIT) {
+        // Nothing moved. Back to the choice with the purchase offered, on
+        // "a separate brand" whatever was sent (review R2: no dead end).
         setConfirmPrompt(null);
         setSeparateNotice(null);
+        setSelectedTarget(NEW_BUSINESS);
         setLimitNotice(businessLimitNotice(storeName, activeOrg?.name ?? "your account", !!data.canKeepSeparate));
         setFetchState("choose");
         return;

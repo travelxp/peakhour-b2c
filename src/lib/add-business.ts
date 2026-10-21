@@ -64,6 +64,11 @@ export function isBusinessLimit(err: unknown): boolean {
   return !!e && typeof e.code === "string" && BUSINESS_LIMIT_CODES.includes(e.code) && (e.status === undefined || e.status === 402);
 }
 
+/** A Mongo ObjectId's hex, as the api allocates a business id. */
+export function isObjectIdHex(v: unknown): v is string {
+  return typeof v === "string" && /^[0-9a-f]{24}$/.test(v);
+}
+
 /** The name as the api will take it, or null (blank, or too long). */
 export function cleanBusinessName(raw: string): string | null {
   const name = raw.trim();
@@ -197,9 +202,9 @@ export function addBusinessAction(s: {
   const base = { label: "Continue to payment", note: null, refused: false, notNeeded: false };
   if (s.starting) return { ...base, label: "Starting…", disabled: true };
   if (s.paying) return { ...base, disabled: true, note: "Finish the payment in the window that opened." };
-  if (s.purchasable === false) {
-    return { ...base, disabled: true, note: "Payments aren't available in your country yet." };
-  }
+  // ★THE PREVIEW'S REFUSAL FIRST (review R2): "your plan already covers it"
+  //  needs no payment, so it must reach the free path even where payments
+  //  are not available.
   if (s.preview?.kind === "refused") {
     return {
       ...base,
@@ -208,6 +213,9 @@ export function addBusinessAction(s: {
       refused: true,
       notNeeded: s.preview.code === ADD_BUSINESS_NOT_NEEDED,
     };
+  }
+  if (s.purchasable === false) {
+    return { ...base, disabled: true, note: "Payments aren't available in your country yet." };
   }
   if (!s.name) return { ...base, disabled: true, note: "Name the business to continue." };
   if (s.previewWaiting) return { ...base, disabled: true };
@@ -251,7 +259,7 @@ export function addBusinessOutcome(res: unknown, name: string): AddBusinessOutco
     return {
       kind: "pay",
       checkout: res as CheckoutResult,
-      businessId: typeof r.businessId === "string" && /^[0-9a-f]{24}$/.test(r.businessId) ? r.businessId : null,
+      businessId: isObjectIdHex(r.businessId) ? r.businessId : null,
       businessName: typeof r.businessName === "string" ? r.businessName : null,
     };
   }

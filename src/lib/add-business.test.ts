@@ -106,6 +106,15 @@ describe("Pay: never twice, never before the preview has spoken", () => {
     expect(addBusinessAction({ ...ready, purchasable: true }).disabled).toBe(false);
   });
 
+  it("★a plan that covers another business still reaches the free path where payments are not available (review R2)", () => {
+    const a = addBusinessAction({
+      ...ready,
+      purchasable: false,
+      preview: { kind: "refused", code: ADD_BUSINESS_NOT_NEEDED, message: "Your plan already covers every workspace, so this one needs no purchase." },
+    });
+    expect(a).toMatchObject({ notNeeded: true, refused: true, note: "Your plan already covers every workspace, so this one needs no purchase." });
+  });
+
   it("★shut without a name", () => {
     expect(addBusinessAction({ ...ready, name: null })).toMatchObject({ disabled: true, note: "Name the business to continue." });
   });

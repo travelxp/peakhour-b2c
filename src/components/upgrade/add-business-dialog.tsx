@@ -106,7 +106,9 @@ export function AddBusinessDialog({
   const [pick, setPick] = useState<{ tier: string | null; term: BillingTerm | null }>({ tier: null, term: null });
   const [checkout, setCheckout] = useState<CheckoutResult | null>(null);
   const [bought, setBought] = useState<{ businessId: string | null; name: string } | null>(null);
-  const [arriving, setArriving] = useState(false);
+  // The business being waited for, by name (`bought` is cleared by the
+  // overlay's own close, which follows its success, review R2).
+  const [arriving, setArriving] = useState<string | null>(null);
   const [payError, setPayError] = useState<string | null>(null);
   const [invoiceNote, setInvoiceNote] = useState<string | null>(null);
   // ★A double click lands twice before React re-renders the disabled button:
@@ -173,7 +175,7 @@ export function AddBusinessDialog({
     previewWaiting,
     previewFailed,
     starting: buyMut.isPending,
-    paying: checkout !== null || arriving,
+    paying: checkout !== null || arriving !== null,
   });
 
   function pay() {
@@ -231,15 +233,16 @@ export function AddBusinessDialog({
       onOpenChange(false);
       return;
     }
-    setArriving(true);
+    const { businessId, name: boughtName } = bought;
+    setArriving(boughtName);
     try {
       await arrive({
-        businessId: bought.businessId,
-        name: bought.name,
-        next: nextFor ? nextFor(bought.businessId) : null,
+        businessId,
+        name: boughtName,
+        next: nextFor ? nextFor(businessId) : null,
       });
     } finally {
-      setArriving(false);
+      setArriving(null);
       setBought(null);
       onOpenChange(false);
     }
@@ -256,7 +259,7 @@ export function AddBusinessDialog({
         onOpenChange={(o) => {
           // Never closed under a payment in flight: the wait for the business
           // is what switches the buyer into it.
-          if (!o && (arriving || buyMut.isPending)) return;
+          if (!o && (arriving !== null || buyMut.isPending)) return;
           onOpenChange(o);
         }}
       >
@@ -269,10 +272,10 @@ export function AddBusinessDialog({
             </DialogDescription>
           </DialogHeader>
 
-          {arriving ? (
+          {arriving !== null ? (
             <div className="flex items-center gap-3 py-6 text-sm" role="status">
               <Loader2 className="size-5 animate-spin text-muted-foreground" aria-hidden />
-              <span>Payment received. Setting up {bought?.name || "your business"}…</span>
+              <span>Payment received. Setting up {arriving || "your business"}…</span>
             </div>
           ) : (
             <div className="space-y-5">
@@ -295,7 +298,21 @@ export function AddBusinessDialog({
               ) : plansQ.data === undefined ? (
                 <p className="text-sm text-muted-foreground">Couldn&apos;t load plans. Please try again.</p>
               ) : buy.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No plans are on sale right now.</p>
+                <div className="space-y-2 text-sm text-muted-foreground">
+                  <p>No plans are on sale right now.</p>
+                  {/* An org whose plan covers another business (Enterprise,
+                      D16) needs none; with no plan to preview, its free path
+                      is offered here (review R2). */}
+                  {freePathHref ? (
+                    <p>
+                      If your plan already covers another workspace,{" "}
+                      <Link href={freePathHref} className="underline underline-offset-2" onClick={() => onOpenChange(false)}>
+                        add it at no charge
+                      </Link>
+                      .
+                    </p>
+                  ) : null}
+                </div>
               ) : (
                 <div className="space-y-3">
                   <div role="radiogroup" aria-label="Plan" className="grid gap-2">

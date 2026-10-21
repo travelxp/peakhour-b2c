@@ -38,6 +38,7 @@ import {
 } from "@/lib/billing-terms";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAddedBusinessArrival } from "@/hooks/use-added-business-arrival";
+import { isObjectIdHex } from "@/lib/add-business";
 import {
   useBillingSummary,
   useBillingOrders,
@@ -110,7 +111,7 @@ export default function BillingPage() {
     //  made it), then switch into it; never before, so the buyer is never
     //  moved into a business that is not there.
     const addedBusiness = params.get("addedBusiness");
-    if (addedBusiness && /^[0-9a-f]{24}$/.test(addedBusiness)) {
+    if (isObjectIdHex(addedBusiness)) {
       stripParams();
       void arriveAtAddedBusiness({ businessId: addedBusiness, sessionId }).finally(refreshBilling);
       return;

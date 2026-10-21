@@ -36,8 +36,8 @@ export function useAddedBusinessArrival() {
     };
   }, []);
 
-  return useCallback(
-    async (a: { businessId: string; name?: string | null; sessionId?: string | null; next?: string | null }) => {
+  const arrive = useCallback(
+    async (a: { businessId: string; name?: string | null; sessionId?: string | null; next?: string | null }): Promise<"arrived" | "timeout" | "cancelled"> => {
       const pending = readPendingAdd(sessionStore(), a.businessId, Date.now());
       const name = a.name || pending?.name || "";
       const outcome = await awaitAddedBusiness({
@@ -52,7 +52,13 @@ export function useAddedBusinessArrival() {
       if (outcome === "cancelled") return outcome;
       const copy = arrivalCopy(outcome, name);
       if (outcome === "timeout") {
-        toast.success(copy.title, { description: copy.description });
+        // ★NOT A DEAD END (review R2): the pending purchase is kept, and
+        //  "Check again" waits once more, then switches and follows `next`.
+        toast.success(copy.title, {
+          description: copy.description,
+          duration: 30_000,
+          action: { label: "Check again", onClick: () => void arriveRef.current?.(a) },
+        });
         return outcome;
       }
       clearPendingAdd(sessionStore());
@@ -72,4 +78,9 @@ export function useAddedBusinessArrival() {
     },
     [switchBusiness, router],
   );
+  const arriveRef = useRef<typeof arrive | null>(null);
+  useEffect(() => {
+    arriveRef.current = arrive;
+  }, [arrive]);
+  return arrive;
 }

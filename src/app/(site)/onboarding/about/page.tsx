@@ -383,16 +383,6 @@ function AddBusinessLauncher({ name }: { name: string }) {
         defaultName={name}
         description={`${name || "This business"} is created as soon as its plan is paid for. You'll fill in its profile next.`}
         nextFor={() => "/dashboard/growth/business"}
-        onPaymentOpened={() => {
-          // Committed to buying it: the stash is spent, and "adding another"
-          // is done, as a confirm that created the business would leave it.
-          try {
-            sessionStorage.removeItem("onboarding:extract");
-            sessionStorage.removeItem("onboarding:addingAnother");
-          } catch {
-            /* storage blocked */
-          }
-        }}
       />
     </>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { Building2, Check, ChevronsUpDown, Loader2, Lock, Plus } from "lucide-react";
 import {
@@ -47,9 +47,10 @@ import { cn } from "@/lib/utils";
  * business signed in, so "see plans" from here sold to the workspace the user
  * was leaving, which already had its plan. The dialog's action now switches
  * into the padlocked one and opens the plan picker there, by the user's own
- * choice. ★AND BACK, WHEN NOTHING WAS BOUGHT (review R1): closing the picker
- * without a purchase returns them to the workspace they came from, so they are
- * never left inside one with no plan (the rule above).
+ * choice, and the dialog says so before they press it: picking the row never
+ * switches, the action does. (A switch back when the picker closes unbought
+ * was tried in review R1 and dropped in R2: the picker closes before it
+ * reports a purchase, and can close while its payment is still open.)
  *
  * ★"ADD A BUSINESS" IS THE PURCHASE (P3.2, on P3.1b). Every business after the
  * first pays first (D12, D19), so the menu opens `AddBusinessDialog` (a name,
@@ -65,18 +66,11 @@ export function WorkspaceSwitcher() {
   // The plan picker for a padlocked workspace, opened once it is switched in.
   const [choosingPlan, setChoosingPlan] = useState(false);
   const [unlocking, setUnlocking] = useState(false);
-  // The workspace the user came from, to return to if they buy nothing.
-  const cameFrom = useRef<string | null>(null);
-  const boughtPlan = useRef(false);
-
   async function chooseLockedPlan() {
     if (!locked || unlocking) return;
     setUnlocking(true);
-    const from = business?._id ?? null;
     try {
       await switchBusiness(locked.id);
-      cameFrom.current = from;
-      boughtPlan.current = false;
       setLocked(null);
       setChoosingPlan(true);
     } catch {
@@ -86,20 +80,6 @@ export function WorkspaceSwitcher() {
     }
   }
 
-  function closePlanPicker(open: boolean) {
-    setChoosingPlan(open);
-    if (open) return;
-    // The picker calls onOpenChange(false) BEFORE onPurchased on a purchase,
-    // so the "nothing bought" reading waits for this turn to finish.
-    setTimeout(() => {
-      const back = cameFrom.current;
-      cameFrom.current = null;
-      if (boughtPlan.current || !back) return;
-      void switchBusiness(back).catch(() => {
-        toast.error("Couldn't switch back. Pick your workspace from the menu.");
-      });
-    }, 0);
-  }
 
   // Other orgs the user belongs to, as workspaces they can move to. Their
   // businesses aren't in /me (it only returns the ACTIVE org's), so these switch
@@ -255,20 +235,14 @@ export function WorkspaceSwitcher() {
         // said "Not now" and open the picker uninvited (review R1).
         onOpenChange={(next) => !next && !unlocking && setLocked(null)}
         title={`${locked?.name ?? "That workspace"} has no plan`}
-        description={`Each business has its own plan. Switch to ${locked?.name ?? "it"} to choose one; you'll stay where you are until you do.`}
+        description={`Each business has its own plan, chosen from inside it. This switches you to ${locked?.name ?? "it"} and opens its plans; you can switch back from this menu any time.`}
         benefit="Each business gets its own content library, calendar, audiences, connected channels and reporting. Nothing is shared between them."
         ctaLabel={unlocking ? "Switching…" : "Switch and choose a plan"}
         onCta={() => void chooseLockedPlan()}
         ctaBusy={unlocking}
       />
 
-      <UpgradePlanDialog
-        open={choosingPlan}
-        onOpenChange={closePlanPicker}
-        onPurchased={() => {
-          boughtPlan.current = true;
-        }}
-      />
+      <UpgradePlanDialog open={choosingPlan} onOpenChange={setChoosingPlan} />
 
       {/* `another=1`: the add-business page is also first-run onboarding,
           which sends an onboarded org home. */}
