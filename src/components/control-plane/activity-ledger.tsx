@@ -15,6 +15,7 @@ import {
 import type { ActivityRow, NotificationDomain } from "@/lib/api/control-plane";
 import { WHATSAPP_SETTINGS_HREF } from "@/lib/control-plane";
 import {
+  ACTIVITY_EMPTY_TEXT,
   ACTIVITY_LEDE,
   activityActor,
   activityCopy,
@@ -276,10 +277,7 @@ export function ActivityLedger({
         {rows.length === 0 ? (
           // ★AN EMPTY LEDGER IS THE ORDINARY STATE FOR A NEW BUSINESS, and the
           //  copy says what would fill it rather than apologising for the gap.
-          <p className="text-sm text-muted-foreground">
-            Nothing yet. Once someone messages Peakhour on WhatsApp, every
-            instruction it runs — and every one it refuses — appears here.
-          </p>
+          <p className="text-sm text-muted-foreground">{ACTIVITY_EMPTY_TEXT}</p>
         ) : (
           <ul>
             {rows.map((row) => (
