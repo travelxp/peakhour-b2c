@@ -259,7 +259,8 @@ export function AddBusinessDialog({
         onOpenChange={(o) => {
           // Never closed under a payment in flight: the wait for the business
           // is what switches the buyer into it.
-          if (!o && (arriving !== null || buyMut.isPending)) return;
+          // Nor under an open payment surface (review R3).
+          if (!o && (arriving !== null || buyMut.isPending || checkout !== null)) return;
           onOpenChange(o);
         }}
       >
@@ -424,7 +425,7 @@ export function AddBusinessDialog({
                     </Link>
                   </Button>
                 ) : null}
-                <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={buyMut.isPending}>
+                <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={buyMut.isPending || checkout !== null}>
                   Cancel
                 </Button>
                 <Button onClick={pay} disabled={action.disabled}>

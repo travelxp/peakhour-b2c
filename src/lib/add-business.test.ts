@@ -337,6 +337,22 @@ describe("the arrival: only the api's word moves the buyer", () => {
     expect(confirm).not.toHaveBeenCalled();
   });
 
+  it("★/confirm answering unconfigured is asked once; the list goes on deciding (review R3)", async () => {
+    const c = clock();
+    let rounds = 0;
+    const confirm = vi.fn<(sessionId: string) => Promise<{ activated: boolean; reason: string }>>(async () => ({ activated: false, reason: "unconfigured" }));
+    const out = await awaitAddedBusiness({ businessId: BIZ, sessionId: "cs_1", confirm, listBusinessIds: async () => (++rounds >= 3 ? [BIZ] : []), ...c });
+    expect([out, confirm.mock.calls.length]).toEqual(["arrived", 1]);
+  });
+
+  it("PASS: /confirm answering pending is asked every round", async () => {
+    const c = clock();
+    let rounds = 0;
+    const confirm = vi.fn<(sessionId: string) => Promise<{ activated: boolean; reason: string }>>(async () => ({ activated: false, reason: "pending" }));
+    await awaitAddedBusiness({ businessId: BIZ, sessionId: "cs_1", confirm, listBusinessIds: async () => (++rounds >= 3 ? [BIZ] : []), ...c });
+    expect(confirm.mock.calls.length).toBe(3);
+  });
+
   it("a page that went away stops waiting", async () => {
     const c = clock();
     const out = await awaitAddedBusiness({ businessId: BIZ, confirm: async () => null, listBusinessIds: async () => [], cancelled: () => true, ...c });

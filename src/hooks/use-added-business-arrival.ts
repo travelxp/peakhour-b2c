@@ -1,6 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef } from "react";
+// ★NOT CANCELLED BY AN UNMOUNT (review R3): the buyer paid, and the switch
+//  into the business is right wherever they have gone meanwhile; the auth
+//  provider and the router outlive the page that started the wait.
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
@@ -36,13 +39,6 @@ type ArrivalOutcome = "arrived" | "timeout" | "cancelled";
 export function useAddedBusinessArrival() {
   const { switchBusiness } = useAuth();
   const router = useRouter();
-  const alive = useRef(true);
-  useEffect(() => {
-    alive.current = true;
-    return () => {
-      alive.current = false;
-    };
-  }, []);
 
   // "Check again" on a timeout re-enters the latest `arrive`.
   const arriveRef = useRef<((a: Arrival) => Promise<ArrivalOutcome>) | null>(null);
@@ -58,7 +54,6 @@ export function useAddedBusinessArrival() {
         listBusinessIds: async () => (await getBusinesses()).map((b) => b._id),
         sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
         now: () => Date.now(),
-        cancelled: () => !alive.current,
       });
       if (outcome === "cancelled") return outcome;
       const copy = arrivalCopy(outcome, name);
@@ -72,9 +67,11 @@ export function useAddedBusinessArrival() {
         });
         return outcome;
       }
-      clearPendingAdd(sessionStore());
       try {
         await switchBusiness(a.businessId);
+        // Only now: a failed switch keeps `next` (the claim to finish) for
+        // the next try (review R3).
+        clearPendingAdd(sessionStore());
       } catch {
         // It exists; the workspace menu lists it. Say so rather than fail.
         toast.success(arrivalCopy("timeout", name).title, {

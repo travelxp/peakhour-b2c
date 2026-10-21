@@ -22,7 +22,6 @@ import {
 import { LoadingScreen } from "@/components/molecules/loading-screen";
 import {
   BRAND_CONFIRM,
-  BUSINESS_LIMIT,
   KEEP_SEPARATE_CODES,
   businessLimitNotice,
   businessOption,
@@ -32,7 +31,7 @@ import {
   intoNotice,
 } from "./claim-copy";
 import { AddBusinessDialog } from "@/components/upgrade/add-business-dialog";
-import { boughtForStore, rememberBoughtForStore, sessionStore } from "@/lib/add-business";
+import { boughtForStore, isBusinessLimit, rememberBoughtForStore, sessionStore } from "@/lib/add-business";
 
 /** Sentinel for "move the store in as a NEW Business" (vs an existing businessId). */
 const NEW_BUSINESS = "__new__";
@@ -180,7 +179,7 @@ export function ShopifyClaim() {
         setFetchState("choose");
         return;
       }
-      if (code === BUSINESS_LIMIT) {
+      if (isBusinessLimit(e)) {
         // Nothing moved. Back to the choice with the purchase offered, on
         // "a separate brand" whatever was sent (review R2: no dead end).
         setConfirmPrompt(null);

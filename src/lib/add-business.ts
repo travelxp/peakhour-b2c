@@ -394,7 +394,7 @@ export interface ArrivalDeps {
   businessId: string;
   /** Stripe's `session_id` on return; absent for Razorpay and PayU. */
   sessionId?: string | null;
-  confirm: (sessionId: string) => Promise<{ activated?: boolean } | null | undefined>;
+  confirm: (sessionId: string) => Promise<{ activated?: boolean; reason?: string } | null | undefined>;
   listBusinessIds: () => Promise<string[]>;
   sleep: (ms: number) => Promise<void>;
   now: () => number;
@@ -422,12 +422,16 @@ export async function awaitAddedBusiness(d: ArrivalDeps): Promise<"arrived" | "t
   const maxWait = d.maxWaitMs ?? 60_000;
   const interval = d.intervalMs ?? 2_500;
   const start = d.now();
+  // ★"unconfigured" is final (review R3): no Stripe account to reconcile on,
+  //  so asking again only costs a retrieve per round; the list decides.
+  let askConfirm = !!d.sessionId;
   for (;;) {
     if (d.cancelled?.()) return "cancelled";
-    if (d.sessionId) {
+    if (askConfirm && d.sessionId) {
       try {
         const r = await d.confirm(d.sessionId);
         if (r?.activated === true) return "arrived";
+        if (r?.reason === "unconfigured") askConfirm = false;
       } catch {
         /* pending, as far as the buyer is concerned */
       }

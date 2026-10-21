@@ -74,7 +74,7 @@ export function PlanLimitDialog({
         )}
 
         <DialogFooter className="gap-2 sm:gap-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={ctaBusy}>
             Not now
           </Button>
           {onCta ? (

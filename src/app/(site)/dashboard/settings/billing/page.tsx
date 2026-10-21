@@ -112,8 +112,12 @@ export default function BillingPage() {
     //  moved into a business that is not there.
     const addedBusiness = params.get("addedBusiness");
     if (isObjectIdHex(addedBusiness)) {
-      stripParams();
-      void arriveAtAddedBusiness({ businessId: addedBusiness, sessionId }).finally(refreshBilling);
+      // The params go once the wait ends, so a reload during it waits again
+      // (review R3); `/confirm` is idempotent.
+      void arriveAtAddedBusiness({ businessId: addedBusiness, sessionId }).finally(() => {
+        stripParams();
+        refreshBilling();
+      });
       return;
     }
 
