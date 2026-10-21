@@ -156,8 +156,7 @@ export default function BillingPage() {
 
   // One catalog, three states (D19, P4.7): the Suite trial, a paid plan, or no
   // plan. Read from `lib/plan-status`, shared with the top-bar badge, so the two
-  // name and style one plan one way. A stored `free` / `.free` base or line
-  // (until P4.5) reads as no plan rather than as a product.
+  // name and style one plan one way.
   // ★The ACTIVE business's state (its /me coverage) and its own lines
   //  (api#1510), and a summary that did not load is its own neutral state,
   //  never "No plan" (`planHeadline`, independent review on b2c#591).
@@ -172,8 +171,7 @@ export default function BillingPage() {
     details?.subscription?.selfServeExtensionUsed === true;
   const features = details?.entitlements?.features ?? [];
   // The business's own bought lines (active/trial portfolio subs, api#1510),
-  // the ones its plan is named by (`businessLines`). A leftover `.free` line
-  // (until P4.5) is not a plan and is not listed.
+  // the ones its plan is named by (`businessLines`).
   const products = businessLines(details?.products, active.businessId);
   // WHICH product is cancelling. One mutation instance is shared by every row, so
   // keying the pending state off isPending alone put "Cancelling…" on all of them

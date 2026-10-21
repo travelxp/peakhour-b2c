@@ -44,8 +44,9 @@ function tier(key: string, pricing: Partial<PricingEntry> = {}): ResolvedProduct
 const SUITE = tier("suite");
 const AGENCY = tier("agency", { monthly: 24999, yearly: 249999, trialDays: 0 });
 
-/** Every module served; Suite composes all but Growth. A leftover per-product
- *  tier (until P4.5) rides along and must never be asked for. */
+/** Every module served; Suite composes all but Growth. A per-product tier
+ *  stays in this fixture although none exists since migration 394 (P4.5): it
+ *  is what proves `suiteTrialDays` reads the Suite row and no other. */
 function catalog(suite: ResolvedProductTier | null = SUITE): PricingResponse {
   const plans = (extra: ResolvedProductTier[]) => [...extra, AGENCY, ...(suite ? [suite] : [])];
   return {
@@ -73,8 +74,8 @@ describe("suiteTrialDays: how a new business starts (D19)", () => {
   });
 
   it("never reads a per-product tier's trial", () => {
-    // Commerce's leftover .paid tier is listed first and carries 14 days too;
-    // only the Suite row may answer.
+    // The fixture's per-product Commerce tier is listed first and carries 14
+    // days too; only the Suite row may answer.
     expect(suiteTrialDays(catalog(tier("suite", { trialDays: 3 })))).toBe(3);
   });
 });

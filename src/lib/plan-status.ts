@@ -94,29 +94,34 @@ function coverageOf(business: BusinessPlanish | null | undefined): PlanState | n
 }
 
 /**
- * A tier key that names no plan: absent, `"none"`, or a free-tier key a stored
- * row may still carry until P4.5 (`free`, `<product>.free`). ★Not a free tier
- * the catalog sells (D19: there is none); the reading of a leftover, so the UI
- * renders it neutrally instead of naming it.
+ * A tier key that names no plan: absent, empty, `"none"` (the api's
+ * `NO_PLAN_KEY`), or the bare `free`. The "Your plans" list and every count
+ * reach this one predicate through `isHeldPlan` / `heldLines`.
  *
- * ★A GRANDFATHERED `.lens` TIER IS ONE TOO (official review R3 on b2c#591):
- * the api's `credits.ts` counts `free`, `*.free` and the retired `*.lens`
- * tiers as free, and so did this file before P4.7. Missed, a
- * `content_studio.lens` row read "1 paid plan", offered "Change plan" and was
- * listed with Cancel. The "Your plans" list and every count reach this one
- * predicate through `isHeldPlan` / `heldLines`.
+ * ★THE DOTTED FREE TIERS ARE NOT SPECIAL ANY MORE (P4.5). This also read
+ * `<product>.free` and the grandfathered `.lens` tiers as no plan, while a
+ * stored row could still carry one. Migration 394 (mongodb#917) deleted every
+ * per-product plan and every row naming one, and api#1532 deletes the api's
+ * own free-tier predicate with them.
+ *
+ * ★THE BARE `free` STAYS (review R1 on b2c#599): 394 deletes DOTTED tiers
+ * only and leaves every bare-tier row alone, and 388 rewrote only the
+ * `channel: "free"` base rows, so a bare `free` on another channel is not
+ * proved gone everywhere (dev holds none). Read as no plan, it can never be
+ * listed with Cancel or counted as paid.
+ *
+ * ⚠️ORDER: ship after api#1532 and after 394 has run in the environment.
  */
 export function isNoPlanKey(key: string | null | undefined): boolean {
-  if (typeof key !== "string" || key === "") return true;
-  return key === "none" || key === "free" || key.endsWith(".free") || key.endsWith(".lens");
+  return !key || key === "none" || key === "free";
 }
 
-/** A line that is a plan the business holds: a real tier, not a leftover. */
+/** A line that is a plan the business holds: a real tier, not one naming no plan. */
 export function isHeldPlan(product: HeldProduct | undefined): boolean {
   return !!product && typeof product.tier === "string" && !isNoPlanKey(product.tier);
 }
 
-/** The bought lines worth listing: leftover `.free` rows left out. */
+/** The bought lines worth listing: lines naming no plan left out. */
 export function heldLines<T extends HeldProduct>(products: ReadonlyArray<T | undefined> | undefined): T[] {
   return (products ?? []).filter((p): p is T => isHeldPlan(p));
 }
@@ -193,7 +198,7 @@ export function isBilledLine(p: HeldProduct | undefined): boolean {
  * (a cancel or a plan change scheduled it, D21) offers nothing: it already
  * ends, and the api's cancel acts on the line of that product NOT ending, so
  * "Cancel" on the ending row would cancel its replacement (review R2 on
- * b2c#589). A leftover `.free` row is not listed at all (`heldLines`), and
+ * b2c#589). A line naming no plan is not listed at all (`heldLines`), and
  * offers nothing if it reaches here.
  */
 export function productRowAction(p: HeldProduct | undefined): "cancel" | null {

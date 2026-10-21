@@ -20,16 +20,18 @@ import {
 
 /**
  * One catalog (billing plan D19, P4.7): a business is on the Suite trial, holds
- * a paid plan, or holds none (padlocked). There is no free tier; a stored
- * `free` / `.free` value (until P4.5) reads as no plan.
+ * a paid plan, or holds none (padlocked). There is no free tier (D19; its
+ * per-product rows went with migration 394, P4.5): no plan is `none`, no base
+ * row, or a bare `free` a stored row may still carry.
  */
 
 const ENDS = "2026-11-01T00:00:00.000Z";
 const suite = { tier: "suite", productKey: "suite", state: "active", name: "Peakhour Suite" };
 const agency = { tier: "agency", productKey: "agency", state: "active", name: "Agency" };
 const suiteOnTrial = { tier: "suite", productKey: "suite", state: "trial", name: "Peakhour Suite" };
-/** A stored leftover until P4.5: a `.free` line the api may still list. */
-const freeLeftover = { tier: "commerce_assistant.free", state: "active", name: "Peakhour.ai Commerce: Free" };
+/** A line naming no plan (a bare `free`, the one free-tier key still read as
+ *  none; review R1): not listed, not counted, offers nothing. */
+const noPlanLine = { tier: "free", state: "active", name: "Free" };
 /** A line whose `name` fell back to the raw tier key server-side. */
 const unnamed = { tier: "suite", productKey: "suite", state: "active", name: "suite" };
 
@@ -58,20 +60,13 @@ describe("planState: trial, paid or none (D19)", () => {
 
   it("a bought line is paid, whatever the base row says", () => {
     expect(planState(summary({ subscription: TRIAL_ENDED, products: [suite] }))).toBe("paid");
-    expect(planState(summary({ subscription: { plan: "free", planName: "Free" }, products: [suite] }))).toBe("paid");
+    expect(planState(summary({ subscription: { plan: "none" }, products: [suite] }))).toBe("paid");
     expect(planState(summary({ products: [suiteOnTrial] }))).toBe("paid");
   });
 
-  it("a stored free or none base (until P4.5) is no plan", () => {
-    expect(planState(summary({ subscription: { plan: "free", planName: "Free" } }))).toBe("none");
-    expect(planState(summary({ subscription: { plan: "commerce_assistant.free", planName: "Commerce: Free", trialActive: true } }))).toBe("none");
+  it("a none base, or an empty one, is no plan", () => {
     expect(planState(summary({ subscription: { plan: "none" } }))).toBe("none");
     expect(planState(summary({ subscription: {} }))).toBe("none");
-  });
-
-  it("a held .free line is not a plan: the business is still on its trial or holds none", () => {
-    expect(planState(summary({ products: [freeLeftover] }))).toBe("trial");
-    expect(planState(summary({ subscription: TRIAL_ENDED, products: [freeLeftover] }))).toBe("none");
   });
 
   it("an unloaded summary has no state yet", () => {
@@ -85,33 +80,48 @@ describe("planState: trial, paid or none (D19)", () => {
   });
 });
 
-describe("isNoPlanKey: the leftovers that name no plan", () => {
-  it("free, a dotted .free, none and nothing name no plan; a catalog plan does", () => {
-    expect(isNoPlanKey("free")).toBe(true);
-    expect(isNoPlanKey("support_inbox.free")).toBe(true);
+describe("isNoPlanKey: the keys that name no plan", () => {
+  it("none, a bare free and nothing name no plan; a catalog plan does", () => {
     expect(isNoPlanKey("none")).toBe(true);
+    expect(isNoPlanKey("free")).toBe(true);
     expect(isNoPlanKey("")).toBe(true);
     expect(isNoPlanKey(undefined)).toBe(true);
+    expect(isNoPlanKey(null)).toBe(true);
     expect(isNoPlanKey("suite")).toBe(false);
     expect(isNoPlanKey("agency")).toBe(false);
     expect(isNoPlanKey("internal_platform")).toBe(false);
+    expect(isNoPlanKey("freebie")).toBe(false);
   });
 
-  it("★a grandfathered .lens tier names no plan, as the api's credits.ts says (official review R3)", () => {
-    expect(isNoPlanKey("content_studio.lens")).toBe(true);
-    expect(isNoPlanKey("lens")).toBe(false);
-    const lens = { tier: "content_studio.lens", productKey: "content_studio", state: "active", name: "Content Lens" };
+  it("★a held bare free line is not a plan, on every surface (review R1: the old R3 path)", () => {
     // Not listed under "Your plans", no Cancel, not counted, not a paid state.
-    expect(heldLines([lens, suite])).toEqual([suite]);
-    expect(productRowAction(lens)).toBeNull();
-    expect(isBilledLine(lens)).toBe(false);
-    expect(planState(summary({ subscription: TRIAL_ENDED, products: [lens] }))).toBe("none");
-    expect(planHeadline(summary({ subscription: TRIAL_ENDED, products: [lens] })).label).toBe("No plan");
-    expect(planHeadline(summary({ subscription: TRIAL_ENDED, products: [lens] })).button).toBe("Buy a plan");
+    expect(heldLines([noPlanLine, suite])).toEqual([suite]);
+    expect(productRowAction(noPlanLine)).toBeNull();
+    expect(isBilledLine(noPlanLine)).toBe(false);
+    expect(planState(summary({ subscription: TRIAL_ENDED, products: [noPlanLine] }))).toBe("none");
+    expect(planHeadline(summary({ subscription: TRIAL_ENDED, products: [noPlanLine] })).label).toBe("No plan");
+    expect(planHeadline(summary({ subscription: TRIAL_ENDED, products: [noPlanLine] })).button).toBe("Buy a plan");
   });
 
-  it("heldLines leaves a .free line out and keeps the rest in order", () => {
-    expect(heldLines([freeLeftover, suite, undefined, agency])).toEqual([suite, agency]);
+  it("★a bare free BASE row is no plan, and is never named (review R2)", () => {
+    expect(planState(summary({ subscription: { plan: "free", planName: "Free" } }))).toBe("none");
+    expect(planDisplayName(summary({ subscription: { plan: "free", planName: "Free" } }))).toBe("No plan");
+  });
+
+  it("★a bare free line beside a live trial leaves the business on its trial (review R2)", () => {
+    expect(planState(summary({ products: [noPlanLine] }))).toBe("trial");
+    expect(planDisplayName(summary({ products: [noPlanLine] }))).toBe("Peakhour Suite");
+  });
+
+  it("★a DOTTED free-tier key is a key like any other now: 394 deleted them (P4.5)", () => {
+    // Migration 394 deleted every per-product plan and every row naming one,
+    // and api#1532 deletes the api's own free-tier predicate, so none reaches
+    // here. The reading that hid them is gone rather than kept for nothing.
+    for (const key of ["support_inbox.free", "commerce_assistant.free", "content_studio.lens"]) expect(isNoPlanKey(key), key).toBe(false);
+  });
+
+  it("heldLines leaves a line naming no plan out and keeps the rest in order", () => {
+    expect(heldLines([noPlanLine, suite, undefined, agency])).toEqual([suite, agency]);
     expect(heldLines(undefined)).toEqual([]);
   });
 });
@@ -128,7 +138,7 @@ describe("upgradeCta: the top bar's call to action", () => {
 
   it("no plan is told it has none and how to continue", () => {
     expect(upgradeCta(summary({ subscription: TRIAL_ENDED }))?.label).toBe("Buy a plan");
-    expect(upgradeCta(summary({ subscription: { plan: "free", planName: "Free" } }))?.label).toBe("Buy a plan");
+    expect(upgradeCta(summary({ subscription: { plan: "none" } }))?.label).toBe("Buy a plan");
   });
 
   it("an unloaded summary shows nothing (no flash)", () => {
@@ -150,12 +160,12 @@ describe("planDisplayName", () => {
 
   it("no plan reads No plan, never Free or a product", () => {
     expect(planDisplayName(summary({ subscription: TRIAL_ENDED }))).toBe("No plan");
-    expect(planDisplayName(summary({ subscription: { plan: "free", planName: "Free" } }))).toBe("No plan");
-    expect(planDisplayName(summary({ subscription: { plan: "free", planName: "Free" }, products: [freeLeftover] }))).toBe("No plan");
+    expect(planDisplayName(summary({ subscription: { plan: "none" } }))).toBe("No plan");
+    expect(planDisplayName(summary({ subscription: { plan: null, planName: null } }))).toBe("No plan");
   });
 
   it("a bought line names itself over the base row", () => {
-    expect(planDisplayName(summary({ subscription: { plan: "free", planName: "Free" }, products: [suite] }))).toBe("Peakhour Suite");
+    expect(planDisplayName(summary({ subscription: { plan: "none" }, products: [suite] }))).toBe("Peakhour Suite");
   });
 
   it("a contract is named by planName", () => {
@@ -197,8 +207,8 @@ describe("a held line's row (D21, review R2 on b2c#589)", () => {
     expect(productRowAction({ tier: "suite", state: "active" })).toBe("cancel");
   });
 
-  it("a leftover .free line offers nothing", () => {
-    expect(productRowAction(freeLeftover)).toBeNull();
+  it("a line naming no plan offers nothing", () => {
+    expect(productRowAction(noPlanLine)).toBeNull();
   });
 
   it("the ending line and its replacement on one tier are two lines; the same line from either source is one", () => {
@@ -210,11 +220,11 @@ describe("a held line's row (D21, review R2 on b2c#589)", () => {
 });
 
 describe("a billed line (D21, review R3 on b2c#589)", () => {
-  it("a held line still running is billed; an ending one, or a .free leftover, is not", () => {
+  it("a held line still running is billed; an ending one, or one naming no plan, is not", () => {
     expect(isBilledLine({ tier: "suite", state: "active" })).toBe(true);
     expect(isBilledLine({ tier: "suite", state: "active", endsAt: null })).toBe(true);
     expect(isBilledLine({ tier: "suite", state: "active", endsAt: ENDS })).toBe(false);
-    expect(isBilledLine(freeLeftover)).toBe(false);
+    expect(isBilledLine(noPlanLine)).toBe(false);
   });
 });
 
@@ -294,7 +304,7 @@ describe("the active business's own state (review on b2c#591)", () => {
   });
 
   it("★a base key that means no plan, or none at all (api#1510), never names a paid business", () => {
-    for (const subscription of [{ plan: "free", planName: "Free" }, { plan: "commerce_assistant.free", planName: "Commerce: Free" }, { plan: "none" }, {}, { plan: null, planName: null, trialActive: false, trialEndsAt: null }]) {
+    for (const subscription of [{ plan: "none" }, {}, { plan: null, planName: null, trialActive: false, trialEndsAt: null }]) {
       expect(planDisplayName(summary({ subscription, products: [] }), PAID)).toBe("Paid plan");
     }
     // A line of its own still names itself over a no-plan base.
@@ -305,8 +315,8 @@ describe("the active business's own state (review on b2c#591)", () => {
     expect(planDisplayName(summary({ products: [] }), PAID)).toBe("Paid plan");
     expect(planDisplayName(summary({ subscription: { plan: "internal_platform", planName: "internal_platform" } }), PAID)).toBe("Internal_platform");
     // A trial over a no-plan base (a stale summary beside a fresh /me) is
-    // still not named "Free".
-    expect(planDisplayName(summary({ subscription: { plan: "free", planName: "Free" } }), ON_TRIAL)).toBe("Trial");
+    // still not named by it.
+    expect(planDisplayName(summary({ subscription: { plan: "none" } }), ON_TRIAL)).toBe("Trial");
   });
 
   it("★no live base row (api#1510: plan and planName null) is no plan without coverage", () => {
@@ -350,8 +360,8 @@ describe("businessLines: the lines that are the business's own (P4.3b)", () => {
     expect(businessLines([suite], A)).toEqual([suite]);
   });
 
-  it("a leftover .free line is not a plan, even its own", () => {
-    expect(businessLines([own(freeLeftover)], A)).toEqual([]);
+  it("a line naming no plan is not a plan, even its own", () => {
+    expect(businessLines([own(noPlanLine)], A)).toEqual([]);
   });
 
   it("with no business known only the unstamped lines are anybody's", () => {
