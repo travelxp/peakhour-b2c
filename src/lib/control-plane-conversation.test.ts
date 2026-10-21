@@ -378,10 +378,14 @@ describe("the scroll position", () => {
 
 describe("the cache key and the tab", () => {
   it("[C28] one cache entry per org, business and user, and per place the tab opened on", () => {
-    expect(conversationKey("org_1", "biz_a", "u_me")).toEqual([CONTROL_PLANE_CONVERSATION_KEY, "org_1", "biz_a", "u_me", "pending"]);
-    expect(conversationKey("org_1", "biz_a", "u_me")).not.toEqual(conversationKey("org_1", "biz_b", "u_me"));
-    expect(conversationKey("org_1", "biz_a", "u_me")).not.toEqual(conversationKey("org_1", "biz_a", "u_teammate"));
-    expect(conversationKey(undefined, null, undefined)).toEqual([CONTROL_PLANE_CONVERSATION_KEY, null, null, null, "pending"]);
+    const L = "latest@UTC";
+    expect(conversationKey("org_1", "biz_a", "u_me", L)).toEqual([CONTROL_PLANE_CONVERSATION_KEY, "org_1", "biz_a", "u_me", L]);
+    expect(conversationKey("org_1", "biz_a", "u_me", L)).not.toEqual(conversationKey("org_1", "biz_b", "u_me", L));
+    expect(conversationKey("org_1", "biz_a", "u_me", L)).not.toEqual(conversationKey("org_1", "biz_a", "u_teammate", L));
+    expect(conversationKey("org_1", "biz_a", "u_me", L)).not.toEqual(conversationKey("org_1", "biz_a", "u_me", "day:2026-10-12@UTC"));
+    expect(conversationKey(undefined, null, undefined, L)).toEqual([CONTROL_PLANE_CONVERSATION_KEY, null, null, null, L]);
+    // ★The path stays first, so a prefix invalidation reaches every entry.
+    expect(conversationKey("org_1", "biz_a", "u_me", L)[0]).toBe(CONTROL_PLANE_CONVERSATION_KEY);
   });
 
   it("[C29] ?tab=conversation and ?tab=activity open their tabs; anything else is settings", () => {

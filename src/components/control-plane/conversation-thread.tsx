@@ -220,6 +220,13 @@ export function ConversationThread({
     positioned.current = positionKey;
   });
 
+  // ★A new opening (a jump, Back to latest) drops an older-page anchor taken
+  //  under the previous one (review R3): it describes another query's pages.
+  //  Declared before the restore below, so it runs first in the same commit.
+  useLayoutEffect(() => {
+    prependAnchor.current = null;
+  }, [positionKey]);
+
   useLayoutEffect(() => {
     // Any change in the page count consumes the anchor, whether or not it is
     // the page the anchor was taken for, so a cancelled older load cannot move
@@ -296,6 +303,7 @@ export function ConversationThread({
       isFetching: conversation.isFetching,
       olderFailed: conversation.isFetchNextPageError,
       newerFailed: conversation.isFetchPreviousPageError,
+      preferNewer: anchor?.kind === "day" && placement?.empty === true && positioned.current !== positionKey,
     });
     if (direction === "older") loadOlder();
     else if (direction === "newer") loadNewer();
@@ -422,6 +430,7 @@ export function ConversationThread({
           <p role="status" className="text-sm text-muted-foreground">
             {CONVERSATION_OFFLINE_TEXT}
           </p>
+          {backToLatest}
         </CardContent>
       </Card>
     );
@@ -437,6 +446,7 @@ export function ConversationThread({
         {header}
         <CardContent>
           <Skeleton label="Loading your conversation" />
+          {backToLatest}
         </CardContent>
       </Card>
     );
@@ -525,7 +535,7 @@ export function ConversationThread({
           <p role="status" className="text-sm text-muted-foreground">
             {conversationQuietWindowText(anchor, dayLabel, {
               older: placement.index > 0 || conversation.hasNextPage,
-              newer: placement.index < (view.kind === "messages" ? view.messages.length : 0) || conversation.hasPreviousPage,
+              newer: placement.index < view.messages.length || conversation.hasPreviousPage,
             })}
           </p>
         )}
@@ -644,7 +654,7 @@ export function ConversationThread({
             </p>
           )}
 
-        {anchor?.kind === "latest" && conversation.hasNextPage && (
+        {anchor?.kind === "latest" && conversation.hasNextPage && !placement?.empty && (
           <p className="text-xs text-muted-foreground">{CONVERSATION_RECENT_NOTE}</p>
         )}
 

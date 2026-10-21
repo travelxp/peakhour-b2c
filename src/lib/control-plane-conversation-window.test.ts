@@ -311,9 +311,13 @@ describe("review R2: honest sides, a jumpable day, a stable day start", () => {
     expect(conversationQuietWindowText(day, "D", { older: false, newer: false })).toBe("No messages on D.");
   });
 
-  it("[W30] a day before 2000 is not jumpable (the api refuses it); 2000-01-01 is", () => {
+  it("[W30] a day before 2000-01-02 is not jumpable (its start is before 2000 somewhere); the 2nd is", () => {
     expect(isJumpableDay("1999-12-31")).toBe(false);
-    expect(isJumpableDay("2000-01-01")).toBe(true);
+    // ★1 Jan 2000 starts at 1999-12-31T10:00Z at UTC+14, which the api refuses.
+    expect(isJumpableDay("2000-01-01")).toBe(false);
+    expect(isJumpableDay("2000-01-02")).toBe(true);
+    // And the 2nd starts on or after 2000-01-01T00:00Z in the most eastern zone.
+    expect(zonedDayStart("2000-01-02", "Pacific/Kiritimati")).toBeGreaterThanOrEqual(Date.UTC(2000, 0, 1));
     expect(isJumpableDay("2026-02-30")).toBe(false);
   });
 
@@ -322,5 +326,15 @@ describe("review R2: honest sides, a jumpable day, a stable day start", () => {
     expect(zonedDayStart("2026-10-12", "Asia/Kathmandu")).toBe(a);
     expect(zonedDayStart("2026-10-12", "Pacific/Kiritimati")).not.toBe(a);
     expect(zonedDayStart("2026-10-13", "Asia/Kathmandu")).toBe(a + 24 * HOUR);
+  });
+});
+
+describe("review R3: a quiet day loads its newer side first", () => {
+  const base = { topVisible: true, bottomVisible: true, hasOlder: true, hasNewer: true, isFetching: false, olderFailed: false, newerFailed: false };
+  it("[W32] while a quiet day is unplaced, the newer side goes first; otherwise older first", () => {
+    expect(autoLoadDirection({ ...base, preferNewer: true })).toBe("newer");
+    expect(autoLoadDirection({ ...base, preferNewer: false })).toBe("older");
+    // A failed newer side does not hold the older one back.
+    expect(autoLoadDirection({ ...base, preferNewer: true, newerFailed: true })).toBe("older");
   });
 });

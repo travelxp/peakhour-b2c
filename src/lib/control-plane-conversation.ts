@@ -51,7 +51,7 @@ export function conversationKey(
   orgId: string | null | undefined,
   businessId: string | null | undefined,
   userId: string | null | undefined,
-  anchor: string = PENDING_KEY_PART,
+  anchor: string,
 ) {
   return [
     CONTROL_PLANE_CONVERSATION_KEY,
@@ -403,8 +403,14 @@ export function autoLoadDirection(input: {
   isFetching: boolean;
   olderFailed: boolean;
   newerFailed: boolean;
+  /**
+   * A quiet jumped-to day waits to be placed on its nearest NEWER line (review
+   * R3), so the newer side goes first while it is unresolved.
+   */
+  preferNewer?: boolean;
 }): "older" | "newer" | null {
   if (input.isFetching) return null;
+  if (input.preferNewer && input.bottomVisible && input.hasNewer && !input.newerFailed) return "newer";
   if (input.topVisible && input.hasOlder && !input.olderFailed) return "older";
   if (input.bottomVisible && input.hasNewer && !input.newerFailed) return "newer";
   return null;
@@ -556,10 +562,14 @@ export function conversationQuietWindowText(
   return `No messages on ${dayLabel ?? anchor.day}.${nearest}`;
 }
 
-/** The earliest day a jump may ask for: the api refuses an instant before 2000. */
-export const EARLIEST_JUMP_DAY = "2000-01-01";
+/**
+ * The earliest day a jump may ask for. The api refuses an INSTANT before
+ * 2000-01-01T00:00Z, and 1 January 2000 starts before that in every zone east
+ * of UTC (review R3), so the first day every zone can ask for is the 2nd.
+ */
+export const EARLIEST_JUMP_DAY = "2000-01-02";
 
-/** A day the tab can jump to: a real calendar date, on or after 2000-01-01. */
+/** A day the tab can jump to: a real calendar date, on or after `EARLIEST_JUMP_DAY`. */
 export function isJumpableDay(value: string): boolean {
   return isDayKey(value) && value >= EARLIEST_JUMP_DAY;
 }
