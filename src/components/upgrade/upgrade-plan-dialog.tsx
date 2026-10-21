@@ -111,7 +111,10 @@ export function UpgradePlanDialog({
   const [checkout, setCheckout] = useState<CheckoutResult | null>(null);
   // ★ONE CHECKOUT AT A TIME (owner answer 4: a double click on Pay never pays
   //  twice). `isPending` disables the button once React re-renders; the latch
-  //  also ignores a second click in the same frame (lib/one-press.ts).
+  //  also ignores a second click in the same frame (lib/one-press.ts). ★IT IS
+  //  HELD UNTIL THE PAYMENT OVERLAY CLOSES, not only while the POST is in
+  //  flight (review R1): a Razorpay or PayU overlay shows nothing while its
+  //  script loads, and a click then would mint a second subscription.
   const press = useRef(onePress()).current;
   const queryClient = useQueryClient();
   // After ANY purchase: what is current, and what each plan would now do, has
@@ -161,11 +164,13 @@ export function UpgradePlanDialog({
         toast.success(`${res.tierLabel || res.tier} added to your subscription`, {
           description: `Free for ${res.trialDays} days — nothing to pay now. Billed with your other products from ${new Date(res.trialEndsAt).toLocaleDateString()}.`,
         });
+        press.release();
         purchased();
         return;
       }
       if (res && "mode" in res && res.mode === "added") {
         toast.success(`${res.tierLabel || res.tier} added to your subscription`);
+        press.release();
         purchased();
         return;
       }
@@ -175,13 +180,17 @@ export function UpgradePlanDialog({
         toast.success(`${res.tierLabel || res.tier} — we'll email you an invoice to pay`, {
           description: "This plan is billed by invoice (bank rules cap auto-debit amounts).",
         });
+        press.release();
         purchased();
         return;
       }
+      // Held until the overlay closes (`<PaymentModal onOpenChange>` below).
       setCheckout(res as CheckoutResult);
     },
-    onError: (e: Error) => toast.error(e.message ?? "Couldn't start checkout"),
-    onSettled: () => press.release(),
+    onError: (e: Error) => {
+      press.release();
+      toast.error(e.message ?? "Couldn't start checkout");
+    },
   });
   const startCheckout = (tier: string, term: BillingTerm) => {
     if (!press.take()) return;
@@ -452,7 +461,7 @@ export function UpgradePlanDialog({
               Cancel
             </Button>
             <Button
-              disabled={!selected || !selectedPrice || !purchasable || busy || selectedCurrent || previewWaiting || action.refused}
+              disabled={!selected || !selectedPrice || !purchasable || busy || !!checkout || selectedCurrent || previewWaiting || action.refused}
               onClick={() => selected && selectedPrice && startCheckout(selected, selectedPrice.term)}
             >
               {checkoutMut.isPending ? "Starting…" : action.label}
@@ -464,10 +473,14 @@ export function UpgradePlanDialog({
       <PaymentModal
         checkout={checkout}
         onOpenChange={(o) => {
-          if (!o) setCheckout(null);
+          if (!o) {
+            setCheckout(null);
+            press.release();
+          }
         }}
         onSuccess={() => {
           setCheckout(null);
+          press.release();
           purchased();
         }}
       />

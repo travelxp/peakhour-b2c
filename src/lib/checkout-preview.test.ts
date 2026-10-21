@@ -52,9 +52,12 @@ describe("checkoutAction (D21, P4.2)", () => {
     const a = checkoutAction(AGENCY, { kind: "new", startsAt: "2026-11-01T00:00:00.000Z" }, fmt);
     expect(a).toEqual({
       label: "Continue to payment",
-      note: "You keep your free trial: we'll ask for a card now and charge nothing until it ends on <2026-11-01>.",
+      note: "You keep your free trial: we’ll ask for a card now and charge nothing until it ends on <2026-11-01>.",
       refused: false,
     });
+    // The server's deferral wins over a plan's own trial copy: inside the
+    // business's trial the api grants no second trial (owner answer 2).
+    expect(checkoutAction(TRIAL, { kind: "new", startsAt: "2026-11-01T00:00:00.000Z" }, fmt).label).toBe("Continue to payment");
     // A charge at once (null) keeps the plain copy.
     expect(checkoutAction(AGENCY, { kind: "new", startsAt: null }, fmt)).toEqual({ label: "Continue to payment", note: null, refused: false });
   });

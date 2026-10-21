@@ -62,7 +62,7 @@ export function checkoutAction(
   if (plan && preview?.kind === "new" && preview.startsAt) {
     return {
       label: "Continue to payment",
-      note: `You keep your free trial: we'll ask for a card now and charge nothing until it ends on ${fmtDate(preview.startsAt)}.`,
+      note: `You keep your free trial: we’ll ask for a card now and charge nothing until it ends on ${fmtDate(preview.startsAt)}.`,
       refused: false,
     };
   }

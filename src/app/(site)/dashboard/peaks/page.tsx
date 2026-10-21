@@ -44,6 +44,7 @@ import { PaymentModal, type CheckoutResult } from "@/components/upgrade/payment-
 import { ApiError } from "@/lib/api";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { toastUnhandledApiError } from "@/lib/toast-errors";
+import { onePress } from "@/lib/one-press";
 
 // ── Formatting helpers ────────────────────────────────────────────────────
 
@@ -150,6 +151,9 @@ function BuyPeaks() {
   const { data, isLoading, isError } = usePeaksPacks();
   const [checkout, setCheckout] = useState<CheckoutResult | null>(null);
   const [busyKey, setBusyKey] = useState<string | null>(null);
+  // ★ONE PRESS (owner answer 4: a double click on Pay never pays twice), held
+  //  until the payment overlay closes: lib/one-press.ts.
+  const press = useRef(onePress()).current;
 
   // The pack a link-out asked for (Shopify and the WordPress plugin both send
   // `?pack=`), highlighted so a merchant who already chose doesn't have to
@@ -240,10 +244,13 @@ function BuyPeaks() {
   }, [qc]);
 
   const start = async (packKey: string) => {
+    if (!press.take()) return;
     setBusyKey(packKey);
     try {
+      // Released when the overlay closes (`<PaymentModal onOpenChange>`).
       setCheckout(await buyPack(packKey));
     } catch (err) {
+      press.release();
       // The packs route authors its refusals FOR the buyer, so those messages
       // are worth showing — but ONLY those. A duck-typed `err.message` admits
       // everything else the api client can throw: "Failed to fetch" from an
@@ -304,7 +311,10 @@ function BuyPeaks() {
       <PaymentModal
         checkout={checkout}
         onOpenChange={(open) => {
-          if (!open) setCheckout(null);
+          if (!open) {
+            setCheckout(null);
+            press.release();
+          }
         }}
         onSuccess={() => {
           // Razorpay's overlay reports success in-page; the webhook does the

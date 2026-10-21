@@ -109,7 +109,9 @@ export function UpgradeDrawer(props: UpgradeDrawerProps) {
   const [email, setEmail] = useState(user?.email ?? "");
   const [businessContext, setBusinessContext] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  // ★ONE PRESS (owner answer 4): lib/one-press.ts.
+  // ★ONE PRESS (owner answer 4): lib/one-press.ts. Held until the payment
+  //  overlay closes (review R1): a Razorpay or PayU overlay shows nothing
+  //  while its script loads, and a click then would mint a second one.
   const press = useRef(onePress()).current;
   // When checkout mints a gateway payload, this opens the on-site PaymentModal.
   const [checkoutResult, setCheckoutResult] = useState<CheckoutResult | null>(null);
@@ -196,14 +198,15 @@ export function UpgradeDrawer(props: UpgradeDrawerProps) {
     try {
       const r = await api.post<CheckoutResult>("/v1/billing/checkout", { tier });
       if (r?.gateway && r?.embed) {
-        setCheckoutResult(r); // opens the on-site PaymentModal overlay
+        setCheckoutResult(r); // opens the on-site PaymentModal overlay; the latch is released when it closes
         return;
       }
       toast.error("Could not start checkout. Please try again.");
+      press.release();
     } catch (err) {
       toast.error((err as Error)?.message || "Could not start checkout. Please try again.");
-    } finally {
       press.release();
+    } finally {
       setSubmitting(false);
     }
   }
@@ -396,10 +399,14 @@ export function UpgradeDrawer(props: UpgradeDrawerProps) {
     <PaymentModal
       checkout={checkoutResult}
       onOpenChange={(o) => {
-        if (!o) setCheckoutResult(null);
+        if (!o) {
+          setCheckoutResult(null);
+          press.release();
+        }
       }}
       onSuccess={() => {
         setCheckoutResult(null);
+        press.release();
         toast.success("Payment received — activating your plan…");
       }}
     />

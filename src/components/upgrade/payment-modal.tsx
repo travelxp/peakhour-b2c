@@ -303,7 +303,8 @@ function GatewayLauncher({
   // ★ONE PRESS (owner answer 4: a double click on Pay never pays twice): a
   //  ref, not only state, so a second click in the same frame, before React
   //  re-renders the disabled button, is ignored too.
-  //  (lib/one-press.ts; released never: the overlay launches once.)
+  //  (lib/one-press.ts; never released: the overlay launches once. Continue
+  //  and Skip both take it.)
   const press = useRef(onePress()).current;
 
   useEffect(() => {
@@ -387,14 +388,13 @@ function GatewayLauncher({
   }, [gate, checkout, onOpenChange, onSuccess, summary]);
 
   const continueToPayment = async () => {
-    if (press.busy) return;
     const value = gstin.trim().toUpperCase();
+    if (value && !GSTIN_RE.test(value)) {
+      toast.error("That GSTIN doesn't look right — it's 15 characters, e.g. 22AAAAA0000A1Z5");
+      return;
+    }
+    if (!press.take()) return;
     if (value) {
-      if (!GSTIN_RE.test(value)) {
-        toast.error("That GSTIN doesn't look right — it's 15 characters, e.g. 22AAAAA0000A1Z5");
-        return;
-      }
-      if (!press.take()) return;
       setSavingGstin(true);
       try {
         // Merge-PUT: only touches gstin (+ derives place of supply from it).
@@ -405,7 +405,6 @@ function GatewayLauncher({
         setSavingGstin(false);
       }
     }
-    if (!value && !press.take()) return;
     setGate("launch");
   };
 
@@ -436,7 +435,7 @@ function GatewayLauncher({
             </p>
           </div>
           <div className="flex justify-end gap-2">
-            <Button variant="ghost" onClick={() => setGate("launch")} disabled={savingGstin}>
+            <Button variant="ghost" onClick={() => press.take() && setGate("launch")} disabled={savingGstin}>
               Skip
             </Button>
             <Button onClick={continueToPayment} disabled={savingGstin}>
