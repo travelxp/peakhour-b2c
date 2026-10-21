@@ -368,6 +368,7 @@ export function AddBusinessDialog({
                           {parts.was ? <s className="text-xs text-muted-foreground">{parts.was}</s> : null}
                         </div>
                         {offer ? <p className="mt-1 text-xs text-success-on-tint">{offer}</p> : null}
+                        {price?.taxLabel ? <p className="mt-1 text-xs text-muted-foreground">{price.taxLabel}</p> : null}
                       </>
                     ) : previewWaiting ? (
                       <span className="inline-block h-6 w-28 animate-pulse rounded bg-muted" aria-label="Loading the price" />

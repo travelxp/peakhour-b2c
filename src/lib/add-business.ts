@@ -36,8 +36,12 @@ export interface AddBusinessPrice {
   listAmount?: number;
   /** The campaign's percent already taken off `amount`, or 0. */
   discountPct: number;
-  /** Terms the discounted price lasts; null = for as long as the plan is kept. */
-  discountDurationTerms: number | null;
+  /** Terms the discounted price lasts; null = for as long as the plan is
+   *  kept. Absent with no campaign, as /plans spells it. */
+  discountDurationTerms?: number | null;
+  /** The overlay's own tax line ("Tax included", "Excludes applicable
+   *  taxes", "Taxes calculated at checkout"), absent on an older api. */
+  taxLabel?: string;
   /** `cfg_campaigns.label`, or null (no campaign, or one without a label). */
   campaignLabel: string | null;
 }
