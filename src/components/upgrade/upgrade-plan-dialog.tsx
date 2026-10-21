@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { PaymentModal, type CheckoutResult } from "./payment-modal";
 import { checkoutAction, type CheckoutPreview } from "@/lib/checkout-preview";
+import { onePress } from "@/lib/one-press";
 import {
   TERM_LABEL,
   currentOnTerm,
@@ -108,6 +109,15 @@ export function UpgradePlanDialog({
   // The billing term the buyer picked; null = the default below.
   const [termPick, setTermPick] = useState<BillingTerm | null>(null);
   const [checkout, setCheckout] = useState<CheckoutResult | null>(null);
+  // ★ONE CHECKOUT AT A TIME (owner answer 4: a double click on Pay never pays
+  //  twice). `isPending` disables the button once React re-renders; the latch
+  //  also ignores a second click in the same frame (lib/one-press.ts), for
+  //  as long as the POST is in flight. ★WHILE A PAYMENT PAYLOAD IS OPEN the
+  //  button is disabled and the handler refuses by STATE (`checkout`), not by
+  //  the latch (review R1 and R2): a Razorpay or PayU overlay shows nothing
+  //  while its script loads, and a click then would mint a second
+  //  subscription; state needs no release on each way the overlay ends.
+  const [press] = useState(onePress);
   const queryClient = useQueryClient();
   // After ANY purchase: what is current, and what each plan would now do, has
   // changed. Forget the selection and both answers, so reopening the picker
@@ -173,10 +183,16 @@ export function UpgradePlanDialog({
         purchased();
         return;
       }
+      // Holds the button (state) until the overlay closes.
       setCheckout(res as CheckoutResult);
     },
     onError: (e: Error) => toast.error(e.message ?? "Couldn't start checkout"),
+    onSettled: () => press.release(),
   });
+  const startCheckout = (tier: string, term: BillingTerm) => {
+    if (checkout || !press.take()) return;
+    checkoutMut.mutate({ tier, term });
+  };
 
   // NOTE: there is deliberately no separate "start trial" mutation. The old
   // POST /v1/billing/trial granted a gateway-less no-card trial and now returns
@@ -442,8 +458,8 @@ export function UpgradePlanDialog({
               Cancel
             </Button>
             <Button
-              disabled={!selected || !selectedPrice || !purchasable || busy || selectedCurrent || previewWaiting || action.refused}
-              onClick={() => selected && selectedPrice && checkoutMut.mutate({ tier: selected, term: selectedPrice.term })}
+              disabled={!selected || !selectedPrice || !purchasable || busy || !!checkout || selectedCurrent || previewWaiting || action.refused}
+              onClick={() => selected && selectedPrice && startCheckout(selected, selectedPrice.term)}
             >
               {checkoutMut.isPending ? "Starting…" : action.label}
             </Button>
