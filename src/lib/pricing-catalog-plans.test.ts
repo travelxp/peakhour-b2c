@@ -45,8 +45,8 @@ const SUITE = tier("suite");
 const AGENCY = tier("agency", { monthly: 24999, yearly: 249999, trialDays: 0 });
 
 /** Every module served; Suite composes all but Growth. A per-product tier
- *  (none exists since migration 394, P4.5) rides along to show it is never
- *  asked for. */
+ *  stays in this fixture although none exists since migration 394 (P4.5): it
+ *  is what proves `suiteTrialDays` reads the Suite row and no other. */
 function catalog(suite: ResolvedProductTier | null = SUITE): PricingResponse {
   const plans = (extra: ResolvedProductTier[]) => [...extra, AGENCY, ...(suite ? [suite] : [])];
   return {

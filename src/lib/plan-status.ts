@@ -94,22 +94,29 @@ function coverageOf(business: BusinessPlanish | null | undefined): PlanState | n
 }
 
 /**
- * A tier key that names no plan: absent, empty, or `"none"` (the api's
- * `NO_PLAN_KEY`). The "Your plans" list and every count reach this one
- * predicate through `isHeldPlan` / `heldLines`.
+ * A tier key that names no plan: absent, empty, `"none"` (the api's
+ * `NO_PLAN_KEY`), or the bare `free`. The "Your plans" list and every count
+ * reach this one predicate through `isHeldPlan` / `heldLines`.
  *
- * ★NO FREE-TIER KEY IS SPECIAL ANY MORE (P4.5). This also read `free`,
+ * ★THE DOTTED FREE TIERS ARE NOT SPECIAL ANY MORE (P4.5). This also read
  * `<product>.free` and the grandfathered `.lens` tiers as no plan, while a
- * stored row could still carry one. Migration 394 deleted every per-product
- * plan and every row naming one, the api deleted its own free-tier predicate
- * with them, and no catalog plan is free (D19), so the api cannot send one.
+ * stored row could still carry one. Migration 394 (mongodb#917) deleted every
+ * per-product plan and every row naming one, and api#1532 deletes the api's
+ * own free-tier predicate with them.
+ *
+ * ★THE BARE `free` STAYS (review R1 on b2c#599): 394 deletes DOTTED tiers
+ * only and leaves every bare-tier row alone, and 388 rewrote only the
+ * `channel: "free"` base rows, so a bare `free` on another channel is not
+ * proved gone everywhere (dev holds none). Read as no plan, it can never be
+ * listed with Cancel or counted as paid.
+ *
+ * ⚠️ORDER: ship after api#1532 and after 394 has run in the environment.
  */
 export function isNoPlanKey(key: string | null | undefined): boolean {
-  if (typeof key !== "string" || key === "") return true;
-  return key === "none";
+  return !key || key === "none" || key === "free";
 }
 
-/** A line that is a plan the business holds: a real tier, not `none`. */
+/** A line that is a plan the business holds: a real tier, not one naming no plan. */
 export function isHeldPlan(product: HeldProduct | undefined): boolean {
   return !!product && typeof product.tier === "string" && !isNoPlanKey(product.tier);
 }

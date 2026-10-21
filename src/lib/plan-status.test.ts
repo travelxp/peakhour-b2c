@@ -20,16 +20,18 @@ import {
 
 /**
  * One catalog (billing plan D19, P4.7): a business is on the Suite trial, holds
- * a paid plan, or holds none (padlocked). There is no free tier (D19; its last
- * rows went with migration 394, P4.5): no plan is `none`, or no base row.
+ * a paid plan, or holds none (padlocked). There is no free tier (D19; its
+ * per-product rows went with migration 394, P4.5): no plan is `none`, no base
+ * row, or a bare `free` a stored row may still carry.
  */
 
 const ENDS = "2026-11-01T00:00:00.000Z";
 const suite = { tier: "suite", productKey: "suite", state: "active", name: "Peakhour Suite" };
 const agency = { tier: "agency", productKey: "agency", state: "active", name: "Agency" };
 const suiteOnTrial = { tier: "suite", productKey: "suite", state: "trial", name: "Peakhour Suite" };
-/** A line naming no plan (`none`): not listed, not counted, offers nothing. */
-const noPlanLine = { tier: "none", state: "active", name: "No plan" };
+/** A line naming no plan (a bare `free`, the one free-tier key still read as
+ *  none; review R1): not listed, not counted, offers nothing. */
+const noPlanLine = { tier: "free", state: "active", name: "Free" };
 /** A line whose `name` fell back to the raw tier key server-side. */
 const unnamed = { tier: "suite", productKey: "suite", state: "active", name: "suite" };
 
@@ -79,21 +81,34 @@ describe("planState: trial, paid or none (D19)", () => {
 });
 
 describe("isNoPlanKey: the keys that name no plan", () => {
-  it("none and nothing name no plan; a catalog plan does", () => {
+  it("none, a bare free and nothing name no plan; a catalog plan does", () => {
     expect(isNoPlanKey("none")).toBe(true);
+    expect(isNoPlanKey("free")).toBe(true);
     expect(isNoPlanKey("")).toBe(true);
     expect(isNoPlanKey(undefined)).toBe(true);
     expect(isNoPlanKey(null)).toBe(true);
     expect(isNoPlanKey("suite")).toBe(false);
     expect(isNoPlanKey("agency")).toBe(false);
     expect(isNoPlanKey("internal_platform")).toBe(false);
+    expect(isNoPlanKey("freebie")).toBe(false);
   });
 
-  it("★a free-tier key is a key like any other now: no leftover reading is left (P4.5)", () => {
+  it("★a held bare free line is not a plan, on every surface (review R1: the old R3 path)", () => {
+    // Not listed under "Your plans", no Cancel, not counted, not a paid state.
+    expect(heldLines([noPlanLine, suite])).toEqual([suite]);
+    expect(productRowAction(noPlanLine)).toBeNull();
+    expect(isBilledLine(noPlanLine)).toBe(false);
+    expect(planState(summary({ subscription: TRIAL_ENDED, products: [noPlanLine] }))).toBe("none");
+    expect(planHeadline(summary({ subscription: TRIAL_ENDED, products: [noPlanLine] })).label).toBe("No plan");
+    expect(planHeadline(summary({ subscription: TRIAL_ENDED, products: [noPlanLine] })).button).toBe("Buy a plan");
+    expect(planState(summary({ subscription: { plan: "free", planName: "Free" } }))).toBe("none");
+  });
+
+  it("★a DOTTED free-tier key is a key like any other now: 394 deleted them (P4.5)", () => {
     // Migration 394 deleted every per-product plan and every row naming one,
-    // and the api's own free-tier predicate went with them, so none reaches
+    // and api#1532 deletes the api's own free-tier predicate, so none reaches
     // here. The reading that hid them is gone rather than kept for nothing.
-    for (const key of ["free", "support_inbox.free", "content_studio.lens"]) expect(isNoPlanKey(key), key).toBe(false);
+    for (const key of ["support_inbox.free", "commerce_assistant.free", "content_studio.lens"]) expect(isNoPlanKey(key), key).toBe(false);
   });
 
   it("heldLines leaves a line naming no plan out and keeps the rest in order", () => {
