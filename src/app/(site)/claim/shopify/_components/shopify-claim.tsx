@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { CheckCircle2, AlertCircle, AlertTriangle, ShoppingBag } from "lucide-react";
@@ -32,6 +32,7 @@ import {
   intoNotice,
 } from "./claim-copy";
 import { AddBusinessDialog } from "@/components/upgrade/add-business-dialog";
+import { boughtForStore, rememberBoughtForStore, sessionStore } from "@/lib/add-business";
 
 /** Sentinel for "move the store in as a NEW Business" (vs an existing businessId). */
 const NEW_BUSINESS = "__new__";
@@ -49,8 +50,11 @@ export function ShopifyClaim() {
   const store = params.get("store") ?? "";
   const token = params.get("t") ?? "";
   // Back from buying the workspace's plan (P3.2): the business bought for this
-  // store, to pick and attach to.
-  const into = params.get("into") ?? "";
+  // store, to pick and attach to. ★ONLY ONE THIS TAB BOUGHT FOR THIS STORE
+  // (review R1): a link can name any business, and attaching to it skips the
+  // "same brand?" question.
+  const intoParam = params.get("into") ?? "";
+  const into = useMemo(() => (boughtForStore(sessionStore(), intoParam, store, Date.now()) ? intoParam : ""), [intoParam, store]);
   const { isAuthenticated, isLoading, org, switchOrg, switchBusiness } = useAuth();
 
   const [fetchState, setFetchState] = useState<FetchState>("loading");
@@ -503,6 +507,9 @@ export function ShopifyClaim() {
               defaultName={storeName}
               description={`${storeName} gets its own workspace, with its own plan. Once it's paid for, you'll come back here to finish linking the store to it.`}
               nextFor={(businessId) => `${claimPath}&into=${encodeURIComponent(businessId)}`}
+              onPaymentOpened={(businessId) => {
+                if (businessId) rememberBoughtForStore(sessionStore(), businessId, store, Date.now());
+              }}
             />
           )}
 

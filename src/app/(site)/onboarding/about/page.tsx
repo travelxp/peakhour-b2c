@@ -124,7 +124,9 @@ export default function AboutPage() {
   //  402 for an org whose plan covers no other business; the way on is to buy
   //  its plan, for the name read here. The payment creates the business with
   //  that name only, so its profile is filled in next, on its profile page.
-  const [buyingFor, setBuyingFor] = useState<string | null>(null);
+  // `n` counts the 402s: each one opens the purchase afresh for the name as
+  // it is then (review R1).
+  const [buyingFor, setBuyingFor] = useState<{ name: string; n: number } | null>(null);
 
   // Edit-mode draft (separate from stash so cancel restores cleanly)
   const [displayName, setDisplayName] = useState(() => stash?.profile.displayName ?? "");
@@ -169,7 +171,8 @@ export default function AboutPage() {
           return;
         }
         if (isBusinessLimit(err)) {
-          setBuyingFor(editing ? displayName.trim() : stash.profile.displayName);
+          const forName = editing ? displayName.trim() : stash.profile.displayName;
+          setBuyingFor((prev) => ({ name: forName, n: (prev?.n ?? 0) + 1 }));
           return;
         }
         setError(err.message);
@@ -303,8 +306,8 @@ export default function AboutPage() {
           )}
           {buyingFor !== null && (
             <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
-              <span>Each business has its own plan. Buy one for {buyingFor || "this business"} to add it.</span>
-              <AddBusinessLauncher name={buyingFor} />
+              <span>Each business has its own plan. Buy one for {buyingFor.name || "this business"} to add it.</span>
+              <AddBusinessLauncher key={buyingFor.n} name={buyingFor.name} />
             </div>
           )}
         </CardContent>
@@ -380,6 +383,16 @@ function AddBusinessLauncher({ name }: { name: string }) {
         defaultName={name}
         description={`${name || "This business"} is created as soon as its plan is paid for. You'll fill in its profile next.`}
         nextFor={() => "/dashboard/growth/business"}
+        onPaymentOpened={() => {
+          // Committed to buying it: the stash is spent, and "adding another"
+          // is done, as a confirm that created the business would leave it.
+          try {
+            sessionStorage.removeItem("onboarding:extract");
+            sessionStorage.removeItem("onboarding:addingAnother");
+          } catch {
+            /* storage blocked */
+          }
+        }}
       />
     </>
   );

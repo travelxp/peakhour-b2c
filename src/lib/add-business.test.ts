@@ -18,6 +18,8 @@ import {
   readPendingAdd,
   rememberPendingAdd,
   safeNext,
+  boughtForStore,
+  rememberBoughtForStore,
   type AddBusinessPrice,
 } from "./add-business";
 
@@ -97,6 +99,11 @@ describe("Pay: never twice, never before the preview has spoken", () => {
   it("a plan that already covers another business points to the free path", () => {
     const a = addBusinessAction({ ...ready, preview: { kind: "refused", code: ADD_BUSINESS_NOT_NEEDED, message: "Your plan already covers every workspace, so this one needs no purchase." } });
     expect(a).toMatchObject({ disabled: true, refused: true, notNeeded: true });
+  });
+
+  it("shut where the catalog says payments are not available", () => {
+    expect(addBusinessAction({ ...ready, purchasable: false })).toMatchObject({ disabled: true, note: "Payments aren't available in your country yet." });
+    expect(addBusinessAction({ ...ready, purchasable: true }).disabled).toBe(false);
   });
 
   it("★shut without a name", () => {
@@ -336,5 +343,25 @@ describe("the arrival: only the api's word moves the buyer", () => {
       title: "Payment received",
       description: "Table Story is still being set up. It will appear in the workspace menu in a moment.",
     });
+  });
+});
+
+describe("a workspace bought for a Shopify store (review R1)", () => {
+  it("★only the business this tab bought for this store is honoured", () => {
+    const s = memoryStorage();
+    rememberBoughtForStore(s, BIZ, "conn_1", 1000);
+    expect(boughtForStore(s, BIZ, "conn_1", 2000)).toBe(true);
+    expect(boughtForStore(s, "6650000000000000000000ff", "conn_1", 2000)).toBe(false);
+    expect(boughtForStore(s, BIZ, "conn_2", 2000)).toBe(false);
+  });
+
+  it("an old record, one from the future, none, or blocked storage is not proof", () => {
+    const s = memoryStorage();
+    rememberBoughtForStore(s, BIZ, "conn_1", 1000);
+    expect(boughtForStore(s, BIZ, "conn_1", 1000 + PENDING_ADD_TTL_MS + 1)).toBe(false);
+    expect(boughtForStore(s, BIZ, "conn_1", 999)).toBe(false);
+    expect(boughtForStore(memoryStorage(), BIZ, "conn_1", 2000)).toBe(false);
+    expect(boughtForStore(null, BIZ, "conn_1", 2000)).toBe(false);
+    expect(boughtForStore(s, "", "conn_1", 2000)).toBe(false);
   });
 });

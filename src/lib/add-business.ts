@@ -180,8 +180,13 @@ export interface AddBusinessAction {
  * paused offline) the button waits, so it never offers a purchase that is then
  * refused. A FAILED preview does not hold it shut: the purchase decides again,
  * and the payment step states the price before anything is charged.
+ *
+ * Nothing is payable where the catalog says payments are not available
+ * (`/plans`' `purchasable`, the picker's own rule, review R1).
  */
 export function addBusinessAction(s: {
+  /** `/plans`' `purchasable`; absent on an older api = purchasable. */
+  purchasable?: boolean;
   name: string | null;
   preview: AddBusinessPreview | null;
   previewWaiting: boolean;
@@ -192,6 +197,9 @@ export function addBusinessAction(s: {
   const base = { label: "Continue to payment", note: null, refused: false, notNeeded: false };
   if (s.starting) return { ...base, label: "Starting…", disabled: true };
   if (s.paying) return { ...base, disabled: true, note: "Finish the payment in the window that opened." };
+  if (s.purchasable === false) {
+    return { ...base, disabled: true, note: "Payments aren't available in your country yet." };
+  }
   if (s.preview?.kind === "refused") {
     return {
       ...base,
@@ -285,6 +293,15 @@ export interface PendingAdd {
 
 type StorageLike = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 
+/** The tab's sessionStorage, or null (server render, or storage blocked). */
+export function sessionStore(): Storage | null {
+  try {
+    return typeof window === "undefined" ? null : window.sessionStorage;
+  } catch {
+    return null;
+  }
+}
+
 /** A same-site path (`/x`), never a protocol-relative or absolute URL. */
 export function safeNext(next: string | null | undefined): string | null {
   if (!next || !next.startsWith("/") || next.startsWith("//") || next.startsWith("/\\")) return null;
@@ -322,6 +339,44 @@ export function clearPendingAdd(storage: StorageLike | null): void {
     storage?.removeItem(PENDING_ADD_KEY);
   } catch {
     /* nothing to clear */
+  }
+}
+
+// ── A workspace bought for a Shopify store ──────────────────────────────────
+//
+// The claim page comes back from the purchase as `?into=<businessId>` and
+// attaches the store to that workspace without asking "same brand?": it is new
+// and empty, bought for this store. ★A URL IS NOT PROOF OF THAT (review R1): a
+// stale or edited link can name any business of the account. So the page
+// honours `into` only for a purchase THIS tab made for THIS store, recorded
+// when the purchase starts.
+
+export const BOUGHT_FOR_STORE_KEY = "addBusiness:boughtForStore";
+
+export function rememberBoughtForStore(storage: StorageLike | null, businessId: string, store: string, at: number): void {
+  try {
+    storage?.setItem(BOUGHT_FOR_STORE_KEY, JSON.stringify({ businessId, store, at }));
+  } catch {
+    /* storage blocked: the page then asks, as for any business */
+  }
+}
+
+/** Did this tab buy `businessId` for `store`, within the pending window? */
+export function boughtForStore(storage: StorageLike | null, businessId: string, store: string, now: number): boolean {
+  if (!businessId || !store) return false;
+  try {
+    const raw = storage?.getItem(BOUGHT_FOR_STORE_KEY);
+    if (!raw) return false;
+    const r = JSON.parse(raw) as { businessId?: unknown; store?: unknown; at?: unknown };
+    return (
+      r.businessId === businessId &&
+      r.store === store &&
+      typeof r.at === "number" &&
+      r.at <= now &&
+      now - r.at <= PENDING_ADD_TTL_MS
+    );
+  } catch {
+    return false;
   }
 }
 

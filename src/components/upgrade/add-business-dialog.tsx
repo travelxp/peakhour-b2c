@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { api, ApiError } from "@/lib/api";
 import {
   Dialog,
@@ -29,6 +30,7 @@ import {
   planChoices,
   priceParts,
   rememberPendingAdd,
+  sessionStore,
   type AddBusinessAnswer,
   type AddBusinessPreview,
   type CatalogPlan,
@@ -60,19 +62,13 @@ interface PlansResponse {
   plans: CatalogPlan[];
 }
 
+/** The overlay's formatting (`payment-modal.tsx`'s `fmtAmount`): fractions
+ *  kept, so the price here and the amount the payment step states agree. */
 function money(amount: number, currency: string): string {
   try {
     return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(amount);
   } catch {
     return `${currency} ${amount}`;
-  }
-}
-
-function sessionStore(): Storage | null {
-  try {
-    return window.sessionStorage;
-  } catch {
-    return null;
   }
 }
 
@@ -83,6 +79,7 @@ export function AddBusinessDialog({
   nextFor,
   freePathHref,
   description,
+  onPaymentOpened,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -94,6 +91,9 @@ export function AddBusinessDialog({
   freePathHref?: string;
   /** The line under the title; the caller's reason for being here. */
   description?: string;
+  /** The payment surface is opening for this business (the purchase is
+   *  committed to a business id). */
+  onPaymentOpened?: (businessId: string | null) => void;
 }) {
   const [name, setName] = useState(defaultName);
   // The name the preview asks about: settled after typing stops, so a slug
@@ -113,6 +113,23 @@ export function AddBusinessDialog({
   //  this latch refuses the second press synchronously.
   const starting = useRef(false);
   const arrive = useAddedBusinessArrival();
+
+  // ★EACH OPENING STARTS CLEAN (review R1). The instance lives as long as
+  //  its page (the switcher's, the whole session): a name typed days ago, an
+  //  old refusal, or the name just bought would otherwise greet the next
+  //  purchase, one click from a second business of that name. Reset when the
+  //  dialog opens, reading the caller's name as it is now.
+  const [openSeen, setOpenSeen] = useState(open);
+  if (open !== openSeen) {
+    setOpenSeen(open);
+    if (open) {
+      setName(defaultName);
+      setAskedName(defaultName);
+      setPick({ tier: null, term: null });
+      setPayError(null);
+      setInvoiceNote(null);
+    }
+  }
 
   const plansQ = useQuery({
     queryKey: ["billing-plans"],
@@ -150,6 +167,7 @@ export function AddBusinessDialog({
   });
 
   const action = addBusinessAction({
+    purchasable: plansQ.data?.purchasable,
     name: cleanName,
     preview,
     previewWaiting,
@@ -187,6 +205,7 @@ export function AddBusinessDialog({
             });
           }
           setBought({ businessId: out.businessId, name: businessName });
+          onPaymentOpened?.(out.businessId);
           setCheckout(out.checkout);
         },
         onError: (e: Error) => {
@@ -204,6 +223,11 @@ export function AddBusinessDialog({
   async function paid() {
     setCheckout(null);
     if (!bought?.businessId) {
+      // Paid, with no id to wait on: say so rather than vanish (review R1).
+      toast.success("Payment received", {
+        description: `${bought?.name || "Your new business"} will appear in the workspace menu in a moment.`,
+      });
+      setBought(null);
       onOpenChange(false);
       return;
     }

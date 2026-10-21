@@ -12,15 +12,8 @@ import {
   clearPendingAdd,
   readPendingAdd,
   safeNext,
+  sessionStore,
 } from "@/lib/add-business";
-
-function sessionStore(): Storage | null {
-  try {
-    return typeof window === "undefined" ? null : window.sessionStorage;
-  } catch {
-    return null;
-  }
-}
 
 /**
  * Wait for a purchased business to exist, then switch into it (billing plan
