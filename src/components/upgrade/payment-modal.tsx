@@ -152,7 +152,7 @@ function SummaryLine({ summary }: { summary: CheckoutSummary }) {
           the trial's end (owner answer 1) or the plan held running out (D21). */}
       {summary.startsAt ? (
         <p className="mt-1 text-xs text-success-on-tint">
-          Nothing to pay until {new Date(summary.startsAt).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}{summary.startsAfter === "trial" ? ", when your free trial ends" : summary.startsAfter === "current_plan" ? ", when your current plan ends" : ""}.
+          Nothing to pay until {new Date(summary.startsAt).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}{summary.startsAfter === "trial" ? ", when your free trial ends" : ", when your current plan ends"}.
         </p>
       ) : null}
       <div className="text-muted-foreground mt-1 flex flex-wrap items-baseline justify-between gap-x-3 text-xs">
@@ -301,8 +301,8 @@ function GatewayLauncher({
   const [gstin, setGstin] = useState("");
   const [savingGstin, setSavingGstin] = useState(false);
   // ★ONE PRESS (owner answer 4: a double click on Pay never pays twice): a
-  //  ref, not only state, so a second click in the same frame, before React
-  //  re-renders the disabled button, is ignored too.
+  //  latch, not only the disabled state, so a second click in the same frame,
+  //  before React re-renders the button, is ignored too.
   //  (lib/one-press.ts; never released: the overlay launches once. Continue
   //  and Skip both take it.)
   const [press] = useState(onePress);

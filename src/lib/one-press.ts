@@ -3,8 +3,8 @@
  * Pay must never charge twice, "anyhow"). A button's `disabled` only takes
  * effect once React re-renders, so a second click landing in the same frame
  * still runs its handler. The handler asks this latch first: `take()` answers
- * true once, and false until `release()`. Hold it in a `useRef` so it lives
- * as long as the component. The api refuses a concurrent checkout as well
+ * true once, and false until `release()`. Build it once per component with
+ * `const [press] = useState(onePress)`. The api refuses a concurrent checkout as well
  * (409 CHECKOUT_IN_PROGRESS); this keeps the second request from being sent.
  */
 export interface OnePress {
