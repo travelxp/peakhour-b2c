@@ -14,8 +14,8 @@ import { cn } from "@/lib/utils";
 
 export interface UpgradeCalloutProps {
   /** Plain-English explanation of what the user needs to upgrade to.
-   *  Example: "Your plan does not include auto-approve publishing." Name
-   *  no plan: the catalog says which plan carries a feature. */
+   *  Example: "Auto-approve publishing isn't included for this business
+   *  yet." Name no plan: the catalog says which plan carries a feature. */
   message: string;
   /** Optional href to the pricing / upgrade page. Defaults to
    *  /dashboard/settings (peakhour-b2c hosts the upgrade flow there). */
