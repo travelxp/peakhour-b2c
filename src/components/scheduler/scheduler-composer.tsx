@@ -50,6 +50,7 @@ import { TimezoneBanner } from "./timezone-banner";
 import { ChannelIconCompact } from "@/components/brand/channel-icon";
 import { useSchedulePreview } from "./use-schedule-preview";
 import { useSchedulerEntitlements } from "./use-scheduler-entitlements";
+import { AUTO_APPROVE_CALLOUT, showAutoApproveCallout } from "./auto-approve-callout";
 import { LocalPostOptions } from "./local-post-options";
 import { LISTING_CHANNEL, useListingTarget } from "./use-listing-target";
 import { emptyListingDraft, listingProblems, type ListingDraft } from "@/lib/local-post";
@@ -479,14 +480,10 @@ export function SchedulerComposer({
           </Label>
         </div>
       )}
-      {/* Upgrade teaser — surfaces for every tier that doesn't have
-          auto_approve unlocked, INCLUDING Free. Free users are the
-          highest-value upsell target; excluding them was a mistake. */}
-      {!autoApproveAuthorized &&
-        !entitlementsLoading &&
-        canAutoApprove !== false && (
-          <UpgradeCallout message="Auto-approve publishing is on Growth+ plans." />
-        )}
+      {/* Upgrade teaser: only on loaded entitlements that say auto-approve
+          is not included, never beside a forced-visible checkbox, and in
+          words that name no plan (see auto-approve-callout.ts). */}
+      {showAutoApproveCallout(entitlements, canAutoApprove) && <UpgradeCallout message={AUTO_APPROVE_CALLOUT} />}
 
       <Button
         onClick={submit}
