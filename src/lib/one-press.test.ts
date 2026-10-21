@@ -49,35 +49,30 @@ const between = (text: string, from: string, until: string) => {
   return text.slice(i, j);
 };
 
-describe("each Pay surface asks the latch before it sends, and holds it until the overlay closes", () => {
-  it("the plan picker: taken before the mutation; released on an error, on an answer with no overlay, and when the overlay closes", () => {
+describe("each Pay surface: the latch while the POST is in flight, state while a payment payload is open", () => {
+  it("the plan picker: refuses while a payload is open or the latch is taken; released when the mutation settles; disabled while a payload is open", () => {
     const s = code("components/upgrade/upgrade-plan-dialog.tsx");
-    expect(between(s, "const startCheckout", "checkoutMut.mutate(")).toContain("if (!press.take()) return;");
+    expect(between(s, "const startCheckout", "checkoutMut.mutate(")).toContain("if (checkout || !press.take()) return;");
     expect(s).toContain("startCheckout(selected, selectedPrice.term)");
     expect(s).not.toMatch(/onClick=\{[^}]*checkoutMut\.mutate\(/);
-    expect(s).not.toContain("onSettled");
-    expect(between(s, "onError:", "});")).toContain("press.release();");
-    // Each answer that opens no overlay releases it; the overlay's close does.
-    expect(between(s, "onSuccess: (res) => {", "setCheckout(res as CheckoutResult);").split("press.release();").length - 1).toBe(3);
-    expect(between(s, "<PaymentModal", "/>")).toMatch(/if \(!o\) \{\s*setCheckout\(null\);\s*press\.release\(\);/);
+    expect(s).toContain("onSettled: () => press.release(),");
+    expect(s).toMatch(/disabled=\{[^}]*\|\| !!checkout \|\|/);
   });
 
-  it("the upgrade drawer: taken before the POST; released on a failure and when the overlay closes, never on the payload", () => {
+  it("the upgrade drawer: refuses while a payload is open or the latch is taken; released in finally; disabled while a payload is open", () => {
     const s = code("components/upgrade/upgrade-drawer.tsx");
     const fn = between(s, "async function submitCheckout", "function shareReferral");
-    expect(between(fn, "async function submitCheckout", 'api.post<CheckoutResult>("/v1/billing/checkout"')).toContain("!press.take()");
-    expect(between(fn, "setCheckoutResult(r);", "toast.error(")).not.toContain("press.release()");
-    expect(between(fn, "} finally {", "}")).not.toContain("press.release()");
-    expect(fn.split("press.release();").length - 1).toBe(2);
-    expect(between(s, "<PaymentModal", "/>")).toMatch(/if \(!o\) \{\s*setCheckoutResult\(null\);\s*press\.release\(\);/);
+    expect(between(fn, "async function submitCheckout", 'api.post<CheckoutResult>("/v1/billing/checkout"')).toContain("if (!tier || checkoutResult || !press.take()) return;");
+    expect(fn).toMatch(/\} finally \{\s*press\.release\(\);/);
+    expect(s).toContain("disabled={submitting || !!checkoutResult ||");
   });
 
-  it("the Peaks pack Buy: taken before the purchase; released on a failure and when the overlay closes", () => {
+  it("the Peaks pack Buy: refuses while a payload is open or the latch is taken; released in finally; disabled while a payload is open", () => {
     const s = code("app/(site)/dashboard/peaks/page.tsx");
-    const fn = between(s, "const start = async (packKey: string) => {", "} finally {");
-    expect(between(fn, "const start", "buyPack(packKey)")).toContain("if (!press.take()) return;");
-    expect(between(fn, "} catch (err) {", "if (err instanceof")).toContain("press.release();");
-    expect(between(s, "<PaymentModal", "/>")).toMatch(/if \(!open\) \{\s*setCheckout\(null\);\s*press\.release\(\);/);
+    const fn = between(s, "const start = async (packKey: string) => {", "function ");
+    expect(between(fn, "const start", "buyPack(packKey)")).toContain("if (checkout || !press.take()) return;");
+    expect(fn).toMatch(/\} finally \{\s*press\.release\(\);/);
+    expect(s).toContain("disabled={!canBuy(p) || busyKey !== null || checkout !== null}");
   });
 
   it("the payment modal: Continue to payment and Skip both take the latch, so the overlay launches once", () => {

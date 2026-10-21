@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { Sparkles, Mail, Loader2, Check, Share2 } from "lucide-react";
 import { api } from "@/lib/api";
@@ -109,10 +109,11 @@ export function UpgradeDrawer(props: UpgradeDrawerProps) {
   const [email, setEmail] = useState(user?.email ?? "");
   const [businessContext, setBusinessContext] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  // ★ONE PRESS (owner answer 4): lib/one-press.ts. Held until the payment
-  //  overlay closes (review R1): a Razorpay or PayU overlay shows nothing
-  //  while its script loads, and a click then would mint a second one.
-  const press = useRef(onePress()).current;
+  // ★ONE PRESS (owner answer 4): lib/one-press.ts, for as long as the POST
+  //  is in flight. While a payment payload is open the button is disabled
+  //  and the handler refuses by STATE (`checkoutResult`): a Razorpay or PayU
+  //  overlay shows nothing while its script loads (review R1 and R2).
+  const [press] = useState(onePress);
   // When checkout mints a gateway payload, this opens the on-site PaymentModal.
   const [checkoutResult, setCheckoutResult] = useState<CheckoutResult | null>(null);
   const [success, setSuccess] = useState<{
@@ -193,20 +194,19 @@ export function UpgradeDrawer(props: UpgradeDrawerProps) {
     // ★ONE PRESS (owner answer 4): a second click in the same frame, before
     //  the disabled button renders, is ignored; the api refuses a concurrent
     //  checkout too (409 CHECKOUT_IN_PROGRESS).
-    if (!tier || !press.take()) return;
+    if (!tier || checkoutResult || !press.take()) return;
     setSubmitting(true);
     try {
       const r = await api.post<CheckoutResult>("/v1/billing/checkout", { tier });
       if (r?.gateway && r?.embed) {
-        setCheckoutResult(r); // opens the on-site PaymentModal overlay; the latch is released when it closes
+        setCheckoutResult(r); // opens the on-site PaymentModal overlay, and holds the button
         return;
       }
       toast.error("Could not start checkout. Please try again.");
-      press.release();
     } catch (err) {
       toast.error((err as Error)?.message || "Could not start checkout. Please try again.");
-      press.release();
     } finally {
+      press.release();
       setSubmitting(false);
     }
   }
@@ -377,7 +377,7 @@ export function UpgradeDrawer(props: UpgradeDrawerProps) {
               </Button>
               <Button
                 onClick={mode === "checkout" ? submitCheckout : submitWaitlist}
-                disabled={submitting || (mode === "checkout" && !tier)}
+                disabled={submitting || !!checkoutResult || (mode === "checkout" && !tier)}
               >
                 {submitting ? (
                   <>
@@ -399,14 +399,10 @@ export function UpgradeDrawer(props: UpgradeDrawerProps) {
     <PaymentModal
       checkout={checkoutResult}
       onOpenChange={(o) => {
-        if (!o) {
-          setCheckoutResult(null);
-          press.release();
-        }
+        if (!o) setCheckoutResult(null);
       }}
       onSuccess={() => {
         setCheckoutResult(null);
-        press.release();
         toast.success("Payment received — activating your plan…");
       }}
     />

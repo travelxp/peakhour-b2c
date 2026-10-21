@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Check, Loader2, Sparkles } from "lucide-react";
@@ -111,11 +111,13 @@ export function UpgradePlanDialog({
   const [checkout, setCheckout] = useState<CheckoutResult | null>(null);
   // ★ONE CHECKOUT AT A TIME (owner answer 4: a double click on Pay never pays
   //  twice). `isPending` disables the button once React re-renders; the latch
-  //  also ignores a second click in the same frame (lib/one-press.ts). ★IT IS
-  //  HELD UNTIL THE PAYMENT OVERLAY CLOSES, not only while the POST is in
-  //  flight (review R1): a Razorpay or PayU overlay shows nothing while its
-  //  script loads, and a click then would mint a second subscription.
-  const press = useRef(onePress()).current;
+  //  also ignores a second click in the same frame (lib/one-press.ts), for
+  //  as long as the POST is in flight. ★WHILE A PAYMENT PAYLOAD IS OPEN the
+  //  button is disabled and the handler refuses by STATE (`checkout`), not by
+  //  the latch (review R1 and R2): a Razorpay or PayU overlay shows nothing
+  //  while its script loads, and a click then would mint a second
+  //  subscription; state needs no release on each way the overlay ends.
+  const [press] = useState(onePress);
   const queryClient = useQueryClient();
   // After ANY purchase: what is current, and what each plan would now do, has
   // changed. Forget the selection and both answers, so reopening the picker
@@ -164,13 +166,11 @@ export function UpgradePlanDialog({
         toast.success(`${res.tierLabel || res.tier} added to your subscription`, {
           description: `Free for ${res.trialDays} days — nothing to pay now. Billed with your other products from ${new Date(res.trialEndsAt).toLocaleDateString()}.`,
         });
-        press.release();
         purchased();
         return;
       }
       if (res && "mode" in res && res.mode === "added") {
         toast.success(`${res.tierLabel || res.tier} added to your subscription`);
-        press.release();
         purchased();
         return;
       }
@@ -180,20 +180,17 @@ export function UpgradePlanDialog({
         toast.success(`${res.tierLabel || res.tier} — we'll email you an invoice to pay`, {
           description: "This plan is billed by invoice (bank rules cap auto-debit amounts).",
         });
-        press.release();
         purchased();
         return;
       }
-      // Held until the overlay closes (`<PaymentModal onOpenChange>` below).
+      // Holds the button (state) until the overlay closes.
       setCheckout(res as CheckoutResult);
     },
-    onError: (e: Error) => {
-      press.release();
-      toast.error(e.message ?? "Couldn't start checkout");
-    },
+    onError: (e: Error) => toast.error(e.message ?? "Couldn't start checkout"),
+    onSettled: () => press.release(),
   });
   const startCheckout = (tier: string, term: BillingTerm) => {
-    if (!press.take()) return;
+    if (checkout || !press.take()) return;
     checkoutMut.mutate({ tier, term });
   };
 
@@ -473,14 +470,10 @@ export function UpgradePlanDialog({
       <PaymentModal
         checkout={checkout}
         onOpenChange={(o) => {
-          if (!o) {
-            setCheckout(null);
-            press.release();
-          }
+          if (!o) setCheckout(null);
         }}
         onSuccess={() => {
           setCheckout(null);
-          press.release();
           purchased();
         }}
       />

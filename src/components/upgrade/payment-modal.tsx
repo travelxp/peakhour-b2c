@@ -148,11 +148,11 @@ function SummaryLine({ summary }: { summary: CheckoutSummary }) {
           {summary.interval ? intervalSuffix(summary.interval) : ""}
         </span>
       </div>
-      {/* A plan change (D21): the card is collected now, and nothing is charged
-          until the plan held runs out. */}
+      {/* The card is collected now, and nothing is charged until the date:
+          the trial's end (owner answer 1) or the plan held running out (D21). */}
       {summary.startsAt ? (
         <p className="mt-1 text-xs text-success-on-tint">
-          Nothing to pay until {new Date(summary.startsAt).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}, {summary.startsAfter === "trial" ? "when your free trial ends" : "when your current plan ends"}.
+          Nothing to pay until {new Date(summary.startsAt).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}{summary.startsAfter === "trial" ? ", when your free trial ends" : summary.startsAfter === "current_plan" ? ", when your current plan ends" : ""}.
         </p>
       ) : null}
       <div className="text-muted-foreground mt-1 flex flex-wrap items-baseline justify-between gap-x-3 text-xs">
@@ -305,7 +305,7 @@ function GatewayLauncher({
   //  re-renders the disabled button, is ignored too.
   //  (lib/one-press.ts; never released: the overlay launches once. Continue
   //  and Skip both take it.)
-  const press = useRef(onePress()).current;
+  const [press] = useState(onePress);
 
   useEffect(() => {
     if (!needsGstGate) return;

@@ -151,9 +151,10 @@ function BuyPeaks() {
   const { data, isLoading, isError } = usePeaksPacks();
   const [checkout, setCheckout] = useState<CheckoutResult | null>(null);
   const [busyKey, setBusyKey] = useState<string | null>(null);
-  // ★ONE PRESS (owner answer 4: a double click on Pay never pays twice), held
-  //  until the payment overlay closes: lib/one-press.ts.
-  const press = useRef(onePress()).current;
+  // ★ONE PRESS (owner answer 4: a double click on Pay never pays twice):
+  //  lib/one-press.ts, while the purchase POST is in flight; while a payment
+  //  payload is open, Buy is disabled and refuses by STATE (`checkout`).
+  const [press] = useState(onePress);
 
   // The pack a link-out asked for (Shopify and the WordPress plugin both send
   // `?pack=`), highlighted so a merchant who already chose doesn't have to
@@ -244,13 +245,11 @@ function BuyPeaks() {
   }, [qc]);
 
   const start = async (packKey: string) => {
-    if (!press.take()) return;
+    if (checkout || !press.take()) return;
     setBusyKey(packKey);
     try {
-      // Released when the overlay closes (`<PaymentModal onOpenChange>`).
       setCheckout(await buyPack(packKey));
     } catch (err) {
-      press.release();
       // The packs route authors its refusals FOR the buyer, so those messages
       // are worth showing — but ONLY those. A duck-typed `err.message` admits
       // everything else the api client can throw: "Failed to fetch" from an
@@ -263,6 +262,7 @@ function BuyPeaks() {
         toastUnhandledApiError(err, "start checkout");
       }
     } finally {
+      press.release();
       setBusyKey(null);
     }
   };
@@ -311,10 +311,7 @@ function BuyPeaks() {
       <PaymentModal
         checkout={checkout}
         onOpenChange={(open) => {
-          if (!open) {
-            setCheckout(null);
-            press.release();
-          }
+          if (!open) setCheckout(null);
         }}
         onSuccess={() => {
           // Razorpay's overlay reports success in-page; the webhook does the
@@ -364,7 +361,7 @@ function BuyPeaks() {
                     </span>
                     <Button
                       size="sm"
-                      disabled={!canBuy(p) || busyKey !== null}
+                      disabled={!canBuy(p) || busyKey !== null || checkout !== null}
                       aria-busy={busyKey === p.key}
                       {...(reason && !canBuy(p) ? { "aria-describedby": reasonId } : {})}
                       onClick={() => void start(p.key)}
