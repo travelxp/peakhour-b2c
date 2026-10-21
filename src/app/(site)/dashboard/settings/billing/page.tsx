@@ -37,6 +37,7 @@ import {
   recurringTotalText,
 } from "@/lib/billing-terms";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useAddedBusinessArrival } from "@/hooks/use-added-business-arrival";
 import {
   useBillingSummary,
   useBillingOrders,
@@ -71,6 +72,7 @@ export default function BillingPage() {
   const cancelProduct = useCancelProduct();
   const extend = useExtendTrial();
   const [upgradeOpen, setUpgradeOpen] = useState(false);
+  const arriveAtAddedBusiness = useAddedBusinessArrival();
 
   // Both billing reads must move together. The page states a combined total and a
   // next-charge date from /billing/summary alongside the product list from
@@ -99,8 +101,20 @@ export default function BillingPage() {
       const url = new URL(window.location.href);
       url.searchParams.delete("checkout");
       url.searchParams.delete("session_id");
+      url.searchParams.delete("addedBusiness");
       window.history.replaceState({}, "", url.toString());
     };
+
+    // ★A BUSINESS BOUGHT FOR ANOTHER WORKSPACE (P3.2, on P3.1b): the payment
+    //  creates it. Wait until `/confirm` says activated (or the webhook has
+    //  made it), then switch into it; never before, so the buyer is never
+    //  moved into a business that is not there.
+    const addedBusiness = params.get("addedBusiness");
+    if (addedBusiness && /^[0-9a-f]{24}$/.test(addedBusiness)) {
+      stripParams();
+      void arriveAtAddedBusiness({ businessId: addedBusiness, sessionId }).finally(refreshBilling);
+      return;
+    }
 
     void (async () => {
       try {
@@ -127,7 +141,7 @@ export default function BillingPage() {
         stripParams();
       }
     })();
-  }, [refreshBilling]);
+  }, [refreshBilling, arriveAtAddedBusiness]);
 
   const cronToolbar = (
     <CronToolbar

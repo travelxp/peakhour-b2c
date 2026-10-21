@@ -132,9 +132,10 @@ export function errCopy(
       // brand's workspace is the Table Story report, not a way around a limit.
       return {
         title: "Your plan covers your current workspaces",
-        // ★NO "BUY IT IN SETTINGS": that purchase is plan P3 and does not exist
-        // yet. Point at what does: keeping the store as its own account (D14).
-        body: `Each workspace in an account is priced as its own business, and buying an extra one isn't available yet. ${wayForward}`,
+        // ★THE PAGE SELLS IT NOW (P3.2): a 402 on "a separate brand" returns to
+        //  the choice with the purchase offered (`businessLimitNotice`). This is
+        //  only the dead end's wording, so it names no purchase it cannot make.
+        body: `Each workspace in an account is priced as its own business, and this one needs its own plan first. ${wayForward}`,
       };
     case "CLAIM_DIFFERENT_BUSINESS":
       return {
@@ -156,5 +157,31 @@ export function errCopy(
 export const BRAND_CONFIRM = "CLAIM_BRAND_CONFIRM";
 
 /** Refusals whose way forward is keeping the store as its own account: the page
- *  returns to the choice with that option picked, rather than a dead end. */
-export const KEEP_SEPARATE_CODES: readonly string[] = ["CLAIM_DIFFERENT_BUSINESS", "CLAIM_BUSINESS_LIMIT"];
+ *  returns to the choice with that option picked, rather than a dead end.
+ *  ★NOT THE 402 ANY MORE (P3.2): its way forward is buying the workspace's
+ *  plan, which the page now offers (`BUSINESS_LIMIT`). */
+export const KEEP_SEPARATE_CODES: readonly string[] = ["CLAIM_DIFFERENT_BUSINESS"];
+
+/** The claim's 402 on "a separate brand": the account's plan covers no other
+ *  workspace, and the store's own one has not paid (P3.1c's follow-up). */
+export const BUSINESS_LIMIT = "CLAIM_BUSINESS_LIMIT";
+
+/**
+ * What the page says above the choice after that 402, beside the purchase.
+ *
+ * ★THE PURCHASE IS THE WAY ON (P3.2, on P3.1b): the merchant picked "a
+ * separate brand", and a separate brand is a workspace with its own plan. Once
+ * it is paid for, the page comes back with that workspace picked
+ * (`intoNotice`). Keeping the store as its own account stays on offer when the
+ * page has it.
+ */
+export function businessLimitNotice(storeName: string, orgName: string, canKeepSeparate: boolean): string {
+  return `${storeName} needs its own plan to be a workspace in ${orgName}: each workspace is priced as its own business.${
+    canKeepSeparate ? " Buy its plan, or keep the store as its own account." : " Buy its plan to add it."
+  }`;
+}
+
+/** Back from the purchase: the workspace bought for the store is picked. */
+export function intoNotice(businessName: string, storeName: string): string {
+  return `${businessName} is ready. Claim the store to add ${storeName} to it.`;
+}

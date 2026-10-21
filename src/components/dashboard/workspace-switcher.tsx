@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { Building2, Check, ChevronsUpDown, Loader2, Lock, Plus } from "lucide-react";
 import {
   DropdownMenu,
@@ -13,6 +12,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
 import { PlanLimitDialog } from "@/components/upgrade/plan-limit-dialog";
+import { AddBusinessDialog } from "@/components/upgrade/add-business-dialog";
+import { UpgradePlanDialog } from "@/components/upgrade/upgrade-plan-dialog";
 import { useAuth } from "@/providers/auth-provider";
 import { cn } from "@/lib/utils";
 
@@ -40,11 +41,39 @@ import { cn } from "@/lib/utils";
  * only locking condition; an absent field means covered, because the field is
  * newer than some deployed b2c builds and a missing value must never wall off
  * the only workspace a customer has.
+ *
+ * ★A PADLOCKED WORKSPACE IS BOUGHT AS ITSELF (P3.2). Billing sells to the
+ * business signed in, so "see plans" from here sold to the workspace the user
+ * was leaving, which already had its plan. The dialog's action now switches
+ * into the padlocked one and opens the plan picker there, by the user's own
+ * choice; until they pick, the menu leaves them where they were.
+ *
+ * ★"ADD A BUSINESS" IS THE PURCHASE (P3.2, on P3.1b). Every business after the
+ * first pays first (D12, D19), so the menu opens `AddBusinessDialog` (a name,
+ * a plan, Pay) instead of onboarding, whose last step refused with a 402. An
+ * org whose plan already covers another workspace (Enterprise, D16) is sent
+ * to onboarding's add-another from the dialog.
  */
 export function WorkspaceSwitcher() {
   const { org, orgs, business, businesses, switchOrg, switchBusiness } = useAuth();
   const [switching, setSwitching] = useState<string | null>(null);
-  const [locked, setLocked] = useState<{ name: string } | null>(null);
+  const [locked, setLocked] = useState<{ id: string; name: string } | null>(null);
+  const [adding, setAdding] = useState(false);
+  // The plan picker for a padlocked workspace, opened once it is switched in.
+  const [choosingPlan, setChoosingPlan] = useState(false);
+  const [unlocking, setUnlocking] = useState(false);
+
+  async function chooseLockedPlan() {
+    if (!locked || unlocking) return;
+    setUnlocking(true);
+    try {
+      await switchBusiness(locked.id);
+      setLocked(null);
+      setChoosingPlan(true);
+    } finally {
+      setUnlocking(false);
+    }
+  }
 
   // Other orgs the user belongs to, as workspaces they can move to. Their
   // businesses aren't in /me (it only returns the ACTIVE org's), so these switch
@@ -57,7 +86,7 @@ export function WorkspaceSwitcher() {
     if (id === business?._id || switching) return;
     // `!== false`, deliberately — see the docblock.
     if (planActive === false) {
-      setLocked({ name });
+      setLocked({ id, name });
       return;
     }
     setSwitching(id);
@@ -178,13 +207,17 @@ export function WorkspaceSwitcher() {
             )}
 
             <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
-              {/* `another=1`: the add-business page is also first-run
-                  onboarding, which sends an onboarded org home. */}
-              <Link href="/onboarding/add-business?another=1" className="gap-2 text-muted-foreground">
-                <Plus className="size-4" aria-hidden />
-                Add a business
-              </Link>
+            <DropdownMenuItem
+              // As the locked row: the menu stays open under the dialog
+              // rather than the dialog appearing from nowhere.
+              onSelect={(e) => {
+                e.preventDefault();
+                setAdding(true);
+              }}
+              className="gap-2 text-muted-foreground"
+            >
+              <Plus className="size-4" aria-hidden />
+              Add a business
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -193,10 +226,22 @@ export function WorkspaceSwitcher() {
       <PlanLimitDialog
         open={locked !== null}
         onOpenChange={(next) => !next && setLocked(null)}
-        title={`${locked?.name ?? "That workspace"} isn't on your plan`}
-        description="One Peakhour Suite plan runs one business. Add this workspace to your plan to switch into it — you'll stay where you are until you do."
+        title={`${locked?.name ?? "That workspace"} has no plan`}
+        description={`Each business has its own plan. Switch to ${locked?.name ?? "it"} to choose one; you'll stay where you are until you do.`}
         benefit="Each business gets its own content library, calendar, audiences, connected channels and reporting. Nothing is shared between them."
-        ctaLabel="Add a business to my plan"
+        ctaLabel={unlocking ? "Switching…" : "Switch and choose a plan"}
+        onCta={() => void chooseLockedPlan()}
+        ctaBusy={unlocking}
+      />
+
+      <UpgradePlanDialog open={choosingPlan} onOpenChange={setChoosingPlan} />
+
+      {/* `another=1`: the add-business page is also first-run onboarding,
+          which sends an onboarded org home. */}
+      <AddBusinessDialog
+        open={adding}
+        onOpenChange={setAdding}
+        freePathHref="/onboarding/add-business?another=1"
       />
     </SidebarMenu>
   );
