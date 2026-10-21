@@ -5,8 +5,9 @@ import { isTimeZone } from "@/lib/control-plane";
  * The rendering rules behind §07's tab — PR-2.5d.
  *
  * *"Every instruction Peakhour acted on, who gave it, and every one it
- * refused."* `GET /v1/control-plane/activity` (api#1197) returns the rows;
- * everything here decides what a merchant reads.
+ * refused."* (the plan's wording; the tab renders `ACTIVITY_LEDE` below).
+ * `GET /v1/control-plane/activity` (api#1197) returns the rows; everything
+ * here decides what a merchant reads.
  *
  * ★★IT IS A SEPARATE MODULE BECAUSE THE DECISIONS ARE TESTABLE AND THE MARKUP
  * IS NOT. This repo's suite is `environment: "node"` with no jsdom, so a rule
@@ -79,33 +80,60 @@ interface OutcomeCopy {
 }
 
 /**
- * A verified merchant's message that Peakhour did not take as an instruction:
- * chatter, which from api M3 the merchant agent answers in conversation.
+ * The tab's lede, rendered by `activity-ledger.tsx`. ★It lives here, beside
+ * the row copy, because `CONVERSATION_COPY` is worded against it: a row that
+ * is neither an instruction acted on nor one refused says so in its word.
+ */
+export const ACTIVITY_LEDE =
+  "Every instruction Peakhour acted on over WhatsApp, who gave it, and every one it refused.";
+
+/**
+ * A verified merchant's message on which no instruction ran: from api M3
+ * (api#1522) mostly chatter, which the merchant agent answers in conversation.
  *
  * ★★ONE COPY FOR TWO KEYS, `not_a_command` AND `conversation`. mongodb
  * migration 392 (WhatsApp plan M1) adds `conversation` and rewrites the stored
- * `not_a_command` rows it finds to it. ⏸But api keeps writing `not_a_command`
- * until M3, during and after 392's run, so the tab holds both keys for the same
- * event. 🚫Two sentences would show a merchant one kind of line two ways, so
- * both keys read this one.
+ * `not_a_command` rows it finds to it. ⏸An api older than M3 still writes
+ * `not_a_command` (production until M3 deploys there). api#1522 names a mongodb
+ * follow-up that rewrites those rows too and drops the key; it is planned, not
+ * built, so this entry stays until it lands. 🚫Two sentences would show a
+ * merchant one kind of line two ways, so both keys read this one.
  *
  * 🚫★NOT "Blocked". A verified merchant saying "thanks" was not refused
  * anything, and filing ordinary chatter under a wall the tab exists to prove
  * is real would empty the word of meaning.
  *
- * ⚠️★★THE SENTENCE CLAIMS NO MORE THAN EVERY SUCH ROW CAN PROVE. Today
- * `platform-inbound.ts` writes `not_a_command` for chatter, a button tap, any
- * text while a question is waiting (Peakhour re-asks it), and a registered
- * trigger the router declined, and 392 cannot tell the stored ones apart.
- * 🚫"Chatted with Peakhour" (review round 2) read a declined trigger or a "did
- * not understand" reply as a good exchange. 🚫"No instruction was run" (round
- * 1) stated the api's write policy, not a fact the row carries. ★So the
- * sentence says what holds in every case: the message was not taken as an
- * instruction. It names no trigger because neither api return stores one.
+ * ⚠️★★THE SENTENCE CLAIMS NO MORE THAN EVERY SUCH ROW CAN PROVE, OLD OR NEW.
+ * - Before M3, `platform-inbound.ts` wrote `not_a_command` for chatter, a
+ *   button tap, any text while a question is waiting (Peakhour re-asks it),
+ *   and a registered trigger the router declined. 392 rewrote those rows to
+ *   `conversation` and cannot tell them apart.
+ * - From M3, a declined trigger is `command_denied`. But `conversation` is
+ *   still more than an answered chat: it is `handlePlatformInbound`'s one
+ *   return for every turn that is not a command, so it also covers a button
+ *   tap, a re-asked question, a spent hourly bucket or daily cap, and the
+ *   canned "did not understand" line when neither the agent nor the knowledge
+ *   path answered.
+ * - Nothing in the row says which of these it was: no reply, no kind, and no
+ *   trigger. 🚫A split by `occurredAt` at M3's deploy is one environment's
+ *   date compiled into every environment, and the later migration rewrites
+ *   pre-M3 production rows with their original dates, after any such cutoff.
+ *
+ * So the sentence says what holds in every case: nothing ran. The
+ * `conversation` return sits before `executeMerchantCommand`, and an agent's
+ * proposal or an inferred command never takes it: it continues into
+ * `executeMerchantCommand` and is ledgered as another outcome. 🚫"Chatted
+ * with Peakhour" reads a canned reply or a declined trigger as a good
+ * exchange. 🚫"Sent a message Peakhour did not take as an instruction" (b2c#593)
+ * was false for the declined trigger a rewritten row may be: Peakhour took it
+ * as an instruction and could not run it (api#1522's reason for filing it as
+ * `command_denied`). "Instruction" is the page's own word: the tab lists every
+ * instruction Peakhour acted on and every one it refused, and this line says
+ * why it is neither.
  */
 const CONVERSATION_COPY: OutcomeCopy = {
   group: "Message",
-  what: "Sent a message Peakhour did not take as an instruction",
+  what: "Sent Peakhour a message — no instruction ran",
   refused: false,
 };
 

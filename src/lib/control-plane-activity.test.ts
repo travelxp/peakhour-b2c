@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { ActivityRow, NotificationDomain } from "@/lib/api/control-plane";
 import {
+  ACTIVITY_LEDE,
   activityActor,
   activityCopy,
   activityScopeNote,
@@ -100,30 +101,52 @@ describe("activityCopy — §07's left column and 'what'", () => {
   it("does NOT call ordinary chatter Blocked", () => {
     // 🚫A verified merchant saying "thanks" was refused nothing, and filing it
     //  under the wall would empty the word of the meaning §07 depends on.
-    const c = activityCopy(row({ outcome: "not_a_command" }), DOMAINS);
-    expect(c.group).toBe("Message");
-    expect(c.refused).toBe(false);
+    //  Both keys: `conversation` is the one the api writes from M3.
+    for (const outcome of ["conversation", "not_a_command"]) {
+      const c = activityCopy(row({ outcome }), DOMAINS);
+      expect(c.group, outcome).toBe("Message");
+      expect(c.refused, outcome).toBe(false);
+    }
   });
 
-  it("files a domainless conversation as a message Peakhour did not take as an instruction, under Message", () => {
+  it("files a domainless conversation as a message on which no instruction ran, under Message", () => {
     // ★★mongodb 392 REWRITES THE STORED `not_a_command` ROWS IT FINDS TO
     //  `conversation`. Without its own entry a rewritten row fell through to
     //  the unknown-outcome fallback: group "Activity", sentence "conversation".
-    //  ⚠️Never under Blocked, and the sentence claims no good exchange and
-    //  nothing about what ran: a rewritten row may have been a declined
-    //  trigger, a button tap or a re-asked question, which 392 cannot tell from
-    //  chatter. (A row WITH a domain files under it, as every outcome does;
-    //  neither api return sets one on this outcome.)
+    //  ⚠️Never under Blocked, and the sentence claims no good exchange: a
+    //  rewritten row may have been a declined trigger, a button tap or a
+    //  re-asked question, and from api M3 a new row may still be a tap, a
+    //  re-asked question, a spent budget or the canned "did not understand"
+    //  line. Nothing in the row says which. What every one of them shares is
+    //  that nothing ran. (A row WITH a domain files under it, as every outcome
+    //  does; neither api return sets one on this outcome.)
     const c = activityCopy(row({ outcome: "conversation" }), DOMAINS);
     expect(c.group).toBe("Message");
-    expect(c.what).toBe("Sent a message Peakhour did not take as an instruction");
+    expect(c.what).toBe("Sent Peakhour a message — no instruction ran");
     expect(c.refused).toBe(false);
   });
 
+  it("says a conversation is neither an instruction Peakhour acted on nor one it refused, in the tab lede's words", () => {
+    // ★The tab's lede (`ACTIVITY_LEDE`, which `activity-ledger.tsx` renders)
+    //  divides the ledger into instructions Peakhour acted on and ones it
+    //  refused. A conversation row is neither, and its line says so in the
+    //  lede's own word. A lede reworded away from "instruction" fails here, so
+    //  the row copy is revisited with it.
+    expect(ACTIVITY_LEDE).toMatch(/^Every instruction Peakhour acted on\b.*\bevery one it refused\.$/);
+    const { what } = activityCopy(row({ outcome: "conversation" }), DOMAINS);
+    expect(what).toMatch(/\bno instruction ran$/);
+    // 🚫A floor, not the rule: the exact sentence is held by the test above.
+    //  The common wrong readings (a run, a refusal, a chat) must not creep in
+    //  beside the clause.
+    expect(what.replace(/\bno instruction ran$/, "")).not.toMatch(/\b(ran|run|refused|chat\w*)\b/i);
+  });
+
   it("reads a not_a_command row exactly as a conversation, so one event never shows two ways", () => {
-    // ⏸api keeps writing `not_a_command` until M3, during and after 392's run,
-    //  so the tab holds both keys for the same event. Two sentences would show
-    //  a merchant one kind of line two ways.
+    // ⏸An api older than M3 (production until it deploys there) still writes
+    //  `not_a_command`. api#1522 names a mongodb follow-up that rewrites those
+    //  rows to `conversation` and drops the key; it is planned, not built
+    //  (`plt_activity` still admits `not_a_command`), so this entry stays until
+    //  it lands. Two sentences would show a merchant one kind of line two ways.
     for (const command of [null, "LAUNCH"]) {
       expect(activityCopy(row({ outcome: "not_a_command", command }), DOMAINS)).toEqual(
         activityCopy(row({ outcome: "conversation", command }), DOMAINS),
