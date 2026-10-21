@@ -479,13 +479,14 @@ export function SchedulerComposer({
           </Label>
         </div>
       )}
-      {/* Upgrade teaser — surfaces for every tier that doesn't have
-          auto_approve unlocked, INCLUDING Free. Free users are the
-          highest-value upsell target; excluding them was a mistake. */}
+      {/* Upgrade teaser — surfaces for every plan that doesn't have
+          auto_approve unlocked. ★It names no plan: Starter, Growth and
+          Free do not exist (owner, 2026-10-21), and which plan carries a
+          feature is the catalog's to say. */}
       {!autoApproveAuthorized &&
         !entitlementsLoading &&
         canAutoApprove !== false && (
-          <UpgradeCallout message="Auto-approve publishing is on Growth+ plans." />
+          <UpgradeCallout message="Your plan does not include auto-approve publishing." />
         )}
 
       <Button
