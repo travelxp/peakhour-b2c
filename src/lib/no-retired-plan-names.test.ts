@@ -142,6 +142,31 @@ describe("no b2c copy names a retired plan", () => {
 // The one pattern, from the module that writes the trial copy (review R1).
 const EVERY_BUSINESS_TRIAL = EVERY_BUSINESS_TRIAL_PROMISE;
 
+/**
+ * ★A SENTENCE IS ITS WHOLE TEMPLATE OR ITS WHOLE JSX ELEMENT (review R2). The
+ * extractor above reads each template piece and each JSX text run alone, so
+ * `Every new business starts on a ${trialDays}-day … trial` reads as two
+ * pieces, neither of which is the promise. Here a template literal is joined
+ * with `N` for each placeholder, and an element's text children with `N` for
+ * each expression, and those joined sentences are read too.
+ */
+function joinedTexts(file: string, src: string): string[] {
+  const out: string[] = [];
+  const kind = file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
+  const sf = ts.createSourceFile(file, src, ts.ScriptTarget.Latest, true, kind);
+  const walk = (n: ts.Node) => {
+    if (ts.isTemplateExpression(n)) {
+      out.push((n.head.text + n.templateSpans.map((s) => "N" + s.literal.text).join("")).trim());
+    } else if (ts.isJsxElement(n) || ts.isJsxFragment(n)) {
+      const parts = n.children.map((ch) => (ts.isJsxText(ch) ? ch.text : ts.isJsxExpression(ch) ? "N" : "\u0000"));
+      for (const run of parts.join("").split("\u0000")) if (run.trim()) out.push(run.replace(/\s+/g, " ").trim());
+    }
+    ts.forEachChild(n, walk);
+  };
+  walk(sf);
+  return out;
+}
+
 describe("no b2c copy promises every business a trial (P3.1d)", () => {
   it("the pattern catches the promise and leaves other uses of the words alone", () => {
     for (const bad of [
@@ -153,6 +178,12 @@ describe("no b2c copy promises every business a trial (P3.1d)", () => {
       "Every new account starts on a trial",
       "Every business you add starts free",
       "Any new account begins with 14 free days",
+      // ★More spellings (review R2).
+      "Every business is free for 14 days",
+      "Each new business comes with a 14-day trial",
+      "Every new business includes a free trial",
+      "Every new store starts on a trial",
+      "every workspace gets a trial",
     ]) {
       expect(EVERY_BUSINESS_TRIAL.test(bad), bad).toBe(true);
     }
@@ -164,9 +195,23 @@ describe("no b2c copy promises every business a trial (P3.1d)", () => {
       // The two real sentences a trial-less first cut caught (review R1).
       "every account gets set up properly",
       "Each business gets its own content library, calendar, audiences, connected channels and reporting.",
+      // ★One clause only (review R2): a later "free" is another promise.
+      "Every business gets one Peaks wallet, and you can start free",
+      "Each account gets its own inbox; start free today",
     ]) {
       expect(EVERY_BUSINESS_TRIAL.test(ok), ok).toBe(false);
     }
+  });
+
+  it("★the joined extractor reads a template and a JSX element as one sentence each (review R2)", () => {
+    const src = "const a = `Every new business starts on a ${d}-day Peakhour Suite trial`; const b = <p>Every business starts on a {d}-day trial</p>;";
+    // The piecewise extractor cannot see either promise ...
+    expect(texts("x.tsx", src).some((t) => EVERY_BUSINESS_TRIAL.test(t))).toBe(false);
+    // ... and the joined one sees both.
+    expect(joinedTexts("x.tsx", src).filter((t) => EVERY_BUSINESS_TRIAL.test(t))).toEqual([
+      "Every new business starts on a N-day Peakhour Suite trial",
+      "Every business starts on a N-day trial",
+    ]);
   });
 
   // ★AND THE i18n STRINGS (review R1), as the retired-plan scan reads them.
@@ -190,10 +235,11 @@ describe("no b2c copy promises every business a trial (P3.1d)", () => {
       expect(files.length).toBeGreaterThan(100);
       const hits = files.flatMap((f) => {
         const src = readFileSync(f, "utf8");
-        // A cheap prefilter on the pattern's first word (review R1).
-        if (!/\b(?:every|each|all|any)\b/i.test(src)) return [];
+        // A cheap prefilter on a word the pattern requires (review R2: its
+        // first words are in nearly every file).
+        if (!/trial|free/i.test(src)) return [];
         const rel = relative(ROOT, f).replace(/\\/g, "/");
-        return texts(f, src)
+        return [...texts(f, src), ...joinedTexts(f, src)]
           .filter((t) => EVERY_BUSINESS_TRIAL.test(t))
           .map((t) => `${rel}: ${JSON.stringify(t.slice(0, 100))}`);
       });

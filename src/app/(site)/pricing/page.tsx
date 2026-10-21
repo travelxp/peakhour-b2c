@@ -97,7 +97,7 @@ export default async function PricingPage() {
               <p className="mt-5 max-w-xl text-lg text-muted-foreground">
                 Commerce, Content, Growth, Support and Presence — five products,
                 one login, one Peaks wallet, one price.
-                {pricingHeroTrial(trialDays)}
+                {pricingHeroTrial(trialDays) ? ` ${pricingHeroTrial(trialDays)}` : null}
               </p>
               <div className="mt-8 flex flex-wrap items-center gap-4">
                 {!cta.disabled && (

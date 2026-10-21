@@ -31,13 +31,15 @@
 
 /**
  * ★THE PROMISE NO COPY MAKES (P3.1d; D19): that every (or each, or any new)
- * business or account starts on, or gets, a trial or something free, in one
- * sentence. The trial is a new
+ * business, account, store or workspace starts on, gets, comes with,
+ * includes or is a trial or something free, in one clause (no period, comma,
+ * semicolon or colon between: review R2, so "Every business gets one Peaks
+ * wallet, and you can start free" is not read as the promise). The trial is a new
  * account's first business's, once per person. One pattern, read by the copy
  * tests and by the source and i18n scan (`no-retired-plan-names.test.ts`).
  */
 export const EVERY_BUSINESS_TRIAL_PROMISE =
-  /\b(?:every|each|all|any)\s+(?:new\s+)?(?:business(?:es)?|accounts?)\b[^.]{0,40}?\b(?:starts?|gets?|begins?)\b[^.]{0,60}?\b(?:trial|free)\b/i;
+  /\b(?:every|each|all|any)\s+(?:new\s+)?(?:business(?:es)?|accounts?|stores?|workspaces?)\b[^.,;:]{0,40}?\b(?:starts?|gets?|begins?|comes?|includes?|is|are)\b[^.,;:]{0,60}?\b(?:trial|free)\b/i;
 
 /** Whether a trial may be promised: `suiteTrialDays` served a length. */
 export function hasTrial(trialDays: number | null | undefined): trialDays is number {
@@ -131,11 +133,11 @@ export function pillarTrialCopy(
   };
 }
 
-/** The pricing hub's hero line about the trial (after "one price."), or ""
- *  without one. ★The first business, once per person (D19, P3.1d): never
- *  "every business". */
-export function pricingHeroTrial(trialDays: number | null): string {
-  return hasTrial(trialDays) ? ` Your first business starts with a free ${trialDays}-day trial of all of it, one trial per person.` : "";
+/** The pricing hub's hero sentence about the trial, or null without one.
+ *  ★The first business, once per person (D19, P3.1d): never "every
+ *  business". The page places it (review R2: no separator in the copy). */
+export function pricingHeroTrial(trialDays: number | null): string | null {
+  return hasTrial(trialDays) ? `Your first business starts with a free ${trialDays}-day trial of all of it, one trial per person.` : null;
 }
 
 /** The pricing FAQ's trial entry: how the trial works, or, without one, how
