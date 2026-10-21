@@ -16,8 +16,7 @@ export interface DashboardOrgPlanSummary {
     /** Customer-facing plan name from cfg_plans. ALWAYS prefer this for display —
      *  `plan` is a machine tier key, and rendering it is what once showed
      *  customers "Commerce_assistant.Free" as their plan name. Read through
-     *  `lib/plan-status`, which also reads a stored `free` / `.free` key
-     *  (until P4.5) as no plan. Null exactly when `plan` is. */
+     *  `lib/plan-status`. Null exactly when `plan` is. */
     planName?: string | null;
     planVersion?: number;
     trialEndsAt?: string | null;

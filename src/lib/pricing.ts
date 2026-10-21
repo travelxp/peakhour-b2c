@@ -309,9 +309,8 @@ export function yearlyPrice(
  *
  * ★THERE IS NO PER-PRODUCT TIER ANY MORE. The per-module Free and Pro plans
  * (`commerce_assistant.free` / `.paid` and the rest) are scrapped, so the
- * helpers that picked a module's own free or paid tier went with them; a
- * leftover per-product row the api may still list (until P4.5) is simply never
- * asked for.
+ * helpers that picked a module's own free or paid tier went with them, and
+ * migration 394 (P4.5) deleted the rows.
  */
 export const BUNDLE_PLAN_KEY_LIST = ["agency", "enterprise", "suite"] as const;
 

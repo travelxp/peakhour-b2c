@@ -44,8 +44,9 @@ function tier(key: string, pricing: Partial<PricingEntry> = {}): ResolvedProduct
 const SUITE = tier("suite");
 const AGENCY = tier("agency", { monthly: 24999, yearly: 249999, trialDays: 0 });
 
-/** Every module served; Suite composes all but Growth. A leftover per-product
- *  tier (until P4.5) rides along and must never be asked for. */
+/** Every module served; Suite composes all but Growth. A per-product tier
+ *  (none exists since migration 394, P4.5) rides along to show it is never
+ *  asked for. */
 function catalog(suite: ResolvedProductTier | null = SUITE): PricingResponse {
   const plans = (extra: ResolvedProductTier[]) => [...extra, AGENCY, ...(suite ? [suite] : [])];
   return {
