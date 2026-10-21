@@ -15,6 +15,14 @@ import {
   sessionStore,
 } from "@/lib/add-business";
 
+interface Arrival {
+  businessId: string;
+  name?: string | null;
+  sessionId?: string | null;
+  next?: string | null;
+}
+type ArrivalOutcome = "arrived" | "timeout" | "cancelled";
+
 /**
  * Wait for a purchased business to exist, then switch into it (billing plan
  * P3.2, on P3.1b). The payment creates the business (D12): Stripe's `/confirm`
@@ -36,8 +44,11 @@ export function useAddedBusinessArrival() {
     };
   }, []);
 
+  // "Check again" on a timeout re-enters the latest `arrive`.
+  const arriveRef = useRef<((a: Arrival) => Promise<ArrivalOutcome>) | null>(null);
+
   const arrive = useCallback(
-    async (a: { businessId: string; name?: string | null; sessionId?: string | null; next?: string | null }): Promise<"arrived" | "timeout" | "cancelled"> => {
+    async (a: Arrival): Promise<ArrivalOutcome> => {
       const pending = readPendingAdd(sessionStore(), a.businessId, Date.now());
       const name = a.name || pending?.name || "";
       const outcome = await awaitAddedBusiness({
@@ -78,7 +89,6 @@ export function useAddedBusinessArrival() {
     },
     [switchBusiness, router],
   );
-  const arriveRef = useRef<typeof arrive | null>(null);
   useEffect(() => {
     arriveRef.current = arrive;
   }, [arrive]);
