@@ -18,7 +18,7 @@ import {
   fetchConversationEntry,
   groupConversationByDay,
   isNearBottom,
-  nextConversationCursor,
+  olderConversationParam,
   orderedMessages,
   scrollTopAfterPrepend,
   scrollTopToRestore,
@@ -45,9 +45,16 @@ function msg(sender: ConversationMessage["sender"], text: string, sentAt: string
   return { sender, text, sentAt };
 }
 
-function page(messages: ConversationMessage[], nextCursor: string | null = null): ConversationEntry {
-  return { kind: "page", messages, nextCursor };
+function page(
+  messages: ConversationMessage[],
+  nextCursor: string | null = null,
+  over: { newerCursor?: string | null; window?: boolean } = {},
+): ConversationEntry {
+  return { kind: "page", messages, nextCursor, newerCursor: over.newerCursor ?? null, window: over.window ?? false };
 }
+
+const RECENT = { kind: "recent", timeZone: "UTC" } as const;
+const NOW = Date.parse("2026-10-21T12:00:00.000Z");
 
 function contact(over: Partial<MerchantContact>): MerchantContact {
   return {
@@ -81,7 +88,7 @@ describe("the query function and pager", () => {
   it("[C01] a 403 is stored as a refused entry, not thrown", async () => {
     const entry = await fetchConversationEntry(async () => {
       throw apiError(403);
-    }, null);
+    }, RECENT, NOW);
     expect(entry).toEqual({ kind: "refused", reason: "forbidden" });
   });
 
@@ -89,7 +96,7 @@ describe("the query function and pager", () => {
     for (const code of ["NO_BUSINESS", "NO_ORG"]) {
       const entry = await fetchConversationEntry(async () => {
         throw apiError(403, code);
-      }, null);
+      }, RECENT, NOW);
       expect(entry).toEqual({ kind: "refused", reason: "no_scope" });
     }
     expect(conversationRefusedText("no_scope")).toBe(CONVERSATION_NO_SCOPE_TEXT);
@@ -102,7 +109,7 @@ describe("the query function and pager", () => {
     await expect(
       fetchConversationEntry(async () => {
         throw stray;
-      }, null),
+      }, RECENT, NOW),
     ).rejects.toThrow("not the api");
   });
 
@@ -111,31 +118,38 @@ describe("the query function and pager", () => {
       await expect(
         fetchConversationEntry(async () => {
           throw apiError(status);
-        }, null),
+        }, RECENT, NOW),
       ).rejects.toThrow(`status ${status}`);
     }
   });
 
-  it("[C03] a page keeps its messages and its cursor, and the cursor reaches the api", async () => {
-    const seen: (string | null)[] = [];
+  it("[C03] a page keeps its messages and both cursors, and an older step's cursor reaches the api", async () => {
+    const seen: unknown[] = [];
     const m = msg("merchant", "hi", "2026-10-21T10:00:00.000Z");
-    const entry = await fetchConversationEntry(async (cursor) => {
-      seen.push(cursor);
-      return { messages: [m], nextCursor: "1760000000000.abcdef0123456789" };
-    }, "1760000000001.0000000000000000");
-    expect(seen).toEqual(["1760000000001.0000000000000000"]);
-    expect(entry).toEqual(page([m], "1760000000000.abcdef0123456789"));
-  });
-
-  it("[C04] the next page is fetched with the last page's nextCursor", () => {
-    expect(nextConversationCursor(page([], "1760000000000.abcdef0123456789"))).toBe(
-      "1760000000000.abcdef0123456789",
+    const entry = await fetchConversationEntry(
+      async (param) => {
+        seen.push(param);
+        return { messages: [m], nextCursor: "1760000000000.abcdef0123456789", newerCursor: "1760000000002.0000000000000000" };
+      },
+      { kind: "older", cursor: "1760000000001.0000000000000000" },
+      NOW,
+    );
+    expect(seen).toEqual([{ kind: "older", cursor: "1760000000001.0000000000000000" }]);
+    expect(entry).toEqual(
+      page([m], "1760000000000.abcdef0123456789", { newerCursor: "1760000000002.0000000000000000", window: false }),
     );
   });
 
-  it("[C05] there is no next page after the last page or after a refusal", () => {
-    expect(nextConversationCursor(page([], null))).toBeNull();
-    expect(nextConversationCursor({ kind: "refused", reason: "forbidden" })).toBeNull();
+  it("[C04] the next (older) page is asked with the last page's nextCursor", () => {
+    expect(olderConversationParam(page([], "1760000000000.abcdef0123456789"))).toEqual({
+      kind: "older",
+      cursor: "1760000000000.abcdef0123456789",
+    });
+  });
+
+  it("[C05] there is no older page after the last page or after a refusal", () => {
+    expect(olderConversationParam(page([], null))).toBeNull();
+    expect(olderConversationParam({ kind: "refused", reason: "forbidden" })).toBeNull();
   });
 
   it("[C06] a 4xx is never retried", () => {
@@ -193,9 +207,9 @@ describe("what the tab shows", () => {
     ).toEqual({ kind: "loading" });
   });
 
-  it("[C13] only an answered page with no messages is empty", () => {
+  it("[C13] only answered pages with no messages and nothing older or newer are empty", () => {
     expect(
-      conversationView({ entries: [page([])], status: "success", fetchStatus: "idle" }),
+      conversationView({ entries: [page([], null, { window: true })], status: "success", fetchStatus: "idle" }),
     ).toEqual({ kind: "empty" });
   });
 
@@ -254,10 +268,13 @@ describe("the empty state names only a reason it can know", () => {
     expect(editor.link?.href).toBe(WHATSAPP_SETTINGS_HREF);
   });
 
-  it("[C21] a verified number with nothing says so, and does not rule out a shared number", () => {
+  it("[C21] a verified number with nothing says so, and does not rule out a shared number or a message tied to no business", () => {
     const copy = conversationEmptyCopy("verified", true);
-    expect(copy.text).toMatch(/^No messages since your number was last verified\./);
-    expect(copy.text).toContain("A number that someone else has also verified is never shown.");
+    expect(copy.text).toMatch(/^No messages for this business since your number was verified\./);
+    expect(copy.text).toContain("A number that someone else has also verified is never shown");
+    // Item 19: an untied message is on no tab, so "no messages" must not claim
+    // the number never spoke to Peakhour.
+    expect(copy.text).toContain("a message Peakhour could not tie to one of them is not shown on any");
     expect(copy.link).toBeUndefined();
     const pending = conversationEmptyCopy("pending", false).text;
     expect(pending).toMatch(/^Your number on this business is not verified yet/);
@@ -268,9 +285,14 @@ describe("the empty state names only a reason it can know", () => {
   it("[C31] the scope note says what the api reads, and the refusal is never an empty conversation", () => {
     expect(CONVERSATION_SCOPE_NOTE).toContain("Only your own conversation is shown, never a teammate's.");
     expect(CONVERSATION_SCOPE_NOTE).toContain("last time that number was verified or removed on any business");
-    expect(CONVERSATION_SCOPE_NOTE).toContain("keeps its latest 50 messages");
+    expect(CONVERSATION_SCOPE_NOTE).toContain("keeps each number's latest 50 messages");
     expect(CONVERSATION_SCOPE_NOTE).toContain("A number that someone else has also verified is left out");
-    expect(CONVERSATION_SCOPE_NOTE).toContain("whichever business they were about");
+    // Item 19: the split, the untied message, and the two starts.
+    expect(CONVERSATION_SCOPE_NOTE).toContain("Only this business's messages are shown");
+    expect(CONVERSATION_SCOPE_NOTE).toContain("is not shown on any of them");
+    expect(CONVERSATION_SCOPE_NOTE).toContain("shows from when you verified the number here");
+    // 🚫M6's sentence for the combined history the owner rejected.
+    expect(CONVERSATION_SCOPE_NOTE).not.toContain("whichever business they were about");
     expect(CONVERSATION_SCOPE_NOTE).toContain("Verification codes are never shown");
     expect(CONVERSATION_REFUSED_TEXT).toMatch(/^Peakhour refused to show this conversation/);
   });
@@ -315,7 +337,7 @@ describe("timestamps, in a pinned locale and zone", () => {
     const before = keysOf([one, two]);
     expect(new Set(before).size).toBe(2);
     expect(keysOf([older, one, two]).slice(1)).toEqual(before);
-    // A page boundary between two lines of one instant: "Load older" brings the
+    // A page boundary between two lines of one instant: an older page brings the
     // first of them, and the newer one keeps its key (so it is not remounted
     // and is not read as a new message).
     expect(keysOf([one, two]).slice(1)).toEqual(keysOf([two]));
@@ -355,11 +377,15 @@ describe("the scroll position", () => {
 });
 
 describe("the cache key and the tab", () => {
-  it("[C28] one cache entry per org, business and user", () => {
-    expect(conversationKey("org_1", "biz_a", "u_me")).toEqual([CONTROL_PLANE_CONVERSATION_KEY, "org_1", "biz_a", "u_me"]);
-    expect(conversationKey("org_1", "biz_a", "u_me")).not.toEqual(conversationKey("org_1", "biz_b", "u_me"));
-    expect(conversationKey("org_1", "biz_a", "u_me")).not.toEqual(conversationKey("org_1", "biz_a", "u_teammate"));
-    expect(conversationKey(undefined, null, undefined)).toEqual([CONTROL_PLANE_CONVERSATION_KEY, null, null, null]);
+  it("[C28] one cache entry per org, business and user, and per place the tab opened on", () => {
+    const L = "latest@UTC";
+    expect(conversationKey("org_1", "biz_a", "u_me", L)).toEqual([CONTROL_PLANE_CONVERSATION_KEY, "org_1", "biz_a", "u_me", L]);
+    expect(conversationKey("org_1", "biz_a", "u_me", L)).not.toEqual(conversationKey("org_1", "biz_b", "u_me", L));
+    expect(conversationKey("org_1", "biz_a", "u_me", L)).not.toEqual(conversationKey("org_1", "biz_a", "u_teammate", L));
+    expect(conversationKey("org_1", "biz_a", "u_me", L)).not.toEqual(conversationKey("org_1", "biz_a", "u_me", "day:2026-10-12@UTC"));
+    expect(conversationKey(undefined, null, undefined, L)).toEqual([CONTROL_PLANE_CONVERSATION_KEY, null, null, null, L]);
+    // ★The path stays first, so a prefix invalidation reaches every entry.
+    expect(conversationKey("org_1", "biz_a", "u_me", L)[0]).toBe(CONTROL_PLANE_CONVERSATION_KEY);
   });
 
   it("[C29] ?tab=conversation and ?tab=activity open their tabs; anything else is settings", () => {

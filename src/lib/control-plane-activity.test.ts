@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { ActivityRow, NotificationDomain } from "@/lib/api/control-plane";
 import {
+  ACTIVITY_EMPTY_TEXT,
   ACTIVITY_LEDE,
   activityActor,
   activityCopy,
@@ -126,13 +127,12 @@ describe("activityCopy — §07's left column and 'what'", () => {
     expect(c.refused).toBe(false);
   });
 
-  it("says a conversation is neither an instruction Peakhour acted on nor one it refused, in the tab lede's words", () => {
-    // ★The tab's lede (`ACTIVITY_LEDE`, which `activity-ledger.tsx` renders)
-    //  divides the ledger into instructions Peakhour acted on and ones it
-    //  refused. A conversation row is neither, and its line says so in the
-    //  lede's own word. A lede reworded away from "instruction" fails here, so
-    //  the row copy is revisited with it.
-    expect(ACTIVITY_LEDE).toMatch(/^Every instruction Peakhour acted on\b.*\bevery one it refused\.$/);
+  it("says a conversation is neither an instruction Peakhour ran nor one it refused, in the tab's own word", () => {
+    // ★The tab's empty state (`ACTIVITY_EMPTY_TEXT`) names the rows that ran
+    //  or were refused "instructions". A conversation row is neither, and its
+    //  line says so in that word. An empty state reworded away from
+    //  "instruction" fails here, so the row copy is revisited with it.
+    expect(ACTIVITY_EMPTY_TEXT).toContain("every instruction Peakhour ran or refused");
     const { what } = activityCopy(row({ outcome: "conversation" }), DOMAINS);
     expect(what).toMatch(/\bno instruction ran$/);
     // 🚫A floor, not the rule: the exact sentence is held by the test above.
@@ -434,5 +434,52 @@ describe("displayTimeZone", () => {
       const tz = displayTimeZone(absent);
       expect(() => new Intl.DateTimeFormat("en-GB", { timeZone: tz })).not.toThrow();
     }
+  });
+});
+
+describe("the tab's lede and empty state (owner answer 2026-10-21, item 21)", () => {
+  /**
+   * ★Every stored outcome, by the kind of row it is. The lede claims to cover
+   * "everything", and the empty state names the kinds: a new outcome must be
+   * placed here, and a kind the empty state stops naming fails.
+   */
+  const KIND: Record<string, "instruction" | "message" | "consent"> = {
+    unknown_sender: "instruction",
+    no_longer_a_member: "instruction",
+    ambiguous_business: "instruction",
+    command_denied: "instruction",
+    command_handled: "instruction",
+    command_silent: "instruction",
+    confirmation_requested: "instruction",
+    nothing_to_confirm: "instruction",
+    not_a_command: "message",
+    conversation: "message",
+    consent_opted_out: "consent",
+    consent_opted_in: "consent",
+  };
+
+  it("the lede is the owner's sentence, exactly", () => {
+    expect(ACTIVITY_LEDE).toBe("Everything you and your team did with Peakhour on WhatsApp");
+  });
+
+  it("every stored outcome is one of the three kinds the empty state names", () => {
+    expect(Object.keys(KIND).sort()).toEqual([...STORED_OUTCOMES].sort());
+    const said = ACTIVITY_EMPTY_TEXT.toLowerCase();
+    // Instructions, both ways.
+    expect(said).toContain("every instruction peakhour ran or refused");
+    // Messages on which no instruction ran.
+    expect(said).toContain("every other message");
+    // Consent, both ways, as the consent rows' own sentences put it.
+    expect(said).toContain("every request to stop or restart messages");
+    for (const outcome of STORED_OUTCOMES) {
+      const what = activityCopy(row({ outcome }), DOMAINS).what.toLowerCase();
+      if (KIND[outcome] === "consent") expect(what, outcome).toMatch(/stop messaging|message this number again/);
+      if (KIND[outcome] === "message") expect(what, outcome).toMatch(/no instruction ran$/);
+    }
+  });
+
+  it("the empty state says who fills it: you or a teammate, as the lede says", () => {
+    expect(ACTIVITY_LEDE).toContain("you and your team");
+    expect(ACTIVITY_EMPTY_TEXT).toMatch(/^Nothing yet\. When you or a teammate messages Peakhour on WhatsApp/);
   });
 });
