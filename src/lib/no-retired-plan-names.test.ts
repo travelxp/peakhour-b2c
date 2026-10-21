@@ -130,3 +130,42 @@ describe("no b2c copy names a retired plan", () => {
     120_000,
   );
 });
+
+/**
+ * ★ONE TRIAL PER PERSON (billing plan P3.1d; D19): the Suite trial is a new
+ * account's FIRST business's, once per person; an added business, or a later
+ * account of the same person, pays first. So no copy promises a trial to
+ * "every business" or "every new business". Read with the extractor above
+ * (strings, template pieces and JSX text; comments are not copy).
+ */
+const EVERY_BUSINESS_TRIAL = /\bevery\s+(?:new\s+)?business\s+(?:starts|gets|begins)\b/i;
+
+describe("no b2c copy promises every business a trial (P3.1d)", () => {
+  it("the pattern catches the promise and leaves other uses of the words alone", () => {
+    for (const bad of [" Every business starts with a free 14-day trial of all of it.", "Every new business starts on a 14-day Peakhour Suite trial", "every business gets a trial"]) {
+      expect(EVERY_BUSINESS_TRIAL.test(bad), bad).toBe(true);
+    }
+    for (const ok of ["Your first business starts with a free 14-day trial", "Agency covers every business you run", "every business-critical alert"]) {
+      expect(EVERY_BUSINESS_TRIAL.test(ok), ok).toBe(false);
+    }
+  });
+
+  // ★A tree walk: worktrees with a junctioned node_modules run it slowly.
+  it(
+    "★no source file under src/ says every business starts on a trial",
+    () => {
+      const files = sourceFiles(SRC);
+      expect(files.length).toBeGreaterThan(100);
+      const hits = files.flatMap((f) => {
+        const src = readFileSync(f, "utf8");
+        if (!/every/i.test(src)) return [];
+        const rel = relative(ROOT, f).replace(/\\/g, "/");
+        return texts(f, src)
+          .filter((t) => EVERY_BUSINESS_TRIAL.test(t))
+          .map((t) => `${rel}: ${JSON.stringify(t.slice(0, 100))}`);
+      });
+      expect(hits).toEqual([]);
+    },
+    120_000,
+  );
+});

@@ -18,7 +18,8 @@ import type { PillarSlug } from "@/lib/pillars";
  * Peakhour Suite — one plan, all five modules.
  *
  * The plan a business buys (billing plan D19: one catalog, no free tier, no
- * per-module plans), and the one every new business starts on as a trial.
+ * per-module plans), and the one a new account's first business starts on as
+ * a trial (once per person, P3.1d).
  * It replaced "pick a pillar, pay per pillar" as the thing the pricing hub
  * sells. The arithmetic that made the old shape untenable: five modules at
  * ₹1,499 is ₹7,495/month to assemble what the homepage describes, so in

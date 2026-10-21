@@ -19,6 +19,14 @@
  *
  * Server pages read the trial with `marketingTrialDays` (one cached
  * `/v1/platform/pricing` read, as /auth does) and pass it to these helpers.
+ *
+ * ★WHO GETS THE TRIAL (billing plan D19 and P3.1d, owner answer 2: one trial
+ * only). A new account's FIRST business, once per person: a business added to
+ * an account, and a later account the same person opens, pay first. So no
+ * sentence here says "every business" or "every new business" starts on a
+ * trial. The signed-in surfaces never read this file: the
+ * picker promises a trial only when the api's `trialApplies` says so, and the
+ * Shopify app only when the api's `trialDays` does.
  */
 
 /** Whether a trial may be promised: `suiteTrialDays` served a length. */
@@ -113,15 +121,24 @@ export function pillarTrialCopy(
   };
 }
 
+/** The pricing hub's hero line about the trial (after "one price."), or ""
+ *  without one. ★The first business, once per person (D19, P3.1d): never
+ *  "every business". */
+export function pricingHeroTrial(trialDays: number | null): string {
+  return hasTrial(trialDays) ? ` Your first business starts with a free ${trialDays}-day trial of all of it, one trial per person.` : "";
+}
+
 /** The pricing FAQ's trial entry: how the trial works, or, without one, how
- *  a business starts. */
+ *  a business starts. ★Who gets it (D19, P3.1d): a new account's first
+ *  business, once per person; an added business, or another account the same
+ *  person opens, pays first. */
 export function trialFaq(trialDays: number | null): { q: string; a: string } {
   const after =
     "buy Peakhour Suite (monthly or yearly) or Agency (quarterly or yearly) to keep going; until you do, your business has no plan and Peakhour pauses.";
   return hasTrial(trialDays)
     ? {
         q: "How does the free trial work?",
-        a: `Every new business starts on a ${trialDays}-day Peakhour Suite trial — every module, no card. When it ends, ${after}`,
+        a: `Your first business starts on a ${trialDays}-day Peakhour Suite trial — every module, no card. It is one trial per person: a business you add, or another account you open, is bought first. When the trial ends, ${after}`,
       }
     : {
         q: "How do I start?",

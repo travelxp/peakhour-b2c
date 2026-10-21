@@ -183,7 +183,7 @@ export default async function Home({
         </div>
       ) : null}
 
-      {/* Trial announcement bar (D19: no free tier; every business starts on a Suite trial).
+      {/* Trial announcement bar (D19: no free tier; a new account's first business starts on a Suite trial, once per person, P3.1d).
           Only when the catalog gives a trial (`announcementBar`). */}
       {bar ? (
         <div className="bg-brand-gradient px-4 py-2 text-center text-sm font-semibold text-brand-contrast">
