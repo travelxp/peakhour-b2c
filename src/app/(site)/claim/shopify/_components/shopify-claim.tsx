@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { CheckCircle2, AlertCircle, AlertTriangle, ShoppingBag } from "lucide-react";
@@ -20,7 +20,18 @@ import {
   type ShopifyClaimCandidates,
 } from "@/lib/api/shopify-claim";
 import { LoadingScreen } from "@/components/molecules/loading-screen";
-import { BRAND_CONFIRM, KEEP_SEPARATE_CODES, businessOption, claimOutcome, doneCopy, errCopy } from "./claim-copy";
+import {
+  BRAND_CONFIRM,
+  KEEP_SEPARATE_CODES,
+  businessLimitNotice,
+  businessOption,
+  claimOutcome,
+  doneCopy,
+  errCopy,
+  intoNotice,
+} from "./claim-copy";
+import { AddBusinessDialog } from "@/components/upgrade/add-business-dialog";
+import { boughtForStore, isBusinessLimit, rememberBoughtForStore, sessionStore } from "@/lib/add-business";
 
 /** Sentinel for "move the store in as a NEW Business" (vs an existing businessId). */
 const NEW_BUSINESS = "__new__";
@@ -37,7 +48,13 @@ export function ShopifyClaim() {
   const params = useSearchParams();
   const store = params.get("store") ?? "";
   const token = params.get("t") ?? "";
-  const { isAuthenticated, isLoading, switchOrg, switchBusiness } = useAuth();
+  // Back from buying the workspace's plan (P3.2): the business bought for this
+  // store, to pick and attach to. ★ONLY ONE THIS TAB BOUGHT FOR THIS STORE
+  // (review R1): a link can name any business, and attaching to it skips the
+  // "same brand?" question.
+  const intoParam = params.get("into") ?? "";
+  const into = useMemo(() => (boughtForStore(sessionStore(), intoParam, store, Date.now()) ? intoParam : ""), [intoParam, store]);
+  const { isAuthenticated, isLoading, org, switchOrg, switchBusiness } = useAuth();
 
   const [fetchState, setFetchState] = useState<FetchState>("loading");
   const [data, setData] = useState<ShopifyClaimCandidates | null>(null);
@@ -55,6 +72,14 @@ export function ShopifyClaim() {
   // business, or no plan for another workspace): said above the choice, with
   // "keep it as its own account" already picked.
   const [separateNotice, setSeparateNotice] = useState<string | null>(null);
+  // ★THE 402 ON "A SEPARATE BRAND" OFFERS ITS PLAN (P3.2; P3.1c's follow-up).
+  //  The account's plan covers no other workspace and the store's own has
+  //  not paid, so the way on is buying the new workspace's plan, here.
+  const [limitNotice, setLimitNotice] = useState<string | null>(null);
+  const [buying, setBuying] = useState(false);
+  const [openingPurchase, setOpeningPurchase] = useState(false);
+  // The business bought for this store, picked on the way back.
+  const [boughtNotice, setBoughtNotice] = useState<string | null>(null);
 
   const ready = !isLoading && isAuthenticated && !!store && !!token;
 
@@ -68,10 +93,21 @@ export function ShopifyClaim() {
         if (cancelled) return;
         setData(d);
         if (d.orgs.length === 1) setSelectedOrg(d.orgs[0]!.orgId);
-        // ★KEEPING IT SEPARATE IS THE DEFAULT WHEN IT IS ON OFFER. Joining an
-        //  existing business is the choice that needs a reason; a store left in
-        //  the wrong business is the Table Story report.
-        if (d.canKeepSeparate) setSelectedTarget(SEPARATE);
+        // Back from the purchase: the workspace bought for this store is the
+        // choice, in the account that holds it.
+        const boughtIn = into ? d.orgs.find((o) => o.businesses.some((b) => b.businessId === into)) : undefined;
+        const bought = boughtIn?.businesses.find((b) => b.businessId === into);
+        if (boughtIn && bought) {
+          setSelectedOrg(boughtIn.orgId);
+          setSelectedTarget(bought.businessId);
+          setBoughtNotice(intoNotice(bought.name, d.store.name || d.store.shopDomain || "this store"));
+          setLimitNotice(null);
+        } else if (d.canKeepSeparate) {
+          // ★KEEPING IT SEPARATE IS THE DEFAULT WHEN IT IS ON OFFER. Joining an
+          //  existing business is the choice that needs a reason; a store left
+          //  in the wrong business is the Table Story report.
+          setSelectedTarget(SEPARATE);
+        }
         setFetchState("choose");
       })
       .catch((e: unknown) => {
@@ -83,7 +119,9 @@ export function ShopifyClaim() {
     return () => {
       cancelled = true;
     };
-  }, [ready, store, token]);
+    // `into` too: a purchase paid in an overlay comes back to this same page
+    // with it, and the new workspace is only in a fresh read.
+  }, [ready, store, token, into]);
 
   const activeOrg = data?.orgs.find((o) => o.orgId === selectedOrg) ?? null;
   const storeName = data?.store.name || data?.store.shopDomain || "This store";
@@ -115,7 +153,15 @@ export function ShopifyClaim() {
         return;
       }
       const businessId = target === NEW_BUSINESS ? undefined : target;
-      const res = await claimShopifyStore(store, token, { orgId: selectedOrg, businessId, confirmed });
+      // ★THE WORKSPACE BOUGHT FOR THIS STORE NEEDS NO "SAME BRAND?" (P3.2):
+      //  the merchant chose "a separate brand" and paid for this workspace,
+      //  which is new and empty, so there is nothing to compare the store
+      //  with. A block still refuses; `confirmed` cannot override one.
+      const res = await claimShopifyStore(store, token, {
+        orgId: selectedOrg,
+        businessId,
+        confirmed: confirmed || (!!into && businessId === into),
+      });
       setConfirmPrompt(null);
       setSeparateNotice(null);
       setResult(claimOutcome(res, businessId, activeOrg?.businesses ?? []));
@@ -133,6 +179,16 @@ export function ShopifyClaim() {
         setFetchState("choose");
         return;
       }
+      if (isBusinessLimit(e)) {
+        // Nothing moved. Back to the choice with the purchase offered, on
+        // "a separate brand" whatever was sent (review R2: no dead end).
+        setConfirmPrompt(null);
+        setSeparateNotice(null);
+        setSelectedTarget(NEW_BUSINESS);
+        setLimitNotice(businessLimitNotice(storeName, activeOrg?.name ?? "your account", !!data.canKeepSeparate));
+        setFetchState("choose");
+        return;
+      }
       if (KEEP_SEPARATE_CODES.includes(code) && data.canKeepSeparate) {
         // Nothing moved. Back to the choice with the way forward picked.
         setConfirmPrompt(null);
@@ -144,6 +200,22 @@ export function ShopifyClaim() {
       setErrCode(code);
       setErrMsg(message || "Couldn't connect the store.");
       setFetchState("error");
+    }
+  }
+
+  // The purchase is the signed-in account's (POST /v1/billing/add-business
+  // sells to the org in the session), so the account the store is going to
+  // is switched in first.
+  async function openPurchase() {
+    if (!selectedOrg || openingPurchase) return;
+    setOpeningPurchase(true);
+    try {
+      if (org?._id !== selectedOrg) await switchOrg(selectedOrg);
+      setBuying(true);
+    } catch {
+      setLimitNotice("We couldn't open that account. Please try again.");
+    } finally {
+      setOpeningPurchase(false);
     }
   }
 
@@ -255,6 +327,21 @@ export function ShopifyClaim() {
                     </div>
                   )}
 
+                  {boughtNotice && selectedTarget === into && (
+                    <div className="rounded-md border bg-muted/40 p-3 text-sm" role="status">
+                      {boughtNotice}
+                    </div>
+                  )}
+
+                  {limitNotice && selectedTarget === NEW_BUSINESS && (
+                    <div className="space-y-3 rounded-md border border-warning/30 bg-warning/10 p-3 text-sm" role="alert">
+                      <p>{limitNotice}</p>
+                      <Button size="sm" onClick={() => void openPurchase()} disabled={openingPurchase || !selectedOrg}>
+                        {openingPurchase ? "Opening…" : `Buy a plan for ${storeName}`}
+                      </Button>
+                    </div>
+                  )}
+
                   {data.canKeepSeparate && (
                     <div className="space-y-2">
                       <button
@@ -291,6 +378,8 @@ export function ShopifyClaim() {
                                   setSelectedTarget(NEW_BUSINESS);
                                   setConfirmPrompt(null);
                                   setSeparateNotice(null);
+                                  // Another account: its plan is its own.
+                                  setLimitNotice(null);
                                 }}
                                 className={`flex w-full items-center justify-between rounded-md border p-3 text-left text-sm hover:bg-muted/40 ${
                                   selected ? "border-primary ring-1 ring-primary" : ""
@@ -410,6 +499,19 @@ export function ShopifyClaim() {
                 </Button>
               )}
             </div>
+          )}
+
+          {data && (
+            <AddBusinessDialog
+              open={buying}
+              onOpenChange={setBuying}
+              defaultName={storeName}
+              description={`${storeName} gets its own workspace, with its own plan. Once it's paid for, you'll come back here to finish linking the store to it.`}
+              nextFor={(businessId) => `${claimPath}&into=${encodeURIComponent(businessId)}`}
+              onPaymentOpened={(businessId) => {
+                if (businessId) rememberBoughtForStore(sessionStore(), businessId, store, Date.now());
+              }}
+            />
           )}
 
           {ready && fetchState === "claiming" && (

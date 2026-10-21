@@ -38,6 +38,8 @@ export function PlanLimitDialog({
   /** Where the purchase happens. Defaults to Billing. */
   href = "/dashboard/settings/billing",
   ctaLabel = "See plans and add-ons",
+  onCta,
+  ctaBusy = false,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -46,6 +48,12 @@ export function PlanLimitDialog({
   benefit?: string;
   href?: string;
   ctaLabel?: string;
+  /** An action in place of the link, for a purchase that is not Billing's:
+   *  Billing sells to the business signed in, and a padlocked workspace is a
+   *  different one (P3.2). */
+  onCta?: () => void;
+  /** The action is in flight. */
+  ctaBusy?: boolean;
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -66,9 +74,15 @@ export function PlanLimitDialog({
         )}
 
         <DialogFooter className="gap-2 sm:gap-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={ctaBusy}>
             Not now
           </Button>
+          {onCta ? (
+            <Button onClick={onCta} disabled={ctaBusy}>
+              {ctaLabel}
+              <ArrowRight className="size-4" aria-hidden />
+            </Button>
+          ) : (
           <Button asChild>
             {/* Closing on click matters: the dialog is rendered by the sidebar,
                 which does NOT unmount on navigation, so without this it would
@@ -78,6 +92,7 @@ export function PlanLimitDialog({
               <ArrowRight className="size-4" aria-hidden />
             </Link>
           </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

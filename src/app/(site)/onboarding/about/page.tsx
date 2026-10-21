@@ -25,6 +25,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Sparkles, ArrowLeft, ArrowRight, AlertCircle } from "lucide-react";
 import { HOME_ROUTE } from "@/lib/nav-home";
+import { AddBusinessDialog } from "@/components/upgrade/add-business-dialog";
+import { isBusinessLimit } from "@/lib/add-business";
 
 const BUSINESS_CATEGORIES = [
   { value: "health_medical", label: "Health & Medical" },
@@ -118,6 +120,13 @@ export default function AboutPage() {
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  // ★ADDING ANOTHER BUSINESS IS A PURCHASE (D12, D19; P3.2). Confirm answers
+  //  402 for an org whose plan covers no other business; the way on is to buy
+  //  its plan, for the name read here. The payment creates the business with
+  //  that name only, so its profile is filled in next, on its profile page.
+  // `n` counts the 402s: each one opens the purchase afresh for the name as
+  // it is then (review R1).
+  const [buyingFor, setBuyingFor] = useState<{ name: string; n: number } | null>(null);
 
   // Edit-mode draft (separate from stash so cancel restores cleanly)
   const [displayName, setDisplayName] = useState(() => stash?.profile.displayName ?? "");
@@ -159,6 +168,11 @@ export default function AboutPage() {
           sessionStorage.removeItem("onboarding:extract");
           await refreshUser();
           router.replace(HOME_ROUTE);
+          return;
+        }
+        if (isBusinessLimit(err)) {
+          const forName = editing ? displayName.trim() : stash.profile.displayName;
+          setBuyingFor((prev) => ({ name: forName, n: (prev?.n ?? 0) + 1 }));
           return;
         }
         setError(err.message);
@@ -290,6 +304,12 @@ export default function AboutPage() {
               {error}
             </div>
           )}
+          {buyingFor !== null && (
+            <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
+              <span>Each business has its own plan. Buy one for {buyingFor.name || "this business"} to add it.</span>
+              <AddBusinessLauncher key={buyingFor.n} name={buyingFor.name} />
+            </div>
+          )}
         </CardContent>
 
         <CardFooter className="flex flex-col gap-3 sm:flex-row sm:justify-between">
@@ -345,6 +365,26 @@ export default function AboutPage() {
         </CardFooter>
       </Card>
     </div>
+  );
+}
+
+/** The purchase for the business read here, reopened from the note if the
+ *  buyer closes it. */
+function AddBusinessLauncher({ name }: { name: string }) {
+  const [open, setOpen] = useState(true);
+  return (
+    <>
+      <Button size="sm" onClick={() => setOpen(true)}>
+        Choose a plan
+      </Button>
+      <AddBusinessDialog
+        open={open}
+        onOpenChange={setOpen}
+        defaultName={name}
+        description={`${name || "This business"} is created as soon as its plan is paid for. You'll fill in its profile next.`}
+        nextFor={() => "/dashboard/growth/business"}
+      />
+    </>
   );
 }
 

@@ -1,5 +1,16 @@
 import { describe, it, expect } from "vitest";
-import { BRAND_CONFIRM, KEEP_SEPARATE_CODES, businessOption, claimOutcome, doneCopy, errCopy, fitWarning } from "./claim-copy";
+import {
+  BRAND_CONFIRM,
+  BUSINESS_LIMIT,
+  KEEP_SEPARATE_CODES,
+  businessLimitNotice,
+  businessOption,
+  claimOutcome,
+  doneCopy,
+  errCopy,
+  fitWarning,
+  intoNotice,
+} from "./claim-copy";
 
 /**
  * The claim page's sentences (claim-copy.ts, rendered by shopify-claim.tsx).
@@ -159,7 +170,28 @@ describe("keeping the store as its own account", () => {
     }
   });
 
-  it("both refusals return the page to the choice with keeping it separate picked", () => {
-    expect([...KEEP_SEPARATE_CODES].sort()).toEqual(["CLAIM_BUSINESS_LIMIT", "CLAIM_DIFFERENT_BUSINESS"]);
+  it("a different business returns the page to the choice with keeping it separate picked; the 402 no longer does (P3.2)", () => {
+    expect([...KEEP_SEPARATE_CODES]).toEqual(["CLAIM_DIFFERENT_BUSINESS"]);
+    expect(KEEP_SEPARATE_CODES).not.toContain(BUSINESS_LIMIT);
+  });
+});
+
+describe("P3.2: the 402 on a separate brand offers its plan", () => {
+  it("★the notice names the store and the account, and says the way on is buying its plan", () => {
+    const n = businessLimitNotice("Table Story", "Silk Co", false);
+    expect(n).toBe("Table Story needs its own plan to be a workspace in Silk Co: each workspace is priced as its own business. Buy its plan to add it.");
+    expect(n).not.toMatch(/isn't available yet|own account/);
+  });
+
+  it("keeping it separate is named only when the page offers it", () => {
+    expect(businessLimitNotice("Table Story", "Silk Co", true)).toMatch(/Buy its plan, or keep the store as its own account\.$/);
+  });
+
+  it("the dead-end wording no longer says the purchase isn't available", () => {
+    expect(errCopy(BUSINESS_LIMIT, "").body).not.toMatch(/isn't available yet/);
+  });
+
+  it("back from the purchase, the bought workspace is named", () => {
+    expect(intoNotice("Table Story", "table-story.myshopify.com")).toBe("Table Story is ready. Claim the store to add table-story.myshopify.com to it.");
   });
 });
