@@ -318,7 +318,8 @@ export const BUNDLE_PLAN_KEY_LIST = ["agency", "enterprise", "suite"] as const;
 export type BundlePlanKey = (typeof BUNDLE_PLAN_KEY_LIST)[number];
 
 /**
- * How a new business starts (D19): a Peakhour Suite trial of Suite's own
+ * How a new account's first business starts (D19; once per person, P3.1d): a
+ * Peakhour Suite trial of Suite's own
  * `trialDays`. Null when this environment sells no Suite, or sells it with no
  * trial, so a caller never promises a trial the catalog does not give.
  *
@@ -346,7 +347,8 @@ export async function marketingTrialDays(): Promise<number | null> {
 }
 
 /** The Suite card's signup button: the trial it starts, when the catalog
- *  gives one (D19: a new business starts on a Suite trial). */
+ *  gives one (D19: a new account's first business starts on a Suite trial,
+ *  once per person, P3.1d). */
 export function suiteCtaLabel(trialDays: number): string {
   return trialDays > 0 ? `Start your ${trialDays}-day free trial` : "Get Peakhour Suite";
 }

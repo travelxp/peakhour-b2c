@@ -33,8 +33,9 @@ function countryFrom(header: string | null): string {
  * /pricing — the pricing hub. One catalog (billing plan D19): Peakhour Suite
  * for a business, Agency and Enterprise for teams (their own page, reached by
  * the band below). There is no free tier and there are no per-module plans: a
- * new business starts on a Suite trial, and when it ends buys Suite or Agency
- * to continue.
+ * new account's first business starts on a Suite trial, once per person
+ * (P3.1d), and when it ends buys Suite or Agency to continue; every other
+ * business pays first.
  *
  * ★THE PER-MODULE LADDER, THE FREE PRESENCE BAND AND THE FOUR PAID MODULE CARDS
  * WENT, with the per-module pricing pages they linked to (P4.7). Each one sold

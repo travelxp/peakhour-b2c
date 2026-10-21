@@ -29,6 +29,16 @@
  * Shopify app only when the api's `trialDays` does.
  */
 
+/**
+ * ★THE PROMISE NO COPY MAKES (P3.1d; D19): that every (or each, or any new)
+ * business or account starts on, or gets, a trial or something free, in one
+ * sentence. The trial is a new
+ * account's first business's, once per person. One pattern, read by the copy
+ * tests and by the source and i18n scan (`no-retired-plan-names.test.ts`).
+ */
+export const EVERY_BUSINESS_TRIAL_PROMISE =
+  /\b(?:every|each|all|any)\s+(?:new\s+)?(?:business(?:es)?|accounts?)\b[^.]{0,40}?\b(?:starts?|gets?|begins?)\b[^.]{0,60}?\b(?:trial|free)\b/i;
+
 /** Whether a trial may be promised: `suiteTrialDays` served a length. */
 export function hasTrial(trialDays: number | null | undefined): trialDays is number {
   return typeof trialDays === "number" && trialDays > 0;
@@ -138,7 +148,7 @@ export function trialFaq(trialDays: number | null): { q: string; a: string } {
   return hasTrial(trialDays)
     ? {
         q: "How does the free trial work?",
-        a: `Your first business starts on a ${trialDays}-day Peakhour Suite trial — every module, no card. It is one trial per person: a business you add, or another account you open, is bought first. When the trial ends, ${after}`,
+        a: `Your first business starts on a ${trialDays}-day Peakhour Suite trial — every module, no card. It is one trial per person: a business you add, or one in another account you open, pays from the start. When the trial ends, ${after}`,
       }
     : {
         q: "How do I start?",

@@ -8,6 +8,7 @@ import {
   trialFaq,
   trialNote,
   pricingHeroTrial,
+  EVERY_BUSINESS_TRIAL_PROMISE,
 } from "./trial-copy";
 import { signupCta } from "./catalog";
 import { heroTrustPoints } from "./pillar-console";
@@ -99,12 +100,12 @@ describe("module pages and the pricing FAQ (official review R2)", () => {
   // ★ONE TRIAL PER PERSON (billing plan P3.1d; D19): the trial is a new
   //  account's FIRST business's, once per person. No sentence may promise
   //  it to "every business" or "every new business".
-  const EVERY_BUSINESS = /every (new )?business/i;
+  const EVERY_BUSINESS = EVERY_BUSINESS_TRIAL_PROMISE;
   it("★P3.1d: the FAQ says the trial is the first business's, once per person, and an added business pays first", () => {
     const a = trialFaq(14).a;
     expect(a).toContain("Your first business starts on a 14-day Peakhour Suite trial");
     expect(a).toContain("one trial per person");
-    expect(a).toContain("a business you add, or another account you open, is bought first");
+    expect(a).toContain("a business you add, or one in another account you open, pays from the start");
     expect(a).not.toMatch(EVERY_BUSINESS);
   });
 

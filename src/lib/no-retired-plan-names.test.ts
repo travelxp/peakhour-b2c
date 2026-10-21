@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import ts from "typescript";
+import { EVERY_BUSINESS_TRIAL_PROMISE } from "./trial-copy";
 
 /**
  * Owner, 2026-10-21: starter and growth are not plans, and D19 says there is
@@ -138,16 +139,47 @@ describe("no b2c copy names a retired plan", () => {
  * "every business" or "every new business". Read with the extractor above
  * (strings, template pieces and JSX text; comments are not copy).
  */
-const EVERY_BUSINESS_TRIAL = /\bevery\s+(?:new\s+)?business\s+(?:starts|gets|begins)\b/i;
+// The one pattern, from the module that writes the trial copy (review R1).
+const EVERY_BUSINESS_TRIAL = EVERY_BUSINESS_TRIAL_PROMISE;
 
 describe("no b2c copy promises every business a trial (P3.1d)", () => {
   it("the pattern catches the promise and leaves other uses of the words alone", () => {
-    for (const bad of [" Every business starts with a free 14-day trial of all of it.", "Every new business starts on a 14-day Peakhour Suite trial", "every business gets a trial"]) {
+    for (const bad of [
+      " Every business starts with a free 14-day trial of all of it.",
+      "Every new business starts on a 14-day Peakhour Suite trial",
+      "every business gets a trial",
+      // ★Other spellings of the one promise (review R1).
+      "Each business gets a free 14-day trial",
+      "Every new account starts on a trial",
+      "Every business you add starts free",
+      "Any new account begins with 14 free days",
+    ]) {
       expect(EVERY_BUSINESS_TRIAL.test(bad), bad).toBe(true);
     }
-    for (const ok of ["Your first business starts with a free 14-day trial", "Agency covers every business you run", "every business-critical alert"]) {
+    for (const ok of [
+      "Your first business starts with a free 14-day trial",
+      "Agency covers every business you run",
+      "every business-critical alert",
+      "Run every business from one login. Start today.",
+      // The two real sentences a trial-less first cut caught (review R1).
+      "every account gets set up properly",
+      "Each business gets its own content library, calendar, audiences, connected channels and reporting.",
+    ]) {
       expect(EVERY_BUSINESS_TRIAL.test(ok), ok).toBe(false);
     }
+  });
+
+  // ★AND THE i18n STRINGS (review R1), as the retired-plan scan reads them.
+  it("★no i18n message says every business starts on a trial", () => {
+    const dir = join(ROOT, "messages");
+    const hits = readdirSync(dir)
+      .filter((f) => f.endsWith(".json"))
+      .flatMap((f) =>
+        jsonStrings(JSON.parse(readFileSync(join(dir, f), "utf8")))
+          .filter((t) => EVERY_BUSINESS_TRIAL.test(t))
+          .map((t) => `messages/${f}: ${t}`),
+      );
+    expect(hits).toEqual([]);
   });
 
   // ★A tree walk: worktrees with a junctioned node_modules run it slowly.
@@ -158,7 +190,8 @@ describe("no b2c copy promises every business a trial (P3.1d)", () => {
       expect(files.length).toBeGreaterThan(100);
       const hits = files.flatMap((f) => {
         const src = readFileSync(f, "utf8");
-        if (!/every/i.test(src)) return [];
+        // A cheap prefilter on the pattern's first word (review R1).
+        if (!/\b(?:every|each|all|any)\b/i.test(src)) return [];
         const rel = relative(ROOT, f).replace(/\\/g, "/");
         return texts(f, src)
           .filter((t) => EVERY_BUSINESS_TRIAL.test(t))
