@@ -161,6 +161,11 @@ export default async function TeamsPricingPage() {
               {agencyPrice && (
                 <p className="mt-1 text-sm text-muted-foreground">{agencyPrice.per}</p>
               )}
+              {/* The campaign behind the struck-through price: its own name
+                  beside its percent, as the Suite badge says it. */}
+              {agencyPrice?.offer && (
+                <p className="mt-1 text-xs font-bold text-brand-ink dark:text-brand">{agencyPrice.offer}</p>
+              )}
               <p className="mt-3 text-sm text-muted-foreground">
                 Every product, for one business — one unit per client. Add units
                 as your roster grows.

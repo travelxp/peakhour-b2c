@@ -11,12 +11,25 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ChevronDown, ChevronUp, Sparkles } from "lucide-react";
 import {
+  useWaConnection,
   useWaConversations,
   useWaThread,
   useWaHandoff,
   useWaResume,
   type WaConversation,
 } from "@/hooks/use-wa-conversations";
+import { useOrgMembers } from "@/hooks/use-control-plane";
+import { useAuth } from "@/providers/auth-provider";
+import { WaComposer, useComposerMemory, useReplyWindow } from "@/components/inbox/wa-composer";
+import {
+  createComposerStore,
+  memberNameLookup,
+  replyingAsLine,
+  senderLabel,
+  statusErrorMessage,
+  type ComposerStore,
+  type ReplyWindow,
+} from "@/lib/wa-inbox-reply";
 import { inboxApi, type InboxItem, type InboxPriority } from "@/lib/api/inbox";
 import { ReviewReplyCard } from "@/components/inbox/review-reply-card";
 import { listFetchState, showsSkeleton, showsRows } from "@/lib/list-fetch-state";
@@ -52,7 +65,24 @@ function StatusPill({ status }: { status: string }) {
   return <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${v.className}`}>{v.label}</span>;
 }
 
-function Bubble({ role, content }: { role: string; content: string }) {
+/** ✅WA T4: the 24h customer-service window, from a ticking clock. */
+const WINDOW_TONE: Record<ReplyWindow["tone"], string> = {
+  ok: "bg-success/15 text-success-on-tint",
+  warning: "bg-warning/15 text-warning-on-tint",
+  closed: "bg-muted text-muted-foreground",
+};
+
+function WindowBadge({ store, threadId, endsAt }: { store: ComposerStore; threadId: string; endsAt: string | null | undefined }) {
+  // ★THE COMPOSER'S OWN READING (`useReplyWindow`), so the two cannot disagree.
+  const win = useReplyWindow(store, threadId, endsAt);
+  return (
+    <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${WINDOW_TONE[win.tone]}`}>
+      {win.label}
+    </span>
+  );
+}
+
+function Bubble({ role, content, sender }: { role: string; content: string; sender: string }) {
   const mine = role === "assistant" || role === "merchant";
   return (
     <div className={`flex ${mine ? "justify-end" : "justify-start"}`}>
@@ -63,7 +93,9 @@ function Bubble({ role, content }: { role: string; content: string }) {
             : "rounded-tl-none bg-white text-foreground shadow-sm"
         }`}
       >
-        {role === "merchant" && <p className="mb-0.5 text-[11px] font-medium opacity-70">You (from your phone)</p>}
+        {/* ✅WA T4: every line says who wrote it: the shopper, the AI, the
+            business phone, or a named team member from the Inbox. */}
+        <p className="mb-0.5 text-[11px] font-medium opacity-70">{sender}</p>
         <p className="whitespace-pre-wrap">{content}</p>
       </div>
     </div>
@@ -435,6 +467,21 @@ function InboxTabs() {
   const threadState = listFetchState(threadQuery, thread?.messages.length ?? 0);
   const handoff = useWaHandoff();
   const resume = useWaResume();
+  // ✅WA T4: the composer's inputs. (The ticking clock is read inside the badge
+  //  and the composer, so a tick does not re-render the whole Inbox.)
+  const { user, org, orgs } = useAuth();
+  const role = orgs.find((o) => o._id === org?._id)?.role ?? null;
+  const members = useOrgMembers();
+  const connection = useWaConnection(Boolean(selected));
+  // ★ONE STORE FOR THE PAGE'S LIFE: a draft, its key, its last warning and its
+  //  in-flight flag per thread, kept across switching threads or tabs, and
+  //  written by a send that settles after its composer unmounted.
+  const [composerStore] = useState(createComposerStore);
+  // ★NO HAND-BACK WHILE A REPLY IS IN FLIGHT (review R3): the api escalated
+  //  before sending, and a Resume landing mid-send gives the shopper the AI's
+  //  answer and the person's reply at once.
+  const replyInFlight = useComposerMemory(composerStore, selected ?? "").pending;
+  const memberName = memberNameLookup(members.data);
   // ★★HOISTED SO THE BADGE EXISTS BEFORE THE TAB IS OPENED. A count that only
   // appears once you have already looked at the lane is not a count — the
   // number of reviews waiting on an answer is the thing that makes somebody
@@ -624,17 +671,22 @@ function InboxTabs() {
                   <div className="flex items-center justify-between border-b p-3">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium">{thread?.contactName || selected.split(":").slice(2).join(":")}</p>
-                      {thread && <StatusPill status={thread.status} />}
+                      {thread && (
+                        <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                          <StatusPill status={thread.status} />
+                          <WindowBadge store={composerStore} threadId={thread.threadId} endsAt={thread.replyWindowEndsAt} />
+                        </div>
+                      )}
                     </div>
                     {thread?.status === "escalated" ? (
                       <Button
                         size="sm"
                         variant="default"
-                        disabled={resume.isPending}
+                        disabled={resume.isPending || replyInFlight}
                         onClick={() =>
-                          resume.mutate(selected, {
+                          resume.mutate({ threadId: selected, thread }, {
                             onSuccess: () => toast.success("Handed back — the assistant will reply again."),
-                            onError: (e: Error) => toast.error(e?.message || "Couldn't hand back"),
+                            onError: (e: Error) => toast.error(statusErrorMessage(e, "hand back")),
                           })
                         }
                       >
@@ -647,8 +699,9 @@ function InboxTabs() {
                         disabled={handoff.isPending}
                         onClick={() =>
                           handoff.mutate(selected, {
-                            onSuccess: () => toast.success("Flagged for you — the assistant will hold off."),
-                            onError: (e: Error) => toast.error(e?.message || "Couldn't hand off"),
+                            onSuccess: () =>
+                              toast.success("You've taken over. The assistant won't reply to this shopper until you return it."),
+                            onError: (e: Error) => toast.error(statusErrorMessage(e, "take over")),
                           })
                         }
                       >
@@ -664,11 +717,35 @@ function InboxTabs() {
                         Couldn&apos;t load this conversation. Try again in a moment.
                       </p>
                     )}
-                    {thread?.messages.map((m, i) => <Bubble key={i} role={m.role} content={m.content} />)}
+                    {thread?.messages.map((m, i) => (
+                      <Bubble
+                        key={i}
+                        role={m.role}
+                        content={m.content}
+                        sender={senderLabel(m, {
+                          contactName: thread.contactName,
+                          currentUserId: user?._id ?? null,
+                          memberName,
+                        })}
+                      />
+                    ))}
                     {threadState === "empty" && (
                       <p className="p-4 text-center text-sm text-muted-foreground">No messages.</p>
                     )}
                   </div>
+                  {/* ✅WA T4: the composer. ★KEYED BY THREAD, so a draft written to
+                      one shopper can never be sent to the next one opened. */}
+                  {thread && thread.threadId === selected && (
+                    <WaComposer
+                      key={selected}
+                      threadId={selected}
+                      status={thread.status}
+                      role={role}
+                      endsAt={thread.replyWindowEndsAt}
+                      replyingAs={replyingAsLine(selected, connection.data)}
+                      store={composerStore}
+                    />
+                  )}
                 </>
               )}
             </Card>
