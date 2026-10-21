@@ -6,6 +6,7 @@ import { EmbeddedCheckoutProvider, EmbeddedCheckout } from "@stripe/react-stripe
 import { toast } from "sonner";
 
 import { api } from "@/lib/api";
+import { onePress } from "@/lib/one-press";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
@@ -48,8 +49,12 @@ export interface CheckoutSummary {
   sellerName: string;
   sellerCountry: string | null;
   merchantOfRecord: "self" | "stripe";
-  /** A plan change (D21): when the first charge is due; absent = now. */
+  /** When the first charge is due; absent = now. */
   startsAt?: string;
+  /** Why it waits (with `startsAt`): the business's free trial (owner answer
+   *  1, 2026-10-21: a purchase during a trial is charged when it ends), or
+   *  the plan held now (a plan change, D21). */
+  startsAfter?: "trial" | "current_plan";
 }
 
 export type CheckoutResult =
@@ -143,11 +148,11 @@ function SummaryLine({ summary }: { summary: CheckoutSummary }) {
           {summary.interval ? intervalSuffix(summary.interval) : ""}
         </span>
       </div>
-      {/* A plan change (D21): the card is collected now, and nothing is charged
-          until the plan held runs out. */}
+      {/* The card is collected now, and nothing is charged until the date:
+          the trial's end (owner answer 1) or the plan held running out (D21). */}
       {summary.startsAt ? (
         <p className="mt-1 text-xs text-success-on-tint">
-          Nothing to pay until {new Date(summary.startsAt).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}, when your current plan ends.
+          Nothing to pay until {new Date(summary.startsAt).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}{summary.startsAfter === "trial" ? ", when your free trial ends" : ", when your current plan ends"}.
         </p>
       ) : null}
       <div className="text-muted-foreground mt-1 flex flex-wrap items-baseline justify-between gap-x-3 text-xs">
@@ -295,6 +300,12 @@ function GatewayLauncher({
   );
   const [gstin, setGstin] = useState("");
   const [savingGstin, setSavingGstin] = useState(false);
+  // ★ONE PRESS (owner answer 4: a double click on Pay never pays twice): a
+  //  latch, not only the disabled state, so a second click in the same frame,
+  //  before React re-renders the button, is ignored too.
+  //  (lib/one-press.ts; never released: the overlay launches once. Continue
+  //  and Skip both take it.)
+  const [press] = useState(onePress);
 
   useEffect(() => {
     if (!needsGstGate) return;
@@ -378,11 +389,12 @@ function GatewayLauncher({
 
   const continueToPayment = async () => {
     const value = gstin.trim().toUpperCase();
+    if (value && !GSTIN_RE.test(value)) {
+      toast.error("That GSTIN doesn't look right — it's 15 characters, e.g. 22AAAAA0000A1Z5");
+      return;
+    }
+    if (!press.take()) return;
     if (value) {
-      if (!GSTIN_RE.test(value)) {
-        toast.error("That GSTIN doesn't look right — it's 15 characters, e.g. 22AAAAA0000A1Z5");
-        return;
-      }
       setSavingGstin(true);
       try {
         // Merge-PUT: only touches gstin (+ derives place of supply from it).
@@ -423,7 +435,7 @@ function GatewayLauncher({
             </p>
           </div>
           <div className="flex justify-end gap-2">
-            <Button variant="ghost" onClick={() => setGate("launch")} disabled={savingGstin}>
+            <Button variant="ghost" onClick={() => press.take() && setGate("launch")} disabled={savingGstin}>
               Skip
             </Button>
             <Button onClick={continueToPayment} disabled={savingGstin}>

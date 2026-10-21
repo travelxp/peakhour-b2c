@@ -44,6 +44,7 @@ import { PaymentModal, type CheckoutResult } from "@/components/upgrade/payment-
 import { ApiError } from "@/lib/api";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { toastUnhandledApiError } from "@/lib/toast-errors";
+import { onePress } from "@/lib/one-press";
 
 // ── Formatting helpers ────────────────────────────────────────────────────
 
@@ -150,6 +151,10 @@ function BuyPeaks() {
   const { data, isLoading, isError } = usePeaksPacks();
   const [checkout, setCheckout] = useState<CheckoutResult | null>(null);
   const [busyKey, setBusyKey] = useState<string | null>(null);
+  // ★ONE PRESS (owner answer 4: a double click on Pay never pays twice):
+  //  lib/one-press.ts, while the purchase POST is in flight; while a payment
+  //  payload is open, Buy is disabled and refuses by STATE (`checkout`).
+  const [press] = useState(onePress);
 
   // The pack a link-out asked for (Shopify and the WordPress plugin both send
   // `?pack=`), highlighted so a merchant who already chose doesn't have to
@@ -240,6 +245,7 @@ function BuyPeaks() {
   }, [qc]);
 
   const start = async (packKey: string) => {
+    if (checkout || !press.take()) return;
     setBusyKey(packKey);
     try {
       setCheckout(await buyPack(packKey));
@@ -256,6 +262,7 @@ function BuyPeaks() {
         toastUnhandledApiError(err, "start checkout");
       }
     } finally {
+      press.release();
       setBusyKey(null);
     }
   };
@@ -354,7 +361,7 @@ function BuyPeaks() {
                     </span>
                     <Button
                       size="sm"
-                      disabled={!canBuy(p) || busyKey !== null}
+                      disabled={!canBuy(p) || busyKey !== null || checkout !== null}
                       aria-busy={busyKey === p.key}
                       {...(reason && !canBuy(p) ? { "aria-describedby": reasonId } : {})}
                       onClick={() => void start(p.key)}
