@@ -2,6 +2,7 @@
 
 import {
   useEffect,
+  useEffectEvent,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -40,7 +41,8 @@ import {
   conversationView,
   dayKeyIn,
   groupConversationByDay,
-  isDayKey,
+  isJumpableDay,
+  EARLIEST_JUMP_DAY,
   orderedMessages,
   isNearBottom,
   latestAnchor,
@@ -174,9 +176,7 @@ export function ConversationThread({
   // positioned once per mount and per jump.
   const positioned = useRef<string | null>(null);
   // Bumped by the observer: "a sentinel's visibility changed, look again".
-  // (Its value is never read: the bump re-renders, and the effect below runs
-  // after every render.)
-  const [, setObserved] = useState(0);
+  const [observed, setObserved] = useState(0);
   const observerMissing = useSyncExternalStore(
     () => () => {},
     () => typeof IntersectionObserver === "undefined",
@@ -201,8 +201,13 @@ export function ConversationThread({
       if (target) {
         // Leave room for the day's heading above its first line.
         el.scrollTop += target.getBoundingClientRect().top - el.getBoundingClientRect().top - 40;
-      } else if (conversation.hasPreviousPage) {
+      } else if (conversation.hasPreviousPage && !conversation.isFetchPreviousPageError) {
         return; // the nearest newer line is still to come
+      } else if (conversation.isFetchPreviousPageError) {
+        // ★It failed (review R2): stop waiting, so a later "Try again" never
+        //  pulls the reader away from wherever they have scrolled since.
+        positioned.current = positionKey;
+        return;
       } else {
         el.scrollTop = el.scrollHeight;
       }
@@ -273,7 +278,7 @@ export function ConversationThread({
     void conversation.fetchPreviousPage();
   }
 
-  useEffect(() => {
+  const autoLoad = useEffectEvent(() => {
     if (!showingThread || observerMissing) return;
     const root = scrollRef.current;
     const top = topSentinel.current;
@@ -294,10 +299,24 @@ export function ConversationThread({
     });
     if (direction === "older") loadOlder();
     else if (direction === "newer") loadNewer();
-    // ★After EVERY render, on purpose: a page landing, a fetch ending and an
-    //  observer bump (`observed`) each re-render, so a box still too short to
-    //  scroll keeps loading; `isFetching` stops it asking twice.
   });
+  // ★Asked when something that can change the answer changes (review R2): an
+  //  observer bump, a page landing, a fetch ending. A box still too short to
+  //  scroll keeps loading, since each page re-asks; `isFetching` stops it
+  //  asking twice. Not after every render: typing a date measures nothing.
+  useEffect(() => {
+    autoLoad();
+  }, [
+    observed,
+    showingThread,
+    observerMissing,
+    pageCount,
+    conversation.isFetching,
+    conversation.hasNextPage,
+    conversation.hasPreviousPage,
+    conversation.isFetchNextPageError,
+    conversation.isFetchPreviousPageError,
+  ]);
 
   // A refresh (not a page) is running. The fetches cancel each other in
   // react-query, so no button is offered while any of them runs.
@@ -308,7 +327,7 @@ export function ConversationThread({
   // ── Jump to a date ──
   const [jumpValue, setJumpValue] = useState("");
   function jumpTo(day: string) {
-    if (!timeZone || !isDayKey(day)) return;
+    if (!timeZone || !isJumpableDay(day)) return;
     setJump((j) => ({ day, seq: (j?.seq ?? 0) + 1 }));
   }
 
@@ -491,11 +510,12 @@ export function ConversationThread({
               onFocus={(e) => {
                 if (timeZone) e.currentTarget.max = dayKeyIn(Date.now(), timeZone);
               }}
+              min={EARLIEST_JUMP_DAY}
               value={jumpValue}
               onChange={(e) => setJumpValue(e.target.value)}
             />
           </div>
-          <Button type="submit" variant="outline" size="sm" disabled={!timeZone || !isDayKey(jumpValue)}>
+          <Button type="submit" variant="outline" size="sm" disabled={!timeZone || !isJumpableDay(jumpValue)}>
             Go
           </Button>
           {backToLatest}
@@ -503,7 +523,10 @@ export function ConversationThread({
 
         {placement?.empty && anchor && (
           <p role="status" className="text-sm text-muted-foreground">
-            {conversationQuietWindowText(anchor, dayLabel)}
+            {conversationQuietWindowText(anchor, dayLabel, {
+              older: placement.index > 0 || conversation.hasNextPage,
+              newer: placement.index < (view.kind === "messages" ? view.messages.length : 0) || conversation.hasPreviousPage,
+            })}
           </p>
         )}
 
@@ -621,7 +644,7 @@ export function ConversationThread({
             </p>
           )}
 
-        {anchor?.kind === "latest" && (
+        {anchor?.kind === "latest" && conversation.hasNextPage && (
           <p className="text-xs text-muted-foreground">{CONVERSATION_RECENT_NOTE}</p>
         )}
 

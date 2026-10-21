@@ -14,6 +14,7 @@ import {
   isDayKey,
   latestAnchor,
   sentinelInView,
+  isJumpableDay,
   newerConversationParam,
   nextDayKey,
   olderConversationParam,
@@ -187,14 +188,15 @@ describe("a quiet window is not an empty conversation", () => {
   });
 
   it("[W15] the quiet-window line names the window it opened on", () => {
-    expect(conversationQuietWindowText(latestAnchor("UTC"), null)).toBe(
+    const both = { older: true, newer: true };
+    expect(conversationQuietWindowText(latestAnchor("UTC"), null, both)).toBe(
       "No messages in the last 3 days. Older messages load as you scroll up.",
     );
     const day = { kind: "day" as const, day: "2026-10-12", timeZone: "Pacific/Kiritimati" };
-    expect(conversationQuietWindowText(day, "Mon, 12 Oct 2026")).toBe(
+    expect(conversationQuietWindowText(day, "Mon, 12 Oct 2026", both)).toBe(
       "No messages on Mon, 12 Oct 2026. Showing the nearest messages before and after it.",
     );
-    expect(conversationQuietWindowText(day, null)).toContain("2026-10-12");
+    expect(conversationQuietWindowText(day, null, both)).toContain("2026-10-12");
     expect(CONVERSATION_RECENT_NOTE).toBe("Showing the last 3 days first. Scroll up for older messages.");
   });
 
@@ -298,5 +300,27 @@ describe("review R1: a jumped-to day is placed by time, and a sentinel is measur
     expect(sentinelInView({ top: -22, bottom: -21 }, box, 120)).toBe(false);
     expect(sentinelInView({ top: 620, bottom: 621 }, box, 120)).toBe(true);
     expect(sentinelInView({ top: 621, bottom: 622 }, box, 120)).toBe(false);
+  });
+});
+
+describe("review R2: honest sides, a jumpable day, a stable day start", () => {
+  const day = { kind: "day" as const, day: "2026-10-12", timeZone: "UTC" };
+  it("[W29] a quiet day names only the sides that have messages", () => {
+    expect(conversationQuietWindowText(day, "D", { older: true, newer: false })).toBe("No messages on D. Showing the messages before it.");
+    expect(conversationQuietWindowText(day, "D", { older: false, newer: true })).toBe("No messages on D. Showing the messages after it.");
+    expect(conversationQuietWindowText(day, "D", { older: false, newer: false })).toBe("No messages on D.");
+  });
+
+  it("[W30] a day before 2000 is not jumpable (the api refuses it); 2000-01-01 is", () => {
+    expect(isJumpableDay("1999-12-31")).toBe(false);
+    expect(isJumpableDay("2000-01-01")).toBe(true);
+    expect(isJumpableDay("2026-02-30")).toBe(false);
+  });
+
+  it("[W31] a memoised day start is the same answer, per day and per zone", () => {
+    const a = zonedDayStart("2026-10-12", "Asia/Kathmandu");
+    expect(zonedDayStart("2026-10-12", "Asia/Kathmandu")).toBe(a);
+    expect(zonedDayStart("2026-10-12", "Pacific/Kiritimati")).not.toBe(a);
+    expect(zonedDayStart("2026-10-13", "Asia/Kathmandu")).toBe(a + 24 * HOUR);
   });
 });

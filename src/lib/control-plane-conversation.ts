@@ -129,6 +129,20 @@ export function nextDayKey(day: string): string {
  * ★NEVER THE HOST'S ZONE: no local-time constructor is used.
  */
 export function zonedDayStart(day: string, timeZone: string): number {
+  // ★Memoised (review R2): about 27 formats per call, for an answer that never
+  //  changes for one day and zone.
+  const key = `${day}@${timeZone}`;
+  const hit = DAY_START_CACHE.get(key);
+  if (hit !== undefined) return hit;
+  const start = bisectDayStart(day, timeZone);
+  if (DAY_START_CACHE.size > 512) DAY_START_CACHE.clear();
+  DAY_START_CACHE.set(key, start);
+  return start;
+}
+
+const DAY_START_CACHE = new Map<string, number>();
+
+function bisectDayStart(day: string, timeZone: string): number {
   const [y, m, d] = day.split("-").map(Number) as [number, number, number];
   const utcMidnight = Date.UTC(y, m - 1, d);
   let lo = utcMidnight - 15 * 60 * 60 * 1000; // its local date is before `day`
@@ -521,10 +535,33 @@ export const CONVERSATION_RECENT_NOTE = `Showing the last ${RECENT_DAYS} days fi
  * newer messages exist (otherwise the empty state speaks). `dayLabel` is the
  * jumped-to day, formatted in the viewer's locale and zone.
  */
-export function conversationQuietWindowText(anchor: ConversationAnchor, dayLabel: string | null): string {
-  return anchor.kind === "latest"
-    ? `No messages in the last ${RECENT_DAYS} days. Older messages load as you scroll up.`
-    : `No messages on ${dayLabel ?? anchor.day}. Showing the nearest messages before and after it.`;
+export function conversationQuietWindowText(
+  anchor: ConversationAnchor,
+  dayLabel: string | null,
+  sides: { older: boolean; newer: boolean },
+): string {
+  if (anchor.kind === "latest") {
+    return `No messages in the last ${RECENT_DAYS} days. Older messages load as you scroll up.`;
+  }
+  // ★Only the sides that exist (review R2): a day after the newest message
+  //  has nothing after it.
+  const nearest =
+    sides.older && sides.newer
+      ? " Showing the nearest messages before and after it."
+      : sides.older
+        ? " Showing the messages before it."
+        : sides.newer
+          ? " Showing the messages after it."
+          : "";
+  return `No messages on ${dayLabel ?? anchor.day}.${nearest}`;
+}
+
+/** The earliest day a jump may ask for: the api refuses an instant before 2000. */
+export const EARLIEST_JUMP_DAY = "2000-01-01";
+
+/** A day the tab can jump to: a real calendar date, on or after 2000-01-01. */
+export function isJumpableDay(value: string): boolean {
+  return isDayKey(value) && value >= EARLIEST_JUMP_DAY;
 }
 
 /** The label of a jumped-to day, in the viewer's locale; the zone is the anchor's. */
@@ -614,7 +651,9 @@ export function groupConversationByDay(
   // an older page (which only ever adds lines at the old end) never shifts a
   // key that is already on screen. ⚠️A NEWER page, after a jump to a date, can:
   // when its first line is a twin of the newest one shown, the shown twins are
-  // renumbered and remount. Nothing else depends on the key.
+  // renumbered and remount. ★The key is also the line's DOM handle
+  // (`data-conversation-line`, which a jump scrolls to) and `newestKey`
+  // (follow-the-newest), so a change to its format must keep both.
   const bases = messages.map((m) => `${m.sentAt}|${m.sender}|${textHash(m.text)}`);
   const ordinal: number[] = new Array<number>(messages.length);
   const seen = new Map<string, number>();
