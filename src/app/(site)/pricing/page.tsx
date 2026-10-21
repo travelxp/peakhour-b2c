@@ -73,6 +73,7 @@ export default async function PricingPage() {
   const included = new Set(suiteModuleSlugs(pricing));
   // The one trial rule /auth reads too (`suiteTrialDays`): no trial, no promise.
   const trialDays = suiteTrialDays(pricing) ?? 0;
+  const heroTrial = pricingHeroTrial(trialDays);
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -97,7 +98,7 @@ export default async function PricingPage() {
               <p className="mt-5 max-w-xl text-lg text-muted-foreground">
                 Commerce, Content, Growth, Support and Presence — five products,
                 one login, one Peaks wallet, one price.
-                {pricingHeroTrial(trialDays) ? ` ${pricingHeroTrial(trialDays)}` : null}
+                {heroTrial ? ` ${heroTrial}` : null}
               </p>
               <div className="mt-8 flex flex-wrap items-center gap-4">
                 {!cta.disabled && (

@@ -139,8 +139,6 @@ describe("no b2c copy names a retired plan", () => {
  * "every business" or "every new business". Read with the extractor above
  * (strings, template pieces and JSX text; comments are not copy).
  */
-// The one pattern, from the module that writes the trial copy (review R1).
-const EVERY_BUSINESS_TRIAL = EVERY_BUSINESS_TRIAL_PROMISE;
 
 /**
  * ★A SENTENCE IS ITS WHOLE TEMPLATE OR ITS WHOLE JSX ELEMENT (review R2). The
@@ -150,6 +148,15 @@ const EVERY_BUSINESS_TRIAL = EVERY_BUSINESS_TRIAL_PROMISE;
  * with `N` for each placeholder, and an element's text children with `N` for
  * each expression, and those joined sentences are read too.
  */
+/** An element's text, its nested elements' included, an expression as `N`. */
+function jsxSentence(n: ts.JsxElement | ts.JsxFragment): string {
+  return n.children
+    .map((ch) =>
+      ts.isJsxText(ch) ? ch.text : ts.isJsxExpression(ch) ? "N" : ts.isJsxElement(ch) || ts.isJsxFragment(ch) ? jsxSentence(ch) : "",
+    )
+    .join("");
+}
+
 function joinedTexts(file: string, src: string): string[] {
   const out: string[] = [];
   const kind = file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
@@ -158,8 +165,10 @@ function joinedTexts(file: string, src: string): string[] {
     if (ts.isTemplateExpression(n)) {
       out.push((n.head.text + n.templateSpans.map((s) => "N" + s.literal.text).join("")).trim());
     } else if (ts.isJsxElement(n) || ts.isJsxFragment(n)) {
-      const parts = n.children.map((ch) => (ts.isJsxText(ch) ? ch.text : ts.isJsxExpression(ch) ? "N" : "\u0000"));
-      for (const run of parts.join("").split("\u0000")) if (run.trim()) out.push(run.replace(/\s+/g, " ").trim());
+      // ★Inline markup joins too (review R3): `<p>Every business starts on a
+      //  <strong>14-day</strong> free trial</p>` is one sentence.
+      const text = jsxSentence(n).replace(/\s+/g, " ").trim();
+      if (text) out.push(text);
     }
     ts.forEachChild(n, walk);
   };
@@ -184,8 +193,11 @@ describe("no b2c copy promises every business a trial (P3.1d)", () => {
       "Every new business includes a free trial",
       "Every new store starts on a trial",
       "every workspace gets a trial",
+      // ★And these (review R3).
+      "All businesses get trials",
+      "All your businesses start on a trial",
     ]) {
-      expect(EVERY_BUSINESS_TRIAL.test(bad), bad).toBe(true);
+      expect(EVERY_BUSINESS_TRIAL_PROMISE.test(bad), bad).toBe(true);
     }
     for (const ok of [
       "Your first business starts with a free 14-day trial",
@@ -198,19 +210,24 @@ describe("no b2c copy promises every business a trial (P3.1d)", () => {
       // ★One clause only (review R2): a later "free" is another promise.
       "Every business gets one Peaks wallet, and you can start free",
       "Each account gets its own inbox; start free today",
+      // ★A denial is not the promise (review R3).
+      "Every business is billed from day one with no free tier",
     ]) {
-      expect(EVERY_BUSINESS_TRIAL.test(ok), ok).toBe(false);
+      expect(EVERY_BUSINESS_TRIAL_PROMISE.test(ok), ok).toBe(false);
     }
   });
 
   it("★the joined extractor reads a template and a JSX element as one sentence each (review R2)", () => {
-    const src = "const a = `Every new business starts on a ${d}-day Peakhour Suite trial`; const b = <p>Every business starts on a {d}-day trial</p>;";
+    const src =
+      "const a = `Every new business starts on a ${d}-day Peakhour Suite trial`; const b = <p>Every business starts on a {d}-day trial</p>;" +
+      " const c = <p>Each business starts on a <strong>14-day</strong> free trial</p>;";
     // The piecewise extractor cannot see either promise ...
-    expect(texts("x.tsx", src).some((t) => EVERY_BUSINESS_TRIAL.test(t))).toBe(false);
+    expect(texts("x.tsx", src).some((t) => EVERY_BUSINESS_TRIAL_PROMISE.test(t))).toBe(false);
     // ... and the joined one sees both.
-    expect(joinedTexts("x.tsx", src).filter((t) => EVERY_BUSINESS_TRIAL.test(t))).toEqual([
+    expect(joinedTexts("x.tsx", src).filter((t) => EVERY_BUSINESS_TRIAL_PROMISE.test(t))).toEqual([
       "Every new business starts on a N-day Peakhour Suite trial",
       "Every business starts on a N-day trial",
+      "Each business starts on a 14-day free trial",
     ]);
   });
 
@@ -221,7 +238,7 @@ describe("no b2c copy promises every business a trial (P3.1d)", () => {
       .filter((f) => f.endsWith(".json"))
       .flatMap((f) =>
         jsonStrings(JSON.parse(readFileSync(join(dir, f), "utf8")))
-          .filter((t) => EVERY_BUSINESS_TRIAL.test(t))
+          .filter((t) => EVERY_BUSINESS_TRIAL_PROMISE.test(t))
           .map((t) => `messages/${f}: ${t}`),
       );
     expect(hits).toEqual([]);
@@ -240,7 +257,7 @@ describe("no b2c copy promises every business a trial (P3.1d)", () => {
         if (!/trial|free/i.test(src)) return [];
         const rel = relative(ROOT, f).replace(/\\/g, "/");
         return [...texts(f, src), ...joinedTexts(f, src)]
-          .filter((t) => EVERY_BUSINESS_TRIAL.test(t))
+          .filter((t) => EVERY_BUSINESS_TRIAL_PROMISE.test(t))
           .map((t) => `${rel}: ${JSON.stringify(t.slice(0, 100))}`);
       });
       expect(hits).toEqual([]);

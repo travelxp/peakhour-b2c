@@ -34,12 +34,13 @@
  * business, account, store or workspace starts on, gets, comes with,
  * includes or is a trial or something free, in one clause (no period, comma,
  * semicolon or colon between: review R2, so "Every business gets one Peaks
- * wallet, and you can start free" is not read as the promise). The trial is a new
+ * wallet, and you can start free" is not read as the promise). A denial ("no
+ * free tier") is not the promise either (review R3). The trial is a new
  * account's first business's, once per person. One pattern, read by the copy
  * tests and by the source and i18n scan (`no-retired-plan-names.test.ts`).
  */
 export const EVERY_BUSINESS_TRIAL_PROMISE =
-  /\b(?:every|each|all|any)\s+(?:new\s+)?(?:business(?:es)?|accounts?|stores?|workspaces?)\b[^.,;:]{0,40}?\b(?:starts?|gets?|begins?|comes?|includes?|is|are)\b[^.,;:]{0,60}?\b(?:trial|free)\b/i;
+  /\b(?:every|each|all|any)\s+(?:your\s+)?(?:new\s+)?(?:business(?:es)?|accounts?|stores?|workspaces?)\b[^.,;:]{0,40}?\b(?:starts?|gets?|begins?|comes?|includes?|is|are)\b[^.,;:]{0,60}?\b(?<!\bno )(?:trials?|free)\b/i;
 
 /** Whether a trial may be promised: `suiteTrialDays` served a length. */
 export function hasTrial(trialDays: number | null | undefined): trialDays is number {

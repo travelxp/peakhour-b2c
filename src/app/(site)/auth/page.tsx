@@ -29,7 +29,8 @@ export default async function AuthPage() {
     // "DEFAULT" is not a sentinel the API honours — it fails the two-letter
     // validation and the response comes back geo-resolved. We pass it purely
     // to pin one cache key, and read only Suite's `trialDays`, the trial a
-    // new business starts on (D19). Never read a price here.
+    // new account's first business starts on (D19; once per person, P3.1d).
+    // Never read a price here.
     getPricing("DEFAULT"),
     // ★Resolved HERE rather than probed from the client on mount. That keeps a
     //  credentialed request off every production /auth view for an answer that
