@@ -437,7 +437,7 @@ export function activityWhen(
  * `formatDate` already reaches for when it wants ISO field order, and the
  * string is compared, never shown.
  */
-function calendarDay(d: Date, timeZone: string): string {
+export function calendarDay(d: Date, timeZone: string): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone,
     year: "numeric",
@@ -461,9 +461,18 @@ function calendarDay(d: Date, timeZone: string): string {
  * integers, and UTC has no offsets to jump. **Do the zone work once, then do
  * arithmetic on the answer.**
  */
-function previousDay(day: string): string {
+export function previousDay(day: string): string {
+  return stepDay(day, -1);
+}
+
+/** The calendar day after this one, by the same label arithmetic. */
+export function nextDay(day: string): string {
+  return stepDay(day, 1);
+}
+
+function stepDay(day: string, by: number): string {
   const [y, m, d] = day.split("-").map(Number);
-  const t = new Date(Date.UTC(y!, m! - 1, d! - 1));
+  const t = new Date(Date.UTC(y!, m! - 1, d! + by));
   const p = (n: number) => String(n).padStart(2, "0");
   return `${t.getUTCFullYear()}-${p(t.getUTCMonth() + 1)}-${p(t.getUTCDate())}`;
 }

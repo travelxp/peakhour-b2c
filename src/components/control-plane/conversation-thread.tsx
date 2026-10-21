@@ -41,10 +41,11 @@ import {
   dayKeyIn,
   groupConversationByDay,
   isDayKey,
-  LATEST_ANCHOR,
   orderedMessages,
   isNearBottom,
+  latestAnchor,
   scrollTopToRestore,
+  sentinelInView,
   shouldFollowNewest,
   windowPlacement,
   type ConversationAnchor,
@@ -92,6 +93,8 @@ function Skeleton({ label }: { label: string }) {
 
 /** The scroll box's attribute naming a line, so a jump can find it. */
 const LINE_ATTR = "data-conversation-line";
+/** How far outside the box a sentinel counts as reached: load a little early. */
+const SENTINEL_MARGIN_PX = 120;
 
 export function ConversationThread({
   timeZonePreference,
@@ -106,11 +109,20 @@ export function ConversationThread({
   /** The Numbers & routing tab, with the page's other parameters kept. */
   numbersHref: string;
 }) {
-  const [anchor, setAnchor] = useState<ConversationAnchor>(LATEST_ANCHOR);
+  const timeZone = useDisplayZone(timeZonePreference);
+  // A jump: the day, and a count so the same day asked again re-positions.
+  const [jump, setJump] = useState<{ day: string; seq: number } | null>(null);
+  // ★No anchor (and no fetch) until the display zone is known: both windows are
+  //  calendar days in it.
+  const jumpDay = jump?.day ?? null;
+  const anchor = useMemo<ConversationAnchor | null>(
+    () => (timeZone ? (jumpDay ? { kind: "day", day: jumpDay, timeZone } : latestAnchor(timeZone)) : null),
+    [timeZone, jumpDay],
+  );
   const anchorPart = anchorKeyPart(anchor);
+  const positionKey = `${anchorPart}#${jump?.seq ?? 0}`;
   const conversation = useConversation(anchor);
   const contacts = useMerchantContacts();
-  const timeZone = useDisplayZone(timeZonePreference);
 
   const pages = conversation.data?.pages;
   const view = conversationView({
@@ -135,11 +147,17 @@ export function ConversationThread({
   // prepended, so loading older never reads as a new message arriving.
   const newestKey = days[days.length - 1]?.items.at(-1)?.key ?? null;
   // The line the tab opened on: the first of its window, or, for a quiet
-  // window, the nearest newer line.
-  const placement = pages ? windowPlacement(pages) : null;
-  const windowLineKey = placement
-    ? (days.flatMap((d) => d.items)[placement.index]?.key ?? null)
-    : null;
+  // window, the nearest newer line. Recomputed only when the lines change.
+  const placement = useMemo(() => (pages ? windowPlacement(pages, anchor) : null), [pages, anchor]);
+  const windowLineKey = useMemo(
+    () => (placement ? (days.flatMap((d) => d.items)[placement.index]?.key ?? null) : null),
+    [days, placement],
+  );
+  // Only a quiet day shows the day's label, so only then is it formatted.
+  const dayLabel = useMemo(
+    () => (placement?.empty && anchor ? anchorDayLabel(anchor, undefined) : null),
+    [placement, anchor],
+  );
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const topSentinel = useRef<HTMLDivElement>(null);
@@ -152,33 +170,50 @@ export function ConversationThread({
   // Whether the previous render's bottom was the live end (nothing newer to
   // load). Read by the follow effect BEFORE the effect below updates it.
   const wasAtLiveEnd = useRef(true);
-  const [topVisible, setTopVisible] = useState(false);
-  const [bottomVisible, setBottomVisible] = useState(false);
+  // Which opening the box has been positioned for (`positionKey`), so it is
+  // positioned once per mount and per jump.
+  const positioned = useRef<string | null>(null);
+  // Bumped by the observer: "a sentinel's visibility changed, look again".
+  // (Its value is never read: the bump re-renders, and the effect below runs
+  // after every render.)
+  const [, setObserved] = useState(0);
+  const observerMissing = useSyncExternalStore(
+    () => () => {},
+    () => typeof IntersectionObserver === "undefined",
+    () => false,
+  );
 
-  // Each time the box mounts (first load, a jump, or back from a refusal, a
-  // failure or the empty state) it opens where the tab was asked to open: the
-  // newest line, or the first line of the day it jumped to.
+  // The box opens where the tab was asked to open: the newest line, or the
+  // first line of the day it jumped to. ★Once per mount and per jump; for a
+  // quiet day it waits until the nearest newer line has loaded (review R1),
+  // and falls back to the bottom when there is none.
   useLayoutEffect(() => {
-    if (!showingThread) return;
+    if (!showingThread) {
+      positioned.current = null;
+      return;
+    }
     const el = scrollRef.current;
-    if (!el) return;
-    if (anchor.kind === "day") {
+    if (!el || positioned.current === positionKey) return;
+    if (anchor?.kind === "day") {
       const target = windowLineKey
         ? el.querySelector<HTMLElement>(`[${LINE_ATTR}="${CSS.escape(windowLineKey)}"]`)
         : null;
       if (target) {
         // Leave room for the day's heading above its first line.
         el.scrollTop += target.getBoundingClientRect().top - el.getBoundingClientRect().top - 40;
+      } else if (conversation.hasPreviousPage) {
+        return; // the nearest newer line is still to come
       } else {
         el.scrollTop = el.scrollHeight;
       }
       atBottom.current = isNearBottom(el);
+      positioned.current = positionKey;
       return;
     }
     atBottom.current = true;
     el.scrollTop = el.scrollHeight;
-    // Only on mount and on a jump: later pages keep the reader where they are.
-  }, [showingThread, anchorPart]); // eslint-disable-line react-hooks/exhaustive-deps
+    positioned.current = positionKey;
+  });
 
   useLayoutEffect(() => {
     // Any change in the page count consumes the anchor, whether or not it is
@@ -204,31 +239,22 @@ export function ConversationThread({
     wasAtLiveEnd.current = !conversation.hasPreviousPage;
   });
 
-  // The two ends of the box: in view means "load more that way".
+  // The observer only says "look again"; whether a sentinel is in view is
+  // measured below, after the layout effects have restored the scroll.
   useEffect(() => {
-    if (!showingThread) return;
+    if (!showingThread || observerMissing) return;
     const root = scrollRef.current;
     const top = topSentinel.current;
     const bottom = bottomSentinel.current;
-    if (!root || !top || !bottom || typeof IntersectionObserver === "undefined") return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.target === top) setTopVisible(entry.isIntersecting);
-          if (entry.target === bottom) setBottomVisible(entry.isIntersecting);
-        }
-      },
-      // Start loading a little before the reader reaches the very end.
-      { root, rootMargin: "120px 0px" },
-    );
+    if (!root || !top || !bottom) return;
+    const observer = new IntersectionObserver(() => setObserved((n) => n + 1), {
+      root,
+      rootMargin: `${SENTINEL_MARGIN_PX}px 0px`,
+    });
     observer.observe(top);
     observer.observe(bottom);
-    return () => {
-      observer.disconnect();
-      setTopVisible(false);
-      setBottomVisible(false);
-    };
-  }, [showingThread, anchorPart]);
+    return () => observer.disconnect();
+  }, [showingThread, anchorPart, observerMissing]);
 
   function loadOlder() {
     const el = scrollRef.current;
@@ -247,22 +273,31 @@ export function ConversationThread({
     void conversation.fetchPreviousPage();
   }
 
-  const direction = autoLoadDirection({
-    topVisible,
-    bottomVisible,
-    hasOlder: conversation.hasNextPage,
-    hasNewer: conversation.hasPreviousPage,
-    isFetching: conversation.isFetching,
-    olderFailed: conversation.isFetchNextPageError,
-    newerFailed: conversation.isFetchPreviousPageError,
-  });
   useEffect(() => {
-    if (!showingThread || direction === null) return;
+    if (!showingThread || observerMissing) return;
+    const root = scrollRef.current;
+    const top = topSentinel.current;
+    const bottom = bottomSentinel.current;
+    if (!root || !top || !bottom) return;
+    // ★Measured now, after this commit's scroll restore, never the observer's
+    //  last report (review R1): a page that just pushed the sentinel out of
+    //  view must not ask for the next one.
+    const box = root.getBoundingClientRect();
+    const direction = autoLoadDirection({
+      topVisible: sentinelInView(top.getBoundingClientRect(), box, SENTINEL_MARGIN_PX),
+      bottomVisible: sentinelInView(bottom.getBoundingClientRect(), box, SENTINEL_MARGIN_PX),
+      hasOlder: conversation.hasNextPage,
+      hasNewer: conversation.hasPreviousPage,
+      isFetching: conversation.isFetching,
+      olderFailed: conversation.isFetchNextPageError,
+      newerFailed: conversation.isFetchPreviousPageError,
+    });
     if (direction === "older") loadOlder();
-    else loadNewer();
-    // `pageCount` re-asks after each page: a box still too short to scroll
-    // keeps its sentinel in view without a new intersection event.
-  }, [direction, showingThread, pageCount]); // eslint-disable-line react-hooks/exhaustive-deps
+    else if (direction === "newer") loadNewer();
+    // ★After EVERY render, on purpose: a page landing, a fetch ending and an
+    //  observer bump (`observed`) each re-render, so a box still too short to
+    //  scroll keeps loading; `isFetching` stops it asking twice.
+  });
 
   // A refresh (not a page) is running. The fetches cancel each other in
   // react-query, so no button is offered while any of them runs.
@@ -272,11 +307,10 @@ export function ConversationThread({
 
   // ── Jump to a date ──
   const [jumpValue, setJumpValue] = useState("");
-  function jump(day: string) {
+  function jumpTo(day: string) {
     if (!timeZone || !isDayKey(day)) return;
-    setAnchor({ kind: "day", day, timeZone });
+    setJump((j) => ({ day, seq: (j?.seq ?? 0) + 1 }));
   }
-  const dayLabel = anchorDayLabel(anchor, undefined);
 
   const header = (
     <CardHeader>
@@ -292,14 +326,14 @@ export function ConversationThread({
     <p className="text-xs text-muted-foreground">{CONVERSATION_SCOPE_NOTE}</p>
   );
 
-  const backToLatest = anchor.kind === "day" && (
+  const backToLatest = jump !== null && (
     <Button
       type="button"
       variant="ghost"
       size="sm"
       onClick={() => {
         setJumpValue("");
-        setAnchor(LATEST_ANCHOR);
+        setJump(null);
       }}
     >
       Back to latest
@@ -441,7 +475,7 @@ export function ConversationThread({
           className="flex flex-wrap items-end gap-2"
           onSubmit={(e) => {
             e.preventDefault();
-            jump(jumpValue);
+            jumpTo(jumpValue);
           }}
         >
           <div className="space-y-1">
@@ -461,13 +495,13 @@ export function ConversationThread({
               onChange={(e) => setJumpValue(e.target.value)}
             />
           </div>
-          <Button type="submit" variant="outline" size="sm" disabled={!isDayKey(jumpValue)}>
+          <Button type="submit" variant="outline" size="sm" disabled={!timeZone || !isDayKey(jumpValue)}>
             Go
           </Button>
           {backToLatest}
         </form>
 
-        {placement?.empty && (
+        {placement?.empty && anchor && (
           <p role="status" className="text-sm text-muted-foreground">
             {conversationQuietWindowText(anchor, dayLabel)}
           </p>
@@ -475,6 +509,11 @@ export function ConversationThread({
 
         <div
           ref={scrollRef}
+          // ★Focusable and labelled (review R1), so a keyboard can scroll it,
+          //  and the scroll is what loads older and newer messages.
+          role="region"
+          aria-label="Messages"
+          tabIndex={0}
           onScroll={(e) => {
             atBottom.current = isNearBottom(e.currentTarget);
           }}
@@ -483,6 +522,14 @@ export function ConversationThread({
           className="max-h-[32rem] overflow-y-auto rounded-lg border border-border p-3 [overflow-anchor:none]"
         >
           <div ref={topSentinel} aria-hidden className="h-px" />
+          {/* Without an IntersectionObserver nothing loads by itself. */}
+          {observerMissing && conversation.hasNextPage && !conversation.isFetchNextPageError && (
+            <div className="mb-3 flex justify-center">
+              <Button variant="outline" size="sm" onClick={loadOlder} disabled={busy}>
+                Load older messages
+              </Button>
+            </div>
+          )}
           {conversation.isFetchingNextPage && (
             <p role="status" className="mb-3 text-center text-xs text-muted-foreground">
               Loading older messages…
@@ -555,6 +602,13 @@ export function ConversationThread({
               </Button>
             </div>
           )}
+          {observerMissing && conversation.hasPreviousPage && !conversation.isFetchPreviousPageError && (
+            <div className="mt-3 flex justify-center">
+              <Button variant="outline" size="sm" onClick={loadNewer} disabled={busy}>
+                Load newer messages
+              </Button>
+            </div>
+          )}
           <div ref={bottomSentinel} aria-hidden className="h-px" />
         </div>
 
@@ -567,7 +621,7 @@ export function ConversationThread({
             </p>
           )}
 
-        {anchor.kind === "latest" && (
+        {anchor?.kind === "latest" && (
           <p className="text-xs text-muted-foreground">{CONVERSATION_RECENT_NOTE}</p>
         )}
 

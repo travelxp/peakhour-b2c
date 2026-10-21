@@ -6,6 +6,7 @@ import type {
   MerchantContact,
 } from "@/lib/api/control-plane";
 import { WHATSAPP_SETTINGS_HREF } from "@/lib/control-plane";
+import { calendarDay, nextDay, previousDay } from "@/lib/control-plane-activity";
 
 /**
  * The pure half of the Conversation tab (WA M6) on `/dashboard/settings/whatsapp`.
@@ -50,7 +51,7 @@ export function conversationKey(
   orgId: string | null | undefined,
   businessId: string | null | undefined,
   userId: string | null | undefined,
-  anchor: string = LATEST_KEY_PART,
+  anchor: string = PENDING_KEY_PART,
 ) {
   return [
     CONTROL_PLANE_CONVERSATION_KEY,
@@ -63,24 +64,32 @@ export function conversationKey(
 
 // ── Where the tab opens (owner answer 2026-10-21, item 20) ─────────────────
 
-/** The tab opens on the last this-many days, then loads older ones on scroll. */
+/**
+ * The tab opens on the last this-many CALENDAR days in the display zone
+ * (today and the two before it), then loads older ones on scroll.
+ * ★Calendar days, not 72 hours (review R1): a merchant reads "the last 3
+ * days" as dates, and a DST day is not 24 hours.
+ */
 export const RECENT_DAYS = 3;
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Where the tab opens: the latest messages (the last `RECENT_DAYS` days), or a
- * day the reader jumped to, which is a calendar day IN `timeZone`, the zone the
+ * day the reader jumped to. Both are calendar days IN `timeZone`, the zone the
  * tab shows its dates in.
  */
 export type ConversationAnchor =
-  | { kind: "latest" }
+  | { kind: "latest"; timeZone: string }
   | { kind: "day"; day: string; timeZone: string };
 
-export const LATEST_ANCHOR: ConversationAnchor = { kind: "latest" };
-const LATEST_KEY_PART = "latest";
+export function latestAnchor(timeZone: string): ConversationAnchor {
+  return { kind: "latest", timeZone };
+}
+/** The cache key part before the display zone is known (nothing is fetched). */
+const PENDING_KEY_PART = "pending";
 
-export function anchorKeyPart(anchor: ConversationAnchor): string {
-  return anchor.kind === "latest" ? LATEST_KEY_PART : `day:${anchor.day}@${anchor.timeZone}`;
+export function anchorKeyPart(anchor: ConversationAnchor | null): string {
+  if (!anchor) return PENDING_KEY_PART;
+  return anchor.kind === "latest" ? `latest@${anchor.timeZone}` : `day:${anchor.day}@${anchor.timeZone}`;
 }
 
 /** `YYYY-MM-DD`, a real calendar date: the shape a date input gives. */
@@ -100,15 +109,14 @@ function dayKeyFormat(timeZone: string): Intl.DateTimeFormat {
   });
 }
 
-/** The calendar day an instant falls on in `timeZone`, as `YYYY-MM-DD`. */
+/** The calendar day an instant falls on in `timeZone`, as `YYYY-MM-DD` (the Activity tab's own helper). */
 export function dayKeyIn(ms: number, timeZone: string): string {
-  return dayKeyFormat(timeZone).format(new Date(ms));
+  return calendarDay(new Date(ms), timeZone);
 }
 
-/** The day after `day`, by the calendar (no zone involved). */
+/** The day after `day`, by the calendar (no zone involved; the Activity tab's own helper). */
 export function nextDayKey(day: string): string {
-  const [y, m, d] = day.split("-").map(Number) as [number, number, number];
-  return new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10);
+  return nextDay(day);
 }
 
 /**
@@ -142,21 +150,27 @@ export function zonedDayStart(day: string, timeZone: string): number {
  * window measures its 3 days from the refresh.
  */
 export type ConversationQueryParam =
-  | { kind: "recent" }
+  | { kind: "recent"; timeZone: string }
   | { kind: "day"; day: string; timeZone: string }
   | { kind: "older"; cursor: string }
   | { kind: "newer"; after: string };
 
 /** The page the tab opens on. */
 export function initialConversationParam(anchor: ConversationAnchor): ConversationQueryParam {
-  return anchor.kind === "latest" ? { kind: "recent" } : { kind: "day", day: anchor.day, timeZone: anchor.timeZone };
+  return anchor.kind === "latest"
+    ? { kind: "recent", timeZone: anchor.timeZone }
+    : { kind: "day", day: anchor.day, timeZone: anchor.timeZone };
 }
 
 /** What the api is asked for: a window becomes its instants (half-open). */
 export function apiPageParam(param: ConversationQueryParam, nowMs: number): ConversationPageParam {
   switch (param.kind) {
-    case "recent":
-      return { kind: "window", since: new Date(nowMs - RECENT_DAYS * DAY_MS).toISOString() };
+    case "recent": {
+      // Today in the zone, and the RECENT_DAYS - 1 days before it.
+      let first = dayKeyIn(nowMs, param.timeZone);
+      for (let i = 1; i < RECENT_DAYS; i++) first = previousDay(first);
+      return { kind: "window", since: new Date(zonedDayStart(first, param.timeZone)).toISOString() };
+    }
     case "day":
       return {
         kind: "window",
@@ -322,14 +336,31 @@ export function conversationView(input: {
 }
 
 /**
- * Where the page the tab opened on sits among the messages in reading order:
+ * Where the window the tab opened on sits among the messages in reading order:
  * the index of its first message, or, when it has none, the index the next
- * newer message has (the nearest line after the quiet window). Null when that
- * page is not loaded (a refusal replaced it).
+ * newer message has (the nearest line after the quiet window). Null when it
+ * cannot be placed.
+ *
+ * ★A JUMPED-TO DAY IS PLACED BY TIME, not by which page carried it (review
+ * R1): a refetch restarts from the NEWEST page it holds and walks older, so
+ * after newer pages loaded no page is the day's own any more. The day's bounds
+ * do not change. ★The latest window is the newest page, which a refetch
+ * always re-reads first, so its flag holds.
  */
 export function windowPlacement(
   entries: readonly ConversationEntry[],
+  anchor: ConversationAnchor | null = null,
 ): { index: number; empty: boolean } | null {
+  if (anchor?.kind === "day") {
+    if (entries.some((e) => e.kind === "refused")) return null;
+    const start = zonedDayStart(anchor.day, anchor.timeZone);
+    const end = zonedDayStart(nextDayKey(anchor.day), anchor.timeZone);
+    const messages = orderedMessages(entries);
+    const index = messages.findIndex((m) => Date.parse(m.sentAt) >= start);
+    const at = index === -1 ? messages.length : index;
+    const first = messages[at];
+    return { index: at, empty: !first || Date.parse(first.sentAt) >= end };
+  }
   let index = 0;
   for (let i = entries.length - 1; i >= 0; i--) {
     const entry = entries[i]!;
@@ -363,6 +394,21 @@ export function autoLoadDirection(input: {
   if (input.topVisible && input.hasOlder && !input.olderFailed) return "older";
   if (input.bottomVisible && input.hasNewer && !input.newerFailed) return "newer";
   return null;
+}
+
+/**
+ * Whether a sentinel is in view of its scroll box, within `margin` px, from
+ * their bounding boxes. ★Asked AFTER a page has landed and the scroll has been
+ * restored (review R1): the observer reports a sentinel leaving view only
+ * asynchronously, so its last report would ask for one page the reader never
+ * scrolled to.
+ */
+export function sentinelInView(
+  sentinel: { top: number; bottom: number },
+  root: { top: number; bottom: number },
+  margin: number,
+): boolean {
+  return sentinel.bottom >= root.top - margin && sentinel.top <= root.bottom + margin;
 }
 
 /**

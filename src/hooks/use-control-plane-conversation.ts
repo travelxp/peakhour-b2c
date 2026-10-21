@@ -38,7 +38,7 @@ import {
  * fetches when it is opened (Radix unmounts an inactive tab, so returning to it
  * refetches past `staleTime`) and offers "Check for new messages".
  */
-export function useConversation(anchor: ConversationAnchor) {
+export function useConversation(anchor: ConversationAnchor | null) {
   const { org, business, user, isAuthenticated } = useAuth();
   return useInfiniteQuery<
     ConversationEntry,
@@ -49,10 +49,12 @@ export function useConversation(anchor: ConversationAnchor) {
   >({
     queryKey: conversationKey(org?._id, business?._id, user?._id, anchorKeyPart(anchor)),
     queryFn: ({ pageParam }) => fetchConversationEntry(getConversation, pageParam, Date.now()),
-    initialPageParam: initialConversationParam(anchor),
+    // ★No anchor until the display zone is known (after hydration): nothing is
+    //  fetched, and the placeholder param is never used.
+    initialPageParam: anchor ? initialConversationParam(anchor) : { kind: "recent", timeZone: "UTC" },
     getNextPageParam: olderConversationParam,
     getPreviousPageParam: newerConversationParam,
-    enabled: isAuthenticated && !!org?._id && !!business?._id && !!user?._id,
+    enabled: isAuthenticated && !!org?._id && !!business?._id && !!user?._id && anchor !== null,
     staleTime: 30_000,
     refetchOnWindowFocus: false,
     // Nor on reconnect: a fetch that was paused offline resumes by itself, and

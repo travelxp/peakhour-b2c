@@ -12,7 +12,8 @@ import {
   fetchConversationEntry,
   initialConversationParam,
   isDayKey,
-  LATEST_ANCHOR,
+  latestAnchor,
+  sentinelInView,
   newerConversationParam,
   nextDayKey,
   olderConversationParam,
@@ -92,11 +93,25 @@ describe("a calendar day in a zone", () => {
 describe("where the tab opens and what it asks the api for", () => {
   const NOW = Date.parse("2026-10-21T12:00:00.000Z");
 
-  it("[W06] the latest window is the last 3 days, measured at fetch time", () => {
+  it("[W06] the latest window is the last 3 CALENDAR days in the zone, measured at fetch time", () => {
     expect(RECENT_DAYS).toBe(3);
-    expect(initialConversationParam(LATEST_ANCHOR)).toEqual({ kind: "recent" });
-    expect(apiPageParam({ kind: "recent" }, NOW)).toEqual({ kind: "window", since: "2026-10-18T12:00:00.000Z" });
-    expect(apiPageParam({ kind: "recent" }, NOW + HOUR)).toEqual({ kind: "window", since: "2026-10-18T13:00:00.000Z" });
+    const z = "Pacific/Kiritimati";
+    expect(initialConversationParam(latestAnchor(z))).toEqual({ kind: "recent", timeZone: z });
+    // 12:00Z on the 21st is 02:00 on the 22nd at UTC+14: the 20th, 21st and 22nd.
+    expect(apiPageParam({ kind: "recent", timeZone: z }, NOW)).toEqual({ kind: "window", since: "2026-10-19T10:00:00.000Z" });
+    // ★Not 72 hours: an hour later is still the same three days.
+    expect(apiPageParam({ kind: "recent", timeZone: z }, NOW + HOUR)).toEqual({ kind: "window", since: "2026-10-19T10:00:00.000Z" });
+    // And at 23:59 local on the 22nd too; one minute later it moves a day.
+    expect(apiPageParam({ kind: "recent", timeZone: z }, Date.parse("2026-10-22T09:59:00.000Z"))).toEqual({ kind: "window", since: "2026-10-19T10:00:00.000Z" });
+    expect(apiPageParam({ kind: "recent", timeZone: z }, Date.parse("2026-10-22T10:00:00.000Z"))).toEqual({ kind: "window", since: "2026-10-20T10:00:00.000Z" });
+  });
+
+  it("[W27] the last 3 days across a 25-hour day start at the third day's own midnight", () => {
+    // 04:00 PST on 2 Nov in LA: the 2nd, the 1st (25 hours) and 31 Oct (PDT).
+    expect(apiPageParam({ kind: "recent", timeZone: "America/Los_Angeles" }, Date.parse("2026-11-02T12:00:00.000Z"))).toEqual({
+      kind: "window",
+      since: "2026-10-31T07:00:00.000Z",
+    });
   });
 
   it("[W07] a jump asks for that whole day in its zone, half-open, whatever the clock says", () => {
@@ -114,7 +129,10 @@ describe("where the tab opens and what it asks the api for", () => {
   });
 
   it("[W09] each day and zone is its own cache entry, and the latest is one entry", () => {
-    expect(anchorKeyPart(LATEST_ANCHOR)).toBe("latest");
+    expect(anchorKeyPart(latestAnchor("Asia/Kolkata"))).toBe("latest@Asia/Kolkata");
+    expect(anchorKeyPart(latestAnchor("Asia/Kolkata"))).not.toBe(anchorKeyPart(latestAnchor("Europe/London")));
+    // No zone yet: nothing is fetched under a key of its own.
+    expect(anchorKeyPart(null)).toBe("pending");
     const a = anchorKeyPart({ kind: "day", day: "2026-10-12", timeZone: "Asia/Kolkata" });
     expect(a).toBe("day:2026-10-12@Asia/Kolkata");
     expect(a).not.toBe(anchorKeyPart({ kind: "day", day: "2026-10-13", timeZone: "Asia/Kolkata" }));
@@ -127,12 +145,12 @@ describe("where the tab opens and what it asks the api for", () => {
       seen.push(p);
       return { messages: [], nextCursor: "1.0000000000000000" };
     };
-    expect(await fetchConversationEntry(fetchPage, { kind: "recent" }, NOW)).toMatchObject({ window: true, newerCursor: null });
+    expect(await fetchConversationEntry(fetchPage, { kind: "recent", timeZone: "UTC" }, NOW)).toMatchObject({ window: true, newerCursor: null });
     expect(await fetchConversationEntry(fetchPage, { kind: "day", day: "2026-10-12", timeZone: "UTC" }, NOW)).toMatchObject({ window: true });
     expect(await fetchConversationEntry(fetchPage, { kind: "older", cursor: "1.0000000000000000" }, NOW)).toMatchObject({ window: false });
     expect(await fetchConversationEntry(fetchPage, { kind: "newer", after: "1.0000000000000000" }, NOW)).toMatchObject({ window: false });
     // ★The api is asked in instants, at the time given.
-    expect(seen[0]).toEqual({ kind: "window", since: "2026-10-18T12:00:00.000Z" });
+    expect(seen[0]).toEqual({ kind: "window", since: "2026-10-19T00:00:00.000Z" });
     expect(seen[1]).toEqual({ kind: "window", since: "2026-10-12T00:00:00.000Z", until: "2026-10-13T00:00:00.000Z" });
   });
 
@@ -169,7 +187,7 @@ describe("a quiet window is not an empty conversation", () => {
   });
 
   it("[W15] the quiet-window line names the window it opened on", () => {
-    expect(conversationQuietWindowText(LATEST_ANCHOR, null)).toBe(
+    expect(conversationQuietWindowText(latestAnchor("UTC"), null)).toBe(
       "No messages in the last 3 days. Older messages load as you scroll up.",
     );
     const day = { kind: "day" as const, day: "2026-10-12", timeZone: "Pacific/Kiritimati" };
@@ -186,7 +204,7 @@ describe("a quiet window is not an empty conversation", () => {
     const label = anchorDayLabel({ kind: "day", day: "2026-10-12", timeZone: "Pacific/Kiritimati" }, "en-GB");
     // ICU versions differ on the comma after the weekday; the day may not.
     expect(label).toMatch(/^Mon,? 12 Oct 2026$/);
-    expect(anchorDayLabel(LATEST_ANCHOR, "en-GB")).toBeNull();
+    expect(anchorDayLabel(latestAnchor("UTC"), "en-GB")).toBeNull();
   });
 });
 
@@ -247,5 +265,38 @@ describe("where the opened window sits, and what loads next", () => {
     //  a message arriving.
     expect(shouldFollowNewest(true, false)).toBe(false);
     expect(shouldFollowNewest(false, true)).toBe(false);
+  });
+});
+
+describe("review R1: a jumped-to day is placed by time, and a sentinel is measured", () => {
+  const z = "Pacific/Kiritimati";
+  const day = { kind: "day" as const, day: "2026-10-12", timeZone: z };
+  // The 12th at UTC+14 is 2026-10-11T10:00Z .. 2026-10-12T10:00Z.
+  const before = msg("before", "2026-10-11T09:59:59.999Z");
+  const first = msg("first", "2026-10-11T10:00:00.000Z");
+  const later = msg("later", "2026-10-12T09:00:00.000Z");
+  const after = msg("after", "2026-10-12T10:00:00.000Z");
+
+  it("[W25] after a refetch no page is the day's own, and the day is still placed by its bounds", () => {
+    // ★No window flag anywhere: a refetch restarted from a newer page.
+    const entries = [page([after]), page([first, later]), page([before])];
+    expect(windowPlacement(entries, day)).toEqual({ index: 1, empty: false });
+  });
+
+  it("[W28] a quiet day is placed at the nearest newer line, or at the end when there is none", () => {
+    expect(windowPlacement([page([after]), page([before])], day)).toEqual({ index: 1, empty: true });
+    expect(windowPlacement([page([before])], day)).toEqual({ index: 1, empty: true });
+    expect(windowPlacement([{ kind: "refused", reason: "forbidden" }], day)).toBeNull();
+  });
+
+  it("[W26] a sentinel is in view when its box overlaps the scroll box, widened by the margin", () => {
+    const box = { top: 100, bottom: 500 };
+    expect(sentinelInView({ top: 100, bottom: 101 }, box, 120)).toBe(true);
+    expect(sentinelInView({ top: -20, bottom: -19 }, box, 120)).toBe(true);
+    // Touching the widened edge counts.
+    expect(sentinelInView({ top: -21, bottom: -20 }, box, 120)).toBe(true);
+    expect(sentinelInView({ top: -22, bottom: -21 }, box, 120)).toBe(false);
+    expect(sentinelInView({ top: 620, bottom: 621 }, box, 120)).toBe(true);
+    expect(sentinelInView({ top: 621, bottom: 622 }, box, 120)).toBe(false);
   });
 });

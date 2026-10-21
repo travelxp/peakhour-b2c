@@ -51,7 +51,8 @@ const { ApiError } = await import("@/lib/api");
 const { useConversation } = await import("./use-control-plane-conversation");
 const {
   CONTROL_PLANE_CONVERSATION_KEY,
-  LATEST_ANCHOR,
+  latestAnchor,
+  dayKeyIn,
   shouldRetryConversation,
   olderConversationParam,
   newerConversationParam,
@@ -61,7 +62,8 @@ type Anchor = Parameters<typeof useConversation>[0];
 // Called through a plain reference: the recorder stands in for React here.
 const hook: (anchor: Anchor) => unknown = useConversation;
 
-function options(anchor: Anchor = LATEST_ANCHOR): InfiniteOptions {
+const LATEST = latestAnchor("Asia/Kolkata");
+function options(anchor: Anchor = LATEST): InfiniteOptions {
   recorded.length = 0;
   hook(anchor);
   expect(recorded).toHaveLength(1);
@@ -85,9 +87,9 @@ describe("useConversation", () => {
     session.business = { _id: "biz_a" };
     session.user = { _id: "u_teammate" };
     const t = options().queryKey;
-    expect(a).toEqual([CONTROL_PLANE_CONVERSATION_KEY, "org_1", "biz_a", "u_me", "latest"]);
-    expect(b).toEqual([CONTROL_PLANE_CONVERSATION_KEY, "org_1", "biz_b", "u_me", "latest"]);
-    expect(t).toEqual([CONTROL_PLANE_CONVERSATION_KEY, "org_1", "biz_a", "u_teammate", "latest"]);
+    expect(a).toEqual([CONTROL_PLANE_CONVERSATION_KEY, "org_1", "biz_a", "u_me", "latest@Asia/Kolkata"]);
+    expect(b).toEqual([CONTROL_PLANE_CONVERSATION_KEY, "org_1", "biz_b", "u_me", "latest@Asia/Kolkata"]);
+    expect(t).toEqual([CONTROL_PLANE_CONVERSATION_KEY, "org_1", "biz_a", "u_teammate", "latest@Asia/Kolkata"]);
   });
 
   it("[H02] does not fetch until the session names an org, a business and a user", () => {
@@ -103,6 +105,9 @@ describe("useConversation", () => {
     session.user = { _id: "u_me" };
     session.isAuthenticated = false;
     expect(options().enabled).toBe(false);
+    // ★Nor before the display zone is known (no anchor yet).
+    session.isAuthenticated = true;
+    expect(options(null).enabled).toBe(false);
   });
 
   it("[H03] no polling and no refetch on focus or reconnect; 4xx are not retried", () => {
@@ -113,21 +118,22 @@ describe("useConversation", () => {
     expect(o.retry).toBe(shouldRetryConversation);
     expect(o.getNextPageParam).toBe(olderConversationParam);
     expect(o.getPreviousPageParam).toBe(newerConversationParam);
-    expect(o.initialPageParam).toEqual({ kind: "recent" });
+    expect(o.initialPageParam).toEqual({ kind: "recent", timeZone: "Asia/Kolkata" });
   });
 
-  it("[H04] the first page asks for the last 3 days and nothing else, measured when it is fetched", async () => {
-    const before = Date.now();
+  it("[H04] the first page asks for the last 3 calendar days in the zone and nothing else", async () => {
     const o = options();
     await o.queryFn({ pageParam: o.initialPageParam });
-    const after = Date.now();
     expect(calls).toHaveLength(1);
     expect(calls[0]!.path).toBe("/v1/control-plane/conversation");
     expect(Object.keys(calls[0]!.params ?? {})).toEqual(["since"]);
     const since = Date.parse(calls[0]!.params!.since!);
-    const DAYS3 = 3 * 24 * 60 * 60 * 1000;
-    expect(since).toBeGreaterThanOrEqual(before - DAYS3);
-    expect(since).toBeLessThanOrEqual(after - DAYS3);
+    const z = "Asia/Kolkata";
+    // A local midnight, two calendar days before today in that zone.
+    const today = dayKeyIn(Date.now(), z);
+    const d = (k: string) => Date.parse(`${k}T00:00:00Z`);
+    expect((d(today) - d(dayKeyIn(since, z))) / 86_400_000).toBe(2);
+    expect(dayKeyIn(since - 1, z)).not.toBe(dayKeyIn(since, z));
   });
 
   it("[H05] an older page sends the cursor and nothing else", async () => {
@@ -161,7 +167,7 @@ describe("useConversation", () => {
     answer = async () => {
       throw new ApiError("FORBIDDEN", "Forbidden", 403);
     };
-    await expect(options().queryFn({ pageParam: { kind: "recent" } })).resolves.toEqual({
+    await expect(options().queryFn({ pageParam: { kind: "recent", timeZone: "UTC" } })).resolves.toEqual({
       kind: "refused",
       reason: "forbidden",
     });

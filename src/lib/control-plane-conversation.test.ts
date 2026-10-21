@@ -53,7 +53,7 @@ function page(
   return { kind: "page", messages, nextCursor, newerCursor: over.newerCursor ?? null, window: over.window ?? false };
 }
 
-const RECENT = { kind: "recent" } as const;
+const RECENT = { kind: "recent", timeZone: "UTC" } as const;
 const NOW = Date.parse("2026-10-21T12:00:00.000Z");
 
 function contact(over: Partial<MerchantContact>): MerchantContact {
@@ -378,10 +378,10 @@ describe("the scroll position", () => {
 
 describe("the cache key and the tab", () => {
   it("[C28] one cache entry per org, business and user, and per place the tab opened on", () => {
-    expect(conversationKey("org_1", "biz_a", "u_me")).toEqual([CONTROL_PLANE_CONVERSATION_KEY, "org_1", "biz_a", "u_me", "latest"]);
+    expect(conversationKey("org_1", "biz_a", "u_me")).toEqual([CONTROL_PLANE_CONVERSATION_KEY, "org_1", "biz_a", "u_me", "pending"]);
     expect(conversationKey("org_1", "biz_a", "u_me")).not.toEqual(conversationKey("org_1", "biz_b", "u_me"));
     expect(conversationKey("org_1", "biz_a", "u_me")).not.toEqual(conversationKey("org_1", "biz_a", "u_teammate"));
-    expect(conversationKey(undefined, null, undefined)).toEqual([CONTROL_PLANE_CONVERSATION_KEY, null, null, null, "latest"]);
+    expect(conversationKey(undefined, null, undefined)).toEqual([CONTROL_PLANE_CONVERSATION_KEY, null, null, null, "pending"]);
   });
 
   it("[C29] ?tab=conversation and ?tab=activity open their tabs; anything else is settings", () => {
