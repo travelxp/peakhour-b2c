@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Check, Loader2, Sparkles } from "lucide-react";
@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { PaymentModal, type CheckoutResult } from "./payment-modal";
 import { checkoutAction, type CheckoutPreview } from "@/lib/checkout-preview";
+import { onePress } from "@/lib/one-press";
 import {
   TERM_LABEL,
   currentOnTerm,
@@ -108,6 +109,10 @@ export function UpgradePlanDialog({
   // The billing term the buyer picked; null = the default below.
   const [termPick, setTermPick] = useState<BillingTerm | null>(null);
   const [checkout, setCheckout] = useState<CheckoutResult | null>(null);
+  // ★ONE CHECKOUT AT A TIME (owner answer 4: a double click on Pay never pays
+  //  twice). `isPending` disables the button once React re-renders; the latch
+  //  also ignores a second click in the same frame (lib/one-press.ts).
+  const press = useRef(onePress()).current;
   const queryClient = useQueryClient();
   // After ANY purchase: what is current, and what each plan would now do, has
   // changed. Forget the selection and both answers, so reopening the picker
@@ -176,7 +181,12 @@ export function UpgradePlanDialog({
       setCheckout(res as CheckoutResult);
     },
     onError: (e: Error) => toast.error(e.message ?? "Couldn't start checkout"),
+    onSettled: () => press.release(),
   });
+  const startCheckout = (tier: string, term: BillingTerm) => {
+    if (!press.take()) return;
+    checkoutMut.mutate({ tier, term });
+  };
 
   // NOTE: there is deliberately no separate "start trial" mutation. The old
   // POST /v1/billing/trial granted a gateway-less no-card trial and now returns
@@ -443,7 +453,7 @@ export function UpgradePlanDialog({
             </Button>
             <Button
               disabled={!selected || !selectedPrice || !purchasable || busy || selectedCurrent || previewWaiting || action.refused}
-              onClick={() => selected && selectedPrice && checkoutMut.mutate({ tier: selected, term: selectedPrice.term })}
+              onClick={() => selected && selectedPrice && startCheckout(selected, selectedPrice.term)}
             >
               {checkoutMut.isPending ? "Starting…" : action.label}
             </Button>

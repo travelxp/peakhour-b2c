@@ -48,6 +48,17 @@ describe("checkoutAction (D21, P4.2)", () => {
     expect(checkoutAction(AGENCY, { kind: "new" }, fmt)).toEqual({ label: "Continue to payment", note: null, refused: false });
   });
 
+  it("a plain purchase during the trial says the card is taken now and the first charge is when the trial ends (owner answer 1)", () => {
+    const a = checkoutAction(AGENCY, { kind: "new", startsAt: "2026-11-01T00:00:00.000Z" }, fmt);
+    expect(a).toEqual({
+      label: "Continue to payment",
+      note: "You keep your free trial: we'll ask for a card now and charge nothing until it ends on <2026-11-01>.",
+      refused: false,
+    });
+    // A charge at once (null) keeps the plain copy.
+    expect(checkoutAction(AGENCY, { kind: "new", startsAt: null }, fmt)).toEqual({ label: "Continue to payment", note: null, refused: false });
+  });
+
   it("no answer yet (loading or failed): the plan's own copy, never blocked", () => {
     expect(checkoutAction(TRIAL, null, fmt)).toMatchObject({ label: "Start 14-day free trial", refused: false });
     expect(checkoutAction(null, null, fmt)).toEqual({ label: "Continue to payment", note: null, refused: false });

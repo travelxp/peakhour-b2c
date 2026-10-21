@@ -8,7 +8,10 @@
 
 /** What checkout WOULD do for a plan and term. */
 export type CheckoutPreview =
-  | { kind: "new" }
+  /** A plain purchase. `startsAt`: when its first charge is due, when that is
+   *  not now: the end of the business's trial (owner answer 1, 2026-10-21: a
+   *  purchase made during a trial is charged only when the trial ends). */
+  | { kind: "new"; startsAt?: string | null }
   | { kind: "switch"; fromTier: string; fromName: string; startsAt: string | null }
   /** The plan and term a cancel is ending, taken up again from when it ends. */
   | { kind: "resume"; startsAt: string | null }
@@ -51,6 +54,15 @@ export function checkoutAction(
       note: preview.startsAt
         ? `${plan.name} carries on after ${fmtDate(preview.startsAt)}, billed from then. Nothing to pay until then.`
         : `${plan.name} carries on, billed from now.`,
+      refused: false,
+    };
+  }
+  // Bought during the trial (owner answer 1): the card now, the first charge
+  // when the trial ends, said before the buyer commits.
+  if (plan && preview?.kind === "new" && preview.startsAt) {
+    return {
+      label: "Continue to payment",
+      note: `You keep your free trial: we'll ask for a card now and charge nothing until it ends on ${fmtDate(preview.startsAt)}.`,
       refused: false,
     };
   }
