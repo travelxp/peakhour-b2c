@@ -9,8 +9,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 type InfiniteOptions = {
   queryKey: readonly unknown[];
   enabled?: boolean;
-  queryFn: (ctx: { pageParam: string | null }) => Promise<unknown>;
+  queryFn: (ctx: { pageParam: unknown }) => Promise<unknown>;
   getNextPageParam: (last: unknown) => unknown;
+  getPreviousPageParam?: (first: unknown) => unknown;
   initialPageParam: unknown;
   refetchInterval?: unknown;
   refetchOnWindowFocus?: unknown;
@@ -26,7 +27,7 @@ const session: {
 } = { org: null, business: null, user: null, isAuthenticated: true };
 
 const calls: { path: string; params: Record<string, string> | undefined }[] = [];
-let answer: () => Promise<unknown> = async () => ({ messages: [], nextCursor: null });
+let answer: () => Promise<unknown> = async () => ({ messages: [], nextCursor: null, newerCursor: null });
 
 vi.mock("@tanstack/react-query", () => ({
   useInfiniteQuery: (options: InfiniteOptions) => {
@@ -48,15 +49,21 @@ vi.mock("@/lib/api", async (importOriginal) => ({
 const { ApiError } = await import("@/lib/api");
 
 const { useConversation } = await import("./use-control-plane-conversation");
-const { CONTROL_PLANE_CONVERSATION_KEY, shouldRetryConversation, nextConversationCursor } =
-  await import("@/lib/control-plane-conversation");
+const {
+  CONTROL_PLANE_CONVERSATION_KEY,
+  LATEST_ANCHOR,
+  shouldRetryConversation,
+  olderConversationParam,
+  newerConversationParam,
+} = await import("@/lib/control-plane-conversation");
+type Anchor = Parameters<typeof useConversation>[0];
 
 // Called through a plain reference: the recorder stands in for React here.
-const hook: () => unknown = useConversation;
+const hook: (anchor: Anchor) => unknown = useConversation;
 
-function options(): InfiniteOptions {
+function options(anchor: Anchor = LATEST_ANCHOR): InfiniteOptions {
   recorded.length = 0;
-  hook();
+  hook(anchor);
   expect(recorded).toHaveLength(1);
   return recorded[0]!;
 }
@@ -68,7 +75,7 @@ describe("useConversation", () => {
     session.user = { _id: "u_me" };
     session.isAuthenticated = true;
     calls.length = 0;
-    answer = async () => ({ messages: [], nextCursor: null });
+    answer = async () => ({ messages: [], nextCursor: null, newerCursor: null });
   });
 
   it("[H01] two businesses, and two teammates on one business, read separate cache entries", () => {
@@ -78,9 +85,9 @@ describe("useConversation", () => {
     session.business = { _id: "biz_a" };
     session.user = { _id: "u_teammate" };
     const t = options().queryKey;
-    expect(a).toEqual([CONTROL_PLANE_CONVERSATION_KEY, "org_1", "biz_a", "u_me"]);
-    expect(b).toEqual([CONTROL_PLANE_CONVERSATION_KEY, "org_1", "biz_b", "u_me"]);
-    expect(t).toEqual([CONTROL_PLANE_CONVERSATION_KEY, "org_1", "biz_a", "u_teammate"]);
+    expect(a).toEqual([CONTROL_PLANE_CONVERSATION_KEY, "org_1", "biz_a", "u_me", "latest"]);
+    expect(b).toEqual([CONTROL_PLANE_CONVERSATION_KEY, "org_1", "biz_b", "u_me", "latest"]);
+    expect(t).toEqual([CONTROL_PLANE_CONVERSATION_KEY, "org_1", "biz_a", "u_teammate", "latest"]);
   });
 
   it("[H02] does not fetch until the session names an org, a business and a user", () => {
@@ -104,19 +111,49 @@ describe("useConversation", () => {
     expect(o.refetchOnWindowFocus).toBe(false);
     expect(o.refetchOnReconnect).toBe(false);
     expect(o.retry).toBe(shouldRetryConversation);
-    expect(o.getNextPageParam).toBe(nextConversationCursor);
-    expect(o.initialPageParam).toBeNull();
+    expect(o.getNextPageParam).toBe(olderConversationParam);
+    expect(o.getPreviousPageParam).toBe(newerConversationParam);
+    expect(o.initialPageParam).toEqual({ kind: "recent" });
   });
 
-  it("[H04] the first page sends no query parameters at all", async () => {
-    await options().queryFn({ pageParam: null });
-    expect(calls).toEqual([{ path: "/v1/control-plane/conversation", params: undefined }]);
+  it("[H04] the first page asks for the last 3 days and nothing else, measured when it is fetched", async () => {
+    const before = Date.now();
+    const o = options();
+    await o.queryFn({ pageParam: o.initialPageParam });
+    const after = Date.now();
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.path).toBe("/v1/control-plane/conversation");
+    expect(Object.keys(calls[0]!.params ?? {})).toEqual(["since"]);
+    const since = Date.parse(calls[0]!.params!.since!);
+    const DAYS3 = 3 * 24 * 60 * 60 * 1000;
+    expect(since).toBeGreaterThanOrEqual(before - DAYS3);
+    expect(since).toBeLessThanOrEqual(after - DAYS3);
   });
 
   it("[H05] an older page sends the cursor and nothing else", async () => {
-    await options().queryFn({ pageParam: "1760000000000.abcdef0123456789" });
+    await options().queryFn({ pageParam: { kind: "older", cursor: "1760000000000.abcdef0123456789" } });
     expect(calls).toEqual([
       { path: "/v1/control-plane/conversation", params: { cursor: "1760000000000.abcdef0123456789" } },
+    ]);
+  });
+
+  it("[H07] a newer page sends after and nothing else", async () => {
+    await options().queryFn({ pageParam: { kind: "newer", after: "1760000000000.abcdef0123456789" } });
+    expect(calls).toEqual([
+      { path: "/v1/control-plane/conversation", params: { after: "1760000000000.abcdef0123456789" } },
+    ]);
+  });
+
+  it("[H08] a jump to a day is its own cache entry and asks for that day in its zone, half-open", async () => {
+    const anchor = { kind: "day" as const, day: "2026-10-12", timeZone: "Asia/Kolkata" };
+    const o = options(anchor);
+    expect(o.queryKey).toEqual([CONTROL_PLANE_CONVERSATION_KEY, "org_1", "biz_a", "u_me", "day:2026-10-12@Asia/Kolkata"]);
+    await o.queryFn({ pageParam: o.initialPageParam });
+    expect(calls).toEqual([
+      {
+        path: "/v1/control-plane/conversation",
+        params: { since: "2026-10-11T18:30:00.000Z", until: "2026-10-12T18:30:00.000Z" },
+      },
     ]);
   });
 
@@ -124,7 +161,7 @@ describe("useConversation", () => {
     answer = async () => {
       throw new ApiError("FORBIDDEN", "Forbidden", 403);
     };
-    await expect(options().queryFn({ pageParam: null })).resolves.toEqual({
+    await expect(options().queryFn({ pageParam: { kind: "recent" } })).resolves.toEqual({
       kind: "refused",
       reason: "forbidden",
     });

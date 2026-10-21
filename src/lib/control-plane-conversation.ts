@@ -2,6 +2,7 @@ import { ApiError } from "@/lib/api";
 import type {
   ConversationMessage,
   ConversationPage,
+  ConversationPageParam,
   MerchantContact,
 } from "@/lib/api/control-plane";
 import { WHATSAPP_SETTINGS_HREF } from "@/lib/control-plane";
@@ -17,12 +18,20 @@ import { WHATSAPP_SETTINGS_HREF } from "@/lib/control-plane";
  * What the api returns, and so what every sentence below must agree with:
  * - the platform threads of the numbers THIS USER verified on THIS BUSINESS;
  * - a number another user also holds verified, on any business, is skipped;
- * - each number's turns start at its `historyBoundary`: the newest
- *   `verifiedAt`/`revokedAt` on any of that number's rows, on any business;
+ * - ONLY THIS BUSINESS'S TURNS (owner answer 2026-10-21, item 19). The thread
+ *   is per number, so the api decides per line (`lineBelongsToBusiness`):
+ *   - a line Peakhour labelled with this business shows from the time the
+ *     user verified the number HERE;
+ *   - an unlabelled line (from before the labels, or sent while the number was
+ *     verified on more than one business) shows only when the number is
+ *     verified on this business alone, and only from its `historyBoundary`:
+ *     the newest `verifiedAt`/`revokedAt` on any of its rows, on any business;
  * - a thread keeps at most its latest 50 messages;
  * - a verification code is never recorded, and the digest and alerts are not
  *   sent from Peakhour's number yet, so they are not in the thread;
- * - a refusal is a 403, never an empty page.
+ * - a refusal is a 403, never an empty page;
+ * - pages (item 20): a date window (`since`/`until`), then `nextCursor` for
+ *   older and `newerCursor` for newer, both walking out of the window.
  */
 
 // ── The cache entry ───────────────────────────────────────────────────────
@@ -30,22 +39,134 @@ import { WHATSAPP_SETTINGS_HREF } from "@/lib/control-plane";
 export const CONTROL_PLANE_CONVERSATION_KEY = "/v1/control-plane/conversation";
 
 /**
- * One cache entry per org, business AND user. The api answers for the caller's
- * own numbers on the session's business, so the same business reads a
- * different conversation for each teammate. The path stays first so a prefix
- * invalidation reaches every entry.
+ * One cache entry per org, business AND user, and per place the tab opened on.
+ * The api answers for the caller's own numbers on the session's business, so
+ * the same business reads a different conversation for each teammate. The
+ * anchor (`anchorKeyPart`) is last: a jump to a date is a different list of
+ * pages from the latest one. The path stays first so a prefix invalidation
+ * reaches every entry.
  */
 export function conversationKey(
   orgId: string | null | undefined,
   businessId: string | null | undefined,
   userId: string | null | undefined,
+  anchor: string = LATEST_KEY_PART,
 ) {
   return [
     CONTROL_PLANE_CONVERSATION_KEY,
     orgId ?? null,
     businessId ?? null,
     userId ?? null,
+    anchor,
   ] as const;
+}
+
+// ── Where the tab opens (owner answer 2026-10-21, item 20) ─────────────────
+
+/** The tab opens on the last this-many days, then loads older ones on scroll. */
+export const RECENT_DAYS = 3;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Where the tab opens: the latest messages (the last `RECENT_DAYS` days), or a
+ * day the reader jumped to, which is a calendar day IN `timeZone`, the zone the
+ * tab shows its dates in.
+ */
+export type ConversationAnchor =
+  | { kind: "latest" }
+  | { kind: "day"; day: string; timeZone: string };
+
+export const LATEST_ANCHOR: ConversationAnchor = { kind: "latest" };
+const LATEST_KEY_PART = "latest";
+
+export function anchorKeyPart(anchor: ConversationAnchor): string {
+  return anchor.kind === "latest" ? LATEST_KEY_PART : `day:${anchor.day}@${anchor.timeZone}`;
+}
+
+/** `YYYY-MM-DD`, a real calendar date: the shape a date input gives. */
+export function isDayKey(value: string): boolean {
+  if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(value)) return false;
+  const [y, m, d] = value.split("-").map(Number) as [number, number, number];
+  const at = new Date(Date.UTC(y, m - 1, d));
+  return at.getUTCFullYear() === y && at.getUTCMonth() === m - 1 && at.getUTCDate() === d;
+}
+
+function dayKeyFormat(timeZone: string): Intl.DateTimeFormat {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+}
+
+/** The calendar day an instant falls on in `timeZone`, as `YYYY-MM-DD`. */
+export function dayKeyIn(ms: number, timeZone: string): string {
+  return dayKeyFormat(timeZone).format(new Date(ms));
+}
+
+/** The day after `day`, by the calendar (no zone involved). */
+export function nextDayKey(day: string): string {
+  const [y, m, d] = day.split("-").map(Number) as [number, number, number];
+  return new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10);
+}
+
+/**
+ * The first instant of `day` in `timeZone` (epoch ms).
+ *
+ * ★NOT `Date.UTC(day) - offset`: the offset at local midnight is not the offset
+ * at UTC midnight on a DST day, and some zones skip midnight altogether. It is
+ * the earliest instant whose local date is `day`, found by bisection between
+ * two instants that bracket it for every zone (offsets run from -12h to +14h).
+ * ★NEVER THE HOST'S ZONE: no local-time constructor is used.
+ */
+export function zonedDayStart(day: string, timeZone: string): number {
+  const [y, m, d] = day.split("-").map(Number) as [number, number, number];
+  const utcMidnight = Date.UTC(y, m - 1, d);
+  let lo = utcMidnight - 15 * 60 * 60 * 1000; // its local date is before `day`
+  let hi = utcMidnight + 15 * 60 * 60 * 1000; // its local date is `day` or after
+  const fmt = dayKeyFormat(timeZone);
+  while (hi - lo > 1) {
+    const mid = Math.floor((lo + hi) / 2);
+    if (fmt.format(new Date(mid)) >= day) hi = mid;
+    else lo = mid;
+  }
+  return hi;
+}
+
+/**
+ * A page as the query asks for it: the window the tab opens on (`recent`, the
+ * last `RECENT_DAYS` days; or a `day`), or a step older or newer from a page it
+ * holds. ★`recent` names no instant: the clock is read when the page is
+ * FETCHED (`apiPageParam`), never during render, so a refresh of the latest
+ * window measures its 3 days from the refresh.
+ */
+export type ConversationQueryParam =
+  | { kind: "recent" }
+  | { kind: "day"; day: string; timeZone: string }
+  | { kind: "older"; cursor: string }
+  | { kind: "newer"; after: string };
+
+/** The page the tab opens on. */
+export function initialConversationParam(anchor: ConversationAnchor): ConversationQueryParam {
+  return anchor.kind === "latest" ? { kind: "recent" } : { kind: "day", day: anchor.day, timeZone: anchor.timeZone };
+}
+
+/** What the api is asked for: a window becomes its instants (half-open). */
+export function apiPageParam(param: ConversationQueryParam, nowMs: number): ConversationPageParam {
+  switch (param.kind) {
+    case "recent":
+      return { kind: "window", since: new Date(nowMs - RECENT_DAYS * DAY_MS).toISOString() };
+    case "day":
+      return {
+        kind: "window",
+        since: new Date(zonedDayStart(param.day, param.timeZone)).toISOString(),
+        until: new Date(zonedDayStart(nextDayKey(param.day), param.timeZone)).toISOString(),
+      };
+    case "older":
+    case "newer":
+      return param;
+  }
 }
 
 /**
@@ -56,7 +177,14 @@ export function conversationKey(
  * view can never fall through to the empty state.
  */
 export type ConversationEntry =
-  | { kind: "page"; messages: ConversationMessage[]; nextCursor: string | null }
+  | {
+      kind: "page";
+      messages: ConversationMessage[];
+      nextCursor: string | null;
+      newerCursor: string | null;
+      /** True for the page the tab opened on (its date window). */
+      window: boolean;
+    }
   | { kind: "refused"; reason: ConversationRefusal };
 
 /**
@@ -81,12 +209,20 @@ function refusalOf(error: ApiError): ConversationRefusal {
 
 /** The query function: one page, with a refusal turned into an entry. */
 export async function fetchConversationEntry(
-  fetchPage: (cursor: string | null) => Promise<ConversationPage>,
-  cursor: string | null,
+  fetchPage: (param: ConversationPageParam) => Promise<ConversationPage>,
+  param: ConversationQueryParam,
+  nowMs: number,
 ): Promise<ConversationEntry> {
   try {
-    const page = await fetchPage(cursor);
-    return { kind: "page", messages: page.messages, nextCursor: page.nextCursor };
+    const page = await fetchPage(apiPageParam(param, nowMs));
+    return {
+      kind: "page",
+      messages: page.messages,
+      nextCursor: page.nextCursor,
+      // ★An api from before item 20 sends none: read as "nothing newer".
+      newerCursor: page.newerCursor ?? null,
+      window: param.kind === "recent" || param.kind === "day",
+    };
   } catch (error) {
     if (isConversationRefusal(error)) {
       return { kind: "refused", reason: refusalOf(error) };
@@ -95,9 +231,21 @@ export async function fetchConversationEntry(
   }
 }
 
-/** The cursor for the next (OLDER) page, or null when there is none. */
-export function nextConversationCursor(last: ConversationEntry): string | null {
-  return last.kind === "page" && last.nextCursor ? last.nextCursor : null;
+/**
+ * The OLDER page after the last (oldest) one, or null when there is none.
+ * react-query's `getNextPageParam`: the cache holds the newest page first.
+ */
+export function olderConversationParam(last: ConversationEntry): ConversationQueryParam | null {
+  return last.kind === "page" && last.nextCursor ? { kind: "older", cursor: last.nextCursor } : null;
+}
+
+/**
+ * The NEWER page before the first (newest) one, or null when the newest page
+ * is loaded. react-query's `getPreviousPageParam`: only a jump to a date has
+ * one; the latest window always reaches the newest message.
+ */
+export function newerConversationParam(first: ConversationEntry): ConversationQueryParam | null {
+  return first.kind === "page" && first.newerCursor ? { kind: "newer", after: first.newerCursor } : null;
 }
 
 /**
@@ -145,7 +293,10 @@ export type ConversationView =
  * - With nothing loaded, a failure is "failed", a paused (offline) query is
  *   "offline", and only then is it "loading". `isLoading` would miss the paused
  *   case and fall through to the empty state.
- * - "empty" is earned only by a page that answered with no messages.
+ * - "empty" is earned only by pages that answered with no messages AND with
+ *   nothing older or newer to load. ★A quiet last 3 days, or a quiet day the
+ *   reader jumped to, is not an empty conversation: the box opens and loads
+ *   the nearest messages on either side (item 20).
  */
 export function conversationView(input: {
   entries: readonly ConversationEntry[] | undefined;
@@ -161,7 +312,68 @@ export function conversationView(input: {
     return { kind: "loading" };
   }
   const messages = orderedMessages(entries);
-  return messages.length === 0 ? { kind: "empty" } : { kind: "messages", messages };
+  if (messages.length > 0) return { kind: "messages", messages };
+  const first = entries[0];
+  const last = entries[entries.length - 1];
+  const more =
+    (first?.kind === "page" && first.newerCursor !== null) ||
+    (last?.kind === "page" && last.nextCursor !== null);
+  return more ? { kind: "messages", messages } : { kind: "empty" };
+}
+
+/**
+ * Where the page the tab opened on sits among the messages in reading order:
+ * the index of its first message, or, when it has none, the index the next
+ * newer message has (the nearest line after the quiet window). Null when that
+ * page is not loaded (a refusal replaced it).
+ */
+export function windowPlacement(
+  entries: readonly ConversationEntry[],
+): { index: number; empty: boolean } | null {
+  let index = 0;
+  for (let i = entries.length - 1; i >= 0; i--) {
+    const entry = entries[i]!;
+    if (entry.kind !== "page") continue;
+    if (entry.window) return { index, empty: entry.messages.length === 0 };
+    index += entry.messages.length;
+  }
+  return null;
+}
+
+/**
+ * Which way to load next, when the reader has scrolled to an end (a sentinel
+ * is in view) or the box is too short to scroll.
+ *
+ * ★One fetch at a time: in react-query an older and a newer fetch, or either
+ * and a refresh, cancel each other, so nothing starts while anything runs.
+ * ★A direction that failed waits for the reader's "Try again" rather than
+ * retrying on every render. ★Older first when both ends are in view: the
+ * conversation reads downward, so the reader is above what they asked for.
+ */
+export function autoLoadDirection(input: {
+  topVisible: boolean;
+  bottomVisible: boolean;
+  hasOlder: boolean;
+  hasNewer: boolean;
+  isFetching: boolean;
+  olderFailed: boolean;
+  newerFailed: boolean;
+}): "older" | "newer" | null {
+  if (input.isFetching) return null;
+  if (input.topVisible && input.hasOlder && !input.olderFailed) return "older";
+  if (input.bottomVisible && input.hasNewer && !input.newerFailed) return "newer";
+  return null;
+}
+
+/**
+ * Whether a new newest line should pull the reader down to it: only when they
+ * were at the bottom AND the bottom was the live end. ★After a jump to a date,
+ * a newer PAGE landing below a reader at the bottom is the reader scrolling,
+ * not a message arriving; following it would scroll them to the next sentinel
+ * and load the whole history one page at a time.
+ */
+export function shouldFollowNewest(atBottom: boolean, wasAtLiveEnd: boolean): boolean {
+  return atBottom && wasAtLiveEnd;
 }
 
 // ── The empty state ───────────────────────────────────────────────────────
@@ -223,7 +435,7 @@ export function conversationEmptyCopy(
       };
     case "verified":
       return {
-        text: "No messages since your number was last verified. When you message Peakhour from it, or Peakhour messages you, the conversation appears here. A number that someone else has also verified is never shown.",
+        text: "No messages for this business since your number was verified. When you message Peakhour from it, or Peakhour messages you, the conversation appears here. A number that someone else has also verified is never shown, and while your number is verified on more than one business, a message Peakhour could not tie to one of them is not shown on any.",
       };
     case "unknown":
       return {
@@ -247,11 +459,40 @@ export const CONVERSATION_LEDE =
  */
 export const CONVERSATION_SCOPE_NOTE = [
   "Only your own conversation is shown, never a teammate's.",
-  "Each number's conversation starts from the last time that number was verified or removed on any business, and Peakhour keeps its latest 50 messages.",
+  "Only this business's messages are shown: if you verified the same number on another business too, each business shows its own.",
+  "A message Peakhour could not tie to one business, because it was sent while the number was verified on more than one, is not shown on any of them.",
+  "A message Peakhour labelled with this business shows from when you verified the number here; an older, unlabelled one shows only from the last time that number was verified or removed on any business.",
+  "Peakhour keeps each number's latest 50 messages.",
   "A number that someone else has also verified is left out, because its conversation would include their messages.",
-  "If you verified the same number on another business too, its messages appear here as well, whichever business they were about.",
   "Verification codes are never shown, and weekly digests and alerts are not shown here yet.",
 ].join(" ");
+
+/** Under the conversation when it opened on the latest messages. */
+export const CONVERSATION_RECENT_NOTE = `Showing the last ${RECENT_DAYS} days first. Scroll up for older messages.`;
+
+/**
+ * What the tab says when the window it opened on holds nothing, while older or
+ * newer messages exist (otherwise the empty state speaks). `dayLabel` is the
+ * jumped-to day, formatted in the viewer's locale and zone.
+ */
+export function conversationQuietWindowText(anchor: ConversationAnchor, dayLabel: string | null): string {
+  return anchor.kind === "latest"
+    ? `No messages in the last ${RECENT_DAYS} days. Older messages load as you scroll up.`
+    : `No messages on ${dayLabel ?? anchor.day}. Showing the nearest messages before and after it.`;
+}
+
+/** The label of a jumped-to day, in the viewer's locale; the zone is the anchor's. */
+export function anchorDayLabel(anchor: ConversationAnchor, locale: string | undefined): string | null {
+  if (anchor.kind !== "day") return null;
+  const start = zonedDayStart(anchor.day, anchor.timeZone);
+  return new Intl.DateTimeFormat(locale, {
+    timeZone: anchor.timeZone,
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(new Date(start));
+}
 
 export const CONVERSATION_REFUSED_TITLE = "You can't see this conversation";
 
@@ -324,8 +565,10 @@ export function groupConversationByDay(
 
   // The text is in the key so that two different lines in one instant do not
   // share a counter. Byte-identical twins are numbered from the NEWEST end, so
-  // "Load older" (which only ever adds lines at the old end) never shifts a
-  // key that is already on screen.
+  // an older page (which only ever adds lines at the old end) never shifts a
+  // key that is already on screen. ⚠️A NEWER page, after a jump to a date, can:
+  // when its first line is a twin of the newest one shown, the shown twins are
+  // renumbered and remount. Nothing else depends on the key.
   const bases = messages.map((m) => `${m.sentAt}|${m.sender}|${textHash(m.text)}`);
   const ordinal: number[] = new Array<number>(messages.length);
   const seen = new Map<string, number>();
@@ -380,7 +623,7 @@ export function scrollTopAfterPrepend(
   return Math.max(0, afterScrollHeight - before.scrollHeight + before.scrollTop);
 }
 
-/** The reader's position when "Load older" was pressed, and the page count then. */
+/** The reader's position when an older page was asked for, and the page count then. */
 export interface PrependAnchor {
   scrollTop: number;
   scrollHeight: number;
@@ -390,7 +633,7 @@ export interface PrependAnchor {
 /**
  * The `scrollTop` to restore when the page count changes, or null to leave it.
  * Only the page the anchor was taken for (one more page than then) restores it:
- * a cancelled or failed "Load older" leaves the count as it was, and a refresh
+ * a cancelled or failed older load leaves the count as it was, and a refresh
  * never adds a page, so a stale anchor can never move the reader. A refused one
  * does add a page (the `refused` entry), but the refusal card replaces the box,
  * so there is nothing left to scroll.

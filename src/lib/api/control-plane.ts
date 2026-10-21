@@ -233,26 +233,46 @@ export interface ConversationMessage {
 
 /**
  * One page, OLDEST FIRST. `nextCursor` fetches the page of OLDER messages and
- * is null when there are none. Its format belongs to the api, so the client
- * only hands it back.
+ * is null when there are none; `newerCursor` fetches the page of NEWER ones and
+ * is null when the page reaches the newest (owner answer 2026-10-21, item 20).
+ * Their format belongs to the api, so the client only hands them back.
  */
 export interface ConversationPage {
   messages: ConversationMessage[];
   nextCursor: string | null;
+  /** Optional only for an api from before item 20, which sends none. */
+  newerCursor?: string | null;
 }
 
 /**
+ * Which page to read. The api takes exactly one way of choosing (a 400
+ * otherwise):
+ * - `window`: the newest messages with `since <= sentAt < until` (ISO
+ *   instants), where the tab opens: the last 3 days, or a day it jumped to;
+ * - `older`: the page before a `nextCursor`;
+ * - `newer`: the page after a `newerCursor`.
+ */
+export type ConversationPageParam =
+  | { kind: "window"; since: string; until?: string }
+  | { kind: "older"; cursor: string }
+  | { kind: "newer"; after: string };
+
+/**
  * The caller's own conversation on the current business. The api's query is
- * strict (an unknown parameter is a 400), so this sends `cursor` and nothing
- * else: no limit (the api's default of 50 is the page size) and no cache-buster.
+ * strict (an unknown parameter is a 400), so this sends the one way of choosing
+ * the page and nothing else: no limit (the api's default of 50 is the page
+ * size) and no cache-buster.
  */
 export async function getConversation(
-  cursor: string | null,
+  param: ConversationPageParam,
 ): Promise<ConversationPage> {
-  return api.get<ConversationPage>(
-    "/v1/control-plane/conversation",
-    cursor ? { cursor } : undefined,
-  );
+  const params: Record<string, string> =
+    param.kind === "older"
+      ? { cursor: param.cursor }
+      : param.kind === "newer"
+        ? { after: param.after }
+        : { since: param.since, ...(param.until ? { until: param.until } : {}) };
+  return api.get<ConversationPage>("/v1/control-plane/conversation", params);
 }
 
 // ── Calls ─────────────────────────────────────────────────────────────────

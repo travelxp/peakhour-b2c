@@ -1,9 +1,11 @@
 "use client";
 
 import {
+  useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
+  useState,
   useSyncExternalStore,
 } from "react";
 import Link from "next/link";
@@ -16,12 +18,19 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { displayTimeZone } from "@/lib/control-plane-activity";
 import {
+  anchorDayLabel,
+  anchorKeyPart,
+  autoLoadDirection,
   CONVERSATION_FAILED_TEXT,
   CONVERSATION_LEDE,
   CONVERSATION_OFFLINE_TEXT,
+  CONVERSATION_RECENT_NOTE,
+  conversationQuietWindowText,
   conversationRefusedText,
   CONVERSATION_REFUSED_TITLE,
   CONVERSATION_SCOPE_NOTE,
@@ -29,10 +38,16 @@ import {
   conversationEmptyCopy,
   conversationEmptyReason,
   conversationView,
+  dayKeyIn,
   groupConversationByDay,
+  isDayKey,
+  LATEST_ANCHOR,
   orderedMessages,
   isNearBottom,
   scrollTopToRestore,
+  shouldFollowNewest,
+  windowPlacement,
+  type ConversationAnchor,
   type PrependAnchor,
   senderLabel,
 } from "@/lib/control-plane-conversation";
@@ -41,10 +56,14 @@ import { useMerchantContacts } from "@/hooks/use-control-plane";
 
 /**
  * WA M6: the Conversation tab. The signed-in user's own WhatsApp conversation
- * with Peakhour, oldest at the top, with "Load older" above it.
+ * with Peakhour on this business, oldest at the top.
+ *
+ * Owner answers 2026-10-21: only this business's turns (item 19, decided by the
+ * api), and it opens on the last 3 days, loads older messages as the reader
+ * scrolls up, and can jump to a date (item 20).
  *
  * Every decision is in `lib/control-plane-conversation.ts`; this file does
- * layout, the hydration-safe clock, and the scroll position.
+ * layout, the hydration-safe clock, the scroll position and the observers.
  */
 
 /**
@@ -71,6 +90,9 @@ function Skeleton({ label }: { label: string }) {
   );
 }
 
+/** The scroll box's attribute naming a line, so a jump can find it. */
+const LINE_ATTR = "data-conversation-line";
+
 export function ConversationThread({
   timeZonePreference,
   currentUserId,
@@ -84,7 +106,9 @@ export function ConversationThread({
   /** The Numbers & routing tab, with the page's other parameters kept. */
   numbersHref: string;
 }) {
-  const conversation = useConversation();
+  const [anchor, setAnchor] = useState<ConversationAnchor>(LATEST_ANCHOR);
+  const anchorPart = anchorKeyPart(anchor);
+  const conversation = useConversation(anchor);
   const contacts = useMerchantContacts();
   const timeZone = useDisplayZone(timeZonePreference);
 
@@ -108,42 +132,103 @@ export function ConversationThread({
 
   const pageCount = conversation.data?.pages.length ?? 0;
   // The newest line's own key, which does not change when older pages are
-  // prepended, so "Load older" never reads as a new message arriving.
+  // prepended, so loading older never reads as a new message arriving.
   const newestKey = days[days.length - 1]?.items.at(-1)?.key ?? null;
+  // The line the tab opened on: the first of its window, or, for a quiet
+  // window, the nearest newer line.
+  const placement = pages ? windowPlacement(pages) : null;
+  const windowLineKey = placement
+    ? (days.flatMap((d) => d.items)[placement.index]?.key ?? null)
+    : null;
 
   const scrollRef = useRef<HTMLDivElement>(null);
-  // The reader's position before "Load older", restored once that page lands.
+  const topSentinel = useRef<HTMLDivElement>(null);
+  const bottomSentinel = useRef<HTMLDivElement>(null);
+  // The reader's position before an older page was asked for, restored once
+  // that page lands.
   const prependAnchor = useRef<PrependAnchor | null>(null);
   // Whether the reader is at the newest line. Set by the box's scroll events.
   const atBottom = useRef(true);
+  // Whether the previous render's bottom was the live end (nothing newer to
+  // load). Read by the follow effect BEFORE the effect below updates it.
+  const wasAtLiveEnd = useRef(true);
+  const [topVisible, setTopVisible] = useState(false);
+  const [bottomVisible, setBottomVisible] = useState(false);
 
-  // Each time the box mounts (first load, or back from a refusal, a failure or
-  // the empty state) it opens on the newest line, whatever the last box said.
+  // Each time the box mounts (first load, a jump, or back from a refusal, a
+  // failure or the empty state) it opens where the tab was asked to open: the
+  // newest line, or the first line of the day it jumped to.
   useLayoutEffect(() => {
     if (!showingThread) return;
-    atBottom.current = true;
     const el = scrollRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [showingThread]);
+    if (!el) return;
+    if (anchor.kind === "day") {
+      const target = windowLineKey
+        ? el.querySelector<HTMLElement>(`[${LINE_ATTR}="${CSS.escape(windowLineKey)}"]`)
+        : null;
+      if (target) {
+        // Leave room for the day's heading above its first line.
+        el.scrollTop += target.getBoundingClientRect().top - el.getBoundingClientRect().top - 40;
+      } else {
+        el.scrollTop = el.scrollHeight;
+      }
+      atBottom.current = isNearBottom(el);
+      return;
+    }
+    atBottom.current = true;
+    el.scrollTop = el.scrollHeight;
+    // Only on mount and on a jump: later pages keep the reader where they are.
+  }, [showingThread, anchorPart]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useLayoutEffect(() => {
     // Any change in the page count consumes the anchor, whether or not it is
-    // the page the anchor was taken for, so a cancelled "Load older" cannot
-    // move the reader on some later change. (A refused one adds a page, but the
+    // the page the anchor was taken for, so a cancelled older load cannot move
+    // the reader on some later change. (A refused one adds a page, but the
     // refusal card has replaced the box by then.)
-    const anchor = prependAnchor.current;
+    const anchorBefore = prependAnchor.current;
     prependAnchor.current = null;
     const el = scrollRef.current;
     if (!el) return;
-    const top = scrollTopToRestore(anchor, pageCount, el.scrollHeight);
+    const top = scrollTopToRestore(anchorBefore, pageCount, el.scrollHeight);
     if (top !== null) el.scrollTop = top;
   }, [pageCount]);
 
   useLayoutEffect(() => {
     const el = scrollRef.current;
-    if (!el || !newestKey || !atBottom.current) return;
+    if (!el || !newestKey) return;
+    if (!shouldFollowNewest(atBottom.current, wasAtLiveEnd.current)) return;
     el.scrollTop = el.scrollHeight;
   }, [newestKey, timeZone]);
+
+  useLayoutEffect(() => {
+    wasAtLiveEnd.current = !conversation.hasPreviousPage;
+  });
+
+  // The two ends of the box: in view means "load more that way".
+  useEffect(() => {
+    if (!showingThread) return;
+    const root = scrollRef.current;
+    const top = topSentinel.current;
+    const bottom = bottomSentinel.current;
+    if (!root || !top || !bottom || typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.target === top) setTopVisible(entry.isIntersecting);
+          if (entry.target === bottom) setBottomVisible(entry.isIntersecting);
+        }
+      },
+      // Start loading a little before the reader reaches the very end.
+      { root, rootMargin: "120px 0px" },
+    );
+    observer.observe(top);
+    observer.observe(bottom);
+    return () => {
+      observer.disconnect();
+      setTopVisible(false);
+      setBottomVisible(false);
+    };
+  }, [showingThread, anchorPart]);
 
   function loadOlder() {
     const el = scrollRef.current;
@@ -157,10 +242,41 @@ export function ConversationThread({
     void conversation.fetchNextPage();
   }
 
-  // The two fetches cancel each other in react-query (each defaults to
-  // `cancelRefetch`), so neither button is offered while the other runs.
-  const refreshing = conversation.isFetching && !conversation.isFetchingNextPage;
+  function loadNewer() {
+    // Appended below the reader, so nothing on screen moves.
+    void conversation.fetchPreviousPage();
+  }
+
+  const direction = autoLoadDirection({
+    topVisible,
+    bottomVisible,
+    hasOlder: conversation.hasNextPage,
+    hasNewer: conversation.hasPreviousPage,
+    isFetching: conversation.isFetching,
+    olderFailed: conversation.isFetchNextPageError,
+    newerFailed: conversation.isFetchPreviousPageError,
+  });
+  useEffect(() => {
+    if (!showingThread || direction === null) return;
+    if (direction === "older") loadOlder();
+    else loadNewer();
+    // `pageCount` re-asks after each page: a box still too short to scroll
+    // keeps its sentinel in view without a new intersection event.
+  }, [direction, showingThread, pageCount]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // A refresh (not a page) is running. The fetches cancel each other in
+  // react-query, so no button is offered while any of them runs.
+  const loadingPage = conversation.isFetchingNextPage || conversation.isFetchingPreviousPage;
+  const refreshing = conversation.isFetching && !loadingPage;
   const busy = conversation.isFetching;
+
+  // ── Jump to a date ──
+  const [jumpValue, setJumpValue] = useState("");
+  function jump(day: string) {
+    if (!timeZone || !isDayKey(day)) return;
+    setAnchor({ kind: "day", day, timeZone });
+  }
+  const dayLabel = anchorDayLabel(anchor, undefined);
 
   const header = (
     <CardHeader>
@@ -174,6 +290,20 @@ export function ConversationThread({
 
   const scopeNote = (
     <p className="text-xs text-muted-foreground">{CONVERSATION_SCOPE_NOTE}</p>
+  );
+
+  const backToLatest = anchor.kind === "day" && (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      onClick={() => {
+        setJumpValue("");
+        setAnchor(LATEST_ANCHOR);
+      }}
+    >
+      Back to latest
+    </Button>
   );
 
   if (view.kind === "refused") {
@@ -191,8 +321,8 @@ export function ConversationThread({
               <p>{conversationRefusedText(view.reason)}</p>
             </div>
           </div>
-          {/* Asking again refetches from the newest page, so access restored
-              by an Owner shows without leaving the tab. */}
+          {/* Asking again refetches from the page it opened on, so access
+              restored by an Owner shows without leaving the tab. */}
           <Button
             variant="outline"
             size="sm"
@@ -215,14 +345,17 @@ export function ConversationThread({
           <div role="alert" className="rounded-lg bg-destructive/10 p-4 text-sm text-destructive">
             {CONVERSATION_FAILED_TEXT}
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => void conversation.refetch()}
-            disabled={busy}
-          >
-            Try again
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void conversation.refetch()}
+              disabled={busy}
+            >
+              Try again
+            </Button>
+            {backToLatest}
+          </div>
         </CardContent>
       </Card>
     );
@@ -278,19 +411,22 @@ export function ConversationThread({
               </>
             )}
           </p>
-          <Button
-            variant="outline"
-            size="sm"
-            // The contacts too: the reason above is read from them, and a code
-            // entered on another device changes it.
-            onClick={() => {
-              void conversation.refetch();
-              void contacts.refetch();
-            }}
-            disabled={busy}
-          >
-            {refreshing ? "Checking…" : "Check for new messages"}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              // The contacts too: the reason above is read from them, and a code
+              // entered on another device changes it.
+              onClick={() => {
+                void conversation.refetch();
+                void contacts.refetch();
+              }}
+              disabled={busy}
+            >
+              {refreshing ? "Checking…" : "Check for new messages"}
+            </Button>
+            {backToLatest}
+          </div>
           {scopeNote}
         </CardContent>
       </Card>
@@ -301,30 +437,65 @@ export function ConversationThread({
     <Card>
       {header}
       <CardContent className="space-y-4">
+        <form
+          className="flex flex-wrap items-end gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            jump(jumpValue);
+          }}
+        >
+          <div className="space-y-1">
+            <Label htmlFor="conversation-jump" className="text-xs">
+              Jump to a date
+            </Label>
+            <Input
+              id="conversation-jump"
+              type="date"
+              className="h-8 w-auto"
+              // Today in the display zone, read when the picker is opened rather
+              // than during render, so it is never a day stale.
+              onFocus={(e) => {
+                if (timeZone) e.currentTarget.max = dayKeyIn(Date.now(), timeZone);
+              }}
+              value={jumpValue}
+              onChange={(e) => setJumpValue(e.target.value)}
+            />
+          </div>
+          <Button type="submit" variant="outline" size="sm" disabled={!isDayKey(jumpValue)}>
+            Go
+          </Button>
+          {backToLatest}
+        </form>
+
+        {placement?.empty && (
+          <p role="status" className="text-sm text-muted-foreground">
+            {conversationQuietWindowText(anchor, dayLabel)}
+          </p>
+        )}
+
         <div
           ref={scrollRef}
           onScroll={(e) => {
             atBottom.current = isNearBottom(e.currentTarget);
           }}
-          // `overflow-anchor: none` because the position after "Load older" is
+          // `overflow-anchor: none` because the position after an older page is
           // restored by hand; a browser's own anchoring would move it twice.
           className="max-h-[32rem] overflow-y-auto rounded-lg border border-border p-3 [overflow-anchor:none]"
         >
-          {conversation.hasNextPage && (
+          <div ref={topSentinel} aria-hidden className="h-px" />
+          {conversation.isFetchingNextPage && (
+            <p role="status" className="mb-3 text-center text-xs text-muted-foreground">
+              Loading older messages…
+            </p>
+          )}
+          {conversation.isFetchNextPageError && (
             <div className="mb-3 flex flex-col items-center gap-1">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={loadOlder}
-                disabled={busy}
-              >
-                {conversation.isFetchingNextPage ? "Loading…" : "Load older"}
+              <p role="alert" className="text-xs text-destructive">
+                Could not load older messages.
+              </p>
+              <Button variant="outline" size="sm" onClick={loadOlder} disabled={busy}>
+                Try again
               </Button>
-              {conversation.isFetchNextPageError && (
-                <p role="alert" className="text-xs text-destructive">
-                  Could not load older messages. Try again in a moment.
-                </p>
-              )}
             </div>
           )}
 
@@ -338,7 +509,11 @@ export function ConversationThread({
                   {day.items.map(({ key, message, time }) => {
                     const mine = message.sender === "merchant";
                     return (
-                      <li key={key} className={cn("flex", mine ? "justify-end" : "justify-start")}>
+                      <li
+                        key={key}
+                        {...{ [LINE_ATTR]: key }}
+                        className={cn("flex", mine ? "justify-end" : "justify-start")}
+                      >
                         <div
                           className={cn(
                             "max-w-[85%] rounded-lg px-3 py-2 text-sm",
@@ -364,13 +539,36 @@ export function ConversationThread({
               </li>
             ))}
           </ol>
+
+          {conversation.isFetchingPreviousPage && (
+            <p role="status" className="mt-3 text-center text-xs text-muted-foreground">
+              Loading newer messages…
+            </p>
+          )}
+          {conversation.isFetchPreviousPageError && (
+            <div className="mt-3 flex flex-col items-center gap-1">
+              <p role="alert" className="text-xs text-destructive">
+                Could not load newer messages.
+              </p>
+              <Button variant="outline" size="sm" onClick={loadNewer} disabled={busy}>
+                Try again
+              </Button>
+            </div>
+          )}
+          <div ref={bottomSentinel} aria-hidden className="h-px" />
         </div>
 
-        {conversation.isError && !conversation.isFetchNextPageError && (
-          <p role="status" className="text-xs text-muted-foreground">
-            Could not check for new messages. Showing the conversation as it was
-            last loaded.
-          </p>
+        {conversation.isError &&
+          !conversation.isFetchNextPageError &&
+          !conversation.isFetchPreviousPageError && (
+            <p role="status" className="text-xs text-muted-foreground">
+              Could not check for new messages. Showing the conversation as it was
+              last loaded.
+            </p>
+          )}
+
+        {anchor.kind === "latest" && (
+          <p className="text-xs text-muted-foreground">{CONVERSATION_RECENT_NOTE}</p>
         )}
 
         <Button

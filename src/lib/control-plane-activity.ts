@@ -4,8 +4,10 @@ import { isTimeZone } from "@/lib/control-plane";
 /**
  * The rendering rules behind §07's tab — PR-2.5d.
  *
- * *"Every instruction Peakhour acted on, who gave it, and every one it
- * refused."* (the plan's wording; the tab renders `ACTIVITY_LEDE` below).
+ * The plan's wording was *"Every instruction Peakhour acted on, who gave it,
+ * and every one it refused."*; the tab's lede is now the owner's (2026-10-21,
+ * item 21), `ACTIVITY_LEDE` below, because the tab lists more than
+ * instructions: messages and consent rows too.
  * `GET /v1/control-plane/activity` (api#1197) returns the rows; everything
  * here decides what a merchant reads.
  *
@@ -80,12 +82,22 @@ interface OutcomeCopy {
 }
 
 /**
- * The tab's lede, rendered by `activity-ledger.tsx`. ★It lives here, beside
- * the row copy, because `CONVERSATION_COPY` is worded against it: a row that
- * is neither an instruction acted on nor one refused says so in its word.
+ * The tab's lede, rendered by `activity-ledger.tsx`: the owner's wording
+ * (2026-10-21, item 21), exactly. ★It covers every row the tab lists:
+ * instructions Peakhour ran or refused, messages on which no instruction ran
+ * (`CONVERSATION_COPY`), and requests to stop or restart messages. The
+ * previous lede ("Every instruction Peakhour acted on ... every one it
+ * refused") left out the last two.
  */
-export const ACTIVITY_LEDE =
-  "Every instruction Peakhour acted on over WhatsApp, who gave it, and every one it refused.";
+export const ACTIVITY_LEDE = "Everything you and your team did with Peakhour on WhatsApp";
+
+/**
+ * The tab's empty state, rendered by `activity-ledger.tsx`. ★It names the
+ * same three kinds of row as the lede covers, so a merchant reading an empty
+ * tab knows what would fill it.
+ */
+export const ACTIVITY_EMPTY_TEXT =
+  "Nothing yet. When you or a teammate messages Peakhour on WhatsApp, it appears here: every instruction Peakhour ran or refused, every other message, and every request to stop or restart messages to a number.";
 
 /**
  * A verified merchant's message on which no instruction ran: from api M3
@@ -127,9 +139,9 @@ export const ACTIVITY_LEDE =
  * exchange. 🚫"Sent a message Peakhour did not take as an instruction" (b2c#593)
  * was false for the declined trigger a rewritten row may be: Peakhour took it
  * as an instruction and could not run it (api#1522's reason for filing it as
- * `command_denied`). "Instruction" is the page's own word: the tab lists every
- * instruction Peakhour acted on and every one it refused, and this line says
- * why it is neither.
+ * `command_denied`). "Instruction" is the tab's own word for the rows that ran
+ * or were refused (its empty state, `ACTIVITY_EMPTY_TEXT`, names them so), and
+ * this line says why it is neither.
  */
 const CONVERSATION_COPY: OutcomeCopy = {
   group: "Message",
