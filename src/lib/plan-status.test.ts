@@ -101,7 +101,16 @@ describe("isNoPlanKey: the keys that name no plan", () => {
     expect(planState(summary({ subscription: TRIAL_ENDED, products: [noPlanLine] }))).toBe("none");
     expect(planHeadline(summary({ subscription: TRIAL_ENDED, products: [noPlanLine] })).label).toBe("No plan");
     expect(planHeadline(summary({ subscription: TRIAL_ENDED, products: [noPlanLine] })).button).toBe("Buy a plan");
+  });
+
+  it("★a bare free BASE row is no plan, and is never named (review R2)", () => {
     expect(planState(summary({ subscription: { plan: "free", planName: "Free" } }))).toBe("none");
+    expect(planDisplayName(summary({ subscription: { plan: "free", planName: "Free" } }))).toBe("No plan");
+  });
+
+  it("★a bare free line beside a live trial leaves the business on its trial (review R2)", () => {
+    expect(planState(summary({ products: [noPlanLine] }))).toBe("trial");
+    expect(planDisplayName(summary({ products: [noPlanLine] }))).toBe("Peakhour Suite");
   });
 
   it("★a DOTTED free-tier key is a key like any other now: 394 deleted them (P4.5)", () => {

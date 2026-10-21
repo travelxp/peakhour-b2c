@@ -74,8 +74,8 @@ describe("suiteTrialDays: how a new business starts (D19)", () => {
   });
 
   it("never reads a per-product tier's trial", () => {
-    // Commerce's leftover .paid tier is listed first and carries 14 days too;
-    // only the Suite row may answer.
+    // The fixture's per-product Commerce tier is listed first and carries 14
+    // days too; only the Suite row may answer.
     expect(suiteTrialDays(catalog(tier("suite", { trialDays: 3 })))).toBe(3);
   });
 });
