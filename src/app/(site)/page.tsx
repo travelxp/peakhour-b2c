@@ -42,8 +42,9 @@ export const metadata = pageMetadata({
 
 /**
  * Trial → plan — the current pricing architecture (billing plan D19). There is
- * no free tier and no per-module Pro: a new business starts on a Peakhour Suite
- * trial when the catalog gives one, and buys Suite, or Agency for many
+ * no free tier and no per-module Pro: a new account's first business starts on a
+ * Peakhour Suite trial when the catalog gives one (once per person, P3.1d), and
+ * buys Suite, or Agency for many
  * businesses, to keep going. Don't reintroduce "Free plan" or "Move to Pro"
  * claims here; neither plan exists. ★Every trial sentence on this page is the
  * catalog's (`marketingTrialDays` -> `lib/trial-copy`; owner rule 2026-10-06,
@@ -183,7 +184,7 @@ export default async function Home({
         </div>
       ) : null}
 
-      {/* Trial announcement bar (D19: no free tier; every business starts on a Suite trial).
+      {/* Trial announcement bar (D19: no free tier; a new account's first business starts on a Suite trial, once per person, P3.1d).
           Only when the catalog gives a trial (`announcementBar`). */}
       {bar ? (
         <div className="bg-brand-gradient px-4 py-2 text-center text-sm font-semibold text-brand-contrast">

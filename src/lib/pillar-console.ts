@@ -42,7 +42,8 @@ export const PILLAR_CONSOLE_LABEL =
 export const SIGNUP_PROMISES = [
   "No credit card",
   // ★A TRIAL, NOT A FREE PLAN (billing plan D19): there is no free tier, and a
-  //  new business starts on a Peakhour Suite trial. No number here: the length
+  //  new account's first business starts on a Peakhour Suite trial (once per
+  //  person, P3.1d). No number here: the length
   //  is Suite's `trialDays`, catalog data, which `signupStats` reads.
   "Free trial of every module",
   "Live the same day",

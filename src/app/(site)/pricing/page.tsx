@@ -5,6 +5,7 @@ import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
 import { getPricing, findBundleTier, suiteCtaLabel, suiteTrialDays } from "@/lib/pricing";
 import { getPublicCatalog, publicMarketingIntegrations, signupCta } from "@/lib/catalog";
+import { pricingHeroTrial } from "@/lib/trial-copy";
 import { badgedComingSoonKeys } from "@/lib/pillar-channels";
 import {
   PRICING_PILLAR_ORDER,
@@ -32,8 +33,9 @@ function countryFrom(header: string | null): string {
  * /pricing — the pricing hub. One catalog (billing plan D19): Peakhour Suite
  * for a business, Agency and Enterprise for teams (their own page, reached by
  * the band below). There is no free tier and there are no per-module plans: a
- * new business starts on a Suite trial, and when it ends buys Suite or Agency
- * to continue.
+ * new account's first business starts on a Suite trial, once per person
+ * (P3.1d), and when it ends buys Suite or Agency to continue; every other
+ * business pays first.
  *
  * ★THE PER-MODULE LADDER, THE FREE PRESENCE BAND AND THE FOUR PAID MODULE CARDS
  * WENT, with the per-module pricing pages they linked to (P4.7). Each one sold
@@ -71,6 +73,7 @@ export default async function PricingPage() {
   const included = new Set(suiteModuleSlugs(pricing));
   // The one trial rule /auth reads too (`suiteTrialDays`): no trial, no promise.
   const trialDays = suiteTrialDays(pricing) ?? 0;
+  const heroTrial = pricingHeroTrial(trialDays);
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -95,9 +98,7 @@ export default async function PricingPage() {
               <p className="mt-5 max-w-xl text-lg text-muted-foreground">
                 Commerce, Content, Growth, Support and Presence — five products,
                 one login, one Peaks wallet, one price.
-                {trialDays > 0
-                  ? ` Every business starts with a free ${trialDays}-day trial of all of it.`
-                  : ""}
+                {heroTrial ? ` ${heroTrial}` : null}
               </p>
               <div className="mt-8 flex flex-wrap items-center gap-4">
                 {!cta.disabled && (

@@ -19,7 +19,28 @@
  *
  * Server pages read the trial with `marketingTrialDays` (one cached
  * `/v1/platform/pricing` read, as /auth does) and pass it to these helpers.
+ *
+ * ★WHO GETS THE TRIAL (billing plan D19 and P3.1d, owner answer 2: one trial
+ * only). A new account's FIRST business, once per person: a business added to
+ * an account, and a later account the same person opens, pay first. So no
+ * sentence here says "every business" or "every new business" starts on a
+ * trial. The signed-in surfaces never read this file: the
+ * picker promises a trial only when the api's `trialApplies` says so, and the
+ * Shopify app only when the api's `trialDays` does.
  */
+
+/**
+ * ★THE PROMISE NO COPY MAKES (P3.1d; D19): that every (or each, or any new)
+ * business, account, store or workspace starts on, gets, comes with,
+ * includes or is a trial or something free, in one clause (no period, comma,
+ * semicolon or colon between: review R2, so "Every business gets one Peaks
+ * wallet, and you can start free" is not read as the promise). A denial ("no
+ * free tier") is not the promise either (review R3). The trial is a new
+ * account's first business's, once per person. One pattern, read by the copy
+ * tests and by the source and i18n scan (`no-retired-plan-names.test.ts`).
+ */
+export const EVERY_BUSINESS_TRIAL_PROMISE =
+  /\b(?:every|each|all|any)\s+(?:your\s+)?(?:new\s+)?(?:business(?:es)?|accounts?|stores?|workspaces?)\b[^.,;:]{0,40}?\b(?:starts?|gets?|begins?|comes?|includes?|is|are)\b[^.,;:]{0,60}?\b(?<!\bno )(?:trials?|free)\b/i;
 
 /** Whether a trial may be promised: `suiteTrialDays` served a length. */
 export function hasTrial(trialDays: number | null | undefined): trialDays is number {
@@ -113,15 +134,24 @@ export function pillarTrialCopy(
   };
 }
 
+/** The pricing hub's hero sentence about the trial, or null without one.
+ *  ★The first business, once per person (D19, P3.1d): never "every
+ *  business". The page places it (review R2: no separator in the copy). */
+export function pricingHeroTrial(trialDays: number | null): string | null {
+  return hasTrial(trialDays) ? `Your first business starts with a free ${trialDays}-day trial of all of it, one trial per person.` : null;
+}
+
 /** The pricing FAQ's trial entry: how the trial works, or, without one, how
- *  a business starts. */
+ *  a business starts. ★Who gets it (D19, P3.1d): a new account's first
+ *  business, once per person; an added business, or another account the same
+ *  person opens, pays first. */
 export function trialFaq(trialDays: number | null): { q: string; a: string } {
   const after =
     "buy Peakhour Suite (monthly or yearly) or Agency (quarterly or yearly) to keep going; until you do, your business has no plan and Peakhour pauses.";
   return hasTrial(trialDays)
     ? {
         q: "How does the free trial work?",
-        a: `Every new business starts on a ${trialDays}-day Peakhour Suite trial — every module, no card. When it ends, ${after}`,
+        a: `Your first business starts on a ${trialDays}-day Peakhour Suite trial — every module, no card. It is one trial per person: a business you add, or one in another account you open, pays from the start. When the trial ends, ${after}`,
       }
     : {
         q: "How do I start?",

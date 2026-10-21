@@ -6,7 +6,8 @@
  * The catalog is Peakhour Suite, Agency and Enterprise. The per-product plans
  * (`commerce_assistant`, `content_studio`, `growth`, `support_inbox`,
  * `presence`, each `.free` and `.paid`) are scrapped and there is no free tier.
- * A new business starts on a Suite trial; when it ends the business holds no
+ * A new account's first business starts on a Suite trial (once per person,
+ * P3.1d; every other business pays first); when it ends the business holds no
  * plan (padlocked) until it buys. So a business is in exactly one of:
  *
  *   - `paid`  — it holds a bought line (`products[]`, active or on a checkout
