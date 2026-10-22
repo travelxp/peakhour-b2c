@@ -56,6 +56,37 @@ const APPROVAL_EXPIRY_SWEEPS = {
 type ApprovalExpirySweep = keyof typeof APPROVAL_EXPIRY_SWEEPS;
 
 /**
+ * The mandate-debits summary's parts, in toast order: where the count is
+ * (`totals` = the api's flat `MandateDebitTotals`, `outcomes` = its per-`Tick`
+ * counts), the singular and plural wording, and whether it is a warning.
+ * Every `Tick` in peakhour-api `services/billing/mandate-debits.ts` has a row.
+ * ★The copy names no rail: `unconfigured` counts any rail whose gateway is
+ * missing, and `failed` is a declined debit OR a notice refused past its
+ * grace, so neither says "PayU" or "payment".
+ */
+const MANDATE_DEBIT_PARTS: ReadonlyArray<
+  readonly [from: "totals" | "outcomes", field: string, one: string, many: string, warn: boolean]
+> = [
+  ["totals", "unconfigured", "skipped (payment rail not configured)", "skipped (payment rail not configured)", true],
+  ["totals", "errors", "error", "errors", true],
+  ["totals", "malformed", "malformed mandate row", "malformed mandate rows", true],
+  ["totals", "deferred", "left for the next run (out of time)", "left for the next run (out of time)", true],
+  ["outcomes", "notice_failed", "notice refused", "notices refused", true],
+  ["outcomes", "failed", "failed attempt", "failed attempts", true],
+  ["outcomes", "halted", "mandate out of retries", "mandates out of retries", true],
+  ["outcomes", "rejected", "payment call refused by the rail", "payment calls refused by the rail", true],
+  ["outcomes", "lost", "payment lost in sending", "payments lost in sending", true],
+  ["outcomes", "revoke_failed", "cancellation refused", "cancellations refused", true],
+  ["outcomes", "noticed", "notice sent", "notices sent", false],
+  ["outcomes", "sent", "payment sent", "payments sent", false],
+  ["outcomes", "captured", "payment collected", "payments collected", false],
+  ["outcomes", "pending", "pending at the rail", "pending at the rail", false],
+  ["outcomes", "ended", "mandate cancelled", "mandates cancelled", false],
+  ["outcomes", "waiting", "waiting", "waiting", false],
+  ["outcomes", "peak", "held by a debit blackout window", "held by a debit blackout window", false],
+];
+
+/**
  * Whether a value a cron reported says something: a non-zero number, true, a
  * non-empty string, or a container with something present inside it (so an
  * all-zero breakdown is as quiet as a bare 0).
@@ -1004,6 +1035,31 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
     frequency: "Runs hourly",
     description:
       "Ends the grace period for subscriptions whose payment failed, freezing access once the retry window has run out. Revokes entitlements from real organisations — dev has real stores on it.",
+  },
+  "mandate-debits": {
+    label: "Collect PayU mandate payments",
+    frequency: "Runs hourly (at :20 past)",
+    description:
+      "Sends the advance notice for each PayU mandate due soon, then takes the payment (a renewal, or the first payment when a trial ends) once the notice has had its 48 hours, and records the outcome of any payment already attempted. Cancels the PayU mandate of a subscription that no longer bills. Takes real money from real buyers — dev has real stores on it.",
+    // ⚠️A green "complete" toast would hide the runs that did nothing: a rail
+    // not configured, a step that threw, a refused notice or debit, a tick out
+    // of time. Those read as a warning (MANDATE_DEBIT_PARTS).
+    summarize: (data) => {
+      const d = asRecord(data);
+      if (!d || typeof d.scanned !== "number") return null;
+      const o = asRecord(d.outcomes) ?? {};
+      const problems: string[] = [];
+      const done: string[] = [];
+      for (const [from, field, one, many, warn] of MANDATE_DEBIT_PARTS) {
+        const n = num((from === "totals" ? d : o)[field]);
+        if (n > 0) (warn ? problems : done).push(`${n} ${n === 1 ? one : many}`);
+      }
+      if (problems.length > 0) {
+        return { message: `${[...problems, ...done].join(", ")}.`, level: "warning" };
+      }
+      if (done.length === 0) return "No mandates due.";
+      return `${done.join(", ")}.`;
+    },
   },
   "billing-reconcile": {
     label: "Re-check card subscriptions",
