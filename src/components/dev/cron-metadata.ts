@@ -1528,7 +1528,7 @@ export function summarizeCronBody(
  * forecast when the daily run read it. ★An absent figure is not zero: a
  * response without `last24h.operations` says nothing (null).
  */
-function summarizeGoogleAdsOps(data: unknown, run: { daily: boolean } = { daily: false }): CronSummary | null {
+export function summarizeGoogleAdsOps(data: unknown, run: { daily: boolean } = { daily: false }): CronSummary | null {
   const d = asRecord(data);
   const last = d ? asRecord(d.last24h) : null;
   if (!d || !last || typeof last.operations !== "number" || typeof d.ceiling !== "number") return null;
@@ -1536,8 +1536,10 @@ function summarizeGoogleAdsOps(data: unknown, run: { daily: boolean } = { daily:
   const level = typeof d.level === "string" ? d.level : "the current level";
   const pct = d.ceiling > 0 && Number.isFinite(d.ceiling) ? ` (${Math.round((ops / d.ceiling) * 100)}% of ${level}'s ${d.ceiling.toLocaleString("en-US")})` : "";
   const forecast = asRecord(d.forecast);
-  // ★Only the daily run says the forecast (review round 2), as the watch does.
-  const trigger = run.daily && forecast?.status === "trigger";
+  // ★Only the daily run says the forecast (review round 2), as the watch
+  //  does — read from the response's own `dailyRun` when it says (round 3).
+  const daily = typeof d.dailyRun === "boolean" ? d.dailyRun : run.daily;
+  const trigger = daily && forecast?.status === "trigger";
   const message =
     `${ops.toLocaleString("en-US")} Google Ads operations in the last 24 hours${pct}.` +
     (trigger ? " The 30-day trend says it is time to apply for the next access level." : "");

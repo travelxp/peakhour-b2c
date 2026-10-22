@@ -96,7 +96,17 @@ export function googleAdsErrorMessage(err: unknown, fallback: string): string {
  * asks.
  */
 export function googleCreateMayExist(err: unknown): boolean {
-  if (!(err instanceof ApiError)) return false;
+  // ★A FAILURE THAT IS NOT THE API'S ANSWER MAY HAVE REACHED IT (review round
+  //  3): a dropped connection or an abort (not an ApiError), a proxy's 504
+  //  page (PARSE_ERROR), a response with no api envelope (UNKNOWN). The api
+  //  inserts the row and may send before any of those, so they count as
+  //  "may exist" — losing the typed form is the cheap error; a second
+  //  campaign on Google is not.
+  if (!(err instanceof ApiError)) return true;
+  if (err.code === "PARSE_ERROR" || err.code === "UNKNOWN") return true;
+  // ★A 202 IS THE API'S "pending" (round 3): the api as deployed writes it
+  //  outside its usual envelope, so the client raises it as an error.
+  if (err.status === 202) return true;
   const id = (err.details as { managedCampaignId?: unknown } | null | undefined)?.managedCampaignId;
   return typeof id === "string" && id.length > 0;
 }
@@ -113,7 +123,10 @@ export function googleAdsNeedsReconnect(err: unknown): boolean {
  * every PeakHour campaign is created PAUSED and is our `draft` until its first
  * activation (G-09).
  */
-export function googleStatusLabel(c: Pick<GoogleCampaign, "status">): string {
+export function googleStatusLabel(c: Pick<GoogleCampaign, "status"> & Partial<Pick<GoogleCampaign, "platformCampaignId" | "createState">>): string {
+  // ★A ROW GOOGLE HAS NOT CONFIRMED IS NOT "paused on Google" (round 3).
+  if (!c.platformCampaignId && (c.createState === "sending" || c.createState === "outcome_unknown")) return "Not confirmed yet";
+  if (!c.platformCampaignId && c.status === "archived") return "Not created";
   switch (c.status) {
     case "draft":
       return "Paused — not started yet";
@@ -162,6 +175,9 @@ export function googleStatusAction(
   c: Pick<GoogleCampaign, "status" | "platformCampaignId" | "schedule">,
   now: Date = new Date(),
 ): { status: GoogleSettableStatus; label: string } | { status: null; reason: string } {
+  // ★AN ARCHIVED ROW GOOGLE NEVER HAD WAS NOT "finished" (round 3): it was
+  //  never created.
+  if (c.status === "archived" && !c.platformCampaignId) return { status: null, reason: "Not created" };
   if (c.status === "completed" || c.status === "archived") return { status: null, reason: "Finished" };
   if (!c.platformCampaignId) return { status: null, reason: "Waiting for Google Ads" };
   if (c.status === "active") return { status: "PAUSED", label: "Pause" };
@@ -215,6 +231,9 @@ export function googleCreateProblem(
 
 // ── The ad's copy — the api's own rule, checked before sending ───────────
 
+/** No NUL or line break — the api's `BAD_TEXT` (round 3). Lines are split on breaks; a CR or NUL can remain. */
+const BAD_TEXT = /[\u0000\n\r]/;
+
 /** Responsive Search Ad bounds (peakhour-api `adapters/ads/google.ts`, `RSA`). */
 export const GOOGLE_RSA = { headlines: { min: 3, max: 15, chars: 30 }, descriptions: { min: 2, max: 4, chars: 90 } } as const;
 
@@ -242,6 +261,8 @@ export function googleCopyProblem(ad: GoogleSearchAdInput): string | null {
     const b = GOOGLE_RSA[what];
     const items = ad[what];
     if (items.length < b.min || items.length > b.max) return `A search ad needs ${b.min} to ${b.max} ${what}, not ${items.length}.`;
+    const bad = items.find((t) => BAD_TEXT.test(t));
+    if (bad !== undefined) return `Each of the ${what} must be on one line, with no control characters.`;
     const long = items.find((t) => googleTextWidth(t) > b.chars);
     if (long !== undefined) return `Each of the ${what} must be at most ${b.chars} characters: "${long}" is ${googleTextWidth(long)}.`;
   }

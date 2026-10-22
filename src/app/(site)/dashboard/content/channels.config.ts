@@ -206,8 +206,8 @@ export const CHANNELS: readonly ChannelConfig[] = [
     providerKey: "google_ads",
     // ⏸`status` is NOT promoted here: going live is the owner's call after
     //  G-09's live drill. The api's seed-platform-catalog reads the path, and
-    //  peakhour-mongodb mig 473 applies it to existing catalogs, as 358 did
-    //  for Meta.
+    //  peakhour-mongodb mig 473 (#956, merged after this) applies it to
+    //  existing catalogs, as 358 did for Meta.
     status: "coming_soon",
     dashboardPath: "/dashboard/ads?channel=google",
   },

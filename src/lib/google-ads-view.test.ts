@@ -73,10 +73,18 @@ describe("★★only a create that may EXIST on Google closes the form — the a
     "PASS: %s without the marker keeps the form — nothing exists on Google, fix and retry",
     (code) => expect(googleCreateMayExist(withDetails(code, undefined))).toBe(false),
   );
-  it("PASS: an empty or non-string id is not the marker; a network failure is not either", () => {
+  it("PASS: an empty or non-string id is not the marker", () => {
     expect(googleCreateMayExist(withDetails("CREATE_UNCONFIRMED", { managedCampaignId: "" }))).toBe(false);
     expect(googleCreateMayExist(withDetails("CREATE_UNCONFIRMED", { managedCampaignId: 7 }))).toBe(false);
-    expect(googleCreateMayExist(new Error("x"))).toBe(false);
+  });
+  it("★★a failure that is not the api's answer MAY have reached it (round 3): a dropped connection, a proxy page, no envelope", () => {
+    expect(googleCreateMayExist(new TypeError("fetch failed"))).toBe(true);
+    expect(googleCreateMayExist(new ApiError("PARSE_ERROR", "Server returned non-JSON response (504)", 504))).toBe(true);
+    expect(googleCreateMayExist(new ApiError("UNKNOWN", "Request failed", 500))).toBe(true);
+  });
+  it("★★a 202 the client raised (the api's pending, outside its envelope) may exist (round 3)", () => {
+    expect(googleCreateMayExist(new ApiError("UNKNOWN", "Request failed", 202))).toBe(true);
+    expect(googleCreateMayExist(new ApiError("SOMETHING", "x", 202))).toBe(true);
   });
 });
 
@@ -112,6 +120,12 @@ describe("the end date (review round 1)", () => {
 });
 
 describe("a campaign's state, in words", () => {
+  it("★★a row Google has not confirmed is not called paused (round 3)", () => {
+    expect(googleStatusLabel({ status: "draft", createState: "outcome_unknown" })).toBe("Not confirmed yet");
+    expect(googleStatusLabel({ status: "draft", createState: "sending" })).toBe("Not confirmed yet");
+    expect(googleStatusLabel({ status: "archived", createState: "not_created" })).toBe("Not created");
+    expect(googleStatusLabel({ status: "draft", platformCampaignId: "1", createState: "created" })).toBe("Paused — not started yet");
+  });
   it("★draft is 'paused, not started' — Google has no draft", () => {
     expect(googleStatusLabel({ status: "draft" })).toBe("Paused — not started yet");
     expect(googleStatusLabel({ status: "completed" })).toBe("Finished");
@@ -149,6 +163,9 @@ describe("★★the one action a row offers", () => {
     expect(googleStatusAction({ status: "review", platformCampaignId: "1" }, NOW)).toEqual({ status: null, reason: "In review" });
     expect(googleStatusAction({ status: "something_new", platformCampaignId: "1" }, NOW).status).toBeNull();
   });
+  it("★an archived row Google never had is 'Not created', not 'Finished' (round 3)", () => {
+    expect(googleStatusAction({ status: "archived" }, NOW)).toEqual({ status: null, reason: "Not created" });
+  });
   it("PASS: an end date ahead still starts; an active campaign past its end can still be paused", () => {
     expect(googleStatusAction({ status: "draft", platformCampaignId: "1", schedule: { endsAt: "2026-11-01T00:00:00Z" } }, NOW).status).toBe("ACTIVE");
     expect(googleStatusAction({ status: "active", platformCampaignId: "1", schedule: { endsAt: "2026-10-22T00:00:00Z" } }, NOW).status).toBe("PAUSED");
@@ -182,6 +199,10 @@ describe("★★the ad's copy — the api's own rule, before sending", () => {
     expect(googleTextWidth("夏の麻")).toBe(6);
     expect(googleCopyProblem({ ...ok, headlines: ["夏の麻シャツ夏の麻シャツ夏の麻シャツ", "b", "c"] })).toContain("is 36");
     expect(googleCopyProblem({ ...ok, headlines: ["x".repeat(30), "b", "c"] })).toBeNull();
+  });
+  it("★a control character is refused, as the api's BAD_TEXT does (round 3)", () => {
+    expect(googleCopyProblem({ ...ok, headlines: ["Linen\rshirts", "b", "c"] })).toContain("one line");
+    expect(googleCopyProblem({ ...ok, descriptions: ["a\u0000b", "d"] })).toContain("one line");
   });
   it("lines are trimmed and blanks dropped", () => {
     expect(linesOf(" a \n\n b\r\nc ")).toEqual(["a", "b", "c"]);

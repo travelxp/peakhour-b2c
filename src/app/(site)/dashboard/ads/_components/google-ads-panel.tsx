@@ -247,7 +247,9 @@ function CampaignsSection({ account }: { account: GoogleAdAccount }) {
     staleTime: LIST_STALE_MS,
   });
   const rows = useMemo(
-    () => (campaigns.data?.campaigns ?? []).filter((c) => c.adAccountId === undefined || c.adAccountId === account.id),
+    // ★THIS ACCOUNT'S ROWS ONLY (round 3): a row with no account would show
+    //  under every account, in whichever currency was selected.
+    () => (campaigns.data?.campaigns ?? []).filter((c) => c.adAccountId === account.id),
     [campaigns.data, account.id],
   );
 
@@ -390,7 +392,8 @@ function CreateCampaignCard({ account }: { account: GoogleAdAccount }) {
 
   // The account's own billing currency when the connection recorded it (the
   // api refuses any other, CURRENCY_MISMATCH); typed only when it did not.
-  const currency = account.currencyCode ?? form.typedCurrency;
+  // `||`, not `??` (round 3): an account recorded with "" must be typeable.
+  const currency = account.currencyCode || form.typedCurrency;
   const searchAd = { headlines: linesOf(form.headlines), descriptions: linesOf(form.descriptions), finalUrl: form.finalUrl.trim() };
   const amount = Number(form.budget);
   const today = localIsoDay(new Date());
@@ -457,6 +460,7 @@ function CreateCampaignCard({ account }: { account: GoogleAdAccount }) {
               maxLength={3}
               className="w-24"
               disabled={!!account.currencyCode}
+              aria-readonly={!!account.currencyCode}
             />
           </Field>
           <Field label="End date (optional)">
@@ -484,7 +488,9 @@ function CreateCampaignCard({ account }: { account: GoogleAdAccount }) {
           <Button disabled={!!problem || create.isPending} onClick={() => create.mutate()}>
             Create paused
           </Button>
-          <Button variant="ghost" onClick={closeAndClear}>
+          {/* Not while a create is in flight (round 3): its answer decides
+              whether the form is kept or cleared. */}
+          <Button variant="ghost" onClick={closeAndClear} disabled={create.isPending}>
             Cancel
           </Button>
         </div>
