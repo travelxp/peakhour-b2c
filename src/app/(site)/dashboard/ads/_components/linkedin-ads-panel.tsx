@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api, ApiError } from "@/lib/api";
+import { getAdsChannel, panelConnection, type AdsIntegrationRow } from "../ads-channels";
 import {
   toastUnhandledApiError,
   toastAdAccountNotAuthorized,
@@ -77,12 +78,6 @@ import { UseSavedAudienceDialog } from "@/components/audience/use-saved-audience
  * Manager are out of scope here (no import yet).
  */
 
-interface ApiIntegration {
-  provider: string;
-  connected?: boolean;
-  status?: string;
-}
-
 /** Reconnect CTAs come back HERE, not to /dashboard/settings — this is the
  *  surface whose work the reconnect was meant to unblock. */
 const RECONNECT_HREF = reconnectHref(ADS_LINKEDIN_PATH, LINKEDIN_ADS_PROVIDER);
@@ -119,16 +114,17 @@ export function LinkedInAdsPanel() {
   const integrations = useQuery({
     queryKey: ["content-hub-integrations"],
     queryFn: () =>
-      api.get<{ integrations: ApiIntegration[] }>("/v1/integrations"),
+      api.get<{ integrations: AdsIntegrationRow[] }>("/v1/integrations"),
     staleTime: 30_000,
   });
 
-  const adsConnection = useMemo(
-    () => integrations.data?.integrations?.find((i) => i.provider === "linkedin_ads"),
+  // ★THE HUB'S RULE (D-03b), not a copy of it: `panelConnection` reads
+  //  `adsChannelConnectionState`, the rule the hub picks this tab by, so the panel and the hub cannot
+  //  disagree about whether LinkedIn Ads is connected.
+  const { isConnected, needsReauth } = useMemo(
+    () => panelConnection(integrations.data?.integrations ?? [], getAdsChannel("linkedin")),
     [integrations.data],
   );
-  const isConnected =
-    adsConnection?.connected === true || adsConnection?.status === "needs_reauth";
 
   return (
     <div className="space-y-6">
@@ -168,7 +164,7 @@ export function LinkedInAdsPanel() {
         />
       ) : (
         <>
-          {adsConnection?.status === "needs_reauth" ? (
+          {needsReauth ? (
             <Card className="border-warning/30 bg-warning/5">
               <CardContent className="flex items-center justify-between gap-4 p-4 text-sm">
                 <span>

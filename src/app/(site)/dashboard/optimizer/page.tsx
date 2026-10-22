@@ -47,9 +47,11 @@ export default function OptimizerPage() {
       <OAuthConnectResult />
       <CronToolbar
         crons={["growth-optimizer", "outcome-backfill", "per-stream-effectiveness-rollup"]}
-        onTriggered={() =>
-          queryClient.invalidateQueries({ queryKey: ["growth-adjustments"] })
-        }
+        onTriggered={() => {
+          void queryClient.invalidateQueries({ queryKey: ["growth-adjustments"] });
+          // D-03b: the outcomes page counts open proposals from /outcomes.
+          void queryClient.invalidateQueries({ queryKey: ["growth-outcomes"] });
+        }}
       />
       <div>
         <h2 className="text-2xl font-bold tracking-tight">Optimizer</h2>
