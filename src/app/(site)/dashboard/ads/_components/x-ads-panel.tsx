@@ -50,10 +50,11 @@ import { ADS_CHANNEL_PARAM, type AdsChannelKey } from "../ads-channels";
 import { formatMoneyOrNumber } from "@/lib/outcome-value";
 import {
   campaignCurrency,
+  currencyForCampaign,
   deriveAccountCurrency,
   fundingNotice,
   fundingOptions,
-  isBillableInstrument,
+  fundingSelection,
   normalizeCurrency,
   totalsCurrency,
 } from "./x-ads-money";
@@ -297,19 +298,28 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
   // The tiles sum across campaigns, which is only a figure when they all bill
   // in one currency. A row with no matching campaign takes the account's.
   const spendCurrency = totalsCurrency(
-    (analytics.data ?? []).map((a) =>
-      currencyByCampaign.has(a.id) ? currencyByCampaign.get(a.id)! : accountCurrency
-    ),
+    (analytics.data ?? []).map((a) => ({
+      currency: currencyForCampaign(currencyByCampaign, a.id, accountCurrency),
+      spend: a.spend,
+    })),
     accountCurrency
   );
 
   const cpe = totals && totals.engagements > 0 ? totals.spend / totals.engagements : null;
   // Money waits on the funding list too: before it lands, the currency is not
-  // yet known, and a bare number would flash where a symbol belongs.
-  const moneyLoading = analytics.isLoading || fundingInstruments.isLoading;
-  const currencyNote = fundingInstruments.isError
-    ? "Currency unknown — couldn't load funding sources"
-    : undefined;
+  // yet known, and a bare number would flash where a symbol belongs. "pending"
+  // rather than isLoading: a query paused offline with no data is pending but
+  // NOT loading in react-query v5, and would otherwise render bare.
+  const fundingPending = fundingInstruments.status === "pending";
+  const moneyLoading = analytics.isLoading || fundingPending;
+  // Only when there is no list: a failed BACKGROUND refetch keeps the old one,
+  // whose currencies are still good (same rule as fundingNotice's "error").
+  const currencyNote =
+    fundingPending && fundingInstruments.fetchStatus === "paused"
+      ? "Offline — currency will show when you reconnect"
+      : fundingInstruments.isError && !fundingInstruments.data
+        ? "Currency unknown — couldn't load funding sources"
+        : null;
 
   if (accounts.isLoading) {
     return <SkeletonStack />;
@@ -363,7 +373,10 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
           </Select>
         </div>
         {accountId && (
+          // Keyed by account: switching accounts remounts the dialog, so no
+          // funding id (or half-typed form) from the previous account survives.
           <CreateCampaignDialog
+            key={accountId}
             accountId={accountId}
             onCreated={() =>
               queryClient.invalidateQueries({ queryKey: ["x-ads-campaigns", accountId] })
@@ -382,7 +395,6 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
                 ? "Mixed currencies"
                 : formatMoneyOrNumber(totals.spend, spendCurrency.currency)
           }
-          subtitle={currencyNote}
           loading={moneyLoading}
         />
         <KpiCard
@@ -405,11 +417,18 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
           subtitle={
             cpe != null && spendCurrency.kind === "mixed"
               ? "Cost per engagement · mixed currencies"
-              : currencyNote ?? "Cost per engagement"
+              : "Cost per engagement"
           }
           loading={moneyLoading}
         />
       </div>
+      {/* Under the tiles, not in their subtitles: a loading tile shows only a
+          skeleton, and the offline note has to be read WHILE they load. */}
+      {currencyNote ? (
+        <p className="-mt-3 text-xs text-muted-foreground" role="status">
+          {currencyNote}
+        </p>
+      ) : null}
 
       {/* Campaigns table */}
       <Card>
@@ -455,7 +474,7 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
                     key={c.id}
                     campaign={c}
                     spend={analytics.data?.find((a) => a.id === c.id)?.spend}
-                    currency={currencyByCampaign.get(c.id) ?? accountCurrency}
+                    currency={currencyForCampaign(currencyByCampaign, c.id, accountCurrency)}
                     moneyLoading={moneyLoading}
                     onToggle={(next) =>
                       setStatus.mutate({ accountId: accountId!, campaignId: c.id, status: next })
@@ -546,11 +565,21 @@ function CreateCampaignDialog({
   });
   const notice = fundingNotice(fundingInstruments);
   const options = fundingOptions(fundingInstruments.data);
+  // Read against the CURRENT list: an id it no longer holds is no selection,
+  // and a refetch can turn the chosen card inactive — then Create disables
+  // (instead of earning a 400) and the note below says why.
+  const selection = fundingSelection(fundingInstruments.data, fundingId);
   const selected = fundingInstruments.data?.find((f) => f.id === fundingId);
-  // A refetch can turn the chosen card inactive; it then no longer counts as
-  // chosen, so Create disables instead of earning a 400.
-  const selectedBillable = !!selected && isBillableInstrument(selected);
-  const fundingCurrency = normalizeCurrency(selected?.currency);
+  const fundingCurrency =
+    selection === "none" ? null : normalizeCurrency(selected?.currency);
+
+  // The list is shared with the panel and may be stale by now — the notices
+  // below send people to X Ads Manager to fix their cards, and coming back
+  // must show the result. cancelRefetch: false joins a fetch already running.
+  const onOpenChange = (next: boolean) => {
+    setOpen(next);
+    if (next) void fundingInstruments.refetch({ cancelRefetch: false });
+  };
 
   const create = useMutation({
     mutationFn: () =>
@@ -587,12 +616,12 @@ function CreateCampaignDialog({
   const dailyDollars = parseFloat(dailyBudget);
   const valid =
     name.trim().length > 0 &&
-    selectedBillable &&
+    selection === "billable" &&
     Number.isFinite(dailyDollars) &&
     dailyDollars > 0;
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
         <Button>
           <Plus className="size-4 mr-1.5" />
@@ -620,7 +649,10 @@ function CreateCampaignDialog({
 
           <div className="space-y-2">
             <Label htmlFor="x-camp-funding">Funding instrument</Label>
-            <Select value={fundingId} onValueChange={setFundingId}>
+            <Select
+              value={selection === "none" ? "" : fundingId}
+              onValueChange={setFundingId}
+            >
               <SelectTrigger id="x-camp-funding">
                 <SelectValue placeholder={
                   fundingInstruments.isLoading
@@ -639,35 +671,16 @@ function CreateCampaignDialog({
               </SelectContent>
             </Select>
             {notice === "empty" ? (
-              <p className="text-xs text-muted-foreground" role="status">
-                This X ads account has no funding source yet. Add a payment method in{" "}
-                <a
-                  href="https://ads.x.com"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="font-medium underline underline-offset-4"
-                >
-                  X Ads Manager (ads.x.com)
-                </a>
-                , then come back to create a campaign.
-              </p>
+              <FundingSetupNote lead="This X ads account has no funding source yet. Add a payment method in" />
             ) : notice === "none-active" ? (
-              <p className="text-xs text-muted-foreground" role="status">
-                This X ads account has no active funding source. Reactivate or add a payment
-                method in{" "}
-                <a
-                  href="https://ads.x.com"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="font-medium underline underline-offset-4"
-                >
-                  X Ads Manager (ads.x.com)
-                </a>
-                , then come back to create a campaign.
+              <FundingSetupNote lead="This X ads account has no active funding source. Reactivate or add a payment method in" />
+            ) : selection === "inactive" ? (
+              <p className="text-xs text-destructive" role="status">
+                That funding source is no longer active — pick another.
               </p>
             ) : notice === "error" ? (
-              // Reopening the dialog reuses the errored cache entry, so the
-              // retry has to be here rather than "close and try again".
+              // Offered in place, not left to "close and reopen": a retry the
+              // merchant can see beats one they have to know about.
               <p className="text-xs text-destructive" role="status">
                 Couldn&apos;t load funding sources.{" "}
                 <button
@@ -723,6 +736,24 @@ function CreateCampaignDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** A funding-setup note ending in the X Ads Manager link; `lead` is the sentence before it. */
+function FundingSetupNote({ lead }: { lead: string }) {
+  return (
+    <p className="text-xs text-muted-foreground" role="status">
+      {lead}{" "}
+      <a
+        href="https://ads.x.com"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="font-medium underline underline-offset-4"
+      >
+        X Ads Manager (ads.x.com)
+      </a>
+      , then come back to create a campaign.
+    </p>
   );
 }
 

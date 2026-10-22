@@ -40,7 +40,9 @@ export function deriveAccountCurrency(
 
 /**
  * The currency a campaign is billed in: its own funding instrument's, falling
- * back to the account's only when that instrument is not in the list.
+ * back to the account's ONLY when that instrument is not in the list. An
+ * instrument that IS found but has no readable code stays null (unknown):
+ * the card says nothing, and the account's code is a guess about it.
  */
 export function campaignCurrency(
   campaign: Pick<XCampaign, "fundingInstrumentId">,
@@ -52,20 +54,52 @@ export function campaignCurrency(
 }
 
 /**
- * The single currency a set of per-campaign amounts may be summed in, or
+ * Look a campaign's currency up in the map built from `campaignCurrency`. A
+ * campaign IN the map keeps its value, null included; only one missing from
+ * it (an analytics row for a campaign not listed) takes the account's. `??`
+ * would wrongly turn a deliberate null into the account's code.
+ */
+export function currencyForCampaign(
+  byCampaign: ReadonlyMap<string, string | null>,
+  campaignId: string,
+  accountCurrency: string | null
+): string | null {
+  return byCampaign.has(campaignId) ? byCampaign.get(campaignId)! : accountCurrency;
+}
+
+/**
+ * The single currency a set of per-campaign spends may be summed in, or
  * "mixed" when they are billed in more than one — adding INR to USD gives a
- * number that is neither. No campaigns → the account's currency. An unknown
+ * number that is neither. Only campaigns that SPENT decide it: a 0-spend
+ * campaign on another currency's card adds nothing to the sum, so it cannot
+ * make the sum mixed. Nothing spent → the account's currency. An unknown
  * (null) currency among known ones counts as different: we cannot say it
  * matches.
  */
 export function totalsCurrency(
-  currencies: readonly (string | null)[],
+  rows: readonly { currency: string | null; spend: number }[],
   accountCurrency: string | null
 ): { kind: "single"; currency: string | null } | { kind: "mixed" } {
-  if (currencies.length === 0) return { kind: "single", currency: accountCurrency };
-  const distinct = new Set(currencies);
+  const spent = rows.filter((r) => r.spend > 0);
+  if (spent.length === 0) return { kind: "single", currency: accountCurrency };
+  const distinct = new Set(spent.map((r) => r.currency));
   if (distinct.size > 1) return { kind: "mixed" };
-  return { kind: "single", currency: currencies[0] };
+  return { kind: "single", currency: spent[0].currency };
+}
+
+/**
+ * The dialog's current funding choice, read against the CURRENT list. An id
+ * that is not in the list (another account's, or a card X dropped) is no
+ * selection at all; one that is listed but no longer ACTIVE is "inactive", so
+ * the dialog can say why Create went grey.
+ */
+export function fundingSelection(
+  instruments: readonly Pick<XFundingInstrument, "id" | "status">[] | undefined,
+  fundingId: string
+): "none" | "billable" | "inactive" {
+  const f = fundingId ? instruments?.find((i) => i.id === fundingId) : undefined;
+  if (!f) return "none";
+  return isBillableInstrument(f) ? "billable" : "inactive";
 }
 
 /**

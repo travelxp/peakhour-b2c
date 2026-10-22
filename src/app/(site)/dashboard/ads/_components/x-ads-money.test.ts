@@ -2,9 +2,11 @@ import { describe, it, expect } from "vitest";
 import { formatMoneyOrNumber } from "@/lib/outcome-value";
 import {
   campaignCurrency,
+  currencyForCampaign,
   deriveAccountCurrency,
   fundingNotice,
   fundingOptions,
+  fundingSelection,
   isBillableInstrument,
   normalizeCurrency,
   totalsCurrency,
@@ -67,23 +69,81 @@ describe("campaignCurrency", () => {
     expect(campaignCurrency({ fundingInstrumentId: "gone" }, instruments, "EUR")).toBe("EUR");
     expect(campaignCurrency({ fundingInstrumentId: "f1" }, undefined, null)).toBeNull();
   });
+
+  it("an instrument found with no readable code stays unknown, not the account's", () => {
+    const blank = [{ id: "f3", currency: "  " }];
+    expect(campaignCurrency({ fundingInstrumentId: "f3" }, blank, "INR")).toBeNull();
+  });
+});
+
+describe("currencyForCampaign", () => {
+  const map = new Map<string, string | null>([
+    ["c1", "USD"],
+    ["c2", null],
+  ]);
+
+  it("a campaign in the map keeps its value, a deliberate null included", () => {
+    expect(currencyForCampaign(map, "c1", "INR")).toBe("USD");
+    expect(currencyForCampaign(map, "c2", "INR")).toBeNull();
+  });
+
+  it("only a campaign missing from the map takes the account's", () => {
+    expect(currencyForCampaign(map, "c9", "INR")).toBe("INR");
+  });
 });
 
 describe("totalsCurrency", () => {
+  const row = (currency: string | null, spend = 5) => ({ currency, spend });
+
   it("one currency → that currency", () => {
-    expect(totalsCurrency(["INR", "INR"], null)).toEqual({ kind: "single", currency: "INR" });
+    expect(totalsCurrency([row("INR"), row("INR")], null)).toEqual({
+      kind: "single",
+      currency: "INR",
+    });
   });
 
-  it("two currencies → mixed, never a sum", () => {
-    expect(totalsCurrency(["INR", "USD"], "INR")).toEqual({ kind: "mixed" });
+  it("two currencies with spend → mixed, never a sum", () => {
+    expect(totalsCurrency([row("INR"), row("USD")], "INR")).toEqual({ kind: "mixed" });
   });
 
   it("an unknown beside a known one is mixed", () => {
-    expect(totalsCurrency(["INR", null], "INR")).toEqual({ kind: "mixed" });
+    expect(totalsCurrency([row("INR"), row(null)], "INR")).toEqual({ kind: "mixed" });
   });
 
-  it("no campaigns → the account's currency", () => {
+  it("a 0-spend campaign in another currency does not make it mixed", () => {
+    expect(totalsCurrency([row("INR"), row("USD", 0)], null)).toEqual({
+      kind: "single",
+      currency: "INR",
+    });
+  });
+
+  it("nothing spent → the account's currency", () => {
     expect(totalsCurrency([], "EUR")).toEqual({ kind: "single", currency: "EUR" });
+    expect(totalsCurrency([row("USD", 0), row("INR", 0)], "EUR")).toEqual({
+      kind: "single",
+      currency: "EUR",
+    });
+  });
+});
+
+describe("fundingSelection", () => {
+  const list = [
+    { id: "a", status: "ACTIVE" },
+    { id: "b", status: "PAUSED" },
+  ];
+
+  it("no id → none", () => {
+    expect(fundingSelection(list, "")).toBe("none");
+  });
+
+  it("an id not in the current list (another account's) is no selection", () => {
+    expect(fundingSelection(list, "other-account-card")).toBe("none");
+    expect(fundingSelection(undefined, "a")).toBe("none");
+  });
+
+  it("a listed ACTIVE card is billable; a listed inactive one says so", () => {
+    expect(fundingSelection(list, "a")).toBe("billable");
+    expect(fundingSelection(list, "b")).toBe("inactive");
   });
 });
 
