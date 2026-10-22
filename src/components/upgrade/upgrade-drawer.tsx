@@ -27,7 +27,9 @@ import { PaymentModal, type CheckoutResult } from "@/components/upgrade/payment-
  *
  *   waitlist  — v1 GA default. No prices shown. Captures email +
  *               business context for the Peakhour Suite waiting list. Founding-
- *               member badge for the first 500 signups.
+ *               member badge up to the cap ops set on the CMS Platform
+ *               stage page (`cfg_platform_stage.foundingMemberCap`; the
+ *               api decides, api#1551).
  *   checkout  — flips on once public pricing GA-s. Plan card +
  *               Stripe/Razorpay handoff.
  *
