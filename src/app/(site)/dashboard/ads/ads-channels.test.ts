@@ -10,6 +10,8 @@ import {
   resolveAdsChannel,
   connectedAdsProviderKeys,
   metaAdsConnectionState,
+  adsChannelConnectionState,
+  panelConnection,
 } from "./ads-channels";
 
 const NONE = new Set<string>();
@@ -311,5 +313,108 @@ describe("★★M-16 connectedAdsProviderKeys", () => {
     expect(nextAdsHubSearch(new URLSearchParams("channel=meta&adAccount=act_1"), "x")).toBe(
       "channel=x",
     );
+  });
+});
+
+describe("★D-03b adsChannelConnectionState — the one rule every panel reads", () => {
+  const li = getAdsChannel("linkedin");
+  const x = getAdsChannel("x");
+
+  it("a live row is connected; a stale one needs reauth; none is absent", () => {
+    expect(adsChannelConnectionState([{ provider: "linkedin_ads", connected: true, status: "active" }], li)).toBe("connected");
+    expect(adsChannelConnectionState([{ provider: "linkedin_ads", status: "needs_reauth" }], li)).toBe("needs_reauth");
+    expect(adsChannelConnectionState([], li)).toBe("absent");
+    expect(adsChannelConnectionState([{ provider: "linkedin_ads", status: "error" }], li)).toBe("absent");
+  });
+
+  it("★a live row outranks a stale sibling, whichever comes first", () => {
+    const rows = [
+      { provider: "x_ads", status: "needs_reauth" },
+      { provider: "x_ads", connected: true, status: "active" },
+    ];
+    expect(adsChannelConnectionState(rows, x)).toBe("connected");
+    expect(adsChannelConnectionState([...rows].reverse(), x)).toBe("connected");
+  });
+
+  it("★a channel reads only its own provider — the organic LinkedIn row is not LinkedIn Ads", () => {
+    expect(adsChannelConnectionState([{ provider: "linkedin", status: "needs_reauth" }], li)).toBe("absent");
+    expect(adsChannelConnectionState([{ provider: "linkedin_ads", connected: true }], x)).toBe("absent");
+  });
+
+  it("Meta is read through its ads capability", () => {
+    const withAds = { provider: "facebook", status: "needs_reauth", account: { extra: { adAccounts: [{ id: "a" }] } } };
+    const pagesOnly = { provider: "facebook", status: "needs_reauth", account: { extra: { pages: [{ id: "p" }] } } };
+    expect(adsChannelConnectionState([withAds], getAdsChannel("meta"))).toBe("needs_reauth");
+    expect(adsChannelConnectionState([pagesOnly], getAdsChannel("meta"))).toBe("absent");
+  });
+
+  /**
+   * ★★THE PANELS ASK IT, and none re-derives the state from a row's `status`
+   * (b2c#581 rounds 2 and 3 found the LinkedIn and X panels doing their own,
+   * so a change to the rule never reached them). Read with the TypeScript
+   * parser, so a comment that mentions the old shape does not count.
+   */
+  const panelSource = (key: string) =>
+    ts.createSourceFile(
+      "panel.tsx",
+      readFileSync(fileURLToPath(new URL(`./_components/${key}-ads-panel.tsx`, import.meta.url)), "utf8"),
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TSX,
+    );
+  const scanText = (text: string) =>
+    scanFile(ts.createSourceFile("t.tsx", text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)).statusCompares;
+  const scan = (key: string) => scanFile(panelSource(key));
+  const scanFile = (file: ts.SourceFile) => {
+    const calls = new Set<string>();
+    const statusCompares: string[] = [];
+    const visit = (node: ts.Node): void => {
+      if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) calls.add(node.expression.text);
+      if (
+        ts.isBinaryExpression(node) &&
+        [ts.SyntaxKind.EqualsEqualsEqualsToken, ts.SyntaxKind.ExclamationEqualsEqualsToken].includes(node.operatorToken.kind)
+      ) {
+        // A connection's state, re-derived from a ROW: a row's field against
+        // `needs_reauth`, or its `connected` flag. (The helper's own answer —
+        // `state === "needs_reauth"` — is the point, and a campaign's
+        // `status` is not a connection's.)
+        const sides = [node.left, node.right];
+        const reauth =
+          sides.some((e) => ts.isStringLiteralLike(e) && e.text === "needs_reauth") &&
+          sides.some((e) => ts.isPropertyAccessExpression(e));
+        const connected = sides.some((e) => ts.isPropertyAccessExpression(e) && e.name.text === "connected");
+        if (reauth || connected) statusCompares.push(node.getText());
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(file);
+    return { calls, statusCompares };
+  };
+
+  it.each(["linkedin", "x", "meta"])(
+    "★★the %s panel asks panelConnection and reads no row's status or connected flag itself",
+    (key) => {
+      const { calls, statusCompares } = scan(key);
+      expect(calls.has("panelConnection")).toBe(true);
+      expect(statusCompares).toEqual([]);
+    },
+  );
+
+  it("★★panelConnection: a stale connection shows the panel behind a banner; none shows Connect", () => {
+    const li = getAdsChannel("linkedin");
+    expect(panelConnection([{ provider: "linkedin_ads", connected: true, status: "active" }], li)).toEqual({ isConnected: true, needsReauth: false });
+    expect(panelConnection([{ provider: "linkedin_ads", status: "needs_reauth" }], li)).toEqual({ isConnected: true, needsReauth: true });
+    expect(panelConnection([], li)).toEqual({ isConnected: false, needsReauth: false });
+    // Meta's R1.2: a stale Pages-only row is "Connect Meta", not a banner.
+    const pagesOnly = { provider: "facebook", status: "needs_reauth", account: { extra: { pages: [{ id: "p" }] } } };
+    expect(panelConnection([pagesOnly], getAdsChannel("meta"))).toEqual({ isConnected: false, needsReauth: false });
+  });
+
+  it("PASS: the scan sees the old shape when it is there (it is not blind)", () => {
+    // The pre-D-03b LinkedIn panel's own line, through the same scan.
+    expect(
+      scanText('const isConnected = adsConnection?.connected === true || adsConnection?.status === "needs_reauth";'),
+    ).toHaveLength(2);
+    expect(scanText('const live = campaign.status === "active";')).toEqual([]);
   });
 });

@@ -12,15 +12,9 @@ import {
   channelRows,
   eventDate,
   inChannel,
-  isStaleCard,
   learningEmptyText,
   learningItems,
-  proposalItems,
-  reconnectItems,
   sourceState,
-  uncheckedNote,
-  withoutCoveredAdsStale,
-  type NeedsYouItem,
 } from "./growth-dashboard";
 
 // ★THE VIEWER'S ZONE COMES FROM THEIR SETTINGS, so the tests set it there —
@@ -73,14 +67,6 @@ const run = (platform: string, proposals: OptimizerProposal[], id = `run-${platf
   weekStart: "2026-09-28T00:00:00.000Z",
   proposals,
   createdAt: "2026-09-28T01:00:00.000Z",
-});
-
-const item = (id: string, channel?: string): NeedsYouItem => ({
-  id,
-  severity: "attention",
-  title: id,
-  detail: "",
-  ...(channel ? { channel } : {}),
 });
 
 describe("channelChips", () => {
@@ -227,119 +213,11 @@ describe("channelRows", () => {
   });
 });
 
-describe("proposalItems", () => {
-  it("counts open proposals per channel across every run", () => {
-    const items = proposalItems([
-      run("linkedin", [prop(), prop({ id: "p2", status: "applied" })], "r1"),
-      run("linkedin", [prop({ id: "p3" })], "r2"),
-      run("x", [prop({ id: "p4" })], "r3"),
-    ]);
-    expect(items.map((i) => [i.channel, i.title])).toEqual([
-      ["linkedin", "2 optimizer proposals waiting for your decision"],
-      ["x", "1 optimizer proposal waiting for your decision"],
-    ]);
-    expect(items[0].href).toBe("/dashboard/optimizer");
-  });
-
-  it("raises nothing when no proposal is open", () => {
-    expect(proposalItems([run("linkedin", [prop({ status: "dismissed" })])])).toEqual([]);
-    expect(proposalItems([])).toEqual([]);
-  });
-});
-
-describe("reconnectItems", () => {
-  it("raises a reconnect for an ads connection that needs it", () => {
-    const items = reconnectItems([{ provider: "linkedin_ads", status: "needs_reauth" }]);
-    expect(items).toHaveLength(1);
-    expect(items[0]).toMatchObject({
-      id: "reconnect-linkedin",
-      severity: "critical",
-      channel: "linkedin",
-      href: "/dashboard/ads?channel=linkedin",
-    });
-  });
-
-  it("raises nothing when a live connection to the same channel exists", () => {
-    expect(
-      reconnectItems([
-        { provider: "x_ads", status: "needs_reauth" },
-        { provider: "x_ads", connected: true, status: "active" },
-      ]),
-    ).toEqual([]);
-  });
-
-  it("raises nothing for a live, an absent or a non-ads connection", () => {
-    expect(reconnectItems([{ provider: "linkedin_ads", connected: true, status: "active" }])).toEqual([]);
-    expect(reconnectItems([])).toEqual([]);
-    expect(reconnectItems([{ provider: "linkedin", status: "needs_reauth" }])).toEqual([]);
-  });
-
-  it("reads Meta through its ads capability, not the raw facebook row", () => {
-    const withAds = { provider: "facebook", status: "needs_reauth", account: { extra: { adAccounts: [{ id: "a" }] } } };
-    const pagesOnly = { provider: "facebook", status: "needs_reauth", account: { extra: { pages: [{ id: "p" }] } } };
-    expect(reconnectItems([withAds]).map((i) => i.id)).toEqual(["reconnect-meta"]);
-    expect(reconnectItems([pagesOnly])).toEqual([]);
-  });
-});
-
-describe("withoutCoveredAdsStale", () => {
-  const ids = (xs: { id: string }[]) => xs.map((a) => a.id);
-
-  it("drops exactly the stale cards a reconnect card covers — with no paid section at all", () => {
-    const actions = [item("ads-stale-linkedin", "linkedin"), item("ads-stale-x", "x"), item("nothing-published")];
-    expect(ids(withoutCoveredAdsStale(actions, [item("reconnect-linkedin", "linkedin")]))).toEqual([
-      "ads-stale-x",
-      "nothing-published",
-    ]);
-  });
-
-  it("keeps a stale card that names no channel, and every card with no reconnect cards", () => {
-    expect(ids(withoutCoveredAdsStale([item("ads-stale-x")], [item("reconnect-x", "x")]))).toEqual(["ads-stale-x"]);
-    expect(ids(withoutCoveredAdsStale([item("ads-stale-x", "x")], []))).toEqual(["ads-stale-x"]);
-  });
-
-  it("never drops another action, whatever channel it names", () => {
-    const other = [item("campaigns-no-spend-linkedin", "linkedin")];
-    expect(ids(withoutCoveredAdsStale(other, [item("reconnect-linkedin", "linkedin")]))).toEqual([
-      "campaigns-no-spend-linkedin",
-    ]);
-  });
-
-  it("tells a stale card from another action by its id", () => {
-    expect(isStaleCard("ads-stale-meta")).toBe(true);
-    expect(isStaleCard("ads-stalemate")).toBe(false);
-    expect(isStaleCard("analytics-stale")).toBe(false);
-  });
-});
-
-describe("sourceState and uncheckedNote", () => {
+describe("sourceState", () => {
   it("reads a source only when it has data", () => {
     expect(sourceState({ data: { runs: [] }, isError: true })).toBe("read");
     expect(sourceState({ data: undefined, isError: true })).toBe("failed");
     expect(sourceState({ data: undefined, isError: false })).toBe("checking");
-  });
-
-  it("names each source that failed", () => {
-    expect(uncheckedNote({ proposals: "failed", connections: "read" })).toBe(
-      "We couldn't check optimizer proposals just now.",
-    );
-    expect(uncheckedNote({ proposals: "failed", connections: "failed" })).toBe(
-      "We couldn't check optimizer proposals or your ad connections just now.",
-    );
-  });
-
-  it("says a source still loading is still being checked", () => {
-    expect(uncheckedNote({ proposals: "read", connections: "checking" })).toBe("Still checking your ad connections.");
-    expect(uncheckedNote({ proposals: "checking", connections: "checking" })).toBe(
-      "Still checking optimizer proposals and your ad connections.",
-    );
-    expect(uncheckedNote({ proposals: "failed", connections: "checking" })).toBe(
-      "We couldn't check optimizer proposals just now. Still checking your ad connections.",
-    );
-  });
-
-  it("says nothing when both were read", () => {
-    expect(uncheckedNote({ proposals: "read", connections: "read" })).toBeNull();
   });
 });
 

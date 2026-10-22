@@ -46,7 +46,13 @@ import {
   microsToDollars,
   type XCampaign,
 } from "@/lib/api/x-ads";
-import { ADS_CHANNEL_PARAM, type AdsChannelKey } from "../ads-channels";
+import {
+  ADS_CHANNEL_PARAM,
+  getAdsChannel,
+  panelConnection,
+  type AdsChannelKey,
+  type AdsIntegrationRow,
+} from "../ads-channels";
 import { formatMoneyOrNumber } from "@/lib/outcome-value";
 import {
   campaignCurrency,
@@ -68,11 +74,6 @@ import {
  * Was `/dashboard/content/x-ads` — that route now redirects here.
  */
 
-interface ApiIntegration {
-  provider: string;
-  connected?: boolean;
-  status?: string;
-}
 
 const ACCOUNT_PARAM = "account";
 const ANALYTICS_RANGE_DAYS = 30;
@@ -81,12 +82,14 @@ export function XAdsPanel({ channelKey }: { channelKey: AdsChannelKey }) {
   const integrations = useQuery({
     queryKey: ["content-hub-integrations"],
     queryFn: () =>
-      api.get<{ integrations: ApiIntegration[] }>("/v1/integrations"),
+      api.get<{ integrations: AdsIntegrationRow[] }>("/v1/integrations"),
     staleTime: 30_000,
   });
 
-  const xAdsConnection = useMemo(
-    () => integrations.data?.integrations?.find((i) => i.provider === "x_ads"),
+  // ★THE HUB'S RULE (D-03b): `panelConnection`, over the state the hub picks
+  //  this tab by, so the two cannot disagree.
+  const { isConnected, needsReauth } = useMemo(
+    () => panelConnection(integrations.data?.integrations ?? [], getAdsChannel("x")),
     [integrations.data]
   );
   // A stale connection is still a connection — show the panel with a reconnect
@@ -96,8 +99,6 @@ export function XAdsPanel({ channelKey }: { channelKey: AdsChannelKey }) {
   // keeps working while stale, whereas every X list is fetched live through a
   // connection the api requires to be "active" — hence the different banner
   // copy and the accounts error branch below.
-  const needsReauth = xAdsConnection?.status === "needs_reauth";
-  const isConnected = xAdsConnection?.connected === true || needsReauth;
 
   if (integrations.isLoading) {
     return <PanelShell loading />;

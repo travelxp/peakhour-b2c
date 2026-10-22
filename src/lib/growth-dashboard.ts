@@ -3,11 +3,6 @@ import type { UserPreferences } from "@/lib/auth";
 import { formatDate } from "@/lib/locale";
 import { formatMoneyCode } from "@/lib/outcome-value";
 import { paidFigureLabel } from "@/lib/visibility-funnel";
-import {
-  ADS_CHANNELS,
-  adsChannelConnectionState,
-  type AdsIntegrationRow,
-} from "@/app/(site)/dashboard/ads/ads-channels";
 
 /**
  * D-03 — what the Unified Growth Dashboard's channel sections say, decided once
@@ -15,9 +10,15 @@ import {
  *
  * ★CHANNEL IS A FILTER, NEVER A TAB. The funnel and "what changed" are about
  * the business, organic first, and never filter; Needs You, Channels and
- * Learning narrow to one channel. ★AN ITEM'S CHANNELS ARE SENT, NOT GUESSED:
- * the api tags every ads action with its one `channel`, our own cards carry theirs,
- * and an item with none is about the business and stays under every chip.
+ * Learning narrow to one channel. ★AN ITEM'S CHANNEL IS SENT, NOT GUESSED:
+ * the api tags every channel's action with its one `channel`, and an item with
+ * none is about the business and stays under every chip.
+ *
+ * ★NEEDS YOU IS THE API'S, WHOLE (D-03b). `/v1/growth/outcomes` sends the
+ * reconnect cards, the open optimizer proposals (only with `growth.optimizer`),
+ * the Health Sentinel's findings, guardrail blocks and the rest as
+ * `nextActions`, already de-duplicated — this page no longer assembles them
+ * from three reads or parses an id to drop a covered card.
  *
  * ★ABSENT IS NEVER ZERO, here as on the rest of the page. A platform that
  * reports no conversions has no cost per conversion and no "0"; a source not
@@ -146,96 +147,11 @@ export function channelRows(paid: Paid, filter: string, prefs?: Prefs): ChannelR
   return (paid?.byChannel ?? []).filter((ch) => inChannel(filter, ch.platform)).map((ch) => channelRow(ch, prefs));
 }
 
-export interface NeedsYouItem {
-  id: string;
-  severity: "critical" | "attention" | "opportunity";
-  title: string;
-  detail: string;
-  href?: string;
-  cta?: string;
-  /** The ad channel it is about; absent for an item about the business. */
-  channel?: string;
-}
-
-/**
- * One item per channel with optimizer proposals still open. Every run counts,
- * not just the newest: the optimizer page offers an older week's open proposal
- * for a decision too, and a count that disagreed with that page would be wrong
- * on one of them.
- */
-export function proposalItems(runs: readonly OptimizerRun[]): NeedsYouItem[] {
-  const open = new Map<string, number>();
-  for (const run of runs) {
-    const n = run.proposals.filter((p) => p.status === "proposed").length;
-    if (n > 0) open.set(run.platform, (open.get(run.platform) ?? 0) + n);
-  }
-  return [...open].map(([platform, n]) => ({
-    id: `proposals-${platform}`,
-    severity: "attention",
-    title: `${n} optimizer proposal${n === 1 ? "" : "s"} waiting for your decision`,
-    detail: `For ${paidFigureLabel(platform)}. Each says what it expects to change and when it would be rolled back.`,
-    href: "/dashboard/optimizer",
-    cta: "Review",
-    channel: platform,
-  }));
-}
-
-/** One item per ads channel whose connection needs reconnecting. */
-export function reconnectItems(integrations: readonly AdsIntegrationRow[]): NeedsYouItem[] {
-  return ADS_CHANNELS.filter((c) => adsChannelConnectionState(integrations, c) === "needs_reauth").map((c) => ({
-    id: `reconnect-${c.key}`,
-    severity: "critical",
-    title: `Reconnect ${c.label}`,
-    detail: "Peakhour's access to it has lapsed. Until you reconnect, its figures here can fall out of date.",
-    href: `/dashboard/ads?channel=${c.key}`,
-    cta: "Reconnect",
-    channel: c.key,
-  }));
-}
-
-/** A stale-figures card: the api emits one per stale channel, `ads-stale-<platform>`. */
-export function isStaleCard(id: string): boolean {
-  return id.startsWith("ads-stale-");
-}
-
-/**
- * The api's next actions without each stale card whose channel has a
- * reconnect card — one fault, one card. ★READ FROM THE CARD'S OWN CHANNEL,
- * not from `reach.paid`: the api sends `paid: null` when nothing moved, which
- * is exactly the lapsed-token case. Kept when it names no channel, or one
- * without a reconnect card, because then it is the only thing saying so.
- */
-export function withoutCoveredAdsStale<T extends { id: string; channel?: string }>(
-  actions: readonly T[],
-  reconnect: readonly NeedsYouItem[],
-): T[] {
-  // Never holds `undefined`, so a card naming no channel is never covered.
-  const covered = new Set<string | undefined>(reconnect.flatMap((i) => (i.channel ? [i.channel] : [])));
-  return actions.filter((a) => !(isStaleCard(a.id) && covered.has(a.channel)));
-}
-
 export type SourceState = "read" | "checking" | "failed";
 
-/** A query's state as Needs You reports it: read only when there is data. */
+/** A query's state as Learning reports it: read only when there is data. */
 export function sourceState(q: { data: unknown; isError: boolean }): SourceState {
   return q.data !== undefined ? "read" : q.isError ? "failed" : "checking";
-}
-
-/**
- * Which Needs You sources are not read. Named, because an empty list over an
- * unread source is a claim that nothing needs the merchant — and nobody
- * checked.
- */
-export function uncheckedNote(state: { proposals: SourceState; connections: SourceState }): string | null {
-  const names = { proposals: "optimizer proposals", connections: "your ad connections" } as const;
-  const keys = ["proposals", "connections"] as const;
-  const failed = keys.filter((k) => state[k] === "failed").map((k) => names[k]);
-  const checking = keys.filter((k) => state[k] === "checking").map((k) => names[k]);
-  const parts = [
-    failed.length > 0 ? `We couldn't check ${failed.join(" or ")} just now.` : null,
-    checking.length > 0 ? `Still checking ${checking.join(" and ")}.` : null,
-  ].filter(Boolean);
-  return parts.length > 0 ? parts.join(" ") : null;
 }
 
 /** Free text as a sentence: its own closing stop kept, one added if missing. */

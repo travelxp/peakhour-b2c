@@ -174,7 +174,10 @@ export interface OutcomesResponse {
     href?: string;
     cta?: string;
     /** The ad channel it is about (D-03, api#1450) — one per action; absent
-     *  for an action about the business, and from an api that predates it. */
+     *  for an action about the business. ★Since D-03b this list IS Needs
+     *  You: reconnect cards, open optimizer proposals (only with
+     *  `growth.optimizer`), Health Sentinel findings, unmeasured campaigns and
+     *  guardrail blocks arrive here, de-duplicated by the api. */
     channel?: string;
   }>;
 }

@@ -29,7 +29,6 @@ import { WhatCountsAsAWinDialog } from "@/components/growth/what-counts-as-a-win
 import { VisibilityFunnel } from "@/components/growth/visibility-funnel";
 import { useAuth } from "@/providers/auth-provider";
 import { useFeature } from "@/hooks/use-feature";
-import { api } from "@/lib/api";
 import { growthApi, type OptimizerRun, type OutcomesResponse } from "@/lib/api/growth";
 import type { UserPreferences } from "@/lib/auth";
 import { paidNote, paidStaleNote } from "@/lib/outcomes-paid";
@@ -42,16 +41,10 @@ import {
   inChannel,
   learningEmptyText,
   learningItems,
-  proposalItems,
-  reconnectItems,
   sourceState,
-  uncheckedNote,
-  withoutCoveredAdsStale,
   type MeasurementBadge,
-  type NeedsYouItem,
   type SourceState,
 } from "@/lib/growth-dashboard";
-import type { AdsIntegrationRow } from "@/app/(site)/dashboard/ads/ads-channels";
 
 /**
  * Outcomes (v1) — what happened, what it means, and what to do next.
@@ -137,24 +130,16 @@ export default function OutcomesPage() {
     refetchOnWindowFocus: false,
   });
 
-  // ★NEEDS YOU AND LEARNING READ THESE, AND EACH MAY FAIL ALONE. The optimizer
-  // page's decide invalidates `["growth-adjustments"]`, which prefix-matches
-  // this key, so a decision there is reflected here.
+  // ★LEARNING READS THIS, AND IT MAY FAIL ALONE. Needs You does not: the api
+  // sends the open proposals itself (D-03b), gated on the same feature. The
+  // optimizer page's decide invalidates `["growth-adjustments"]`, which
+  // prefix-matches this key, so a decision there is reflected here.
   const adjustments = useQuery({
     queryKey: ["growth-adjustments", business?._id ?? "none"],
     queryFn: () => growthApi.adjustments(),
     staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
     enabled: optimizer.allowed,
-  });
-
-  // The ads hub's key prefix (its invalidations reach this), plus the business:
-  // a reconnect card for another business's connection is the cache-clear
-  // hazard the outcomes key above names.
-  const integrations = useQuery({
-    queryKey: ["content-hub-integrations", business?._id ?? "none"],
-    queryFn: () => api.get<{ integrations: AdsIntegrationRow[] }>("/v1/integrations"),
-    staleTime: 30_000,
   });
 
   return (
@@ -223,12 +208,7 @@ export default function OutcomesPage() {
           //  error (which clears `error`) are all unchecked, not "nothing".
           //  Without the feature there is nothing to check.
           runsState={optimizer.allowed ? sourceState(adjustments) : "read"}
-          integrations={integrations.data?.integrations}
-          integrationsState={sourceState(integrations)}
-          onRetry={() => {
-            if (!adjustments.data && adjustments.isError) void adjustments.refetch();
-            if (!integrations.data && integrations.isError) void integrations.refetch();
-          }}
+          onRetry={() => void adjustments.refetch()}
         />
       )}
     </div>
@@ -255,8 +235,6 @@ function OutcomesBody({
   runs,
   optimizerAllowed,
   runsState,
-  integrations,
-  integrationsState,
   onRetry,
 }: {
   data: OutcomesResponse;
@@ -268,8 +246,6 @@ function OutcomesBody({
   runs: OptimizerRun[] | undefined;
   optimizerAllowed: boolean;
   runsState: SourceState;
-  integrations: AdsIntegrationRow[] | undefined;
-  integrationsState: SourceState;
   onRetry: () => void;
 }) {
   const { reach, attention, conversions, value, nextActions, movements } = data;
@@ -280,28 +256,20 @@ function OutcomesBody({
   const nothingHappened =
     reach.organic.posts === 0 && reach.paid === null && (reach.site?.sessions ?? 0) === 0;
 
-  const reconnect = reconnectItems(integrations ?? []);
-  const proposals = proposalItems(runs ?? []);
-  // Broken things first, then the business's own next actions, then the
-  // decisions waiting — each in the order its source ranked them.
-  const ranked: NeedsYouItem[] = [
-    ...reconnect,
-    ...withoutCoveredAdsStale(nextActions, reconnect),
-    ...proposals,
-  ];
+  // ★NEEDS YOU IS `nextActions`, WHOLE AND IN THE API'S ORDER (D-03b): the
+  //  reconnect cards, open proposals, findings and blocks are the api's, and
+  //  it has already dropped the card another one covers.
   const chips = channelChips([
     ...(reach.paid?.byChannel ?? []).map((c) => c.platform),
     ...(runs ?? []).map((r) => r.platform),
-    ...ranked.flatMap((i) => (i.channel ? [i.channel] : [])),
+    ...nextActions.flatMap((i) => (i.channel ? [i.channel] : [])),
   ]);
   // A chip that is no longer offered (the window changed) falls back to All
   // rather than filtering every section down to nothing.
   const filter = chips.some((c) => c.key === picked) ? picked : ALL_CHANNELS;
   const rows = channelRows(reach.paid, filter, prefs);
-  const needsYou = ranked.filter((i) => inChannel(filter, i.channel));
-  const unchecked = uncheckedNote({ proposals: runsState, connections: integrationsState });
+  const needsYou = nextActions.filter((i) => inChannel(filter, i.channel));
   const runsFailed = runsState === "failed";
-  const anyFailed = runsFailed || integrationsState === "failed";
   const learning = runs ? learningItems(runs, filter, { prefs }) : null;
 
   return (
@@ -367,25 +335,12 @@ function OutcomesBody({
           one. Every item names the row it came from — a recommendation that
           cannot be traced to a fact about their own account is advice, and
           advice is exactly what this page exists not to be. */}
-      {/* ★A SOURCE STILL LOADING DOES NOT OPEN THIS SECTION ON ITS OWN — that
-          flashed a heading on every load. It opens for items or a failure,
-          and then says what is still unchecked. */}
-      {(needsYou.length > 0 || anyFailed) && (
+      {/* ★ONE SOURCE NOW (D-03b): every item arrives with /outcomes, so there
+          is no source left unchecked once this renders — a failed /outcomes
+          is the error state above, never an empty section. */}
+      {needsYou.length > 0 && (
         <div className="space-y-2">
           <h3 className="text-sm font-semibold">What needs you</h3>
-          {unchecked && (
-            <p className="text-xs text-muted-foreground">
-              {unchecked}
-              {anyFailed && (
-                <>
-                  {" "}
-                  <button type="button" className="underline underline-offset-2" onClick={onRetry}>
-                    Try again
-                  </button>
-                </>
-              )}
-            </p>
-          )}
           <div className="space-y-2">
             {needsYou.map((a) => {
               const s = SEVERITY[a.severity];
