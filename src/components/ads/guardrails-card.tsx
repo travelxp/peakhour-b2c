@@ -11,6 +11,10 @@
  * the terms and stamps who saved them; the PATCH answer replaces the cache, so
  * the card shows the terms as they are now stored ("Café" → "cafe").
  *
+ * D-05b adds the channel ALLOW list — "only these channels", so a channel
+ * Peakhour adds later stays off — as the other mode of the one channel rule,
+ * and approved-assets-only.
+ *
  * ★CHANNEL-NEUTRAL, so it sits above the channel tabs on the ads hub, beside
  * the business summary — inside a channel panel it would read as that
  * channel's setting.
@@ -25,6 +29,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
@@ -219,23 +224,44 @@ export function GuardrailsCard() {
 
         {draft && (
           <div className="space-y-6">
-            <fieldset className="space-y-2">
-              <legend className="text-sm font-medium">Never advertise on</legend>
+            <fieldset className="space-y-3">
+              <legend className="text-sm font-medium">Channels</legend>
+              {/* ★ONE CHANNEL RULE, TWO WAYS TO SAY IT (D-05b). "Only these"
+                  is not "never those" turned round: a channel Peakhour adds
+                  later is on under the first and off under the second. */}
+              <RadioGroup
+                value={draft.channelMode}
+                onValueChange={(v) => set({ channelMode: v === "allow" ? "allow" : "deny" })}
+                className="gap-2"
+              >
+                <div className="flex items-center gap-2">
+                  <RadioGroupItem id="guardrail-mode-deny" value="deny" />
+                  <Label htmlFor="guardrail-mode-deny" className="font-normal">
+                    Every channel except the ones I turn off
+                  </Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <RadioGroupItem id="guardrail-mode-allow" value="allow" />
+                  <Label htmlFor="guardrail-mode-allow" className="font-normal">
+                    Only the channels I choose &mdash; new channels stay off until I add them
+                  </Label>
+                </div>
+              </RadioGroup>
+              <p className="text-sm text-muted-foreground">
+                {draft.channelMode === "allow" ? "Advertise only on" : "Never advertise on"}
+              </p>
               <div className="grid gap-2 sm:grid-cols-2">
                 {GUARDRAIL_CHANNELS.map((c) => {
                   const id = `guardrail-channel-${c.key}`;
+                  const list = draft.channelMode === "allow" ? draft.allowedChannels : draft.deniedChannels;
+                  const write = (next: string[]) =>
+                    set(draft.channelMode === "allow" ? { allowedChannels: next } : { deniedChannels: next });
                   return (
                     <div key={c.key} className="flex items-center gap-2">
                       <Checkbox
                         id={id}
-                        checked={draft.deniedChannels.includes(c.key)}
-                        onCheckedChange={(v) =>
-                          set({
-                            deniedChannels: v
-                              ? [...draft.deniedChannels, c.key]
-                              : draft.deniedChannels.filter((k) => k !== c.key),
-                          })
-                        }
+                        checked={list.includes(c.key)}
+                        onCheckedChange={(v) => write(v ? [...list, c.key] : list.filter((k) => k !== c.key))}
                       />
                       <Label htmlFor={id} className="font-normal">
                         {c.label}
@@ -245,6 +271,21 @@ export function GuardrailsCard() {
                 })}
               </div>
             </fieldset>
+
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="guardrail-approved-assets"
+                  checked={draft.approvedAssetsOnly}
+                  onCheckedChange={(v) => set({ approvedAssetsOnly: v })}
+                />
+                <Label htmlFor="guardrail-approved-assets">Only use creatives I have approved</Label>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Ads Peakhour creates on its own carry only wording and images from a creative you approved, as you
+                approved it. Ads you set up yourself are not affected.
+              </p>
+            </div>
 
             <div className="space-y-2">
               <Label htmlFor="guardrail-terms">Words and names no ad may use</Label>
@@ -443,7 +484,7 @@ export function GuardrailsCard() {
           <AlertDialogHeader>
             <AlertDialogTitle>Clear every guardrail?</AlertDialogTitle>
             <AlertDialogDescription>
-              Peakhour will be free to suggest and run ads on every channel, with any wording, at any time.
+              Peakhour will be free to suggest and run ads on every channel, with any wording or creative, at any time.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

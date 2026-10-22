@@ -215,6 +215,12 @@ export interface WinOptionsResponse {
 export interface Guardrails {
   /** Channels the engine may never propose, launch or spend on. */
   deniedChannels?: string[];
+  /** D-05b (mig 445): the ONLY channels the engine may act on — never stored
+   *  beside `deniedChannels`. A channel added to Peakhour later stays off. */
+  allowedChannels?: string[];
+  /** D-05b: the engine creates ads only from creatives a person approved.
+   *  `true` or absent. */
+  approvedAssetsOnly?: true;
   /** Words and names no ad may carry, stored normalised (lowercase, accents
    *  folded, punctuation as spaces); an "&" name is stored both ways. */
   blockedTerms?: string[];
@@ -231,6 +237,10 @@ export interface Guardrails {
 /** The guardrails as `updateSettings` writes them — written whole. */
 export interface GuardrailsPatch {
   deniedChannels?: string[];
+  /** D-05b: sent only for an allow list (then `deniedChannels` is `[]`). */
+  allowedChannels?: string[];
+  /** D-05b: `false` stores nothing. */
+  approvedAssetsOnly?: boolean;
   blockedTerms?: string[];
   quietHours?: { start: string; end: string } | null;
   blackoutDates?: Array<{ from: string; to: string; label?: string }>;

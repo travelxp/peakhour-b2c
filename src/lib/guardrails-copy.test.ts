@@ -55,7 +55,10 @@ describe("draftFromStored", () => {
       timeZone: "Asia/Kolkata",
     }, TODAY);
     expect(d).toEqual({
+      channelMode: "deny",
       deniedChannels: ["meta"],
+      allowedChannels: [],
+      approvedAssetsOnly: false,
       termsText: "acme\nfree trial",
       quietEnabled: true,
       quietStart: "21:00",
@@ -85,12 +88,18 @@ describe("draftFromStored", () => {
 describe("buildGuardrailsPatch", () => {
   it("★★sends EVERY rule — an emptied list clears it, quiet hours off is null", () => {
     const r = buildGuardrailsPatch(empty());
-    expect(r).toEqual({ ok: true, patch: { deniedChannels: [], blockedTerms: [], quietHours: null, blackoutDates: [] } });
+    expect(r).toEqual({
+      ok: true,
+      patch: { deniedChannels: [], approvedAssetsOnly: false, blockedTerms: [], quietHours: null, blackoutDates: [] },
+    });
   });
 
   it("builds the full record", () => {
     const r = buildGuardrailsPatch({
+      channelMode: "deny",
       deniedChannels: ["x", "x", "meta"],
+      allowedChannels: ["linkedin"],
+      approvedAssetsOnly: true,
       termsText: "Acme\nFree trial",
       quietEnabled: true,
       quietStart: "22:00",
@@ -102,6 +111,7 @@ describe("buildGuardrailsPatch", () => {
       ok: true,
       patch: {
         deniedChannels: ["x", "meta"],
+        approvedAssetsOnly: true,
         blockedTerms: ["Acme", "Free trial"],
         quietHours: { start: "22:00", end: "07:00" },
         blackoutDates: [{ from: "2026-12-24", to: "2026-12-26", label: "Christmas" }, { from: "2027-01-01", to: "2027-01-01" }],
@@ -261,5 +271,60 @@ describe("guardrailsSaveError", () => {
     ]) {
       expect(guardrailsSaveError(err)).toMatch(/couldn't save your guardrails/);
     }
+  });
+});
+
+// ── D-05b: the allow list and approved-assets-only ──────────────────
+
+describe("★★D-05b — the channel allow list", () => {
+  it("★★a stored allow list seeds the ALLOW mode, with an empty deny list — even beside a stored deny list", () => {
+    const d = draftFromStored({ allowedChannels: ["linkedin"], deniedChannels: ["meta"] }, TODAY);
+    expect(d).toMatchObject({ channelMode: "allow", allowedChannels: ["linkedin"], deniedChannels: [] });
+    expect(draftFromStored({ deniedChannels: ["meta"] }, TODAY)).toMatchObject({ channelMode: "deny", deniedChannels: ["meta"], allowedChannels: [] });
+  });
+
+  it("★★ALLOW mode sends the allow list (deduped) and an EMPTY deny list — one channel rule", () => {
+    const r = buildGuardrailsPatch({ ...empty(), channelMode: "allow", allowedChannels: ["linkedin", "linkedin", "meta"], deniedChannels: ["x"] });
+    expect(r).toMatchObject({ ok: true, patch: { allowedChannels: ["linkedin", "meta"], deniedChannels: [] } });
+  });
+
+  it("★★DENY mode sends no allow list at all — a kept allow-list draft does not leak into the save", () => {
+    const r = buildGuardrailsPatch({ ...empty(), channelMode: "deny", deniedChannels: ["x"], allowedChannels: ["linkedin"] });
+    expect(r.ok).toBe(true);
+    expect(r.ok && "allowedChannels" in r.patch).toBe(false);
+    expect(r).toMatchObject({ ok: true, patch: { deniedChannels: ["x"] } });
+  });
+
+  it("★★an allow list of NOTHING is refused in the form, pointing at Stop all ads", () => {
+    const r = buildGuardrailsPatch({ ...empty(), channelMode: "allow", allowedChannels: [] });
+    expect(r.ok).toBe(false);
+    expect(!r.ok && r.error).toContain("Stop all ads");
+  });
+
+  it("★the summary says ONLY, and that a later channel stays off", () => {
+    const lines = describeGuardrails({ allowedChannels: ["linkedin", "google_ads"] }, TODAY);
+    expect(lines).toEqual(["Advertises only on LinkedIn, Google Ads — a channel Peakhour adds later stays off until you allow it."]);
+    expect(hasGuardrails({ allowedChannels: ["linkedin"] })).toBe(true);
+  });
+
+  it("★a mixed record (a script wrote both) is summarised by its allow list, as the form reads it", () => {
+    // ★And ONLY by it: "never advertises on Meta" beside "only LinkedIn" says two rules.
+    const lines = describeGuardrails({ allowedChannels: ["linkedin"], deniedChannels: ["meta"] }, TODAY);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toMatch(/^Advertises only on LinkedIn/);
+  });
+});
+
+describe("★★D-05b — approved assets only", () => {
+  it("is seeded from a stored true only, and sent as the switch says", () => {
+    expect(draftFromStored({ approvedAssetsOnly: true }, TODAY).approvedAssetsOnly).toBe(true);
+    expect(empty().approvedAssetsOnly).toBe(false);
+    expect(buildGuardrailsPatch({ ...empty(), approvedAssetsOnly: true })).toMatchObject({ ok: true, patch: { approvedAssetsOnly: true } });
+    expect(buildGuardrailsPatch(empty())).toMatchObject({ ok: true, patch: { approvedAssetsOnly: false } });
+  });
+
+  it("★is a rule in force: summarised, and counted by hasGuardrails", () => {
+    expect(describeGuardrails({ approvedAssetsOnly: true }, TODAY)).toEqual(["Creates ads only from creatives you have approved."]);
+    expect(hasGuardrails({ approvedAssetsOnly: true })).toBe(true);
   });
 });
