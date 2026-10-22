@@ -239,8 +239,8 @@ export interface GuardrailsPatch {
   deniedChannels?: string[];
   /** D-05b: sent only for an allow list (then `deniedChannels` is `[]`). */
   allowedChannels?: string[];
-  /** D-05b: `false` stores nothing. */
-  approvedAssetsOnly?: boolean;
+  /** D-05b: sent only when on (off stores nothing; an api without D-05b refuses the key). */
+  approvedAssetsOnly?: true;
   blockedTerms?: string[];
   quietHours?: { start: string; end: string } | null;
   blackoutDates?: Array<{ from: string; to: string; label?: string }>;

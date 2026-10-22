@@ -335,10 +335,15 @@ describe("★★D-05b — approved assets only", () => {
 });
 
 describe("★★D-05b review R1", () => {
-  it("★★a stored EMPTY allow list is no allow list: the form opens on the deny list, as the summary reads it", () => {
+  it("★★a stored EMPTY allow list allows NOTHING, as the engine reads it (review R2) — said so, and opened as an allow list", () => {
     const d = draftFromStored({ allowedChannels: [], deniedChannels: ["meta"] }, TODAY);
-    expect(d).toMatchObject({ channelMode: "deny", deniedChannels: ["meta"] });
-    expect(describeGuardrails({ allowedChannels: [], deniedChannels: ["meta"] }, TODAY)).toEqual(["Never advertises on Meta (Facebook & Instagram)."]);
+    expect(d).toMatchObject({ channelMode: "allow", allowedChannels: [], deniedChannels: [] });
+    expect(describeGuardrails({ allowedChannels: [] }, TODAY)).toEqual([
+      "Advertises on no channel — the allow list is empty. Edit it to choose channels.",
+    ]);
+    expect(hasGuardrails({ allowedChannels: [] })).toBe(true);
+    // ★and saving it unchanged is refused, as the api refuses it.
+    expect(buildGuardrailsPatch(d).ok).toBe(false);
   });
 
   it("★★a channel this build does not know is still a box — visible, and removable", () => {
@@ -357,9 +362,17 @@ describe("★★D-05b review R1", () => {
     expect(channelModeWarning("deny", { deniedChannels: ["meta"] })).toBeNull();
   });
 
-  it("nothing stored, or an empty stored allow list, is nothing to warn about", () => {
+  it("nothing stored is nothing to warn about; leaving even an EMPTY stored allow list is (it allows nothing today)", () => {
     expect(channelModeWarning("allow", undefined)).toBeNull();
     expect(channelModeWarning("deny", undefined)).toBeNull();
-    expect(channelModeWarning("deny", { allowedChannels: [] })).toBeNull();
+    expect(channelModeWarning("deny", { allowedChannels: [] })).toContain("including ones Peakhour adds later");
+  });
+
+  it("★★a channel both allowed and denied is REFUSED, as the engine asks the deny list first (review R2)", () => {
+    const g = { allowedChannels: ["linkedin", "meta"], deniedChannels: ["meta"] };
+    expect(describeGuardrails(g, TODAY)).toEqual([
+      "Advertises only on LinkedIn — a channel Peakhour adds later stays off until you allow it.",
+    ]);
+    expect(draftFromStored(g, TODAY)).toMatchObject({ channelMode: "allow", allowedChannels: ["linkedin"], deniedChannels: [] });
   });
 });

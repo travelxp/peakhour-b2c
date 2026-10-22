@@ -237,7 +237,11 @@ export function GuardrailsCard() {
                   later is on under the first and off under the second. */}
               <RadioGroup
                 value={draft.channelMode}
-                onValueChange={(v) => set({ channelMode: v === "allow" ? "allow" : "deny" })}
+                onValueChange={(v) => {
+                  // ★A stale refusal of the other mode must not linger (review R2).
+                  setFormError(null);
+                  set({ channelMode: v === "allow" ? "allow" : "deny" });
+                }}
                 className="gap-2"
               >
                 <div className="flex items-center gap-2">

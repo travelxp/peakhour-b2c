@@ -19,6 +19,21 @@ export const GUARDRAIL_CHANNELS: ReadonlyArray<{ key: string; label: string }> =
   { key: "google_ads", label: "Google Ads" },
 ];
 
+/**
+ * ★THE CHANNELS THE ENGINE ALLOWS, READ AS THE ENGINE READS THEM (review R2):
+ * an ARRAY is an allow list whatever it holds — a stored `[]` allows nothing
+ * (api `readGuardrails` fails closed) — and a channel both allowed and denied
+ * is refused (the api asks the deny list first). `null` = no allow list. One
+ * helper, so the form, the summary and the warning cannot read it three ways.
+ * (The validator refuses both lists together and an empty one; only a write
+ * that skips it leaves either.)
+ */
+export function effectiveAllowList(g: Guardrails | undefined): string[] | null {
+  if (!Array.isArray(g?.allowedChannels)) return null;
+  const denied = new Set(g.deniedChannels ?? []);
+  return g.allowedChannels.filter((k) => !denied.has(k));
+}
+
 /** mig 372's blackout cap, refused here in the api's terms. */
 export const MAX_BLACKOUTS = 50;
 
@@ -39,7 +54,7 @@ export function channelOptions(list: readonly string[]): ReadonlyArray<{ key: st
  * and every later one — back in.
  */
 export function channelModeWarning(mode: GuardrailsDraft["channelMode"], stored: Guardrails | undefined): string | null {
-  const storedAllow = (stored?.allowedChannels?.length ?? 0) > 0;
+  const storedAllow = effectiveAllowList(stored) !== null;
   if (mode === "deny" && storedAllow) {
     return "Saving replaces your allow list: every channel you don't turn off here — including ones Peakhour adds later — will be allowed.";
   }
@@ -119,11 +134,11 @@ export function draftFromStored(g: Guardrails | undefined, today: string = today
     // ★An allow list is the rule when one is stored, whatever the deny list
     //  says — the api never stores both, and a mixed record read as a deny
     //  list would let a later channel in on the next save.
-    // ★BY LENGTH, as the summary reads it (review R1): a stored `[]` is no
-    //  allow list, and opening it as one would drop the deny list on save.
-    channelMode: g?.allowedChannels?.length ? "allow" : "deny",
-    deniedChannels: g?.allowedChannels?.length ? [] : [...(g?.deniedChannels ?? [])],
-    allowedChannels: [...(g?.allowedChannels ?? [])],
+    // ★AS THE ENGINE READS IT (`effectiveAllowList`, review R2): an allow list
+    //  is the rule when one is stored, and the form opens on what it allows.
+    channelMode: effectiveAllowList(g) !== null ? "allow" : "deny",
+    deniedChannels: effectiveAllowList(g) !== null ? [] : [...(g?.deniedChannels ?? [])],
+    allowedChannels: effectiveAllowList(g) ?? [],
     approvedAssetsOnly: g?.approvedAssetsOnly === true,
     termsText: (g?.blockedTerms ?? []).join("\n"),
     quietEnabled: !!g?.quietHours,
@@ -272,7 +287,7 @@ export function hasGuardrails(g: Guardrails | undefined): boolean {
   return (
     !!g &&
     ((g.deniedChannels?.length ?? 0) > 0 ||
-      (g.allowedChannels?.length ?? 0) > 0 ||
+      effectiveAllowList(g) !== null ||
       g.approvedAssetsOnly === true ||
       (g.blockedTerms?.length ?? 0) > 0 ||
       !!g.quietHours ||
@@ -286,10 +301,12 @@ export function describeGuardrails(g: Guardrails | undefined, today: string = to
   const out: string[] = [];
   const label = (k: string) => GUARDRAIL_CHANNELS.find((c) => c.key === k)?.label ?? k;
   // ★The allow list is the rule when one is stored (see draftFromStored).
-  if (g.allowedChannels?.length) {
-    out.push(
-      `Advertises only on ${g.allowedChannels.map(label).join(", ")} — a channel Peakhour adds later stays off until you allow it.`,
-    );
+  const allow = effectiveAllowList(g);
+  if (allow && allow.length === 0) {
+    // ★The engine refuses every channel for an empty allow list; say so.
+    out.push("Advertises on no channel — the allow list is empty. Edit it to choose channels.");
+  } else if (allow) {
+    out.push(`Advertises only on ${allow.map(label).join(", ")} — a channel Peakhour adds later stays off until you allow it.`);
   } else if (g.deniedChannels?.length) {
     out.push(`Never advertises on ${g.deniedChannels.map(label).join(", ")}.`);
   }
