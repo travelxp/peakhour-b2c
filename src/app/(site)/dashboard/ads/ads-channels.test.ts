@@ -370,18 +370,18 @@ describe("★D-03b adsChannelConnectionState — the one rule every panel reads"
     const statusCompares: string[] = [];
     const visit = (node: ts.Node): void => {
       if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) calls.add(node.expression.text);
-      if (
-        ts.isBinaryExpression(node) &&
-        [ts.SyntaxKind.EqualsEqualsEqualsToken, ts.SyntaxKind.ExclamationEqualsEqualsToken].includes(node.operatorToken.kind)
-      ) {
-        // A comparison is reported once, below, by its literal or its flag.
+      // ★ANY USE, NOT ONLY ===/!== (reviews R1, R2): a `needs_reauth` literal
+      //  or a row's `connected` flag anywhere in a panel is the state
+      //  re-derived — truthiness, `.includes`, a `switch`, `row["connected"]`
+      //  or a destructured `{ connected }` all count. The panels need neither:
+      //  `panelConnection` answers both questions.
+      if (ts.isStringLiteralLike(node) && (node.text === "needs_reauth" || node.text === "connected")) {
+        statusCompares.push(node.parent.getText());
       }
-      // ★ANY USE, NOT ONLY ===/!== (review R1): a `needs_reauth` literal or a
-      //  row's `connected` flag anywhere in a panel is the state re-derived —
-      //  truthiness, `.includes`, a `switch` all count. The panels need
-      //  neither: `panelConnection` answers both questions.
-      if (ts.isStringLiteralLike(node) && node.text === "needs_reauth") statusCompares.push(node.parent.getText());
       if (ts.isPropertyAccessExpression(node) && node.name.text === "connected") statusCompares.push(node.getText());
+      if (ts.isBindingElement(node) && (node.propertyName ?? node.name).getText() === "connected") {
+        statusCompares.push(node.getText());
+      }
       ts.forEachChild(node, visit);
     };
     visit(file);
@@ -417,5 +417,7 @@ describe("★D-03b adsChannelConnectionState — the one rule every panel reads"
     expect(scanText("const live = !!row?.connected;")).toHaveLength(1);
     expect(scanText('const stale = ["needs_reauth"].includes(row.status);')).toHaveLength(1);
     expect(scanText('switch (row.status) { case "needs_reauth": break; }')).toHaveLength(1);
+    expect(scanText('const live = row["connected"];')).toHaveLength(1);
+    expect(scanText('const { connected, status } = row;')).toHaveLength(1);
   });
 });

@@ -193,7 +193,10 @@ export default function OutcomesPage() {
           <Skeleton className="h-24 w-full" />
           <Skeleton className="h-40 w-full" />
         </div>
-      ) : outcomes.isError ? (
+      ) : outcomes.isError && !outcomes.data ? (
+        // ★ONLY WITH NOTHING TO SHOW (b2c#611 R2): a refetch that fails keeps
+        //  the last data, and Needs You's own "Try again" must not blank the
+        //  page it is retrying a part of.
         <EmptyState
           icon={TrendingUp}
           title="We couldn't work out your outcomes"
@@ -216,6 +219,7 @@ export default function OutcomesPage() {
           runsState={optimizer.allowed ? sourceState(adjustments) : "read"}
           onRetry={() => void adjustments.refetch()}
           onRetryNeedsYou={() => void outcomes.refetch()}
+          retryingNeedsYou={outcomes.isFetching}
         />
       )}
     </div>
@@ -244,6 +248,7 @@ function OutcomesBody({
   runsState,
   onRetry,
   onRetryNeedsYou,
+  retryingNeedsYou,
 }: {
   data: OutcomesResponse;
   days: number;
@@ -256,6 +261,7 @@ function OutcomesBody({
   runsState: SourceState;
   onRetry: () => void;
   onRetryNeedsYou: () => void;
+  retryingNeedsYou: boolean;
 }) {
   const { reach, attention, conversions, value, nextActions, movements } = data;
   // Computed once: the guard and the rendered child were two independent
@@ -355,8 +361,13 @@ function OutcomesBody({
           {unchecked && (
             <p className="text-xs text-muted-foreground">
               {unchecked}{" "}
-              <button type="button" className="underline underline-offset-2" onClick={onRetryNeedsYou}>
-                Try again
+              <button
+                type="button"
+                className="underline underline-offset-2 disabled:no-underline disabled:opacity-60"
+                onClick={onRetryNeedsYou}
+                disabled={retryingNeedsYou}
+              >
+                {retryingNeedsYou ? "Checking…" : "Try again"}
               </button>
             </p>
           )}
