@@ -220,6 +220,9 @@ export default function OutcomesPage() {
           onRetry={() => void adjustments.refetch()}
           onRetryNeedsYou={() => void outcomes.refetch()}
           retryingNeedsYou={outcomes.isFetching}
+          // A failed refetch keeps the last data (the error state needs none
+          // to show), so the note has to say the retry failed itself.
+          retryFailed={outcomes.isError}
         />
       )}
     </div>
@@ -249,6 +252,7 @@ function OutcomesBody({
   onRetry,
   onRetryNeedsYou,
   retryingNeedsYou,
+  retryFailed,
 }: {
   data: OutcomesResponse;
   days: number;
@@ -262,6 +266,7 @@ function OutcomesBody({
   onRetry: () => void;
   onRetryNeedsYou: () => void;
   retryingNeedsYou: boolean;
+  retryFailed: boolean;
 }) {
   const { reach, attention, conversions, value, nextActions, movements } = data;
   // Computed once: the guard and the rendered child were two independent
@@ -360,7 +365,8 @@ function OutcomesBody({
           <h3 className="text-sm font-semibold">What needs you</h3>
           {unchecked && (
             <p className="text-xs text-muted-foreground">
-              {unchecked}{" "}
+              {unchecked}
+              {retryFailed && !retryingNeedsYou ? " The last try didn't get through either." : ""}{" "}
               <button
                 type="button"
                 className="underline underline-offset-2 disabled:no-underline disabled:opacity-60"
