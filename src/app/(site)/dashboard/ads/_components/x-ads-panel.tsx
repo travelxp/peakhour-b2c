@@ -47,6 +47,7 @@ import {
   type XCampaign,
 } from "@/lib/api/x-ads";
 import { ADS_CHANNEL_PARAM, type AdsChannelKey } from "../ads-channels";
+import { deriveAccountCurrency, formatCurrency, fundingNotice } from "./x-ads-money";
 
 /**
  * X Ads panel, rendered inside the shared Ads hub
@@ -194,6 +195,15 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
     enabled: !!accountId,
   });
 
+  // X's account object has no currency; it lives on funding instruments. Same
+  // key as CreateCampaignDialog's query, so the dialog reuses this one request.
+  const fundingInstruments = useQuery({
+    queryKey: ["x-ads-funding", accountId],
+    queryFn: () => xAdsApi.listFundingInstruments(accountId!),
+    enabled: !!accountId,
+  });
+  const accountCurrency = deriveAccountCurrency(fundingInstruments.data);
+
   const analytics = useQuery({
     queryKey: [
       "x-ads-analytics",
@@ -267,7 +277,6 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
   }, [analytics.data]);
 
   const cpe = totals && totals.engagements > 0 ? totals.spend / totals.engagements : null;
-  const account = accounts.data?.find((a) => a.id === accountId);
 
   if (accounts.isLoading) {
     return <SkeletonStack />;
@@ -314,7 +323,7 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
             <SelectContent>
               {(accounts.data ?? []).map((a) => (
                 <SelectItem key={a.id} value={a.id}>
-                  {a.name} ({a.currency})
+                  {a.name}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -333,7 +342,7 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           title={`Spend (${ANALYTICS_RANGE_DAYS}d)`}
-          value={totals ? formatCurrency(totals.spend, account?.currency) : undefined}
+          value={totals ? formatCurrency(totals.spend, accountCurrency) : undefined}
           loading={analytics.isLoading}
         />
         <KpiCard
@@ -348,7 +357,7 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
         />
         <KpiCard
           title="CPE"
-          value={cpe != null ? formatCurrency(cpe, account?.currency) : "—"}
+          value={cpe != null ? formatCurrency(cpe, accountCurrency) : "—"}
           subtitle="Cost per engagement"
           loading={analytics.isLoading}
         />
@@ -398,7 +407,7 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
                     key={c.id}
                     campaign={c}
                     spend={analytics.data?.find((a) => a.id === c.id)?.spend}
-                    currency={account?.currency}
+                    currency={accountCurrency}
                     onToggle={(next) =>
                       setStatus.mutate({ accountId: accountId!, campaignId: c.id, status: next })
                     }
@@ -430,7 +439,7 @@ function CampaignRow({
 }: {
   campaign: XCampaign;
   spend: number | undefined;
-  currency: string | undefined;
+  currency: string | null;
   onToggle: (next: "ACTIVE" | "PAUSED") => void;
   pending: boolean;
 }) {
@@ -477,8 +486,11 @@ function CreateCampaignDialog({
   const fundingInstruments = useQuery({
     queryKey: ["x-ads-funding", accountId],
     queryFn: () => xAdsApi.listFundingInstruments(accountId),
-    enabled: open,
   });
+  const notice = fundingNotice(fundingInstruments);
+  const fundingCurrency = fundingInstruments.data
+    ?.find((f) => f.id === fundingId)
+    ?.currency?.trim();
 
   const create = useMutation({
     mutationFn: () =>
@@ -548,11 +560,29 @@ function CreateCampaignDialog({
               <SelectContent>
                 {(fundingInstruments.data ?? []).map((f) => (
                   <SelectItem key={f.id} value={f.id}>
-                    {f.description} ({f.currency})
+                    {f.description}{f.currency ? ` (${f.currency})` : ""}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            {notice === "empty" ? (
+              <p className="text-xs text-muted-foreground" role="status">
+                This X ads account has no funding source yet. Add a payment method in{" "}
+                <a
+                  href="https://ads.x.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-medium underline underline-offset-4"
+                >
+                  X Ads Manager (ads.x.com)
+                </a>
+                , then come back to create a campaign.
+              </p>
+            ) : notice === "error" ? (
+              <p className="text-xs text-destructive" role="status">
+                Couldn&apos;t load funding sources. Try again.
+              </p>
+            ) : null}
           </div>
 
           <div className="space-y-2">
@@ -566,7 +596,10 @@ function CreateCampaignDialog({
               onChange={(e) => setDailyBudget(e.target.value)}
             />
             <p className="text-xs text-muted-foreground">
-              In the funding instrument&apos;s currency. Stored as micros server-side.
+              {fundingCurrency
+                ? `In ${fundingCurrency}, the funding source's currency.`
+                : "In the funding instrument's currency."}{" "}
+              Stored as micros server-side.
             </p>
           </div>
 
@@ -648,16 +681,4 @@ function compact(n: number): string {
   if (n < 1000) return String(n);
   if (n < 1_000_000) return `${(n / 1000).toFixed(n < 10_000 ? 1 : 0)}k`;
   return `${(n / 1_000_000).toFixed(1)}M`;
-}
-
-function formatCurrency(amount: number, currency: string | undefined): string {
-  try {
-    return new Intl.NumberFormat(undefined, {
-      style: "currency",
-      currency: currency || "USD",
-      maximumFractionDigits: 2,
-    }).format(amount);
-  } catch {
-    return `${currency ?? "$"} ${amount.toFixed(2)}`;
-  }
 }

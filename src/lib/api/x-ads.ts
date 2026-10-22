@@ -3,7 +3,8 @@ import { api } from "@/lib/api";
 export interface XAdAccount {
   id: string;
   name: string;
-  currency: string;
+  // No currency: X's account object has none (checked live 2026-10-22).
+  // An account's currency comes from its funding instruments.
   timezone: string;
   approvalStatus: string;
 }
