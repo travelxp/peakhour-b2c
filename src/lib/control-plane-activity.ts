@@ -103,13 +103,12 @@ export const ACTIVITY_EMPTY_TEXT =
  * A verified merchant's message on which no instruction ran: from api M3
  * (api#1522) mostly chatter, which the merchant agent answers in conversation.
  *
- * ★★ONE COPY FOR TWO KEYS, `not_a_command` AND `conversation`. mongodb
- * migration 392 (WhatsApp plan M1) adds `conversation` and rewrites the stored
- * `not_a_command` rows it finds to it. ⏸An api older than M3 still writes
- * `not_a_command` (production until M3 deploys there). api#1522 names a mongodb
- * follow-up that rewrites those rows too and drops the key; it is planned, not
- * built, so this entry stays until it lands. 🚫Two sentences would show a
- * merchant one kind of line two ways, so both keys read this one.
+ * ★★IT REPLACED `not_a_command`. mongodb migration 392 (WhatsApp plan M1)
+ * added `conversation` and rewrote the stored `not_a_command` rows to it; api
+ * M3 stopped writing the old value; mongodb 405 rewrote the rows written in
+ * between and dropped `not_a_command` from `plt_activity`'s enum. So no row
+ * can carry the old key, and this map no longer has one (both keys read this
+ * one copy until then, so one event never showed two ways).
  *
  * 🚫★NOT "Blocked". A verified merchant saying "thanks" was not refused
  * anything, and filing ordinary chatter under a wall the tab exists to prove
@@ -118,8 +117,8 @@ export const ACTIVITY_EMPTY_TEXT =
  * ⚠️★★THE SENTENCE CLAIMS NO MORE THAN EVERY SUCH ROW CAN PROVE, OLD OR NEW.
  * - Before M3, `platform-inbound.ts` wrote `not_a_command` for chatter, a
  *   button tap, any text while a question is waiting (Peakhour re-asks it),
- *   and a registered trigger the router declined. 392 rewrote those rows to
- *   `conversation` and cannot tell them apart.
+ *   and a registered trigger the router declined. 392 and 405 rewrote those
+ *   rows to `conversation` and cannot tell them apart.
  * - From M3, a declined trigger is `command_denied`. But `conversation` is
  *   still more than an answered chat: it is `handlePlatformInbound`'s one
  *   return for every turn that is not a command, so it also covers a button
@@ -128,8 +127,8 @@ export const ACTIVITY_EMPTY_TEXT =
  *   path answered.
  * - Nothing in the row says which of these it was: no reply, no kind, and no
  *   trigger. 🚫A split by `occurredAt` at M3's deploy is one environment's
- *   date compiled into every environment, and the later migration rewrites
- *   pre-M3 production rows with their original dates, after any such cutoff.
+ *   date compiled into every environment, and 405 rewrites pre-M3 production
+ *   rows with their original dates, after any such cutoff.
  *
  * So the sentence says what holds in every case: nothing ran. The
  * `conversation` return sits before `executeMerchantCommand`, and an agent's
@@ -152,8 +151,8 @@ const CONVERSATION_COPY: OutcomeCopy = {
 /**
  * Every outcome `plt_activity` can hold, and what a merchant reads.
  *
- * ⚠️★★TWELVE ONCE mongodb MIGRATION 392 ADMITS `conversation` (eleven before
- * it), AND `duplicate_skipped` IS ABSENT ON PURPOSE. `duplicate_skipped` is a
+ * ⚠️★★ELEVEN (mongodb 392 added `conversation`, 405 dropped `not_a_command`),
+ * AND `duplicate_skipped` IS ABSENT ON PURPOSE. `duplicate_skipped` is a
  * `PlatformInboundOutcome` that the ledger deliberately never writes — *"a
  * redelivery is not a second event"* — so a bucket for it here would be copy
  * for a row that cannot arrive.
@@ -194,7 +193,6 @@ const OUTCOME_COPY: Record<string, OutcomeCopy> = {
     refused: true,
   },
   // ── things that happened ────────────────────────────────────────────────
-  not_a_command: CONVERSATION_COPY,
   conversation: CONVERSATION_COPY,
   command_handled: {
     group: "Instruction",
