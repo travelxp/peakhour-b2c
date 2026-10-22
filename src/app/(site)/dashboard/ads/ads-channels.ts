@@ -8,9 +8,9 @@
  * route, no new nav item.
  *
  * Only channels that HAVE a panel belong here. A connector that is merely
- * catalogued (google_ads) stays out until its panel exists — otherwise the
- * selector would offer a tab that renders nothing. (`meta_ads` joined in M-16,
- * with its panel.)
+ * catalogued stays out until its panel exists — otherwise the selector would
+ * offer a tab that renders nothing. (`meta_ads` joined in M-16, with its
+ * panel; `google_ads` in G-15, with its.)
  *
  * ── ★★M-13: WHEN `meta_ads` JOINS, WHICH ROUTES ITS PANEL MAY CALL ───────
  *
@@ -239,6 +239,24 @@ export const ADS_CHANNELS = [
       ["content-hub-integrations"],
     ],
     ownedParams: ["adAccount"],
+  },
+  /**
+   * ★★G-15. Search only: the api creates Responsive Search Ad campaigns and
+   * nothing else (G-04, G-09), so neither the description nor the panel names
+   * another campaign type. Its routes are `lib/google-ads-surface.ts`'s.
+   *
+   * `ad-campaign-monitor` is what watches a Google campaign's spend, and
+   * re-reads a create Google did not confirm (the re-drive), so the chip
+   * refreshes the list it changes.
+   */
+  {
+    key: "google",
+    label: "Google Ads",
+    providerKey: "google_ads",
+    description: "Create Google Search campaigns, paused until you start them, and start or pause them here.",
+    crons: ["ad-campaign-monitor"],
+    invalidateQueryKeys: [["google-ads-accounts"], ["google-ads-campaigns"], ["content-hub-integrations"]],
+    ownedParams: ["customer"],
   },
 ] as const satisfies readonly AdsChannelShape[];
 

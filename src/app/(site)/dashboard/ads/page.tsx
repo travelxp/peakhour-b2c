@@ -29,6 +29,7 @@ import { AudienceExclusionsCard } from "@/components/ads/audience-exclusions-car
 import { LinkedInAdsPanel } from "./_components/linkedin-ads-panel";
 import { XAdsPanel } from "./_components/x-ads-panel";
 import { MetaAdsPanel } from "./_components/meta-ads-panel";
+import { GoogleAdsPanel } from "./_components/google-ads-panel";
 import {
   ADS_CHANNELS,
   ADS_CHANNEL_PARAM,
@@ -61,6 +62,7 @@ const PANELS: Record<
   linkedin: LinkedInAdsPanel,
   x: XAdsPanel,
   meta: MetaAdsPanel,
+  google: GoogleAdsPanel,
 };
 
 /** Every channel's crons — used while the resolved channel isn't known yet. */
