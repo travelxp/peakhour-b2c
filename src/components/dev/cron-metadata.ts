@@ -1006,10 +1006,44 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       "Ends the grace period for subscriptions whose payment failed, freezing access once the retry window has run out. Revokes entitlements from real organisations — dev has real stores on it.",
   },
   "mandate-debits": {
-    label: "Collect PayU renewals",
-    frequency: "Runs hourly at :20",
+    label: "Collect PayU mandate payments",
+    frequency: "Runs hourly (at :20 past)",
     description:
-      "Sends the advance notice for each PayU mandate due soon, then takes the payment once the notice has run its time, and records the outcome of any payment already attempted.",
+      "Sends the advance notice for each PayU mandate due soon, then takes the payment (a renewal, or the first payment when a trial ends) once the notice has had its 48 hours, and records the outcome of any payment already attempted. Cancels the PayU mandate of a subscription that no longer bills. Takes real money from real buyers — dev has real stores on it.",
+    // ⚠️A green "complete" toast would hide the runs that did nothing: PayU not
+    // configured, a step that threw, a refused notice or debit. Those read as
+    // a warning, from the api's `MandateDebitTotals`.
+    summarize: (data) => {
+      const d = asRecord(data);
+      if (!d || typeof d.scanned !== "number") return null;
+      const o = asRecord(d.outcomes) ?? {};
+      const count = (parts: string[], n: number, text: string) => {
+        if (n > 0) parts.push(`${n} ${text}`);
+      };
+      const problems: string[] = [];
+      count(problems, num(d.unconfigured), "skipped (PayU not configured)");
+      count(problems, num(d.errors), plural(num(d.errors), "error"));
+      count(problems, num(d.malformed), "malformed");
+      count(problems, num(o.notice_failed), `${plural(num(o.notice_failed), "notice")} refused`);
+      count(problems, num(o.failed), `${plural(num(o.failed), "payment")} failed`);
+      count(problems, num(o.halted), "out of retries");
+      count(problems, num(o.rejected), `${plural(num(o.rejected), "payment call")} refused by PayU`);
+      count(problems, num(o.lost), `${plural(num(o.lost), "payment")} lost in sending`);
+      count(problems, num(o.revoke_failed), `${plural(num(o.revoke_failed), "cancellation")} refused`);
+      const done: string[] = [];
+      count(done, num(o.noticed), `${plural(num(o.noticed), "notice")} sent`);
+      count(done, num(o.sent), `${plural(num(o.sent), "payment")} sent`);
+      count(done, num(o.captured), `${plural(num(o.captured), "payment")} collected`);
+      count(done, num(o.pending), "pending at PayU");
+      count(done, num(o.ended), `${plural(num(o.ended), "mandate")} cancelled`);
+      count(done, num(o.waiting) + num(o.peak), "waiting");
+      count(done, num(d.deferred), "left for the next run");
+      if (problems.length > 0) {
+        return { message: `${[...problems, ...done].join(", ")}.`, level: "warning" };
+      }
+      if (done.length === 0) return "No PayU mandates due.";
+      return `${done.join(", ")}.`;
+    },
   },
   "billing-reconcile": {
     label: "Re-check card subscriptions",

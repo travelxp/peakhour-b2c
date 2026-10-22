@@ -1002,3 +1002,40 @@ describe("approval-expiry summary", () => {
     });
   });
 });
+
+/** mandate-debits returns the api's flat `MandateDebitTotals`. A run that did
+ *  nothing because PayU is not configured, or whose debits were refused, must
+ *  not read as a green "complete". */
+describe("mandate-debits summary", () => {
+  const body = (d: Record<string, unknown>) =>
+    JSON.stringify({ ok: true, scanned: 0, unconfigured: 0, errors: 0, deferred: 0, malformed: 0, outcomes: {}, durationMs: 5, ...d });
+
+  it("★nothing due is a plain success", () => {
+    expect(summarizeCronBody("mandate-debits", body({}))).toEqual({ message: "No PayU mandates due.", level: "success" });
+  });
+
+  it("★PayU not configured is a warning, not a success", () => {
+    expect(summarizeCronBody("mandate-debits", body({ scanned: 3, unconfigured: 3 }))).toEqual({
+      message: "3 skipped (PayU not configured).",
+      level: "warning",
+    });
+  });
+
+  it("★a refused debit beside a collected one is a warning naming both", () => {
+    expect(summarizeCronBody("mandate-debits", body({ scanned: 2, outcomes: { rejected: 1, captured: 1 } }))).toEqual({
+      message: "1 payment call refused by PayU, 1 payment collected.",
+      level: "warning",
+    });
+  });
+
+  it("★a clean run counts what it did", () => {
+    expect(summarizeCronBody("mandate-debits", body({ scanned: 4, outcomes: { noticed: 2, captured: 1, waiting: 1 } }))).toEqual({
+      message: "2 notices sent, 1 payment collected, 1 waiting.",
+      level: "success",
+    });
+  });
+
+  it("★an unexpected shape defers to the generic toast", () => {
+    expect(summarizeCronBody("mandate-debits", JSON.stringify({ ok: true }))).toBeNull();
+  });
+});
