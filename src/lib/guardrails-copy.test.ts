@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   activeBlackouts,
   buildGuardrailsPatch,
+  channelModeWarning,
+  channelOptions,
   describeGuardrails,
   draftFromStored,
   guardrailsSaveError,
@@ -90,7 +92,7 @@ describe("buildGuardrailsPatch", () => {
     const r = buildGuardrailsPatch(empty());
     expect(r).toEqual({
       ok: true,
-      patch: { deniedChannels: [], approvedAssetsOnly: false, blockedTerms: [], quietHours: null, blackoutDates: [] },
+      patch: { deniedChannels: [], blockedTerms: [], quietHours: null, blackoutDates: [] },
     });
   });
 
@@ -295,10 +297,10 @@ describe("★★D-05b — the channel allow list", () => {
     expect(r).toMatchObject({ ok: true, patch: { deniedChannels: ["x"] } });
   });
 
-  it("★★an allow list of NOTHING is refused in the form, pointing at Stop all ads", () => {
+  it("★★an allow list of NOTHING is refused in the form, pointing at pausing campaigns (b2c has no Stop all ads)", () => {
     const r = buildGuardrailsPatch({ ...empty(), channelMode: "allow", allowedChannels: [] });
     expect(r.ok).toBe(false);
-    expect(!r.ok && r.error).toContain("Stop all ads");
+    expect(!r.ok && r.error).toContain("pause your campaigns");
   });
 
   it("★the summary says ONLY, and that a later channel stays off", () => {
@@ -320,11 +322,44 @@ describe("★★D-05b — approved assets only", () => {
     expect(draftFromStored({ approvedAssetsOnly: true }, TODAY).approvedAssetsOnly).toBe(true);
     expect(empty().approvedAssetsOnly).toBe(false);
     expect(buildGuardrailsPatch({ ...empty(), approvedAssetsOnly: true })).toMatchObject({ ok: true, patch: { approvedAssetsOnly: true } });
-    expect(buildGuardrailsPatch(empty())).toMatchObject({ ok: true, patch: { approvedAssetsOnly: false } });
+    // ★OFF SENDS NO KEY (review R1): off stores nothing either way, and an
+    //  api without D-05b refuses the key on every save.
+    const off = buildGuardrailsPatch(empty());
+    expect(off.ok && "approvedAssetsOnly" in off.patch).toBe(false);
   });
 
   it("★is a rule in force: summarised, and counted by hasGuardrails", () => {
     expect(describeGuardrails({ approvedAssetsOnly: true }, TODAY)).toEqual(["Creates ads only from creatives you have approved."]);
     expect(hasGuardrails({ approvedAssetsOnly: true })).toBe(true);
+  });
+});
+
+describe("★★D-05b review R1", () => {
+  it("★★a stored EMPTY allow list is no allow list: the form opens on the deny list, as the summary reads it", () => {
+    const d = draftFromStored({ allowedChannels: [], deniedChannels: ["meta"] }, TODAY);
+    expect(d).toMatchObject({ channelMode: "deny", deniedChannels: ["meta"] });
+    expect(describeGuardrails({ allowedChannels: [], deniedChannels: ["meta"] }, TODAY)).toEqual(["Never advertises on Meta (Facebook & Instagram)."]);
+  });
+
+  it("★★a channel this build does not know is still a box — visible, and removable", () => {
+    expect(channelOptions(["linkedin", "tiktok"]).map((c) => c.key)).toEqual(["linkedin", "meta", "x", "google_ads", "tiktok"]);
+    expect(channelOptions(["tiktok", "tiktok"]).filter((c) => c.key === "tiktok")).toEqual([{ key: "tiktok", label: "tiktok" }]);
+    expect(channelOptions([]).map((c) => c.key)).toEqual(["linkedin", "meta", "x", "google_ads"]);
+  });
+
+  it("★★leaving a stored allow list for the deny list warns that every channel, and every later one, comes back", () => {
+    expect(channelModeWarning("deny", { allowedChannels: ["linkedin"] })).toContain("including ones Peakhour adds later");
+    expect(channelModeWarning("allow", { allowedChannels: ["linkedin"] })).toBeNull();
+  });
+
+  it("★leaving a stored deny list for an allow list says only the ticked ones will run", () => {
+    expect(channelModeWarning("allow", { deniedChannels: ["meta"] })).toContain("only the channels you tick");
+    expect(channelModeWarning("deny", { deniedChannels: ["meta"] })).toBeNull();
+  });
+
+  it("nothing stored, or an empty stored allow list, is nothing to warn about", () => {
+    expect(channelModeWarning("allow", undefined)).toBeNull();
+    expect(channelModeWarning("deny", undefined)).toBeNull();
+    expect(channelModeWarning("deny", { allowedChannels: [] })).toBeNull();
   });
 });

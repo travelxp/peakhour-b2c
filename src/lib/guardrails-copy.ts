@@ -21,6 +21,33 @@ export const GUARDRAIL_CHANNELS: ReadonlyArray<{ key: string; label: string }> =
 
 /** mig 372's blackout cap, refused here in the api's terms. */
 export const MAX_BLACKOUTS = 50;
+
+/**
+ * The channel boxes for a list: the known channels, then any key the list
+ * holds that this build does not know (review R1) — a channel the api added
+ * since, which the merchant must be able to see and untick. Shown by its key.
+ */
+export function channelOptions(list: readonly string[]): ReadonlyArray<{ key: string; label: string }> {
+  const known = new Set(GUARDRAIL_CHANNELS.map((c) => c.key));
+  const extra = [...new Set(list)].filter((k) => !known.has(k)).map((key) => ({ key, label: key }));
+  return [...GUARDRAIL_CHANNELS, ...extra];
+}
+
+/**
+ * What saving in this mode does to the STORED channel rule, when it is the
+ * other mode (review R1): leaving an allow list silently let every channel —
+ * and every later one — back in.
+ */
+export function channelModeWarning(mode: GuardrailsDraft["channelMode"], stored: Guardrails | undefined): string | null {
+  const storedAllow = (stored?.allowedChannels?.length ?? 0) > 0;
+  if (mode === "deny" && storedAllow) {
+    return "Saving replaces your allow list: every channel you don't turn off here — including ones Peakhour adds later — will be allowed.";
+  }
+  if (mode === "allow" && !storedAllow && (stored?.deniedChannels?.length ?? 0) > 0) {
+    return "Saving replaces the channels you turned off: only the channels you tick here will be allowed.";
+  }
+  return null;
+}
 /** The api's RAW term cap (its request schema), before normalising (R2). */
 export const MAX_RAW_TERM_LENGTH = 200;
 
@@ -92,8 +119,10 @@ export function draftFromStored(g: Guardrails | undefined, today: string = today
     // ★An allow list is the rule when one is stored, whatever the deny list
     //  says — the api never stores both, and a mixed record read as a deny
     //  list would let a later channel in on the next save.
-    channelMode: g?.allowedChannels ? "allow" : "deny",
-    deniedChannels: g?.allowedChannels ? [] : [...(g?.deniedChannels ?? [])],
+    // ★BY LENGTH, as the summary reads it (review R1): a stored `[]` is no
+    //  allow list, and opening it as one would drop the deny list on save.
+    channelMode: g?.allowedChannels?.length ? "allow" : "deny",
+    deniedChannels: g?.allowedChannels?.length ? [] : [...(g?.deniedChannels ?? [])],
     allowedChannels: [...(g?.allowedChannels ?? [])],
     approvedAssetsOnly: g?.approvedAssetsOnly === true,
     termsText: (g?.blockedTerms ?? []).join("\n"),
@@ -121,13 +150,17 @@ export function draftFromStored(g: Guardrails | undefined, today: string = today
 export function buildGuardrailsPatch(
   draft: GuardrailsDraft,
 ):
-  | { ok: true; patch: Required<Omit<GuardrailsPatch, "timeZone" | "allowedChannels">> & Pick<GuardrailsPatch, "timeZone" | "allowedChannels"> }
+  | {
+      ok: true;
+      patch: Required<Omit<GuardrailsPatch, "timeZone" | "allowedChannels" | "approvedAssetsOnly">> &
+        Pick<GuardrailsPatch, "timeZone" | "allowedChannels" | "approvedAssetsOnly">;
+    }
   | { ok: false; error: string } {
   // ★D-05b: an allow list of nothing would read as "stop everything" and stop
   //  nothing that is already running; that is Stop all ads (the api refuses it too).
   const allowed = [...new Set(draft.allowedChannels)];
   if (draft.channelMode === "allow" && allowed.length === 0) {
-    return { ok: false, error: "Choose at least one channel to allow, or use Stop all ads to stop every channel." };
+    return { ok: false, error: "Choose at least one channel to allow. To stop advertising, pause your campaigns." };
   }
   // ★The api's RAW cap, before it normalises (R2): a longer line is refused by
   //  its request schema as "Invalid body", which names nothing.
@@ -171,7 +204,9 @@ export function buildGuardrailsPatch(
       //  record is replaced whole and never holds both.
       deniedChannels: draft.channelMode === "allow" ? [] : [...new Set(draft.deniedChannels)],
       ...(draft.channelMode === "allow" ? { allowedChannels: allowed } : {}),
-      approvedAssetsOnly: draft.approvedAssetsOnly,
+      // ★ONLY WHEN ON (review R1): off stores nothing either way (the
+      //  record is written whole), and an api without D-05b refuses the key.
+      ...(draft.approvedAssetsOnly ? { approvedAssetsOnly: true } : {}),
       blockedTerms: terms,
       quietHours: draft.quietEnabled ? { start: draft.quietStart, end: draft.quietEnd } : null,
       blackoutDates: blackouts,

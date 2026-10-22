@@ -45,8 +45,9 @@ import {
 import { ApiError } from "@/lib/api";
 import { growthApi } from "@/lib/api/growth";
 import {
-  GUARDRAIL_CHANNELS,
   buildGuardrailsPatch,
+  channelModeWarning,
+  channelOptions,
   describeGuardrails,
   draftFromStored,
   guardrailsSaveError,
@@ -164,6 +165,11 @@ export function GuardrailsCard() {
   const lines = describeGuardrails(stored);
   // (zoneItems is memoised above the early return.)
   const set = (over: Partial<GuardrailsDraft>) => setDraft((d) => (d ? { ...d, ...over } : d));
+  // The list the channel boxes edit, and its setter — one place keyed by mode.
+  const channelList = draft ? (draft.channelMode === "allow" ? draft.allowedChannels : draft.deniedChannels) : [];
+  const writeChannels = (next: string[]) =>
+    set(draft?.channelMode === "allow" ? { allowedChannels: next } : { deniedChannels: next });
+  const modeWarning = draft ? channelModeWarning(draft.channelMode, stored) : null;
 
   const submit = (expectedSetAt: string | undefined = baseSetAt) => {
     if (!draft) return;
@@ -224,8 +230,8 @@ export function GuardrailsCard() {
 
         {draft && (
           <div className="space-y-6">
-            <fieldset className="space-y-3">
-              <legend className="text-sm font-medium">Channels</legend>
+            <fieldset className="space-y-2">
+              <legend className="text-sm font-medium">Channel rule</legend>
               {/* ★ONE CHANNEL RULE, TWO WAYS TO SAY IT (D-05b). "Only these"
                   is not "never those" turned round: a channel Peakhour adds
                   later is on under the first and off under the second. */}
@@ -247,21 +253,26 @@ export function GuardrailsCard() {
                   </Label>
                 </div>
               </RadioGroup>
-              <p className="text-sm text-muted-foreground">
+            </fieldset>
+
+            {/* ★THE LEGEND SAYS WHAT A TICK MEANS (review R1): the same box is
+                "blocked" in one mode and "the only one allowed" in the other,
+                and a screen reader announces the group by its legend. */}
+            <fieldset className="space-y-2">
+              <legend className="text-sm font-medium">
                 {draft.channelMode === "allow" ? "Advertise only on" : "Never advertise on"}
-              </p>
+              </legend>
               <div className="grid gap-2 sm:grid-cols-2">
-                {GUARDRAIL_CHANNELS.map((c) => {
+                {channelOptions(channelList).map((c) => {
                   const id = `guardrail-channel-${c.key}`;
-                  const list = draft.channelMode === "allow" ? draft.allowedChannels : draft.deniedChannels;
-                  const write = (next: string[]) =>
-                    set(draft.channelMode === "allow" ? { allowedChannels: next } : { deniedChannels: next });
                   return (
                     <div key={c.key} className="flex items-center gap-2">
                       <Checkbox
                         id={id}
-                        checked={list.includes(c.key)}
-                        onCheckedChange={(v) => write(v ? [...list, c.key] : list.filter((k) => k !== c.key))}
+                        checked={channelList.includes(c.key)}
+                        onCheckedChange={(v) =>
+                          writeChannels(v ? [...channelList, c.key] : channelList.filter((k) => k !== c.key))
+                        }
                       />
                       <Label htmlFor={id} className="font-normal">
                         {c.label}
@@ -270,6 +281,11 @@ export function GuardrailsCard() {
                   );
                 })}
               </div>
+              {modeWarning && (
+                <p role="status" className="text-xs text-amber-700 dark:text-amber-400">
+                  {modeWarning}
+                </p>
+              )}
             </fieldset>
 
             <div className="space-y-1">
@@ -282,8 +298,11 @@ export function GuardrailsCard() {
                 <Label htmlFor="guardrail-approved-assets">Only use creatives I have approved</Label>
               </div>
               <p className="text-xs text-muted-foreground">
-                Ads Peakhour creates on its own carry only wording and images from a creative you approved, as you
-                approved it. Ads you set up yourself are not affected.
+                {/* ★SAYS WHAT "ON" COSTS (review R1): with nothing approved, the
+                    engine creates no ad of its own at all. */}
+                Ads Peakhour creates on its own will carry only wording and images from a creative you approved, as
+                you approved it &mdash; so until you approve one, it creates none. Ads you set up yourself are not
+                affected.
               </p>
             </div>
 
