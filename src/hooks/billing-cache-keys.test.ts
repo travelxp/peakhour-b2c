@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
- * `/v1/dashboard/org`, `/v1/billing/summary` and `/v1/billing/orders` answer for the signed-in
- * BUSINESS (api#1510), so their caches are keyed by business (P4.3b): the key
+ * `/v1/dashboard/org`, `/v1/billing/summary` (api#1510) and `/v1/billing/orders`
+ * (api#1553, mongodb migration 406) answer for the signed-in BUSINESS, so
+ * their caches are keyed by business (P4.3b): the key
  * names whose answer an entry is (`switchBusiness` also clears the cache).
  *
  * The hooks call `useQuery` with the options under test, so `useQuery` is

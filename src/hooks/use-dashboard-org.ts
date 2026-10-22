@@ -33,7 +33,8 @@ export interface DashboardOrgPlanSummary {
    *  the org's snapshot, the union of every business. */
   entitlements?: {
     plan?: string;
-    planVersion?: number;
+    /** Falls back to `subscription.planVersion`, so null when it is (api#1553). */
+    planVersion?: number | null;
     computedAt?: string | null;
     features?: string[];
   } | null;
