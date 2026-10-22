@@ -17,21 +17,28 @@ import Link from "next/link";
 import { UserX } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { useAudienceSets } from "@/hooks/use-audience-library";
-import { hasExclusions, overlapLine, summarizeExclusions } from "@/lib/audience-exclusions";
+import { hasExclusions, overlapLine, summarizeExclusions, variantNote } from "@/lib/audience-exclusions";
 
 /** The api's page cap for the library (`limit` max). */
 const PAGE = 50;
 
 export function AudienceExclusionsCard() {
-  // ★DISCARDED ONES ARE NOT ASKED FOR: an audience the merchant threw away
-  //  costs nothing, and its overlaps are history.
-  const sets = useAudienceSets({ excludeStatus: "discarded", limit: PAGE });
+  // ★ONLY THE AUDIENCES THAT CAN RUN, ASKED FOR BY STATUS (review R1): a page
+  //  that merely left out discarded ones filled up with superseded rows, and a
+  //  business with live audiences was told it had none. The api takes one
+  //  status per query, so the two live ones are two queries.
+  const proposed = useAudienceSets({ status: "proposed", limit: PAGE });
+  const applied = useAudienceSets({ status: "applied", limit: PAGE });
   // ★NO DATA — including a query paused offline — renders nothing rather than
   //  "nothing to exclude", which would be a claim made from no reading.
-  if (!sets.data) return null;
+  if (!proposed.data || !applied.data) return null;
 
-  const summary = summarizeExclusions(sets.data.sets);
-  const more = sets.data.total > sets.data.sets.length;
+  const read = [...proposed.data.sets, ...applied.data.sets];
+  const total = proposed.data.total + applied.data.total;
+  const more = total > read.length;
+  // ★A SIBLING OFF THE PAGE IS NOT A DEAD ONE (review R1): only a complete
+  //  read may drop a pair whose other audience it did not see.
+  const summary = summarizeExclusions(read, { complete: !more });
 
   return (
     <Card>
@@ -68,8 +75,9 @@ export function AudienceExclusionsCard() {
                 <h4 className="font-medium">Suggested exclusions</h4>
                 <ul className="list-disc space-y-1 pl-5">
                   {summary.suggested.map((s) => (
-                    <li key={`${s.label}|${s.reason}|${s.values.join(",")}`}>
-                      Leave out {s.reason} ({s.label}: {s.values.join(", ")}) — suggested for{" "}
+                    <li key={s.key}>
+                      Leave out {s.reason} ({s.label}: {s.values.join(", ")}
+                      {variantNote(s.variant)}) — suggested for{" "}
                       {s.audiences.length === 1 ? s.audiences[0] : `${s.audiences.length} audiences: ${s.audiences.join(", ")}`}.
                     </li>
                   ))}
@@ -81,7 +89,7 @@ export function AudienceExclusionsCard() {
                 <h4 className="font-medium">Audiences that overlap</h4>
                 <ul className="list-disc space-y-1 pl-5">
                   {summary.overlaps.map((o) => (
-                    <li key={`${o.a}|${o.b}`}>{overlapLine(o)}</li>
+                    <li key={o.key}>{overlapLine(o)}</li>
                   ))}
                 </ul>
                 <p className="text-xs text-muted-foreground">
@@ -113,7 +121,7 @@ export function AudienceExclusionsCard() {
         )}
         {more && (
           <p className="text-xs text-muted-foreground">
-            Read from your {sets.data.sets.length} most recent audiences of {sets.data.total}.
+            Read from your {read.length} most recent live audiences of {total}.
           </p>
         )}
       </CardContent>
