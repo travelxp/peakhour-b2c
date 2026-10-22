@@ -1,10 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { ApiError } from "@/lib/api";
+import { formatMoneyOrNumber } from "@/lib/outcome-value";
 import {
   GOOGLE_LAUNCH_USE_CASE,
   GOOGLE_MERCHANT_FACING_CODES,
   GOOGLE_RSA,
   formatGoogleMoney,
+  googleCreateLeftARow,
+  googleEndDateProblem,
   googleAdsErrorMessage,
   googleAdsNeedsReconnect,
   googleCopyProblem,
@@ -39,7 +42,7 @@ describe("the launch charge", () => {
 
 describe("errors", () => {
   it("★a merchant-facing code shows the api's message", () => {
-    for (const code of ["CURRENCY_MISMATCH", "DECLARATION_REQUIRED", "ASSET_NOT_APPROVED", "CAMPAIGN_FINISHED", "CREATE_UNCONFIRMED", "ADS_HALTED"]) {
+    for (const code of ["CURRENCY_MISMATCH", "DECLARATION_REQUIRED", "ASSET_NOT_APPROVED", "CAMPAIGN_FINISHED", "CREATE_UNCONFIRMED", "ADS_HALTED", "VALIDATION_ERROR", "ROW_INSERT_FAILED", "AD_ACCOUNT_FORBIDDEN"]) {
       expect(GOOGLE_MERCHANT_FACING_CODES.has(code), code).toBe(true);
       expect(googleAdsErrorMessage(apiError(code), "fallback")).toBe(`msg for ${code}`);
     }
@@ -52,6 +55,25 @@ describe("errors", () => {
     expect(googleAdsNeedsReconnect(apiError("NEEDS_REAUTH"))).toBe(true);
     expect(googleAdsNeedsReconnect(apiError("NOT_CONNECTED"))).toBe(true);
     expect(googleAdsNeedsReconnect(apiError("RATE_LIMITED"))).toBe(false);
+  });
+});
+
+describe("★★a failed create that may have left a row closes the form (review round 1)", () => {
+  it.each(["CREATE_UNCONFIRMED", "CREATE_FAILED", "CAMPAIGN_REFUSED", "PLATFORM_REFUSED", "PLATFORM_FAILED", "ASSET_NOT_APPROVED"])("%s left a row", (code) => {
+    expect(googleCreateLeftARow(apiError(code))).toBe(true);
+  });
+  it.each(["VALIDATION_ERROR", "CURRENCY_MISMATCH", "BUDGET_ENVELOPE_EXCEEDED", "DECLARATION_REQUIRED", "CHANNEL_DENIED", "BLOCKED_TERM"])(
+    "PASS: %s is refused before a row exists — the form stays, to be fixed",
+    (code) => expect(googleCreateLeftARow(apiError(code))).toBe(false),
+  );
+  it("PASS: a network failure is not a code", () => expect(googleCreateLeftARow(new Error("x"))).toBe(false));
+});
+
+describe("the end date (review round 1)", () => {
+  it("★a past end date is said before sending; today and later are fine; none is fine", () => {
+    expect(googleEndDateProblem("2026-10-22", "2026-10-23")).toContain("in the past");
+    expect(googleEndDateProblem("2026-10-23", "2026-10-23")).toBeNull();
+    expect(googleEndDateProblem("", "2026-10-23")).toBeNull();
   });
 });
 
@@ -96,10 +118,10 @@ describe("★★the one action a row offers", () => {
 });
 
 describe("money", () => {
-  it("formats in the account's currency, and an absent figure is a dash", () => {
-    expect(formatGoogleMoney(25, "USD")).toBe("$25.00");
+  it("★the shared formatter (review round 1), and an absent figure is a dash", () => {
+    expect(formatGoogleMoney(25, "USD")).toBe(formatMoneyOrNumber(25, "USD"));
+    expect(formatGoogleMoney(25, undefined)).toBe(formatMoneyOrNumber(25, undefined));
     expect(formatGoogleMoney(undefined, "USD")).toBe("—");
-    expect(formatGoogleMoney(25, undefined)).toBe("25");
   });
 });
 

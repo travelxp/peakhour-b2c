@@ -1,5 +1,6 @@
 import { ApiError } from "@/lib/api";
 import { formatPeaks } from "@/lib/pricing";
+import { adsErrorMessage } from "@/lib/ads-error-message";
 import type { RateCardUseCase } from "@/hooks/use-credits";
 
 /**
@@ -250,11 +251,7 @@ export const META_MERCHANT_FACING_CODES: ReadonlySet<string> = new Set([
 
 /** What to show for a failed Meta ads call. */
 export function metaAdsErrorMessage(err: unknown, fallback: string): string {
-  if (err instanceof ApiError) {
-    if (META_MERCHANT_FACING_CODES.has(err.code)) return err.message;
-    return err.requestId ? `${fallback} (reference ${err.requestId})` : fallback;
-  }
-  return fallback;
+  return adsErrorMessage(err, fallback, META_MERCHANT_FACING_CODES);
 }
 
 /** Whether the failure means the connection itself needs attention. */

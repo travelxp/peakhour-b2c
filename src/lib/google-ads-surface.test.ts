@@ -122,7 +122,9 @@ describe("★★G-15 — the hub HAS a Google tab, reached only through the clie
  * of the Google channel is read for another campaign type's name.
  */
 describe("★★G-15 — nothing implies a Google campaign type but Search", () => {
-  const OTHER_TYPES = /\b(Performance Max|PMax|Demand Gen|Discovery|Display|Shopping|YouTube|Video campaign|App campaign|Smart campaign)\b/;
+  // ★CASE-INSENSITIVE (review round 1): the copy this row removed said
+  //  "search and display", lower-case.
+  const OTHER_TYPES = /\b(Performance Max|PMax|Demand Gen|Discovery|Display|Shopping|YouTube|Video campaign|App campaign|Smart campaign)\b/i;
   const googleEntry = (text: string, start: string) => text.slice(text.indexOf(start), text.indexOf("}", text.indexOf(start)));
   it.each([
     ["the panel", () => read(PANEL)],
@@ -138,6 +140,8 @@ describe("★★G-15 — nothing implies a Google campaign type but Search", () 
   it("★and the check SAYS SO when there is something to find", () => {
     expect("Run search and Display campaigns".match(OTHER_TYPES)?.[0]).toBe("Display");
     expect("Try Performance Max".match(OTHER_TYPES)?.[0]).toBe("Performance Max");
+    // The exact catalog copy G-15 replaced.
+    expect("Run search and display campaigns from approved creative.".match(OTHER_TYPES)?.[0]).toBe("display");
   });
   it("★the hub and catalog name Search", () => {
     expect(googleEntry(read("src/app/(site)/dashboard/ads/ads-channels.ts"), 'key: "google"')).toContain("Search");

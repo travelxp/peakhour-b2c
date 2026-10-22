@@ -17,16 +17,28 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { EmptyState } from "@/components/molecules/empty-state";
 import { useCreditsRateCard } from "@/hooks/use-credits";
-import { googleAdsApi, type GoogleAdAccount, type GoogleSettableStatus } from "@/lib/api/google-ads";
+import { googleAdsApi, type GoogleAdAccount, type GoogleCampaign, type GoogleSettableStatus } from "@/lib/api/google-ads";
 import {
   GOOGLE_LAUNCH_USE_CASE,
   formatGoogleMoney,
   googleAdsErrorMessage,
   googleAdsNeedsReconnect,
   googleCopyProblem,
+  googleCreateLeftARow,
   googleCreateNote,
+  googleEndDateProblem,
   googleLaunchChargeSentence,
   googleStatusAction,
   googleStatusLabel,
@@ -51,9 +63,15 @@ import { ADS_CHANNEL_PARAM, getAdsChannel, panelConnection, type AdsChannelKey }
  * create that Google has not confirmed is a row here before it is a campaign
  * there, and the panel says so ("don't create it again").
  *
- * ★STARTING IS THE LAUNCH: Google refuses a campaign with no location or
- * keyword, which the audience step (`/dashboard/ads` → Audience, G-06)
- * writes; the api answers why, and the panel shows it.
+ * ★★NOTHING HERE INVITES A SECOND CREATE (review round 1). A 202, or a failure
+ * that may have left a row (`googleCreateLeftARow`), closes and clears the
+ * form and refreshes the list, so the row — and its "don't create it again"
+ * note — is what the merchant sees next. A second create would be a second
+ * campaign on Google.
+ *
+ * ★STARTING IS THE LAUNCH, and is confirmed first (round 1, as LinkedIn's):
+ * it is charged once and starts spend. Google refuses a campaign with no
+ * location or keyword, which the audience step (G-06) writes; the api says so.
  *
  * ⏸SEARCH ONLY. The api creates Search campaigns and nothing else, so this
  * panel names no other campaign type (the plan's G-15 row).
@@ -204,7 +222,8 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
       {account ? (
         <>
           <CampaignsSection account={account} />
-          <CreateCampaignCard account={account} />
+          {/* Keyed by account: switching accounts starts a fresh, empty form. */}
+          <CreateCampaignCard key={account.id} account={account} />
         </>
       ) : null}
     </div>
@@ -217,6 +236,8 @@ function CampaignsSection({ account }: { account: GoogleAdAccount }) {
   const queryClient = useQueryClient();
   const rateCard = useCreditsRateCard();
   const launchRow = rateCard.data?.useCases.find((u) => u.useCase === GOOGLE_LAUNCH_USE_CASE);
+  const chargeSentence = googleLaunchChargeSentence(launchRow);
+  const [confirming, setConfirming] = useState<GoogleCampaign | null>(null);
 
   const campaigns = useQuery({
     queryKey: ["google-ads-campaigns"],
@@ -229,12 +250,21 @@ function CampaignsSection({ account }: { account: GoogleAdAccount }) {
     [campaigns.data, account.id],
   );
 
+  // ★PER ROW (round 1): one campaign's request in flight must not hold
+  //  another's Pause — the one a merchant reaches for when it overspends.
+  const [pendingIds, setPendingIds] = useState<ReadonlySet<string>>(new Set());
   const setStatus = useMutation({
     mutationFn: (v: { id: string; status: GoogleSettableStatus }) => googleAdsApi.setStatus(v.id, v.status),
-    onSuccess: (_d, v) => {
-      toast.success(v.status === "ACTIVE" ? "Campaign started on Google Ads." : "Campaign paused on Google Ads.");
+    onMutate: (v) => setPendingIds((s) => new Set(s).add(v.id)),
+    onSettled: (_d, _e, v) => {
+      setPendingIds((s) => {
+        const next = new Set(s);
+        next.delete(v.id);
+        return next;
+      });
       void queryClient.invalidateQueries({ queryKey: ["google-ads-campaigns"] });
     },
+    onSuccess: (_d, v) => toast.success(v.status === "ACTIVE" ? "Campaign started on Google Ads." : "Campaign paused on Google Ads."),
     onError: (err) => toast.error(googleAdsErrorMessage(err, "Google Ads didn't take that change. Try again in a moment.")),
   });
 
@@ -242,7 +272,7 @@ function CampaignsSection({ account }: { account: GoogleAdAccount }) {
     <Card>
       <CardHeader>
         <CardTitle>Search campaigns</CardTitle>
-        <CardDescription>{googleLaunchChargeSentence(launchRow)}</CardDescription>
+        <CardDescription>{chargeSentence}</CardDescription>
       </CardHeader>
       <CardContent>
         {campaigns.isLoading ? (
@@ -267,6 +297,7 @@ function CampaignsSection({ account }: { account: GoogleAdAccount }) {
               {rows.map((c) => {
                 const action = googleStatusAction(c);
                 const note = googleCreateNote(c);
+                const busy = pendingIds.has(c.id);
                 return (
                   <TableRow key={c.id}>
                     <TableCell>
@@ -274,7 +305,7 @@ function CampaignsSection({ account }: { account: GoogleAdAccount }) {
                       {note ? <div className="text-xs text-muted-foreground">{note}</div> : null}
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline">{googleStatusLabel(c)}</Badge>
+                      <Badge variant="outline">{busy ? "Updating…" : googleStatusLabel(c)}</Badge>
                     </TableCell>
                     <TableCell>{formatGoogleMoney(c.budget?.daily, c.currency ?? account.currencyCode)}</TableCell>
                     <TableCell className="text-right">
@@ -282,8 +313,10 @@ function CampaignsSection({ account }: { account: GoogleAdAccount }) {
                         <Button
                           size="sm"
                           variant={action.status === "ACTIVE" ? "default" : "outline"}
-                          disabled={setStatus.isPending}
-                          onClick={() => setStatus.mutate({ id: c.id, status: action.status })}
+                          disabled={busy}
+                          onClick={() =>
+                            action.status === "ACTIVE" ? setConfirming(c) : setStatus.mutate({ id: c.id, status: "PAUSED" })
+                          }
                         >
                           {action.label}
                         </Button>
@@ -298,59 +331,104 @@ function CampaignsSection({ account }: { account: GoogleAdAccount }) {
           </Table>
         )}
       </CardContent>
+
+      <AlertDialog open={confirming !== null} onOpenChange={(o) => (o ? null : setConfirming(null))}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Start spending on this campaign?</AlertDialogTitle>
+            <AlertDialogDescription>
+              &ldquo;{confirming?.name}&rdquo; starts showing on Google Search at{" "}
+              <span className="font-medium">
+                {formatGoogleMoney(confirming?.budget?.daily, confirming?.currency ?? account.currencyCode)}/day
+              </span>
+              . {chargeSentence} Google will refuse it if it has no location or keywords yet — set them with the
+              Audience step first.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Not yet</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (confirming) setStatus.mutate({ id: confirming.id, status: "ACTIVE" });
+                setConfirming(null);
+              }}
+            >
+              Start &amp; spend
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }
 
 // ── Create ───────────────────────────────────────────────────────────────
 
+const EMPTY_FORM = {
+  name: "",
+  budget: "",
+  typedCurrency: "",
+  headlines: "",
+  descriptions: "",
+  finalUrl: "",
+  endDate: "",
+  notPolitical: false,
+};
+
 function CreateCampaignCard({ account }: { account: GoogleAdAccount }) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
-  const [name, setName] = useState("");
-  const [budget, setBudget] = useState("");
-  const [typedCurrency, setTypedCurrency] = useState("");
-  const [headlines, setHeadlines] = useState("");
-  const [descriptions, setDescriptions] = useState("");
-  const [finalUrl, setFinalUrl] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [notPolitical, setNotPolitical] = useState(false);
+  const [form, setForm] = useState(EMPTY_FORM);
+  const set = <K extends keyof typeof EMPTY_FORM>(k: K, v: (typeof EMPTY_FORM)[K]) => setForm((f) => ({ ...f, [k]: v }));
+  // ★CLEARED, NOT JUST CLOSED (round 1): a reopened form held the last
+  //  campaign — the declaration tick included — one click from a duplicate.
+  const closeAndClear = () => {
+    setOpen(false);
+    setForm(EMPTY_FORM);
+  };
+
   // The account's own billing currency when the connection recorded it (the
   // api refuses any other, CURRENCY_MISMATCH); typed only when it did not.
-  const currency = account.currencyCode ?? typedCurrency;
-
-  const searchAd = { headlines: linesOf(headlines), descriptions: linesOf(descriptions), finalUrl: finalUrl.trim() };
-  const amount = Number(budget);
-  const copyProblem = googleCopyProblem(searchAd);
+  const currency = account.currencyCode ?? form.typedCurrency;
+  const searchAd = { headlines: linesOf(form.headlines), descriptions: linesOf(form.descriptions), finalUrl: form.finalUrl.trim() };
+  const amount = Number(form.budget);
+  const today = new Date().toISOString().slice(0, 10);
   const problem =
-    name.trim().length === 0
+    form.name.trim().length === 0
       ? "Name the campaign."
       : !(amount > 0)
         ? "Set a daily budget above zero."
         : !/^[A-Za-z]{3}$/.test(currency)
           ? "Set the budget's three-letter currency."
-          : copyProblem;
+          : (googleEndDateProblem(form.endDate, today) ?? googleCopyProblem(searchAd));
 
   const create = useMutation({
     mutationFn: () =>
       googleAdsApi.createCampaign({
         adAccountId: account.id,
-        name: name.trim(),
+        name: form.name.trim(),
         dailyBudget: { amount, currencyCode: currency.toUpperCase() },
         searchAd,
-        ...(endDate ? { endsAt: new Date(`${endDate}T23:59:59`).toISOString() } : {}),
-        ...(notPolitical ? { notPolitical: true } : {}),
+        ...(form.endDate ? { endsAt: new Date(`${form.endDate}T23:59:59`).toISOString() } : {}),
+        ...(form.notPolitical ? { notPolitical: true } : {}),
       }),
     onSuccess: (res) => {
       if (res.pending) {
         toast.warning(res.message ?? "Google Ads didn't confirm the campaign yet. We'll check within the hour — don't create it again.");
       } else {
         toast.success("Search campaign created, paused. Start it when you're ready.");
-        setOpen(false);
       }
-      void queryClient.invalidateQueries({ queryKey: ["google-ads-campaigns"] });
+      // A 202 too: the row is in the list, with its "don't create it again".
+      closeAndClear();
     },
-    onError: (err) => toast.error(googleAdsErrorMessage(err, "We couldn't create the campaign. Try again in a moment.")),
+    onError: (err) => {
+      toast.error(googleAdsErrorMessage(err, "We couldn't create the campaign. Try again in a moment."));
+      // ★A row may exist (round 1): show it, and do not leave a filled form
+      //  that invites the second create.
+      if (googleCreateLeftARow(err)) closeAndClear();
+    },
+    // Whatever happened, the list is re-read: a create inserts its row first.
+    onSettled: () => void queryClient.invalidateQueries({ queryKey: ["google-ads-campaigns"] }),
   });
 
   if (!open) {
@@ -371,30 +449,36 @@ function CreateCampaignCard({ account }: { account: GoogleAdAccount }) {
       </CardHeader>
       <CardContent className="space-y-4">
         <Field label="Campaign name">
-          <Input value={name} onChange={(e) => setName(e.target.value)} maxLength={200} />
+          <Input value={form.name} onChange={(e) => set("name", e.target.value)} maxLength={200} />
         </Field>
         <div className="flex gap-4">
           <Field label="Daily budget">
-            <Input type="number" min="0" step="0.01" value={budget} onChange={(e) => setBudget(e.target.value)} className="w-40" />
+            <Input type="number" min="0" step="0.01" value={form.budget} onChange={(e) => set("budget", e.target.value)} className="w-40" />
           </Field>
           <Field label="Currency">
-            <Input value={currency} onChange={(e) => setTypedCurrency(e.target.value)} maxLength={3} className="w-24" disabled={!!account.currencyCode} />
+            <Input
+              value={currency}
+              onChange={(e) => set("typedCurrency", e.target.value)}
+              maxLength={3}
+              className="w-24"
+              disabled={!!account.currencyCode}
+            />
           </Field>
           <Field label="End date (optional)">
-            <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-44" />
+            <Input type="date" min={today} value={form.endDate} onChange={(e) => set("endDate", e.target.value)} className="w-44" />
           </Field>
         </div>
         <Field label="Headlines — one per line, 3 to 15, up to 30 characters each">
-          <Textarea rows={4} value={headlines} onChange={(e) => setHeadlines(e.target.value)} />
+          <Textarea rows={4} value={form.headlines} onChange={(e) => set("headlines", e.target.value)} />
         </Field>
         <Field label="Descriptions — one per line, 2 to 4, up to 90 characters each">
-          <Textarea rows={3} value={descriptions} onChange={(e) => setDescriptions(e.target.value)} />
+          <Textarea rows={3} value={form.descriptions} onChange={(e) => set("descriptions", e.target.value)} />
         </Field>
         <Field label="Landing page">
-          <Input value={finalUrl} onChange={(e) => setFinalUrl(e.target.value)} placeholder="https://" />
+          <Input value={form.finalUrl} onChange={(e) => set("finalUrl", e.target.value)} placeholder="https://" />
         </Field>
         <label className="flex items-start gap-2 text-sm">
-          <Checkbox checked={notPolitical} onCheckedChange={(v) => setNotPolitical(v === true)} />
+          <Checkbox checked={form.notPolitical} onCheckedChange={(v) => set("notPolitical", v === true)} />
           <span>
             This campaign is not political advertising. Google asks every campaign to declare it; we never declare it for
             you.
@@ -405,7 +489,7 @@ function CreateCampaignCard({ account }: { account: GoogleAdAccount }) {
           <Button disabled={!!problem || create.isPending} onClick={() => create.mutate()}>
             Create paused
           </Button>
-          <Button variant="ghost" onClick={() => setOpen(false)}>
+          <Button variant="ghost" onClick={closeAndClear}>
             Cancel
           </Button>
         </div>

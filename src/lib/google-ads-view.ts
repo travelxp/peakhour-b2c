@@ -1,5 +1,7 @@
 import { ApiError } from "@/lib/api";
 import { formatPeaks } from "@/lib/pricing";
+import { adsErrorMessage } from "@/lib/ads-error-message";
+import { formatMoneyOrNumber } from "@/lib/outcome-value";
 import type { RateCardUseCase } from "@/hooks/use-credits";
 import type { GoogleCampaign, GoogleSearchAdInput, GoogleSettableStatus } from "@/lib/api/google-ads";
 
@@ -43,6 +45,11 @@ export function googleLaunchChargeSentence(row: Pick<RateCardUseCase, "free" | "
  */
 export const GOOGLE_MERCHANT_FACING_CODES: ReadonlySet<string> = new Set([
   "NO_BUSINESS",
+  // The api's own sentences (review round 1): a copy or end-date refusal, a
+  //  row that could not be written, an account on hold.
+  "VALIDATION_ERROR",
+  "ROW_INSERT_FAILED",
+  "AD_ACCOUNT_FORBIDDEN",
   "NOT_CONNECTED",
   "NEEDS_REAUTH",
   "TOKEN_FAILED",
@@ -70,11 +77,27 @@ export const GOOGLE_MERCHANT_FACING_CODES: ReadonlySet<string> = new Set([
 ]);
 
 export function googleAdsErrorMessage(err: unknown, fallback: string): string {
-  if (err instanceof ApiError) {
-    if (GOOGLE_MERCHANT_FACING_CODES.has(err.code)) return err.message;
-    return err.requestId ? `${fallback} (reference ${err.requestId})` : fallback;
-  }
-  return fallback;
+  return adsErrorMessage(err, fallback, GOOGLE_MERCHANT_FACING_CODES);
+}
+
+/**
+ * ★A FAILED CREATE THAT MAY HAVE LEFT A ROW, OR A CAMPAIGN (review round 1).
+ * The api inserts the row before it sends, so these codes mean a row exists
+ * — and for `CREATE_UNCONFIRMED`, perhaps a campaign on Google. The form
+ * closes and clears, as for a 202, so nothing invites a second create.
+ */
+export const GOOGLE_CREATE_LEFT_A_ROW: ReadonlySet<string> = new Set([
+  "CREATE_UNCONFIRMED",
+  "CREATE_FAILED",
+  "CAMPAIGN_REFUSED",
+  "PLATFORM_REFUSED",
+  "PLATFORM_FAILED",
+  "AD_ACCOUNT_NOT_AUTHORIZED",
+  "AD_ACCOUNT_FORBIDDEN",
+  "ASSET_NOT_APPROVED",
+]);
+export function googleCreateLeftARow(err: unknown): boolean {
+  return err instanceof ApiError && GOOGLE_CREATE_LEFT_A_ROW.has(err.code);
 }
 
 /** Whether the failure means the connection itself needs attention. */
@@ -146,14 +169,16 @@ export function googleStatusAction(
 
 // ── Money ────────────────────────────────────────────────────────────────
 
+/** The shared money formatter (`formatMoneyOrNumber`), with a dash for an absent figure. */
 export function formatGoogleMoney(amount: number | undefined, currency: string | undefined): string {
   if (typeof amount !== "number" || !Number.isFinite(amount)) return "—";
-  if (!currency) return amount.toLocaleString("en-US", { maximumFractionDigits: 2 });
-  try {
-    return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(amount);
-  } catch {
-    return `${amount.toLocaleString("en-US", { maximumFractionDigits: 2 })} ${currency}`;
-  }
+  return formatMoneyOrNumber(amount, currency);
+}
+
+/** A `YYYY-MM-DD` end date that is today or later (the api refuses a past one). */
+export function googleEndDateProblem(endDate: string, today: string): string | null {
+  if (!endDate) return null;
+  return endDate < today ? "The end date is in the past." : null;
 }
 
 // ── The ad's copy — the api's own rule, checked before sending ───────────
