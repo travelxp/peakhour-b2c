@@ -1002,3 +1002,68 @@ describe("approval-expiry summary", () => {
     });
   });
 });
+
+/** mandate-debits returns the api's flat `MandateDebitTotals`. A run that did
+ *  nothing because a rail is not configured, whose debits were refused, or
+ *  that ran out of time, must not read as a green "complete". */
+describe("mandate-debits summary", () => {
+  const body = (d: Record<string, unknown>) =>
+    JSON.stringify({ ok: true, scanned: 0, unconfigured: 0, errors: 0, deferred: 0, malformed: 0, outcomes: {}, durationMs: 5, ...d });
+
+  it("★nothing due is a plain success", () => {
+    expect(summarizeCronBody("mandate-debits", body({}))).toEqual({ message: "No mandates due.", level: "success" });
+  });
+
+  it("★a rail not configured is a warning, not a success", () => {
+    expect(summarizeCronBody("mandate-debits", body({ scanned: 3, unconfigured: 3 }))).toEqual({
+      message: "3 skipped (payment rail not configured).",
+      level: "warning",
+    });
+  });
+
+  it("★a refused debit beside a collected one is a warning naming both", () => {
+    expect(summarizeCronBody("mandate-debits", body({ scanned: 2, outcomes: { rejected: 1, captured: 1 } }))).toEqual({
+      message: "1 payment call refused by the rail, 1 payment collected.",
+      level: "warning",
+    });
+  });
+
+  // Written out here, not read from the summarizer's table, so moving a part
+  // to the other bucket (or dropping one) turns a case red. Every api `Tick`
+  // and every flat total but `scanned` is listed.
+  const WARN_TOTALS = ["unconfigured", "errors", "malformed", "deferred"];
+  const WARN_TICKS = ["notice_failed", "failed", "halted", "rejected", "lost", "revoke_failed"];
+  const OK_TICKS = ["noticed", "sent", "captured", "pending", "ended", "waiting", "peak"];
+  it.each(WARN_TOTALS)("★%s alone is a warning that counts it", (field) => {
+    const s = summarizeCronBody("mandate-debits", body({ scanned: 2, [field]: 2 }));
+    expect(s?.level).toBe("warning");
+    expect(s?.message).toMatch(/^2 /);
+  });
+  it.each(WARN_TICKS)("★outcome %s alone is a warning that counts it", (tick) => {
+    const s = summarizeCronBody("mandate-debits", body({ scanned: 2, outcomes: { [tick]: 2 } }));
+    expect(s?.level).toBe("warning");
+    expect(s?.message).toMatch(/^2 /);
+  });
+  it.each(OK_TICKS)("★outcome %s alone is a success that counts it", (tick) => {
+    const s = summarizeCronBody("mandate-debits", body({ scanned: 2, outcomes: { [tick]: 2 } }));
+    expect(s?.level).toBe("success");
+    expect(s?.message).toMatch(/^2 /);
+  });
+
+  it("★a blackout-held debit is not folded into waiting", () => {
+    expect(summarizeCronBody("mandate-debits", body({ scanned: 2, outcomes: { waiting: 1, peak: 1 } }))?.message).toBe(
+      "1 waiting, 1 held by a debit blackout window.",
+    );
+  });
+
+  it("★a clean run counts what it did", () => {
+    expect(summarizeCronBody("mandate-debits", body({ scanned: 4, outcomes: { noticed: 2, captured: 1, waiting: 1 } }))).toEqual({
+      message: "2 notices sent, 1 payment collected, 1 waiting.",
+      level: "success",
+    });
+  });
+
+  it("★an unexpected shape defers to the generic toast", () => {
+    expect(summarizeCronBody("mandate-debits", JSON.stringify({ ok: true }))).toBeNull();
+  });
+});
