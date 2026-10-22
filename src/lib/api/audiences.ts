@@ -496,7 +496,34 @@ export interface AudienceSet {
     syncedAt: string;
   };
   discardReason?: string;
+  /** D-06: what the engine worked out about who this audience should NOT
+   *  reach, and how much it overlaps its portfolio siblings (§8.3, B4). Absent
+   *  on an audience nobody planned. Read by `lib/audience-exclusions.ts`. */
+  exclusions?: AudienceExclusions;
   createdAt: string;
+}
+
+/** `biz_audience_sets.exclusions` as `GET /v1/audiences/sets` returns it. */
+export interface AudienceExclusions {
+  suggested?: Array<{
+    attribute: string;
+    variant: "current" | "past" | "any";
+    values: string[];
+    /** Why, in the merchant's terms: "your own employees". */
+    reason: string;
+  }>;
+  /** `unavailable` = the platform cannot count at all; never read as "no overlap". */
+  overlapBasis: "computed" | "unavailable";
+  overlapUnavailableReason?: string;
+  /** One row per sibling: a rounded figure, or a reason and no figure. */
+  overlaps: Array<{
+    setId: string;
+    name: string;
+    approxMembers?: number;
+    approximate?: boolean;
+    reason?: string;
+  }>;
+  computedAt: string;
 }
 
 /**
