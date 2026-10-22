@@ -42,9 +42,15 @@ export const MAX_BLACKOUTS = 50;
  * holds that this build does not know (review R1) — a channel the api added
  * since, which the merchant must be able to see and untick. Shown by its key.
  */
-export function channelOptions(list: readonly string[]): ReadonlyArray<{ key: string; label: string }> {
+export function channelOptions(
+  list: readonly string[],
+  /** The stored rule's keys too (review R3): an unknown box must survive being
+   *  unticked, or it vanishes and cannot be ticked again. */
+  stored?: Guardrails,
+): ReadonlyArray<{ key: string; label: string }> {
   const known = new Set(GUARDRAIL_CHANNELS.map((c) => c.key));
-  const extra = [...new Set(list)].filter((k) => !known.has(k)).map((key) => ({ key, label: key }));
+  const keys = [...list, ...(stored?.allowedChannels ?? []), ...(stored?.deniedChannels ?? [])];
+  const extra = [...new Set(keys)].filter((k) => !known.has(k)).map((key) => ({ key, label: key }));
   return [...GUARDRAIL_CHANNELS, ...extra];
 }
 
@@ -130,15 +136,13 @@ export function parseTerms(text: string): string[] {
  * where the merchant could not see them. Saving drops them.
  */
 export function draftFromStored(g: Guardrails | undefined, today: string = todayIn(g?.timeZone)): GuardrailsDraft {
+  // ★AS THE ENGINE READS IT (`effectiveAllowList`, review R2): an allow list
+  //  is the rule when one is stored, and the form opens on what it allows.
+  const allow = effectiveAllowList(g);
   return {
-    // ★An allow list is the rule when one is stored, whatever the deny list
-    //  says — the api never stores both, and a mixed record read as a deny
-    //  list would let a later channel in on the next save.
-    // ★AS THE ENGINE READS IT (`effectiveAllowList`, review R2): an allow list
-    //  is the rule when one is stored, and the form opens on what it allows.
-    channelMode: effectiveAllowList(g) !== null ? "allow" : "deny",
-    deniedChannels: effectiveAllowList(g) !== null ? [] : [...(g?.deniedChannels ?? [])],
-    allowedChannels: effectiveAllowList(g) ?? [],
+    channelMode: allow !== null ? "allow" : "deny",
+    deniedChannels: allow !== null ? [] : [...(g?.deniedChannels ?? [])],
+    allowedChannels: allow ?? [],
     approvedAssetsOnly: g?.approvedAssetsOnly === true,
     termsText: (g?.blockedTerms ?? []).join("\n"),
     quietEnabled: !!g?.quietHours,
@@ -287,7 +291,7 @@ export function hasGuardrails(g: Guardrails | undefined): boolean {
   return (
     !!g &&
     ((g.deniedChannels?.length ?? 0) > 0 ||
-      effectiveAllowList(g) !== null ||
+      Array.isArray(g.allowedChannels) ||
       g.approvedAssetsOnly === true ||
       (g.blockedTerms?.length ?? 0) > 0 ||
       !!g.quietHours ||
@@ -304,7 +308,7 @@ export function describeGuardrails(g: Guardrails | undefined, today: string = to
   const allow = effectiveAllowList(g);
   if (allow && allow.length === 0) {
     // ★The engine refuses every channel for an empty allow list; say so.
-    out.push("Advertises on no channel — the allow list is empty. Edit it to choose channels.");
+    out.push("Advertises on no channel — none is allowed. Edit to choose channels.");
   } else if (allow) {
     out.push(`Advertises only on ${allow.map(label).join(", ")} — a channel Peakhour adds later stays off until you allow it.`);
   } else if (g.deniedChannels?.length) {

@@ -267,7 +267,7 @@ export function GuardrailsCard() {
                 {draft.channelMode === "allow" ? "Advertise only on" : "Never advertise on"}
               </legend>
               <div className="grid gap-2 sm:grid-cols-2">
-                {channelOptions(channelList).map((c) => {
+                {channelOptions(channelList, stored).map((c) => {
                   const id = `guardrail-channel-${c.key}`;
                   return (
                     <div key={c.key} className="flex items-center gap-2">
@@ -304,9 +304,9 @@ export function GuardrailsCard() {
               <p className="text-xs text-muted-foreground">
                 {/* ★SAYS WHAT "ON" COSTS (review R1): with nothing approved, the
                     engine creates no ad of its own at all. */}
-                Ads Peakhour creates on its own will carry only wording and images from a creative you approved, as
-                you approved it &mdash; so until you approve one, it creates none. Ads you set up yourself are not
-                affected.
+                Ads Peakhour creates on its own will carry only the wording and landing page of a creative you
+                approved, as you approved it &mdash; so until you approve one, it creates none. Ads you set up
+                yourself are not affected.
               </p>
             </div>
 

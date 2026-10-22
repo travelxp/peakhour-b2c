@@ -339,7 +339,7 @@ describe("★★D-05b review R1", () => {
     const d = draftFromStored({ allowedChannels: [], deniedChannels: ["meta"] }, TODAY);
     expect(d).toMatchObject({ channelMode: "allow", allowedChannels: [], deniedChannels: [] });
     expect(describeGuardrails({ allowedChannels: [] }, TODAY)).toEqual([
-      "Advertises on no channel — the allow list is empty. Edit it to choose channels.",
+      "Advertises on no channel — none is allowed. Edit to choose channels.",
     ]);
     expect(hasGuardrails({ allowedChannels: [] })).toBe(true);
     // ★and saving it unchanged is refused, as the api refuses it.
@@ -368,11 +368,28 @@ describe("★★D-05b review R1", () => {
     expect(channelModeWarning("deny", { allowedChannels: [] })).toContain("including ones Peakhour adds later");
   });
 
-  it("★★a channel both allowed and denied is REFUSED, as the engine asks the deny list first (review R2)", () => {
+  it("★★a channel both allowed and denied is READ AS REFUSED, as the engine asks the deny list first (review R2)", () => {
     const g = { allowedChannels: ["linkedin", "meta"], deniedChannels: ["meta"] };
     expect(describeGuardrails(g, TODAY)).toEqual([
       "Advertises only on LinkedIn — a channel Peakhour adds later stays off until you allow it.",
     ]);
     expect(draftFromStored(g, TODAY)).toMatchObject({ channelMode: "allow", allowedChannels: ["linkedin"], deniedChannels: [] });
+  });
+});
+
+describe("★★D-05b review R3", () => {
+  it("★★an unknown stored channel keeps its box after being unticked, so it can be ticked again", () => {
+    const stored = { allowedChannels: ["linkedin", "tiktok"] };
+    expect(channelOptions(["linkedin"], stored).map((c) => c.key)).toContain("tiktok");
+    expect(channelOptions([], { deniedChannels: ["snap"] }).map((c) => c.key)).toContain("snap");
+  });
+
+  it("★a mixed record that allows nothing round-trips as a refusal to save, not as a silent rule", () => {
+    const d = draftFromStored({ allowedChannels: ["meta"], deniedChannels: ["meta"] }, TODAY);
+    expect(d).toMatchObject({ channelMode: "allow", allowedChannels: [] });
+    expect(buildGuardrailsPatch(d).ok).toBe(false);
+    expect(describeGuardrails({ allowedChannels: ["meta"], deniedChannels: ["meta"] }, TODAY)).toEqual([
+      "Advertises on no channel — none is allowed. Edit to choose channels.",
+    ]);
   });
 });
