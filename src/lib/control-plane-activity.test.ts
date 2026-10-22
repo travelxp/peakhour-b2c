@@ -25,15 +25,15 @@ const DOMAINS: NotificationDomain[] = [
 ];
 
 /**
- * Every outcome `plt_activity` admits once mongodb migration 392 lands: the
- * one list the whole-map tests below walk, so an outcome change edits it once.
+ * Every outcome `plt_activity` admits since mongodb migration 405 (392 added
+ * `conversation`, 405 dropped `not_a_command`): the one list the whole-map
+ * tests below walk, so an outcome change edits it once.
  */
 const STORED_OUTCOMES = [
   "unknown_sender",
   "no_longer_a_member",
   "ambiguous_business",
   "command_denied",
-  "not_a_command",
   "conversation",
   "command_handled",
   "command_silent",
@@ -102,16 +102,13 @@ describe("activityCopy — §07's left column and 'what'", () => {
   it("does NOT call ordinary chatter Blocked", () => {
     // 🚫A verified merchant saying "thanks" was refused nothing, and filing it
     //  under the wall would empty the word of the meaning §07 depends on.
-    //  Both keys: `conversation` is the one the api writes from M3.
-    for (const outcome of ["conversation", "not_a_command"]) {
-      const c = activityCopy(row({ outcome }), DOMAINS);
-      expect(c.group, outcome).toBe("Message");
-      expect(c.refused, outcome).toBe(false);
-    }
+    const c = activityCopy(row({ outcome: "conversation" }), DOMAINS);
+    expect(c.group).toBe("Message");
+    expect(c.refused).toBe(false);
   });
 
   it("files a domainless conversation as a message on which no instruction ran, under Message", () => {
-    // ★★mongodb 392 REWRITES THE STORED `not_a_command` ROWS IT FINDS TO
+    // ★★mongodb 392 AND 405 REWROTE THE STORED `not_a_command` ROWS TO
     //  `conversation`. Without its own entry a rewritten row fell through to
     //  the unknown-outcome fallback: group "Activity", sentence "conversation".
     //  ⚠️Never under Blocked, and the sentence claims no good exchange: a
@@ -141,16 +138,17 @@ describe("activityCopy — §07's left column and 'what'", () => {
     expect(what.replace(/\bno instruction ran$/, "")).not.toMatch(/\b(ran|run|refused|chat\w*)\b/i);
   });
 
-  it("reads a not_a_command row exactly as a conversation, so one event never shows two ways", () => {
-    // ⏸An api older than M3 (production until it deploys there) still writes
-    //  `not_a_command`. api#1522 names a mongodb follow-up that rewrites those
-    //  rows to `conversation` and drops the key; it is planned, not built
-    //  (`plt_activity` still admits `not_a_command`), so this entry stays until
-    //  it lands. Two sentences would show a merchant one kind of line two ways.
+  it("has no copy for the retired not_a_command: such a row is rendered by the unknown-outcome fallback, never dropped", () => {
+    // ✅mongodb 405 rewrote every `not_a_command` row to `conversation` and
+    //  dropped the value from `plt_activity`'s enum, so no row can carry it
+    //  and the map no longer has the key. If one ever did (an environment that
+    //  has not run 405), it still renders, under "Activity" with its own key.
     for (const command of [null, "LAUNCH"]) {
-      expect(activityCopy(row({ outcome: "not_a_command", command }), DOMAINS)).toEqual(
-        activityCopy(row({ outcome: "conversation", command }), DOMAINS),
-      );
+      expect(activityCopy(row({ outcome: "not_a_command", command }), DOMAINS)).toEqual({
+        group: "Activity",
+        what: "not_a_command",
+        refused: false,
+      });
     }
   });
 
@@ -452,7 +450,6 @@ describe("the tab's lede and empty state (owner answer 2026-10-21, item 21)", ()
     command_silent: "instruction",
     confirmation_requested: "instruction",
     nothing_to_confirm: "instruction",
-    not_a_command: "message",
     conversation: "message",
     consent_opted_out: "consent",
     consent_opted_in: "consent",
