@@ -89,8 +89,12 @@ export function AdjustmentsBoard() {
     refetchOnWindowFocus: false,
   });
 
-  const invalidate = () =>
-    queryClient.invalidateQueries({ queryKey: ["growth-adjustments"] });
+  // ★AND THE OUTCOMES PAGE (D-03b): its Needs You counts the open proposals
+  //  now, from /outcomes, so a decision here must refresh that too.
+  const invalidate = () => {
+    void queryClient.invalidateQueries({ queryKey: ["growth-adjustments"] });
+    void queryClient.invalidateQueries({ queryKey: ["growth-outcomes"] });
+  };
 
   const optimizerEnabled = settings.data?.settings.optimizerEnabled === true;
 
