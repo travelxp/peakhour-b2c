@@ -1016,7 +1016,7 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       "Sums the Google Ads API operations PeakHour sent in the last 24 hours (Google's own 'per day') " +
       "against the project's access level — warn at 60%, alarm at 80% — and logs a line when the total " +
       "crosses a line or Google refused requests for quota. Once a day it also reads the 30-day trend and says when to apply for the next access level. It changes nothing.",
-    summarize: (data) => summarizeGoogleAdsOps(data),
+    summarize: (data) => summarizeGoogleAdsOps(data, { daily: true }),
   },
 
   "google-ads-ops-watch-intraday": {
@@ -1528,7 +1528,7 @@ export function summarizeCronBody(
  * forecast when the daily run read it. ★An absent figure is not zero: a
  * response without `last24h.operations` says nothing (null).
  */
-function summarizeGoogleAdsOps(data: unknown): CronSummary | null {
+function summarizeGoogleAdsOps(data: unknown, run: { daily: boolean } = { daily: false }): CronSummary | null {
   const d = asRecord(data);
   const last = d ? asRecord(d.last24h) : null;
   if (!d || !last || typeof last.operations !== "number" || typeof d.ceiling !== "number") return null;
@@ -1536,7 +1536,8 @@ function summarizeGoogleAdsOps(data: unknown): CronSummary | null {
   const level = typeof d.level === "string" ? d.level : "the current level";
   const pct = d.ceiling > 0 && Number.isFinite(d.ceiling) ? ` (${Math.round((ops / d.ceiling) * 100)}% of ${level}'s ${d.ceiling.toLocaleString("en-US")})` : "";
   const forecast = asRecord(d.forecast);
-  const trigger = forecast?.status === "trigger";
+  // ★Only the daily run says the forecast (review round 2), as the watch does.
+  const trigger = run.daily && forecast?.status === "trigger";
   const message =
     `${ops.toLocaleString("en-US")} Google Ads operations in the last 24 hours${pct}.` +
     (trigger ? " The 30-day trend says it is time to apply for the next access level." : "");

@@ -35,10 +35,10 @@ import {
   formatGoogleMoney,
   googleAdsErrorMessage,
   googleAdsNeedsReconnect,
-  googleCopyProblem,
-  googleCreateLeftARow,
+  googleCreateMayExist,
+  googleCreateProblem,
+  localIsoDay,
   googleCreateNote,
-  googleEndDateProblem,
   googleLaunchChargeSentence,
   googleStatusAction,
   googleStatusLabel,
@@ -63,9 +63,9 @@ import { ADS_CHANNEL_PARAM, getAdsChannel, panelConnection, type AdsChannelKey }
  * create that Google has not confirmed is a row here before it is a campaign
  * there, and the panel says so ("don't create it again").
  *
- * ★★NOTHING HERE INVITES A SECOND CREATE (review round 1). A 202, or a failure
- * that may have left a row (`googleCreateLeftARow`), closes and clears the
- * form and refreshes the list, so the row — and its "don't create it again"
+ * ★★NOTHING HERE INVITES A SECOND CREATE (review rounds 1–2). A 202, or a
+ * failure the api marks as possibly sent (`googleCreateMayExist`), closes and
+ * clears the form; every create refreshes the list, so the row — and its "don't create it again"
  * note — is what the merchant sees next. A second create would be a second
  * campaign on Google.
  *
@@ -168,7 +168,8 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
     [params, pathname, router],
   );
 
-  const list = accounts.data?.adAccounts;
+  // An account with no id cannot be chosen (a Select item may not be empty).
+  const list = accounts.data?.adAccounts.filter((a) => a.id.length > 0);
   const firstAccountId = list?.[0]?.id;
   // A `?customer=` that is not in the list is ignored, not trusted.
   const known = list?.some((a) => a.id === queryAccountId) ? queryAccountId : null;
@@ -392,15 +393,8 @@ function CreateCampaignCard({ account }: { account: GoogleAdAccount }) {
   const currency = account.currencyCode ?? form.typedCurrency;
   const searchAd = { headlines: linesOf(form.headlines), descriptions: linesOf(form.descriptions), finalUrl: form.finalUrl.trim() };
   const amount = Number(form.budget);
-  const today = new Date().toISOString().slice(0, 10);
-  const problem =
-    form.name.trim().length === 0
-      ? "Name the campaign."
-      : !(amount > 0)
-        ? "Set a daily budget above zero."
-        : !/^[A-Za-z]{3}$/.test(currency)
-          ? "Set the budget's three-letter currency."
-          : (googleEndDateProblem(form.endDate, today) ?? googleCopyProblem(searchAd));
+  const today = localIsoDay(new Date());
+  const problem = googleCreateProblem({ name: form.name, budget: form.budget, currency, endDate: form.endDate, searchAd }, today);
 
   const create = useMutation({
     mutationFn: () =>
@@ -423,9 +417,10 @@ function CreateCampaignCard({ account }: { account: GoogleAdAccount }) {
     },
     onError: (err) => {
       toast.error(googleAdsErrorMessage(err, "We couldn't create the campaign. Try again in a moment."));
-      // ★A row may exist (round 1): show it, and do not leave a filled form
-      //  that invites the second create.
-      if (googleCreateLeftARow(err)) closeAndClear();
+      // ★It may exist on Google (rounds 1–2, the api's own marker): close and
+      //  clear, so nothing invites the second create. Any other refusal keeps
+      //  the form, to fix and retry as its message asks.
+      if (googleCreateMayExist(err)) closeAndClear();
     },
     // Whatever happened, the list is re-read: a create inserts its row first.
     onSettled: () => void queryClient.invalidateQueries({ queryKey: ["google-ads-campaigns"] }),

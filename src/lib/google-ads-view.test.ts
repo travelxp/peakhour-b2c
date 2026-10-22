@@ -6,7 +6,9 @@ import {
   GOOGLE_MERCHANT_FACING_CODES,
   GOOGLE_RSA,
   formatGoogleMoney,
-  googleCreateLeftARow,
+  googleCreateMayExist,
+  googleCreateProblem,
+  localIsoDay,
   googleEndDateProblem,
   googleAdsErrorMessage,
   googleAdsNeedsReconnect,
@@ -51,6 +53,10 @@ describe("errors", () => {
     expect(googleAdsErrorMessage(apiError("INTERNAL", "stack trace", "req-1"), "Try again.")).toBe("Try again. (reference req-1)");
     expect(googleAdsErrorMessage(new Error("x"), "Try again.")).toBe("Try again.");
   });
+  it("★PASS: the api's zod refusal ('Invalid body') is not shown verbatim (review round 2)", () => {
+    expect(googleAdsErrorMessage(apiError("VALIDATION_ERROR", "Invalid body", "req-2"), "Check the form.")).toBe("Check the form. (reference req-2)");
+    expect(googleAdsErrorMessage(apiError("VALIDATION_ERROR", "The campaign's end date is in the past"), "x")).toBe("The campaign's end date is in the past");
+  });
   it("reconnect is asked for a dead connection only", () => {
     expect(googleAdsNeedsReconnect(apiError("NEEDS_REAUTH"))).toBe(true);
     expect(googleAdsNeedsReconnect(apiError("NOT_CONNECTED"))).toBe(true);
@@ -58,15 +64,43 @@ describe("errors", () => {
   });
 });
 
-describe("★★a failed create that may have left a row closes the form (review round 1)", () => {
-  it.each(["CREATE_UNCONFIRMED", "CREATE_FAILED", "CAMPAIGN_REFUSED", "PLATFORM_REFUSED", "PLATFORM_FAILED", "ASSET_NOT_APPROVED"])("%s left a row", (code) => {
-    expect(googleCreateLeftARow(apiError(code))).toBe(true);
+describe("★★only a create that may EXIST on Google closes the form — the api's own marker (review round 2)", () => {
+  const withDetails = (code: string, details: unknown) => new ApiError(code, "m", 502, undefined, details);
+  it("★CREATE_UNCONFIRMED carries the row's id: it may exist, the form closes", () => {
+    expect(googleCreateMayExist(withDetails("CREATE_UNCONFIRMED", { managedCampaignId: "6731f0aa" }))).toBe(true);
   });
-  it.each(["VALIDATION_ERROR", "CURRENCY_MISMATCH", "BUDGET_ENVELOPE_EXCEEDED", "DECLARATION_REQUIRED", "CHANNEL_DENIED", "BLOCKED_TERM"])(
-    "PASS: %s is refused before a row exists — the form stays, to be fixed",
-    (code) => expect(googleCreateLeftARow(apiError(code))).toBe(false),
+  it.each(["CREATE_FAILED", "CAMPAIGN_REFUSED", "PLATFORM_FAILED", "ASSET_NOT_APPROVED", "CHANNEL_DENIED", "VALIDATION_ERROR"])(
+    "PASS: %s without the marker keeps the form — nothing exists on Google, fix and retry",
+    (code) => expect(googleCreateMayExist(withDetails(code, undefined))).toBe(false),
   );
-  it("PASS: a network failure is not a code", () => expect(googleCreateLeftARow(new Error("x"))).toBe(false));
+  it("PASS: an empty or non-string id is not the marker; a network failure is not either", () => {
+    expect(googleCreateMayExist(withDetails("CREATE_UNCONFIRMED", { managedCampaignId: "" }))).toBe(false);
+    expect(googleCreateMayExist(withDetails("CREATE_UNCONFIRMED", { managedCampaignId: 7 }))).toBe(false);
+    expect(googleCreateMayExist(new Error("x"))).toBe(false);
+  });
+});
+
+describe("★the create form's whole decision (review round 2)", () => {
+  const ad = { headlines: ["Linen shirts", "Free returns", "Made in Porto"], descriptions: ["Breathable linen.", "Next-day dispatch."], finalUrl: "https://linen.example" };
+  const ok = { name: "Autumn", budget: "25", currency: "USD", endDate: "", searchAd: ad };
+  const T = "2026-10-23";
+  it("PASS: a complete form has no problem", () => expect(googleCreateProblem(ok, T)).toBeNull());
+  it.each([
+    ["no name", { ...ok, name: "  " }, "Name the campaign"],
+    ["a zero budget", { ...ok, budget: "0" }, "above zero"],
+    ["★an INFINITE budget (1e309 is sent as null)", { ...ok, budget: "1e309" }, "above zero"],
+    ["a non-number budget", { ...ok, budget: "abc" }, "above zero"],
+    ["no currency", { ...ok, currency: "" }, "three-letter currency"],
+    ["a past end date", { ...ok, endDate: "2026-10-22" }, "in the past"],
+    ["bad copy", { ...ok, searchAd: { ...ad, headlines: ["a"] } }, "3 to 15 headlines"],
+  ])("refuses %s", (_l, form, text) => expect(googleCreateProblem(form, T)).toContain(text));
+});
+
+describe("★today is the BROWSER's day (review round 2)", () => {
+  it("is built from local date parts, not the UTC string", () => {
+    const d = new Date(2026, 9, 24, 3, 0, 0);
+    expect(localIsoDay(d)).toBe("2026-10-24");
+  });
 });
 
 describe("the end date (review round 1)", () => {
@@ -110,6 +144,10 @@ describe("★★the one action a row offers", () => {
       status: null,
       reason: "Its end date has passed",
     });
+  });
+  it("★★a status it does not name offers NOTHING — never a charged start by default (review round 2)", () => {
+    expect(googleStatusAction({ status: "review", platformCampaignId: "1" }, NOW)).toEqual({ status: null, reason: "In review" });
+    expect(googleStatusAction({ status: "something_new", platformCampaignId: "1" }, NOW).status).toBeNull();
   });
   it("PASS: an end date ahead still starts; an active campaign past its end can still be paused", () => {
     expect(googleStatusAction({ status: "draft", platformCampaignId: "1", schedule: { endsAt: "2026-11-01T00:00:00Z" } }, NOW).status).toBe("ACTIVE");

@@ -77,27 +77,28 @@ export const GOOGLE_MERCHANT_FACING_CODES: ReadonlySet<string> = new Set([
 ]);
 
 export function googleAdsErrorMessage(err: unknown, fallback: string): string {
+  // ★The api's zod refusal is VALIDATION_ERROR too, worded "Invalid body"
+  //  (review round 2): that is not a sentence for a merchant.
+  if (err instanceof ApiError && err.code === "VALIDATION_ERROR" && err.message === "Invalid body") {
+    return adsErrorMessage(err, fallback, new Set());
+  }
   return adsErrorMessage(err, fallback, GOOGLE_MERCHANT_FACING_CODES);
 }
 
 /**
- * ★A FAILED CREATE THAT MAY HAVE LEFT A ROW, OR A CAMPAIGN (review round 1).
- * The api inserts the row before it sends, so these codes mean a row exists
- * — and for `CREATE_UNCONFIRMED`, perhaps a campaign on Google. The form
- * closes and clears, as for a 202, so nothing invites a second create.
+ * ★A FAILED CREATE THAT MAY EXIST ON GOOGLE — read from the api's own marker,
+ * not a copied list of codes (review round 2). The api attaches the row's
+ * `managedCampaignId` when the create may have been sent and could not be
+ * confirmed (`CREATE_UNCONFIRMED`): a second create could be a second
+ * campaign, so the form closes and clears, as for a 202. Every other refusal
+ * — before the row, or one the api archived because nothing was created —
+ * keeps the form, so the merchant can fix it and try again, as its message
+ * asks.
  */
-export const GOOGLE_CREATE_LEFT_A_ROW: ReadonlySet<string> = new Set([
-  "CREATE_UNCONFIRMED",
-  "CREATE_FAILED",
-  "CAMPAIGN_REFUSED",
-  "PLATFORM_REFUSED",
-  "PLATFORM_FAILED",
-  "AD_ACCOUNT_NOT_AUTHORIZED",
-  "AD_ACCOUNT_FORBIDDEN",
-  "ASSET_NOT_APPROVED",
-]);
-export function googleCreateLeftARow(err: unknown): boolean {
-  return err instanceof ApiError && GOOGLE_CREATE_LEFT_A_ROW.has(err.code);
+export function googleCreateMayExist(err: unknown): boolean {
+  if (!(err instanceof ApiError)) return false;
+  const id = (err.details as { managedCampaignId?: unknown } | null | undefined)?.managedCampaignId;
+  return typeof id === "string" && id.length > 0;
 }
 
 /** Whether the failure means the connection itself needs attention. */
@@ -124,6 +125,8 @@ export function googleStatusLabel(c: Pick<GoogleCampaign, "status">): string {
       return "Finished";
     case "archived":
       return "Not running";
+    case "review":
+      return "In review";
     default:
       return c.status;
   }
@@ -162,6 +165,9 @@ export function googleStatusAction(
   if (c.status === "completed" || c.status === "archived") return { status: null, reason: "Finished" };
   if (!c.platformCampaignId) return { status: null, reason: "Waiting for Google Ads" };
   if (c.status === "active") return { status: "PAUSED", label: "Pause" };
+  // ★ONLY draft and paused start (review round 2): any other status ("review",
+  //  one added later) offers nothing, never a charged activation by default.
+  if (c.status !== "draft" && c.status !== "paused") return { status: null, reason: googleStatusLabel(c) };
   const endsAt = c.schedule?.endsAt ? Date.parse(c.schedule.endsAt) : NaN;
   if (Number.isFinite(endsAt) && endsAt <= now.getTime()) return { status: null, reason: "Its end date has passed" };
   return { status: "ACTIVE", label: c.status === "draft" ? "Start" : "Resume" };
@@ -175,10 +181,36 @@ export function formatGoogleMoney(amount: number | undefined, currency: string |
   return formatMoneyOrNumber(amount, currency);
 }
 
+/**
+ * Today as `YYYY-MM-DD` in the BROWSER's zone (review round 2): the form sends
+ * the end date as 23:59:59 local, so "today" must be the local day too — a
+ * UTC day disagreed with the api for any merchant off UTC.
+ */
+export function localIsoDay(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
 /** A `YYYY-MM-DD` end date that is today or later (the api refuses a past one). */
 export function googleEndDateProblem(endDate: string, today: string): string | null {
   if (!endDate) return null;
   return endDate < today ? "The end date is in the past." : null;
+}
+
+/**
+ * What stops the create form, in order, or null — the whole decision in one
+ * tested place (review round 2): name, budget (finite and above zero: `1e309`
+ * is Infinity and is sent as null), currency, end date, then the copy.
+ */
+export function googleCreateProblem(
+  f: { name: string; budget: string; currency: string; endDate: string; searchAd: GoogleSearchAdInput },
+  today: string,
+): string | null {
+  if (f.name.trim().length === 0) return "Name the campaign.";
+  const amount = Number(f.budget);
+  if (!Number.isFinite(amount) || !(amount > 0)) return "Set a daily budget above zero.";
+  if (!/^[A-Za-z]{3}$/.test(f.currency)) return "Set the budget's three-letter currency.";
+  return googleEndDateProblem(f.endDate, today) ?? googleCopyProblem(f.searchAd);
 }
 
 // ── The ad's copy — the api's own rule, checked before sending ───────────
