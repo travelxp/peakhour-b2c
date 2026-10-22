@@ -35,9 +35,11 @@
  * rows, plus unstamped legacy rows, which every business lists until their
  * owner is known), and every line carries its `businessId`. So a paid
  * business is named by its own lines (`businessLines`), and nothing here reads
- * a line another business holds. ★The base row (`subscription`) is still the
- * ORG's (the first business's trial, or a contract): it names the trial, and
- * a contract, but never a paid business's purchase.
+ * a line another business holds. ★The base row (`subscription`) is served
+ * only on the business it covers (api#1553): the Suite trial and a hand-set
+ * contract on the first business, an Enterprise contract on every business.
+ * An added business reads `plan: null` and no trial. The base row names the
+ * trial, and a contract, but never a paid business's purchase.
  *
  * With no coverage served (an entitlements failure on `/me`), the state is
  * derived from the business's own lines and the base row (`planState`).
@@ -57,7 +59,8 @@ export interface HeldProduct {
 
 export interface PlanSummaryish {
   subscription?: {
-    /** Null when the org has no live base row (api#1510). */
+    /** Null when no live base row covers the signed-in business (api#1510,
+     *  api#1553). */
     plan?: string | null;
     planName?: string | null;
     trialActive?: boolean;
