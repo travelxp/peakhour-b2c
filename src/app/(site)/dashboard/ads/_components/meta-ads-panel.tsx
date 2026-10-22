@@ -56,7 +56,7 @@ import {
   sumReported,
   type MetaKpiState,
 } from "@/lib/meta-ads-view";
-import { ADS_CHANNEL_PARAM, metaAdsConnectionState, type AdsChannelKey } from "../ads-channels";
+import { ADS_CHANNEL_PARAM, getAdsChannel, panelConnection, type AdsChannelKey } from "../ads-channels";
 
 /**
  * ★★M-16 — the Meta (Facebook + Instagram) panel, inside the shared Ads hub
@@ -121,15 +121,14 @@ export function MetaAdsPanel({ channelKey }: { channelKey: AdsChannelKey }) {
 
   // ★THE API REPORTS ONE `facebook` CONNECTION, NOT A `meta_ads` ONE, so the
   //  ads capability is derived — by the SAME rule the hub uses to pick this tab
-  //  (`metaAdsConnectionState`), so the two cannot disagree. ⚠️Review R1.2: a
+  //  (`metaAdsConnectionState`, through `panelConnection` as every panel
+  //  reads it, D-03b), so the two cannot disagree. ⚠️Review R1.2: a
   //  stale connection counts only if its Ads capability is on and it has an ad
   //  account; otherwise this is "Connect Meta", not a reconnect banner.
-  const state = useMemo(
-    () => metaAdsConnectionState(integrations.data?.integrations ?? []),
+  const { isConnected, needsReauth } = useMemo(
+    () => panelConnection(integrations.data?.integrations ?? [], getAdsChannel("meta")),
     [integrations.data],
   );
-  const needsReauth = state === "needs_reauth";
-  const isConnected = state !== "absent";
 
   if (integrations.isLoading) return <SkeletonStack />;
 
