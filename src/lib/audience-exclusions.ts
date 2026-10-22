@@ -22,12 +22,12 @@ import type { AudienceSet } from "@/lib/api/audiences";
 import { REACH_FORMAT, attributeLabel } from "@/lib/audience-library-rules";
 
 /** The statuses whose audiences can still run: a discarded or superseded one is not a cost. */
-export const LIVE_STATUSES = ["proposed", "applied"] as const;
+export const LIVE_STATUSES = ["proposed", "applied"] as const satisfies readonly [string, string];
 const LIVE = new Set<string>(LIVE_STATUSES);
 
 export interface ExclusionsSummary {
   /** One per distinct suggestion, with the audiences it was suggested for. */
-  suggested: Array<{ key: string; reason: string; label: string; variant: string; values: string[]; audiences: string[] }>;
+  suggested: Array<{ key: string; reason: string; attribute: string; label: string; variant: string; values: string[]; audiences: string[] }>;
   /** One per PAIR (each set records the other, so every pair arrives twice). */
   overlaps: Array<{ key: string; a: string; b: string; approxMembers?: number; reason?: string }>;
   /** Audiences whose overlap the platform could not measure, by reason. */
@@ -80,7 +80,9 @@ export function summarizeExclusions(sets: readonly AudienceSet[]): ExclusionsSum
   const suggested = new Map<string, ExclusionsSummary["suggested"][number]>();
   const suggestedIds = new Map<string, Set<string>>();
   const pairs = new Map<string, ExclusionsSummary["overlaps"][number]>();
-  const unmeasured = new Map<string, string[]>();
+  const ranks = new Map<string, number>();
+  /** By plan AND reason (review R3): the api decides `unavailable` per plan. */
+  const unmeasured = new Map<string, { reason: string; audiences: string[] }>();
 
   for (const set of live) {
     const ex = set.exclusions;
@@ -90,6 +92,7 @@ export function summarizeExclusions(sets: readonly AudienceSet[]): ExclusionsSum
       const row = suggested.get(key) ?? {
         key,
         reason: s.reason,
+        attribute: s.attribute,
         label: attributeLabel(s.attribute),
         variant: s.variant,
         values: [...s.values],
@@ -108,7 +111,11 @@ export function summarizeExclusions(sets: readonly AudienceSet[]): ExclusionsSum
     if (ex.overlapBasis === "unavailable") {
       const reason = ex.overlapUnavailableReason?.trim() || "The platform could not measure overlap.";
       // One entry per audience: each set is read once, and two audiences may share a name.
-      unmeasured.set(reason, [...(unmeasured.get(reason) ?? []), set.name]);
+      // A set with no plan was compared with nothing, so it is its own group.
+      const group = `${set.planId ?? `set:${set.id}`}|${reason}`;
+      const row = unmeasured.get(group) ?? { reason, audiences: [] };
+      row.audiences.push(set.name);
+      unmeasured.set(group, row);
       continue;
     }
     for (const o of ex.overlaps ?? []) {
@@ -122,9 +129,13 @@ export function summarizeExclusions(sets: readonly AudienceSet[]): ExclusionsSum
       const key = `${first.id}|${second.id}`;
       const figure =
         typeof o.approxMembers === "number" && Number.isFinite(o.approxMembers) && o.approxMembers > 0 ? o.approxMembers : undefined;
-      const prev = pairs.get(key);
-      if (prev && (prev.approxMembers !== undefined || figure === undefined)) continue;
       const reason = o.reason ?? (o.approxMembers === 0 ? ZERO_COUNT : undefined);
+      // ★THE STRONGER ROW WINS, WHICHEVER ARRIVES FIRST (review R3): a figure,
+      //  then the api's own reason, then our zero sentence, then nothing — so
+      //  the same pair reads the same in any page order.
+      const rank = figure !== undefined ? 3 : o.reason ? 2 : reason ? 1 : 0;
+      if ((ranks.get(key) ?? -1) >= rank) continue;
+      ranks.set(key, rank);
       pairs.set(key, {
         key,
         a: first.name,
@@ -142,7 +153,7 @@ export function summarizeExclusions(sets: readonly AudienceSet[]): ExclusionsSum
     //  `unavailable` per plan and platform, and the reason names the platform —
     //  so a lone audience under a reason has nothing it was not compared with,
     //  whatever else the library holds.
-    unmeasured: [...unmeasured].filter(([, names]) => names.length >= 2).map(([reason, audiences]) => ({ reason, audiences })),
+    unmeasured: [...unmeasured.values()].filter((u) => u.audiences.length >= 2),
     audiences: live.length,
     checked: live.filter((s) => s.exclusions !== undefined).length,
   };
@@ -156,9 +167,14 @@ export function overlapLine(o: ExclusionsSummary["overlaps"][number]): string {
   return `${o.a} and ${o.b}: not measured — ${o.reason ?? "the platform did not give a figure"}.`;
 }
 
-/** A suggestion's variant in words, where it is not the obvious one. */
-export function variantNote(variant: string): string {
-  return variant === "past" ? " — people who used to work there" : variant === "any" ? " — current or past" : "";
+/**
+ * A suggestion's variant in words, where it is not the obvious one. ★Employer
+ * wording only for the employer attribute (review R3); any other reads plainly.
+ */
+export function variantNote(variant: string, attribute: string): string {
+  if (variant === "current") return "";
+  if (attribute === "company_name") return variant === "past" ? " — people who used to work there" : " — current or past employees";
+  return variant === "past" ? " (past)" : variant === "any" ? " (current or past)" : "";
 }
 
 /** Whether there is anything to show beyond "nothing yet". */

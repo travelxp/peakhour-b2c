@@ -3,8 +3,17 @@ import type { AudienceExclusions, AudienceSet } from "@/lib/api/audiences";
 import { formatMembers, hasExclusions, namesLine, overlapLine, summarizeExclusions, variantNote } from "./audience-exclusions";
 
 /** A library row as `GET /v1/audiences/sets` returns it — only the fields read here. */
-function set(id: string, name: string, exclusions?: AudienceExclusions, status: AudienceSet["status"] = "proposed"): AudienceSet {
-  return { id, name, source: "generated", status, channels: [], createdAt: "2026-10-22T09:00:00Z", ...(exclusions ? { exclusions } : {}) } as AudienceSet;
+function set(id: string, name: string, exclusions?: AudienceExclusions, status: AudienceSet["status"] = "proposed", planId: string | null = "plan-1"): AudienceSet {
+  return {
+    id,
+    name,
+    source: "generated",
+    status,
+    channels: [],
+    createdAt: "2026-10-22T09:00:00Z",
+    ...(planId ? { planId } : {}),
+    ...(exclusions ? { exclusions } : {}),
+  } as AudienceSet;
 }
 const ex = (over: Partial<AudienceExclusions> = {}): AudienceExclusions => ({
   overlapBasis: "computed",
@@ -46,9 +55,13 @@ describe("★★summarizeExclusions — suggestions", () => {
   });
 
   it("★a past or any variant is said; current is the obvious one", () => {
-    expect(variantNote("past")).toBe(" — people who used to work there");
-    expect(variantNote("any")).toBe(" — current or past");
-    expect(variantNote("current")).toBe("");
+    expect(variantNote("past", "company_name")).toBe(" — people who used to work there");
+    expect(variantNote("any", "company_name")).toBe(" — current or past employees");
+    expect(variantNote("current", "company_name")).toBe("");
+    // ★Employer wording only for the employer attribute (review R3).
+    expect(variantNote("past", "job_title")).toBe(" (past)");
+    expect(variantNote("any", "job_title")).toBe(" (current or past)");
+    expect(variantNote("current", "job_title")).toBe("");
   });
 
   it("★★a DISCARDED or SUPERSEDED audience suggests nothing — it cannot run", () => {
@@ -210,5 +223,42 @@ describe("★★D-06 review R2", () => {
     expect(namesLine(["A", "B"])).toBe("A, B");
     expect(namesLine(["A", "B", "C"])).toBe("A, B, C");
     expect(namesLine(["A", "B", "C", "D", "E"])).toBe("A, B, C and 2 more");
+  });
+});
+
+describe("★★D-06 review R3", () => {
+  it("★★'not measured' is grouped by PLAN as well as reason: two one-audience plans are not a pair", () => {
+    const why = "X publishes no audience counts";
+    const s = summarizeExclusions([
+      set("a", "A", ex({ overlapBasis: "unavailable", overlapUnavailableReason: why }), "proposed", "plan-1"),
+      set("b", "B", ex({ overlapBasis: "unavailable", overlapUnavailableReason: why }), "proposed", "plan-2"),
+    ]);
+    expect(s.unmeasured).toEqual([]);
+    const same = summarizeExclusions([
+      set("a", "A", ex({ overlapBasis: "unavailable", overlapUnavailableReason: why }), "proposed", "plan-1"),
+      set("b", "B", ex({ overlapBasis: "unavailable", overlapUnavailableReason: why }), "proposed", "plan-1"),
+    ]);
+    expect(same.unmeasured).toEqual([{ reason: why, audiences: ["A", "B"] }]);
+    const unplanned = summarizeExclusions([
+      set("a", "A", ex({ overlapBasis: "unavailable", overlapUnavailableReason: why }), "proposed", null),
+      set("b", "B", ex({ overlapBasis: "unavailable", overlapUnavailableReason: why }), "proposed", null),
+    ]);
+    expect(unplanned.unmeasured).toEqual([]);
+  });
+
+  it("★★the stronger row wins in EITHER order: the api's reason beats our zero sentence, and a reason beats nothing", () => {
+    const zero = { setId: "b", name: "B", approxMembers: 0, approximate: true };
+    const real = { setId: "a", name: "A", reason: "the numbers we got back don't add up, so we'd rather not guess" };
+    for (const order of [[0, 1], [1, 0]]) {
+      const rows = [set("a", "A", ex({ overlaps: [zero] })), set("b", "B", ex({ overlaps: [real] }))];
+      const s = summarizeExclusions(order.map((i) => rows[i]!));
+      expect(pairs(s), String(order)).toEqual([{ a: "A", b: "B", reason: real.reason }]);
+    }
+    const bare = { setId: "b", name: "B" };
+    const why = { setId: "a", name: "A", reason: "any overlap is under the platform's reporting minimum" };
+    for (const order of [[0, 1], [1, 0]]) {
+      const rows = [set("a", "A", ex({ overlaps: [bare] })), set("b", "B", ex({ overlaps: [why] }))];
+      expect(pairs(summarizeExclusions(order.map((i) => rows[i]!))), String(order)).toEqual([{ a: "A", b: "B", reason: why.reason }]);
+    }
   });
 });

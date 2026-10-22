@@ -496,6 +496,10 @@ export interface AudienceSet {
     syncedAt: string;
   };
   discardReason?: string;
+  /** The planning session that produced it (stringified by `serializeSet`);
+   *  absent on one nobody planned. D-06 groups "overlap not measured" by it,
+   *  since the api decides that per plan. */
+  planId?: string;
   /** D-06: what the engine worked out about who this audience should NOT
    *  reach, and how much it overlaps its portfolio siblings (§8.3, B4). Absent
    *  on an audience nobody planned. Read by `lib/audience-exclusions.ts`. */

@@ -18,7 +18,7 @@ import { UserX } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useAudienceSets } from "@/hooks/use-audience-library";
-import { hasExclusions, namesLine, overlapLine, summarizeExclusions, variantNote } from "@/lib/audience-exclusions";
+import { LIVE_STATUSES, hasExclusions, namesLine, overlapLine, summarizeExclusions, variantNote } from "@/lib/audience-exclusions";
 
 /** The api's page cap for the library (`limit` max). */
 const PAGE = 50;
@@ -28,8 +28,11 @@ export function AudienceExclusionsCard() {
   //  that merely left out discarded ones filled up with superseded rows, and a
   //  business with live audiences was told it had none. The api takes one
   //  status per query, so the two live ones are two queries.
-  const proposed = useAudienceSets({ status: "proposed", limit: PAGE });
-  const applied = useAudienceSets({ status: "applied", limit: PAGE });
+  //  ★FROM LIVE_STATUSES (review R3), the list the summary filters by — its
+  //  type pins it to two, so a third live status fails to compile here.
+  const [first, second] = LIVE_STATUSES;
+  const proposed = useAudienceSets({ status: first, limit: PAGE });
+  const applied = useAudienceSets({ status: second, limit: PAGE });
 
   if (!proposed.data || !applied.data) {
     // ★A FAILED READ SAYS SO (review R2) — a card that silently vanishes is
@@ -97,8 +100,11 @@ export function AudienceExclusionsCard() {
           <p className="text-sm text-muted-foreground">
             {/* ★"No overlap measured", never "they do not overlap": an empty list
                 can also mean there was only one audience to compare. */}
-            Nothing to exclude across the {summary.checked} audience{summary.checked === 1 ? "" : "s"} Peakhour has
-            checked, and no overlap measured between them.
+            {summary.checked === 1
+              ? "Nothing to exclude for the one audience Peakhour has checked."
+              : `Nothing to exclude across the ${summary.checked} audiences Peakhour has checked${
+                  more ? "." : ", and no overlap measured between them."
+                }`}
           </p>
         ) : (
           <div className="space-y-4 text-sm">
@@ -109,7 +115,7 @@ export function AudienceExclusionsCard() {
                   {summary.suggested.map((s) => (
                     <li key={s.key}>
                       Leave out {s.reason} ({s.label}: {s.values.join(", ")}
-                      {variantNote(s.variant)}) — suggested for{" "}
+                      {variantNote(s.variant, s.attribute)}) — suggested for{" "}
                       {s.audiences.length === 1 ? s.audiences[0] : `${s.audiences.length} audiences: ${namesLine(s.audiences)}`}.
                     </li>
                   ))}
@@ -154,8 +160,9 @@ export function AudienceExclusionsCard() {
         {more && (
           <p className="text-xs text-muted-foreground">
             {/* ★WHAT WAS READ, EXACTLY (review R2): two pages, one per status. */}
-            Read from your {PAGE} newest suggested and {PAGE} newest in-use audiences ({read.length} of {total}).
-            Overlaps with audiences not read here are not shown.
+            Read the newest {proposed.data.sets.length} of {proposed.data.total} suggested and{" "}
+            {applied.data.sets.length} of {applied.data.total} in-use audiences. Overlaps with audiences not read here
+            are not shown.
           </p>
         )}
       </CardContent>
