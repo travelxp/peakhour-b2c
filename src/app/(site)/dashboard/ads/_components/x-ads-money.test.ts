@@ -4,6 +4,8 @@ import {
   campaignCurrency,
   deriveAccountCurrency,
   fundingNotice,
+  fundingOptions,
+  isBillableInstrument,
   normalizeCurrency,
   totalsCurrency,
 } from "./x-ads-money";
@@ -125,9 +127,22 @@ describe("fundingNotice", () => {
     expect(fundingNotice(q({ fetchStatus: "fetching" }))).toBeNull();
   });
 
-  it("says nothing when instruments exist, even if a refetch is paused", () => {
-    expect(fundingNotice(q({ isSuccess: true, data: [{}] }))).toBeNull();
-    expect(fundingNotice(q({ isSuccess: true, fetchStatus: "paused", data: [{}] }))).toBeNull();
+  const ACTIVE = { status: "ACTIVE" };
+  const PAUSED = { status: "PAUSED" };
+
+  it("says nothing when an active instrument exists, even if a refetch is paused", () => {
+    expect(fundingNotice(q({ isSuccess: true, data: [ACTIVE] }))).toBeNull();
+    expect(fundingNotice(q({ isSuccess: true, data: [PAUSED, ACTIVE] }))).toBeNull();
+    expect(
+      fundingNotice(q({ isSuccess: true, fetchStatus: "paused", data: [ACTIVE] }))
+    ).toBeNull();
+  });
+
+  it("says none-active when instruments loaded but none is ACTIVE", () => {
+    expect(fundingNotice(q({ isSuccess: true, data: [PAUSED] }))).toBe("none-active");
+    expect(
+      fundingNotice(q({ isSuccess: true, data: [{ status: "EXPIRED" }, { status: "" }] }))
+    ).toBe("none-active");
   });
 
   it("reports an error instead of an empty list", () => {
@@ -135,6 +150,37 @@ describe("fundingNotice", () => {
   });
 
   it("keeps a usable list when only a background refetch failed", () => {
-    expect(fundingNotice(q({ isError: true, data: [{}] }))).toBeNull();
+    expect(fundingNotice(q({ isError: true, data: [ACTIVE] }))).toBeNull();
+    expect(fundingNotice(q({ isError: true, data: [PAUSED] }))).toBe("none-active");
+  });
+});
+
+describe("isBillableInstrument", () => {
+  it("only ACTIVE, normalised, can be billed", () => {
+    expect(isBillableInstrument({ status: "ACTIVE" })).toBe(true);
+    expect(isBillableInstrument({ status: " active " })).toBe(true);
+    for (const status of ["PAUSED", "CANCELLED", "EXPIRED", ""]) {
+      expect(isBillableInstrument({ status })).toBe(false);
+    }
+  });
+});
+
+describe("fundingOptions", () => {
+  it("lists every instrument but only ACTIVE ones are selectable", () => {
+    expect(
+      fundingOptions([
+        { id: "a", description: "Visa 4242", currency: " inr", status: "ACTIVE" },
+        { id: "b", description: "Amex 0005", currency: "USD", status: "PAUSED" },
+        { id: "c", description: "Credit line", currency: "", status: "EXPIRED" },
+      ])
+    ).toEqual([
+      { id: "a", label: "Visa 4242 (INR)", selectable: true },
+      { id: "b", label: "Amex 0005 (USD) (not active)", selectable: false },
+      { id: "c", label: "Credit line (not active)", selectable: false },
+    ]);
+  });
+
+  it("no instruments → no options", () => {
+    expect(fundingOptions(undefined)).toEqual([]);
   });
 });

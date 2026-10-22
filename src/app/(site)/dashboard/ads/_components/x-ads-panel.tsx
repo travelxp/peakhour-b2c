@@ -52,6 +52,8 @@ import {
   campaignCurrency,
   deriveAccountCurrency,
   fundingNotice,
+  fundingOptions,
+  isBillableInstrument,
   normalizeCurrency,
   totalsCurrency,
 } from "./x-ads-money";
@@ -543,9 +545,12 @@ function CreateCampaignDialog({
     queryFn: () => xAdsApi.listFundingInstruments(accountId),
   });
   const notice = fundingNotice(fundingInstruments);
-  const fundingCurrency = normalizeCurrency(
-    fundingInstruments.data?.find((f) => f.id === fundingId)?.currency
-  );
+  const options = fundingOptions(fundingInstruments.data);
+  const selected = fundingInstruments.data?.find((f) => f.id === fundingId);
+  // A refetch can turn the chosen card inactive; it then no longer counts as
+  // chosen, so Create disables instead of earning a 400.
+  const selectedBillable = !!selected && isBillableInstrument(selected);
+  const fundingCurrency = normalizeCurrency(selected?.currency);
 
   const create = useMutation({
     mutationFn: () =>
@@ -567,13 +572,22 @@ function CreateCampaignDialog({
     },
     onError: (err: unknown) => {
       setError(err instanceof ApiError ? err.message : "Failed to create campaign.");
+      // The card changed between load and submit (peakhour-api#1557): the
+      // message above says so, and a fresh list shows what can be billed now.
+      if (
+        err instanceof ApiError &&
+        (err.code === "FUNDING_INSTRUMENT_NOT_ACTIVE" ||
+          err.code === "FUNDING_INSTRUMENT_NOT_FOUND")
+      ) {
+        void fundingInstruments.refetch();
+      }
     },
   });
 
   const dailyDollars = parseFloat(dailyBudget);
   const valid =
     name.trim().length > 0 &&
-    fundingId.length > 0 &&
+    selectedBillable &&
     Number.isFinite(dailyDollars) &&
     dailyDollars > 0;
 
@@ -617,19 +631,30 @@ function CreateCampaignDialog({
                 } />
               </SelectTrigger>
               <SelectContent>
-                {(fundingInstruments.data ?? []).map((f) => {
-                  const code = normalizeCurrency(f.currency);
-                  return (
-                    <SelectItem key={f.id} value={f.id}>
-                      {f.description}{code ? ` (${code})` : ""}
-                    </SelectItem>
-                  );
-                })}
+                {options.map((o) => (
+                  <SelectItem key={o.id} value={o.id} disabled={!o.selectable}>
+                    {o.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
             {notice === "empty" ? (
               <p className="text-xs text-muted-foreground" role="status">
                 This X ads account has no funding source yet. Add a payment method in{" "}
+                <a
+                  href="https://ads.x.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-medium underline underline-offset-4"
+                >
+                  X Ads Manager (ads.x.com)
+                </a>
+                , then come back to create a campaign.
+              </p>
+            ) : notice === "none-active" ? (
+              <p className="text-xs text-muted-foreground" role="status">
+                This X ads account has no active funding source. Reactivate or add a payment
+                method in{" "}
                 <a
                   href="https://ads.x.com"
                   target="_blank"

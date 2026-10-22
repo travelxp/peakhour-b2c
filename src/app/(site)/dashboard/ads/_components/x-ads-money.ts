@@ -30,7 +30,7 @@ export function deriveAccountCurrency(
   instruments: readonly Pick<XFundingInstrument, "currency" | "status">[] | undefined
 ): string | null {
   const all = instruments ?? [];
-  const active = all.filter((f) => f.status?.trim().toUpperCase() === "ACTIVE");
+  const active = all.filter(isBillableInstrument);
   const pool = active.length > 0 ? active : all;
   const codes = new Set(
     pool.map((f) => normalizeCurrency(f.currency)).filter((c): c is string => c !== null)
@@ -69,7 +69,38 @@ export function totalsCurrency(
 }
 
 /**
+ * Whether a campaign may be billed to this instrument. The api refuses any
+ * other status with 400 FUNDING_INSTRUMENT_NOT_ACTIVE (peakhour-api#1557), so
+ * the dialog must not offer one — a merchant would fill the whole form first.
+ */
+export function isBillableInstrument(f: Pick<XFundingInstrument, "status">): boolean {
+  return f.status?.trim().toUpperCase() === "ACTIVE";
+}
+
+/**
+ * The create dialog's funding options. Every instrument is listed so the
+ * merchant can see the card they expected, but only an ACTIVE one is
+ * selectable; the rest carry "(not active)". Display currency is a separate
+ * question (`deriveAccountCurrency` still falls back to inactive cards).
+ */
+export function fundingOptions(
+  instruments: readonly Pick<XFundingInstrument, "id" | "description" | "currency" | "status">[] | undefined
+): { id: string; label: string; selectable: boolean }[] {
+  return (instruments ?? []).map((f) => {
+    const code = normalizeCurrency(f.currency);
+    const selectable = isBillableInstrument(f);
+    return {
+      id: f.id,
+      label: `${f.description}${code ? ` (${code})` : ""}${selectable ? "" : " (not active)"}`,
+      selectable,
+    };
+  });
+}
+
+/**
  * What the create dialog says under the funding select.
+ * - "none-active": instruments are listed but none can be billed. Rows in
+ *   hand mean they did load, so this holds even beside a failed refetch.
  * - "error": the load failed and there is nothing to choose from (a failed
  *   background refetch keeps the earlier list, which is still usable).
  * - "offline": react-query v5 PAUSES a query while offline, and a paused
@@ -81,11 +112,13 @@ export function fundingNotice(query: {
   isSuccess: boolean;
   isError: boolean;
   fetchStatus: "fetching" | "paused" | "idle";
-  data: readonly unknown[] | undefined;
-}): "empty" | "error" | "offline" | null {
-  const hasRows = (query.data?.length ?? 0) > 0;
-  if (query.isError) return hasRows ? null : "error";
+  data: readonly Pick<XFundingInstrument, "status">[] | undefined;
+}): "empty" | "none-active" | "error" | "offline" | null {
+  if ((query.data?.length ?? 0) > 0) {
+    return query.data!.some(isBillableInstrument) ? null : "none-active";
+  }
+  if (query.isError) return "error";
   if (query.fetchStatus === "paused" && query.data === undefined) return "offline";
-  if (query.isSuccess && !hasRows) return "empty";
+  if (query.isSuccess) return "empty";
   return null;
 }
