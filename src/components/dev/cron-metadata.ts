@@ -1005,6 +1005,12 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
     description:
       "Ends the grace period for subscriptions whose payment failed, freezing access once the retry window has run out. Revokes entitlements from real organisations — dev has real stores on it.",
   },
+  "mandate-debits": {
+    label: "Collect PayU renewals",
+    frequency: "Runs hourly at :20",
+    description:
+      "Sends the advance notice for each PayU mandate due soon, then takes the payment once the notice has run its time, and records the outcome of any payment already attempted.",
+  },
   "billing-reconcile": {
     label: "Re-check card subscriptions",
     frequency: "Runs daily at 4am UTC",
