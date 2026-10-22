@@ -26,12 +26,14 @@ import { PaymentModal, type CheckoutResult } from "@/components/upgrade/payment-
  * for fair-use 429s lives in a separate component).
  *
  *   waitlist  — v1 GA default. No prices shown. Captures email +
- *               business context for the Peakhour Suite waiting list. Founding-
- *               member badge up to the cap ops set on the CMS Platform
- *               stage page (`cfg_platform_stage.foundingMemberCap`; the
- *               api decides, api#1551).
+ *               business context for the Peakhour Suite waiting list.
+ *               Founding-member badge up to the cap ops set on the CMS
+ *               Platform stage page (`cfg_platform_stage.foundingMemberCap`,
+ *               shared with the WordPress founding-interest signup; the api
+ *               decides, api#1551). Unset or 0 is no cap: every signup is a
+ *               founding member.
  *   checkout  — flips on once public pricing GA-s. Plan card +
- *               Stripe/Razorpay handoff.
+ *               Stripe/Razorpay/PayU handoff.
  *
  * The two modes share the same Sheet chrome, animated header, and
  * telemetry tags so flipping `mode` is one config change at the call
