@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
- * `/v1/dashboard/org` and `/v1/billing/summary` answer for the signed-in
+ * `/v1/dashboard/org`, `/v1/billing/summary` and `/v1/billing/orders` answer for the signed-in
  * BUSINESS (api#1510), so their caches are keyed by business (P4.3b): the key
  * names whose answer an entry is (`switchBusiness` also clears the cache).
  *
@@ -29,7 +29,9 @@ vi.mock("@/providers/auth-provider", () => ({ useAuth: () => session }));
 vi.mock("@/lib/api", () => ({ api: { get: async () => undefined, post: async () => undefined }, ApiError: class {} }));
 
 const { useDashboardOrg, dashboardOrgKey, DASHBOARD_ORG_KEY } = await import("./use-dashboard-org");
-const { useBillingSummary, billingSummaryKey, BILLING_SUMMARY_KEY } = await import("./use-billing-summary");
+const { useBillingSummary, billingSummaryKey, BILLING_SUMMARY_KEY, useBillingOrders, billingOrdersKey, BILLING_ORDERS_KEY } = await import(
+  "./use-billing-summary"
+);
 
 function optionsOf(hook: () => unknown): QueryOptions {
   recorded.length = 0;
@@ -41,6 +43,8 @@ function optionsOf(hook: () => unknown): QueryOptions {
 const hooks = [
   { name: "useDashboardOrg", hook: useDashboardOrg, prefix: DASHBOARD_ORG_KEY, keyOf: dashboardOrgKey },
   { name: "useBillingSummary", hook: useBillingSummary, prefix: BILLING_SUMMARY_KEY, keyOf: billingSummaryKey },
+  // The order confirmations are the signed-in business's too (mongodb migration 406).
+  { name: "useBillingOrders", hook: useBillingOrders, prefix: BILLING_ORDERS_KEY, keyOf: billingOrdersKey },
 ] as const;
 
 for (const { name, hook, prefix, keyOf } of hooks) describe(`${name}: one cache entry per business (P4.3b)`, () => {

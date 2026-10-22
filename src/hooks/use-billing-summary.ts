@@ -45,8 +45,13 @@ export interface BillingSummaryProduct {
 
 export interface BillingSummary {
   country: string;
+  /** The business these figures are for (api#1553), or null for the org. */
+  businessId: string | null;
+  /** The base row's plan, only on the business it covers (api#1553): the
+   *  Suite trial or a contract on the first business, or an org contract
+   *  (Enterprise) on every business. Null on an added business. */
   basePlan: string | null;
-  /** Null when the org has no live base row (api#1510). */
+  /** Null when no live base row covers this business (api#1510, api#1553). */
   basePlanName: string | null;
   products: BillingSummaryProduct[];
   /** Null for a business with no lines, or lines in several currencies. */
@@ -100,6 +105,10 @@ export function useBillingSummary() {
  *  the window before any tax invoice can legally exist. */
 export interface OrderConfirmation {
   _id: string;
+  /** The business the change was for (mongodb migration 406, api#1553), or
+   *  null for a confirmation stored before it, which every business of the
+   *  org lists. */
+  businessId: string | null;
   orderNumber: string;
   kind: "purchased" | "trial_started" | "added" | "upgraded" | "removed";
   tier: string;
@@ -116,7 +125,16 @@ export interface OrderConfirmation {
 export const BILLING_ORDERS_KEY = "/v1/billing/orders";
 
 /**
- * Order confirmations for the billing page.
+ * The cache key of one business's order confirmations. ★BY BUSINESS (api#1553):
+ * the list is the signed-in business's, as `billingSummaryKey`'s is.
+ */
+export function billingOrdersKey(orgId: string | null | undefined, businessId: string | null | undefined) {
+  return [BILLING_ORDERS_KEY, orgId ?? null, businessId ?? null] as const;
+}
+
+/**
+ * Order confirmations for the billing page: the signed-in business's own,
+ * plus unstamped ones stored before mongodb migration 406 (api#1553).
  *
  * Separate from invoices deliberately. With a 14-day trial on every plan a tax
  * invoice cannot legally exist until the first charge, so without these the
@@ -124,11 +142,12 @@ export const BILLING_ORDERS_KEY = "/v1/billing/orders";
  * definitely happened — which is exactly what was reported.
  */
 export function useBillingOrders() {
-  const { org, isAuthenticated } = useAuth();
+  const { org, business, isAuthenticated } = useAuth();
   return useQuery<OrderConfirmation[]>({
-    queryKey: [BILLING_ORDERS_KEY, org?._id ?? null],
+    queryKey: billingOrdersKey(org?._id, business?._id),
     queryFn: () => api.get<OrderConfirmation[]>("/v1/billing/orders"),
-    enabled: isAuthenticated && !!org?._id,
+    // ★Only with a business: with none the api lists the whole org's.
+    enabled: isAuthenticated && !!org?._id && !!business?._id,
     staleTime: 60_000,
   });
 }
