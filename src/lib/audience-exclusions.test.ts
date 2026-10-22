@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { AudienceExclusions, AudienceSet } from "@/lib/api/audiences";
-import { formatMembers, hasExclusions, overlapLine, summarizeExclusions, variantNote } from "./audience-exclusions";
+import { formatMembers, hasExclusions, namesLine, overlapLine, summarizeExclusions, variantNote } from "./audience-exclusions";
 
 /** A library row as `GET /v1/audiences/sets` returns it — only the fields read here. */
 function set(id: string, name: string, exclusions?: AudienceExclusions, status: AudienceSet["status"] = "proposed"): AudienceSet {
@@ -105,23 +105,16 @@ describe("★★summarizeExclusions — overlaps", () => {
 
   it("★★a stored 0 is NOT a measurement — no 'share about 0 people … bid against each other' (review R1)", () => {
     const s = summarizeExclusions([set("a", "A", ex({ overlaps: [{ setId: "b", name: "B", approxMembers: 0, approximate: true }] })), set("b", "B")]);
-    expect(pairs(s)).toEqual([{ a: "A", b: "B", reason: "the platform reported no count for the two together" }]);
+    expect(pairs(s)).toEqual([{ a: "A", b: "B", reason: "the platform's count came back as zero, which it also gives below its reporting minimum" }]);
     expect(overlapLine(s.overlaps[0]!)).not.toMatch(/share about|bid against/);
   });
 
-  it("★★on a COMPLETE read, an overlap with an audience no longer live is dropped", () => {
+  it("★★an overlap with an audience not read — discarded, or off the page — is dropped (review R2)", () => {
     const s = summarizeExclusions([
       set("a", "A", ex({ overlaps: [{ setId: "b", name: "B", approxMembers: 50 }, { setId: "zz", name: "Elsewhere", approxMembers: 70 }] })),
       set("b", "B", ex(), "discarded"),
     ]);
     expect(s.overlaps).toEqual([]);
-  });
-
-  it("★★on a PARTIAL read, a sibling off the page is kept under its stored name — each side named for itself (review R1)", () => {
-    const s = summarizeExclusions([set("m", "Mine", ex({ overlaps: [{ setId: "zz", name: "Off the page", approxMembers: 70 }] }))], { complete: false });
-    expect(pairs(s)).toEqual([{ a: "Mine", b: "Off the page", approxMembers: 70 }]);
-    const t = summarizeExclusions([set("zz", "Mine", ex({ overlaps: [{ setId: "aa", name: "Off the page", approxMembers: 70 }] }))], { complete: false });
-    expect(pairs(t)).toEqual([{ a: "Off the page", b: "Mine", approxMembers: 70 }]);
   });
 
   it("★the largest figures first, then the unmeasured pairs", () => {
@@ -139,7 +132,7 @@ describe("★★summarizeExclusions — overlaps", () => {
   });
 
   it("a set's row about itself is ignored", () => {
-    expect(summarizeExclusions([set("a", "A", ex({ overlaps: [{ setId: "a", name: "A", approxMembers: 10 }] }))], { complete: false }).overlaps).toEqual([]);
+    expect(summarizeExclusions([set("a", "A", ex({ overlaps: [{ setId: "a", name: "A", approxMembers: 10 }] }))]).overlaps).toEqual([]);
   });
 
   it("★the names are the audiences' own, not the row's copy (renamed since)", () => {
@@ -162,8 +155,21 @@ describe("★★summarizeExclusions — an unavailable basis", () => {
   });
 
   it("a blank reason still says why in general terms", () => {
-    const s = summarizeExclusions([set("a", "A", ex({ overlapBasis: "unavailable", overlapUnavailableReason: "  " })), set("b", "B")]);
-    expect(s.unmeasured).toEqual([{ reason: "The platform could not measure overlap.", audiences: ["A"] }]);
+    const s = summarizeExclusions([
+      set("a", "A", ex({ overlapBasis: "unavailable", overlapUnavailableReason: "  " })),
+      set("b", "B", ex({ overlapBasis: "unavailable" })),
+    ]);
+    expect(s.unmeasured).toEqual([{ reason: "The platform could not measure overlap.", audiences: ["A", "B"] }]);
+  });
+
+  it("★★a LONE audience under a reason gets no caveat, whatever else the library holds (review R2: per plan and platform)", () => {
+    const s = summarizeExclusions([
+      set("x", "X audience", ex({ overlapBasis: "unavailable", overlapUnavailableReason: "X publishes no audience counts" })),
+      set("a", "A", ex()),
+      set("b", "B", ex()),
+      set("c", "C", ex()),
+    ]);
+    expect(s.unmeasured).toEqual([]);
   });
 
   it("★★ONE audience has nothing to compare: no 'not measured' caveat about it (review R1)", () => {
@@ -184,9 +190,25 @@ describe("overlapLine / formatMembers / hasExclusions", () => {
     expect(hasExclusions(summarizeExclusions([set("a", "A", ex())]))).toBe(false);
     expect(hasExclusions(summarizeExclusions([set("a", "A", ex({ overlapBasis: "unavailable" }))]))).toBe(false);
     expect(hasExclusions(summarizeExclusions([set("a", "A", ex({ suggested: [OWN] }))]))).toBe(true);
-    expect(hasExclusions(summarizeExclusions([set("a", "A", ex({ overlapBasis: "unavailable" })), set("b", "B")]))).toBe(true);
+    expect(hasExclusions(summarizeExclusions([set("a", "A", ex({ overlapBasis: "unavailable" })), set("b", "B", ex({ overlapBasis: "unavailable" }))]))).toBe(true);
+    expect(hasExclusions(summarizeExclusions([set("a", "A", ex({ overlapBasis: "unavailable" })), set("b", "B")]))).toBe(false);
     expect(
       hasExclusions(summarizeExclusions([set("a", "A", ex({ overlaps: [{ setId: "b", name: "B", approxMembers: 5 }] })), set("b", "B")])),
     ).toBe(true);
+  });
+});
+
+describe("★★D-06 review R2", () => {
+  it("★★`checked` counts only audiences the engine examined — imported or hand-built ones carry no reading", () => {
+    const s = summarizeExclusions([set("a", "A", ex()), set("b", "B"), set("c", "C", undefined, "applied")]);
+    expect(s.audiences).toBe(3);
+    expect(s.checked).toBe(1);
+    expect(summarizeExclusions([set("a", "A"), set("b", "B")]).checked).toBe(0);
+  });
+
+  it("★a suggestion for many audiences names three, then counts the rest", () => {
+    expect(namesLine(["A", "B"])).toBe("A, B");
+    expect(namesLine(["A", "B", "C"])).toBe("A, B, C");
+    expect(namesLine(["A", "B", "C", "D", "E"])).toBe("A, B, C and 2 more");
   });
 });

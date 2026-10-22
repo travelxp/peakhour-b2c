@@ -16,8 +16,9 @@
 import Link from "next/link";
 import { UserX } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { useAudienceSets } from "@/hooks/use-audience-library";
-import { hasExclusions, overlapLine, summarizeExclusions, variantNote } from "@/lib/audience-exclusions";
+import { hasExclusions, namesLine, overlapLine, summarizeExclusions, variantNote } from "@/lib/audience-exclusions";
 
 /** The api's page cap for the library (`limit` max). */
 const PAGE = 50;
@@ -29,16 +30,36 @@ export function AudienceExclusionsCard() {
   //  status per query, so the two live ones are two queries.
   const proposed = useAudienceSets({ status: "proposed", limit: PAGE });
   const applied = useAudienceSets({ status: "applied", limit: PAGE });
-  // ★NO DATA — including a query paused offline — renders nothing rather than
-  //  "nothing to exclude", which would be a claim made from no reading.
-  if (!proposed.data || !applied.data) return null;
+
+  if (!proposed.data || !applied.data) {
+    // ★A FAILED READ SAYS SO (review R2) — a card that silently vanishes is
+    //  indistinguishable from one that does not exist. No data and no error
+    //  (loading, or paused offline) renders nothing: "nothing to exclude"
+    //  would be a claim made from no reading.
+    if (!proposed.isError && !applied.isError) return null;
+    return (
+      <Card>
+        <CardContent className="flex flex-wrap items-center justify-between gap-2 p-6 text-sm">
+          <span className="text-muted-foreground">We couldn&rsquo;t load your audience exclusions.</span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              void proposed.refetch();
+              void applied.refetch();
+            }}
+          >
+            Try again
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
 
   const read = [...proposed.data.sets, ...applied.data.sets];
   const total = proposed.data.total + applied.data.total;
   const more = total > read.length;
-  // ★A SIBLING OFF THE PAGE IS NOT A DEAD ONE (review R1): only a complete
-  //  read may drop a pair whose other audience it did not see.
-  const summary = summarizeExclusions(read, { complete: !more });
+  const summary = summarizeExclusions(read);
 
   return (
     <Card>
@@ -61,12 +82,23 @@ export function AudienceExclusionsCard() {
             </Link>{" "}
             and Peakhour will check them for overlap and suggest who to leave out.
           </p>
+        ) : summary.checked === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            {/* ★NOT "NOTHING TO EXCLUDE" (review R2): audiences imported, built
+                by hand or planned before this check carry no reading at all. */}
+            Peakhour hasn&rsquo;t checked your audiences yet &mdash; it works out exclusions and overlaps when it plans
+            a portfolio in{" "}
+            <Link href="/dashboard/growth/audiences" className="underline underline-offset-2">
+              Audiences
+            </Link>
+            .
+          </p>
         ) : !hasExclusions(summary) ? (
           <p className="text-sm text-muted-foreground">
             {/* ★"No overlap measured", never "they do not overlap": an empty list
                 can also mean there was only one audience to compare. */}
-            Nothing to exclude across your {summary.audiences} audience{summary.audiences === 1 ? "" : "s"}, and no overlap
-            measured between them.
+            Nothing to exclude across the {summary.checked} audience{summary.checked === 1 ? "" : "s"} Peakhour has
+            checked, and no overlap measured between them.
           </p>
         ) : (
           <div className="space-y-4 text-sm">
@@ -78,7 +110,7 @@ export function AudienceExclusionsCard() {
                     <li key={s.key}>
                       Leave out {s.reason} ({s.label}: {s.values.join(", ")}
                       {variantNote(s.variant)}) — suggested for{" "}
-                      {s.audiences.length === 1 ? s.audiences[0] : `${s.audiences.length} audiences: ${s.audiences.join(", ")}`}.
+                      {s.audiences.length === 1 ? s.audiences[0] : `${s.audiences.length} audiences: ${namesLine(s.audiences)}`}.
                     </li>
                   ))}
                 </ul>
@@ -93,7 +125,12 @@ export function AudienceExclusionsCard() {
                   ))}
                 </ul>
                 <p className="text-xs text-muted-foreground">
-                  Figures are the platform&rsquo;s own rounded estimates.
+                  Figures are the platform&rsquo;s own rounded estimates. To act on an overlap, keep one of the two
+                  audiences in{" "}
+                  <Link href="/dashboard/growth/audiences" className="underline underline-offset-2">
+                    Audiences
+                  </Link>
+                  .
                 </p>
               </section>
             )}
@@ -103,25 +140,22 @@ export function AudienceExclusionsCard() {
                 <ul className="list-disc space-y-1 pl-5">
                   {summary.unmeasured.map((u) => (
                     <li key={u.reason}>
-                      {u.audiences.join(", ")}: {u.reason}
+                      {namesLine(u.audiences)}: {u.reason}
                     </li>
                   ))}
                 </ul>
               </section>
             )}
             <p className="text-xs text-muted-foreground">
-              These are suggestions: Peakhour does not add exclusions to your campaigns yet. To act on an overlap,
-              keep one of the two audiences in{" "}
-              <Link href="/dashboard/growth/audiences" className="underline underline-offset-2">
-                Audiences
-              </Link>
-              .
+              These are suggestions: Peakhour does not add exclusions to your campaigns yet.
             </p>
           </div>
         )}
         {more && (
           <p className="text-xs text-muted-foreground">
-            Read from your {read.length} most recent live audiences of {total}.
+            {/* ★WHAT WAS READ, EXACTLY (review R2): two pages, one per status. */}
+            Read from your {PAGE} newest suggested and {PAGE} newest in-use audiences ({read.length} of {total}).
+            Overlaps with audiences not read here are not shown.
           </p>
         )}
       </CardContent>

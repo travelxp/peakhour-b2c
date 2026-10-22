@@ -19,7 +19,7 @@
  * estimate, so it reads "about".
  */
 import type { AudienceSet } from "@/lib/api/audiences";
-import { attributeLabel } from "@/lib/audience-library-rules";
+import { REACH_FORMAT, attributeLabel } from "@/lib/audience-library-rules";
 
 /** The statuses whose audiences can still run: a discarded or superseded one is not a cost. */
 export const LIVE_STATUSES = ["proposed", "applied"] as const;
@@ -34,18 +34,30 @@ export interface ExclusionsSummary {
   unmeasured: Array<{ reason: string; audiences: string[] }>;
   /** How many live audiences were read. */
   audiences: number;
+  /** How many of them the engine has examined (carry `exclusions`) — review R2:
+   *  "nothing to exclude across your 7 audiences" about seven it never checked
+   *  is a claim made from no reading. */
+  checked: number;
 }
 
-/** One formatter, fixed locale, like the library's reach figures (review R1). */
-const MEMBERS = new Intl.NumberFormat("en-US");
-
-/** The overlap figure as a merchant reads it: rounded, "about". */
+/** The overlap figure as a merchant reads it: rounded, "about" — the library's
+ *  own fixed-locale formatter, so reach and overlap figures cannot drift (R2). */
 export function formatMembers(n: number): string {
-  return MEMBERS.format(Math.round(n));
+  return REACH_FORMAT.format(Math.round(n));
 }
 
-/** Said when a pair's stored count is 0, which is no measurement (see header). */
-const NO_COUNT = "the platform reported no count for the two together";
+/** Said when a pair's stored count is 0 (see header). ★The platform DID answer
+ *  zero (review R2) — and gives zero below its reporting minimum too. */
+const ZERO_COUNT = "the platform's count came back as zero, which it also gives below its reporting minimum";
+
+/** How many audience names a suggestion lists before "and N more" (review R2). */
+export const NAMES_SHOWN = 3;
+
+/** "A, B, C and 4 more" — a suggestion made for every audience must not list a hundred. */
+export function namesLine(names: readonly string[], shown: number = NAMES_SHOWN): string {
+  if (names.length <= shown) return names.join(", ");
+  return `${names.slice(0, shown).join(", ")} and ${names.length - shown} more`;
+}
 
 /**
  * What the library's live audiences say about exclusions, deduplicated.
@@ -55,12 +67,13 @@ const NO_COUNT = "the platform reported no count for the two together";
  * an audience since discarded no longer costs anything. Where the two rows
  * disagree, a figure beats a reason — a measurement is the stronger statement.
  *
- * ★`complete` SAYS WHETHER EVERY LIVE AUDIENCE WAS READ (review R1). Only then
- * is a sibling missing from `sets` known not to be live; on a partial read it
- * is merely off the page, and its pair is kept under the name the row stored.
+ * ★A SIBLING NOT READ IS DROPPED, AND THE CARD SAYS SO (review R2, after R1
+ * kept it): one missing from `sets` may be off the page OR discarded, and the
+ * row cannot tell which — keeping it claimed "these two bid against each
+ * other" about an audience that can no longer run. The card discloses that
+ * overlaps with unread audiences are not shown.
  */
-export function summarizeExclusions(sets: readonly AudienceSet[], opts: { complete?: boolean } = {}): ExclusionsSummary {
-  const complete = opts.complete ?? true;
+export function summarizeExclusions(sets: readonly AudienceSet[]): ExclusionsSummary {
   const live = sets.filter((s) => LIVE.has(s.status));
   const nameOf = new Map(live.map((s) => [s.id, s.name]));
 
@@ -101,18 +114,17 @@ export function summarizeExclusions(sets: readonly AudienceSet[], opts: { comple
     for (const o of ex.overlaps ?? []) {
       if (o.setId === set.id) continue;
       const siblingName = nameOf.get(o.setId);
-      if (siblingName === undefined && complete) continue;
-      // ★EACH SIDE NAMED FOR ITSELF (review R1): this set by its own name, the
-      //  sibling by its live name or, off the page, the name its row stored.
+      if (siblingName === undefined) continue;
+      // ★EACH SIDE NAMED FOR ITSELF (review R1), by its current name.
       const mine = { id: set.id, name: set.name };
-      const theirs = { id: o.setId, name: siblingName ?? o.name };
+      const theirs = { id: o.setId, name: siblingName };
       const [first, second] = mine.id < theirs.id ? [mine, theirs] : [theirs, mine];
       const key = `${first.id}|${second.id}`;
       const figure =
         typeof o.approxMembers === "number" && Number.isFinite(o.approxMembers) && o.approxMembers > 0 ? o.approxMembers : undefined;
       const prev = pairs.get(key);
       if (prev && (prev.approxMembers !== undefined || figure === undefined)) continue;
-      const reason = o.reason ?? (o.approxMembers === 0 ? NO_COUNT : undefined);
+      const reason = o.reason ?? (o.approxMembers === 0 ? ZERO_COUNT : undefined);
       pairs.set(key, {
         key,
         a: first.name,
@@ -126,11 +138,13 @@ export function summarizeExclusions(sets: readonly AudienceSet[], opts: { comple
   return {
     suggested: [...suggested.values()],
     overlaps,
-    // ★OVERLAP NEEDS TWO (review R1): one audience on a platform that cannot
-    //  count has nothing to compare, and "can't measure how much these
-    //  overlap" about it is a caveat with no subject.
-    unmeasured: live.length >= 2 ? [...unmeasured].map(([reason, audiences]) => ({ reason, audiences })) : [],
+    // ★OVERLAP NEEDS TWO, IN THE SAME GROUP (reviews R1, R2): the api decides
+    //  `unavailable` per plan and platform, and the reason names the platform —
+    //  so a lone audience under a reason has nothing it was not compared with,
+    //  whatever else the library holds.
+    unmeasured: [...unmeasured].filter(([, names]) => names.length >= 2).map(([reason, audiences]) => ({ reason, audiences })),
     audiences: live.length,
+    checked: live.filter((s) => s.exclusions !== undefined).length,
   };
 }
 

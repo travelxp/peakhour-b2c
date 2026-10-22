@@ -232,7 +232,7 @@ export function audienceShape(
  * has, so the same number renders differently on the server and in the browser
  * and React reports a hydration mismatch.
  */
-const REACH_FORMAT = new Intl.NumberFormat("en-US");
+export const REACH_FORMAT = new Intl.NumberFormat("en-US");
 
 /** How big this audience is on a channel — or WHY there is no number. */
 export type ReachReading =
