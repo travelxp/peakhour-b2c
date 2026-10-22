@@ -74,7 +74,6 @@ import {
  * Was `/dashboard/content/x-ads` — that route now redirects here.
  */
 
-
 const ACCOUNT_PARAM = "account";
 const ANALYTICS_RANGE_DAYS = 30;
 

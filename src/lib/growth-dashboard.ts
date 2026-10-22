@@ -154,6 +154,27 @@ export function sourceState(q: { data: unknown; isError: boolean }): SourceState
   return q.data !== undefined ? "read" : q.isError ? "failed" : "checking";
 }
 
+/** What `needsYouUnchecked` names, in words. */
+const UNCHECKED_NAMES: Record<string, string> = {
+  connections: "your ad connections",
+  proposals: "optimizer proposals",
+  guardrail_blocks: "what your guardrails held back",
+};
+
+/**
+ * Which Needs You sources the api could not read this time, as a sentence —
+ * or null when it read them all. ★NAMED, because an empty list over an unread
+ * source is a claim that nothing needs the merchant, and nobody checked. An
+ * api that predates the field sends nothing, which is "all read".
+ */
+export function uncheckedNote(sources: readonly string[] | undefined): string | null {
+  const names = (sources ?? []).map((s) => UNCHECKED_NAMES[s] ?? "part of this list");
+  const unique = [...new Set(names)];
+  if (unique.length === 0) return null;
+  const list = unique.length === 1 ? unique[0] : `${unique.slice(0, -1).join(", ")} or ${unique.at(-1)}`;
+  return `We couldn't check ${list} just now.`;
+}
+
 /** Free text as a sentence: its own closing stop kept, one added if missing. */
 export function asSentence(text: string): string {
   const t = text.trim();

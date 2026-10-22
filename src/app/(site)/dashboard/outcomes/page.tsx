@@ -25,6 +25,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/molecules/empty-state";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
+import { OAuthConnectResult } from "@/components/integrations/oauth-connect-result";
 import { WhatCountsAsAWinDialog } from "@/components/growth/what-counts-as-a-win-dialog";
 import { VisibilityFunnel } from "@/components/growth/visibility-funnel";
 import { useAuth } from "@/providers/auth-provider";
@@ -42,6 +43,7 @@ import {
   learningEmptyText,
   learningItems,
   sourceState,
+  uncheckedNote,
   type MeasurementBadge,
   type SourceState,
 } from "@/lib/growth-dashboard";
@@ -132,8 +134,9 @@ export default function OutcomesPage() {
 
   // ★LEARNING READS THIS, AND IT MAY FAIL ALONE. Needs You does not: the api
   // sends the open proposals itself (D-03b), gated on the same feature. The
-  // optimizer page's decide invalidates `["growth-adjustments"]`, which
-  // prefix-matches this key, so a decision there is reflected here.
+  // optimizer board's decide invalidates `["growth-adjustments"]` and
+  // `["growth-outcomes"]`, which prefix-match both keys, so a decision there
+  // is reflected in Learning and in Needs You.
   const adjustments = useQuery({
     queryKey: ["growth-adjustments", business?._id ?? "none"],
     queryFn: () => growthApi.adjustments(),
@@ -144,6 +147,9 @@ export default function OutcomesPage() {
 
   return (
     <div className="space-y-6">
+      {/* ★A RECONNECT CARD RETURNS HERE (D-03b: the api's card passes
+          ?returnTo=/dashboard/outcomes), so the round trip is confirmed here. */}
+      <OAuthConnectResult />
       {/* The two crons that put the numbers on this page there. */}
       <CronToolbar crons={["performance-sync", "ad-campaign-monitor", "linkedin-post-sync"]} />
 
@@ -209,6 +215,7 @@ export default function OutcomesPage() {
           //  Without the feature there is nothing to check.
           runsState={optimizer.allowed ? sourceState(adjustments) : "read"}
           onRetry={() => void adjustments.refetch()}
+          onRetryNeedsYou={() => void outcomes.refetch()}
         />
       )}
     </div>
@@ -236,6 +243,7 @@ function OutcomesBody({
   optimizerAllowed,
   runsState,
   onRetry,
+  onRetryNeedsYou,
 }: {
   data: OutcomesResponse;
   days: number;
@@ -247,6 +255,7 @@ function OutcomesBody({
   optimizerAllowed: boolean;
   runsState: SourceState;
   onRetry: () => void;
+  onRetryNeedsYou: () => void;
 }) {
   const { reach, attention, conversions, value, nextActions, movements } = data;
   // Computed once: the guard and the rendered child were two independent
@@ -269,6 +278,7 @@ function OutcomesBody({
   const filter = chips.some((c) => c.key === picked) ? picked : ALL_CHANNELS;
   const rows = channelRows(reach.paid, filter, prefs);
   const needsYou = nextActions.filter((i) => inChannel(filter, i.channel));
+  const unchecked = uncheckedNote(data.needsYouUnchecked);
   const runsFailed = runsState === "failed";
   const learning = runs ? learningItems(runs, filter, { prefs }) : null;
 
@@ -335,12 +345,21 @@ function OutcomesBody({
           one. Every item names the row it came from — a recommendation that
           cannot be traced to a fact about their own account is advice, and
           advice is exactly what this page exists not to be. */}
-      {/* ★ONE SOURCE NOW (D-03b): every item arrives with /outcomes, so there
-          is no source left unchecked once this renders — a failed /outcomes
-          is the error state above, never an empty section. */}
-      {needsYou.length > 0 && (
+      {/* ★ONE RESPONSE NOW (D-03b), AND IT SAYS WHAT IT COULD NOT CHECK. The
+          api leaves a failed Needs You source out rather than fail the page,
+          and names it in `needsYouUnchecked` — an empty list over an unread
+          source is a claim that nothing needs the merchant. */}
+      {(needsYou.length > 0 || unchecked) && (
         <div className="space-y-2">
           <h3 className="text-sm font-semibold">What needs you</h3>
+          {unchecked && (
+            <p className="text-xs text-muted-foreground">
+              {unchecked}{" "}
+              <button type="button" className="underline underline-offset-2" onClick={onRetryNeedsYou}>
+                Try again
+              </button>
+            </p>
+          )}
           <div className="space-y-2">
             {needsYou.map((a) => {
               const s = SEVERITY[a.severity];

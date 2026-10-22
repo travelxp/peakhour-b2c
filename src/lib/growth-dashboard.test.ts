@@ -15,6 +15,7 @@ import {
   learningEmptyText,
   learningItems,
   sourceState,
+  uncheckedNote,
 } from "./growth-dashboard";
 
 // ★THE VIEWER'S ZONE COMES FROM THEIR SETTINGS, so the tests set it there —
@@ -210,6 +211,24 @@ describe("channelRows", () => {
   it("dates each row's last read in the viewer's zone", () => {
     const stale = { ...paid, byChannel: [ch({ stale: true, lastReadAt: INSTANT })] };
     expect(channelRows(stale, ALL_CHANNELS, PAGO_PAGO)[0].note).toBe(`stopped updating — last read ${dayLabel(10, 1)}`);
+  });
+});
+
+describe("uncheckedNote — what the api could not read", () => {
+  it("names each unread source, once, in words", () => {
+    expect(uncheckedNote(["connections"])).toBe("We couldn't check your ad connections just now.");
+    expect(uncheckedNote(["proposals", "guardrail_blocks"])).toBe(
+      "We couldn't check optimizer proposals or what your guardrails held back just now.",
+    );
+    expect(uncheckedNote(["connections", "proposals", "guardrail_blocks"])).toBe(
+      "We couldn't check your ad connections, optimizer proposals or what your guardrails held back just now.",
+    );
+    expect(uncheckedNote(["mystery", "other"])).toBe("We couldn't check part of this list just now.");
+  });
+
+  it("says nothing when every source was read, or from an api that predates the field", () => {
+    expect(uncheckedNote([])).toBeNull();
+    expect(uncheckedNote(undefined)).toBeNull();
   });
 });
 

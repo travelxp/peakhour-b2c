@@ -180,6 +180,9 @@ export interface OutcomesResponse {
      *  guardrail blocks arrive here, de-duplicated by the api. */
     channel?: string;
   }>;
+  /** Needs You sources the api could not read this time (D-03b) — left out
+   *  of `nextActions` rather than failing the page. Absent from an older api. */
+  needsYouUnchecked?: Array<"connections" | "proposals" | "guardrail_blocks">;
 }
 
 /** What a business counts as a win. Absent until they've chosen — and absence
