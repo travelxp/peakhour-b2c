@@ -38,8 +38,8 @@
  * a line another business holds. ★The base row (`subscription`) is served
  * only on the business it covers (api#1553): the Suite trial and a hand-set
  * contract on the first business, an Enterprise contract on every business.
- * An added business reads `plan: null` and no trial. It names the trial, and
- * a contract, but never a paid business's purchase.
+ * An added business reads `plan: null` and no trial. The base row names the
+ * trial, and a contract, but never a paid business's purchase.
  *
  * With no coverage served (an entitlements failure on `/me`), the state is
  * derived from the business's own lines and the base row (`planState`).
