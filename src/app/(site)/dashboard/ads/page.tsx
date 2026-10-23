@@ -25,6 +25,7 @@ import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { OAuthConnectResult } from "@/components/integrations/oauth-connect-result";
 import { BusinessProfileSummary } from "@/components/audience/business-profile-summary";
 import { GuardrailsCard } from "@/components/ads/guardrails-card";
+import { CreativesReviewEntry } from "@/components/ads/creatives-review-entry";
 import { AudienceExclusionsCard } from "@/components/ads/audience-exclusions-card";
 import { LinkedInAdsPanel } from "./_components/linkedin-ads-panel";
 import { XAdsPanel } from "./_components/x-ads-panel";
@@ -224,6 +225,9 @@ function AdsHub() {
       {/* D-05: the merchant's guardrails. Channel-neutral, so above the tabs
           for BusinessProfileSummary's reason. */}
       <GuardrailsCard />
+
+      {/* D-05c: the way into creative review, which approved-assets-only needs. */}
+      <CreativesReviewEntry />
 
       {/* D-06: who the audiences should leave out, and which compete. Beside
           the guardrails, channel-neutral for the same reason. */}

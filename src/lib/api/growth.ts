@@ -1020,4 +1020,78 @@ export const growthApi = {
   /** Stop the form collecting, on LinkedIn and here. */
   archiveAsk: (id: string) =>
     api.post<{ ask: Ask }>(`/v1/growth/asks/${id}/archive`),
+
+  // ── Creative review (D-05c) ────────────────────────────────────────────
+
+  /** One page of the business's ad creatives, newest first, with a summary
+   *  of the whole business (whatever the filter). */
+  listCreatives: (q: { status?: readonly CreativeStatus[]; platform?: string; before?: string; limit?: number } = {}) => {
+    const p = new URLSearchParams();
+    if (q.status?.length) p.set("status", q.status.join(","));
+    if (q.platform) p.set("platform", q.platform);
+    if (q.before) p.set("before", q.before);
+    if (q.limit) p.set("limit", String(q.limit));
+    const qs = p.toString();
+    return api.get<CreativesPage>(`/v1/growth/creatives${qs ? `?${qs}` : ""}`);
+  },
+
+  /** Approve the creative AS IT READS NOW (409 CREATIVE_CHANGED if it changed meanwhile). */
+  approveCreative: (id: string) =>
+    api.post<{ status: "approved" }>(`/v1/growth/creatives/${id}/approval`),
+
+  /** Take an approval back; the creative returns to review (or draft if its check warned). */
+  withdrawCreativeApproval: (id: string) =>
+    api.delete<{ status: "review" | "draft" }>(`/v1/growth/creatives/${id}/approval`),
 };
+
+/** `ad_creatives.status` (peakhour-mongodb `zCreativeStatus`). */
+export type CreativeStatus = "generating" | "draft" | "review" | "approved" | "deployed" | "paused" | "retired";
+
+/**
+ * D-05c — where a creative stands, AS THE ENGINE'S GATE READS IT (api
+ * `creativeApprovalState`): `approved` = its approval still matches its copy;
+ * `changed_since_approved` = edited after it was approved, so the engine no
+ * longer uses it; `not_approved` = no approval in force.
+ */
+export type CreativeApprovalState = "approved" | "changed_since_approved" | "not_approved";
+
+export interface CreativeReviewItem {
+  id: string;
+  platform: string;
+  format: string | null;
+  status: CreativeStatus;
+  angle: string | null;
+  landingUrl: string | null;
+  headlines: string[];
+  bodyTexts: string[];
+  descriptions: string[];
+  ctas: string[];
+  imageBriefs: Array<{ prompt: string | null; imageUrl: string | null }>;
+  videoUrl: string | null;
+  preflight: { decision: "allow" | "warn" | "block"; summary: string | null } | null;
+  rationale: string | null;
+  retiredReason: string | null;
+  approvalState: CreativeApprovalState;
+  approval: { at: string | null; byYou: boolean } | null;
+  /** The api's own rule for what its approval writer accepts now. */
+  canApprove: boolean;
+  canWithdraw: boolean;
+  createdAt: string | null;
+}
+
+/** The whole business's creatives, whatever the page's filter. */
+export interface CreativesSummary {
+  /** 0 = Peakhour has never generated a creative for this business. */
+  total: number;
+  /** Approved as they read now — what the engine may use. */
+  inForce: number;
+  /** A person could approve now. */
+  approvable: number;
+  changedSinceApproved: number;
+}
+
+export interface CreativesPage {
+  creatives: CreativeReviewItem[];
+  nextCursor: string | null;
+  summary: CreativesSummary;
+}
