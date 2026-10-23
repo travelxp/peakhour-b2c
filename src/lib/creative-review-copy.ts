@@ -30,6 +30,11 @@ export function filterFor(key: string | null | undefined) {
   return CREATIVE_FILTERS.find((f) => f.key === key) ?? CREATIVE_FILTERS[0]!;
 }
 
+/** `?platform=` as the api will read it: a known channel, else none (review R1 — a stale link 400s forever). */
+export function platformParam(raw: string | null | undefined): string {
+  return raw && GUARDRAIL_CHANNELS.some((c) => c.key === raw) ? raw : "";
+}
+
 export function platformLabel(key: string): string {
   return GUARDRAIL_CHANNELS.find((c) => c.key === key)?.label ?? key;
 }
@@ -99,6 +104,7 @@ export function approvalDetail(
       ? `Approved ${by}${on}, but its wording or landing page has changed since, so Peakhour won't use it until you approve it again.`
       : `Approved ${by}${on}, but it has changed since. It is running or has run, so it can't be approved again here, and Peakhour won't use it in a new ad.`;
   }
+  const gap = item.coverageGap ? ` Even approved, no ad could use it: ${GAP_REASON[item.coverageGap]}.` : "";
   switch (item.status) {
     case "generating":
       return "Still being written. You can review it once it's ready.";
@@ -108,9 +114,11 @@ export function approvalDetail(
     case "paused":
       return "It ran without your approval, so Peakhour won't use it in a new ad while you only allow approved creatives.";
     default:
-      return item.preflight?.decision === "warn"
-        ? "Not approved. Our ad-policy check flagged it — read the note below before you approve it."
-        : "Not approved. Peakhour won't use it while you only allow approved creatives.";
+      return (
+        (item.preflight?.decision === "warn"
+          ? "Not approved. Our ad-policy check flagged it — read the note below before you approve it."
+          : "Not approved. Peakhour won't use it while you only allow approved creatives.") + gap
+      );
   }
 }
 
@@ -132,8 +140,12 @@ export function emptyState(summary: CreativesSummary, filter: CreativeFilterKey)
   const n = summary.total;
   const all = `You have ${n} creative${n === 1 ? "" : "s"} in all.`;
   switch (filter) {
-    case "to_review":
-      return { title: "Nothing waiting for you", body: `No creative is waiting for your review. ${all}` };
+    case "to_review": {
+      // ★An approved creative edited since waits on the Approved tab (review R1).
+      const c = summary.changedSinceApproved;
+      const changed = c > 0 ? ` ${c} approved creative${c === 1 ? " has" : "s have"} changed since you approved ${c === 1 ? "it" : "them"} — see Approved.` : "";
+      return { title: "Nothing new waiting for you", body: `No new creative is waiting for your review.${changed} ${all}` };
+    }
     case "approved":
       return { title: "None approved", body: `No creative is approved and waiting to run. ${all}` };
     case "running":
@@ -171,7 +183,12 @@ export function approvedAssetsWarning(summary: CreativesSummary | undefined, on:
   if (!on || !summary || summary.inForce > 0) return null;
   if (summary.approvable > 0) {
     const n = summary.approvable;
-    return `No creative is approved as it reads now, so Peakhour creates no ads of its own. ${n} ${n === 1 ? "is" : "are"} waiting for your review.`;
+    return `No creative is approved as it reads now, so Peakhour creates no ads of its own. You could approve ${n}.`;
+  }
+  // ★Approved but unusable is not "none approved" (review R1): say what to fix.
+  if (summary.approvedUnusable > 0) {
+    const n = summary.approvedUnusable;
+    return `${n === 1 ? "Your approved creative is" : `All ${n} approved creatives are`} missing a landing page or a headline, so no ad can use ${n === 1 ? "it" : "them"} and Peakhour creates no ads of its own.`;
   }
   return "No creative is approved, and there is none to approve, so Peakhour creates no ads of its own.";
 }
@@ -180,7 +197,7 @@ export function approvedAssetsWarning(summary: CreativesSummary | undefined, on:
 export function reviewEntryLine(summary: CreativesSummary): string {
   if (summary.total === 0) return "No ad creatives yet — nothing to review.";
   const parts: string[] = [];
-  if (summary.approvable > 0) parts.push(`${summary.approvable} waiting for your review`);
+  if (summary.awaitingReview > 0) parts.push(`${summary.awaitingReview} waiting for your review`);
   if (summary.inForce > 0) parts.push(`${summary.inForce} approved`);
   if (summary.approvedUnusable > 0) parts.push(`${summary.approvedUnusable} approved but unusable`);
   if (summary.changedSinceApproved > 0) parts.push(`${summary.changedSinceApproved} changed since approved`);
@@ -194,7 +211,8 @@ export function creativeActionError(
 ): string {
   if (!err) return "We couldn't reach Peakhour. Check your connection, then try again.";
   if (err.status === 401) return "Your session has ended. Sign in again, then try again.";
-  if (err.status === 403) return "You don't have access to approve this business's creatives. Ask an owner or admin.";
+  // ★The api's 403 here is "Active business required" (review R1), not a role refusal.
+  if (err.status === 403) return "Choose a business first, then try again.";
   if (err.status === 404) return "This creative no longer exists.";
   switch (err.code) {
     case "CREATIVE_CHANGED":

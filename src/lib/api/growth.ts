@@ -1035,9 +1035,10 @@ export const growthApi = {
     return api.get<CreativesPage>(`/v1/growth/creatives${qs ? `?${qs}` : ""}`);
   },
 
-  /** Approve the creative AS IT READS NOW (409 CREATIVE_CHANGED if it changed meanwhile). */
-  approveCreative: (id: string) =>
-    api.post<{ status: "approved" }>(`/v1/growth/creatives/${id}/approval`),
+  /** Approve the creative AS IT WAS SHOWN: `assetsHash` is the list's hash of the
+   *  copy on screen, and copy changed since is a 409 CREATIVE_CHANGED. */
+  approveCreative: (id: string, assetsHash: string) =>
+    api.post<{ status: "approved" }>(`/v1/growth/creatives/${id}/approval`, { expectedAssetsHash: assetsHash }),
 
   /** Take an approval back; the creative returns to review (or draft if its check warned). */
   withdrawCreativeApproval: (id: string) =>
@@ -1072,6 +1073,8 @@ export interface CreativeReviewItem {
   rationale: string | null;
   retiredReason: string | null;
   approvalState: CreativeApprovalState;
+  /** The hash of the copy shown; approving sends it back so unseen edits are refused. */
+  assetsHash: string;
   /** Why no ad can use this creative, approved or not (api `creativeCoverageGap`). */
   coverageGap: "no_landing_page" | "no_headline" | null;
   approval: { at: string | null; byYou: boolean } | null;
@@ -1091,6 +1094,8 @@ export interface CreativesSummary {
   approvedUnusable: number;
   /** A person could approve now, and an ad could then use. */
   approvable: number;
+  /** The never-approved part of `approvable` (draft or review): the "To review" tab. */
+  awaitingReview: number;
   changedSinceApproved: number;
 }
 

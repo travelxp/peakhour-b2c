@@ -17,7 +17,7 @@
  * Not under /dashboard/ads: the ads hub is one surface (ads-hub-single-surface);
  * the hub and the guardrails card link here.
  */
-import { Suspense, useState } from "react";
+import { Suspense, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -32,6 +32,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ApiError } from "@/lib/api";
 import { growthApi, type CreativeReviewItem } from "@/lib/api/growth";
 import { GUARDRAIL_CHANNELS } from "@/lib/guardrails-copy";
+import { CREATIVES_SUMMARY_KEY } from "@/components/ads/creatives-review-entry";
 import {
   CREATIVE_FILTERS,
   approvalBadge,
@@ -41,6 +42,7 @@ import {
   filterFor,
   formatLabel,
   platformLabel,
+  platformParam,
   type BadgeTone,
 } from "@/lib/creative-review-copy";
 
@@ -68,7 +70,7 @@ function CreativeReview() {
   const pathname = usePathname();
   const params = useSearchParams();
   const filter = filterFor(params.get("filter"));
-  const platform = params.get("platform") ?? "";
+  const platform = platformParam(params.get("platform"));
   const queryClient = useQueryClient();
 
   const setParam = (key: string, value: string | null) => {
@@ -89,6 +91,13 @@ function CreativeReview() {
     initialPageParam: "" as string,
     getNextPageParam: (last) => last.nextCursor ?? undefined,
   });
+
+  // ★The first page carries the business summary; hand it to the hub and the
+  //  guardrails card rather than asking the api again (review R1).
+  const firstSummary = page.data?.pages[0]?.summary;
+  useEffect(() => {
+    if (firstSummary) queryClient.setQueryData(CREATIVES_SUMMARY_KEY, firstSummary);
+  }, [firstSummary, queryClient]);
 
   return (
     <div className="space-y-6">
@@ -203,11 +212,9 @@ function formatDay(iso: string | null): string | null {
 }
 
 function CreativeCard({ item, onChanged }: { item: CreativeReviewItem; onChanged: () => void }) {
-  const [pending, setPending] = useState<"approve" | "withdraw" | null>(null);
   const act = useMutation({
     mutationFn: (action: "approve" | "withdraw"): Promise<{ status: string }> =>
-      action === "approve" ? growthApi.approveCreative(item.id) : growthApi.withdrawCreativeApproval(item.id),
-    onMutate: (action) => setPending(action),
+      action === "approve" ? growthApi.approveCreative(item.id, item.assetsHash) : growthApi.withdrawCreativeApproval(item.id),
     onSuccess: (_res, action) => {
       toast.success(action === "approve" ? "Creative approved." : "Approval taken back.");
       onChanged();
@@ -217,8 +224,8 @@ function CreativeCard({ item, onChanged }: { item: CreativeReviewItem; onChanged
       // A refusal means the creative is not what this card shows: reload it.
       if (err instanceof ApiError) onChanged();
     },
-    onSettled: () => setPending(null),
   });
+  const pending = act.isPending ? act.variables : null;
   const badge = approvalBadge(item);
   const fmt = formatLabel(item.format);
 
@@ -293,7 +300,8 @@ function CreativeCard({ item, onChanged }: { item: CreativeReviewItem; onChanged
             {item.preflight.summary}
           </p>
         )}
-        {item.retiredReason && item.status === "retired" && !item.preflight?.summary && (
+        {/* ★Unless the policy note above already says why (review R1: an "allow" note is not shown). */}
+        {item.retiredReason && item.status === "retired" && !(item.preflight?.decision === "block" && item.preflight.summary) && (
           <p className="text-sm text-muted-foreground">Retired: {item.retiredReason}</p>
         )}
         {item.rationale && <p className="text-sm text-muted-foreground">Why this ad: {item.rationale}</p>}

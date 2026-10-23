@@ -11,6 +11,7 @@ import {
   filterFor,
   formatLabel,
   platformLabel,
+  platformParam,
   reviewEntryLine,
 } from "./creative-review-copy";
 
@@ -19,6 +20,7 @@ const S = (over: Partial<CreativesSummary> = {}): CreativesSummary => ({
   inForce: 0,
   approvedUnusable: 0,
   approvable: 0,
+  awaitingReview: 0,
   changedSinceApproved: 0,
   ...over,
 });
@@ -100,6 +102,10 @@ describe("approvalDetail", () => {
     expect(approvalDetail(item({ status: "deployed", canApprove: false }), null)).toContain("ran without your approval");
     expect(approvalDetail(item({ status: "generating" }), null)).toContain("Still being written");
     expect(approvalDetail(item({ status: "retired" }), null)).toContain("Retired");
+    // ★A gap shows before approving too (review R1).
+    expect(approvalDetail(item({ coverageGap: "no_landing_page" }), null)).toBe(
+      "Not approved. Peakhour won't use it while you only allow approved creatives. Even approved, no ad could use it: it has no landing page.",
+    );
   });
 });
 
@@ -114,9 +120,14 @@ describe("emptyState — ★an empty list is never \"all fine\"", () => {
   });
   it("★a filter that matches none says so, with the business's total", () => {
     expect(emptyState(S({ total: 3 }), "to_review")).toEqual({
-      title: "Nothing waiting for you",
-      body: "No creative is waiting for your review. You have 3 creatives in all.",
+      title: "Nothing new waiting for you",
+      body: "No new creative is waiting for your review. You have 3 creatives in all.",
     });
+    // ★An approved creative edited since waits on the Approved tab (review R1).
+    expect(emptyState(S({ total: 3, changedSinceApproved: 1 }), "to_review").body).toBe(
+      "No new creative is waiting for your review. 1 approved creative has changed since you approved it — see Approved. You have 3 creatives in all.",
+    );
+    expect(emptyState(S({ total: 3, changedSinceApproved: 2 }), "to_review").body).toContain("2 approved creatives have changed since you approved them");
     expect(emptyState(S({ total: 1 }), "approved").body).toContain("You have 1 creative in all.");
     expect(emptyState(S({ total: 2 }), "running").title).toBe("None running");
     expect(emptyState(S({ total: 2 }), "retired").title).toBe("None retired");
@@ -147,8 +158,12 @@ describe("approvedAssetsWarning — on, with nothing in force", () => {
     expect(approvedAssetsWarning(S(), true)).toBe(
       "No creative is approved, and there is none to approve, so Peakhour creates no ads of its own.",
     );
-    expect(approvedAssetsWarning(S({ total: 2, approvable: 2 }), true)).toContain("2 are waiting for your review");
-    expect(approvedAssetsWarning(S({ total: 1, approvable: 1 }), true)).toContain("1 is waiting");
+    expect(approvedAssetsWarning(S({ total: 2, approvable: 2 }), true)).toContain("You could approve 2.");
+    // ★Approved but unusable is not "none approved" (review R1).
+    expect(approvedAssetsWarning(S({ total: 2, approvedUnusable: 2 }), true)).toBe(
+      "All 2 approved creatives are missing a landing page or a headline, so no ad can use them and Peakhour creates no ads of its own.",
+    );
+    expect(approvedAssetsWarning(S({ total: 1, approvedUnusable: 1 }), true)).toContain("Your approved creative is missing");
   });
   it("silent when off, when one is in force, or when unknown", () => {
     expect(approvedAssetsWarning(S(), false)).toBeNull();
@@ -160,7 +175,7 @@ describe("approvedAssetsWarning — on, with nothing in force", () => {
 describe("reviewEntryLine", () => {
   it("names what waits, what is approved and what changed", () => {
     expect(reviewEntryLine(S())).toBe("No ad creatives yet — nothing to review.");
-    expect(reviewEntryLine(S({ total: 5, approvable: 2, inForce: 1, changedSinceApproved: 1 }))).toBe(
+    expect(reviewEntryLine(S({ total: 5, approvable: 3, awaitingReview: 2, inForce: 1, changedSinceApproved: 1 }))).toBe(
       "2 waiting for your review · 1 approved · 1 changed since approved.",
     );
     expect(reviewEntryLine(S({ total: 1 }))).toBe("1 creative, none to review.");
@@ -174,7 +189,7 @@ describe("creativeActionError", () => {
     expect(creativeActionError({ code: "NOT_APPROVED", status: 409 }, "withdraw")).toContain("isn't running");
     expect(creativeActionError({ code: "NOT_FOUND", status: 404 }, "approve")).toBe("This creative no longer exists.");
     expect(creativeActionError({ status: 401 }, "approve")).toContain("Sign in again");
-    expect(creativeActionError({ status: 403 }, "withdraw")).toContain("Ask an owner");
+    expect(creativeActionError({ status: 403 }, "withdraw")).toBe("Choose a business first, then try again.");
     expect(creativeActionError(null, "approve")).toContain("couldn't reach");
     expect(creativeActionError({ code: "X", status: 500 }, "withdraw")).toBe("We couldn't take this approval back. Try again.");
     expect(creativeActionError({ code: "X", status: 500 }, "approve")).toBe("We couldn't approve this creative. Try again.");
@@ -187,6 +202,11 @@ describe("filters and labels", () => {
     expect(filterFor("nope").key).toBe("to_review");
     expect(filterFor("all").statuses).toEqual([]);
     expect(filterFor("running").statuses).toEqual(["deployed", "paused"]);
+  });
+  it("★?platform= is a known channel or none (review R1)", () => {
+    expect(platformParam("linkedin")).toBe("linkedin");
+    expect(platformParam("tiktok")).toBe("");
+    expect(platformParam(null)).toBe("");
   });
   it("labels", () => {
     expect(platformLabel("google_ads")).toBe("Google Ads");
