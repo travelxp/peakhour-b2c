@@ -191,6 +191,9 @@ const PILLAR_NAV: NavGroup[] = [
           // the customer's own site.
           { href: "/dashboard/growth/signals", label: "Signals" },
           { href: "/dashboard/ads", label: "Ads" },
+          // D-05c: the ads Peakhour writes, approved here before "only use
+          // creatives I have approved" lets the engine use them.
+          { href: "/dashboard/growth/creatives", label: "Ad creatives" },
           { href: "/dashboard/outcomes", label: "Outcomes" },
           { href: "/dashboard/optimizer", label: "Optimizer" },
         ],

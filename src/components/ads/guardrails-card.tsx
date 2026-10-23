@@ -15,11 +15,16 @@
  * Peakhour adds later stays off — as the other mode of the one channel rule,
  * and approved-assets-only.
  *
+ * D-05c: approved-assets-only is OFFERED only while there is a creative to
+ * approve or one approved (`approvedAssetsOffer`) — with none, turning it on
+ * stops every ad the engine creates — and both views link to creative review.
+ *
  * ★CHANNEL-NEUTRAL, so it sits above the channel tabs on the ads hub, beside
  * the business summary — inside a channel panel it would read as that
  * channel's setting.
  */
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Loader2, Plus, ShieldBan, Trash2 } from "lucide-react";
@@ -55,6 +60,14 @@ import {
   timeZoneOptions,
   type GuardrailsDraft,
 } from "@/lib/guardrails-copy";
+import {
+  CREATIVE_REVIEW_PATH,
+  approvedAssetsOffer,
+  approvedAssetsWarning,
+  approvedByChannelLine,
+  nothingToApproveLine,
+} from "@/lib/creative-review-copy";
+import { useCreativesSummary } from "@/components/ads/creatives-review-entry";
 
 /** Another save landed since Edit was opened; carries the newer record's setAt. */
 class GuardrailsChangedError extends Error {
@@ -77,6 +90,7 @@ export function GuardrailsCard() {
     refetchOnWindowFocus: false,
   });
   const stored = settings.data?.settings.guardrails;
+  const creatives = useCreativesSummary();
   const [draft, setDraft] = useState<GuardrailsDraft | null>(null);
   /** The stored record's `setAt` when Edit was opened, to catch a save made
    *  elsewhere in the meantime (review R1). */
@@ -163,6 +177,12 @@ export function GuardrailsCard() {
   if (!settings.data) return null;
 
   const lines = describeGuardrails(stored);
+  const assetsWarning = approvedAssetsWarning(creatives.data, stored?.approvedAssetsOnly === true);
+  const channelLine = approvedByChannelLine(creatives.data);
+  const assetsOffer = approvedAssetsOffer(
+    creatives.data,
+    stored?.approvedAssetsOnly === true || draft?.approvedAssetsOnly === true,
+  );
   // (zoneItems is memoised above the early return.)
   const set = (over: Partial<GuardrailsDraft>) => setDraft((d) => (d ? { ...d, ...over } : d));
   // The list the channel boxes edit, and its setter — one place keyed by mode.
@@ -227,6 +247,15 @@ export function GuardrailsCard() {
               {hasGuardrails(stored) ? "No rules in force — only past blackout dates are saved." : "No guardrails set."}
             </p>
           ))}
+
+        {!draft && assetsWarning && (
+          <p role="status" className="text-sm text-amber-700 dark:text-amber-400">
+            {assetsWarning}{" "}
+            <Link href={CREATIVE_REVIEW_PATH} className="underline underline-offset-2">
+              Review creatives
+            </Link>
+          </p>
+        )}
 
         {draft && (
           <div className="space-y-6">
@@ -294,20 +323,52 @@ export function GuardrailsCard() {
 
             <div className="space-y-1">
               <div className="flex items-center gap-2">
+                {/* ★D-05c: NOT OFFERED WHILE THERE IS NOTHING TO APPROVE, and not
+                    while that is unknown — always while it is on, so it can be
+                    turned off. */}
                 <Switch
                   id="guardrail-approved-assets"
                   checked={draft.approvedAssetsOnly}
+                  disabled={assetsOffer !== "offer"}
                   onCheckedChange={(v) => set({ approvedAssetsOnly: v })}
                 />
                 <Label htmlFor="guardrail-approved-assets">Only use creatives I have approved</Label>
               </div>
-              <p className="text-xs text-muted-foreground">
-                {/* ★SAYS WHAT "ON" COSTS (review R1): with nothing approved, the
-                    engine creates no ad of its own at all. */}
-                Ads Peakhour creates on its own will carry only the wording and landing page of a creative you
-                approved, as you approved it &mdash; so until you approve one, it creates none. Ads you set up
-                yourself are not affected.
-              </p>
+              {assetsOffer === "offer" ? (
+                <p className="text-xs text-muted-foreground">
+                  {/* ★SAYS WHAT "ON" COSTS (review R1): with nothing approved, the
+                      engine creates no ad of its own at all. */}
+                  Ads Peakhour creates on its own will carry only the wording and landing page of a creative you
+                  approved, as you approved it &mdash; so until you approve one, it creates none. Ads you set up
+                  yourself are not affected.{" "}
+                  {channelLine ? `${channelLine} ` : ""}
+                  <Link href={CREATIVE_REVIEW_PATH} className="underline underline-offset-2">
+                    Review your creatives
+                  </Link>
+                </p>
+              ) : assetsOffer === "nothing_to_approve" ? (
+                <p className="text-xs text-muted-foreground">
+                  {creatives.data ? nothingToApproveLine(creatives.data) : null}{" "}
+                  <Link href={CREATIVE_REVIEW_PATH} className="underline underline-offset-2">
+                    See your creatives
+                  </Link>
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  {creatives.isError ? (
+                    <>
+                      We couldn&rsquo;t check whether you have creatives to approve, so this can&rsquo;t be turned on
+                      right now.{" "}
+                      {/* ★A way back from a failed check (review R2): it does not refetch on focus. */}
+                      <button type="button" className="underline underline-offset-2" onClick={() => creatives.refetch()}>
+                        Try again
+                      </button>
+                    </>
+                  ) : (
+                    "Checking your creatives…"
+                  )}
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">

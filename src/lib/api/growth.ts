@@ -1020,4 +1020,90 @@ export const growthApi = {
   /** Stop the form collecting, on LinkedIn and here. */
   archiveAsk: (id: string) =>
     api.post<{ ask: Ask }>(`/v1/growth/asks/${id}/archive`),
+
+  // ── Creative review (D-05c) ────────────────────────────────────────────
+
+  /** One page of the business's ad creatives, newest first, with a summary
+   *  of the whole business (whatever the filter). */
+  listCreatives: (q: { status?: readonly CreativeStatus[]; platform?: string; before?: string; limit?: number } = {}) => {
+    const p = new URLSearchParams();
+    if (q.status?.length) p.set("status", q.status.join(","));
+    if (q.platform) p.set("platform", q.platform);
+    if (q.before) p.set("before", q.before);
+    if (q.limit) p.set("limit", String(q.limit));
+    const qs = p.toString();
+    return api.get<CreativesPage>(`/v1/growth/creatives${qs ? `?${qs}` : ""}`);
+  },
+
+  /** Approve the creative AS IT WAS SHOWN: `assetsHash` is the list's hash of the
+   *  copy on screen, and copy changed since is a 409 CREATIVE_CHANGED. */
+  approveCreative: (id: string, assetsHash: string) =>
+    api.post<{ status: "approved" }>(`/v1/growth/creatives/${id}/approval`, { expectedAssetsHash: assetsHash }),
+
+  /** Take an approval back; the creative returns to review (or draft if its check warned). */
+  withdrawCreativeApproval: (id: string) =>
+    api.delete<{ status: "review" | "draft" }>(`/v1/growth/creatives/${id}/approval`),
 };
+
+/** `ad_creatives.status` (peakhour-mongodb `zCreativeStatus`). */
+export type CreativeStatus = "generating" | "draft" | "review" | "approved" | "deployed" | "paused" | "retired";
+
+/**
+ * D-05c — where a creative stands, AS THE ENGINE'S GATE READS IT (api
+ * `creativeApprovalState`): `approved` = its approval still matches its copy;
+ * `changed_since_approved` = edited after it was approved, so the engine no
+ * longer uses it; `not_approved` = no approval in force.
+ */
+export type CreativeApprovalState = "approved" | "changed_since_approved" | "not_approved";
+
+export interface CreativeReviewItem {
+  id: string;
+  platform: string;
+  format: string | null;
+  status: CreativeStatus;
+  angle: string | null;
+  landingUrl: string | null;
+  headlines: string[];
+  bodyTexts: string[];
+  descriptions: string[];
+  ctas: string[];
+  imageBriefs: Array<{ prompt: string | null; imageUrl: string | null }>;
+  videoUrl: string | null;
+  preflight: { decision: "allow" | "warn" | "block"; summary: string | null } | null;
+  rationale: string | null;
+  retiredReason: string | null;
+  approvalState: CreativeApprovalState;
+  /** The hash of the copy shown; approving sends it back so unseen edits are refused. */
+  assetsHash: string;
+  /** Why no ad can use this creative, approved or not (api `creativeCoverageGap`). */
+  coverageGap: "platform_unused" | "no_landing_page" | "no_headline" | null;
+  approval: { at: string | null; byYou: boolean } | null;
+  /** The api's own rule for what its approval writer accepts now. */
+  canApprove: boolean;
+  canWithdraw: boolean;
+  createdAt: string | null;
+}
+
+/** The whole business's creatives, whatever the page's filter. */
+export interface CreativesSummary {
+  /** 0 = Peakhour has never generated a creative for this business. */
+  total: number;
+  /** Approved as they read now, and usable in an ad — what the engine may use. */
+  inForce: number;
+  /** `inForce` by platform: an approved creative covers ads on its own platform only. */
+  inForceByPlatform: Record<string, number>;
+  /** Approved as they read now, but no engine ad can carry them (their channel, or no landing page or headline). */
+  approvedUnusable: number;
+  /** A person could approve now, and an ad could then use. */
+  approvable: number;
+  /** Every never-approved creative (draft or review), usable or not: the "To review" tab. */
+  awaitingReview: number;
+  changedSinceApproved: number;
+}
+
+export interface CreativesPage {
+  creatives: CreativeReviewItem[];
+  nextCursor: string | null;
+  /** The first page only (`before` absent); null on a continuation page. */
+  summary: CreativesSummary | null;
+}
