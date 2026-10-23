@@ -1090,11 +1090,13 @@ export interface CreativesSummary {
   total: number;
   /** Approved as they read now, and usable in an ad — what the engine may use. */
   inForce: number;
+  /** `inForce` by platform: an approved creative covers ads on its own platform only. */
+  inForceByPlatform: Record<string, number>;
   /** Approved as they read now, but missing a landing page or a headline. */
   approvedUnusable: number;
   /** A person could approve now, and an ad could then use. */
   approvable: number;
-  /** The never-approved part of `approvable` (draft or review): the "To review" tab. */
+  /** Every never-approved creative (draft or review), usable or not: the "To review" tab. */
   awaitingReview: number;
   changedSinceApproved: number;
 }

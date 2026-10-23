@@ -193,6 +193,18 @@ export function approvedAssetsWarning(summary: CreativesSummary | undefined, on:
   return "No creative is approved, and there is none to approve, so Peakhour creates no ads of its own.";
 }
 
+/**
+ * Which channels have a creative an ad can use (api review R2): the gate
+ * matches a creative to an ad on the SAME platform, so "3 approved" on
+ * LinkedIn says nothing about a Google ad. Null when none is in force.
+ */
+export function approvedByChannelLine(summary: CreativesSummary | undefined): string | null {
+  const entries = Object.entries(summary?.inForceByPlatform ?? {}).filter(([, n]) => n > 0);
+  if (entries.length === 0) return null;
+  const list = entries.map(([k, n]) => `${platformLabel(k)} (${n})`).join(", ");
+  return `Approved creatives Peakhour can use: ${list}. An ad on any other channel needs a creative approved for that channel.`;
+}
+
 /** A short line for the Ads page's entry, from the summary. */
 export function reviewEntryLine(summary: CreativesSummary): string {
   if (summary.total === 0) return "No ad creatives yet — nothing to review.";

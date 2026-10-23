@@ -60,7 +60,12 @@ import {
   timeZoneOptions,
   type GuardrailsDraft,
 } from "@/lib/guardrails-copy";
-import { CREATIVE_REVIEW_PATH, approvedAssetsOffer, approvedAssetsWarning } from "@/lib/creative-review-copy";
+import {
+  CREATIVE_REVIEW_PATH,
+  approvedAssetsOffer,
+  approvedAssetsWarning,
+  approvedByChannelLine,
+} from "@/lib/creative-review-copy";
 import { useCreativesSummary } from "@/components/ads/creatives-review-entry";
 
 /** Another save landed since Edit was opened; carries the newer record's setAt. */
@@ -172,6 +177,7 @@ export function GuardrailsCard() {
 
   const lines = describeGuardrails(stored);
   const assetsWarning = approvedAssetsWarning(creatives.data, stored?.approvedAssetsOnly === true);
+  const channelLine = approvedByChannelLine(creatives.data);
   const assetsOffer = approvedAssetsOffer(
     creatives.data,
     stored?.approvedAssetsOnly === true || draft?.approvedAssetsOnly === true,
@@ -334,6 +340,7 @@ export function GuardrailsCard() {
                   Ads Peakhour creates on its own will carry only the wording and landing page of a creative you
                   approved, as you approved it &mdash; so until you approve one, it creates none. Ads you set up
                   yourself are not affected.{" "}
+                  {channelLine ? `${channelLine} ` : ""}
                   <Link href={CREATIVE_REVIEW_PATH} className="underline underline-offset-2">
                     Review your creatives
                   </Link>

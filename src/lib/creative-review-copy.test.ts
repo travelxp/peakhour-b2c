@@ -6,6 +6,7 @@ import {
   approvalDetail,
   approvedAssetsOffer,
   approvedAssetsWarning,
+  approvedByChannelLine,
   creativeActionError,
   emptyState,
   filterFor,
@@ -18,6 +19,7 @@ import {
 const S = (over: Partial<CreativesSummary> = {}): CreativesSummary => ({
   total: 0,
   inForce: 0,
+  inForceByPlatform: {},
   approvedUnusable: 0,
   approvable: 0,
   awaitingReview: 0,
@@ -169,6 +171,19 @@ describe("approvedAssetsWarning — on, with nothing in force", () => {
     expect(approvedAssetsWarning(S(), false)).toBeNull();
     expect(approvedAssetsWarning(S({ total: 1, inForce: 1 }), true)).toBeNull();
     expect(approvedAssetsWarning(undefined, true)).toBeNull();
+  });
+});
+
+describe("approvedByChannelLine — an approval covers its own channel only (api review R2)", () => {
+  it("★★names each channel with a usable approved creative, and says others need their own", () => {
+    expect(approvedByChannelLine(S({ inForce: 3, inForceByPlatform: { linkedin: 2, google_ads: 1 } }))).toBe(
+      "Approved creatives Peakhour can use: LinkedIn (2), Google Ads (1). An ad on any other channel needs a creative approved for that channel.",
+    );
+  });
+  it("nothing when none is in force, or unknown", () => {
+    expect(approvedByChannelLine(S())).toBeNull();
+    expect(approvedByChannelLine(S({ inForceByPlatform: { linkedin: 0 } }))).toBeNull();
+    expect(approvedByChannelLine(undefined)).toBeNull();
   });
 });
 
