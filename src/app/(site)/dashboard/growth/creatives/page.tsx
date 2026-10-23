@@ -169,13 +169,14 @@ function CreativeList({
   more,
 }: {
   items: CreativeReviewItem[];
-  summary: Parameters<typeof emptyState>[0];
+  summary: Parameters<typeof emptyState>[0] | null;
   filterKey: Parameters<typeof emptyState>[1];
   onChanged: () => void;
   more: React.ReactNode;
 }) {
   if (items.length === 0) {
-    const e = emptyState(summary, filterKey);
+    // The first page always carries the summary; without one, claim nothing more than this view.
+    const e = summary ? emptyState(summary, filterKey) : { title: "No creatives", body: "No creative is in this view." };
     return (
       <Card>
         <CardContent className="space-y-2 p-6">

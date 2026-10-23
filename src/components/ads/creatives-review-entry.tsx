@@ -20,7 +20,12 @@ export function useCreativesSummary() {
   return useQuery({
     queryKey: CREATIVES_SUMMARY_KEY,
     // The summary covers the whole business whatever the page; one row is the smallest page.
-    queryFn: async () => (await growthApi.listCreatives({ limit: 1 })).summary,
+    queryFn: async () => {
+      // A first page (no `before`) always carries it.
+      const s = (await growthApi.listCreatives({ limit: 1 })).summary;
+      if (!s) throw new Error("The creatives summary was missing.");
+      return s;
+    },
     staleTime: 60_000,
     refetchOnWindowFocus: false,
   });

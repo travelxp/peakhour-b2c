@@ -1072,6 +1072,8 @@ export interface CreativeReviewItem {
   rationale: string | null;
   retiredReason: string | null;
   approvalState: CreativeApprovalState;
+  /** Why no ad can use this creative, approved or not (api `creativeCoverageGap`). */
+  coverageGap: "no_landing_page" | "no_headline" | null;
   approval: { at: string | null; byYou: boolean } | null;
   /** The api's own rule for what its approval writer accepts now. */
   canApprove: boolean;
@@ -1083,9 +1085,11 @@ export interface CreativeReviewItem {
 export interface CreativesSummary {
   /** 0 = Peakhour has never generated a creative for this business. */
   total: number;
-  /** Approved as they read now — what the engine may use. */
+  /** Approved as they read now, and usable in an ad — what the engine may use. */
   inForce: number;
-  /** A person could approve now. */
+  /** Approved as they read now, but missing a landing page or a headline. */
+  approvedUnusable: number;
+  /** A person could approve now, and an ad could then use. */
   approvable: number;
   changedSinceApproved: number;
 }
@@ -1093,5 +1097,6 @@ export interface CreativesSummary {
 export interface CreativesPage {
   creatives: CreativeReviewItem[];
   nextCursor: string | null;
-  summary: CreativesSummary;
+  /** The first page only (`before` absent); null on a continuation page. */
+  summary: CreativesSummary | null;
 }

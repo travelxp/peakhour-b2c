@@ -56,8 +56,13 @@ export type BadgeTone = "approved" | "changed" | "pending" | "muted";
  * still has status "approved" (or deployed/paused), and the engine no longer
  * uses it.
  */
-export function approvalBadge(item: Pick<CreativeReviewItem, "approvalState" | "status">): { label: string; tone: BadgeTone } {
-  if (item.approvalState === "approved") return { label: "Approved", tone: "approved" };
+export function approvalBadge(
+  item: Pick<CreativeReviewItem, "approvalState" | "status" | "coverageGap">,
+): { label: string; tone: BadgeTone } {
+  if (item.approvalState === "approved") {
+    // ★Approved, but no ad can use it (api review R1): not a green badge.
+    return item.coverageGap ? { label: "Approved — can't be used", tone: "changed" } : { label: "Approved", tone: "approved" };
+  }
   if (item.approvalState === "changed_since_approved") return { label: "Changed since approved", tone: "changed" };
   switch (item.status) {
     case "generating":
@@ -69,18 +74,25 @@ export function approvalBadge(item: Pick<CreativeReviewItem, "approvalState" | "
   }
 }
 
+const GAP_REASON: Readonly<Record<NonNullable<CreativeReviewItem["coverageGap"]>, string>> = {
+  no_landing_page: "it has no landing page",
+  no_headline: "it has no headline",
+};
+
 /**
  * One sentence on what the state means for the engine, and what the merchant
  * can do. `when` is the approval's date, already formatted for the reader.
  */
 export function approvalDetail(
-  item: Pick<CreativeReviewItem, "approvalState" | "status" | "approval" | "canApprove" | "preflight">,
+  item: Pick<CreativeReviewItem, "approvalState" | "status" | "approval" | "canApprove" | "preflight" | "coverageGap">,
   when: string | null,
 ): string {
   const by = item.approval ? (item.approval.byYou ? "by you" : "by someone on your team") : "";
   const on = when ? ` on ${when}` : "";
   if (item.approvalState === "approved") {
-    return `Approved ${by}${on}. Peakhour may use it in ads it creates, exactly as it reads here.`;
+    return item.coverageGap
+      ? `Approved ${by}${on}, but no ad can use it: ${GAP_REASON[item.coverageGap]}.`
+      : `Approved ${by}${on}. Peakhour may use it in ads it creates, exactly as it reads here.`;
   }
   if (item.approvalState === "changed_since_approved") {
     return item.canApprove
@@ -170,6 +182,7 @@ export function reviewEntryLine(summary: CreativesSummary): string {
   const parts: string[] = [];
   if (summary.approvable > 0) parts.push(`${summary.approvable} waiting for your review`);
   if (summary.inForce > 0) parts.push(`${summary.inForce} approved`);
+  if (summary.approvedUnusable > 0) parts.push(`${summary.approvedUnusable} approved but unusable`);
   if (summary.changedSinceApproved > 0) parts.push(`${summary.changedSinceApproved} changed since approved`);
   return parts.length ? `${parts.join(" · ")}.` : `${summary.total} creative${summary.total === 1 ? "" : "s"}, none to review.`;
 }

@@ -17,17 +17,19 @@ import {
 const S = (over: Partial<CreativesSummary> = {}): CreativesSummary => ({
   total: 0,
   inForce: 0,
+  approvedUnusable: 0,
   approvable: 0,
   changedSinceApproved: 0,
   ...over,
 });
-type Item = Pick<CreativeReviewItem, "approvalState" | "status" | "approval" | "canApprove" | "preflight">;
+type Item = Pick<CreativeReviewItem, "approvalState" | "status" | "approval" | "canApprove" | "preflight" | "coverageGap">;
 const item = (over: Partial<Item> = {}): Item => ({
   approvalState: "not_approved",
   status: "review",
   approval: null,
   canApprove: true,
   preflight: null,
+  coverageGap: null,
   ...over,
 });
 
@@ -50,6 +52,30 @@ describe("approvalBadge — ★the api's state, never the status", () => {
     expect(approvalBadge(item({ status: "deployed" }))).toEqual({ label: "Not approved", tone: "pending" });
     expect(approvalBadge(item({ status: "generating" }))).toEqual({ label: "Being generated", tone: "muted" });
     expect(approvalBadge(item({ status: "retired" }))).toEqual({ label: "Retired", tone: "muted" });
+  });
+});
+
+describe("★★approved, but no ad can use it (api review R1)", () => {
+  it("★★never the green badge, and says why", () => {
+    for (const coverageGap of ["no_landing_page", "no_headline"] as const) {
+      expect(approvalBadge(item({ approvalState: "approved", status: "approved", coverageGap }))).toEqual({
+        label: "Approved — can't be used",
+        tone: "changed",
+      });
+    }
+    expect(
+      approvalDetail(item({ approvalState: "approved", status: "approved", coverageGap: "no_landing_page", approval: { at: "x", byYou: true } }), "d"),
+    ).toBe("Approved by you on d, but no ad can use it: it has no landing page.");
+    expect(
+      approvalDetail(item({ approvalState: "approved", status: "approved", coverageGap: "no_headline", approval: { at: "x", byYou: true } }), null),
+    ).toBe("Approved by you, but no ad can use it: it has no headline.");
+  });
+  it("the hub line counts them apart", () => {
+    expect(reviewEntryLine(S({ total: 2, inForce: 1, approvedUnusable: 1 }))).toBe("1 approved · 1 approved but unusable.");
+  });
+  it("★★none usable in force: the switch is not offered, and the warning stands", () => {
+    expect(approvedAssetsOffer(S({ total: 1, approvedUnusable: 1 }), false)).toBe("nothing_to_approve");
+    expect(approvedAssetsWarning(S({ total: 1, approvedUnusable: 1 }), true)).not.toBeNull();
   });
 });
 
