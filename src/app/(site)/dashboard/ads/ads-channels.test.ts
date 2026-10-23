@@ -38,7 +38,8 @@ describe("resolveAdsChannel", () => {
   });
 
   it("ignores an unknown or empty param instead of rendering a blank hub", () => {
-    expect(resolveAdsChannel("google", new Set(["x_ads"]))).toBe("x");
+    // `google` is a channel since G-15; `tiktok` is not one.
+    expect(resolveAdsChannel("tiktok", new Set(["x_ads"]))).toBe("x");
     expect(resolveAdsChannel("", new Set(["x_ads"]))).toBe("x");
     // Keys are matched exactly — no case folding.
     expect(resolveAdsChannel("LinkedIn", new Set(["x_ads"]))).toBe("x");
@@ -49,7 +50,8 @@ describe("isAdsChannelKey", () => {
   it("accepts registered keys only", () => {
     expect(isAdsChannelKey("linkedin")).toBe(true);
     expect(isAdsChannelKey("x")).toBe(true);
-    expect(isAdsChannelKey("google")).toBe(false);
+    expect(isAdsChannelKey("google")).toBe(true);
+    expect(isAdsChannelKey("tiktok")).toBe(false);
     expect(isAdsChannelKey(null)).toBe(false);
     expect(isAdsChannelKey(undefined)).toBe(false);
   });
@@ -70,7 +72,7 @@ describe("ADS_CHANNELS registry", () => {
   it("carries the provider keys the Content hub catalog routes from", () => {
     // Regression guard: these must match cfg_integrations.key /
     // int_connections.provider, or the hub can't tell connected from not.
-    expect(ADS_CHANNELS.map((c) => c.providerKey)).toEqual(["linkedin_ads", "x_ads", "meta_ads"]);
+    expect(ADS_CHANNELS.map((c) => c.providerKey)).toEqual(["linkedin_ads", "x_ads", "meta_ads", "google_ads"]);
   });
 });
 
@@ -98,7 +100,7 @@ describe("nextAdsHubSearch", () => {
   });
 
   it("overwrites an invalid or absent channel", () => {
-    expect(nextAdsHubSearch(search("channel=google"), "x")).toBe("channel=x");
+    expect(nextAdsHubSearch(search("channel=tiktok"), "x")).toBe("channel=x");
     expect(nextAdsHubSearch(search(""), "x")).toBe("channel=x");
   });
 
@@ -294,7 +296,7 @@ describe("★★M-16 connectedAdsProviderKeys", () => {
    * a panel whose queries moved into a child component would otherwise pass
    * on an almost empty set, with the registry trimmed to match.
    */
-  const MIN_PANEL_QUERIES: Record<string, number> = { linkedin: 2, meta: 7, x: 5 };
+  const MIN_PANEL_QUERIES: Record<string, number> = { linkedin: 2, meta: 7, x: 5, google: 3 };
   for (const channel of ADS_CHANNELS) {
     it(`★★b2c#573 the ${channel.key} toolbar refreshes exactly the queries its panel file makes`, () => {
       const prefixes = panelQueryPrefixes(channel.key);
@@ -308,6 +310,10 @@ describe("★★M-16 connectedAdsProviderKeys", () => {
       expect(refreshed.filter((p) => !prefixes.includes(p)), "refreshed but never made").toEqual([]);
     });
   }
+
+  it("★G-15 leaving the Google tab drops its customer param", () => {
+    expect(nextAdsHubSearch(new URLSearchParams("channel=google&customer=1234567890"), "meta")).toBe("channel=meta");
+  });
 
   it("★M-16 leaving the Meta tab drops its ad-account param", () => {
     expect(nextAdsHubSearch(new URLSearchParams("channel=meta&adAccount=act_1"), "x")).toBe(
@@ -388,7 +394,7 @@ describe("★D-03b adsChannelConnectionState — the one rule every panel reads"
     return { calls, statusCompares };
   };
 
-  it.each(["linkedin", "x", "meta"])(
+  it.each(["linkedin", "x", "meta", "google"])(
     "★★the %s panel asks panelConnection and reads no row's status or connected flag itself",
     (key) => {
       const { calls, statusCompares } = scan(key);

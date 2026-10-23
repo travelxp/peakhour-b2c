@@ -2,7 +2,7 @@
 
 /**
  * Ads hub — ONE surface for every ad channel, selected with a tab filter
- * rather than a route per platform (`?channel=linkedin|x|meta`). Each channel
+ * rather than a route per platform (`?channel=linkedin|x|meta|google`). Each channel
  * contributes a panel under `_components/` and an entry in
  * `ads-channels.ts`; the Content hub's "Manage" deep-links here with the
  * channel pre-selected.
@@ -30,6 +30,7 @@ import { AudienceExclusionsCard } from "@/components/ads/audience-exclusions-car
 import { LinkedInAdsPanel } from "./_components/linkedin-ads-panel";
 import { XAdsPanel } from "./_components/x-ads-panel";
 import { MetaAdsPanel } from "./_components/meta-ads-panel";
+import { GoogleAdsPanel } from "./_components/google-ads-panel";
 import {
   ADS_CHANNELS,
   ADS_CHANNEL_PARAM,
@@ -62,6 +63,7 @@ const PANELS: Record<
   linkedin: LinkedInAdsPanel,
   x: XAdsPanel,
   meta: MetaAdsPanel,
+  google: GoogleAdsPanel,
 };
 
 /** Every channel's crons — used while the resolved channel isn't known yet. */
@@ -169,7 +171,7 @@ function AdsHub() {
 
   // Pin the resolved channel into the URL once connections are KNOWN. Buys
   // three things: the panel can't silently switch under the user when a
-  // focus-refetch changes connection state, an invalid `?channel=google` gets
+  // focus-refetch changes connection state, an invalid `?channel=tiktok` gets
   // normalised away instead of lingering, and the tab highlight stops depending
   // on a pending router transition.
   //

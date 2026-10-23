@@ -1007,6 +1007,48 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
     },
   },
 
+  // ── Google Ads quota (G-10) ─────────────────────────────────────────
+
+  "google-ads-ops-watch": {
+    label: "Watch Google Ads API usage (daily)",
+    frequency: "Runs daily at 00:20 UTC",
+    description:
+      "Sums the Google Ads API operations PeakHour sent in the last 24 hours (Google's own 'per day') " +
+      "against the project's access level — warn at 60%, alarm at 80% — and logs a line when the total " +
+      "crosses a line or Google refused requests for quota. Once a day it also reads the 30-day trend and says when to apply for the next access level. It changes nothing.",
+    summarize: (data) => summarizeGoogleAdsOps(data, { daily: true }),
+  },
+
+  "google-ads-ops-watch-intraday": {
+    label: "Watch Google Ads API usage (intraday)",
+    frequency: "Runs at 06:20, 12:20 and 18:20 UTC",
+    description:
+      "Sums the Google Ads API operations PeakHour sent in the last 24 hours (Google's own 'per day') " +
+      "against the project's access level — warn at 60%, alarm at 80% — and logs a line when the total " +
+      "crosses a line or Google refused requests for quota. It changes nothing.",
+    summarize: (data) => summarizeGoogleAdsOps(data),
+  },
+
+  // ── Reconnect alerts (D-04b) and the Portfolio Allocator (C-05) ─────
+
+  "connection-reauth-alerts": {
+    label: "Send reconnect alerts",
+    frequency: "Runs hourly at :40",
+    description:
+      "Tells a business once each time one of its connections needs reconnecting (connection_needs_reauth), " +
+      "oldest first. It reads only connections whose entry into needs-reauth has not been alerted, claims each " +
+      "before sending, and stops starting new sends after three minutes.",
+  },
+
+  "portfolio-allocator": {
+    label: "Propose a weekly budget split",
+    frequency: "Runs hourly on Mondays, 04:00–23:00 UTC",
+    description:
+      "Once per business per week, proposes how to split the unchanged ad budget across channels — proposals " +
+      "only, nothing is applied. It refuses to rank channels whose conversions are measured differently, and " +
+      "records why when it makes no proposal.",
+  },
+
   // ── Billing + money ────────────────────────────────────────────────
   // Undocumented until now because none of them could be triggered at all
   // (peakhour-api#1017). Which of these need an explicit confirmation is NOT
@@ -1499,4 +1541,30 @@ export function summarizeCronBody(
     // Malformed / truncated body — defer to the generic toast.
     return null;
   }
+}
+
+/**
+ * G-10's watch, in one line: the last 24 hours against the ceiling, and the
+ * forecast when the daily run read it. ★An absent figure is not zero: a
+ * response without `last24h.operations` says nothing (null).
+ */
+export function summarizeGoogleAdsOps(data: unknown, run: { daily: boolean } = { daily: false }): CronSummary | null {
+  const d = asRecord(data);
+  const last = d ? asRecord(d.last24h) : null;
+  if (!d || !last || typeof last.operations !== "number" || typeof d.ceiling !== "number") return null;
+  const ops = last.operations;
+  const level = typeof d.level === "string" ? d.level : "the current level";
+  const pct = d.ceiling > 0 && Number.isFinite(d.ceiling) ? ` (${Math.round((ops / d.ceiling) * 100)}% of ${level}'s ${d.ceiling.toLocaleString("en-US")})` : "";
+  const forecast = asRecord(d.forecast);
+  // ★Only the daily run says the forecast (review round 2), as the watch
+  //  does — read from the response's own `dailyRun` when it says (round 3).
+  const daily = typeof d.dailyRun === "boolean" ? d.dailyRun : run.daily;
+  const trigger = daily && forecast?.status === "trigger";
+  const message =
+    `${ops.toLocaleString("en-US")} Google Ads operations in the last 24 hours${pct}.` +
+    (trigger ? " The 30-day trend says it is time to apply for the next access level." : "");
+  const band = last.band;
+  return band === "alarm" || band === "warn" || trigger || (typeof d.refusedThisRun === "number" && d.refusedThisRun > 0)
+    ? { message, level: "warning" as const }
+    : message;
 }
