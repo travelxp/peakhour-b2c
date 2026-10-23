@@ -199,10 +199,17 @@ export const CHANNELS: readonly ChannelConfig[] = [
   {
     slug: "google-ads",
     name: "Google Ads",
-    description: "Run search and display campaigns from approved creative.",
+    // ★G-15: Search only — the api creates nothing else, so the catalog must
+    //  not promise any other campaign type (the plan's G-15 row).
+    description: "Create Google Search campaigns, paused until you start them.",
     category: "Ads",
     providerKey: "google_ads",
+    // ⏸`status` is NOT promoted here: going live is the owner's call after
+    //  G-09's live drill. The api's seed-platform-catalog reads the path, and
+    //  peakhour-mongodb mig 473 (#956, merged after this) applies it to
+    //  existing catalogs, as 358 did for Meta.
     status: "coming_soon",
+    dashboardPath: "/dashboard/ads?channel=google",
   },
   // Every ad channel manages inside the ONE Ads hub, selected by `?channel=`
   // — see dashboard/ads/ads-channels.ts. No page-per-platform.
